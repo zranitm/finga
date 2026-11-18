@@ -1,0 +1,5 @@
+{
+  "pvp_unqueued": {
+    "reason": "PVP_UNQUEUE_REASON_PARTY_CHANGED"
+  }
+}

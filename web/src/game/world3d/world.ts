@@ -68,7 +68,7 @@ import { Arrival } from '../systems/arrival';
 import type { Held, Spot } from '../systems/arrival';
 import { ChainMemory, liveSkill } from '../systems/chains';
 import type { ChainNow } from '../systems/chains';
-import { InvulnFlash, parseRef } from '../systems/combat-view';
+import { InvulnFlash, lockedMob, mobLock, parseRef } from '../systems/combat-view';
 import type { Ref } from '../systems/combat-view';
 import { departure, DropTracker } from '../systems/drops';
 import type { DropChanges, Point } from '../systems/drops';
@@ -1389,7 +1389,7 @@ export class World {
       return;
     }
     const { yaw: aim, target } = this.aimFor(false);
-    if (!this.deps.socket.sendAction('attack', { aim, target })) {
+    if (!this.deps.socket.sendAction('attack', { aim, target: mobLock(target) })) {
       return;
     }
     teleport.getState().end(); // an attack starting cancels the channel
@@ -1474,7 +1474,7 @@ export class World {
           beats,
           playerBody(at.x, at.y, at.z),
           d.aim,
-          d.target,
+          lockedMob(d.target),
         );
       }
       return;
@@ -1631,7 +1631,7 @@ export class World {
             skill,
             chainRoot: root,
             aim: this.myAim?.yaw ?? 0,
-            target: this.myAim?.target ?? 0,
+            target: mobLock(this.myAim?.target ?? 0),
             ...(this.myWay && { way: this.myWay }),
           },
           socket.sequence,

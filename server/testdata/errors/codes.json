@@ -628,5 +628,71 @@
     "name": "CHAT_RATE_LIMITED",
     "status": 429,
     "message": "too many chat lines; slow down"
+  },
+  {
+    "code": 550001,
+    "name": "PVP_NOT_PROMOTED",
+    "status": 409,
+    "message": "only a promoted character can fight in PvP"
+  },
+  {
+    "code": 550002,
+    "name": "PVP_ALREADY_QUEUED",
+    "status": 409,
+    "message": "already in a PvP queue"
+  },
+  {
+    "code": 550003,
+    "name": "PVP_NOT_QUEUED",
+    "status": 409,
+    "message": "not in a PvP queue"
+  },
+  {
+    "code": 550004,
+    "name": "PVP_PARTY_TOO_BIG",
+    "status": 409,
+    "message": "the party is larger than the mode allows"
+  },
+  {
+    "code": 550005,
+    "name": "PVP_PARTY_NOT_READY",
+    "status": 409,
+    "message": "a party member is offline, not promoted, in a match or queued"
+  },
+  {
+    "code": 550006,
+    "name": "PVP_IN_MATCH",
+    "status": 409,
+    "message": "not while in a match"
+  },
+  {
+    "code": 550007,
+    "name": "PVP_OFFER_GONE",
+    "status": 409,
+    "message": "that offer lapsed or was declined"
+  },
+  {
+    "code": 550008,
+    "name": "PVP_NOT_IN_MATCH",
+    "status": 409,
+    "message": "not in a match"
+  },
+  {
+    "code": 550009,
+    "name": "MATCH_NOT_STARTED",
+    "status": 409,
+    "message": "the round hasn't started"
+  },
+  {
+    "code": 550010,
+    "name": "BAD_PVP_BUILD",
+    "status": 400,
+    "message": "an arena build has eight keys, each empty or one of the class's active skills, with each trait one of its skill's"
+  },
+  {
+    "code": 550011,
+    "name": "PVP_UNKNOWN_MODE",
+    "status": 400,
+    "message": "unknown PvP mode"
   }
 ]

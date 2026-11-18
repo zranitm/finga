@@ -43,7 +43,7 @@ type service interface {
 	Leave(ctx context.Context, id kernel.CharacterID, conn string) error
 	Offline(ctx context.Context, id kernel.CharacterID, do func(ctx context.Context) error) (bool, error)
 	Input(id kernel.CharacterID, conn string, seq uint32, in sim.Input, view uint32) error
-	Attack(id kernel.CharacterID, conn string, aim float32, target uint32) error
+	Attack(id kernel.CharacterID, conn string, aim float32, target model.EntityRef) error
 	EnterPortal(id kernel.CharacterID, conn string) error
 	Say(id kernel.CharacterID, conn, name, text string) error
 	Equip(ctx context.Context, id kernel.CharacterID, conn, key string, item kernel.ItemID, equipSlot string) error
@@ -235,11 +235,11 @@ func (m *Module) Input(ctx context.Context, p Presence, seq uint32, in sim.Input
 	return m.svc.Input(p.Character, p.Conn, seq, in, view)
 }
 
-// Attack queues a basic attack aimed along a yaw, radians from north toward east, at the locked mob target first (0 for none).
-func (m *Module) Attack(ctx context.Context, p Presence, aim float32, target uint32) (err error) {
+// Attack queues a basic attack aimed along a yaw, radians from north toward east, at the lock target first (zero for none).
+func (m *Module) Attack(ctx context.Context, p Presence, aim float32, target EntityRef) (err error) {
 	_, call := m.calls.Start(ctx, "Attack")
 	defer call.End(&err)
-	return m.svc.Attack(p.Character, p.Conn, aim, target)
+	return m.svc.Attack(p.Character, p.Conn, aim, model.EntityRef(target))
 }
 
 // EnterPortal takes the portal the character stands in.
@@ -309,7 +309,8 @@ func (m *Module) ChooseTrait(ctx context.Context, p Presence, skill, trait strin
 func (m *Module) UseSkill(ctx context.Context, p Presence, use SkillUse, seq uint32) (err error) {
 	ctx, call := m.calls.Start(ctx, "UseSkill")
 	defer call.End(&err)
-	return m.svc.UseSkill(ctx, p.Character, p.Conn, model.SkillUse(use), seq)
+	in := model.SkillUse{Skill: use.Skill, Root: use.Root, Aim: use.Aim, Target: model.EntityRef(use.Target), Way: use.Way}
+	return m.svc.UseSkill(ctx, p.Character, p.Conn, in, seq)
 }
 
 // Teleport starts a teleport channel to the map with input seq and answers once it has started; the hand-off comes as a Teleport at its end, or a TeleportCancelled.

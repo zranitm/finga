@@ -250,7 +250,7 @@ func TestATeleportIsCancelled(t *testing.T) {
 			p.Connection = "c1"
 			s := join(t, inst, p)
 			teleport(t, inst, s, p.ID, "forest", 0)
-			_ = inst.Attack(p.ID, 0, 0)
+			_ = inst.Attack(p.ID, 0, model.EntityRef{})
 			tick(1)
 			if len(eventsOf[model.AttackUsed](s)) != 1 {
 				t.Fatal("the attack didn't start")

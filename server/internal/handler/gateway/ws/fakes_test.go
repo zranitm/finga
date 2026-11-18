@@ -248,7 +248,7 @@ type (
 	attackCall struct {
 		p      world.Presence
 		aim    float32
-		target uint32
+		target world.EntityRef
 	}
 	sayCall struct {
 		p          world.Presence
@@ -499,7 +499,7 @@ func (f *fakeWorld) Input(_ context.Context, p world.Presence, seq uint32, in si
 	return nil
 }
 
-func (f *fakeWorld) Attack(ctx context.Context, p world.Presence, aim float32, target uint32) (err error) {
+func (f *fakeWorld) Attack(ctx context.Context, p world.Presence, aim float32, target world.EntityRef) (err error) {
 	f.ops.Add(1)
 	ctx, call := worldCalls.Start(ctx, "Attack")
 	defer call.End(&err)

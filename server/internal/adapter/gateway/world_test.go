@@ -70,7 +70,7 @@ type (
 		Skill  string
 		Root   string
 		Aim    float32
-		Target uint32
+		Target world.EntityRef
 		Way    sim.Way
 		Seq    uint32
 	}
@@ -80,7 +80,7 @@ type (
 	}
 	aimArgs struct {
 		Aim    float32
-		Target uint32
+		Target world.EntityRef
 	}
 	resetArgs struct{ Expected int }
 )
@@ -102,7 +102,7 @@ func (w *worldModule) Input(_ context.Context, p world.Presence, seq uint32, in 
 	return w.record(p, inputArgs{seq, in, view})
 }
 
-func (w *worldModule) Attack(_ context.Context, p world.Presence, aim float32, target uint32) error {
+func (w *worldModule) Attack(_ context.Context, p world.Presence, aim float32, target world.EntityRef) error {
 	return w.record(p, aimArgs{aim, target})
 }
 
@@ -209,7 +209,7 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 			Skill     string
 			ChainRoot string
 			Aim       float32
-			Target    uint32
+			Target    model.Target
 			Way       model.Way
 			Seq       uint32
 		}
@@ -219,7 +219,7 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 		}
 		aimed struct {
 			Aim    float32
-			Target uint32
+			Target model.Target
 		}
 		expected  struct{ Expected int }
 		npc       struct{ NPC string }
@@ -237,7 +237,7 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 			})
 		},
 		"Attack": func() []string {
-			return worldCall[aimed, aimArgs](w, nil, func(p model.Presence, in aimed) error { return a.Attack(ctx, p, in.Aim, in.Target) })
+			return worldCall[aimed, aimArgs](w, map[string]string{"In.Target.Character": "Args.Target.Player"}, func(p model.Presence, in aimed) error { return a.Attack(ctx, p, in.Aim, in.Target) })
 		},
 		"EnterPortal": func() []string {
 			return worldCall[struct{}, struct{}](w, nil, func(p model.Presence, _ struct{}) error { return a.EnterPortal(ctx, p) })
@@ -265,7 +265,7 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 			return worldCall[model.TraitChoice, traitArgs](w, nil, func(p model.Presence, in model.TraitChoice) error { return a.ChooseTrait(ctx, p, in) })
 		},
 		"UseSkill": func() []string {
-			return worldCall[skill, skillArgs](w, map[string]string{"In.ChainRoot": "Args.Root"}, func(p model.Presence, in skill) error {
+			return worldCall[skill, skillArgs](w, map[string]string{"In.ChainRoot": "Args.Root", "In.Target.Character": "Args.Target.Player"}, func(p model.Presence, in skill) error {
 				return a.UseSkill(ctx, p, model.SkillUse{Skill: in.Skill, ChainRoot: in.ChainRoot, Aim: in.Aim, Target: in.Target, Way: in.Way}, in.Seq)
 			})
 		},

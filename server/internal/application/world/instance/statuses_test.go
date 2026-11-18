@@ -243,7 +243,7 @@ func TestAStunKeepsAPlayerFromActingAndTheNextTakes(t *testing.T) {
 		if err := cast(inst, p.ID, "rally"); !errors.Is(err, model.ErrCantAct) {
 			t.Fatalf("a skill while stunned: %v, want CANT_ACT", err)
 		}
-		_ = inst.Attack(p.ID, 0, 0)
+		_ = inst.Attack(p.ID, 0, model.EntityRef{})
 		tick(2)
 		if n := attacksBy(s, p.ID); n != 0 {
 			t.Fatalf("%d attacks swung while stunned, want none", n)
@@ -271,7 +271,7 @@ func TestASilencedPlayerStillAttacks(t *testing.T) {
 		if err := cast(inst, p.ID, "strike"); !errors.Is(err, model.ErrSilenced) {
 			t.Fatalf("a skill while silenced: %v, want SILENCED", err)
 		}
-		_ = inst.Attack(p.ID, 0, 0)
+		_ = inst.Attack(p.ID, 0, model.EntityRef{})
 		tick(2)
 		if n := attacksBy(s, p.ID); n != 1 {
 			t.Fatalf("%d attacks swung while silenced, want 1", n)
@@ -409,7 +409,7 @@ func TestArmourBreakAndWeakenOnAPlayer(t *testing.T) {
 		p := statusCaster()
 		s := join(t, inst, p)
 		mobHitsOn(t, s, p.ID, 1)
-		_ = inst.Attack(p.ID, 0, 0)
+		_ = inst.Attack(p.ID, 0, model.EntityRef{})
 		tick(20)
 		warrior, _ := data.Class("warrior")
 		slime, _ := data.Mob("green_slime")
@@ -514,7 +514,7 @@ func TestAPlayersPoisonIsTheirs(t *testing.T) {
 			t.Fatal(err)
 		}
 		tick(21) // Venom's action
-		_ = inst.Attack(p.ID, 0, 0)
+		_ = inst.Attack(p.ID, 0, model.EntityRef{})
 		tick(45)
 		var mine []model.Damage
 		for _, d := range damages(s) {
@@ -550,7 +550,7 @@ func TestLeavingEndsAPlayersPoison(t *testing.T) {
 			t.Fatal(err)
 		}
 		tick(21)
-		_ = inst.Attack(p.ID, 0, 0)
+		_ = inst.Attack(p.ID, 0, model.EntityRef{})
 		tick(10) // the swing has landed, its poison not yet ticked
 		theirs := func() int {
 			n := 0

@@ -104,7 +104,7 @@ func TestATraitOpensAtTheLastStageAndWaitsOutAFight(t *testing.T) {
 		if m := l.Nearest("green_slime"); !stunned && !time.Now().Before(next) && m != nil && math.Hypot(m.GetX()-l.X, m.GetZ()-l.Z) < 2 {
 			req := fmt.Sprintf("strike-%d", len(strikes))
 			strikes, next = append(strikes, req), time.Now().Add(7500*time.Millisecond) // Concussion's 7 s cooldown
-			l.Send(wsconn.Message{ReqID: req, Seq: l.Seq, Data: &clientv1.UseSkill{Skill: "strike", ChainRoot: "strike", Aim: l.AimAt(m), Target: m.GetId()}})
+			l.Send(wsconn.Message{ReqID: req, Seq: l.Seq, Data: &clientv1.UseSkill{Skill: "strike", ChainRoot: "strike", Aim: l.AimAt(m), Target: e2etest.MobRef(m.GetId())}})
 		}
 		if stunned && used != "" && answers["fight"] == nil {
 			l.Send(wsconn.Message{ReqID: "fight", Data: &clientv1.ChooseTrait{Skill: "strike", Trait: "swift"}})

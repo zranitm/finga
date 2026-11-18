@@ -97,7 +97,7 @@ func adept(x, z float64) model.Player {
 func useAt(inst *instance.Instance, id kernel.CharacterID, skill string, aim float32, target uint32) <-chan error {
 	done := make(chan error, 1)
 	go func() {
-		done <- inst.UseSkill(context.Background(), id, "c1", model.SkillUse{Skill: skill, Root: skill, Aim: aim, Target: target}, 0)
+		done <- inst.UseSkill(context.Background(), id, "c1", model.SkillUse{Skill: skill, Root: skill, Aim: aim, Target: mobRef(target)}, 0)
 	}()
 	return done
 }
@@ -182,7 +182,7 @@ func TestAnAreaAtTheLockCentresOnTheLockWithinReach(t *testing.T) {
 				if got := len(blowsBy(s, p.ID)) > 0; got != c.hit {
 					t.Fatalf("struck the slime %v, want %v", got, c.hit)
 				}
-				if used := eventsOf[model.SkillUsed](s); len(used) != 1 || used[0].Target != lock {
+				if used := eventsOf[model.SkillUsed](s); len(used) != 1 || used[0].Target != mobRef(lock) {
 					t.Fatalf("skill uses told %+v, want one naming the lock %d", used, lock)
 				}
 			})

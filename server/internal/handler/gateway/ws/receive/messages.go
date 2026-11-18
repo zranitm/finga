@@ -3,6 +3,8 @@ package receive
 import (
 	"errors"
 	"math"
+	"strconv"
+	"strings"
 	"time"
 
 	clientv1 "finga/api/gen/client/v1"
@@ -52,7 +54,33 @@ func (h *Handler) attack(c *msgContext, in *clientv1.Attack) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return nil, h.gw.Attack(c.Ctx, c.Session.session, aim, in.GetTarget())
+	target, err := targetOf(in.GetTarget())
+	if err != nil {
+		return nil, err
+	}
+	return nil, h.gw.Attack(c.Ctx, c.Session.session, aim, target)
+}
+
+// targetOf is a lock as the client names it: "m:<mob id>" or "p:<character id>", empty for none.
+func targetOf(ref string) (model.Target, error) {
+	if ref == "" {
+		return model.Target{}, nil
+	}
+	if id, ok := strings.CutPrefix(ref, "m:"); ok {
+		mob, err := strconv.ParseUint(id, 10, 64)
+		if err != nil || mob == 0 {
+			return model.Target{}, kernel.ErrBadID
+		}
+		return model.Target{Mob: mob}, nil
+	}
+	if id, ok := strings.CutPrefix(ref, "p:"); ok {
+		character, err := kernel.ParseCharacterID(id)
+		if err != nil {
+			return model.Target{}, err
+		}
+		return model.Target{Character: character}, nil
+	}
+	return model.Target{}, kernel.ErrBadID
 }
 
 // aimOf is a yaw an attack or a skill aims along, refused unless finite.
@@ -157,8 +185,12 @@ func (h *Handler) useSkill(c *msgContext, in *clientv1.UseSkill) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	target, err := targetOf(in.GetTarget())
+	if err != nil {
+		return nil, err
+	}
 	w := in.GetWay()
-	use := model.SkillUse{Skill: in.GetSkill(), ChainRoot: in.GetChainRoot(), Aim: aim, Target: in.GetTarget(), Way: model.Way{X: w.GetX(), Z: w.GetZ(), Length: w.GetLength()}}
+	use := model.SkillUse{Skill: in.GetSkill(), ChainRoot: in.GetChainRoot(), Aim: aim, Target: target, Way: model.Way{X: w.GetX(), Z: w.GetZ(), Length: w.GetLength()}}
 	return nil, h.gw.UseSkill(c.Ctx, c.Session.session, use, c.Message.Seq)
 }
 

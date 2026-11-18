@@ -12,11 +12,11 @@ import (
 	"finga/internal/shared/sim"
 )
 
-// SkillUse is a press of a skill: the skill, its key's root (the skill itself on its own key), the yaw it aims along, the locked mob (0 for none), and a moving skill's way.
+// SkillUse is a press of a skill: the skill, its key's root (the skill itself on its own key), the yaw it aims along, the lock (zero for none), and a moving skill's way.
 type SkillUse struct {
 	Skill, Root string
 	Aim         float32
-	Target      uint32
+	Target      EntityRef
 	Way         sim.Way
 }
 

@@ -49,9 +49,9 @@ type player struct {
 	class        gamedata.Class
 	derived      progression.Derived
 	attackQueued bool
-	attackAim    float32 // the queued attack's
-	attackTarget uint32  // the queued attack's locked mob, 0 for none
-	aim          float32 // the yaw the latest action started aimed along
+	attackAim    float32         // the queued attack's
+	attackTarget model.EntityRef // the queued attack's lock, zero for none
+	aim          float32         // the yaw the latest action started aimed along
 	action       action
 	windUps      []windUp // hits still to land
 	invulnUntil  uint64   // shown: a hit's blink

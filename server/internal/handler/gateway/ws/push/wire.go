@@ -312,6 +312,14 @@ var questChanges = map[model.QuestChange]clientv1.QuestChange{
 	model.QuestAbandoned:  clientv1.QuestChange_QUEST_CHANGE_ABANDONED,
 }
 
+// lockRef is a lock as the client names it, empty for none.
+func lockRef(e model.Entity) string {
+	if e == (model.Entity{}) {
+		return ""
+	}
+	return entityRef(e)
+}
+
 // entityRef is how the client names a player or a mob: p:<character id> or m:<mob id>.
 func entityRef(e model.Entity) string {
 	if e.Character != "" {

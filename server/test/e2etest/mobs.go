@@ -1,6 +1,7 @@
 package e2etest
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -27,4 +28,12 @@ func (p *Player) WindupOf(t *testing.T, mob uint32, d time.Duration) uint64 {
 	}
 	t.Fatalf("no windup from mob %d in %s", mob, d)
 	return 0
+}
+
+// MobRef is the lock on mob id as a client sends it, empty for 0.
+func MobRef(id uint32) string {
+	if id == 0 {
+		return ""
+	}
+	return "m:" + strconv.FormatUint(uint64(id), 10)
 }

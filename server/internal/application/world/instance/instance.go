@@ -118,7 +118,7 @@ type (
 	attackMsg struct {
 		id     kernel.CharacterID
 		aim    float32
-		target uint32
+		target model.EntityRef
 	}
 	settleMsg struct{ result loot.Result }
 	portalMsg struct{ id kernel.CharacterID }
@@ -246,8 +246,8 @@ func (i *Instance) Input(id kernel.CharacterID, seq uint32, in sim.Input, view u
 	return i.post(inputMsg{id: id, seq: seq, in: in, view: view})
 }
 
-// Attack queues a basic attack aimed along a yaw, at the locked mob target first (0 for none); the tick enforces the cooldown.
-func (i *Instance) Attack(id kernel.CharacterID, aim float32, target uint32) error {
+// Attack queues a basic attack aimed along a yaw, at the lock target first (zero for none); the tick enforces the cooldown.
+func (i *Instance) Attack(id kernel.CharacterID, aim float32, target model.EntityRef) error {
 	return i.post(attackMsg{id: id, aim: aim, target: target})
 }
 

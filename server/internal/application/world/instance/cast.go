@@ -133,13 +133,13 @@ type use struct {
 	s      gamedata.Skill
 	points int
 	stage  int
-	trait  string         // the extra's id once it's open and chosen, else "" for the default
-	spec   gamedata.Stage // the stage with the trait, which the use resolves with
-	ready  uint64         // the tick its last cooldown ends
-	seq    uint32         // the input it was pressed during
-	aim    float32        // the yaw it aims along
-	target uint32         // the mob it hits first when its shape reaches it
-	way    sim.Way        // a moving skill's, its length held to the skill's distance
+	trait  string          // the extra's id once it's open and chosen, else "" for the default
+	spec   gamedata.Stage  // the stage with the trait, which the use resolves with
+	ready  uint64          // the tick its last cooldown ends
+	seq    uint32          // the input it was pressed during
+	aim    float32         // the yaw it aims along
+	target model.EntityRef // the lock it hits first when its shape reaches it
+	way    sim.Way         // a moving skill's, its length held to the skill's distance
 }
 
 // traitNow is the trait m's player has chosen for its skill now.
@@ -238,7 +238,7 @@ func (i *Instance) effect(u use) func() {
 	case gamedata.DamageEffect:
 		attacker := model.PlayerAttacker(p.derived, st.Damage).Times(power)
 		return func() {
-			i.strike(p, mobs.Strike{Shape: st.Shape, Most: st.Targets, Target: uint64(u.target), Power: attacker, Push: st.Push}, st.Damage, st.Status.At(u.points))
+			i.strike(p, u.target, mobs.Strike{Shape: st.Shape, Most: st.Targets, Power: attacker, Push: st.Push}, st.Damage, st.Status.At(u.points))
 		}
 	case gamedata.HealEffect:
 		amount := int(math.Round(p.derived.MagicAttack * power))

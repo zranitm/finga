@@ -75,7 +75,7 @@ func (i *Instance) resolveAttacks() {
 		p.aimAt(p.attackAim)
 		i.events = append(i.events, model.AttackUsed{Tick: i.tick, Attacker: p.ID, Length: length, Aim: p.aim}) // before begin: a hit at share 0 lands now, and a watcher times its Damage by this attack
 		i.begin(p, attackAction, i.tick, length, a.Timing, true, func() {
-			if i.strike(p, mobs.Strike{Shape: a.Shape, Most: 1, Target: uint64(p.attackTarget), Power: power}, a.Damage, gamedata.Inflict{}) {
+			if i.strike(p, p.attackTarget, mobs.Strike{Shape: a.Shape, Most: 1, Power: power}, a.Damage, gamedata.Inflict{}) {
 				i.gainEnergy(p) // a basic attack that reaches a mob, hit or MISS
 			}
 		})

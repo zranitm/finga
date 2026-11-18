@@ -135,7 +135,7 @@ type SkillUsed struct {
 	Stage  int
 	Trait  string // "" for the default
 	Aim    float32
-	Target uint32 // the mob it was aimed at, 0 for none
+	Target EntityRef // the lock it was aimed at, zero for none
 }
 
 // AttackUsed says a character's basic attack started, aimed along a yaw, lasting Length ticks, for drawing.
@@ -471,7 +471,7 @@ func deliveryOf(e model.Event) Delivery {
 	case model.Damage:
 		return Delivery{Tick: ev.Tick, Event: Damage{Source: EntityRef(ev.Source), Target: EntityRef(ev.Target), Amount: ev.Amount, Crit: ev.Crit, Miss: ev.Miss, Dodge: ev.Dodge, Block: ev.Block, Status: ev.Status, Shielded: ev.Shielded}}
 	case model.SkillUsed:
-		return Delivery{Tick: ev.Tick, Event: SkillUsed{Caster: ev.Caster, Skill: ev.Skill, Stage: ev.Stage, Trait: ev.Trait, Aim: ev.Aim, Target: ev.Target}}
+		return Delivery{Tick: ev.Tick, Event: SkillUsed{Caster: ev.Caster, Skill: ev.Skill, Stage: ev.Stage, Trait: ev.Trait, Aim: ev.Aim, Target: EntityRef(ev.Target)}}
 	case model.AttackUsed:
 		return Delivery{Tick: ev.Tick, Event: AttackUsed{Attacker: ev.Attacker, Length: ev.Length, Aim: ev.Aim}}
 	case model.MobAttacked:

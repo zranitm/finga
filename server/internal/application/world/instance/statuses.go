@@ -11,11 +11,32 @@ import (
 	"finga/internal/shared/sim"
 )
 
+// at is where the lock ref stands, if it's on the map: a living mob.
+func (i *Instance) at(ref model.EntityRef) (gamedata.Point, bool) {
+	if ref.IsZero() || !ref.IsMob() {
+		return gamedata.Point{}, false
+	}
+	return i.arena.At(ref.Mob)
+}
+
+// controlled is whether the lock ref holds one of statuses now, or ended one within slack ticks.
+func (i *Instance) controlled(ref model.EntityRef, statuses []string, slack uint64) bool {
+	return !ref.IsZero() && ref.IsMob() && i.arena.Controlled(ref.Mob, statuses, slack)
+}
+
+// lockedMob is the mob the lock ref names, 0 when it names none.
+func lockedMob(ref model.EntityRef) uint64 {
+	if ref.IsMob() {
+		return ref.Mob
+	}
+	return 0
+}
+
 // aimOf is where p's action of shape strikes from: where they stand, along their aim, or round their lock target for an area at it.
-func (i *Instance) aimOf(p *player, shape gamedata.Shape, target uint64) model.Aim {
+func (i *Instance) aimOf(p *player, shape gamedata.Shape, target model.EntityRef) model.Aim {
 	aim := model.Aim{X: p.state.X, Y: p.state.Y, Z: p.state.Z, Yaw: float64(p.aim)}
 	if shape.At == gamedata.AtLock {
-		lock, found := i.arena.At(target)
+		lock, found := i.at(target)
 		aim = aim.AtLock(lock, found, shape.Reach)
 	}
 	return aim
@@ -50,8 +71,8 @@ func (i *Instance) inflicting(p *player, damage gamedata.DamageType, ins []gamed
 }
 
 // strike lands p's hit of damage through the arena, from where they stand or round their lock, their statuses' factors on its power: what it inflicts on each mob it lands on is own, then their buffs' on_hit. It credits what it does, and reports whether it reached a mob.
-func (i *Instance) strike(p *player, s mobs.Strike, damage gamedata.DamageType, own gamedata.Inflict) bool {
-	s.By, s.Aim, s.Power = p.ID, i.aimOf(p, s.Shape, s.Target), p.statuses.Attacking(s.Power)
+func (i *Instance) strike(p *player, lock model.EntityRef, s mobs.Strike, damage gamedata.DamageType, own gamedata.Inflict) bool {
+	s.By, s.Target, s.Aim, s.Power = p.ID, lockedMob(lock), i.aimOf(p, s.Shape, lock), p.statuses.Attacking(s.Power)
 	s.Inflicts = i.inflicting(p, damage, append([]gamedata.Inflict{own}, i.onHits(p)...))
 	blows := i.arena.Strike(s)
 	i.credit(p, blows)
@@ -59,9 +80,9 @@ func (i *Instance) strike(p *player, s mobs.Strike, damage gamedata.DamageType, 
 }
 
 // afflict lands a status skill's stage, used with points, on every mob its shape reaches: no hit, so no buff's on_hit; its damage over time takes the class's damage type.
-func (i *Instance) afflict(p *player, st gamedata.Stage, points int, target uint32) {
+func (i *Instance) afflict(p *player, st gamedata.Stage, points int, target model.EntityRef) {
 	i.arena.Afflict(mobs.Strike{
-		By: p.ID, Shape: st.Shape, Most: math.MaxInt, Target: uint64(target), Aim: i.aimOf(p, st.Shape, uint64(target)), Push: st.Push,
+		By: p.ID, Shape: st.Shape, Most: math.MaxInt, Target: lockedMob(target), Aim: i.aimOf(p, st.Shape, target), Push: st.Push,
 		Inflicts: i.inflicting(p, p.class.Attack.Damage, []gamedata.Inflict{st.Status.At(points)}),
 	})
 }

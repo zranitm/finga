@@ -1,0 +1,35 @@
+{
+  "tick": 412,
+  "match_state": {
+    "match": "0192f6a4-7001-7c3e-8a1b-2c3d4e5f6a7b",
+    "mode": "duel",
+    "phase": "MATCH_PHASE_COUNTDOWN",
+    "round": 2,
+    "wins": [
+      1,
+      0
+    ],
+    "ends_in_ms": 3000,
+    "sides": [
+      {
+        "fighters": [
+          {
+            "id": "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7b",
+            "name": "Ayla",
+            "class": "warrior"
+          }
+        ]
+      },
+      {
+        "fighters": [
+          {
+            "id": "0192f6a4-7002-7c3e-8a1b-2c3d4e5f6a7b",
+            "name": "Cedar",
+            "class": "magician",
+            "bot": true
+          }
+        ]
+      }
+    ]
+  }
+}

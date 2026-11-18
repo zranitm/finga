@@ -25,9 +25,9 @@ func TestAnAttackLastsItsClassesLength(t *testing.T) {
 		synctest.Wait()
 		p := warriorAt(nextToSlime)
 		s := join(t, inst, p)
-		_ = inst.Attack(p.ID, 0, 0)
+		_ = inst.Attack(p.ID, 0, model.EntityRef{})
 		tick(1)
-		_ = inst.Attack(p.ID, 0, 0) // inside the attack: it swings once that ends
+		_ = inst.Attack(p.ID, 0, model.EntityRef{}) // inside the attack: it swings once that ends
 		tick(20)
 		got := damages(s)
 		if len(got) != 2 || got[1].Tick-got[0].Tick != 18 {

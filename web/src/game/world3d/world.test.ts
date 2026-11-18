@@ -1462,7 +1462,7 @@ describe('World', () => {
     key('KeyX', true);
     key('KeyX', false);
     expect(p.sent('attack').map((d) => [d.aim, d.target])).toEqual([
-      [expect.closeTo(-Math.PI / 2, 5), 2],
+      [expect.closeTo(-Math.PI / 2, 5), 'm:2'],
     ]); // at the new lock, which the world hits before the nearer slime
     const first = ring.getVerticesData('position')!;
     const angle = Math.atan2(first[0]!, first[2]!);
@@ -1552,7 +1552,7 @@ describe('World', () => {
     const attack = beatsOf(attackTiming(undefined, 'warrior', FRAME_MS), 0, FRAME_MS);
     key('KeyX', true);
     key('KeyX', false);
-    expect(p.sent('attack').map((d) => [d.aim, d.target])).toEqual([[expect.closeTo(0, 5), 1]]);
+    expect(p.sent('attack').map((d) => [d.aim, d.target])).toEqual([[expect.closeTo(0, 5), 'm:1']]);
     p.frames(Math.ceil(attack.strikeEnd / FRAME_MS) - 1);
     expect(off(me.rotation.y, 0)).toBeLessThan(0.2); // still striking: toward the lock
     p.frames(4);
@@ -1564,7 +1564,7 @@ describe('World', () => {
     key('KeyQ', true);
     key('KeyQ', false);
     expect(p.sent('useSkill').map((d) => [d.skill, d.aim, d.target])).toEqual([
-      ['strike', expect.closeTo(0, 5), 1],
+      ['strike', expect.closeTo(0, 5), 'm:1'],
     ]);
     p.frames(Math.ceil(skill.strikeEnd / FRAME_MS) - 1);
     expect(off(me.rotation.y, 0)).toBeLessThan(0.2);
@@ -1601,7 +1601,7 @@ describe('World', () => {
     key('KeyQ', true);
     key('KeyQ', false);
     expect(p.sent('useSkill').map((d) => [d.skill, d.chainRoot, d.target])).toEqual([
-      ['charge', 'strike', 1],
+      ['charge', 'strike', 'm:1'],
     ]);
     p.frames(1);
     expect(skillBar.getState().live[0]).toBe('strike'); // Charge cooling down
@@ -1831,7 +1831,7 @@ describe('World', () => {
         });
     key('KeyQ', true);
     key('KeyQ', false);
-    expect(p.sent('useSkill').map((d) => [d.skill, d.target])).toEqual([['arrow_rain', 1]]);
+    expect(p.sent('useSkill').map((d) => [d.skill, d.target])).toEqual([['arrow_rain', 'm:1']]);
     frame();
     expect(centres()).toEqual([
       [10, 26],
@@ -1839,12 +1839,19 @@ describe('World', () => {
     ]); // its rim and fill
     p.push(
       'skillUsed',
-      { caster: 'c-robin', skill: 'meteor', stage: 0, aim: 0, target: 1 },
+      { caster: 'c-robin', skill: 'meteor', stage: 0, aim: 0, target: 'm:1' },
       { tick },
     );
     p.push(
       'skillUsed',
-      { caster: 'c-robin', skill: 'frost_nova', stage: 1, aim: 0, target: 1, trait: 'ice_prison' },
+      {
+        caster: 'c-robin',
+        skill: 'frost_nova',
+        stage: 1,
+        aim: 0,
+        target: 'm:1',
+        trait: 'ice_prison',
+      },
       { tick },
     );
     frame();
@@ -2383,7 +2390,7 @@ describe('World', () => {
           }
         }
         expect(p.sent('useSkill')).toMatchObject([
-          { skill: 'strike', target: 1, way: { x: 0, z: 1, length: 4 } },
+          { skill: 'strike', target: 'm:1', way: { x: 0, z: 1, length: 4 } },
         ]);
         const sentAt = p.ws.frames().find((f) => f.t === 'useSkill')!.seq;
         expect(sentAt > pressedAt + 1).toBe(attackAt >= 0); // mid-swing, sent at the cancel point

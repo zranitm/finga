@@ -210,6 +210,9 @@ type EntityRef struct {
 	Mob    uint64
 }
 
+// IsZero reports whether the reference names nothing, as an unset lock.
+func (e EntityRef) IsZero() bool { return e == EntityRef{} }
+
 // IsMob reports whether the reference names a mob.
 func (e EntityRef) IsMob() bool { return e.Player.IsZero() }
 
@@ -365,7 +368,7 @@ type SkillUsed struct {
 	Stage  int
 	Trait  string // the extra trait it was used with, "" for the default
 	Aim    float32
-	Target uint32 // the mob it was aimed at, 0 for none
+	Target EntityRef // the lock it was aimed at, zero for none
 }
 
 func (SkillUsed) event() {}

@@ -23,7 +23,7 @@ type WorldModule interface {
 	Join(ctx context.Context, gateway string, account kernel.AccountID, p world.Presence) (world.View, error)
 	Leave(ctx context.Context, p world.Presence) error
 	Input(ctx context.Context, p world.Presence, seq uint32, in sim.Input, view uint32) error
-	Attack(ctx context.Context, p world.Presence, aim float32, target uint32) error
+	Attack(ctx context.Context, p world.Presence, aim float32, target world.EntityRef) error
 	EnterPortal(ctx context.Context, p world.Presence) error
 	Teleport(ctx context.Context, p world.Presence, mapID string, seq uint32) error
 	Say(ctx context.Context, p world.Presence, name, text string) error
@@ -108,9 +108,9 @@ func (w World) Input(ctx context.Context, p model.Presence, seq uint32, k model.
 	return worldErr(w.w.Input(ctx, presence(p), seq, sim.Input{Left: k.Left, Right: k.Right, Up: k.Up, Down: k.Down, Jump: k.Jump}, view))
 }
 
-// Attack attacks along the aim's yaw, at the locked mob first.
-func (w World) Attack(ctx context.Context, p model.Presence, aim float32, target uint32) error {
-	return worldErr(w.w.Attack(ctx, presence(p), aim, target))
+// Attack attacks along the aim's yaw, at the lock first.
+func (w World) Attack(ctx context.Context, p model.Presence, aim float32, target model.Target) error {
+	return worldErr(w.w.Attack(ctx, presence(p), aim, ref(target)))
 }
 
 // EnterPortal takes the portal the player stands in.
@@ -163,7 +163,7 @@ func (w World) ChooseTrait(ctx context.Context, p model.Presence, in model.Trait
 
 // UseSkill uses an active skill; it answers once the world's tick resolved it.
 func (w World) UseSkill(ctx context.Context, p model.Presence, in model.SkillUse, seq uint32) error {
-	use := world.SkillUse{Skill: in.Skill, Root: in.ChainRoot, Aim: in.Aim, Target: in.Target, Way: sim.Way{X: in.Way.X, Z: in.Way.Z, Length: in.Way.Length}}
+	use := world.SkillUse{Skill: in.Skill, Root: in.ChainRoot, Aim: in.Aim, Target: ref(in.Target), Way: sim.Way{X: in.Way.X, Z: in.Way.Z, Length: in.Way.Length}}
 	return worldErr(w.w.UseSkill(ctx, presence(p), use, seq))
 }
 
@@ -222,4 +222,8 @@ func worldErr(err error) error {
 
 func presence(p model.Presence) world.Presence {
 	return world.Presence{Character: p.Character, Conn: p.Connection}
+}
+
+func ref(t model.Target) world.EntityRef {
+	return world.EntityRef{Player: t.Character, Mob: t.Mob}
 }

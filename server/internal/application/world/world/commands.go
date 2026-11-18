@@ -30,7 +30,7 @@ func (w *World) Input(id kernel.CharacterID, conn string, seq uint32, in sim.Inp
 }
 
 // Attack queues a basic attack aimed along a yaw.
-func (w *World) Attack(id kernel.CharacterID, conn string, aim float32, target uint32) error {
+func (w *World) Attack(id kernel.CharacterID, conn string, aim float32, target model.EntityRef) error {
 	return w.command(id, conn, func(i *instance.Instance) error { return i.Attack(id, aim, target) })
 }
 

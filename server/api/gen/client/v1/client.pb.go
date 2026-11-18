@@ -580,6 +580,228 @@ func (QuestChange) EnumDescriptor() ([]byte, []int) {
 	return file_client_v1_client_proto_rawDescGZIP(), []int{9}
 }
 
+type PvpUnqueueReason int32
+
+const (
+	PvpUnqueueReason_PVP_UNQUEUE_REASON_UNSPECIFIED PvpUnqueueReason = 0
+	// The player, or their party's leader, left the queue.
+	PvpUnqueueReason_PVP_UNQUEUE_REASON_LEFT PvpUnqueueReason = 1
+	// The player declined an offer.
+	PvpUnqueueReason_PVP_UNQUEUE_REASON_DECLINED PvpUnqueueReason = 2
+	// The player let an offer lapse.
+	PvpUnqueueReason_PVP_UNQUEUE_REASON_LAPSED PvpUnqueueReason = 3
+	// The party behind a party ticket changed.
+	PvpUnqueueReason_PVP_UNQUEUE_REASON_PARTY_CHANGED PvpUnqueueReason = 4
+)
+
+// Enum value maps for PvpUnqueueReason.
+var (
+	PvpUnqueueReason_name = map[int32]string{
+		0: "PVP_UNQUEUE_REASON_UNSPECIFIED",
+		1: "PVP_UNQUEUE_REASON_LEFT",
+		2: "PVP_UNQUEUE_REASON_DECLINED",
+		3: "PVP_UNQUEUE_REASON_LAPSED",
+		4: "PVP_UNQUEUE_REASON_PARTY_CHANGED",
+	}
+	PvpUnqueueReason_value = map[string]int32{
+		"PVP_UNQUEUE_REASON_UNSPECIFIED":   0,
+		"PVP_UNQUEUE_REASON_LEFT":          1,
+		"PVP_UNQUEUE_REASON_DECLINED":      2,
+		"PVP_UNQUEUE_REASON_LAPSED":        3,
+		"PVP_UNQUEUE_REASON_PARTY_CHANGED": 4,
+	}
+)
+
+func (x PvpUnqueueReason) Enum() *PvpUnqueueReason {
+	p := new(PvpUnqueueReason)
+	*p = x
+	return p
+}
+
+func (x PvpUnqueueReason) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (PvpUnqueueReason) Descriptor() protoreflect.EnumDescriptor {
+	return file_client_v1_client_proto_enumTypes[10].Descriptor()
+}
+
+func (PvpUnqueueReason) Type() protoreflect.EnumType {
+	return &file_client_v1_client_proto_enumTypes[10]
+}
+
+func (x PvpUnqueueReason) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use PvpUnqueueReason.Descriptor instead.
+func (PvpUnqueueReason) EnumDescriptor() ([]byte, []int) {
+	return file_client_v1_client_proto_rawDescGZIP(), []int{10}
+}
+
+type PvpOfferGoneReason int32
+
+const (
+	PvpOfferGoneReason_PVP_OFFER_GONE_REASON_UNSPECIFIED PvpOfferGoneReason = 0
+	PvpOfferGoneReason_PVP_OFFER_GONE_REASON_DECLINED    PvpOfferGoneReason = 1
+	PvpOfferGoneReason_PVP_OFFER_GONE_REASON_LAPSED      PvpOfferGoneReason = 2
+)
+
+// Enum value maps for PvpOfferGoneReason.
+var (
+	PvpOfferGoneReason_name = map[int32]string{
+		0: "PVP_OFFER_GONE_REASON_UNSPECIFIED",
+		1: "PVP_OFFER_GONE_REASON_DECLINED",
+		2: "PVP_OFFER_GONE_REASON_LAPSED",
+	}
+	PvpOfferGoneReason_value = map[string]int32{
+		"PVP_OFFER_GONE_REASON_UNSPECIFIED": 0,
+		"PVP_OFFER_GONE_REASON_DECLINED":    1,
+		"PVP_OFFER_GONE_REASON_LAPSED":      2,
+	}
+)
+
+func (x PvpOfferGoneReason) Enum() *PvpOfferGoneReason {
+	p := new(PvpOfferGoneReason)
+	*p = x
+	return p
+}
+
+func (x PvpOfferGoneReason) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (PvpOfferGoneReason) Descriptor() protoreflect.EnumDescriptor {
+	return file_client_v1_client_proto_enumTypes[11].Descriptor()
+}
+
+func (PvpOfferGoneReason) Type() protoreflect.EnumType {
+	return &file_client_v1_client_proto_enumTypes[11]
+}
+
+func (x PvpOfferGoneReason) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use PvpOfferGoneReason.Descriptor instead.
+func (PvpOfferGoneReason) EnumDescriptor() ([]byte, []int) {
+	return file_client_v1_client_proto_rawDescGZIP(), []int{11}
+}
+
+type MatchPhase int32
+
+const (
+	MatchPhase_MATCH_PHASE_UNSPECIFIED MatchPhase = 0
+	// Before the first round or the battle: the prep wall stands, and attacks and skills are refused.
+	MatchPhase_MATCH_PHASE_PREP MatchPhase = 1
+	// The count into a round: the prep wall stands, and nobody moves or acts.
+	MatchPhase_MATCH_PHASE_COUNTDOWN MatchPhase = 2
+	MatchPhase_MATCH_PHASE_FIGHT     MatchPhase = 3
+	// Between rounds.
+	MatchPhase_MATCH_PHASE_BETWEEN MatchPhase = 4
+	// The match is over; everyone goes back when it ends.
+	MatchPhase_MATCH_PHASE_RESULT MatchPhase = 5
+)
+
+// Enum value maps for MatchPhase.
+var (
+	MatchPhase_name = map[int32]string{
+		0: "MATCH_PHASE_UNSPECIFIED",
+		1: "MATCH_PHASE_PREP",
+		2: "MATCH_PHASE_COUNTDOWN",
+		3: "MATCH_PHASE_FIGHT",
+		4: "MATCH_PHASE_BETWEEN",
+		5: "MATCH_PHASE_RESULT",
+	}
+	MatchPhase_value = map[string]int32{
+		"MATCH_PHASE_UNSPECIFIED": 0,
+		"MATCH_PHASE_PREP":        1,
+		"MATCH_PHASE_COUNTDOWN":   2,
+		"MATCH_PHASE_FIGHT":       3,
+		"MATCH_PHASE_BETWEEN":     4,
+		"MATCH_PHASE_RESULT":      5,
+	}
+)
+
+func (x MatchPhase) Enum() *MatchPhase {
+	p := new(MatchPhase)
+	*p = x
+	return p
+}
+
+func (x MatchPhase) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (MatchPhase) Descriptor() protoreflect.EnumDescriptor {
+	return file_client_v1_client_proto_enumTypes[12].Descriptor()
+}
+
+func (MatchPhase) Type() protoreflect.EnumType {
+	return &file_client_v1_client_proto_enumTypes[12]
+}
+
+func (x MatchPhase) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use MatchPhase.Descriptor instead.
+func (MatchPhase) EnumDescriptor() ([]byte, []int) {
+	return file_client_v1_client_proto_rawDescGZIP(), []int{12}
+}
+
+type MatchOutcome int32
+
+const (
+	MatchOutcome_MATCH_OUTCOME_UNSPECIFIED MatchOutcome = 0
+	MatchOutcome_MATCH_OUTCOME_WIN         MatchOutcome = 1
+	MatchOutcome_MATCH_OUTCOME_LOSS        MatchOutcome = 2
+	MatchOutcome_MATCH_OUTCOME_DRAW        MatchOutcome = 3
+)
+
+// Enum value maps for MatchOutcome.
+var (
+	MatchOutcome_name = map[int32]string{
+		0: "MATCH_OUTCOME_UNSPECIFIED",
+		1: "MATCH_OUTCOME_WIN",
+		2: "MATCH_OUTCOME_LOSS",
+		3: "MATCH_OUTCOME_DRAW",
+	}
+	MatchOutcome_value = map[string]int32{
+		"MATCH_OUTCOME_UNSPECIFIED": 0,
+		"MATCH_OUTCOME_WIN":         1,
+		"MATCH_OUTCOME_LOSS":        2,
+		"MATCH_OUTCOME_DRAW":        3,
+	}
+)
+
+func (x MatchOutcome) Enum() *MatchOutcome {
+	p := new(MatchOutcome)
+	*p = x
+	return p
+}
+
+func (x MatchOutcome) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (MatchOutcome) Descriptor() protoreflect.EnumDescriptor {
+	return file_client_v1_client_proto_enumTypes[13].Descriptor()
+}
+
+func (MatchOutcome) Type() protoreflect.EnumType {
+	return &file_client_v1_client_proto_enumTypes[13]
+}
+
+func (x MatchOutcome) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use MatchOutcome.Descriptor instead.
+func (MatchOutcome) EnumDescriptor() ([]byte, []int) {
+	return file_client_v1_client_proto_rawDescGZIP(), []int{13}
+}
+
 // ClientMessage is one frame from the browser. Hot messages take field numbers below 16, a one-byte tag.
 type ClientMessage struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -618,6 +840,10 @@ type ClientMessage struct {
 	//	*ClientMessage_InventoryDiscardMany
 	//	*ClientMessage_Teleport
 	//	*ClientMessage_ChooseTrait
+	//	*ClientMessage_PvpQueue
+	//	*ClientMessage_PvpLeaveQueue
+	//	*ClientMessage_PvpAnswer
+	//	*ClientMessage_PvpForfeit
 	Body          isClientMessage_Body `protobuf_oneof:"body"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -936,6 +1162,42 @@ func (x *ClientMessage) GetChooseTrait() *ChooseTrait {
 	return nil
 }
 
+func (x *ClientMessage) GetPvpQueue() *PvpQueue {
+	if x != nil {
+		if x, ok := x.Body.(*ClientMessage_PvpQueue); ok {
+			return x.PvpQueue
+		}
+	}
+	return nil
+}
+
+func (x *ClientMessage) GetPvpLeaveQueue() *PvpLeaveQueue {
+	if x != nil {
+		if x, ok := x.Body.(*ClientMessage_PvpLeaveQueue); ok {
+			return x.PvpLeaveQueue
+		}
+	}
+	return nil
+}
+
+func (x *ClientMessage) GetPvpAnswer() *PvpAnswer {
+	if x != nil {
+		if x, ok := x.Body.(*ClientMessage_PvpAnswer); ok {
+			return x.PvpAnswer
+		}
+	}
+	return nil
+}
+
+func (x *ClientMessage) GetPvpForfeit() *PvpForfeit {
+	if x != nil {
+		if x, ok := x.Body.(*ClientMessage_PvpForfeit); ok {
+			return x.PvpForfeit
+		}
+	}
+	return nil
+}
+
 type isClientMessage_Body interface {
 	isClientMessage_Body()
 }
@@ -1059,6 +1321,22 @@ type ClientMessage_ChooseTrait struct {
 	ChooseTrait *ChooseTrait `protobuf:"bytes,31,opt,name=choose_trait,json=chooseTrait,proto3,oneof"`
 }
 
+type ClientMessage_PvpQueue struct {
+	PvpQueue *PvpQueue `protobuf:"bytes,32,opt,name=pvp_queue,json=pvpQueue,proto3,oneof"`
+}
+
+type ClientMessage_PvpLeaveQueue struct {
+	PvpLeaveQueue *PvpLeaveQueue `protobuf:"bytes,33,opt,name=pvp_leave_queue,json=pvpLeaveQueue,proto3,oneof"`
+}
+
+type ClientMessage_PvpAnswer struct {
+	PvpAnswer *PvpAnswer `protobuf:"bytes,34,opt,name=pvp_answer,json=pvpAnswer,proto3,oneof"`
+}
+
+type ClientMessage_PvpForfeit struct {
+	PvpForfeit *PvpForfeit `protobuf:"bytes,35,opt,name=pvp_forfeit,json=pvpForfeit,proto3,oneof"`
+}
+
 func (*ClientMessage_Input) isClientMessage_Body() {}
 
 func (*ClientMessage_Attack) isClientMessage_Body() {}
@@ -1117,6 +1395,14 @@ func (*ClientMessage_Teleport) isClientMessage_Body() {}
 
 func (*ClientMessage_ChooseTrait) isClientMessage_Body() {}
 
+func (*ClientMessage_PvpQueue) isClientMessage_Body() {}
+
+func (*ClientMessage_PvpLeaveQueue) isClientMessage_Body() {}
+
+func (*ClientMessage_PvpAnswer) isClientMessage_Body() {}
+
+func (*ClientMessage_PvpForfeit) isClientMessage_Body() {}
+
 // ServerMessage is one frame to the browser.
 type ServerMessage struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1154,6 +1440,12 @@ type ServerMessage struct {
 	//	*ServerMessage_AttackUsed
 	//	*ServerMessage_MobAttacked
 	//	*ServerMessage_TeleportCancelled
+	//	*ServerMessage_PvpQueued
+	//	*ServerMessage_PvpUnqueued
+	//	*ServerMessage_PvpOffer
+	//	*ServerMessage_PvpOfferGone
+	//	*ServerMessage_MatchState
+	//	*ServerMessage_MatchEnded
 	Body          isServerMessage_Body `protobuf_oneof:"body"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1462,6 +1754,60 @@ func (x *ServerMessage) GetTeleportCancelled() *TeleportCancelled {
 	return nil
 }
 
+func (x *ServerMessage) GetPvpQueued() *PvpQueued {
+	if x != nil {
+		if x, ok := x.Body.(*ServerMessage_PvpQueued); ok {
+			return x.PvpQueued
+		}
+	}
+	return nil
+}
+
+func (x *ServerMessage) GetPvpUnqueued() *PvpUnqueued {
+	if x != nil {
+		if x, ok := x.Body.(*ServerMessage_PvpUnqueued); ok {
+			return x.PvpUnqueued
+		}
+	}
+	return nil
+}
+
+func (x *ServerMessage) GetPvpOffer() *PvpOffer {
+	if x != nil {
+		if x, ok := x.Body.(*ServerMessage_PvpOffer); ok {
+			return x.PvpOffer
+		}
+	}
+	return nil
+}
+
+func (x *ServerMessage) GetPvpOfferGone() *PvpOfferGone {
+	if x != nil {
+		if x, ok := x.Body.(*ServerMessage_PvpOfferGone); ok {
+			return x.PvpOfferGone
+		}
+	}
+	return nil
+}
+
+func (x *ServerMessage) GetMatchState() *MatchState {
+	if x != nil {
+		if x, ok := x.Body.(*ServerMessage_MatchState); ok {
+			return x.MatchState
+		}
+	}
+	return nil
+}
+
+func (x *ServerMessage) GetMatchEnded() *MatchEnded {
+	if x != nil {
+		if x, ok := x.Body.(*ServerMessage_MatchEnded); ok {
+			return x.MatchEnded
+		}
+	}
+	return nil
+}
+
 type isServerMessage_Body interface {
 	isServerMessage_Body()
 }
@@ -1578,6 +1924,30 @@ type ServerMessage_TeleportCancelled struct {
 	TeleportCancelled *TeleportCancelled `protobuf:"bytes,31,opt,name=teleport_cancelled,json=teleportCancelled,proto3,oneof"`
 }
 
+type ServerMessage_PvpQueued struct {
+	PvpQueued *PvpQueued `protobuf:"bytes,32,opt,name=pvp_queued,json=pvpQueued,proto3,oneof"`
+}
+
+type ServerMessage_PvpUnqueued struct {
+	PvpUnqueued *PvpUnqueued `protobuf:"bytes,33,opt,name=pvp_unqueued,json=pvpUnqueued,proto3,oneof"`
+}
+
+type ServerMessage_PvpOffer struct {
+	PvpOffer *PvpOffer `protobuf:"bytes,34,opt,name=pvp_offer,json=pvpOffer,proto3,oneof"`
+}
+
+type ServerMessage_PvpOfferGone struct {
+	PvpOfferGone *PvpOfferGone `protobuf:"bytes,35,opt,name=pvp_offer_gone,json=pvpOfferGone,proto3,oneof"`
+}
+
+type ServerMessage_MatchState struct {
+	MatchState *MatchState `protobuf:"bytes,36,opt,name=match_state,json=matchState,proto3,oneof"`
+}
+
+type ServerMessage_MatchEnded struct {
+	MatchEnded *MatchEnded `protobuf:"bytes,37,opt,name=match_ended,json=matchEnded,proto3,oneof"`
+}
+
 func (*ServerMessage_Delta) isServerMessage_Body() {}
 
 func (*ServerMessage_Damage) isServerMessage_Body() {}
@@ -1633,6 +2003,18 @@ func (*ServerMessage_AttackUsed) isServerMessage_Body() {}
 func (*ServerMessage_MobAttacked) isServerMessage_Body() {}
 
 func (*ServerMessage_TeleportCancelled) isServerMessage_Body() {}
+
+func (*ServerMessage_PvpQueued) isServerMessage_Body() {}
+
+func (*ServerMessage_PvpUnqueued) isServerMessage_Body() {}
+
+func (*ServerMessage_PvpOffer) isServerMessage_Body() {}
+
+func (*ServerMessage_PvpOfferGone) isServerMessage_Body() {}
+
+func (*ServerMessage_MatchState) isServerMessage_Body() {}
+
+func (*ServerMessage_MatchEnded) isServerMessage_Body() {}
 
 // Hello is the first message, within 5 seconds of connecting.
 type Hello struct {
@@ -1786,8 +2168,8 @@ type Attack struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The yaw it aims along, in radians from north toward east.
 	Aim float32 `protobuf:"fixed32,1,opt,name=aim,proto3" json:"aim,omitempty"`
-	// The mob the player has locked, 0 for none: hit first when the attack's shape reaches it, else the nearest it reaches.
-	Target        uint32 `protobuf:"varint,2,opt,name=target,proto3" json:"target,omitempty"`
+	// The locked mob or enemy, "m:<id>" or "p:<id>", empty for none: hit first when the attack's shape reaches it, else the nearest it reaches.
+	Target        string `protobuf:"bytes,3,opt,name=target,proto3" json:"target,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1829,11 +2211,11 @@ func (x *Attack) GetAim() float32 {
 	return 0
 }
 
-func (x *Attack) GetTarget() uint32 {
+func (x *Attack) GetTarget() string {
 	if x != nil {
 		return x.Target
 	}
-	return 0
+	return ""
 }
 
 // PickUp took the nearest eligible drop in range. Retired: drops fly to their owners.
@@ -2772,8 +3154,8 @@ type UseSkill struct {
 	Skill string `protobuf:"bytes,1,opt,name=skill,proto3" json:"skill,omitempty"`
 	// The yaw it aims along, in radians from north toward east.
 	Aim float32 `protobuf:"fixed32,2,opt,name=aim,proto3" json:"aim,omitempty"`
-	// The mob the player has locked, 0 for none: a damage skill hits it first when its shape reaches it, else the nearest it reaches.
-	Target uint32 `protobuf:"varint,3,opt,name=target,proto3" json:"target,omitempty"`
+	// The locked mob or enemy, "m:<id>" or "p:<id>", empty for none: a damage skill hits it first when its shape reaches it, else the nearest it reaches.
+	Target string `protobuf:"bytes,6,opt,name=target,proto3" json:"target,omitempty"`
 	// A moving skill's way, as the client worked it out as the skill started; unset for a skill that doesn't move.
 	Way *SkillWay `protobuf:"bytes,4,opt,name=way,proto3" json:"way,omitempty"`
 	// The root of the key it was pressed on: the skill itself on its own key, or the root whose follow-up it is, which the world checks against its class's chains.
@@ -2826,11 +3208,11 @@ func (x *UseSkill) GetAim() float32 {
 	return 0
 }
 
-func (x *UseSkill) GetTarget() uint32 {
+func (x *UseSkill) GetTarget() string {
 	if x != nil {
 		return x.Target
 	}
-	return 0
+	return ""
 }
 
 func (x *UseSkill) GetWay() *SkillWay {
@@ -4618,16 +5000,20 @@ type PlayerView struct {
 	Aim float32 `protobuf:"fixed32,21,opt,name=aim,proto3" json:"aim,omitempty"`
 	// A skill's dash or leap under way, so a reconcile resumes it; unset when none.
 	Move *SkillMove `protobuf:"bytes,22,opt,name=move,proto3" json:"move,omitempty"`
-	// Set while a skill's dodge runs: mobs' attacks pass through.
+	// Set while a skill's dodge runs: enemies' attacks pass through.
 	Dodging bool `protobuf:"varint,23,opt,name=dodging,proto3" json:"dodging,omitempty"`
-	// What's left of its shields, which take mobs' damage before HP.
+	// What's left of its shields, which take enemies' damage before HP.
 	Shield int32 `protobuf:"varint,24,opt,name=shield,proto3" json:"shield,omitempty"`
 	// Sub-steps left of a status holding it, which the sim steps as State.Held; 0 when none.
 	Held int32 `protobuf:"varint,25,opt,name=held,proto3" json:"held,omitempty"`
 	// A status slowing its walk, which the sim steps as State.Slow; unset when none.
 	Slow *SlowWalk `protobuf:"bytes,26,opt,name=slow,proto3" json:"slow,omitempty"`
 	// Its statuses, sent when they change.
-	Statuses      []*StatusView `protobuf:"bytes,27,rep,name=statuses,proto3" json:"statuses,omitempty"`
+	Statuses []*StatusView `protobuf:"bytes,27,rep,name=statuses,proto3" json:"statuses,omitempty"`
+	// Its side in a match, 1 or 2; 0 outside one, where no player is anyone's enemy.
+	Team int32 `protobuf:"varint,29,opt,name=team,proto3" json:"team,omitempty"`
+	// A bot fighting in a match, which no one plays.
+	Bot           bool `protobuf:"varint,30,opt,name=bot,proto3" json:"bot,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4828,6 +5214,20 @@ func (x *PlayerView) GetStatuses() []*StatusView {
 		return x.Statuses
 	}
 	return nil
+}
+
+func (x *PlayerView) GetTeam() int32 {
+	if x != nil {
+		return x.Team
+	}
+	return 0
+}
+
+func (x *PlayerView) GetBot() bool {
+	if x != nil {
+		return x.Bot
+	}
+	return false
 }
 
 // SlowWalk is a status slowing a player's walk: factor × the walk speed for left more sub-steps.
@@ -5673,13 +6073,13 @@ type Damage struct {
 	Amount int32                  `protobuf:"varint,3,opt,name=amount,proto3" json:"amount,omitempty"`
 	Crit   bool                   `protobuf:"varint,4,opt,name=crit,proto3" json:"crit,omitempty"`
 	Miss   bool                   `protobuf:"varint,5,opt,name=miss,proto3" json:"miss,omitempty"`
-	// A mob's attack that passed through a player's dodge: no damage, knockback or hit guard.
+	// An enemy's attack that passed through a player's dodge: no damage, knockback or hit guard.
 	Dodge bool `protobuf:"varint,6,opt,name=dodge,proto3" json:"dodge,omitempty"`
 	// Set on a damage-over-time tick: the status dealing it.
 	StatusId string `protobuf:"bytes,7,opt,name=status_id,json=statusId,proto3" json:"status_id,omitempty"`
 	// What of amount a player's shields took; the rest came off their HP.
 	Shielded int32 `protobuf:"varint,8,opt,name=shielded,proto3" json:"shielded,omitempty"`
-	// A mob's attack a player's block stopped: no damage, knockback, status or hit guard.
+	// An enemy's attack a player's block stopped: no damage, knockback, status or hit guard.
 	Block         bool `protobuf:"varint,9,opt,name=block,proto3" json:"block,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -5786,8 +6186,8 @@ type SkillUsed struct {
 	Stage  int32                  `protobuf:"varint,3,opt,name=stage,proto3" json:"stage,omitempty"`
 	// The yaw it aims along.
 	Aim float32 `protobuf:"fixed32,5,opt,name=aim,proto3" json:"aim,omitempty"`
-	// The mob it was aimed at, 0 for none; an area at the lock centres on it when it's within reach.
-	Target uint32 `protobuf:"varint,6,opt,name=target,proto3" json:"target,omitempty"`
+	// The mob or enemy it was aimed at, "m:<id>" or "p:<id>", empty for none; an area at the lock centres on it when it's within reach.
+	Target string `protobuf:"bytes,8,opt,name=target,proto3" json:"target,omitempty"`
 	// The extra trait it was used with, empty for the default.
 	Trait         string `protobuf:"bytes,7,opt,name=trait,proto3" json:"trait,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -5852,11 +6252,11 @@ func (x *SkillUsed) GetAim() float32 {
 	return 0
 }
 
-func (x *SkillUsed) GetTarget() uint32 {
+func (x *SkillUsed) GetTarget() string {
 	if x != nil {
 		return x.Target
 	}
-	return 0
+	return ""
 }
 
 func (x *SkillUsed) GetTrait() string {
@@ -7546,11 +7946,876 @@ func (x *QuestChanged) GetQuest() *QuestState {
 	return nil
 }
 
+// PvpQueue joins a mode's queue (data/pvp.yaml modes: duel, team, battle); a party's leader queues the party. Answered when the queue takes it, with PvpQueued to each member.
+type PvpQueue struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Mode          string                 `protobuf:"bytes,1,opt,name=mode,proto3" json:"mode,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PvpQueue) Reset() {
+	*x = PvpQueue{}
+	mi := &file_client_v1_client_proto_msgTypes[87]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PvpQueue) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PvpQueue) ProtoMessage() {}
+
+func (x *PvpQueue) ProtoReflect() protoreflect.Message {
+	mi := &file_client_v1_client_proto_msgTypes[87]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PvpQueue.ProtoReflect.Descriptor instead.
+func (*PvpQueue) Descriptor() ([]byte, []int) {
+	return file_client_v1_client_proto_rawDescGZIP(), []int{87}
+}
+
+func (x *PvpQueue) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+// PvpLeaveQueue leaves the queue, the whole ticket for a party.
+type PvpLeaveQueue struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PvpLeaveQueue) Reset() {
+	*x = PvpLeaveQueue{}
+	mi := &file_client_v1_client_proto_msgTypes[88]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PvpLeaveQueue) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PvpLeaveQueue) ProtoMessage() {}
+
+func (x *PvpLeaveQueue) ProtoReflect() protoreflect.Message {
+	mi := &file_client_v1_client_proto_msgTypes[88]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PvpLeaveQueue.ProtoReflect.Descriptor instead.
+func (*PvpLeaveQueue) Descriptor() ([]byte, []int) {
+	return file_client_v1_client_proto_rawDescGZIP(), []int{88}
+}
+
+// PvpAnswer accepts or declines a PvpOffer.
+type PvpAnswer struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Offer         string                 `protobuf:"bytes,1,opt,name=offer,proto3" json:"offer,omitempty"`
+	Accept        bool                   `protobuf:"varint,2,opt,name=accept,proto3" json:"accept,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PvpAnswer) Reset() {
+	*x = PvpAnswer{}
+	mi := &file_client_v1_client_proto_msgTypes[89]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PvpAnswer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PvpAnswer) ProtoMessage() {}
+
+func (x *PvpAnswer) ProtoReflect() protoreflect.Message {
+	mi := &file_client_v1_client_proto_msgTypes[89]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PvpAnswer.ProtoReflect.Descriptor instead.
+func (*PvpAnswer) Descriptor() ([]byte, []int) {
+	return file_client_v1_client_proto_rawDescGZIP(), []int{89}
+}
+
+func (x *PvpAnswer) GetOffer() string {
+	if x != nil {
+		return x.Offer
+	}
+	return ""
+}
+
+func (x *PvpAnswer) GetAccept() bool {
+	if x != nil {
+		return x.Accept
+	}
+	return false
+}
+
+// PvpForfeit leaves the match under way as a loss: in 1v1 the other side wins at once, in a team mode a bot takes the leaver's body.
+type PvpForfeit struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PvpForfeit) Reset() {
+	*x = PvpForfeit{}
+	mi := &file_client_v1_client_proto_msgTypes[90]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PvpForfeit) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PvpForfeit) ProtoMessage() {}
+
+func (x *PvpForfeit) ProtoReflect() protoreflect.Message {
+	mi := &file_client_v1_client_proto_msgTypes[90]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PvpForfeit.ProtoReflect.Descriptor instead.
+func (*PvpForfeit) Descriptor() ([]byte, []int) {
+	return file_client_v1_client_proto_rawDescGZIP(), []int{90}
+}
+
+// PvpQueued says the player is in a mode's queue: on joining, to each member of a party ticket, and again after a reconnect.
+type PvpQueued struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Mode  string                 `protobuf:"bytes,1,opt,name=mode,proto3" json:"mode,omitempty"`
+	// How long the ticket has waited as this is sent; the client counts on from it.
+	SinceMs uint32 `protobuf:"varint,2,opt,name=since_ms,json=sinceMs,proto3" json:"since_ms,omitempty"`
+	// The ticket's characters: the player alone, or their party.
+	Members       []string `protobuf:"bytes,3,rep,name=members,proto3" json:"members,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PvpQueued) Reset() {
+	*x = PvpQueued{}
+	mi := &file_client_v1_client_proto_msgTypes[91]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PvpQueued) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PvpQueued) ProtoMessage() {}
+
+func (x *PvpQueued) ProtoReflect() protoreflect.Message {
+	mi := &file_client_v1_client_proto_msgTypes[91]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PvpQueued.ProtoReflect.Descriptor instead.
+func (*PvpQueued) Descriptor() ([]byte, []int) {
+	return file_client_v1_client_proto_rawDescGZIP(), []int{91}
+}
+
+func (x *PvpQueued) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+func (x *PvpQueued) GetSinceMs() uint32 {
+	if x != nil {
+		return x.SinceMs
+	}
+	return 0
+}
+
+func (x *PvpQueued) GetMembers() []string {
+	if x != nil {
+		return x.Members
+	}
+	return nil
+}
+
+// PvpUnqueued says the player's ticket left the queue without a match.
+type PvpUnqueued struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Reason        PvpUnqueueReason       `protobuf:"varint,1,opt,name=reason,proto3,enum=client.v1.PvpUnqueueReason" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PvpUnqueued) Reset() {
+	*x = PvpUnqueued{}
+	mi := &file_client_v1_client_proto_msgTypes[92]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PvpUnqueued) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PvpUnqueued) ProtoMessage() {}
+
+func (x *PvpUnqueued) ProtoReflect() protoreflect.Message {
+	mi := &file_client_v1_client_proto_msgTypes[92]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PvpUnqueued.ProtoReflect.Descriptor instead.
+func (*PvpUnqueued) Descriptor() ([]byte, []int) {
+	return file_client_v1_client_proto_rawDescGZIP(), []int{92}
+}
+
+func (x *PvpUnqueued) GetReason() PvpUnqueueReason {
+	if x != nil {
+		return x.Reason
+	}
+	return PvpUnqueueReason_PVP_UNQUEUE_REASON_UNSPECIFIED
+}
+
+// PvpOffer says a match was found; every player in it must accept with PvpAnswer before it lapses.
+type PvpOffer struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Offer string                 `protobuf:"bytes,1,opt,name=offer,proto3" json:"offer,omitempty"`
+	Mode  string                 `protobuf:"bytes,2,opt,name=mode,proto3" json:"mode,omitempty"`
+	// How many of the match's places bots fill.
+	Bots int32 `protobuf:"varint,3,opt,name=bots,proto3" json:"bots,omitempty"`
+	// How long until it lapses, as this is sent; the client counts down from it.
+	UntilMs       uint32 `protobuf:"varint,4,opt,name=until_ms,json=untilMs,proto3" json:"until_ms,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PvpOffer) Reset() {
+	*x = PvpOffer{}
+	mi := &file_client_v1_client_proto_msgTypes[93]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PvpOffer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PvpOffer) ProtoMessage() {}
+
+func (x *PvpOffer) ProtoReflect() protoreflect.Message {
+	mi := &file_client_v1_client_proto_msgTypes[93]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PvpOffer.ProtoReflect.Descriptor instead.
+func (*PvpOffer) Descriptor() ([]byte, []int) {
+	return file_client_v1_client_proto_rawDescGZIP(), []int{93}
+}
+
+func (x *PvpOffer) GetOffer() string {
+	if x != nil {
+		return x.Offer
+	}
+	return ""
+}
+
+func (x *PvpOffer) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+func (x *PvpOffer) GetBots() int32 {
+	if x != nil {
+		return x.Bots
+	}
+	return 0
+}
+
+func (x *PvpOffer) GetUntilMs() uint32 {
+	if x != nil {
+		return x.UntilMs
+	}
+	return 0
+}
+
+// PvpOfferGone says an offer ended without a match: someone declined it or let it lapse.
+type PvpOfferGone struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Offer  string                 `protobuf:"bytes,1,opt,name=offer,proto3" json:"offer,omitempty"`
+	Reason PvpOfferGoneReason     `protobuf:"varint,2,opt,name=reason,proto3,enum=client.v1.PvpOfferGoneReason" json:"reason,omitempty"`
+	// Whether this player is back in the queue, their wait kept: those who accepted are, those who declined or let it lapse aren't.
+	Requeued      bool `protobuf:"varint,3,opt,name=requeued,proto3" json:"requeued,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PvpOfferGone) Reset() {
+	*x = PvpOfferGone{}
+	mi := &file_client_v1_client_proto_msgTypes[94]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PvpOfferGone) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PvpOfferGone) ProtoMessage() {}
+
+func (x *PvpOfferGone) ProtoReflect() protoreflect.Message {
+	mi := &file_client_v1_client_proto_msgTypes[94]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PvpOfferGone.ProtoReflect.Descriptor instead.
+func (*PvpOfferGone) Descriptor() ([]byte, []int) {
+	return file_client_v1_client_proto_rawDescGZIP(), []int{94}
+}
+
+func (x *PvpOfferGone) GetOffer() string {
+	if x != nil {
+		return x.Offer
+	}
+	return ""
+}
+
+func (x *PvpOfferGone) GetReason() PvpOfferGoneReason {
+	if x != nil {
+		return x.Reason
+	}
+	return PvpOfferGoneReason_PVP_OFFER_GONE_REASON_UNSPECIFIED
+}
+
+func (x *PvpOfferGone) GetRequeued() bool {
+	if x != nil {
+		return x.Requeued
+	}
+	return false
+}
+
+// MatchState is the match's state: sent on entry and at each change of phase, round or score, and each second in 15v15 while points move.
+type MatchState struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Match string                 `protobuf:"bytes,1,opt,name=match,proto3" json:"match,omitempty"`
+	Mode  string                 `protobuf:"bytes,2,opt,name=mode,proto3" json:"mode,omitempty"`
+	Phase MatchPhase             `protobuf:"varint,3,opt,name=phase,proto3,enum=client.v1.MatchPhase" json:"phase,omitempty"`
+	// The round under way or next, from 1; 0 in 15v15.
+	Round int32 `protobuf:"varint,4,opt,name=round,proto3" json:"round,omitempty"`
+	// Rounds won by side 1 and side 2; empty in 15v15.
+	Wins []int32 `protobuf:"varint,5,rep,packed,name=wins,proto3" json:"wins,omitempty"`
+	// How long the phase has left, as this is sent; the client counts down from it.
+	EndsInMs uint32 `protobuf:"varint,6,opt,name=ends_in_ms,json=endsInMs,proto3" json:"ends_in_ms,omitempty"`
+	// Side 1 then side 2.
+	Sides []*MatchSide `protobuf:"bytes,7,rep,name=sides,proto3" json:"sides,omitempty"`
+	// Side 1's and side 2's score in 15v15; empty in a round mode.
+	Score []int32 `protobuf:"varint,8,rep,packed,name=score,proto3" json:"score,omitempty"`
+	// The 15v15 capture points; empty in a round mode.
+	Points        []*CapturePoint `protobuf:"bytes,9,rep,name=points,proto3" json:"points,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MatchState) Reset() {
+	*x = MatchState{}
+	mi := &file_client_v1_client_proto_msgTypes[95]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MatchState) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MatchState) ProtoMessage() {}
+
+func (x *MatchState) ProtoReflect() protoreflect.Message {
+	mi := &file_client_v1_client_proto_msgTypes[95]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MatchState.ProtoReflect.Descriptor instead.
+func (*MatchState) Descriptor() ([]byte, []int) {
+	return file_client_v1_client_proto_rawDescGZIP(), []int{95}
+}
+
+func (x *MatchState) GetMatch() string {
+	if x != nil {
+		return x.Match
+	}
+	return ""
+}
+
+func (x *MatchState) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+func (x *MatchState) GetPhase() MatchPhase {
+	if x != nil {
+		return x.Phase
+	}
+	return MatchPhase_MATCH_PHASE_UNSPECIFIED
+}
+
+func (x *MatchState) GetRound() int32 {
+	if x != nil {
+		return x.Round
+	}
+	return 0
+}
+
+func (x *MatchState) GetWins() []int32 {
+	if x != nil {
+		return x.Wins
+	}
+	return nil
+}
+
+func (x *MatchState) GetEndsInMs() uint32 {
+	if x != nil {
+		return x.EndsInMs
+	}
+	return 0
+}
+
+func (x *MatchState) GetSides() []*MatchSide {
+	if x != nil {
+		return x.Sides
+	}
+	return nil
+}
+
+func (x *MatchState) GetScore() []int32 {
+	if x != nil {
+		return x.Score
+	}
+	return nil
+}
+
+func (x *MatchState) GetPoints() []*CapturePoint {
+	if x != nil {
+		return x.Points
+	}
+	return nil
+}
+
+// MatchSide is one side's fighters.
+type MatchSide struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Fighters      []*MatchFighter        `protobuf:"bytes,1,rep,name=fighters,proto3" json:"fighters,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MatchSide) Reset() {
+	*x = MatchSide{}
+	mi := &file_client_v1_client_proto_msgTypes[96]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MatchSide) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MatchSide) ProtoMessage() {}
+
+func (x *MatchSide) ProtoReflect() protoreflect.Message {
+	mi := &file_client_v1_client_proto_msgTypes[96]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MatchSide.ProtoReflect.Descriptor instead.
+func (*MatchSide) Descriptor() ([]byte, []int) {
+	return file_client_v1_client_proto_rawDescGZIP(), []int{96}
+}
+
+func (x *MatchSide) GetFighters() []*MatchFighter {
+	if x != nil {
+		return x.Fighters
+	}
+	return nil
+}
+
+// MatchFighter is a player or a bot in a match; a bot's id is its own, never a character's.
+type MatchFighter struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Class         string                 `protobuf:"bytes,3,opt,name=class,proto3" json:"class,omitempty"`
+	Bot           bool                   `protobuf:"varint,4,opt,name=bot,proto3" json:"bot,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MatchFighter) Reset() {
+	*x = MatchFighter{}
+	mi := &file_client_v1_client_proto_msgTypes[97]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MatchFighter) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MatchFighter) ProtoMessage() {}
+
+func (x *MatchFighter) ProtoReflect() protoreflect.Message {
+	mi := &file_client_v1_client_proto_msgTypes[97]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MatchFighter.ProtoReflect.Descriptor instead.
+func (*MatchFighter) Descriptor() ([]byte, []int) {
+	return file_client_v1_client_proto_rawDescGZIP(), []int{97}
+}
+
+func (x *MatchFighter) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *MatchFighter) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *MatchFighter) GetClass() string {
+	if x != nil {
+		return x.Class
+	}
+	return ""
+}
+
+func (x *MatchFighter) GetBot() bool {
+	if x != nil {
+		return x.Bot
+	}
+	return false
+}
+
+// CapturePoint is a 15v15 point as the world has it now; the client moves its ring between updates at the rate data/pvp.yaml gives.
+type CapturePoint struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// The side holding it, 0 for none.
+	Holder int32 `protobuf:"varint,2,opt,name=holder,proto3" json:"holder,omitempty"`
+	// From -1, side 1's, through 0, no one's, to 1, side 2's.
+	Progress float64 `protobuf:"fixed64,3,opt,name=progress,proto3" json:"progress,omitempty"`
+	// Both sides stand in it, so it holds still.
+	Contested     bool `protobuf:"varint,4,opt,name=contested,proto3" json:"contested,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CapturePoint) Reset() {
+	*x = CapturePoint{}
+	mi := &file_client_v1_client_proto_msgTypes[98]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CapturePoint) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CapturePoint) ProtoMessage() {}
+
+func (x *CapturePoint) ProtoReflect() protoreflect.Message {
+	mi := &file_client_v1_client_proto_msgTypes[98]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CapturePoint.ProtoReflect.Descriptor instead.
+func (*CapturePoint) Descriptor() ([]byte, []int) {
+	return file_client_v1_client_proto_rawDescGZIP(), []int{98}
+}
+
+func (x *CapturePoint) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *CapturePoint) GetHolder() int32 {
+	if x != nil {
+		return x.Holder
+	}
+	return 0
+}
+
+func (x *CapturePoint) GetProgress() float64 {
+	if x != nil {
+		return x.Progress
+	}
+	return 0
+}
+
+func (x *CapturePoint) GetContested() bool {
+	if x != nil {
+		return x.Contested
+	}
+	return false
+}
+
+// MatchEnded is the match's outcome for this player, as its result phase starts.
+type MatchEnded struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Result MatchOutcome           `protobuf:"varint,1,opt,name=result,proto3,enum=client.v1.MatchOutcome" json:"result,omitempty"`
+	// Rounds won by side 1 and side 2; empty in 15v15.
+	Wins []int32 `protobuf:"varint,2,rep,packed,name=wins,proto3" json:"wins,omitempty"`
+	// Side 1's and side 2's score in 15v15; empty in a round mode.
+	Score []int32 `protobuf:"varint,3,rep,packed,name=score,proto3" json:"score,omitempty"`
+	// The rated mode's rating change; unset for 15v15, or when the match had no result to rate.
+	Rating        *PvpRatingChange `protobuf:"bytes,4,opt,name=rating,proto3" json:"rating,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MatchEnded) Reset() {
+	*x = MatchEnded{}
+	mi := &file_client_v1_client_proto_msgTypes[99]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MatchEnded) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MatchEnded) ProtoMessage() {}
+
+func (x *MatchEnded) ProtoReflect() protoreflect.Message {
+	mi := &file_client_v1_client_proto_msgTypes[99]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MatchEnded.ProtoReflect.Descriptor instead.
+func (*MatchEnded) Descriptor() ([]byte, []int) {
+	return file_client_v1_client_proto_rawDescGZIP(), []int{99}
+}
+
+func (x *MatchEnded) GetResult() MatchOutcome {
+	if x != nil {
+		return x.Result
+	}
+	return MatchOutcome_MATCH_OUTCOME_UNSPECIFIED
+}
+
+func (x *MatchEnded) GetWins() []int32 {
+	if x != nil {
+		return x.Wins
+	}
+	return nil
+}
+
+func (x *MatchEnded) GetScore() []int32 {
+	if x != nil {
+		return x.Score
+	}
+	return nil
+}
+
+func (x *MatchEnded) GetRating() *PvpRatingChange {
+	if x != nil {
+		return x.Rating
+	}
+	return nil
+}
+
+// PvpRatingChange is a mode's shown rating and rank before and after a match.
+type PvpRatingChange struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Before int32                  `protobuf:"varint,1,opt,name=before,proto3" json:"before,omitempty"`
+	After  int32                  `protobuf:"varint,2,opt,name=after,proto3" json:"after,omitempty"`
+	// Rank ids from data/pvp.yaml ranks.
+	RankBefore string `protobuf:"bytes,3,opt,name=rank_before,json=rankBefore,proto3" json:"rank_before,omitempty"`
+	RankAfter  string `protobuf:"bytes,4,opt,name=rank_after,json=rankAfter,proto3" json:"rank_after,omitempty"`
+	// Placement matches still to play, 0 once placed.
+	PlacementLeft int32 `protobuf:"varint,5,opt,name=placement_left,json=placementLeft,proto3" json:"placement_left,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PvpRatingChange) Reset() {
+	*x = PvpRatingChange{}
+	mi := &file_client_v1_client_proto_msgTypes[100]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PvpRatingChange) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PvpRatingChange) ProtoMessage() {}
+
+func (x *PvpRatingChange) ProtoReflect() protoreflect.Message {
+	mi := &file_client_v1_client_proto_msgTypes[100]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PvpRatingChange.ProtoReflect.Descriptor instead.
+func (*PvpRatingChange) Descriptor() ([]byte, []int) {
+	return file_client_v1_client_proto_rawDescGZIP(), []int{100}
+}
+
+func (x *PvpRatingChange) GetBefore() int32 {
+	if x != nil {
+		return x.Before
+	}
+	return 0
+}
+
+func (x *PvpRatingChange) GetAfter() int32 {
+	if x != nil {
+		return x.After
+	}
+	return 0
+}
+
+func (x *PvpRatingChange) GetRankBefore() string {
+	if x != nil {
+		return x.RankBefore
+	}
+	return ""
+}
+
+func (x *PvpRatingChange) GetRankAfter() string {
+	if x != nil {
+		return x.RankAfter
+	}
+	return ""
+}
+
+func (x *PvpRatingChange) GetPlacementLeft() int32 {
+	if x != nil {
+		return x.PlacementLeft
+	}
+	return 0
+}
+
 var File_client_v1_client_proto protoreflect.FileDescriptor
 
 const file_client_v1_client_proto_rawDesc = "" +
 	"\n" +
-	"\x16client/v1/client.proto\x12\tclient.v1\"\xa4\r\n" +
+	"\x16client/v1/client.proto\x12\tclient.v1\"\x8d\x0f\n" +
 	"\rClientMessage\x12\x10\n" +
 	"\x03seq\x18\x01 \x01(\rR\x03seq\x12\x10\n" +
 	"\x03req\x18\x02 \x01(\tR\x03req\x12(\n" +
@@ -7585,8 +8850,14 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\apromote\x18\x1c \x01(\v2\x12.client.v1.PromoteH\x00R\apromote\x12W\n" +
 	"\x16inventory_discard_many\x18\x1d \x01(\v2\x1f.client.v1.InventoryDiscardManyH\x00R\x14inventoryDiscardMany\x121\n" +
 	"\bteleport\x18\x1e \x01(\v2\x13.client.v1.TeleportH\x00R\bteleport\x12;\n" +
-	"\fchoose_trait\x18\x1f \x01(\v2\x16.client.v1.ChooseTraitH\x00R\vchooseTraitB\x06\n" +
-	"\x04body\"\xd7\f\n" +
+	"\fchoose_trait\x18\x1f \x01(\v2\x16.client.v1.ChooseTraitH\x00R\vchooseTrait\x122\n" +
+	"\tpvp_queue\x18  \x01(\v2\x13.client.v1.PvpQueueH\x00R\bpvpQueue\x12B\n" +
+	"\x0fpvp_leave_queue\x18! \x01(\v2\x18.client.v1.PvpLeaveQueueH\x00R\rpvpLeaveQueue\x125\n" +
+	"\n" +
+	"pvp_answer\x18\" \x01(\v2\x14.client.v1.PvpAnswerH\x00R\tpvpAnswer\x128\n" +
+	"\vpvp_forfeit\x18# \x01(\v2\x15.client.v1.PvpForfeitH\x00R\n" +
+	"pvpForfeitB\x06\n" +
+	"\x04body\"\xb4\x0f\n" +
 	"\rServerMessage\x12\x10\n" +
 	"\x03req\x18\x01 \x01(\tR\x03req\x12\x12\n" +
 	"\x04tick\x18\x02 \x01(\rR\x04tick\x12(\n" +
@@ -7625,7 +8896,16 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\vattack_used\x18\x1d \x01(\v2\x15.client.v1.AttackUsedH\x00R\n" +
 	"attackUsed\x12;\n" +
 	"\fmob_attacked\x18\x1e \x01(\v2\x16.client.v1.MobAttackedH\x00R\vmobAttacked\x12M\n" +
-	"\x12teleport_cancelled\x18\x1f \x01(\v2\x1c.client.v1.TeleportCancelledH\x00R\x11teleportCancelledB\x06\n" +
+	"\x12teleport_cancelled\x18\x1f \x01(\v2\x1c.client.v1.TeleportCancelledH\x00R\x11teleportCancelled\x125\n" +
+	"\n" +
+	"pvp_queued\x18  \x01(\v2\x14.client.v1.PvpQueuedH\x00R\tpvpQueued\x12;\n" +
+	"\fpvp_unqueued\x18! \x01(\v2\x16.client.v1.PvpUnqueuedH\x00R\vpvpUnqueued\x122\n" +
+	"\tpvp_offer\x18\" \x01(\v2\x13.client.v1.PvpOfferH\x00R\bpvpOffer\x12?\n" +
+	"\x0epvp_offer_gone\x18# \x01(\v2\x17.client.v1.PvpOfferGoneH\x00R\fpvpOfferGone\x128\n" +
+	"\vmatch_state\x18$ \x01(\v2\x15.client.v1.MatchStateH\x00R\n" +
+	"matchState\x128\n" +
+	"\vmatch_ended\x18% \x01(\v2\x15.client.v1.MatchEndedH\x00R\n" +
+	"matchEndedB\x06\n" +
 	"\x04bodyJ\x04\b\x05\x10\x06R\n" +
 	"correction\"k\n" +
 	"\x05Hello\x12\x14\n" +
@@ -7638,10 +8918,10 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x02up\x18\x03 \x01(\bR\x02up\x12\x12\n" +
 	"\x04down\x18\x04 \x01(\bR\x04down\x12\x12\n" +
 	"\x04jump\x18\x05 \x01(\bR\x04jump\x12\x12\n" +
-	"\x04view\x18\x06 \x01(\rR\x04view\"2\n" +
+	"\x04view\x18\x06 \x01(\rR\x04view\"8\n" +
 	"\x06Attack\x12\x10\n" +
 	"\x03aim\x18\x01 \x01(\x02R\x03aim\x12\x16\n" +
-	"\x06target\x18\x02 \x01(\rR\x06target\"\b\n" +
+	"\x06target\x18\x03 \x01(\tR\x06targetJ\x04\b\x02\x10\x03\"\b\n" +
 	"\x06PickUp\"\r\n" +
 	"\vEnterPortal\"!\n" +
 	"\bTeleport\x12\x15\n" +
@@ -7699,14 +8979,14 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"9\n" +
 	"\vChooseTrait\x12\x14\n" +
 	"\x05skill\x18\x01 \x01(\tR\x05skill\x12\x14\n" +
-	"\x05trait\x18\x02 \x01(\tR\x05trait\"\x90\x01\n" +
+	"\x05trait\x18\x02 \x01(\tR\x05trait\"\x96\x01\n" +
 	"\bUseSkill\x12\x14\n" +
 	"\x05skill\x18\x01 \x01(\tR\x05skill\x12\x10\n" +
 	"\x03aim\x18\x02 \x01(\x02R\x03aim\x12\x16\n" +
-	"\x06target\x18\x03 \x01(\rR\x06target\x12%\n" +
+	"\x06target\x18\x06 \x01(\tR\x06target\x12%\n" +
 	"\x03way\x18\x04 \x01(\v2\x13.client.v1.SkillWayR\x03way\x12\x1d\n" +
 	"\n" +
-	"chain_root\x18\x05 \x01(\tR\tchainRoot\">\n" +
+	"chain_root\x18\x05 \x01(\tR\tchainRootJ\x04\b\x03\x10\x04\">\n" +
 	"\bSkillWay\x12\f\n" +
 	"\x01x\x18\x01 \x01(\x01R\x01x\x12\f\n" +
 	"\x01z\x18\x02 \x01(\x01R\x01z\x12\x16\n" +
@@ -7862,7 +9142,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x04kind\x18\x02 \x01(\x0e2\x19.client.v1.SkillTimerKindR\x04kind\x12\x17\n" +
 	"\aleft_ms\x18\x03 \x01(\x03R\x06leftMs\x12\x16\n" +
 	"\x06points\x18\x04 \x01(\x05R\x06points\x12\x14\n" +
-	"\x05trait\x18\x05 \x01(\tR\x05trait\"\xeb\x04\n" +
+	"\x05trait\x18\x05 \x01(\tR\x05trait\"\x91\x05\n" +
 	"\n" +
 	"PlayerView\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
@@ -7889,7 +9169,9 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x06shield\x18\x18 \x01(\x05R\x06shield\x12\x12\n" +
 	"\x04held\x18\x19 \x01(\x05R\x04held\x12'\n" +
 	"\x04slow\x18\x1a \x01(\v2\x13.client.v1.SlowWalkR\x04slow\x121\n" +
-	"\bstatuses\x18\x1b \x03(\v2\x15.client.v1.StatusViewR\bstatusesJ\x04\b\t\x10\n" +
+	"\bstatuses\x18\x1b \x03(\v2\x15.client.v1.StatusViewR\bstatuses\x12\x12\n" +
+	"\x04team\x18\x1d \x01(\x05R\x04team\x12\x10\n" +
+	"\x03bot\x18\x1e \x01(\bR\x03botJ\x04\b\t\x10\n" +
 	"J\x04\b\v\x10\fJ\x04\b\x10\x10\x11J\x04\b\x1c\x10\x1dR\x06facingR\bclimbingR\acastingR\x06immune\"6\n" +
 	"\bSlowWalk\x12\x12\n" +
 	"\x04left\x18\x01 \x01(\x05R\x04left\x12\x16\n" +
@@ -7966,14 +9248,14 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x05dodge\x18\x06 \x01(\bR\x05dodge\x12\x1b\n" +
 	"\tstatus_id\x18\a \x01(\tR\bstatusId\x12\x1a\n" +
 	"\bshielded\x18\b \x01(\x05R\bshielded\x12\x14\n" +
-	"\x05block\x18\t \x01(\bR\x05block\"\x9d\x01\n" +
+	"\x05block\x18\t \x01(\bR\x05block\"\xa3\x01\n" +
 	"\tSkillUsed\x12\x16\n" +
 	"\x06caster\x18\x01 \x01(\tR\x06caster\x12\x14\n" +
 	"\x05skill\x18\x02 \x01(\tR\x05skill\x12\x14\n" +
 	"\x05stage\x18\x03 \x01(\x05R\x05stage\x12\x10\n" +
 	"\x03aim\x18\x05 \x01(\x02R\x03aim\x12\x16\n" +
-	"\x06target\x18\x06 \x01(\rR\x06target\x12\x14\n" +
-	"\x05trait\x18\a \x01(\tR\x05traitJ\x04\b\x04\x10\x05R\x06facing\"k\n" +
+	"\x06target\x18\b \x01(\tR\x06target\x12\x14\n" +
+	"\x05trait\x18\a \x01(\tR\x05traitJ\x04\b\x04\x10\x05J\x04\b\x06\x10\aR\x06facing\"k\n" +
 	"\n" +
 	"AttackUsed\x12\x1a\n" +
 	"\battacker\x18\x01 \x01(\tR\battacker\x12!\n" +
@@ -8093,7 +9375,68 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x0etimes_finished\x18\x04 \x01(\x05R\rtimesFinished\"k\n" +
 	"\fQuestChanged\x12.\n" +
 	"\x06change\x18\x01 \x01(\x0e2\x16.client.v1.QuestChangeR\x06change\x12+\n" +
-	"\x05quest\x18\x02 \x01(\v2\x15.client.v1.QuestStateR\x05quest*Y\n" +
+	"\x05quest\x18\x02 \x01(\v2\x15.client.v1.QuestStateR\x05quest\"\x1e\n" +
+	"\bPvpQueue\x12\x12\n" +
+	"\x04mode\x18\x01 \x01(\tR\x04mode\"\x0f\n" +
+	"\rPvpLeaveQueue\"9\n" +
+	"\tPvpAnswer\x12\x14\n" +
+	"\x05offer\x18\x01 \x01(\tR\x05offer\x12\x16\n" +
+	"\x06accept\x18\x02 \x01(\bR\x06accept\"\f\n" +
+	"\n" +
+	"PvpForfeit\"T\n" +
+	"\tPvpQueued\x12\x12\n" +
+	"\x04mode\x18\x01 \x01(\tR\x04mode\x12\x19\n" +
+	"\bsince_ms\x18\x02 \x01(\rR\asinceMs\x12\x18\n" +
+	"\amembers\x18\x03 \x03(\tR\amembers\"B\n" +
+	"\vPvpUnqueued\x123\n" +
+	"\x06reason\x18\x01 \x01(\x0e2\x1b.client.v1.PvpUnqueueReasonR\x06reason\"c\n" +
+	"\bPvpOffer\x12\x14\n" +
+	"\x05offer\x18\x01 \x01(\tR\x05offer\x12\x12\n" +
+	"\x04mode\x18\x02 \x01(\tR\x04mode\x12\x12\n" +
+	"\x04bots\x18\x03 \x01(\x05R\x04bots\x12\x19\n" +
+	"\buntil_ms\x18\x04 \x01(\rR\auntilMs\"w\n" +
+	"\fPvpOfferGone\x12\x14\n" +
+	"\x05offer\x18\x01 \x01(\tR\x05offer\x125\n" +
+	"\x06reason\x18\x02 \x01(\x0e2\x1d.client.v1.PvpOfferGoneReasonR\x06reason\x12\x1a\n" +
+	"\brequeued\x18\x03 \x01(\bR\brequeued\"\x9e\x02\n" +
+	"\n" +
+	"MatchState\x12\x14\n" +
+	"\x05match\x18\x01 \x01(\tR\x05match\x12\x12\n" +
+	"\x04mode\x18\x02 \x01(\tR\x04mode\x12+\n" +
+	"\x05phase\x18\x03 \x01(\x0e2\x15.client.v1.MatchPhaseR\x05phase\x12\x14\n" +
+	"\x05round\x18\x04 \x01(\x05R\x05round\x12\x12\n" +
+	"\x04wins\x18\x05 \x03(\x05R\x04wins\x12\x1c\n" +
+	"\n" +
+	"ends_in_ms\x18\x06 \x01(\rR\bendsInMs\x12*\n" +
+	"\x05sides\x18\a \x03(\v2\x14.client.v1.MatchSideR\x05sides\x12\x14\n" +
+	"\x05score\x18\b \x03(\x05R\x05score\x12/\n" +
+	"\x06points\x18\t \x03(\v2\x17.client.v1.CapturePointR\x06points\"@\n" +
+	"\tMatchSide\x123\n" +
+	"\bfighters\x18\x01 \x03(\v2\x17.client.v1.MatchFighterR\bfighters\"Z\n" +
+	"\fMatchFighter\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
+	"\x05class\x18\x03 \x01(\tR\x05class\x12\x10\n" +
+	"\x03bot\x18\x04 \x01(\bR\x03bot\"p\n" +
+	"\fCapturePoint\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
+	"\x06holder\x18\x02 \x01(\x05R\x06holder\x12\x1a\n" +
+	"\bprogress\x18\x03 \x01(\x01R\bprogress\x12\x1c\n" +
+	"\tcontested\x18\x04 \x01(\bR\tcontested\"\x9b\x01\n" +
+	"\n" +
+	"MatchEnded\x12/\n" +
+	"\x06result\x18\x01 \x01(\x0e2\x17.client.v1.MatchOutcomeR\x06result\x12\x12\n" +
+	"\x04wins\x18\x02 \x03(\x05R\x04wins\x12\x14\n" +
+	"\x05score\x18\x03 \x03(\x05R\x05score\x122\n" +
+	"\x06rating\x18\x04 \x01(\v2\x1a.client.v1.PvpRatingChangeR\x06rating\"\xa6\x01\n" +
+	"\x0fPvpRatingChange\x12\x16\n" +
+	"\x06before\x18\x01 \x01(\x05R\x06before\x12\x14\n" +
+	"\x05after\x18\x02 \x01(\x05R\x05after\x12\x1f\n" +
+	"\vrank_before\x18\x03 \x01(\tR\n" +
+	"rankBefore\x12\x1d\n" +
+	"\n" +
+	"rank_after\x18\x04 \x01(\tR\trankAfter\x12%\n" +
+	"\x0eplacement_left\x18\x05 \x01(\x05R\rplacementLeft*Y\n" +
 	"\vChatChannel\x12\x1c\n" +
 	"\x18CHAT_CHANNEL_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10CHAT_CHANNEL_MAP\x10\x01\x12\x16\n" +
@@ -8148,7 +9491,30 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x17QUEST_CHANGE_PROGRESSED\x10\x01\x12\x19\n" +
 	"\x15QUEST_CHANGE_ACCEPTED\x10\x02\x12\x1a\n" +
 	"\x16QUEST_CHANGE_HANDED_IN\x10\x03\x12\x1a\n" +
-	"\x16QUEST_CHANGE_ABANDONED\x10\x04B\"Z finga/api/gen/client/v1;clientv1b\x06proto3"
+	"\x16QUEST_CHANGE_ABANDONED\x10\x04*\xb9\x01\n" +
+	"\x10PvpUnqueueReason\x12\"\n" +
+	"\x1ePVP_UNQUEUE_REASON_UNSPECIFIED\x10\x00\x12\x1b\n" +
+	"\x17PVP_UNQUEUE_REASON_LEFT\x10\x01\x12\x1f\n" +
+	"\x1bPVP_UNQUEUE_REASON_DECLINED\x10\x02\x12\x1d\n" +
+	"\x19PVP_UNQUEUE_REASON_LAPSED\x10\x03\x12$\n" +
+	" PVP_UNQUEUE_REASON_PARTY_CHANGED\x10\x04*\x81\x01\n" +
+	"\x12PvpOfferGoneReason\x12%\n" +
+	"!PVP_OFFER_GONE_REASON_UNSPECIFIED\x10\x00\x12\"\n" +
+	"\x1ePVP_OFFER_GONE_REASON_DECLINED\x10\x01\x12 \n" +
+	"\x1cPVP_OFFER_GONE_REASON_LAPSED\x10\x02*\xa2\x01\n" +
+	"\n" +
+	"MatchPhase\x12\x1b\n" +
+	"\x17MATCH_PHASE_UNSPECIFIED\x10\x00\x12\x14\n" +
+	"\x10MATCH_PHASE_PREP\x10\x01\x12\x19\n" +
+	"\x15MATCH_PHASE_COUNTDOWN\x10\x02\x12\x15\n" +
+	"\x11MATCH_PHASE_FIGHT\x10\x03\x12\x17\n" +
+	"\x13MATCH_PHASE_BETWEEN\x10\x04\x12\x16\n" +
+	"\x12MATCH_PHASE_RESULT\x10\x05*t\n" +
+	"\fMatchOutcome\x12\x1d\n" +
+	"\x19MATCH_OUTCOME_UNSPECIFIED\x10\x00\x12\x15\n" +
+	"\x11MATCH_OUTCOME_WIN\x10\x01\x12\x16\n" +
+	"\x12MATCH_OUTCOME_LOSS\x10\x02\x12\x16\n" +
+	"\x12MATCH_OUTCOME_DRAW\x10\x03B\"Z finga/api/gen/client/v1;clientv1b\x06proto3"
 
 var (
 	file_client_v1_client_proto_rawDescOnce sync.Once
@@ -8162,8 +9528,8 @@ func file_client_v1_client_proto_rawDescGZIP() []byte {
 	return file_client_v1_client_proto_rawDescData
 }
 
-var file_client_v1_client_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
-var file_client_v1_client_proto_msgTypes = make([]protoimpl.MessageInfo, 90)
+var file_client_v1_client_proto_enumTypes = make([]protoimpl.EnumInfo, 14)
+var file_client_v1_client_proto_msgTypes = make([]protoimpl.MessageInfo, 104)
 var file_client_v1_client_proto_goTypes = []any{
 	(ChatChannel)(0),             // 0: client.v1.ChatChannel
 	(KickReason)(0),              // 1: client.v1.KickReason
@@ -8175,222 +9541,258 @@ var file_client_v1_client_proto_goTypes = []any{
 	(QuestOfferState)(0),         // 7: client.v1.QuestOfferState
 	(QuestStatus)(0),             // 8: client.v1.QuestStatus
 	(QuestChange)(0),             // 9: client.v1.QuestChange
-	(*ClientMessage)(nil),        // 10: client.v1.ClientMessage
-	(*ServerMessage)(nil),        // 11: client.v1.ServerMessage
-	(*Hello)(nil),                // 12: client.v1.Hello
-	(*Input)(nil),                // 13: client.v1.Input
-	(*Attack)(nil),               // 14: client.v1.Attack
-	(*PickUp)(nil),               // 15: client.v1.PickUp
-	(*EnterPortal)(nil),          // 16: client.v1.EnterPortal
-	(*Teleport)(nil),             // 17: client.v1.Teleport
-	(*ChatSend)(nil),             // 18: client.v1.ChatSend
-	(*PartyInvite)(nil),          // 19: client.v1.PartyInvite
-	(*PartyRespond)(nil),         // 20: client.v1.PartyRespond
-	(*PartyLeave)(nil),           // 21: client.v1.PartyLeave
-	(*PartyKick)(nil),            // 22: client.v1.PartyKick
-	(*PartyPromote)(nil),         // 23: client.v1.PartyPromote
-	(*InventoryMove)(nil),        // 24: client.v1.InventoryMove
-	(*InventoryDiscard)(nil),     // 25: client.v1.InventoryDiscard
-	(*InventoryDiscardMany)(nil), // 26: client.v1.InventoryDiscardMany
-	(*Equip)(nil),                // 27: client.v1.Equip
-	(*UseItem)(nil),              // 28: client.v1.UseItem
-	(*Unequip)(nil),              // 29: client.v1.Unequip
-	(*SpendPoints)(nil),          // 30: client.v1.SpendPoints
-	(*SpendSkillPoints)(nil),     // 31: client.v1.SpendSkillPoints
-	(*ChooseTrait)(nil),          // 32: client.v1.ChooseTrait
-	(*UseSkill)(nil),             // 33: client.v1.UseSkill
-	(*SkillWay)(nil),             // 34: client.v1.SkillWay
-	(*Promote)(nil),              // 35: client.v1.Promote
-	(*ResetPoints)(nil),          // 36: client.v1.ResetPoints
-	(*Talk)(nil),                 // 37: client.v1.Talk
-	(*AcceptQuest)(nil),          // 38: client.v1.AcceptQuest
-	(*AbandonQuest)(nil),         // 39: client.v1.AbandonQuest
-	(*HandInQuest)(nil),          // 40: client.v1.HandInQuest
-	(*Ping)(nil),                 // 41: client.v1.Ping
-	(*Stats)(nil),                // 42: client.v1.Stats
-	(*CharacterView)(nil),        // 43: client.v1.CharacterView
-	(*StatSheet)(nil),            // 44: client.v1.StatSheet
-	(*BuffView)(nil),             // 45: client.v1.BuffView
-	(*SkillPoints)(nil),          // 46: client.v1.SkillPoints
-	(*Points)(nil),               // 47: client.v1.Points
-	(*DerivedStats)(nil),         // 48: client.v1.DerivedStats
-	(*ItemView)(nil),             // 49: client.v1.ItemView
-	(*ItemStats)(nil),            // 50: client.v1.ItemStats
-	(*EquipSlot)(nil),            // 51: client.v1.EquipSlot
-	(*PartyMember)(nil),          // 52: client.v1.PartyMember
-	(*PartyView)(nil),            // 53: client.v1.PartyView
-	(*Welcome)(nil),              // 54: client.v1.Welcome
-	(*SkillTimer)(nil),           // 55: client.v1.SkillTimer
-	(*PlayerView)(nil),           // 56: client.v1.PlayerView
-	(*SlowWalk)(nil),             // 57: client.v1.SlowWalk
-	(*StatusView)(nil),           // 58: client.v1.StatusView
-	(*SkillMove)(nil),            // 59: client.v1.SkillMove
-	(*MobView)(nil),              // 60: client.v1.MobView
-	(*DropView)(nil),             // 61: client.v1.DropView
-	(*Snapshot)(nil),             // 62: client.v1.Snapshot
-	(*FieldBoss)(nil),            // 63: client.v1.FieldBoss
-	(*FieldBossGone)(nil),        // 64: client.v1.FieldBossGone
-	(*Announcement)(nil),         // 65: client.v1.Announcement
-	(*BossAppeared)(nil),         // 66: client.v1.BossAppeared
-	(*Delta)(nil),                // 67: client.v1.Delta
-	(*Damage)(nil),               // 68: client.v1.Damage
-	(*SkillUsed)(nil),            // 69: client.v1.SkillUsed
-	(*AttackUsed)(nil),           // 70: client.v1.AttackUsed
-	(*MobAttacked)(nil),          // 71: client.v1.MobAttacked
-	(*Died)(nil),                 // 72: client.v1.Died
-	(*Respawned)(nil),            // 73: client.v1.Respawned
-	(*ExpGained)(nil),            // 74: client.v1.ExpGained
-	(*LevelUp)(nil),              // 75: client.v1.LevelUp
-	(*Promoted)(nil),             // 76: client.v1.Promoted
-	(*InventorySlot)(nil),        // 77: client.v1.InventorySlot
-	(*InventoryChanged)(nil),     // 78: client.v1.InventoryChanged
-	(*Loot)(nil),                 // 79: client.v1.Loot
-	(*StatsChanged)(nil),         // 80: client.v1.StatsChanged
-	(*MapChange)(nil),            // 81: client.v1.MapChange
-	(*ChatMessage)(nil),          // 82: client.v1.ChatMessage
-	(*PartyState)(nil),           // 83: client.v1.PartyState
-	(*PartyInvited)(nil),         // 84: client.v1.PartyInvited
-	(*Response)(nil),             // 85: client.v1.Response
-	(*TeleportCancelled)(nil),    // 86: client.v1.TeleportCancelled
-	(*Kicked)(nil),               // 87: client.v1.Kicked
-	(*Pong)(nil),                 // 88: client.v1.Pong
-	(*NpcDialog)(nil),            // 89: client.v1.NpcDialog
-	(*PromotionOffer)(nil),       // 90: client.v1.PromotionOffer
-	(*PromotionCondition)(nil),   // 91: client.v1.PromotionCondition
-	(*QuestOffer)(nil),           // 92: client.v1.QuestOffer
-	(*QuestConditions)(nil),      // 93: client.v1.QuestConditions
-	(*QuestTurnIn)(nil),          // 94: client.v1.QuestTurnIn
-	(*QuestState)(nil),           // 95: client.v1.QuestState
-	(*QuestChanged)(nil),         // 96: client.v1.QuestChanged
-	nil,                          // 97: client.v1.SpendSkillPoints.PointsEntry
-	nil,                          // 98: client.v1.SkillPoints.InvestedEntry
-	nil,                          // 99: client.v1.SkillPoints.TraitsEntry
+	(PvpUnqueueReason)(0),        // 10: client.v1.PvpUnqueueReason
+	(PvpOfferGoneReason)(0),      // 11: client.v1.PvpOfferGoneReason
+	(MatchPhase)(0),              // 12: client.v1.MatchPhase
+	(MatchOutcome)(0),            // 13: client.v1.MatchOutcome
+	(*ClientMessage)(nil),        // 14: client.v1.ClientMessage
+	(*ServerMessage)(nil),        // 15: client.v1.ServerMessage
+	(*Hello)(nil),                // 16: client.v1.Hello
+	(*Input)(nil),                // 17: client.v1.Input
+	(*Attack)(nil),               // 18: client.v1.Attack
+	(*PickUp)(nil),               // 19: client.v1.PickUp
+	(*EnterPortal)(nil),          // 20: client.v1.EnterPortal
+	(*Teleport)(nil),             // 21: client.v1.Teleport
+	(*ChatSend)(nil),             // 22: client.v1.ChatSend
+	(*PartyInvite)(nil),          // 23: client.v1.PartyInvite
+	(*PartyRespond)(nil),         // 24: client.v1.PartyRespond
+	(*PartyLeave)(nil),           // 25: client.v1.PartyLeave
+	(*PartyKick)(nil),            // 26: client.v1.PartyKick
+	(*PartyPromote)(nil),         // 27: client.v1.PartyPromote
+	(*InventoryMove)(nil),        // 28: client.v1.InventoryMove
+	(*InventoryDiscard)(nil),     // 29: client.v1.InventoryDiscard
+	(*InventoryDiscardMany)(nil), // 30: client.v1.InventoryDiscardMany
+	(*Equip)(nil),                // 31: client.v1.Equip
+	(*UseItem)(nil),              // 32: client.v1.UseItem
+	(*Unequip)(nil),              // 33: client.v1.Unequip
+	(*SpendPoints)(nil),          // 34: client.v1.SpendPoints
+	(*SpendSkillPoints)(nil),     // 35: client.v1.SpendSkillPoints
+	(*ChooseTrait)(nil),          // 36: client.v1.ChooseTrait
+	(*UseSkill)(nil),             // 37: client.v1.UseSkill
+	(*SkillWay)(nil),             // 38: client.v1.SkillWay
+	(*Promote)(nil),              // 39: client.v1.Promote
+	(*ResetPoints)(nil),          // 40: client.v1.ResetPoints
+	(*Talk)(nil),                 // 41: client.v1.Talk
+	(*AcceptQuest)(nil),          // 42: client.v1.AcceptQuest
+	(*AbandonQuest)(nil),         // 43: client.v1.AbandonQuest
+	(*HandInQuest)(nil),          // 44: client.v1.HandInQuest
+	(*Ping)(nil),                 // 45: client.v1.Ping
+	(*Stats)(nil),                // 46: client.v1.Stats
+	(*CharacterView)(nil),        // 47: client.v1.CharacterView
+	(*StatSheet)(nil),            // 48: client.v1.StatSheet
+	(*BuffView)(nil),             // 49: client.v1.BuffView
+	(*SkillPoints)(nil),          // 50: client.v1.SkillPoints
+	(*Points)(nil),               // 51: client.v1.Points
+	(*DerivedStats)(nil),         // 52: client.v1.DerivedStats
+	(*ItemView)(nil),             // 53: client.v1.ItemView
+	(*ItemStats)(nil),            // 54: client.v1.ItemStats
+	(*EquipSlot)(nil),            // 55: client.v1.EquipSlot
+	(*PartyMember)(nil),          // 56: client.v1.PartyMember
+	(*PartyView)(nil),            // 57: client.v1.PartyView
+	(*Welcome)(nil),              // 58: client.v1.Welcome
+	(*SkillTimer)(nil),           // 59: client.v1.SkillTimer
+	(*PlayerView)(nil),           // 60: client.v1.PlayerView
+	(*SlowWalk)(nil),             // 61: client.v1.SlowWalk
+	(*StatusView)(nil),           // 62: client.v1.StatusView
+	(*SkillMove)(nil),            // 63: client.v1.SkillMove
+	(*MobView)(nil),              // 64: client.v1.MobView
+	(*DropView)(nil),             // 65: client.v1.DropView
+	(*Snapshot)(nil),             // 66: client.v1.Snapshot
+	(*FieldBoss)(nil),            // 67: client.v1.FieldBoss
+	(*FieldBossGone)(nil),        // 68: client.v1.FieldBossGone
+	(*Announcement)(nil),         // 69: client.v1.Announcement
+	(*BossAppeared)(nil),         // 70: client.v1.BossAppeared
+	(*Delta)(nil),                // 71: client.v1.Delta
+	(*Damage)(nil),               // 72: client.v1.Damage
+	(*SkillUsed)(nil),            // 73: client.v1.SkillUsed
+	(*AttackUsed)(nil),           // 74: client.v1.AttackUsed
+	(*MobAttacked)(nil),          // 75: client.v1.MobAttacked
+	(*Died)(nil),                 // 76: client.v1.Died
+	(*Respawned)(nil),            // 77: client.v1.Respawned
+	(*ExpGained)(nil),            // 78: client.v1.ExpGained
+	(*LevelUp)(nil),              // 79: client.v1.LevelUp
+	(*Promoted)(nil),             // 80: client.v1.Promoted
+	(*InventorySlot)(nil),        // 81: client.v1.InventorySlot
+	(*InventoryChanged)(nil),     // 82: client.v1.InventoryChanged
+	(*Loot)(nil),                 // 83: client.v1.Loot
+	(*StatsChanged)(nil),         // 84: client.v1.StatsChanged
+	(*MapChange)(nil),            // 85: client.v1.MapChange
+	(*ChatMessage)(nil),          // 86: client.v1.ChatMessage
+	(*PartyState)(nil),           // 87: client.v1.PartyState
+	(*PartyInvited)(nil),         // 88: client.v1.PartyInvited
+	(*Response)(nil),             // 89: client.v1.Response
+	(*TeleportCancelled)(nil),    // 90: client.v1.TeleportCancelled
+	(*Kicked)(nil),               // 91: client.v1.Kicked
+	(*Pong)(nil),                 // 92: client.v1.Pong
+	(*NpcDialog)(nil),            // 93: client.v1.NpcDialog
+	(*PromotionOffer)(nil),       // 94: client.v1.PromotionOffer
+	(*PromotionCondition)(nil),   // 95: client.v1.PromotionCondition
+	(*QuestOffer)(nil),           // 96: client.v1.QuestOffer
+	(*QuestConditions)(nil),      // 97: client.v1.QuestConditions
+	(*QuestTurnIn)(nil),          // 98: client.v1.QuestTurnIn
+	(*QuestState)(nil),           // 99: client.v1.QuestState
+	(*QuestChanged)(nil),         // 100: client.v1.QuestChanged
+	(*PvpQueue)(nil),             // 101: client.v1.PvpQueue
+	(*PvpLeaveQueue)(nil),        // 102: client.v1.PvpLeaveQueue
+	(*PvpAnswer)(nil),            // 103: client.v1.PvpAnswer
+	(*PvpForfeit)(nil),           // 104: client.v1.PvpForfeit
+	(*PvpQueued)(nil),            // 105: client.v1.PvpQueued
+	(*PvpUnqueued)(nil),          // 106: client.v1.PvpUnqueued
+	(*PvpOffer)(nil),             // 107: client.v1.PvpOffer
+	(*PvpOfferGone)(nil),         // 108: client.v1.PvpOfferGone
+	(*MatchState)(nil),           // 109: client.v1.MatchState
+	(*MatchSide)(nil),            // 110: client.v1.MatchSide
+	(*MatchFighter)(nil),         // 111: client.v1.MatchFighter
+	(*CapturePoint)(nil),         // 112: client.v1.CapturePoint
+	(*MatchEnded)(nil),           // 113: client.v1.MatchEnded
+	(*PvpRatingChange)(nil),      // 114: client.v1.PvpRatingChange
+	nil,                          // 115: client.v1.SpendSkillPoints.PointsEntry
+	nil,                          // 116: client.v1.SkillPoints.InvestedEntry
+	nil,                          // 117: client.v1.SkillPoints.TraitsEntry
 }
 var file_client_v1_client_proto_depIdxs = []int32{
-	13,  // 0: client.v1.ClientMessage.input:type_name -> client.v1.Input
-	14,  // 1: client.v1.ClientMessage.attack:type_name -> client.v1.Attack
-	15,  // 2: client.v1.ClientMessage.pick_up:type_name -> client.v1.PickUp
-	16,  // 3: client.v1.ClientMessage.enter_portal:type_name -> client.v1.EnterPortal
-	41,  // 4: client.v1.ClientMessage.ping:type_name -> client.v1.Ping
-	18,  // 5: client.v1.ClientMessage.chat_send:type_name -> client.v1.ChatSend
-	24,  // 6: client.v1.ClientMessage.inventory_move:type_name -> client.v1.InventoryMove
-	25,  // 7: client.v1.ClientMessage.inventory_discard:type_name -> client.v1.InventoryDiscard
-	19,  // 8: client.v1.ClientMessage.party_invite:type_name -> client.v1.PartyInvite
-	20,  // 9: client.v1.ClientMessage.party_respond:type_name -> client.v1.PartyRespond
-	21,  // 10: client.v1.ClientMessage.party_leave:type_name -> client.v1.PartyLeave
-	22,  // 11: client.v1.ClientMessage.party_kick:type_name -> client.v1.PartyKick
-	23,  // 12: client.v1.ClientMessage.party_promote:type_name -> client.v1.PartyPromote
-	12,  // 13: client.v1.ClientMessage.hello:type_name -> client.v1.Hello
-	27,  // 14: client.v1.ClientMessage.equip:type_name -> client.v1.Equip
-	29,  // 15: client.v1.ClientMessage.unequip:type_name -> client.v1.Unequip
-	30,  // 16: client.v1.ClientMessage.spend_points:type_name -> client.v1.SpendPoints
-	36,  // 17: client.v1.ClientMessage.reset_points:type_name -> client.v1.ResetPoints
-	37,  // 18: client.v1.ClientMessage.talk:type_name -> client.v1.Talk
-	38,  // 19: client.v1.ClientMessage.accept_quest:type_name -> client.v1.AcceptQuest
-	39,  // 20: client.v1.ClientMessage.abandon_quest:type_name -> client.v1.AbandonQuest
-	40,  // 21: client.v1.ClientMessage.hand_in_quest:type_name -> client.v1.HandInQuest
-	28,  // 22: client.v1.ClientMessage.use_item:type_name -> client.v1.UseItem
-	31,  // 23: client.v1.ClientMessage.spend_skill_points:type_name -> client.v1.SpendSkillPoints
-	33,  // 24: client.v1.ClientMessage.use_skill:type_name -> client.v1.UseSkill
-	35,  // 25: client.v1.ClientMessage.promote:type_name -> client.v1.Promote
-	26,  // 26: client.v1.ClientMessage.inventory_discard_many:type_name -> client.v1.InventoryDiscardMany
-	17,  // 27: client.v1.ClientMessage.teleport:type_name -> client.v1.Teleport
-	32,  // 28: client.v1.ClientMessage.choose_trait:type_name -> client.v1.ChooseTrait
-	67,  // 29: client.v1.ServerMessage.delta:type_name -> client.v1.Delta
-	68,  // 30: client.v1.ServerMessage.damage:type_name -> client.v1.Damage
-	88,  // 31: client.v1.ServerMessage.pong:type_name -> client.v1.Pong
-	85,  // 32: client.v1.ServerMessage.response:type_name -> client.v1.Response
-	78,  // 33: client.v1.ServerMessage.inventory_changed:type_name -> client.v1.InventoryChanged
-	74,  // 34: client.v1.ServerMessage.exp_gained:type_name -> client.v1.ExpGained
-	72,  // 35: client.v1.ServerMessage.died:type_name -> client.v1.Died
-	73,  // 36: client.v1.ServerMessage.respawned:type_name -> client.v1.Respawned
-	82,  // 37: client.v1.ServerMessage.chat_message:type_name -> client.v1.ChatMessage
-	62,  // 38: client.v1.ServerMessage.snapshot:type_name -> client.v1.Snapshot
-	81,  // 39: client.v1.ServerMessage.map_change:type_name -> client.v1.MapChange
-	83,  // 40: client.v1.ServerMessage.party_state:type_name -> client.v1.PartyState
-	84,  // 41: client.v1.ServerMessage.party_invited:type_name -> client.v1.PartyInvited
-	75,  // 42: client.v1.ServerMessage.level_up:type_name -> client.v1.LevelUp
-	54,  // 43: client.v1.ServerMessage.welcome:type_name -> client.v1.Welcome
-	87,  // 44: client.v1.ServerMessage.kicked:type_name -> client.v1.Kicked
-	80,  // 45: client.v1.ServerMessage.stats_changed:type_name -> client.v1.StatsChanged
-	79,  // 46: client.v1.ServerMessage.loot:type_name -> client.v1.Loot
-	89,  // 47: client.v1.ServerMessage.npc_dialog:type_name -> client.v1.NpcDialog
-	96,  // 48: client.v1.ServerMessage.quest_changed:type_name -> client.v1.QuestChanged
-	69,  // 49: client.v1.ServerMessage.skill_used:type_name -> client.v1.SkillUsed
-	76,  // 50: client.v1.ServerMessage.promoted:type_name -> client.v1.Promoted
-	63,  // 51: client.v1.ServerMessage.field_boss:type_name -> client.v1.FieldBoss
-	64,  // 52: client.v1.ServerMessage.field_boss_gone:type_name -> client.v1.FieldBossGone
-	65,  // 53: client.v1.ServerMessage.announcement:type_name -> client.v1.Announcement
-	70,  // 54: client.v1.ServerMessage.attack_used:type_name -> client.v1.AttackUsed
-	71,  // 55: client.v1.ServerMessage.mob_attacked:type_name -> client.v1.MobAttacked
-	86,  // 56: client.v1.ServerMessage.teleport_cancelled:type_name -> client.v1.TeleportCancelled
-	0,   // 57: client.v1.ChatSend.channel:type_name -> client.v1.ChatChannel
-	42,  // 58: client.v1.SpendPoints.points:type_name -> client.v1.Stats
-	97,  // 59: client.v1.SpendSkillPoints.points:type_name -> client.v1.SpendSkillPoints.PointsEntry
-	34,  // 60: client.v1.UseSkill.way:type_name -> client.v1.SkillWay
-	42,  // 61: client.v1.CharacterView.stats:type_name -> client.v1.Stats
-	44,  // 62: client.v1.CharacterView.sheet:type_name -> client.v1.StatSheet
-	42,  // 63: client.v1.StatSheet.primary:type_name -> client.v1.Stats
-	42,  // 64: client.v1.StatSheet.primary_worn:type_name -> client.v1.Stats
-	48,  // 65: client.v1.StatSheet.derived:type_name -> client.v1.DerivedStats
-	48,  // 66: client.v1.StatSheet.derived_worn:type_name -> client.v1.DerivedStats
-	47,  // 67: client.v1.StatSheet.points:type_name -> client.v1.Points
-	42,  // 68: client.v1.StatSheet.primary_skills:type_name -> client.v1.Stats
-	48,  // 69: client.v1.StatSheet.derived_skills:type_name -> client.v1.DerivedStats
-	46,  // 70: client.v1.StatSheet.skills:type_name -> client.v1.SkillPoints
-	45,  // 71: client.v1.StatSheet.buffs:type_name -> client.v1.BuffView
-	98,  // 72: client.v1.SkillPoints.invested:type_name -> client.v1.SkillPoints.InvestedEntry
-	99,  // 73: client.v1.SkillPoints.traits:type_name -> client.v1.SkillPoints.TraitsEntry
-	42,  // 74: client.v1.Points.spent:type_name -> client.v1.Stats
-	50,  // 75: client.v1.ItemView.stats:type_name -> client.v1.ItemStats
-	49,  // 76: client.v1.EquipSlot.item:type_name -> client.v1.ItemView
-	52,  // 77: client.v1.PartyView.members:type_name -> client.v1.PartyMember
-	43,  // 78: client.v1.Welcome.character:type_name -> client.v1.CharacterView
-	49,  // 79: client.v1.Welcome.inventory:type_name -> client.v1.ItemView
-	53,  // 80: client.v1.Welcome.party:type_name -> client.v1.PartyView
-	51,  // 81: client.v1.Welcome.equipment:type_name -> client.v1.EquipSlot
-	95,  // 82: client.v1.Welcome.quests:type_name -> client.v1.QuestState
-	55,  // 83: client.v1.Welcome.skill_timers:type_name -> client.v1.SkillTimer
-	2,   // 84: client.v1.SkillTimer.kind:type_name -> client.v1.SkillTimerKind
-	59,  // 85: client.v1.PlayerView.move:type_name -> client.v1.SkillMove
-	57,  // 86: client.v1.PlayerView.slow:type_name -> client.v1.SlowWalk
-	58,  // 87: client.v1.PlayerView.statuses:type_name -> client.v1.StatusView
-	3,   // 88: client.v1.MobView.pose:type_name -> client.v1.MobPose
-	58,  // 89: client.v1.MobView.statuses:type_name -> client.v1.StatusView
-	56,  // 90: client.v1.Snapshot.players:type_name -> client.v1.PlayerView
-	60,  // 91: client.v1.Snapshot.mobs:type_name -> client.v1.MobView
-	61,  // 92: client.v1.Snapshot.drops:type_name -> client.v1.DropView
-	63,  // 93: client.v1.Snapshot.field_boss:type_name -> client.v1.FieldBoss
-	66,  // 94: client.v1.Announcement.boss_appeared:type_name -> client.v1.BossAppeared
-	56,  // 95: client.v1.Delta.players:type_name -> client.v1.PlayerView
-	60,  // 96: client.v1.Delta.mobs:type_name -> client.v1.MobView
-	61,  // 97: client.v1.Delta.drops:type_name -> client.v1.DropView
-	43,  // 98: client.v1.LevelUp.character:type_name -> client.v1.CharacterView
-	43,  // 99: client.v1.Promoted.character:type_name -> client.v1.CharacterView
-	49,  // 100: client.v1.InventorySlot.item:type_name -> client.v1.ItemView
-	77,  // 101: client.v1.InventoryChanged.slots:type_name -> client.v1.InventorySlot
-	51,  // 102: client.v1.InventoryChanged.equipment:type_name -> client.v1.EquipSlot
-	4,   // 103: client.v1.Loot.kind:type_name -> client.v1.LootKind
-	44,  // 104: client.v1.StatsChanged.sheet:type_name -> client.v1.StatSheet
-	0,   // 105: client.v1.ChatMessage.channel:type_name -> client.v1.ChatChannel
-	53,  // 106: client.v1.PartyState.party:type_name -> client.v1.PartyView
-	5,   // 107: client.v1.TeleportCancelled.reason:type_name -> client.v1.TeleportCancelReason
-	1,   // 108: client.v1.Kicked.reason:type_name -> client.v1.KickReason
-	92,  // 109: client.v1.NpcDialog.gives:type_name -> client.v1.QuestOffer
-	94,  // 110: client.v1.NpcDialog.takes:type_name -> client.v1.QuestTurnIn
-	90,  // 111: client.v1.NpcDialog.promotion:type_name -> client.v1.PromotionOffer
-	91,  // 112: client.v1.PromotionOffer.conditions:type_name -> client.v1.PromotionCondition
-	6,   // 113: client.v1.PromotionCondition.kind:type_name -> client.v1.PromotionConditionKind
-	7,   // 114: client.v1.QuestOffer.state:type_name -> client.v1.QuestOfferState
-	93,  // 115: client.v1.QuestOffer.unmet:type_name -> client.v1.QuestConditions
-	8,   // 116: client.v1.QuestState.status:type_name -> client.v1.QuestStatus
-	9,   // 117: client.v1.QuestChanged.change:type_name -> client.v1.QuestChange
-	95,  // 118: client.v1.QuestChanged.quest:type_name -> client.v1.QuestState
-	119, // [119:119] is the sub-list for method output_type
-	119, // [119:119] is the sub-list for method input_type
-	119, // [119:119] is the sub-list for extension type_name
-	119, // [119:119] is the sub-list for extension extendee
-	0,   // [0:119] is the sub-list for field type_name
+	17,  // 0: client.v1.ClientMessage.input:type_name -> client.v1.Input
+	18,  // 1: client.v1.ClientMessage.attack:type_name -> client.v1.Attack
+	19,  // 2: client.v1.ClientMessage.pick_up:type_name -> client.v1.PickUp
+	20,  // 3: client.v1.ClientMessage.enter_portal:type_name -> client.v1.EnterPortal
+	45,  // 4: client.v1.ClientMessage.ping:type_name -> client.v1.Ping
+	22,  // 5: client.v1.ClientMessage.chat_send:type_name -> client.v1.ChatSend
+	28,  // 6: client.v1.ClientMessage.inventory_move:type_name -> client.v1.InventoryMove
+	29,  // 7: client.v1.ClientMessage.inventory_discard:type_name -> client.v1.InventoryDiscard
+	23,  // 8: client.v1.ClientMessage.party_invite:type_name -> client.v1.PartyInvite
+	24,  // 9: client.v1.ClientMessage.party_respond:type_name -> client.v1.PartyRespond
+	25,  // 10: client.v1.ClientMessage.party_leave:type_name -> client.v1.PartyLeave
+	26,  // 11: client.v1.ClientMessage.party_kick:type_name -> client.v1.PartyKick
+	27,  // 12: client.v1.ClientMessage.party_promote:type_name -> client.v1.PartyPromote
+	16,  // 13: client.v1.ClientMessage.hello:type_name -> client.v1.Hello
+	31,  // 14: client.v1.ClientMessage.equip:type_name -> client.v1.Equip
+	33,  // 15: client.v1.ClientMessage.unequip:type_name -> client.v1.Unequip
+	34,  // 16: client.v1.ClientMessage.spend_points:type_name -> client.v1.SpendPoints
+	40,  // 17: client.v1.ClientMessage.reset_points:type_name -> client.v1.ResetPoints
+	41,  // 18: client.v1.ClientMessage.talk:type_name -> client.v1.Talk
+	42,  // 19: client.v1.ClientMessage.accept_quest:type_name -> client.v1.AcceptQuest
+	43,  // 20: client.v1.ClientMessage.abandon_quest:type_name -> client.v1.AbandonQuest
+	44,  // 21: client.v1.ClientMessage.hand_in_quest:type_name -> client.v1.HandInQuest
+	32,  // 22: client.v1.ClientMessage.use_item:type_name -> client.v1.UseItem
+	35,  // 23: client.v1.ClientMessage.spend_skill_points:type_name -> client.v1.SpendSkillPoints
+	37,  // 24: client.v1.ClientMessage.use_skill:type_name -> client.v1.UseSkill
+	39,  // 25: client.v1.ClientMessage.promote:type_name -> client.v1.Promote
+	30,  // 26: client.v1.ClientMessage.inventory_discard_many:type_name -> client.v1.InventoryDiscardMany
+	21,  // 27: client.v1.ClientMessage.teleport:type_name -> client.v1.Teleport
+	36,  // 28: client.v1.ClientMessage.choose_trait:type_name -> client.v1.ChooseTrait
+	101, // 29: client.v1.ClientMessage.pvp_queue:type_name -> client.v1.PvpQueue
+	102, // 30: client.v1.ClientMessage.pvp_leave_queue:type_name -> client.v1.PvpLeaveQueue
+	103, // 31: client.v1.ClientMessage.pvp_answer:type_name -> client.v1.PvpAnswer
+	104, // 32: client.v1.ClientMessage.pvp_forfeit:type_name -> client.v1.PvpForfeit
+	71,  // 33: client.v1.ServerMessage.delta:type_name -> client.v1.Delta
+	72,  // 34: client.v1.ServerMessage.damage:type_name -> client.v1.Damage
+	92,  // 35: client.v1.ServerMessage.pong:type_name -> client.v1.Pong
+	89,  // 36: client.v1.ServerMessage.response:type_name -> client.v1.Response
+	82,  // 37: client.v1.ServerMessage.inventory_changed:type_name -> client.v1.InventoryChanged
+	78,  // 38: client.v1.ServerMessage.exp_gained:type_name -> client.v1.ExpGained
+	76,  // 39: client.v1.ServerMessage.died:type_name -> client.v1.Died
+	77,  // 40: client.v1.ServerMessage.respawned:type_name -> client.v1.Respawned
+	86,  // 41: client.v1.ServerMessage.chat_message:type_name -> client.v1.ChatMessage
+	66,  // 42: client.v1.ServerMessage.snapshot:type_name -> client.v1.Snapshot
+	85,  // 43: client.v1.ServerMessage.map_change:type_name -> client.v1.MapChange
+	87,  // 44: client.v1.ServerMessage.party_state:type_name -> client.v1.PartyState
+	88,  // 45: client.v1.ServerMessage.party_invited:type_name -> client.v1.PartyInvited
+	79,  // 46: client.v1.ServerMessage.level_up:type_name -> client.v1.LevelUp
+	58,  // 47: client.v1.ServerMessage.welcome:type_name -> client.v1.Welcome
+	91,  // 48: client.v1.ServerMessage.kicked:type_name -> client.v1.Kicked
+	84,  // 49: client.v1.ServerMessage.stats_changed:type_name -> client.v1.StatsChanged
+	83,  // 50: client.v1.ServerMessage.loot:type_name -> client.v1.Loot
+	93,  // 51: client.v1.ServerMessage.npc_dialog:type_name -> client.v1.NpcDialog
+	100, // 52: client.v1.ServerMessage.quest_changed:type_name -> client.v1.QuestChanged
+	73,  // 53: client.v1.ServerMessage.skill_used:type_name -> client.v1.SkillUsed
+	80,  // 54: client.v1.ServerMessage.promoted:type_name -> client.v1.Promoted
+	67,  // 55: client.v1.ServerMessage.field_boss:type_name -> client.v1.FieldBoss
+	68,  // 56: client.v1.ServerMessage.field_boss_gone:type_name -> client.v1.FieldBossGone
+	69,  // 57: client.v1.ServerMessage.announcement:type_name -> client.v1.Announcement
+	74,  // 58: client.v1.ServerMessage.attack_used:type_name -> client.v1.AttackUsed
+	75,  // 59: client.v1.ServerMessage.mob_attacked:type_name -> client.v1.MobAttacked
+	90,  // 60: client.v1.ServerMessage.teleport_cancelled:type_name -> client.v1.TeleportCancelled
+	105, // 61: client.v1.ServerMessage.pvp_queued:type_name -> client.v1.PvpQueued
+	106, // 62: client.v1.ServerMessage.pvp_unqueued:type_name -> client.v1.PvpUnqueued
+	107, // 63: client.v1.ServerMessage.pvp_offer:type_name -> client.v1.PvpOffer
+	108, // 64: client.v1.ServerMessage.pvp_offer_gone:type_name -> client.v1.PvpOfferGone
+	109, // 65: client.v1.ServerMessage.match_state:type_name -> client.v1.MatchState
+	113, // 66: client.v1.ServerMessage.match_ended:type_name -> client.v1.MatchEnded
+	0,   // 67: client.v1.ChatSend.channel:type_name -> client.v1.ChatChannel
+	46,  // 68: client.v1.SpendPoints.points:type_name -> client.v1.Stats
+	115, // 69: client.v1.SpendSkillPoints.points:type_name -> client.v1.SpendSkillPoints.PointsEntry
+	38,  // 70: client.v1.UseSkill.way:type_name -> client.v1.SkillWay
+	46,  // 71: client.v1.CharacterView.stats:type_name -> client.v1.Stats
+	48,  // 72: client.v1.CharacterView.sheet:type_name -> client.v1.StatSheet
+	46,  // 73: client.v1.StatSheet.primary:type_name -> client.v1.Stats
+	46,  // 74: client.v1.StatSheet.primary_worn:type_name -> client.v1.Stats
+	52,  // 75: client.v1.StatSheet.derived:type_name -> client.v1.DerivedStats
+	52,  // 76: client.v1.StatSheet.derived_worn:type_name -> client.v1.DerivedStats
+	51,  // 77: client.v1.StatSheet.points:type_name -> client.v1.Points
+	46,  // 78: client.v1.StatSheet.primary_skills:type_name -> client.v1.Stats
+	52,  // 79: client.v1.StatSheet.derived_skills:type_name -> client.v1.DerivedStats
+	50,  // 80: client.v1.StatSheet.skills:type_name -> client.v1.SkillPoints
+	49,  // 81: client.v1.StatSheet.buffs:type_name -> client.v1.BuffView
+	116, // 82: client.v1.SkillPoints.invested:type_name -> client.v1.SkillPoints.InvestedEntry
+	117, // 83: client.v1.SkillPoints.traits:type_name -> client.v1.SkillPoints.TraitsEntry
+	46,  // 84: client.v1.Points.spent:type_name -> client.v1.Stats
+	54,  // 85: client.v1.ItemView.stats:type_name -> client.v1.ItemStats
+	53,  // 86: client.v1.EquipSlot.item:type_name -> client.v1.ItemView
+	56,  // 87: client.v1.PartyView.members:type_name -> client.v1.PartyMember
+	47,  // 88: client.v1.Welcome.character:type_name -> client.v1.CharacterView
+	53,  // 89: client.v1.Welcome.inventory:type_name -> client.v1.ItemView
+	57,  // 90: client.v1.Welcome.party:type_name -> client.v1.PartyView
+	55,  // 91: client.v1.Welcome.equipment:type_name -> client.v1.EquipSlot
+	99,  // 92: client.v1.Welcome.quests:type_name -> client.v1.QuestState
+	59,  // 93: client.v1.Welcome.skill_timers:type_name -> client.v1.SkillTimer
+	2,   // 94: client.v1.SkillTimer.kind:type_name -> client.v1.SkillTimerKind
+	63,  // 95: client.v1.PlayerView.move:type_name -> client.v1.SkillMove
+	61,  // 96: client.v1.PlayerView.slow:type_name -> client.v1.SlowWalk
+	62,  // 97: client.v1.PlayerView.statuses:type_name -> client.v1.StatusView
+	3,   // 98: client.v1.MobView.pose:type_name -> client.v1.MobPose
+	62,  // 99: client.v1.MobView.statuses:type_name -> client.v1.StatusView
+	60,  // 100: client.v1.Snapshot.players:type_name -> client.v1.PlayerView
+	64,  // 101: client.v1.Snapshot.mobs:type_name -> client.v1.MobView
+	65,  // 102: client.v1.Snapshot.drops:type_name -> client.v1.DropView
+	67,  // 103: client.v1.Snapshot.field_boss:type_name -> client.v1.FieldBoss
+	70,  // 104: client.v1.Announcement.boss_appeared:type_name -> client.v1.BossAppeared
+	60,  // 105: client.v1.Delta.players:type_name -> client.v1.PlayerView
+	64,  // 106: client.v1.Delta.mobs:type_name -> client.v1.MobView
+	65,  // 107: client.v1.Delta.drops:type_name -> client.v1.DropView
+	47,  // 108: client.v1.LevelUp.character:type_name -> client.v1.CharacterView
+	47,  // 109: client.v1.Promoted.character:type_name -> client.v1.CharacterView
+	53,  // 110: client.v1.InventorySlot.item:type_name -> client.v1.ItemView
+	81,  // 111: client.v1.InventoryChanged.slots:type_name -> client.v1.InventorySlot
+	55,  // 112: client.v1.InventoryChanged.equipment:type_name -> client.v1.EquipSlot
+	4,   // 113: client.v1.Loot.kind:type_name -> client.v1.LootKind
+	48,  // 114: client.v1.StatsChanged.sheet:type_name -> client.v1.StatSheet
+	0,   // 115: client.v1.ChatMessage.channel:type_name -> client.v1.ChatChannel
+	57,  // 116: client.v1.PartyState.party:type_name -> client.v1.PartyView
+	5,   // 117: client.v1.TeleportCancelled.reason:type_name -> client.v1.TeleportCancelReason
+	1,   // 118: client.v1.Kicked.reason:type_name -> client.v1.KickReason
+	96,  // 119: client.v1.NpcDialog.gives:type_name -> client.v1.QuestOffer
+	98,  // 120: client.v1.NpcDialog.takes:type_name -> client.v1.QuestTurnIn
+	94,  // 121: client.v1.NpcDialog.promotion:type_name -> client.v1.PromotionOffer
+	95,  // 122: client.v1.PromotionOffer.conditions:type_name -> client.v1.PromotionCondition
+	6,   // 123: client.v1.PromotionCondition.kind:type_name -> client.v1.PromotionConditionKind
+	7,   // 124: client.v1.QuestOffer.state:type_name -> client.v1.QuestOfferState
+	97,  // 125: client.v1.QuestOffer.unmet:type_name -> client.v1.QuestConditions
+	8,   // 126: client.v1.QuestState.status:type_name -> client.v1.QuestStatus
+	9,   // 127: client.v1.QuestChanged.change:type_name -> client.v1.QuestChange
+	99,  // 128: client.v1.QuestChanged.quest:type_name -> client.v1.QuestState
+	10,  // 129: client.v1.PvpUnqueued.reason:type_name -> client.v1.PvpUnqueueReason
+	11,  // 130: client.v1.PvpOfferGone.reason:type_name -> client.v1.PvpOfferGoneReason
+	12,  // 131: client.v1.MatchState.phase:type_name -> client.v1.MatchPhase
+	110, // 132: client.v1.MatchState.sides:type_name -> client.v1.MatchSide
+	112, // 133: client.v1.MatchState.points:type_name -> client.v1.CapturePoint
+	111, // 134: client.v1.MatchSide.fighters:type_name -> client.v1.MatchFighter
+	13,  // 135: client.v1.MatchEnded.result:type_name -> client.v1.MatchOutcome
+	114, // 136: client.v1.MatchEnded.rating:type_name -> client.v1.PvpRatingChange
+	137, // [137:137] is the sub-list for method output_type
+	137, // [137:137] is the sub-list for method input_type
+	137, // [137:137] is the sub-list for extension type_name
+	137, // [137:137] is the sub-list for extension extendee
+	0,   // [0:137] is the sub-list for field type_name
 }
 
 func init() { file_client_v1_client_proto_init() }
@@ -8428,6 +9830,10 @@ func file_client_v1_client_proto_init() {
 		(*ClientMessage_InventoryDiscardMany)(nil),
 		(*ClientMessage_Teleport)(nil),
 		(*ClientMessage_ChooseTrait)(nil),
+		(*ClientMessage_PvpQueue)(nil),
+		(*ClientMessage_PvpLeaveQueue)(nil),
+		(*ClientMessage_PvpAnswer)(nil),
+		(*ClientMessage_PvpForfeit)(nil),
 	}
 	file_client_v1_client_proto_msgTypes[1].OneofWrappers = []any{
 		(*ServerMessage_Delta)(nil),
@@ -8458,6 +9864,12 @@ func file_client_v1_client_proto_init() {
 		(*ServerMessage_AttackUsed)(nil),
 		(*ServerMessage_MobAttacked)(nil),
 		(*ServerMessage_TeleportCancelled)(nil),
+		(*ServerMessage_PvpQueued)(nil),
+		(*ServerMessage_PvpUnqueued)(nil),
+		(*ServerMessage_PvpOffer)(nil),
+		(*ServerMessage_PvpOfferGone)(nil),
+		(*ServerMessage_MatchState)(nil),
+		(*ServerMessage_MatchEnded)(nil),
 	}
 	file_client_v1_client_proto_msgTypes[19].OneofWrappers = []any{}
 	file_client_v1_client_proto_msgTypes[55].OneofWrappers = []any{
@@ -8469,8 +9881,8 @@ func file_client_v1_client_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_client_v1_client_proto_rawDesc), len(file_client_v1_client_proto_rawDesc)),
-			NumEnums:      10,
-			NumMessages:   90,
+			NumEnums:      14,
+			NumMessages:   104,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

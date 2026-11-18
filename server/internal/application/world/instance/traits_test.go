@@ -314,7 +314,7 @@ func TestABuffKeepsItsTrait(t *testing.T) {
 		if len(saved) != 1 || saved[0].Timers.Buffs["focus"].Trait != "expose" {
 			t.Fatalf("checkpoints %+v, want the buff saved with Expose", saved)
 		}
-		_ = inst.Attack(p.ID, 0, 0)
+		_ = inst.Attack(p.ID, 0, model.EntityRef{})
 		broken := false
 		for range 20 {
 			tick(1)

@@ -97,7 +97,7 @@ type SkillUsed struct {
 	Stage  int
 	Trait  string  // "" for the default
 	Aim    float32 // the yaw it aimed along
-	Target uint32  // the mob it was aimed at, 0 for none
+	Target Entity  // the lock it was aimed at, zero for none
 }
 
 // AttackUsed is a player's basic attack starting, lasting LengthTicks, the class's length.

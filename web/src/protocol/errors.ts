@@ -118,6 +118,19 @@ const texts: Record<ErrorCode, string> = {
   [ERR.BAD_CHAT_CHANNEL]: 'That chat channel doesn’t exist.',
   [ERR.CHAT_NO_PARTY]: 'You’re not in a party.',
   [ERR.CHAT_RATE_LIMITED]: 'Too fast. Wait a moment.',
+
+  [ERR.PVP_NOT_PROMOTED]: 'Choose a class before you fight in the Arena.',
+  [ERR.PVP_ALREADY_QUEUED]: 'You’re already in a queue.',
+  [ERR.PVP_NOT_QUEUED]: 'You’re not in a queue.',
+  [ERR.PVP_PARTY_TOO_BIG]: 'Your party is too large for this mode.',
+  [ERR.PVP_PARTY_NOT_READY]:
+    'Everyone in your party must be online, have a class, and be out of a match and a queue.',
+  [ERR.PVP_IN_MATCH]: 'Not during a match.',
+  [ERR.PVP_OFFER_GONE]: 'That match is gone.',
+  [ERR.PVP_NOT_IN_MATCH]: 'You’re not in a match.',
+  [ERR.MATCH_NOT_STARTED]: 'Wait for the round to start.',
+  [ERR.BAD_PVP_BUILD]: 'That arena build can’t be saved. Reload and try again.',
+  [ERR.PVP_UNKNOWN_MODE]: 'That mode doesn’t exist. Reload the page.',
 };
 
 /** A code this client knows; a newer server may send one it doesn't. */

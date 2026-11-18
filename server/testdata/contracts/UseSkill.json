@@ -3,7 +3,7 @@
   "use_skill": {
     "skill": "lunge",
     "aim": -1.5,
-    "target": 7,
+    "target": "m:7",
     "way": {
       "x": 0.6,
       "z": -0.8,

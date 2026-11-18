@@ -1,0 +1,8 @@
+{
+  "pvp_offer": {
+    "offer": "0192f6a4-7000-7c3e-8a1b-2c3d4e5f6a7b",
+    "mode": "duel",
+    "bots": 1,
+    "until_ms": 10000
+  }
+}

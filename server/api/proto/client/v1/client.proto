@@ -42,6 +42,10 @@ message ClientMessage {
     InventoryDiscardMany inventory_discard_many = 29;
     Teleport teleport = 30;
     ChooseTrait choose_trait = 31;
+    PvpQueue pvp_queue = 32;
+    PvpLeaveQueue pvp_leave_queue = 33;
+    PvpAnswer pvp_answer = 34;
+    PvpForfeit pvp_forfeit = 35;
   }
 }
 
@@ -84,6 +88,12 @@ message ServerMessage {
     AttackUsed attack_used = 29;
     MobAttacked mob_attacked = 30;
     TeleportCancelled teleport_cancelled = 31;
+    PvpQueued pvp_queued = 32;
+    PvpUnqueued pvp_unqueued = 33;
+    PvpOffer pvp_offer = 34;
+    PvpOfferGone pvp_offer_gone = 35;
+    MatchState match_state = 36;
+    MatchEnded match_ended = 37;
   }
 }
 
@@ -127,8 +137,10 @@ message Input {
 message Attack {
   // The yaw it aims along, in radians from north toward east.
   float aim = 1;
-  // The mob the player has locked, 0 for none: hit first when the attack's shape reaches it, else the nearest it reaches.
-  uint32 target = 2;
+  // 2 was the locked mob's id, before a lock could be a player.
+  reserved 2;
+  // The locked mob or enemy, "m:<id>" or "p:<id>", empty for none: hit first when the attack's shape reaches it, else the nearest it reaches.
+  string target = 3;
 }
 
 // PickUp took the nearest eligible drop in range. Retired: drops fly to their owners.
@@ -245,8 +257,10 @@ message UseSkill {
   string skill = 1;
   // The yaw it aims along, in radians from north toward east.
   float aim = 2;
-  // The mob the player has locked, 0 for none: a damage skill hits it first when its shape reaches it, else the nearest it reaches.
-  uint32 target = 3;
+  // 3 was the locked mob's id, before a lock could be a player.
+  reserved 3;
+  // The locked mob or enemy, "m:<id>" or "p:<id>", empty for none: a damage skill hits it first when its shape reaches it, else the nearest it reaches.
+  string target = 6;
   // A moving skill's way, as the client worked it out as the skill started; unset for a skill that doesn't move.
   SkillWay way = 4;
   // The root of the key it was pressed on: the skill itself on its own key, or the root whose follow-up it is, which the world checks against its class's chains.
@@ -524,9 +538,9 @@ message PlayerView {
   float aim = 21;
   // A skill's dash or leap under way, so a reconcile resumes it; unset when none.
   SkillMove move = 22;
-  // Set while a skill's dodge runs: mobs' attacks pass through.
+  // Set while a skill's dodge runs: enemies' attacks pass through.
   bool dodging = 23;
-  // What's left of its shields, which take mobs' damage before HP.
+  // What's left of its shields, which take enemies' damage before HP.
   int32 shield = 24;
   // Sub-steps left of a status holding it, which the sim steps as State.Held; 0 when none.
   int32 held = 25;
@@ -536,6 +550,10 @@ message PlayerView {
   repeated StatusView statuses = 27;
   reserved 28;
   reserved "immune";
+  // Its side in a match, 1 or 2; 0 outside one, where no player is anyone's enemy.
+  int32 team = 29;
+  // A bot fighting in a match, which no one plays.
+  bool bot = 30;
 }
 
 // SlowWalk is a status slowing a player's walk: factor × the walk speed for left more sub-steps.
@@ -670,13 +688,13 @@ message Damage {
   int32 amount = 3;
   bool crit = 4;
   bool miss = 5;
-  // A mob's attack that passed through a player's dodge: no damage, knockback or hit guard.
+  // An enemy's attack that passed through a player's dodge: no damage, knockback or hit guard.
   bool dodge = 6;
   // Set on a damage-over-time tick: the status dealing it.
   string status_id = 7;
   // What of amount a player's shields took; the rest came off their HP.
   int32 shielded = 8;
-  // A mob's attack a player's block stopped: no damage, knockback, status or hit guard.
+  // An enemy's attack a player's block stopped: no damage, knockback, status or hit guard.
   bool block = 9;
 }
 
@@ -689,8 +707,10 @@ message SkillUsed {
   reserved "facing";
   // The yaw it aims along.
   float aim = 5;
-  // The mob it was aimed at, 0 for none; an area at the lock centres on it when it's within reach.
-  uint32 target = 6;
+  // 6 was the mob's id, before a lock could be a player.
+  reserved 6;
+  // The mob or enemy it was aimed at, "m:<id>" or "p:<id>", empty for none; an area at the lock centres on it when it's within reach.
+  string target = 8;
   // The extra trait it was used with, empty for the default.
   string trait = 7;
 }
@@ -976,4 +996,156 @@ enum QuestChange {
 message QuestChanged {
   QuestChange change = 1;
   QuestState quest = 2;
+}
+
+// PvpQueue joins a mode's queue (data/pvp.yaml modes: duel, team, battle); a party's leader queues the party. Answered when the queue takes it, with PvpQueued to each member.
+message PvpQueue {
+  string mode = 1;
+}
+
+// PvpLeaveQueue leaves the queue, the whole ticket for a party.
+message PvpLeaveQueue {}
+
+// PvpAnswer accepts or declines a PvpOffer.
+message PvpAnswer {
+  string offer = 1;
+  bool accept = 2;
+}
+
+// PvpForfeit leaves the match under way as a loss: in 1v1 the other side wins at once, in a team mode a bot takes the leaver's body.
+message PvpForfeit {}
+
+// PvpQueued says the player is in a mode's queue: on joining, to each member of a party ticket, and again after a reconnect.
+message PvpQueued {
+  string mode = 1;
+  // How long the ticket has waited as this is sent; the client counts on from it.
+  uint32 since_ms = 2;
+  // The ticket's characters: the player alone, or their party.
+  repeated string members = 3;
+}
+
+// PvpUnqueued says the player's ticket left the queue without a match.
+message PvpUnqueued {
+  PvpUnqueueReason reason = 1;
+}
+
+enum PvpUnqueueReason {
+  PVP_UNQUEUE_REASON_UNSPECIFIED = 0;
+  // The player, or their party's leader, left the queue.
+  PVP_UNQUEUE_REASON_LEFT = 1;
+  // The player declined an offer.
+  PVP_UNQUEUE_REASON_DECLINED = 2;
+  // The player let an offer lapse.
+  PVP_UNQUEUE_REASON_LAPSED = 3;
+  // The party behind a party ticket changed.
+  PVP_UNQUEUE_REASON_PARTY_CHANGED = 4;
+}
+
+// PvpOffer says a match was found; every player in it must accept with PvpAnswer before it lapses.
+message PvpOffer {
+  string offer = 1;
+  string mode = 2;
+  // How many of the match's places bots fill.
+  int32 bots = 3;
+  // How long until it lapses, as this is sent; the client counts down from it.
+  uint32 until_ms = 4;
+}
+
+// PvpOfferGone says an offer ended without a match: someone declined it or let it lapse.
+message PvpOfferGone {
+  string offer = 1;
+  PvpOfferGoneReason reason = 2;
+  // Whether this player is back in the queue, their wait kept: those who accepted are, those who declined or let it lapse aren't.
+  bool requeued = 3;
+}
+
+enum PvpOfferGoneReason {
+  PVP_OFFER_GONE_REASON_UNSPECIFIED = 0;
+  PVP_OFFER_GONE_REASON_DECLINED = 1;
+  PVP_OFFER_GONE_REASON_LAPSED = 2;
+}
+
+// MatchState is the match's state: sent on entry and at each change of phase, round or score, and each second in 15v15 while points move.
+message MatchState {
+  string match = 1;
+  string mode = 2;
+  MatchPhase phase = 3;
+  // The round under way or next, from 1; 0 in 15v15.
+  int32 round = 4;
+  // Rounds won by side 1 and side 2; empty in 15v15.
+  repeated int32 wins = 5;
+  // How long the phase has left, as this is sent; the client counts down from it.
+  uint32 ends_in_ms = 6;
+  // Side 1 then side 2.
+  repeated MatchSide sides = 7;
+  // Side 1's and side 2's score in 15v15; empty in a round mode.
+  repeated int32 score = 8;
+  // The 15v15 capture points; empty in a round mode.
+  repeated CapturePoint points = 9;
+}
+
+enum MatchPhase {
+  MATCH_PHASE_UNSPECIFIED = 0;
+  // Before the first round or the battle: the prep wall stands, and attacks and skills are refused.
+  MATCH_PHASE_PREP = 1;
+  // The count into a round: the prep wall stands, and nobody moves or acts.
+  MATCH_PHASE_COUNTDOWN = 2;
+  MATCH_PHASE_FIGHT = 3;
+  // Between rounds.
+  MATCH_PHASE_BETWEEN = 4;
+  // The match is over; everyone goes back when it ends.
+  MATCH_PHASE_RESULT = 5;
+}
+
+// MatchSide is one side's fighters.
+message MatchSide {
+  repeated MatchFighter fighters = 1;
+}
+
+// MatchFighter is a player or a bot in a match; a bot's id is its own, never a character's.
+message MatchFighter {
+  string id = 1;
+  string name = 2;
+  string class = 3;
+  bool bot = 4;
+}
+
+// CapturePoint is a 15v15 point as the world has it now; the client moves its ring between updates at the rate data/pvp.yaml gives.
+message CapturePoint {
+  string id = 1;
+  // The side holding it, 0 for none.
+  int32 holder = 2;
+  // From -1, side 1's, through 0, no one's, to 1, side 2's.
+  double progress = 3;
+  // Both sides stand in it, so it holds still.
+  bool contested = 4;
+}
+
+// MatchEnded is the match's outcome for this player, as its result phase starts.
+message MatchEnded {
+  MatchOutcome result = 1;
+  // Rounds won by side 1 and side 2; empty in 15v15.
+  repeated int32 wins = 2;
+  // Side 1's and side 2's score in 15v15; empty in a round mode.
+  repeated int32 score = 3;
+  // The rated mode's rating change; unset for 15v15, or when the match had no result to rate.
+  PvpRatingChange rating = 4;
+}
+
+enum MatchOutcome {
+  MATCH_OUTCOME_UNSPECIFIED = 0;
+  MATCH_OUTCOME_WIN = 1;
+  MATCH_OUTCOME_LOSS = 2;
+  MATCH_OUTCOME_DRAW = 3;
+}
+
+// PvpRatingChange is a mode's shown rating and rank before and after a match.
+message PvpRatingChange {
+  int32 before = 1;
+  int32 after = 2;
+  // Rank ids from data/pvp.yaml ranks.
+  string rank_before = 3;
+  string rank_after = 4;
+  // Placement matches still to play, 0 once placed.
+  int32 placement_left = 5;
 }

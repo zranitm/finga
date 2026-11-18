@@ -134,7 +134,14 @@ func TestEveryWorldEventKeepsItsValues(t *testing.T) {
 		"StatsChanged": func() []string {
 			return eventDiff[world.StatsChanged](t, model.StatsChanged{}, sheet(match(), "Event.Sheet", "Delivery.Push.Sheet"))
 		},
-		"SkillUsed": func() []string { return eventDiff[world.SkillUsed](t, model.SkillUsed{}, match()) },
+		"SkillUsed": func() []string {
+			m := match()
+			const lock = "a lock names a player or a mob, and this one a player: TestASkillsLockNamesItsMobOrNothing"
+			m.Renames["Event.Target.Player"] = "Delivery.Push.Target.Character"
+			m.Skip["Event.Target.Mob"] = lock
+			m.Computed["Delivery.Push.Target.Mob"] = lock
+			return eventDiff[world.SkillUsed](t, model.SkillUsed{}, m)
+		},
 		"AttackUsed": func() []string {
 			m := match()
 			m.Renames["Event.Length"] = "Delivery.Push.LengthTicks"
@@ -252,6 +259,27 @@ func TestAnItemNamesTheSlotItSitsIn(t *testing.T) {
 func TestAWorldChatLineIsAMapLine(t *testing.T) {
 	if p, ok := worldPush(world.Chat{Text: "hi"}); !ok || p.(model.ChatMessage).Channel != model.ChatMap {
 		t.Fatalf("became %+v", p)
+	}
+}
+
+// A skill's lock names its player, else its mob, and no lock stays none rather than mob 0.
+func TestASkillsLockNamesItsMobOrNothing(t *testing.T) {
+	player := kernel.NewCharacterID()
+	for _, c := range []struct {
+		lock world.EntityRef
+		want model.Entity
+	}{
+		{world.EntityRef{}, model.Entity{}},
+		{world.EntityRef{Mob: 7}, model.Entity{Mob: 7}},
+		{world.EntityRef{Player: player}, model.Entity{Character: player.String()}},
+	} {
+		p, ok := worldPush(world.SkillUsed{Caster: player, Skill: "strike", Target: c.lock})
+		if !ok {
+			t.Fatal("no push")
+		}
+		if got := p.(model.SkillUsed).Target; got != c.want {
+			t.Errorf("lock %+v went out as %+v, want %+v", c.lock, got, c.want)
+		}
 	}
 }
 

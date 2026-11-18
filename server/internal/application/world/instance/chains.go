@@ -31,7 +31,7 @@ func (i *Instance) chainReady(u use, root string) error {
 }
 
 // holds is whether w held for p at the press, during input seq: windows count inputs, as its client does, from the root's hit or the input the dodge's frame acked; controlled and far read the lock now, a status ended within the slack still counting.
-func (i *Instance) holds(p *player, root string, w gamedata.ChainCondition, seq uint32, target uint32) bool {
+func (i *Instance) holds(p *player, root string, w gamedata.ChainCondition, seq uint32, target model.EntityRef) bool {
 	press, slack := uint64(p.pressedDuring(seq)), i.ticksFor(chainSlack)
 	switch {
 	case w.After > 0:
@@ -42,11 +42,11 @@ func (i *Instance) holds(p *player, root string, w gamedata.ChainCondition, seq 
 	case w.Blocked > 0:
 		return p.blocked && press <= uint64(p.blockedSeq)+i.ticksFor(w.Blocked)+slack
 	case len(w.Controlled) > 0:
-		return i.arena.Controlled(uint64(target), w.Controlled, slack)
+		return i.controlled(target, w.Controlled, slack)
 	case w.ControlledSelf:
 		return p.statuses.Hard() // no slack, as the break-free itself has none
 	default:
-		lock, found := i.arena.At(uint64(target))
+		lock, found := i.at(target)
 		return found && nav.Length(lock.X-p.state.X, lock.Z-p.state.Z) > w.Far-chainReach
 	}
 }
