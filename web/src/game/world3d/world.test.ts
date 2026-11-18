@@ -554,6 +554,63 @@ describe('World', () => {
       p.frames(1);
     }
     expect(target.getState().target).toBeNull(); // down, so no longer lockable
+    p.push('died', { characterId: ME, x: 4, y: 0, z: 20 }, { tick: 20 });
+    for (let tick = 21; tick <= 23; tick++) {
+      p.push('delta', { players: players(1).slice(1) }, { tick }); // the player's own frame unchanged while down
+      p.frames(1);
+    }
+    expect([name('c-robin').style.color, name('c-kai').style.color]).toEqual([
+      rgb(0xff6b62),
+      rgb(0x7fe08a),
+    ]); // still an enemy and a teammate while the player is down
+    p.push('delta', { players: players(1) }, { tick: 24 });
+    p.push('respawned', { characterId: ME, mapId: FLAT, x: 4, y: 0, z: 20, hp: 50 }, { tick: 24 });
+    for (let tick = 25; tick <= 27; tick++) {
+      p.push('delta', {}, { tick });
+      p.frames(1);
+    }
+    expect(target.getState().target?.ref).toBe('p:c-robin'); // the round's reset: up, and locked on again
+  });
+
+  it('a round’s reset gets up the one still standing too: their dodge and swing end, as a death’s do', async () => {
+    const p = await playing(FLAT, 10, 20);
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'warrior',
+          level: 30,
+          hp: 50,
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: { roll_back: 1 } } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['roll_back']);
+    const faded = () =>
+      p
+        .root(classLook('warrior').file)!
+        .getChildMeshes(false)
+        .some((m) => m.material?.name.endsWith(` ${FADED}`));
+    p.live(2);
+    key('KeyQ', true);
+    key('KeyQ', false);
+    p.live(1);
+    expect([p.sent('useSkill').length, faded()]).toEqual([1, true]);
+    key('KeyX', true);
+    key('KeyX', false);
+    expect(p.sent('attack')).toEqual([]); // Roll Back still runs
+    p.push('delta', { players: [standing(10, 20)], ackSeq: 0 }, { tick: 20 });
+    p.push('respawned', { characterId: ME, mapId: FLAT, x: 10, y: 0, z: 20, hp: 50 }, { tick: 20 });
+    p.frames(1);
+    expect(faded()).toBe(false);
+    key('KeyX', true);
+    key('KeyX', false);
+    expect(p.sent('attack')).toHaveLength(1); // nothing left running
   });
 
   describe('mobs', () => {

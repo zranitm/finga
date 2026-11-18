@@ -3,7 +3,7 @@ import { pvp } from '@/gamedata/pvp';
 
 export type Mode = (typeof pvp.modes)[number];
 
-export function modeById(id: string): Mode | undefined {
+function modeById(id: string): Mode | undefined {
   return pvp.modes.find((m) => m.id === id);
 }
 

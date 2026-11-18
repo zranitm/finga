@@ -6,6 +6,7 @@ import { ERR } from '@/protocol/errors';
 import { MatchPhase, MatchStateSchema, PvpQueuedSchema } from '@/protocol/messages';
 import { pvp } from '@/state/pvp';
 import { settings } from '@/state/settings';
+import { toasts } from '@/state/toasts';
 import { refusal } from '@/testing/refusal';
 import { resetStores } from '@/testing/reset-stores';
 import { user } from '@/testing/user';
@@ -94,5 +95,23 @@ describe('QueueTag', () => {
     expect(tag).toHaveClass('low');
     act(() => within(tag).getByRole('button', { name: 'Leave the queue' }).click());
     expect(calls).toEqual([{ t: 'pvpLeaveQueue', d: {} }]);
+  });
+
+  it('keeps no clock running till the player queues, and lets go of it when they leave', () => {
+    render(<QueueTag socket={fakeSocket().socket} />);
+    expect(vi.getTimerCount()).toBe(0);
+    queued();
+    expect(vi.getTimerCount()).toBe(1);
+    act(() => pvp.getState().applyUnqueued());
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('says why a leave was refused', async () => {
+    const { socket } = fakeSocket([refusal(ERR.PVP_NOT_QUEUED)]);
+    render(<QueueTag socket={socket} />);
+    queued();
+    act(() => screen.getByRole('button', { name: 'Leave the queue' }).click());
+    await act(() => Promise.resolve());
+    expect(toasts.getState().toasts.map((t) => t.text)).toEqual(['You’re not in a queue.']);
   });
 });

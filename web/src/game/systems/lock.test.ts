@@ -16,7 +16,7 @@ const mark = (id: number | string, x: number, z: number, hp = 10, seen: Seen = '
 });
 
 describe('Lock', () => {
-  it('picks the nearest living mob in view, in any direction, a tie to the lower id', () => {
+  it('picks the nearest living mob in view, in any direction, a tie in ref order', () => {
     expect(new Lock().update(0, 0, [mark(1, 0, 6), mark(2, 0, -4), mark(3, 5, 0)])?.id).toBe('m:2'); // behind
     expect(new Lock().update(0, 0, [mark(4, 3, 0), mark(2, -3, 0)])?.id).toBe('m:2');
     expect(

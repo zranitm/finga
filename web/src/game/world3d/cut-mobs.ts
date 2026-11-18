@@ -7,7 +7,7 @@ export const CUT_MOBS = 4;
 const ATTACK_M = 8; // an attacking mob this near the feet, past a spitter's 7.5 m reach
 const NEAR_M = 4; // and any mob this near
 
-/** The living units to open the place round, seen from feet (x, z): the locked one, then those attacking within ATTACK_M, then any within NEAR_M, nearest first in each, a tie to the lower ref; CUT_MOBS at most. */
+/** The living units to open the place round, seen from feet (x, z): the locked one, then those attacking within ATTACK_M, then any within NEAR_M, nearest first in each, a tie in ref order; CUT_MOBS at most. */
 export function cutMobs(
   x: number,
   z: number,

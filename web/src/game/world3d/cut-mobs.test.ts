@@ -18,7 +18,7 @@ const ids = (ms: readonly Mark[]) =>
   ms.map((m) => (m.id.startsWith('m:') ? Number(m.id.slice(2)) : m.id));
 
 describe('the mobs the place opens round', () => {
-  it('takes those within 4 m, nearest first, a tie to the lower id, and none further', () => {
+  it('takes those within 4 m, nearest first, a tie in ref order, and none further', () => {
     const mobs = [mob(1, 3, 0), mob(2, 0, 1), mob(3, 0, -3), mob(4, 4.5, 0)];
     expect(ids(cutMobs(0, 0, null, none, mobs))).toEqual([2, 1, 3]);
   });

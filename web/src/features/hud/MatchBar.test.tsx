@@ -118,5 +118,7 @@ describe('MatchBar', () => {
     await settle();
     expect(calls).toEqual([{ t: 'pvpForfeit', d: {} }]);
     expect(screen.getByRole('alert')).toHaveTextContent('You’re not in a match.');
+    act(() => screen.getByRole('button', { name: 'Leave match' }).click());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument(); // a new try starts afresh
   });
 });

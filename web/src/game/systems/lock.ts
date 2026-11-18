@@ -6,7 +6,7 @@ function across(x: number, z: number, m: Mark): number {
   return Math.hypot(m.x - x, m.z - z);
 }
 
-/** The living units the lock may pick, those in view, nearest the feet (x, z) first, a tie to the lower ref. */
+/** The living units the lock may pick, those in view, nearest the feet (x, z) first, a tie in ref order. */
 function pickable(x: number, z: number, mobs: Iterable<Mark>): Mark[] {
   const near: { readonly m: Mark; readonly d: number }[] = [];
   for (const m of mobs) {
@@ -17,7 +17,7 @@ function pickable(x: number, z: number, mobs: Iterable<Mark>): Mark[] {
   return near.sort((a, b) => a.d - b.d || byRef(a.m, b.m)).map((n) => n.m);
 }
 
-/** Two units in a fixed order by their refs. */
+/** Two units in a fixed order by their refs, as text: "m:10" comes before "m:9". */
 export function byRef(a: Mark, b: Mark): number {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }

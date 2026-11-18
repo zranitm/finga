@@ -79,7 +79,13 @@ function Shown({
             </Button>
           </span>
         ) : (
-          <Button variant="quiet" onClick={() => setLeaving(true)}>
+          <Button
+            variant="quiet"
+            onClick={() => {
+              setProblem(null);
+              setLeaving(true);
+            }}
+          >
             Leave match
           </Button>
         ))}

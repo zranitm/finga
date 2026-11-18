@@ -324,6 +324,7 @@ export class World {
   private stalled = false;
   private placed = false; // set by the first frame that names the local player
   private latestMe: Wire | null = null; // the newest frame of the local player, which places them after a respawn here
+  private myTeam = 0; // the player's side in a match as their last frame gave it, kept while they're down
   private transitionState: TransitionState = initialTransition;
 
   private predictor: Predictor | null = null;
@@ -783,6 +784,7 @@ export class World {
     const me = players.find((p) => p.id === this.deps.player.characterId);
     if (me) {
       this.latestMe = me;
+      this.myTeam = me.team;
       this.placeAt(me);
       this.flash.set(me.invulnerable, now);
     }
@@ -815,6 +817,7 @@ export class World {
     }
     const acting = !this.restrained().act;
     this.latestMe = me;
+    this.myTeam = me.team;
     if (acting && this.restrained().act) {
       this.stopAction(now);
     }
@@ -968,7 +971,7 @@ export class World {
       v.pose(this.deadRemotes.has(id) ? 'dead' : 'up', now);
       v.fade(looks.get(id)?.dodging ?? false);
       const info = remotes.infoOf(id);
-      const side = relationOf(this.latestMe?.team ?? 0, info?.team ?? 0);
+      const side = relationOf(this.myTeam, info?.team ?? 0);
       this.labels.set(
         `p:${id}`,
         side === 'none' ? 'player' : side,
@@ -1073,7 +1076,7 @@ export class World {
   /** In a match, the enemies drawn this frame marked after the mobs, from i on, for the lock to hold too: the count of marks after them. */
   private markFoes(i: number): number {
     const remotes = this.remotes;
-    const mine = this.latestMe?.team ?? 0;
+    const mine = this.myTeam;
     if (!remotes || mine === 0) {
       return i;
     }
@@ -1973,6 +1976,8 @@ export class World {
         ui.getState().closeWindow('npc');
         return;
       case 'respawn-here':
+        this.myDodge = null;
+        this.actions?.reset(); // a round's reset gets up the one still standing too, mid-swing or mid-dodge (pvp.md section 7)
         this.lock.clear();
         character.getState().setHp(a.hp);
         character.getState().setDead(false);
@@ -2063,6 +2068,7 @@ export class World {
     }
     this.dropBanner();
     this.latestMe = null;
+    this.myTeam = 0;
     this.stopListening();
     this.arriving?.take(); // a build never finished, or a fade under way
     this.arriving = null;
