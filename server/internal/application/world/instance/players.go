@@ -260,8 +260,7 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 		before := p.state
 		if !p.dead && !hold {
 			moves := i.movement(p)
-			g := i.m.Geometry
-			g.Blockers = i.arena.BlockersAt(i.seen(p.view))
+			g := i.m.Geometry.Blocking(i.arena.BlockersAt(i.seen(p.view)))
 			if passed, _ := slices.BinarySearch(p.sprintEnds, p.lastSeq); passed > 0 {
 				p.sprintEnds = slices.Delete(p.sprintEnds, 0, passed)
 				p.state = sim.EndSprint(p.state)

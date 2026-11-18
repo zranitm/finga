@@ -99,6 +99,7 @@ type Geometry struct {
 	Cylinders []Cylinder `json:"cylinders"`
 	Blockers  []Blocker  `json:"blockers,omitempty"`
 	solids    *solids    // its boxes and cylinders bucketed, set by Indexed; nil scans every one
+	blockers  *Blockers  // its blockers bucketed, set by Blocking
 }
 
 // Input is the keys held during one sub-step: up walks north (+z), right east (+x).
@@ -214,8 +215,9 @@ func Blink(s State, w Way, g Geometry, p Params) State {
 
 // inMob is whether a mob's body holds s's.
 func inMob(s State, g Geometry, p Params) bool {
-	for _, b := range g.Blockers {
-		if s.Y < b.Top && s.Y+p.Height > b.Bottom {
+	blockers := g.nearBlockers(s.X-p.Radius, s.Z-p.Radius, s.X+p.Radius, s.Z+p.Radius)
+	for i, ok := blockers.next(); ok; i, ok = blockers.next() {
+		if b := g.Blockers[i]; s.Y < b.Top && s.Y+p.Height > b.Bottom {
 			dx, dz, r := s.X-b.X, s.Z-b.Z, b.Radius+p.Radius
 			if float64(dx*dx)+float64(dz*dz) < float64(r*r) {
 				return true
@@ -461,8 +463,9 @@ func slide(s State, d float64, alongZ bool, g Geometry, p Params) (float64, bool
 			}
 		}
 	}
-	for _, b := range g.Blockers {
-		if s.Y < b.Top && s.Y+p.Height > b.Bottom {
+	blockers := g.nearBlockers(x0, z0, x1, z1)
+	for i, ok := blockers.next(); ok; i, ok = blockers.next() {
+		if b := g.Blockers[i]; s.Y < b.Top && s.Y+p.Height > b.Bottom {
 			if lo, hi, ok := circleSpan(b.X, b.Z, b.Radius+p.Radius, s.X, s.Z, alongZ); ok {
 				if cut := limit(d, lo, hi); cut != d {
 					d, by, mob = cut, -1, true

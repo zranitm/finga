@@ -248,7 +248,7 @@ func (a *Arena) react(mb *mob, from model.Aim, by kernel.CharacterID, push float
 	}
 	mb.pose, mb.poseEnd = model.Flinching, a.afterBlow(r.Flinch)
 	ux, uz := away(from.X, from.Z, mb.x, mb.z, float32(from.Yaw))
-	a.move(mb, float64(ux*r.Push), float64(uz*r.Push), a.blockers)
+	a.move(mb, float64(ux*r.Push), float64(uz*r.Push), &a.blocking)
 }
 
 // away is the unit vector from (fx, fz) to (tx, tz) in x and z; along yaw where they meet.
@@ -286,8 +286,7 @@ func (a *Arena) ahead(mb *mob, dist float64) nav.Point {
 	ox, oz := mb.x-mb.home.X, mb.z-mb.home.Z
 	b, c := float64(ux*ox)+float64(uz*oz), float64(ox*ox)+float64(oz*oz)-float64(a.leash(mb)*a.leash(mb))
 	dist = max(0, min(dist, -b+math.Sqrt(max(0, float64(b*b)-c)))) // the line's way out of the leash circle
-	g := a.m.Geometry
-	g.Blockers = a.portals
+	g := a.m.Geometry.Blocking(&a.portalBlocking)
 	s := sim.Push(sim.State{X: mb.x, Y: mb.y, Z: mb.z, OnGround: true}, float64(ux*dist), float64(uz*dist), g, mb.params)
 	return nav.Point{X: s.X, Z: s.Z}
 }
@@ -395,7 +394,7 @@ func (a *Arena) travel(mb *mob, players []Body) {
 			if ok {
 				went = reach // on to the player, who stops it
 			}
-			a.move(mb, float64(ux*went), float64(uz*went), a.blockers)
+			a.move(mb, float64(ux*went), float64(uz*went), &a.blocking)
 			if ok {
 				a.land(mb, []Hit{{Player: p.ID, DX: ux, DZ: uz}})
 			}
@@ -404,7 +403,7 @@ func (a *Arena) travel(mb *mob, players []Body) {
 				return
 			}
 		} else {
-			a.move(mb, float64(ux*step), float64(uz*step), a.portals) // a leap passes over players
+			a.move(mb, float64(ux*step), float64(uz*step), &a.portalBlocking) // a leap passes over players
 		}
 	}
 	if a.tick < mb.phaseEnd {

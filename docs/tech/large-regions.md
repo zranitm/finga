@@ -184,6 +184,12 @@ biomes:
   - `reached` (strikes and skills);
   - `spread`, `yield`, `hold` and `room`;
   - pickups, NPC reach, waypoint finding, gate rings, and area and town lookups.
+  - As built (step 2b-1), the bodies a move stops at:
+    - The Go sim buckets a step's blockers in 32 m squares: `sim.Blockers`, lent to a geometry by `Geometry.Blocking`. `slide` and a blink's end read only those near the body, in their own order, so a move is a full scan's to the bit.
+    - An index is read only for the list it was built from. A geometry whose `Blockers` were set any other way, or cleared for a move through mobs, scans them.
+    - The arena keeps one for the portals and the living players (mob moves), one for the portals alone (leaps, `ahead`), one per kept frame (a player's step) and one for the mobs where they stand (knockbacks).
+    - The client steps among the mobs it was sent, as before.
+    - A step among 400 mobs in a 1 km region takes 219 ns against 662 ns scanned, and a rebuild 6.6 µs.
 - **Nav:**
   - Built at boot with solids binned, so a cell tests only nearby solids.
   - Packed to 3 bytes a cell: clearance as a uint16 in steps of 2⁻¹³ m, and a byte of flags: a raised top, and which of the four sides a body may walk to. That's 12 MB a region at 0.5 m, shared by every channel.
@@ -197,6 +203,8 @@ biomes:
   - Long trips go by a **road graph,** from the plan's roads, waypoints and gates. Mobs never walk far, and cmd/bot uses it for trips across a region.
 
 ### Sleep
+
+Built with step 1, which says who watches a cell.
 
 - **A mob sleeps** when no player watches its cell. A sleeping mob:
   - finishes an act or walk home under way;
@@ -359,10 +367,11 @@ biomes:
 
 ## 14. Build
 
-1. **Interest cells** and the frame parts; `Unseen`; events by place; party spots.
-2. **Spatial indexes and sleep,** in two PRs:
+1. **Interest cells** and the frame parts; `Unseen`; events by place; party spots; **sleep,** next to the cells that say who watches.
+2. **Spatial indexes,** in three PRs:
    - 2a: sim buckets (both sides, with vectors), and packed nav with its binned build;
-   - 2b: body buckets and sleep.
+   - 2b-1: blocker buckets in the Go sim, which mob moves, kept frames and knockbacks read;
+   - 2b-2: body buckets in the arena, for sight, targeting, reach, `spread` and the rest.
 3. **Sprint and zoom:** the sim rule, `PlayerView.sprint`, the look, the camera, the zoom actions, and saved zoom.
 4. **The pipeline:**
    - `regiongen` and the bake;
