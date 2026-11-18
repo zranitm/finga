@@ -26,6 +26,15 @@ type Map struct {
 	CylinderModels []string     `json:"cylinder_models"`
 	Props          []Prop       `json:"props"`
 	Portals        []Portal     `json:"portals"`
+	PrepWall       *Wall        `json:"prep_wall,omitempty"` // a pvp map's, standing before each round
+}
+
+// Wall is a pvp map's prep wall: its boxes and cylinders on the map's terrain, and their models in order.
+type Wall struct {
+	Boxes          []sim.Box      `json:"boxes"`
+	Cylinders      []sim.Cylinder `json:"cylinders"`
+	BoxModels      []Model        `json:"box_models"`
+	CylinderModels []string       `json:"cylinder_models"`
 }
 
 // Model is a box's model and its turn from facing north toward east, in degrees.
@@ -128,6 +137,17 @@ func build(dataDir, id string, p sim.Params) (Map, error) {
 		} else {
 			m.CylinderModels = append(m.CylinderModels, s.Model)
 		}
+	}
+	if len(f.PrepWall) > 0 {
+		w := &Wall{Boxes: built.Walled.Boxes[len(built.Geometry.Boxes):], Cylinders: built.Walled.Cylinders[len(built.Geometry.Cylinders):], BoxModels: []Model{}, CylinderModels: []string{}}
+		for _, s := range f.PrepWall {
+			if s.Box != nil {
+				w.BoxModels = append(w.BoxModels, Model{Model: s.Model, Yaw: s.Yaw})
+			} else {
+				w.CylinderModels = append(w.CylinderModels, s.Model)
+			}
+		}
+		m.PrepWall = w
 	}
 	for _, pr := range f.Props {
 		out := Prop{At: pr.At, Yaw: pr.Yaw, Model: pr.Model}

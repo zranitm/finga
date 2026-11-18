@@ -34,6 +34,11 @@ const GROUP_GAP_M = 6; // spawn circles of one mob this close at their edges sha
 const LABEL_REACH_M = 8; // every spawn circle has a label of its own mob on it, or this close to its edge
 
 const nameOf = (id: string) => maps.find((m) => m.id === id)?.name ?? id;
+
+type Charted = (typeof maps)[number] & { readonly place: readonly [number, number] };
+
+/** The maps on the world chart: every one but a match's, which only a match reaches. */
+const charted = maps.filter((m): m is Charted => m.place !== null);
 const levels = (m: MapData) => `Lv ${m.min_level}–${m.max_level}`;
 
 /** A label on This map, in pixels: its text centred on x, sitting on bottom. */
@@ -317,13 +322,13 @@ function World(props: WorldProps) {
   const myId = character.use((s) => s.character?.id);
   const members = party.use((s) => s.party?.members) ?? [];
   const [shown, setShown] = useState<string | null>(null);
-  const xs = maps.map((m) => m.place[0]);
-  const ys = maps.map((m) => m.place[1]);
+  const xs = charted.map((m) => m.place[0]);
+  const ys = charted.map((m) => m.place[1]);
   const [x0, y0] = [Math.min(...xs) - CHART_PAD, Math.min(...ys) - CHART_PAD];
   const [w, h] = [Math.max(...xs) + CHART_PAD - x0, Math.max(...ys) + CHART_PAD - y0];
-  const at = (id: string) => maps.find((m) => m.id === id)?.place ?? [0, 0];
-  const card = maps.find((m) => m.id === shown);
-  const pick = maps.find((m) => m.id === picked);
+  const at = (id: string) => charted.find((m) => m.id === id)?.place ?? [0, 0];
+  const card = charted.find((m) => m.id === shown);
+  const pick = charted.find((m) => m.id === picked);
   if (pick) {
     return <Picked map={pick} {...props} onBack={() => setPicked(null)} />;
   }
@@ -347,7 +352,7 @@ function World(props: WorldProps) {
             y2={at(b)[1]}
           />
         ))}
-        {maps.map((m) => {
+        {charted.map((m) => {
           const [x, y] = m.place;
           const town = m.kind === 'town';
           const names = members.filter(

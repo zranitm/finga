@@ -495,7 +495,7 @@ function pair(raw: unknown, what: string): [number, number] {
   return [must(p[0], isNumber, what), must(p[1], isNumber, what)];
 }
 
-// maps/*.yaml: each map's banner, kind, town, levels, art keys, spawns, portals and chart place; its geometry comes from Go (npm run maps). The boss's area stays out, as the boss shows only while it's up.
+// maps/*.yaml: each map's banner, kind, town, levels, art keys, spawns, portals and chart place, none for a match's map; its geometry comes from Go (npm run maps). The boss's area stays out, as the boss shows only while it's up.
 const maps = [];
 const links = new Map<string, readonly [string, string]>(); // each pair of maps a portal joins, once
 for (const file of readdirSync(join(dataDir, 'maps'))
@@ -504,17 +504,18 @@ for (const file of readdirSync(join(dataDir, 'maps'))
   const id = file.replace('.yaml', '');
   const m = must(load(join('maps', file)), isRecord, file);
   const kind = m.kind;
-  if (kind !== 'town' && kind !== 'hunting') {
-    throw new Error(`gamedata: ${file} kind must be town or hunting`);
+  if (kind !== 'town' && kind !== 'hunting' && kind !== 'pvp') {
+    throw new Error(`gamedata: ${file} kind must be town, hunting or pvp`);
   }
   const hunting = kind === 'hunting';
+  const pvp = kind === 'pvp';
   const look = must(m.look, isRecord, `${file} look`);
   const levels = hunting ? must(m.levels, isArray, `${file} levels`) : [];
   maps.push({
     id,
     name: must(m.name, isString, `${file} name`),
     kind,
-    town: hunting ? must(m.town, isString, `${file} town`) : id,
+    town: hunting ? must(m.town, isString, `${file} town`) : pvp ? null : id,
     start: m.start === true,
     ground: must(look.ground, isString, `${file} look.ground`),
     sky: must(look.sky, isString, `${file} look.sky`),
@@ -551,7 +552,7 @@ for (const file of readdirSync(join(dataDir, 'maps'))
         };
       },
     ),
-    place: pair(places[id], `world.yaml place of ${id}`),
+    place: pvp ? null : pair(places[id], `world.yaml place of ${id}`),
   });
   for (const raw of m.npcs === undefined ? [] : must(m.npcs, isArray, `${file} npcs`)) {
     const n = must(raw, isRecord, `a ${file} npc`);

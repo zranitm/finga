@@ -1,0 +1,56 @@
+# A match's map for 1v1 and 3v3 (docs/tech/pvp.md section 3): a walled round ring 36 m across, four pillars to fight round, and each side's three spots 14 m apart, the prep wall between them until a round starts.
+name: Ring
+kind: pvp
+look: {ground: sand, sky: day}
+size: [44, 44]
+terrain:
+  cell: 0.5
+solids:
+  # the ring's wall: rocks round the centre, overlapping, so it reads as one and no gap lets a body through
+  - {cylinder: [22.00, 42.33], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [25.97, 41.94], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [29.78, 40.78], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [33.29, 38.90], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [36.38, 36.38], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [38.90, 33.29], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [40.78, 29.78], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [41.94, 25.97], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [42.33, 22.00], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [41.94, 18.03], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [40.78, 14.22], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [38.90, 10.71], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [36.38, 7.62], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [33.29, 5.10], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [29.78, 3.22], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [25.97, 2.06], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [22.00, 1.67], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [18.03, 2.06], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [14.22, 3.22], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [10.71, 5.10], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [7.62, 7.62], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [5.10, 10.71], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [3.22, 14.22], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [2.06, 18.03], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [1.67, 22.00], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [2.06, 25.97], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [3.22, 29.78], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [5.10, 33.29], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [7.62, 36.38], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [10.71, 38.90], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [14.22, 40.78], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [18.03, 41.94], radius: 2.33, height: 3.52, model: rock_wall}
+  # pillars to break a line of sight
+  - {cylinder: [14, 15], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [30, 15], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [14, 29], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [30, 29], radius: 1.6, height: 4.5, model: pillar}
+props:
+  - {scatter: {model: sand_pebbles, area: [6, 6, 32, 32], count: 30, seed: 7}}
+portals: []
+# side 1 south facing north, side 2 north facing south, the middle spot first so 1v1 meets head on
+sides:
+  - [{at: [22, 15], yaw: 0}, {at: [18, 15], yaw: 0}, {at: [26, 15], yaw: 0}]
+  - [{at: [22, 29], yaw: 180}, {at: [18, 29], yaw: 180}, {at: [26, 29], yaw: 180}]
+# across the middle, wall to wall, until a round starts
+prep_wall:
+  - {box: [22, 22, 40, 0.6], height: 3, model: prep_wall}

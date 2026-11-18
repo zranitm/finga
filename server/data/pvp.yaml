@@ -1,0 +1,47 @@
+# PvP (docs/tech/pvp.md section 3): the modes, the queue, the rules of rounds, the kit everyone fights with, ratings and ranks, and the bots.
+# 3v3 and 15v15 join with their builds (pvp.md section 16).
+modes:
+  duel: {name: 1v1, team: 1, party: 1, map: ring, rated: true, rounds: {best_of: 3, most: 5, length: 60s}}
+
+# Players are matched with players first; a ticket waiting past bots_after is matched with bots. A ticket's window in mu widens from start by per_second, up to most.
+queue: {bots_after: 15s, offer: 10s, window: {start: 2, per_second: 0.2, most: 8}}
+rounds: {prep: 10s, countdown: 3s, between: 5s}
+# How long the outcome shows before everyone goes back.
+result: 10s
+
+# Equal stats: each class at this level, its points spent by its auto-assign split, wearing the best item it can wear by then in each slot, its rolls at their middle.
+kit: {level: 30}
+# Multiplies a kit's max HP and every hit between players; the balance harness tunes them.
+scale: {hp: 1.0, damage: 1.0}
+
+# Weng-Lin's Bradley-Terry; the shown rating is base + per_point × (mu − 3 sigma), past the placement matches.
+rating: {mu: 25, sigma: 8.333, beta: 4.167, tau: 0.083, shown: {base: 1000, per_point: 40}, placement: 5}
+ranks:
+  - {id: bronze, from: 0}
+  - {id: silver, from: 1200}
+  - {id: gold, from: 1400}
+  - {id: platinum, from: 1600}
+  - {id: diamond, from: 1800}
+  - {id: master, from: 2000}
+
+bots:
+  most: 600 # bots one node runs at once
+  # A bot gets the tier whose mu is nearest the players it meets. Reaction is how late it sees others; defend and chain how often it dodges or blocks and takes a follow-up; aim how far off it aims, in degrees.
+  tiers:
+    - {id: novice, mu: 15, reaction: 450ms, defend: 0.15, chain: 0.3, break_free: 1.2s, aim: 20}
+    - {id: adept, mu: 20, reaction: 350ms, defend: 0.35, chain: 0.55, break_free: 0.8s, aim: 12}
+    - {id: veteran, mu: 25, reaction: 260ms, defend: 0.55, chain: 0.75, break_free: 0.5s, aim: 7}
+    - {id: expert, mu: 30, reaction: 190ms, defend: 0.7, chain: 0.9, break_free: 0.3s, aim: 4}
+    - {id: master, mu: 35, reaction: 140ms, defend: 0.85, chain: 1, break_free: 0.2s, aim: 2}
+  names: [Ash, Birch, Cedar, Elm, Fern, Hazel, Holly, Ivy, Juniper, Larch, Laurel, Linden, Maple, Moss, Oak, Olive,
+          Pine, Poplar, Reed, Rowan, Sage, Sorrel, Spruce, Tansy, Thorn, Willow, Wren, Yarrow, Yew, Alder, Aspen, Briar]
+  # Each class's arena builds: eight keys, the traits chosen, and the order its skills are used in. Shapes only; bots that fight tune them (pvp.md section 16, step 3).
+  builds:
+    warrior:
+      - {bar: [strike, slash_blast, war_cry, bastion, roll_back, '', '', ''], traits: {}, order: [war_cry, slash_blast, strike]}
+    thief:
+      - {bar: [double_stab, poison_blade, smoke_bomb, parry, lunge, strike, '', ''], traits: {}, order: [poison_blade, double_stab, lunge, strike]}
+    bowman:
+      - {bar: [power_shot, pinning_shot, focus, disengage, deflect, '', '', ''], traits: {}, order: [focus, pinning_shot, power_shot]}
+    magician:
+      - {bar: [fire_arrow, frost_nova, heal, blink, ward, spark, '', ''], traits: {}, order: [frost_nova, fire_arrow, spark]}

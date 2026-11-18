@@ -104,6 +104,7 @@ func TestATeleportIsRefused(t *testing.T) {
 		want  error
 	}{
 		{"to a map that isn't one", "atlantis", model.ErrTeleportUnknownMap},
+		{"to a match's map, which a match alone reaches", "ring", model.ErrTeleportUnknownMap},
 		{"to the player's own map", "town", model.ErrTeleportSameMap},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

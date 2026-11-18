@@ -8,13 +8,14 @@ import (
 	"finga/internal/shared/sim"
 )
 
-// MapKind separates safe towns from hunting maps.
+// MapKind separates safe towns, hunting maps and matches' maps.
 type MapKind string
 
 // The map kinds.
 const (
 	Town    MapKind = "town"
 	Hunting MapKind = "hunting"
+	Pvp     MapKind = "pvp" // a match's map: no portal, teleport or world chart reaches it
 )
 
 // Point is a spot on a map: x east and z north, in metres. What stands there stands on the ground under it.
@@ -71,6 +72,14 @@ type Map struct {
 	NPCs               []Placement
 	Boss               *BossSpot // a hunting map's; nil in a town
 	Grid               func() *nav.Grid
+	Sides              [2][]Spot    // a pvp map's starting spots, side 1's then side 2's
+	Walled             sim.Geometry // a pvp map's Geometry with its prep wall standing, before a round starts
+}
+
+// Spot is where a fighter starts, facing Yaw: radians from north toward east.
+type Spot struct {
+	At  Point
+	Yaw float64
 }
 
 // Holds reports whether feet at (x, y, z) are inside the map and in no solid rising over step above them; NaN never holds.

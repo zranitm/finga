@@ -178,17 +178,20 @@ describe('MapWindow', () => {
     expect(you.bottom).toBeLessThanOrEqual(name.bottom - name.h - 2);
   });
 
-  it('World draws every map at its place, a line for each pair of maps a portal joins, and a house for a town with no levels', async () => {
+  it('World draws every map but a match’s at its place, a line for each pair of maps a portal joins, and a house for a town with no levels', async () => {
     onMap('forest', 30, 10);
     render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
     await user.click(screen.getByRole('tab', { name: 'World' }));
     const chart = screen.getByRole('group', { name: 'World' });
-    expect(chart.querySelectorAll('.map-node')).toHaveLength(maps.length);
+    expect(chart.querySelectorAll('.map-node')).toHaveLength(
+      maps.filter((m) => m.kind !== 'pvp').length,
+    );
+    expect(chart.querySelector('.map-node[data-map="ring"]')).toBeNull(); // only a match reaches it
     expect(
       [...chart.querySelectorAll('.map-link')].map((l) => l.getAttribute('data-link')).sort(),
     ).toEqual(mapLinks.map(([a, b]) => `${a}-${b}`).sort());
     const forest = chart.querySelector('.map-node[data-map="forest"]')!;
-    const [fx, fy] = map('forest').place;
+    const [fx, fy] = map('forest').place!;
     expect([
       forest.querySelector('.map-hunt')!.getAttribute('cx'),
       forest.querySelector('.map-hunt')!.getAttribute('cy'),

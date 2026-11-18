@@ -44,6 +44,7 @@ type Parts struct {
 	MaxActiveQuests int
 	ChatLineMax     int
 	TeleportChannel time.Duration
+	Pvp             PvpRules
 }
 
 // Data is everything loaded, read-only once built.

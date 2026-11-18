@@ -288,7 +288,7 @@ describe('generated gamedata', () => {
     });
   });
 
-  it('maps carry their spawns, portals and world chart place, but not the boss’s area', () => {
+  it('maps carry their spawns, portals and world chart place, a match’s map none, but not the boss’s area', () => {
     const places = yaml('world.yaml').places as Record<string, [number, number]>;
     for (const m of maps) {
       const raw = yaml(`maps/${m.id}.yaml`) as {
@@ -310,7 +310,7 @@ describe('generated gamedata', () => {
           radius: pt.radius,
           to: pt.to.map,
         })),
-        place: places[m.id],
+        place: places[m.id] ?? null,
       });
       expect(m).not.toHaveProperty('boss');
     }
