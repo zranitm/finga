@@ -129,7 +129,7 @@ func Distance(a, b Point) float64 { return Length(a.X-b.X, a.Z-b.Z) }
 func Length(x, z float64) float64 { return math.Sqrt(float64(x*x) + float64(z*z)) }
 
 func (n *Grid) centre(i int) Point {
-	return Point{X: (float64(i%n.nx) + 0.5) * cell, Z: (float64(i/n.nx) + 0.5) * cell}
+	return Point{X: float64((float64(i%n.nx) + 0.5) * cell), Z: float64((float64(i/n.nx) + 0.5) * cell)}
 }
 
 // index is the cell holding p, false outside the map.

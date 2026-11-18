@@ -1,0 +1,55 @@
+# A 256 m region with one of everything the generator builds, for its tests and its golden hash.
+name: Small
+size: [256, 256]
+cell: 1
+seed: 11
+look: {sky: day}
+ground: {noise: {scale: 90, amplitude: 3, octaves: 3}}
+edge: {width: 24, height: [14, 22], biome: peaks}
+colour: {slope: 0.25, high: 12}
+features:
+  - {ridge: {path: [[40, 200], [120, 214]], width: 24, height: 8}}
+  - {plateau: {area: [[160, 150], [205, 150], [205, 190], [160, 190]], height: 5, edge: cliff}}
+  - {plateau: {area: [[36, 36], [76, 36], [76, 66], [36, 66]], height: 3, edge: ramp}}
+  - {river: {path: [[30, 136], [90, 131], [150, 134], [226, 126]], width: 10, depth: 2.5, fords: [[118, 132]]}}
+  - {lake: {area: [[182, 40], [215, 46], [210, 80], [176, 74]], depth: 3}}
+  - {road: {path: [[120, 30], [120, 100], [116, 160], [100, 226]], width: 4}}
+areas:
+  - {id: town, name: Small Town, area: [[90, 60], [150, 60], [150, 110], [90, 110]], biome: meadow, kind: town}
+  - {id: west, name: West Field, area: [[24, 24], [90, 24], [90, 232], [24, 232]], levels: [1, 4], biome: meadow, kind: hunting,
+     boss: {at: [55, 100], radius: 5, mob: king_slime, kills: 300}}
+  - {id: south, name: South Field, area: [[90, 24], [150, 24], [150, 60], [90, 60]], levels: [1, 4], biome: meadow, kind: hunting,
+     boss: {at: [130, 40], radius: 5, mob: king_slime, kills: 300}}
+  - {id: north, name: North Field, area: [[90, 110], [150, 110], [150, 232], [90, 232]], levels: [2, 5], biome: meadow, kind: hunting,
+     boss: {at: [135, 180], radius: 5, mob: king_slime, kills: 300}}
+  - {id: woods, name: East Woods, area: [[150, 24], [232, 24], [232, 232], [150, 232]], levels: [3, 6], biome: woods, kind: hunting,
+     boss: {at: [190, 110], radius: 5, mob: king_slime, kills: 300}}
+camps:
+  - {area: west, name: slimes, at: [55, 160], radius: 6, mob: green_slime, max: 4, respawn: 10s}
+  - {area: woods, name: boars, at: [200, 210], radius: 8, mob: wild_boar, max: 5, respawn: 12s}
+waypoints:
+  - {id: town, name: Small Town, at: [124, 85]}
+npcs:
+  - {id: guide, at: [110, 70], yaw: 180}
+pieces:
+  - {model: well, at: [130, 75], yaw: 0}
+  - {model: shop, at: [140, 95], yaw: 30}
+  - {house: {area: [95, 92, 6.1, 7.4], height: 13.6, model: house_small}}
+gates:
+  - {name: east, at: [228, 140], radius: 1.6, to: {region: small, gate: east}}
+start: {at: [124, 80], yaw: 0}
+biomes:
+  meadow:
+    colours: {flat: grass, slope: dirt, steep: stone, high: stone}
+    scatter:
+      - {model: tree_oak, spacing: 9, slope: 0.4, away: {road: 4, water: 1, camp: 3, town: 2, waypoint: 2}}
+      - {model: rock_small, spacing: 14}
+  woods:
+    colours: {flat: grass, slope: dirt, steep: stone, high: snow}
+    scatter:
+      - {model: tree_pine, spacing: 5, away: {road: 3, water: 1}}
+      - {model: bush_round, spacing: 6}
+  peaks:
+    colours: {flat: stone, slope: stone, steep: stone, high: snow}
+    scatter:
+      - {model: boulder, spacing: 20}

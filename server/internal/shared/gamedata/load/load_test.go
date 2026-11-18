@@ -1582,3 +1582,17 @@ func TestRealDataLoads(t *testing.T) {
 		}
 	})
 }
+
+// Movement reads movement.yaml as Dir does: the shipped rules, and the same refusal for a bad one.
+func TestMovementReadsTheSimsRulesAlone(t *testing.T) {
+	p, err := load.Movement("../../../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d, err := load.Dir("../../../../data"); err != nil || p != d.Movement() {
+		t.Errorf("Movement %+v; want Dir's %+v (%v)", p, d.Movement(), err)
+	}
+	if _, err := load.Movement(t.TempDir()); err == nil || !strings.Contains(err.Error(), "movement.yaml") {
+		t.Errorf("error %v; want one naming movement.yaml", err)
+	}
+}

@@ -178,8 +178,8 @@ func solid(g *sim.Geometry, size [2]float64, s Solid) error {
 		if !inside(size, b[0], b[1]) || !positive(b[2]) || !positive(b[3]) || s.Radius != 0 || !finite(s.Yaw) {
 			return errors.New("a box needs its centre inside the map, a positive width and depth, and no radius")
 		}
-		sin, cos := sincos(s.Yaw)
-		g.Boxes = append(g.Boxes, sim.Box{X: b[0], Z: b[1], HalfW: b[2] / 2, HalfD: b[3] / 2, UX: cos, UZ: unsigned(-sin), Top: g.Terrain.Height(b[0], b[1]) + s.Height})
+		ux, uz := Axis(s.Yaw)
+		g.Boxes = append(g.Boxes, sim.Box{X: b[0], Z: b[1], HalfW: b[2] / 2, HalfD: b[3] / 2, UX: ux, UZ: uz, Top: g.Terrain.Height(b[0], b[1]) + s.Height})
 	case s.Cylinder != nil && s.Box == nil:
 		c := *s.Cylinder
 		if !inside(size, c[0], c[1]) || !positive(s.Radius) || s.Yaw != 0 {

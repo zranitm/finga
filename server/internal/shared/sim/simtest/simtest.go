@@ -12,11 +12,11 @@ import (
 // bucketM is the sim's bucket side, whose lines the solids are drawn across.
 const bucketM = 8.0
 
-// Geometry draws a map 2 to 120 m a side with rolling terrain, and boxes, cylinders and blockers of every size: turned any way, small or spanning many buckets, low enough to step onto or tall, some past the map's edges.
-func Geometry(t *rapid.T, maxSlope float64) sim.Geometry {
+// Geometry draws a map 2 m to side a side with rolling terrain, and boxes, cylinders and blockers of every size: turned any way, small or spanning many buckets, low enough to step onto or tall, some past the map's edges.
+func Geometry(t *rapid.T, maxSlope, side float64) sim.Geometry {
 	cell := rapid.SampledFrom([]float64{0.5, 1, 2, 4}).Draw(t, "cell")
-	nx := rapid.IntRange(2, int(120/cell)).Draw(t, "nx")
-	nz := rapid.IntRange(2, int(120/cell)).Draw(t, "nz")
+	nx := rapid.IntRange(2, int(side/cell)).Draw(t, "nx")
+	nz := rapid.IntRange(2, int(side/cell)).Draw(t, "nz")
 	amp, fx, fz := rapid.Float64Range(0, 1.5).Draw(t, "amp"), rapid.Float64Range(0, 0.6).Draw(t, "fx"), rapid.Float64Range(0, 0.6).Draw(t, "fz")
 	heights := make([]float64, 0, (nx+1)*(nz+1))
 	for iz := range nz + 1 {

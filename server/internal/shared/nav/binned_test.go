@@ -11,11 +11,11 @@ import (
 	"finga/internal/shared/sim/simtest"
 )
 
-// large-regions.md section 5: a grid built over indexed solids, each cell reading only those within its clearance, is a full scan's to the bit, and so is FitsAt.
+// large-regions.md section 5: a grid built over indexed solids, each cell reading only those within its clearance, is a full scan's to the bit, and so is FitsAt. Maps up to 40 m, five buckets, hold a clearance's 3 by 3 and pack the solids closer; a grid costs the square of its side.
 func TestAGridOverIndexedSolidsIsAFullScans(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		const step = 0.3
-		g := simtest.Geometry(t, 0.7)
+		g := simtest.Geometry(t, 0.7, 40)
 		ix := sim.Indexed(g)
 		scanned, binned := nav.New(g, step), nav.New(ix, step)
 		sc, sf := scanned.Cells()

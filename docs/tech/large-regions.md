@@ -44,22 +44,23 @@ What grows with area or crowds, found in the code before step 2; step 2a has sin
 
 ```yaml
 name: ...
-size: [1024, 1024]
-cell: 1                 # terrain samples a metre apart; detail comes from solids and set pieces
+size: [1024, 1024]      # whole 128 m map tiles, so whole 64 m chunks
+cell: 1                 # terrain samples a metre apart, dividing the overview's 8 m; detail comes from solids and set pieces
 seed: 11
 look: {sky: day}
 ground: {noise: {scale: 220, amplitude: 7, octaves: 4}}
-edge: {width: 70, height: [35, 60]}           # the ring of mountains
+edge: {width: 70, height: [35, 60], biome: peaks}   # the ring of mountains, coloured as its own biome
+colour: {slope: 0.25, high: 30}               # where flat ground's colour turns to slope's, and the height high's starts
 features:                                     # applied in order
   - {ridge:   {path: [[x, z], ...], width: 60, height: 30}}
   - {plateau: {area: [[x, z], ...], height: 8, edge: cliff}}   # or ramp
-  - {river:   {path: [...], width: 14, depth: 3, fords: [[x, z]]}}
+  - {river:   {path: [...], width: 14, depth: 3, fords: [[x, z]]}}   # its path runs downstream
   - {lake:    {area: [...], depth: 4}}
-  - {road:    {path: [...], width: 5}}        # flattened, earth-coloured, kept clear
+  - {road:    {path: [...], width: 5}}        # flattened, dirt-coloured, kept clear
 areas:
   - {id: ..., name: ..., area: [[x, z], ...], levels: [1, 4], biome: meadow, kind: hunting,
      boss: {at: [x, z], radius: 6, mob: ..., kills: 300}}
-  - {id: ..., name: ..., area: [...], kind: town}
+  - {id: ..., name: ..., area: [...], biome: meadow, kind: town}
 camps:
   - {area: ..., name: ..., at: [x, z], radius: 8, mob: ..., max: 5, respawn: 10s}
 waypoints:
@@ -74,9 +75,9 @@ gates:
 start: {at: [x, z], yaw: 0}                    # the main town's arrival spot
 biomes:
   meadow:
-    colours: {flat: grass, slope: earth, steep: rock, high: rock}
+    colours: {flat: grass, slope: dirt, steep: stone, high: stone}   # kit grounds
     scatter:
-      - {model: tree_oak, spacing: 9, slope: 0.4, away: {road: 4, camp: 3, town: 0}}
+      - {model: tree_oak, spacing: 9, slope: 0.4, away: {road: 4, water: 1, camp: 3, town: 0, waypoint: 2}}
       - {model: rock_large, spacing: 30}
 ```
 
@@ -91,6 +92,29 @@ biomes:
   - `places` goes for regions: the World tab is a chart of three regions, by `regions: [{id, at}]`.
   - The old maps keep their places until they're retired.
 - **Quests, NPCs and bosses** name an area where they named a map: kill objectives count kills in an area, and `npc.MapID` becomes the region with its spot.
+- **As built (step 4a),** the generator checks what it needs to build a plan, strictly as every data file is read: an unknown key is an error. The rules above, which judge how the parts fit together, come with the loader in step 4b.
+  - **Limits,** so a bad plan is refused before it can run out of memory or reach a float-to-int conversion that CPUs disagree on. Each error names its limit.
+    - **The grid:** a cell is a power of two from 0.25 to 8 m. Each side is whole 128 m map tiles, up to 8192 m, with at most 2²⁴ samples.
+    - **Places:** every point of a path or polygon, every spot and every house lies in the region.
+    - **Sizes:** widths, radii, spacings and away distances are up to 512 m, and heights and depths within 1000 m.
+    - **Scatter and noise:** scatter is at least 1 m apart. The noise's finest octave is at least a cell across.
+    - **Never zero:** a plateau's height is never 0, since its ramp's width is in proportion.
+    - **Areas:** at most 32,767.
+    - **The kit's solids** are held to the same sizes.
+
+### The kit: `server/data/kit.yaml`
+
+- **`grounds`:** each ground colour by name, `'#rrggbb'`. It's the only place they're written.
+  - Plans colour with them.
+  - The bake carries them in its palette.
+  - `npm run gen` writes the client's ground table from them, which today's maps paint with.
+  - A plan's kit must have `dirt` (roads), `sand` (beds) and `water` (on the map, over beds).
+- **`models`:** each model's solid, the one every scattered or set piece of it stands with:
+  - a cylinder `{radius, height}`;
+  - a box `{width, depth, height}`, its width across its yaw;
+  - `{}` for looks only.
+
+  The sizes are those today's maps give each model's solids.
 
 ### The generator: `internal/shared/regiongen`
 
@@ -104,30 +128,85 @@ biomes:
      - roads flattened to their mean height along a smoothed path.
   4. **Towns:** each town area flattened toward its mean.
   5. **Steepness,** as `sim.Terrain` marks it today.
-  6. **Colours:** each cell gets a biome colour, by its area and its height and slope: flat, slope, steep and high. Roads take earth, river beds sand.
-  7. **Scatter:** each biome's models are scattered with Poisson-disc spacing, kept off roads, camps, towns, waypoints and steep cells by their `away` distances. Each placement becomes a prop, and its model's solid becomes a cylinder or box.
-  8. **Pieces** are added as placed.
-- **Noise:** [ojrac/opensimplex-go](https://github.com/ojrac/opensimplex-go), vetted in section 16.
-- **Poisson disc** (Bridson's method, about 60 lines) and the polygon and path helpers are in-house.
+  6. **Colours:** each sample gets a biome colour, by its area and its height and slope: flat, slope, steep and high. Roads take dirt, river and lake beds sand.
+  7. **Pieces** are added as placed.
+  8. **Scatter:** each biome's models are scattered with Poisson-disc spacing, kept off roads, water, camps, towns, waypoints and steep ground by their `away` distances. Each placement becomes a prop, and its model's solid becomes a cylinder or box.
+- **The same bits on every CPU,** by 3d-world.md's rule for the sim:
+  - **Allowed math:** only + − × ÷, `Sqrt`, `Floor`, `Ceil`, `Trunc`, `Abs`, `Min` and `Max`, each product rounded on its own (`float64(a*b)`). Smooth rises are polynomials.
+  - **Randomness:** only a seeded PCG's `Uint64`, its 53 high bits making a float.
+  - **Maps:** no map's order reaches the output; every map is read in sorted order.
+  - **Enforced** three ways:
+    - a lint rule forbids the rest of `math` and `math/rand` in the package;
+    - `make fma-check`, run by CI on arm64, disassembles the compiled `sim`, `mapfile`, `nav` and `regiongen` and finds no fused multiply-add. It fails if the build fails or none of a package's functions is disassembled;
+    - the golden hashes match on amd64 and arm64.
+- **Every number the bake stores is a float32's,** rounded by the generator itself: heights, solids, props, river levels. So the server keeps exactly what the client reads.
+- **Noise:** OpenSimplex 2D, ported from [ojrac/opensimplex-go](https://github.com/ojrac/opensimplex-go) with every product rounded (section 16).
+- **Poisson disc** (Bridson's method) and the polygon and path helpers are in-house.
+- **As built (step 4a):**
+  - **Ground:** each octave has its own seed (the plan's plus its number), half the last's scale and weight. The sum is scaled to within about ±`amplitude`.
+  - **Edge:** the rise is a smoothstep from nothing `width` in to the sides. Its height lies between the two, picked by noise at the width's scale.
+  - **Ridge:** `height × (1 − d²/r²)²` at `d` from its path, `r` half its width.
+  - **Plateau:** `height` is added over its area.
+    - A cliff falls over 2 samples, too steep to walk.
+    - A ramp falls at half `max_slope`, walkable.
+  - **River:** its path is smoothed (Chaikin's method, 3 passes).
+    - **Water:** 0.5 m below the lowest ground along it so far, so it never rises downstream.
+    - **Bed:** `depth` below the water.
+    - **Banks:** `min(width/4, 2 m)` wide, too steep to climb at full depth.
+    - **Fords:** within half the width plus a bank of a ford, the bed is 0.3 m below the water and its banks are walkable.
+  - **Lake:** its water is 0.5 m below the lowest ground along its edge, its bed `depth` below that, between banks `min(depth, 2 m)` wide.
+  - **Road:** its path is smoothed.
+    - **Level:** each point's level is the mean of the ground within 15 m along the road. The road is level across its width.
+    - **Shoulder:** as wide as the road, easing back to the land by smoothstep.
+    - **Over water:** across water, a road is a causeway, dry.
+  - **Town:** flat at the mean of its ground, easing into the land around over 12 m.
+  - **Colours** are chosen in order:
+    - a road's dirt;
+    - a bed's sand;
+    - steep, where a cell touching the sample is marked steep;
+    - high, at or above `colour.high`;
+    - slope, past `colour.slope` across the sample's neighbours;
+    - otherwise flat.
+
+    Outside every area, the edge's biome colours. Where areas overlap, the first holds the ground.
+  - **Scatter:** set pieces go first, then each biome in name order, entry by entry.
+    - **Points:** the disc covers the box of the biome's ground. Each new point is tried in the ring `r` to `2r` round an active one, up to 30 times, found by rejection in a square, so no angle is taken.
+    - **Ground:** a point is kept on its biome's walkable ground, no steeper than `slope`.
+    - **Clearances:** a point is also clear of each road, water, camp, town and spot by its `away` distance plus the model's reach.
+      - The spots are waypoints, NPCs, pieces and the start (2 m each), and gates (their radius).
+      - Clearance is judged at the nearest sample.
+    - **Solids:** no solid comes within 0.5 m of another's reach. A box's reach is its half diagonal.
+    - **Yaw:** whole degrees. A model with a box solid turns by quarters, so its axis stays exact.
+  - **Measured:** `testdata/wide.yaml` is a 1 km plan laid out as a real region: 21,244 props and 8,535 cylinders. On the reference Mac it generates in 0.25 s, and its walk grid takes 1.0 s more. CI's arm64 job prints the generation's time in each run, the bake included: 0.48 s for it and the 256 m plan together, on #291's first run.
+  - **Boot budget:** a 1 km region is generated and its grid built within 3 s, and all three regions within 10 s. Past that, the server reads the bake rather than generating (below).
 
 ### The bake: `cmd/regionbake`
 
-- It runs the generator and writes one region's files. They're a build artifact, not committed, as `npm run maps` is today:
+- **The server generates; the client reads the bake.**
+  - **Server:** builds each region from its plan at load, once per process. Every channel shares it, and its walk grid is built at boot, as the maps' grids are. Nothing is built on a tick.
+  - **Client:** reads the bake, which the same generator writes.
+  - **Why the ground matches:** the generator gives the same bits on every CPU. That's the guarantee today's maps have.
+  - **This reverses the plan** (section 15, call 11), which had both sides read one bake. Generating on the server needs no artifact to build and ship with it, and the server can't run on a bake older than its plan. Generation is cheap, and the exactness was needed anyway, for the golden hashes to match on arm64.
+- **Where it's built:** `npm run maps` and the web image's build write it to `web/public/regions/<id>/<hash>/`, a build artifact, not committed.
+  - `<hash>` is the first 16 hex digits of the bake's hash. From step 4b the server names the hash it built, so a client never reads a bake older than its region.
+  - A new bake clears the old ones. Each is written to `<hash>.part` and renamed whole, so a crash leaves nothing that looks complete. The next run clears it.
+- **The files,** all little-endian. A run of float32s starts on a 4-byte boundary, so a reader can view it in place:
 
   | File | What | Size at 1 km |
   | --- | --- | --- |
-  | `regions/<id>/region.json` | The plan's areas, towns, camps, waypoints, NPCs, gates and start, plus height range and chunk index | small |
-  | `regions/<id>/terrain.bin` | Every height as float32, every steep mark and colour, for the server | about 6 MB |
-  | `regions/<id>/chunks/<cx>_<cz>.bin` | Per 64 m chunk: heights (float32), steep marks, colours, props and solids | about 20–30 kB gzipped |
-  | `regions/<id>/overview.bin` | Heights and colours at 8 m, for the far land | about 70 kB |
-  | `regions/<id>/tiles/<z>/<x>_<y>.png` | The map image in 128 m tiles at 1 and 1/4 px a metre, shaded by height, solids dark | about 1–2 MB in all |
+  | `region.json` | The format, name, sky, size, cell, chunk size and grid, overview spacing, and height range; the palette (each ground's name and colour) and the model names, which chunks index; each river's path, width and levels and each lake's area and level; and the plan's areas, camps, waypoints, NPCs, gates and start | 6 kB |
+  | `chunks/<cx>_<cz>.bin` | `FRCK`, the format, its x, z and 65 samples a side, its edges shared with its neighbours; then 65 × 65 heights (float32) and colour indices, row by row from the south-west; then the props (model, x, z, yaw), cylinders (x, z, radius, top) and boxes (x, z, half width, half depth, axis, top) whose centres it holds | 23 kB, 16 kB gzipped |
+  | `overview.bin` | `FROV`, the format, its samples along x and z and its spacing; then heights and colour indices every 8 m, for the far land | 83 kB, 61 kB gzipped |
+  | `tiles/1/<x>_<z>.png`, `tiles/4/<x>_<z>.png` | The map image in 128 m squares from the south-west, at 1 and 4 m a pixel: each ground's colour shaded by its slope toward the north-west light, water over beds, solids dark | 450 kB in all |
 
-- **Both sides read the same bake.**
-  - The server loads `terrain.bin` and the chunks' solids at boot.
-  - The client fetches chunks and the overview.
-  - So no float difference between machines can make the client's ground differ from the server's.
-- **A golden test** keeps each region's bake hash, so a change to the generator shows in review.
-- **`make region-preview`** renders the plan and its bake as a top-down PNG, with areas, camps, roads and waypoints marked, for designing a region.
+  - **Steep marks aren't stored:** both sims mark them from the heights by the same rule.
+- **Golden hashes:** `testdata/regions/bakes.sha256` keeps the bake hash of each test plan and each region, so a change to the generator shows in review.
+  - The hash covers our own bytes and the tiles' pixels, not the PNG encoding, so a Go upgrade can't change it.
+  - It runs on amd64 under `-race` alone, as the coverage run leaves it out (19 s there for nothing more covered), and plainly on arm64.
+- **`make region-preview`** draws every plan in `data/regions`, or `PLAN=path/to/plan.yaml`, to `server/bake/preview/<id>.png`, for designing a region:
+  - the map image scaled up toward 1024 px;
+  - each prop a dot;
+  - area outlines in white, camps red, bosses orange, waypoints cyan, gates magenta, NPCs yellow, the start green.
 
 ## 4. Region instances and channels
 
@@ -354,6 +433,13 @@ Built with step 1, which says who watches a cell.
   - Poisson spacing and `away`;
   - colours by slope and height;
   - the golden bake hashes.
+  - As built (step 4a), also:
+    - the noise against the library's own amd64 output;
+    - the bake read back as the client will;
+    - every stored number a float32's;
+    - a bad plan or kit refused;
+    - `make fma-check`;
+    - the lint rule, proved by planted calls.
 - **Loader:**
   - areas covering the region without overlap;
   - bands;
@@ -387,13 +473,9 @@ Built with step 1, which says who watches a cell.
    - 2b-1: blocker buckets in the Go sim, which mob moves, kept frames and knockbacks read;
    - 2b-2: body buckets in the arena, for sight, targeting, reach, `spread` and the rest.
 3. **Sprint and zoom:** the sim rule, `PlayerView.sprint`, the look, the camera, the zoom actions, and saved zoom.
-4. **The pipeline:**
-   - `regiongen` and the bake;
-   - the preview;
-   - the `region` kind and its loader rules;
-   - region channels;
-   - areas, towns, area bosses and respawn;
-   - a test region.
+4. **The pipeline,** in two PRs:
+   - 4a: `regiongen`, the kit and the bake, and the preview;
+   - 4b: the `region` kind and its loader rules, region channels, areas, towns, area bosses and respawn, and a test region.
 5. **The client for regions:**
    - the overview, chunk streaming and detail;
    - props per chunk and the looks grid;
@@ -421,7 +503,7 @@ The user's choices are in section 1. These calls were made in planning and logge
 8. **Ground colours by vertex,** with no textures, so the flat toon look stays and there are no texture assets to fetch.
 9. **Deep water blocks;** fords and bridges cross rivers. No swimming.
 10. **A mob sleeps when no one watches its cell,** while its camp keeps filling.
-11. **The bake is a build artifact both sides read,** in place of each machine generating its own.
+11. **The server generates each region; the client reads a bake the same generator writes.** Planned as one bake both sides read, and reversed in step 4a: the generator gives the same bits on every CPU, which the golden hashes needed anyway. So the server needs no artifact and can't run on one older than its plan (section 3).
 12. **The old maps stay behind a gate** until the region that covers their levels replaces them.
 
 ## 16. Alternatives considered
@@ -433,6 +515,9 @@ The user's choices are in section 1. These calls were made in planning and logge
     - its non-test code imports only `math` and `math/rand`, seeded per call;
     - it has no exec, network, cgo or init code.
     - It was archived in 2025 as finished. Noise math doesn't need updates, and a fork is cheap if it ever does.
+    - **As built (step 4a), it's ported, not imported.** On arm64 Go fuses its multiply-adds, so its values differ from amd64's: 521,241 of 1,050,625 samples, a 1 km grid at 1 m with seed 11, differed in their last bits.
+      - **The port:** `regiongen/noise.go`, 2D only, from v1.0.2 (commit 67ecc326). It rounds every product and equals the library's amd64 output bit for bit on both CPUs, tested against its hashes.
+      - **Licence:** the Unlicense is noted in `regiongen/LICENSES.md`.
   - **R-tree libraries** (tidwall/rtree and others): solids and bodies are spread evenly over a region, where a uniform grid is simpler and as fast.
   - **Babylon's own `CascadedShadowGenerator`** is part of the engine already in use, so there's nothing to add.
 - **One seamless world:** the user chose regions.
