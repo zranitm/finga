@@ -224,11 +224,12 @@
   - The world's move mark and the client's predicted mark both add the delay's ticks to the press's input. The shared sim's leap is unchanged, so no vector moves. Both count a zero delay as none, since ticks round any time up to at least one.
   - The trail waits for the delay, and a leap's dust rises where the body is when it takes off, since a player may walk during the guard.
   - The card reads "after 0.6s, leaps 2 m back".
+  - **A stun in the guard drops the leap.** A status that stops acting clears the waiting mark as it lands, and a held body starts no move. The live pass couldn't show it, since slimes stood behind in every try, so a world test pins it: King Slime's slam lands 8 inputs into the guard, and no leap comes at 600 ms or after the stun. A client test pins the same, its one correction the stun's own frame.
 - **Each class's ring has its own colour.** It had been the class's attack's damage colour, so four of five were the same orange. A small table beside `blockOf`, `blockColors`, colours the ring and the block's tile:
 
   | Class | Colour |
   | --- | --- |
-  | Beginner | orange `#ff9a3c` |
+  | Beginner | silver `#d8dde6` |
   | Warrior | blue `#4f86ff` |
   | Thief | violet `#a66bff` |
   | Bowman | green `#46d160` |
@@ -236,6 +237,9 @@
 
   - The hues are spread round the wheel, away from the warning areas' yellow and red.
   - They were checked in a headless render on grass, snow, brick and sand, at the game's camera and closer. All five read apart; the Bowman's green is the faintest on grass, held out by the ring's dark edge.
+  - **The Beginner's was orange `#ff9a3c`** until the second live pass: 18° of hue from the boss warning's yellow edge, where the others are 43° or more from any warning. Silver has no hue near a warning's.
+    - It reads plainly on grass, brick and sand.
+    - On snow it's the faintest of the five, held by its dark edge as the green is on grass. A darker silver, `#a9b2c0`, drew the same, since the ring's glow lifts both.
 
 ## 9. Decisions
 

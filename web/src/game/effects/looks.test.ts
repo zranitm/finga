@@ -481,7 +481,7 @@ describe('looks', () => {
     expect(new Set(points.map((p) => p.y.toFixed(3)))).toEqual(
       new Set([(CASTER.height / 2).toFixed(3)]),
     );
-    expect(named('band').map(colorOfMesh)).toContain('#FF9A3C'); // the Beginner's own
+    expect(named('band').map(colorOfMesh)).toContain('#D8DDE6'); // the Beginner's own
     to(1599);
     expect(named('band').length).toBeGreaterThan(0);
     to(1601);

@@ -52,7 +52,7 @@ describe('skills', () => {
       'b070f0',
     ]);
     const blocks = classes.map((c) => blockOf(c.id)!.id);
-    expect(blocks.map(color)).toEqual(['ff9a3c', '4f86ff', 'a66bff', '46d160', 'ff6ad5']); // Guard, Bastion, Parry, Deflect, Ward
+    expect(blocks.map(color)).toEqual(['d8dde6', '4f86ff', 'a66bff', '46d160', 'ff6ad5']); // Guard, Bastion, Parry, Deflect, Ward
     expect(new Set(blocks.map(color)).size).toBe(classes.length); // one each, from the live pass
   });
 
