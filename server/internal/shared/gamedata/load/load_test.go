@@ -288,6 +288,8 @@ places:
   field: [60, 50]
 teleport:
   channel: 2500ms
+interest:
+  cell: 32
 `,
 		"maps/town.yaml": `
 name: Somewhere
@@ -350,8 +352,8 @@ func TestValidDataLoads(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Run("the most active quests and the longest chat line", func(t *testing.T) {
-		if d.MaxActiveQuests() != 20 || d.ChatLineMax() != 120 || d.TeleportChannel() != 2500*time.Millisecond {
-			t.Fatalf("max active %d, chat line %d, teleport channel %v", d.MaxActiveQuests(), d.ChatLineMax(), d.TeleportChannel())
+		if d.MaxActiveQuests() != 20 || d.ChatLineMax() != 120 || d.TeleportChannel() != 2500*time.Millisecond || d.InterestCell() != 32 {
+			t.Fatalf("max active %d, chat line %d, teleport channel %v, interest cell %v", d.MaxActiveQuests(), d.ChatLineMax(), d.TeleportChannel(), d.InterestCell())
 		}
 	})
 	t.Run("a mob's attacks from the table, with its own changes, and the rules they share", func(t *testing.T) {
@@ -687,6 +689,8 @@ func TestRejections(t *testing.T) {
 		{"a player width off the walk grid's steps", "movement.yaml", "radius: 0.375", "radius: 0.38", []string{"movement.yaml", "radius 0.38", "2⁻¹³ m steps"}},
 		{"a cancel point that isn't a number", "actions.yaml", "cancel: 0.85", "cancel: .nan", []string{"actions.yaml", "cancel"}},
 		{"an endless gravity", "movement.yaml", "gravity: 38", "gravity: .inf", []string{"movement.yaml", "gravity"}},
+		{"world.yaml without an interest cell", "world.yaml", "interest:\n  cell: 32\n", "", []string{"world.yaml", "interest.cell"}},
+		{"an interest cell that isn't a number", "world.yaml", "  cell: 32\n", "  cell: .nan\n", []string{"world.yaml", "interest.cell"}},
 		{"a talk reach that isn't a number", "npcs.yaml", "talk_reach: 1.875", "talk_reach: .nan", []string{"npcs.yaml", "talk_reach"}},
 		{"an endless melee attack", "classes.yaml", "radius: 2.375, angle: 120, height: 1.75, length: 600ms", "radius: .inf, angle: 120, height: 1.75, length: 600ms", []string{"classes.yaml", "warrior", "radius"}},
 		{"a ranged attack's range that isn't a number", "classes.yaml", "range: 13.125", "range: .nan", []string{"classes.yaml", "bowman", "range"}},

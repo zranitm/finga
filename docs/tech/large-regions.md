@@ -186,10 +186,24 @@ biomes:
   - pickups, NPC reach, waypoint finding, gate rings, and area and town lookups.
   - As built (step 2b-1), the bodies a move stops at:
     - The Go sim buckets a step's blockers in 32 m squares: `sim.Blockers`, lent to a geometry by `Geometry.Blocking`. `slide` and a blink's end read only those near the body, in their own order, so a move is a full scan's to the bit.
-    - An index is read only for the list it was built from. A geometry whose `Blockers` were set any other way, or cleared for a move through mobs, scans them.
+    - `Set` copies the list, and an index is read only while a geometry's `Blockers` are that copy. A geometry whose `Blockers` were set any other way, or cleared for a move through mobs, scans them.
     - The arena keeps one for the portals and the living players (mob moves), one for the portals alone (leaps, `ahead`), one per kept frame (a player's step) and one for the mobs where they stand (knockbacks).
     - The client steps among the mobs it was sent, as before.
     - A step among 400 mobs in a 1 km region takes 219 ns against 662 ns scanned, and a rebuild 6.6 µs.
+  - As built (step 2b-2), the arena's queries:
+    - The cell is data: `world.yaml`'s `interest.cell`, 32 m.
+    - Players are bucketed by the cell under their centre once a tick, since they don't move during it. Mobs are kept in theirs as they move, each cell's ordered by id.
+    - A query reads the cells within its rule's reach and walks them merged in the old order, so every choice, sum and tie comes out as before. The reaches:
+      - sight;
+      - an attack's (`mob.reach`: its body, its longest bite, leap, rush or slam, or a shot's range), plus the widest player;
+      - a swept ball or body, plus both widths;
+      - overlap, for `spread`, `yield`, `room` and `crowded`;
+      - a strike's shape, plus the widest mob.
+    - `yield` asks again after each step out, since the mob's next overlap is from where it now stands.
+    - A target or provoker is found by its ID.
+    - `hold` still reads every mob. A claim is held beside the player, wherever its mob stands, and only chasing mobs ask, each reading a field or two per mob.
+    - Pickups, NPC reach, waypoints, gates and area lookups are the instance's, and wait for its cells in step 1.
+    - A tick of 400 mobs and 150 players on a 1 km map takes 0.63 ms, against 1.2 ms reading every body.
 - **Nav:**
   - Built at boot with solids binned, so a cell tests only nearby solids.
   - Packed to 3 bytes a cell: clearance as a uint16 in steps of 2⁻¹³ m, and a byte of flags: a raised top, and which of the four sides a body may walk to. That's 12 MB a region at 0.5 m, shared by every channel.

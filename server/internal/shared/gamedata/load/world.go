@@ -15,12 +15,15 @@ const (
 	longestChannel = 10 * time.Second // a teleport's channel at most
 )
 
-// worldYAML is the world chart, each map's place, the client's to draw and the server only checks; and how long a teleport channels.
+// worldYAML is the world chart, each map's place, the client's to draw and the server only checks; how long a teleport channels; and the interest cell.
 type worldYAML struct {
 	Places   map[string][2]float64 `yaml:"places"`
 	Teleport struct {
 		Channel time.Duration `yaml:"channel"`
 	} `yaml:"teleport"`
+	Interest struct {
+		Cell float64 `yaml:"cell"`
+	} `yaml:"interest"`
 }
 
 // loadWorld checks world.yaml: every map placed once, on the chart, and no two maps on the same spot; a teleport's channel over 0 and at most longestChannel.
@@ -33,6 +36,10 @@ func (l *loader) loadWorld(dir string) error {
 		return fmt.Errorf("%s: teleport.channel %v must be over 0 and at most %v", worldFile, c, longestChannel)
 	}
 	l.teleportChannel = y.Teleport.Channel
+	if !positive(y.Interest.Cell) {
+		return fmt.Errorf("%s: interest.cell must be positive", worldFile)
+	}
+	l.interestCell = y.Interest.Cell
 	ids := make([]string, 0, len(y.Places))
 	for id, p := range y.Places {
 		if !l.maps.has(id) {
