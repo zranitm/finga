@@ -2,7 +2,7 @@
 
 ## NPCs
 
-- **What they are:** characters placed on maps, in towns and in hunting maps. They don't fight and can't be attacked, and everyone sees the same NPCs in the same places.
+- **What they are:** characters placed in regions (B10) or maps, in towns and in hunting areas. They don't fight and can't be attacked, and everyone sees the same NPCs in the same places.
 - **What they offer:** each NPC has a name and a look, and one or more services:
   - promotion, as a class trainer (C8);
   - quests, to give and to take back;
