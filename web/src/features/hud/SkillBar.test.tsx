@@ -1,11 +1,12 @@
 import { create } from '@bufbuild/protobuf';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { skillKeys } from '@/input/actions';
 import { WelcomeSchema } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { energy } from '@/state/energy';
-import { SKILL_DRAG_TYPE, skillBar } from '@/state/skill-bar';
+import { SKILL_DRAG_TYPE, SKILL_KEYS, skillBar } from '@/state/skill-bar';
 import { dataTransfer } from '@/testing/data-transfer';
 import { resetStores } from '@/testing/reset-stores';
 
@@ -35,7 +36,9 @@ function joined(
   energy.getState().welcome(2);
 }
 
-const key = (n: number) => screen.getByRole('listitem', { name: new RegExp(`^Key ${n}:`) });
+/** The bar's key n from 1, by the key it's bound to. */
+const key = (n: number) =>
+  screen.getByRole('listitem', { name: new RegExp(`^Key ${'QWERASDF'[n - 1]}:`) });
 
 describe('SkillBar', () => {
   beforeEach(() => {
@@ -46,15 +49,36 @@ describe('SkillBar', () => {
     vi.restoreAllMocks();
   });
 
-  it('shows each key with its skill’s stage and cost, and greys a skill short of energy or without points', () => {
-    skillBar.getState().load(['strike', 'slash_blast', 'throw', '', '', '']);
+  it('has eight keys, each labelled with the key it’s bound to: Q W E R A S D F', () => {
+    skillBar.getState().load(['strike']);
     render(<SkillBar />);
-    expect(key(1)).toHaveAccessibleName('Key 1: Strike, 2 energy');
-    expect(key(2)).toHaveAccessibleName('Key 2: Slash Blast, 3 energy');
+    const keys = within(screen.getByRole('list', { name: 'Skill bar' })).getAllByRole('listitem');
+    expect(keys.map((k) => k.querySelector('.skill-key-bound')?.textContent)).toEqual([
+      'Q',
+      'W',
+      'E',
+      'R',
+      'A',
+      'S',
+      'D',
+      'F',
+    ]);
+    expect(skillKeys).toHaveLength(SKILL_KEYS); // a key bound for each slot the bar holds
+    expect(key(2)).toHaveAttribute(
+      'title',
+      'Key W: empty. Drag a skill here from the skill window (K).',
+    );
+  });
+
+  it('shows each key with its skill’s stage and cost, and greys a skill short of energy or without points', () => {
+    skillBar.getState().load(['strike', 'slash_blast', 'throw', '', '', '', '', '']);
+    render(<SkillBar />);
+    expect(key(1)).toHaveAccessibleName('Key Q: Strike, 2 energy');
+    expect(key(2)).toHaveAccessibleName('Key W: Slash Blast, 3 energy');
     expect(key(1)).toHaveTextContent('2');
     expect(key(2)).toHaveTextContent('3');
-    expect(key(3)).toHaveAccessibleName('Key 3: Throw, no points yet');
-    expect(key(4)).toHaveAccessibleName('Key 4: empty');
+    expect(key(3)).toHaveAccessibleName('Key E: Throw, no points yet');
+    expect(key(4)).toHaveAccessibleName('Key R: empty');
     expect(key(1)).not.toHaveClass('skill-key-off');
     expect(key(2)).toHaveClass('skill-key-off');
     expect(key(3)).toHaveClass('skill-key-off');
@@ -69,24 +93,24 @@ describe('SkillBar', () => {
       { strike: 25, slash_blast: 9, spark: 10 },
       { strike: 'concussion', slash_blast: 'whirlwind' },
     );
-    skillBar.getState().load(['strike', 'slash_blast', 'spark', '', '', '']);
+    skillBar.getState().load(['strike', 'slash_blast', 'spark', '', '', '', '', '']);
     render(<SkillBar />);
-    expect(key(1)).toHaveAccessibleName('Key 1: Crushing Blow with Concussion, 2 energy');
-    expect(key(1)).toHaveAttribute('title', 'Key 1: Crushing Blow with Concussion, 2 energy');
+    expect(key(1)).toHaveAccessibleName('Key Q: Crushing Blow with Concussion, 2 energy');
+    expect(key(1)).toHaveAttribute('title', 'Key Q: Crushing Blow with Concussion, 2 energy');
     expect(key(1).querySelector('.skill-key-trait')).not.toBeNull();
     expect(key(1).style.getPropertyValue('--skill')).toBe('#ff6a3d');
-    expect(key(2)).toHaveAccessibleName('Key 2: Slash Blast, 3 energy'); // Whirlwind opens at Rending Blast
+    expect(key(2)).toHaveAccessibleName('Key W: Slash Blast, 3 energy'); // Whirlwind opens at Rending Blast
     expect(key(2).querySelector('.skill-key-trait')).toBeNull();
     expect(key(3).querySelector('.skill-key-trait')).toBeNull();
   });
 
   it('a skill dropped from the skill window goes on the key, and leaves any key it was on', () => {
-    skillBar.getState().load(['strike', '', '', '', '', '']);
+    skillBar.getState().load(['strike', '', '', '', '', '', '', '']);
     render(<SkillBar />);
     const carried = dataTransfer();
     carried.setData(SKILL_DRAG_TYPE, 'strike');
     fireEvent.drop(key(4), { dataTransfer: carried });
-    expect(skillBar.getState().slots).toEqual(['', '', '', 'strike', '', '']);
+    expect(skillBar.getState().slots).toEqual(['', '', '', 'strike', '', '', '', '']);
     fireEvent.drop(key(5), { dataTransfer: dataTransfer() }); // carries nothing of ours
     expect(skillBar.getState().edits).toBe(1);
   });
@@ -94,15 +118,15 @@ describe('SkillBar', () => {
   it('a key whose chain offers a follow-up now shows it in a frame glowing its colour, with its own cooldown, and says on whose key and while what', () => {
     joined({ strike: 10, charge: 1 });
     vi.spyOn(performance, 'now').mockReturnValue(1000);
-    skillBar.getState().load(['strike', 'slash_blast', '', '', '', '']);
+    skillBar.getState().load(['strike', 'slash_blast', '', '', '', '', '', '']);
     skillBar.getState().cool('charge', { from: 0, until: 4000 });
     render(<SkillBar />);
     expect(key(1)).not.toHaveClass('skill-key-chain');
     act(() => {
-      skillBar.getState().showLive(['charge', 'slash_blast', '', '', '', '']);
+      skillBar.getState().showLive(['charge', 'slash_blast', '', '', '', '', '', '']);
     });
     expect(key(1)).toHaveAccessibleName(
-      'Key 1: Charge, 3 energy, on Heavy Strike’s key while the target is over 3 m away',
+      'Key Q: Charge, 3 energy, on Heavy Strike’s key while the target is over 3 m away',
     );
     expect(key(1)).toHaveClass('skill-key-chain');
     expect(key(1).style.getPropertyValue('--chain')).toBe('#ff6a3d');
@@ -111,21 +135,21 @@ describe('SkillBar', () => {
     expect(key(1).querySelector('.skill-icon-count')).toHaveTextContent('3'); // Charge's cooldown, 3 s left
     expect(key(2)).not.toHaveClass('skill-key-chain');
     act(() => {
-      skillBar.getState().showLive(['strike', 'slash_blast', '', '', '', '']); // the condition ended
+      skillBar.getState().showLive(['strike', 'slash_blast', '', '', '', '', '', '']); // the condition ended
     });
-    expect(key(1)).toHaveAccessibleName('Key 1: Heavy Strike, 2 energy');
+    expect(key(1)).toHaveAccessibleName('Key Q: Heavy Strike, 2 energy');
     expect(key(1)).not.toHaveClass('skill-key-chain');
   });
 
   it('a held Warrior’s escape key offers its break-free, Unyielding, lit and glowing, granted with no points, while what says held', () => {
     joined({ roll_back: 1 });
-    skillBar.getState().load(['roll_back', '', '', '', '', '']);
+    skillBar.getState().load(['roll_back', '', '', '', '', '', '', '']);
     render(<SkillBar />);
     act(() => {
-      skillBar.getState().showLive(['unyielding', '', '', '', '', '']);
+      skillBar.getState().showLive(['unyielding', '', '', '', '', '', '', '']);
     });
     expect(key(1)).toHaveAccessibleName(
-      'Key 1: Unyielding, 0 energy, on Roll Back’s key while you’re held: stunned, frozen, asleep, knocked down or pinned',
+      'Key Q: Unyielding, 0 energy, on Roll Back’s key while you’re held: stunned, frozen, asleep, knocked down or pinned',
     );
     expect(key(1)).toHaveClass('skill-key-chain');
     expect(key(1)).not.toHaveClass('skill-key-off');
@@ -133,7 +157,7 @@ describe('SkillBar', () => {
 
   it('refuses a follow-up dropped on a key, which flashes red and keeps its skill', () => {
     vi.useFakeTimers();
-    skillBar.getState().load(['strike', '', '', '', '', '']);
+    skillBar.getState().load(['strike', '', '', '', '', '', '', '']);
     render(<SkillBar />);
     const charge = dataTransfer();
     charge.setData(SKILL_DRAG_TYPE, 'charge'); // Strike's approach for a Warrior
@@ -153,7 +177,7 @@ describe('SkillBar', () => {
 
   // A browser drops only with an effect the drag allows; the skill window's rows allow copy.
   it('a key answers a skill from the skill window with copy, and a dragged key with move', () => {
-    skillBar.getState().load(['strike', '', '', '', '', '']);
+    skillBar.getState().load(['strike', '', '', '', '', '', '', '']);
     render(<SkillBar />);
     const skill = dataTransfer();
     skill.setData(SKILL_DRAG_TYPE, 'spark');
@@ -169,7 +193,7 @@ describe('SkillBar', () => {
   });
 
   it('a key dragged onto another swaps them; dropped off the bar, it empties; a drag cancelled with Esc keeps it', () => {
-    skillBar.getState().load(['strike', 'spark', '', '', '', '']);
+    skillBar.getState().load(['strike', 'spark', '', '', '', '', '', '']);
     render(<SkillBar />);
     const drag = (n: number, drop?: Element) => {
       const carried = dataTransfer();
@@ -180,24 +204,24 @@ describe('SkillBar', () => {
       fireEvent.dragEnd(key(n), { dataTransfer: carried });
     };
     drag(1, key(2));
-    expect(skillBar.getState().slots).toEqual(['spark', 'strike', '', '', '', '']);
+    expect(skillBar.getState().slots).toEqual(['spark', 'strike', '', '', '', '', '', '']);
     drag(2); // Esc: it drops nowhere
-    expect(skillBar.getState().slots).toEqual(['spark', 'strike', '', '', '', '']);
+    expect(skillBar.getState().slots).toEqual(['spark', 'strike', '', '', '', '', '', '']);
     drag(2, document.body);
-    expect(skillBar.getState().slots).toEqual(['spark', '', '', '', '', '']);
+    expect(skillBar.getState().slots).toEqual(['spark', '', '', '', '', '', '', '']);
     fireEvent.drop(document.body, { dataTransfer: dataTransfer() }); // no key is dragged
-    expect(skillBar.getState().slots).toEqual(['spark', '', '', '', '', '']);
+    expect(skillBar.getState().slots).toEqual(['spark', '', '', '', '', '', '', '']);
   });
 
   it('shows each skill’s icon for its stage in place of its name, which the label and the tooltip carry', () => {
-    skillBar.getState().load(['strike', 'spark', '', '', '', '']);
+    skillBar.getState().load(['strike', 'spark', '', '', '', '', '', '']);
     render(<SkillBar />);
     const icon = (n: number) => key(n).querySelector<HTMLElement>('.skill-icon');
     expect(icon(1)?.style.getPropertyValue('--icon')).toContain('lorc/sword-wound.svg');
     expect(icon(2)?.style.getPropertyValue('--icon')).toContain('lorc/focused-lightning.svg'); // 10 points: Bolt
     expect(key(1)).not.toHaveTextContent('Strike');
-    expect(key(1)).toHaveAttribute('title', 'Key 1: Strike, 2 energy');
-    expect(key(2)).toHaveAccessibleName('Key 2: Bolt, 2 energy');
+    expect(key(1)).toHaveAttribute('title', 'Key Q: Strike, 2 energy');
+    expect(key(2)).toHaveAccessibleName('Key W: Bolt, 2 energy');
     expect([
       icon(1)?.classList.contains('skill-icon-off'),
       icon(2)?.classList.contains('skill-icon-off'),
@@ -212,7 +236,7 @@ describe('SkillBar', () => {
 
   it('a cooling skill shows its sweep and count over its icon until it ends', () => {
     vi.spyOn(performance, 'now').mockReturnValue(100);
-    skillBar.getState().load(['strike', '', '', '', '', '']);
+    skillBar.getState().load(['strike', '', '', '', '', '', '', '']);
     render(<SkillBar />);
     act(() => skillBar.getState().cool('strike', { from: 100, until: 2100 }));
     expect(key(1).querySelector('.skill-icon-count')).toHaveTextContent('2');
@@ -222,7 +246,7 @@ describe('SkillBar', () => {
 
   it('a cooldown restored at a join starts part-way: 10 s left of 60', () => {
     vi.spyOn(performance, 'now').mockReturnValue(500_000);
-    skillBar.getState().load(['strike', '', '', '', '', '']);
+    skillBar.getState().load(['strike', '', '', '', '', '', '', '']);
     skillBar.getState().restoreTimers({ strike: { from: 450_000, until: 510_000 } }, [], 50);
     render(<SkillBar />);
     expect(key(1).querySelector('.skill-icon-count')).toHaveTextContent('10');

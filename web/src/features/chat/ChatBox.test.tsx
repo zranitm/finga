@@ -216,7 +216,6 @@ describe('ChatBox', () => {
       expect(input()).toHaveFocus();
       expect(settings.getState().chatPinned).toBe(true);
       expect(putSettings).toHaveBeenCalledWith({
-        control_preset: 'classic',
         auto_assign_points: false,
         chat_pinned: true,
         hide_minimap: false,

@@ -36,7 +36,7 @@ func TestMain(m *testing.M) {
 var t0 = time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
 
 func newAccount(name string) model.NewAccount {
-	return model.NewAccount{ID: kernel.NewAccountID(), Username: name, PasswordHash: "$argon2id$fake", Settings: model.DefaultSettings()}
+	return model.NewAccount{ID: kernel.NewAccountID(), Username: name, PasswordHash: "$argon2id$fake", Settings: (model.Settings{})}
 }
 
 // insertAccount returns the account's ID and its created_at.
@@ -71,7 +71,7 @@ func TestAccounts(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if creds.Account.ID != id || creds.Account.Username != "Alice" || creds.PasswordHash != "$argon2id$fake" || creds.Account.Settings != model.DefaultSettings() || !creds.Account.CreatedAt.Equal(created) {
+		if creds.Account.ID != id || creds.Account.Username != "Alice" || creds.PasswordHash != "$argon2id$fake" || creds.Account.Settings != (model.Settings{}) || !creds.Account.CreatedAt.Equal(created) {
 			t.Fatalf("creds = %+v", creds)
 		}
 	})
@@ -95,7 +95,7 @@ func TestAccounts(t *testing.T) {
 
 	t.Run("settings are read and written", func(t *testing.T) {
 		id, _ := insertAccount(t, store, "bob")
-		want := model.Settings{ControlPreset: model.PresetWASD, AutoAssignPoints: true, ChatPinned: true, HideMinimap: true}
+		want := model.Settings{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true}
 		err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Accounts().UpdateSettings(ctx, id, want) })
 		if err != nil {
 			t.Fatal(err)

@@ -1,52 +1,22 @@
-// Cached in localStorage so the first frame uses it before GET /api/settings answers.
-import { readStored, writeStored } from '@/lib/storage';
-
+// The account's settings, read after login; until they arrive, every flag off and the minimap on.
 import { defineStore } from './store';
 
-export type Preset = 'classic' | 'wasd';
-
-export const presets: readonly Preset[] = ['classic', 'wasd'];
-
-export const PRESET_KEY = 'finga.settings.preset';
-
 export interface SettingsState {
-  readonly preset: Preset;
   /** Spend each level-up's points by the class's split; the account's setting, off until it says so. */
   readonly autoAssignPoints: boolean;
   /** The chat stays open while the player isn't typing; the account's setting, off until it says so. */
   readonly chatPinned: boolean;
   /** The minimap in the corner; the account's setting, on until it says otherwise. */
   readonly showMinimap: boolean;
-  setPreset(preset: Preset): void;
   setAutoAssignPoints(on: boolean): void;
   setChatPinned(on: boolean): void;
   setShowMinimap(on: boolean): void;
 }
 
-export function isPreset(value: unknown): value is Preset {
-  return typeof value === 'string' && (presets as readonly string[]).includes(value);
-}
-
-/** Classic when the cache is missing or bad. */
-export function loadCachedPreset(): Preset {
-  const value = readStored(PRESET_KEY);
-  return isPreset(value) ? value : 'classic';
-}
-
-/** A full or blocked storage only loses the fast start, not the setting. */
-export function cachePreset(preset: Preset): void {
-  writeStored(PRESET_KEY, preset);
-}
-
 export const settings = defineStore<SettingsState>((set) => ({
-  preset: loadCachedPreset(),
   autoAssignPoints: false,
   chatPinned: false,
   showMinimap: true,
-  setPreset: (preset) => {
-    cachePreset(preset);
-    set({ preset });
-  },
   setAutoAssignPoints: (autoAssignPoints) => {
     set({ autoAssignPoints });
   },

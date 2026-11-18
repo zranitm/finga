@@ -159,7 +159,7 @@ From the code, the rules this design keeps:
   - else a gold **!** when it gives one the player can take;
   - else a grey **?** when it takes back one still under way.
 - **Talk key:**
-  - The Talk key (Z in Classic, E in WASD) finds the nearest NPC within `talk_reach` and sends `Talk`; with none in reach it does nothing.
+  - The Talk key (Z in Classic, E in WASD; Z by default since [Key bindings](./key-bindings.md)) finds the nearest NPC within `talk_reach` and sends `Talk`; with none in reach it does nothing.
   - The Z key in Classic was pickup's. The `input` presets gain a `talk` action.
 - **The NPC dialog** (`features/npc`):
   - It lists what `NpcDialog` offers, with unmet conditions greyed and explained.

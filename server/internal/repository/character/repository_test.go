@@ -39,7 +39,7 @@ func sample(account kernel.AccountID, name string) model.Character {
 	return model.Character{
 		ID: kernel.NewCharacterID(), AccountID: account, Name: name, Class: kernel.Class("warrior"), Level: 1, Exp: 0,
 		Points: gamedata.Stats{STR: 1, AGI: 2}, UnspentPoints: 3, FreeResetUsed: true, HP: 184,
-		MapID: "town", X: 416, Y: 608, Z: 1.5, Yaw: 0.75, SkillBar: []string{"", "", "", "", "", ""},
+		MapID: "town", X: 416, Y: 608, Z: 1.5, Yaw: 0.75, SkillBar: []string{"", "", "", "", "", "", "", ""},
 	}
 }
 
@@ -96,7 +96,7 @@ func TestRepository(t *testing.T) {
 	})
 
 	t.Run("the skill bar is set only for its owner", func(t *testing.T) {
-		bar := []string{"strike", "", "", "", "", "spark"}
+		bar := []string{"strike", "", "", "", "", "spark", "", ""}
 		set := func(account kernel.AccountID, bar []string) error {
 			return store.InTx(ctx, func(uow application.UnitOfWork) error {
 				return uow.Characters().SetSkillBar(ctx, ayla.ID, account, bar)

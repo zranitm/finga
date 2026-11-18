@@ -961,8 +961,8 @@ describe('World', () => {
     const still = () =>
       p.scene()!.transformNodes.find((n) => n.name === `${classLook('warrior').file} still`);
     expect(still()?.isEnabled()).toBe(false); // made ahead, unseen: an attack alone leaves none
-    key('Digit1', true);
-    key('Digit1', false);
+    key('KeyQ', true);
+    key('KeyQ', false);
     let waited = 0;
     while (p.sent('useSkill').length === 0 && waited++ < 20) {
       p.frames(1);
@@ -1024,8 +1024,8 @@ describe('World', () => {
 
     p.live(40); // the attack over, the world's frames coming
     channel();
-    key('Digit1', true);
-    key('Digit1', false);
+    key('KeyQ', true);
+    key('KeyQ', false);
     for (let waited = 0; p.sent('useSkill').length === 0 && waited < 20; waited++) {
       p.live(1);
     }
@@ -1062,7 +1062,7 @@ describe('World', () => {
       { tick: 2 },
     );
     p.frames(1);
-    for (const code of ['KeyX', 'Digit1']) {
+    for (const code of ['KeyX', 'KeyQ']) {
       key(code, true);
       key(code, false);
     }
@@ -1102,8 +1102,8 @@ describe('World', () => {
     p.push('delta', { players: [stunned], ackSeq: p.inputs() - 1 }, { tick: 3 });
     p.frames(1);
     expect(skillBar.getState().live[0]).toBe('unyielding');
-    key('Digit1', true);
-    key('Digit1', false);
+    key('KeyQ', true);
+    key('KeyQ', false);
     expect(p.sent('useSkill').map((d) => [d.skill, d.chainRoot])).toEqual([
       ['unyielding', 'roll_back'],
     ]);
@@ -1145,8 +1145,8 @@ describe('World', () => {
     p.frames(2);
     heldBy('stun', 3);
     expect(skillBar.getState().live[0]).toBe('unyielding');
-    key('Digit1', true);
-    key('Digit1', false);
+    key('KeyQ', true);
+    key('KeyQ', false);
     expect(p.sent('useSkill')).toHaveLength(0);
     heldBy('pin', 4);
     expect(skillBar.getState().live[0]).toBe('roll_back');
@@ -1180,8 +1180,8 @@ describe('World', () => {
     p.push('delta', { players: [stunned], ackSeq: p.inputs() - 1 }, { tick: 3 });
     key('ArrowRight', true);
     p.frames(1);
-    key('Digit1', true);
-    key('Digit1', false);
+    key('KeyQ', true);
+    key('KeyQ', false);
     expect(p.sent('useSkill').map((d) => [d.skill, d.chainRoot])).toEqual([
       ['arcane_release', 'blink'],
     ]);
@@ -1214,8 +1214,8 @@ describe('World', () => {
     key('KeyX', true);
     key('KeyX', false);
     p.frames(2);
-    key('Digit1', true);
-    key('Digit1', false);
+    key('KeyQ', true);
+    key('KeyQ', false);
     expect([
       p.sent('attack').length,
       p.sent('useSkill'),
@@ -1485,8 +1485,8 @@ describe('World', () => {
     expect(slash && off(slash.rotation.y, 0)).toBeLessThan(1e-6); // the slash still where the hit went
     p.frames(Math.ceil(attack.end / FRAME_MS));
     const skill = beatsOf(skillTiming(skillById('strike')!.stages[0]!, FRAME_MS), 0, FRAME_MS);
-    key('Digit1', true);
-    key('Digit1', false);
+    key('KeyQ', true);
+    key('KeyQ', false);
     expect(p.sent('useSkill').map((d) => [d.skill, d.aim, d.target])).toEqual([
       ['strike', expect.closeTo(0, 5), 1],
     ]);
@@ -1522,8 +1522,8 @@ describe('World', () => {
     await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined(), WAIT);
     frames(p, 11, 12, [far]);
     expect(skillBar.getState().live.slice(0, 2)).toEqual(['charge', 'roll_back']);
-    key('Digit1', true);
-    key('Digit1', false);
+    key('KeyQ', true);
+    key('KeyQ', false);
     expect(p.sent('useSkill').map((d) => [d.skill, d.chainRoot, d.target])).toEqual([
       ['charge', 'strike', 1],
     ]);
@@ -1585,8 +1585,8 @@ describe('World', () => {
     frame(false);
     frame(false);
     expect([faded(warrior), faded(thief)]).toEqual([false, false]);
-    key('Digit1', true);
-    key('Digit1', false);
+    key('KeyQ', true);
+    key('KeyQ', false);
     expect(p.sent('useSkill').map((d) => d.skill)).toEqual(['roll_back']);
     const mine = [...Array(9).keys()].map(() => {
       frame(false);
@@ -1686,8 +1686,8 @@ describe('World', () => {
             Math.round(Math.min(...zs) + Math.max(...zs)) / 2,
           ];
         });
-    key('Digit1', true);
-    key('Digit1', false);
+    key('KeyQ', true);
+    key('KeyQ', false);
     expect(p.sent('useSkill').map((d) => [d.skill, d.target])).toEqual([['arrow_rain', 1]]);
     frame();
     expect(centres()).toEqual([
@@ -1733,8 +1733,8 @@ describe('World', () => {
     );
     energy.getState().welcome(10);
     skillBar.getState().load(['strike']);
-    key('Digit1', true);
-    key('Digit1', false);
+    key('KeyQ', true);
+    key('KeyQ', false);
     const { from, until } = skillBar.getState().cooldowns.strike!;
     expect(until - from).toBe(7000); // Concussion's
     p.push(
@@ -1773,8 +1773,8 @@ describe('World', () => {
         .root(warrior)!
         .getChildMeshes(false)
         .some((m) => m.material?.name.endsWith(` ${FADED}`));
-    key('Digit1', true);
-    key('Digit1', false);
+    key('KeyQ', true);
+    key('KeyQ', false);
     p.frames(1);
     expect(faded()).toBe(true);
     const req = p.ws.frames().findLast((f) => f.t === 'useSkill')!.req;
@@ -1876,8 +1876,8 @@ describe('World', () => {
     energy.getState().welcome(10);
     skillBar.getState().load(['heal']);
     frames(p, 2, 10, [{ ...mob(1, 'green_slime', 4.3), z: 20.3 }]); // over the player, 45° off their heading
-    key('Digit1', true);
-    key('Digit1', false);
+    key('KeyQ', true);
+    key('KeyQ', false);
     const [sent] = p.sent('useSkill');
     expect([sent?.skill, sent?.aim]).toEqual(['heal', expect.closeTo(Math.PI / 2, 5)]);
   });
@@ -2208,8 +2208,8 @@ describe('World', () => {
               .frames()
               .filter((f) => f.t === 'input')
               .at(-1)!.seq;
-            key('Digit1', true);
-            key('Digit1', false);
+            key('KeyQ', true);
+            key('KeyQ', false);
           }
           p.frames(1);
           const sent = p.ws.frames();

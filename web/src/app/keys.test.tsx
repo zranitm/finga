@@ -6,6 +6,7 @@ import { ChatBox } from '@/features/chat/ChatBox';
 import { InventoryWindow } from '@/features/inventory/InventoryWindow';
 import { MapWindow } from '@/features/map/MapWindow';
 import { bindKeyboard } from '@/game/systems/keyboard';
+import { defaults } from '@/input/bindings';
 import { isTyping } from '@/input/typing';
 import { settings } from '@/state/settings';
 import { ui } from '@/state/ui';
@@ -54,7 +55,7 @@ describe('the world’s keys with windows open', () => {
     vi.clearAllMocks();
     unbind = bindKeyboard({
       target,
-      preset: () => 'classic',
+      keys: () => defaults,
       typing: isTyping,
       onAction: (action) => {
         if (action === 'inventory' || action === 'character' || action === 'map') {

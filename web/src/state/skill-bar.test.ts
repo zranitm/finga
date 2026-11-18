@@ -7,20 +7,20 @@ const s = () => skillBar.getState();
 describe('skill bar', () => {
   beforeEach(() => skillBar.reset());
 
-  it('loads six keys, padding a short bar, without counting it as a change to save', () => {
+  it('loads eight keys, padding a short bar, without counting it as a change to save', () => {
     s().load(['strike', 'spark']);
-    expect(s().slots).toEqual(['strike', 'spark', '', '', '', '']);
+    expect(s().slots).toEqual(['strike', 'spark', '', '', '', '', '', '']);
     expect(s().edits).toBe(0);
   });
 
   it('a skill put on a key leaves the key it was on; keys swap and clear; each is a change', () => {
-    s().load(['strike', '', 'spark', '', '', '']);
+    s().load(['strike', '', 'spark', '', '', '', '', '']);
     s().put(4, 'strike');
-    expect(s().slots).toEqual(['', '', 'spark', '', 'strike', '']);
+    expect(s().slots).toEqual(['', '', 'spark', '', 'strike', '', '', '']);
     s().swap(2, 4);
-    expect(s().slots).toEqual(['', '', 'strike', '', 'spark', '']);
+    expect(s().slots).toEqual(['', '', 'strike', '', 'spark', '', '', '']);
     s().clear(2);
-    expect(s().slots).toEqual(['', '', '', '', 'spark', '']);
+    expect(s().slots).toEqual(['', '', '', '', 'spark', '', '', '']);
     expect(s().edits).toBe(3);
   });
 
@@ -46,7 +46,7 @@ describe('skill bar', () => {
   });
 
   it('a character entering the world starts the cooldowns and buffs over', () => {
-    s().load(['strike', '', '', '', '', '']);
+    s().load(['strike', '', '', '', '', '', '', '']);
     s().cool('strike', { from: 0, until: 2000 });
     s().buff({ skill: 'rally', points: 1, trait: '', until: 2000 });
     s().load(['spark']);

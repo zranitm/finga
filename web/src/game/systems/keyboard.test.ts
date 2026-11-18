@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { Preset } from '@/state/settings';
+import { defaults } from '@/input/bindings';
+import type { KeyTable } from '@/input/bindings';
 
 import { bindKeyboard } from './keyboard';
 
@@ -12,13 +13,13 @@ afterEach(() => {
   }
 });
 
-function setup(preset: Preset = 'classic', typing = false) {
+function setup(typing = false) {
   const target = { press: vi.fn(), release: vi.fn(), releaseAll: vi.fn() };
   const onAction = vi.fn();
-  const state = { typing };
+  const state: { typing: boolean; keys: KeyTable } = { typing, keys: defaults };
   const unbind = bindKeyboard({
     target,
-    preset: () => preset,
+    keys: () => state.keys,
     typing: () => state.typing,
     onAction,
   });
@@ -35,29 +36,23 @@ type Key = ReturnType<typeof setup>['key'];
 
 describe('bindKeyboard', () => {
   it.each([
-    { preset: 'classic' as const, code: 'ArrowRight', action: 'right' },
-    { preset: 'classic' as const, code: 'ArrowUp', action: 'up' },
-    { preset: 'classic' as const, code: 'Space', action: 'jump' },
-    { preset: 'wasd' as const, code: 'KeyA', action: 'left' },
-    { preset: 'wasd' as const, code: 'KeyS', action: 'down' },
-    { preset: 'wasd' as const, code: 'Space', action: 'jump' },
-  ])(
-    '$code under $preset presses $action and releases it, and the page does not scroll',
-    ({ preset, code, action }) => {
-      const { target, key } = setup(preset);
-      const down = key('keydown', code);
-      expect(target.press).toHaveBeenCalledWith(action, false);
-      expect(down.defaultPrevented).toBe(true);
-      key('keyup', code);
-      expect(target.release).toHaveBeenCalledWith(action);
-    },
-  );
+    { code: 'ArrowRight', action: 'right' },
+    { code: 'ArrowUp', action: 'up' },
+    { code: 'Space', action: 'jump' },
+  ])('$code presses $action and releases it, and the page does not scroll', ({ code, action }) => {
+    const { target, key } = setup();
+    const down = key('keydown', code);
+    expect(target.press).toHaveBeenCalledWith(action, false);
+    expect(down.defaultPrevented).toBe(true);
+    key('keyup', code);
+    expect(target.release).toHaveBeenCalledWith(action);
+  });
 
   it.each([
-    { name: 'a key not in the preset', code: 'KeyV' },
-    { name: 'the other preset’s key', code: 'KeyD' },
+    { name: 'a key no action takes', code: 'KeyV' },
+    { name: 'a digit past the potion’s', code: 'Digit2' },
   ])('$name does nothing, and keeps its default', ({ code }) => {
-    const { target, key } = setup('classic');
+    const { target, key } = setup();
     const down = key('keydown', code);
     const up = key('keyup', code);
     expect(target.press).not.toHaveBeenCalled();
@@ -72,7 +67,7 @@ describe('bindKeyboard', () => {
   ])(
     '$name is the game’s alone: a focused button is not pressed by its down or its up',
     ({ code }) => {
-      const { key } = setup('classic');
+      const { key } = setup();
       const down = key('keydown', code);
       const up = key('keyup', code);
       expect([down.defaultPrevented, up.defaultPrevented]).toEqual([true, true]);
@@ -80,7 +75,7 @@ describe('bindKeyboard', () => {
   );
 
   it('attack is held like movement: its down presses it once, its repeats add nothing, its up releases it', () => {
-    const { target, onAction, key } = setup('classic');
+    const { target, onAction, key } = setup();
     key('keydown', 'KeyX');
     key('keydown', 'KeyX', { repeat: true });
     key('keydown', 'KeyX', { repeat: true });
@@ -93,8 +88,11 @@ describe('bindKeyboard', () => {
   it.each([
     { code: 'KeyI', action: 'inventory' },
     { code: 'Enter', action: 'chat' },
-  ])('$code under classic reports $action once, not as a held key', ({ code, action }) => {
-    const { target, onAction, state, key } = setup('classic');
+    { code: 'KeyQ', action: 'skill1' },
+    { code: 'KeyF', action: 'skill8' },
+    { code: 'Digit1', action: 'hpPotion' },
+  ])('$code reports $action once, not as a held key', ({ code, action }) => {
+    const { target, onAction, state, key } = setup();
     key('keydown', code);
     key('keydown', code, { repeat: true });
     expect(onAction).toHaveBeenCalledTimes(1);
@@ -114,7 +112,7 @@ describe('bindKeyboard', () => {
   ])(
     '$name is the browser’s: nothing is pressed or reported, and its default is kept',
     ({ code, init }) => {
-      const { target, onAction, key } = setup('classic');
+      const { target, onAction, key } = setup();
       const down = key('keydown', code, init);
       const up = key('keyup', code, init);
       expect(target.press).not.toHaveBeenCalled();
@@ -166,7 +164,7 @@ describe('bindKeyboard', () => {
   });
 
   it('while typing, keys belong to the text field, but key ups still release', () => {
-    const { target, state, key } = setup('classic', true);
+    const { target, state, key } = setup(true);
     const down = key('keydown', 'ArrowRight');
     expect(target.press).not.toHaveBeenCalled();
     expect(down.defaultPrevented).toBe(false);
@@ -185,6 +183,14 @@ describe('bindKeyboard', () => {
     state.typing = true;
     window.dispatchEvent(new FocusEvent('focusin'));
     expect(target.releaseAll).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads the table at each key, so keys bound anew take effect at once', () => {
+    const { onAction, state, key } = setup();
+    state.keys = { ...defaults, skill1: ['KeyV'], quests: ['KeyQ'] };
+    key('keydown', 'KeyV');
+    key('keydown', 'KeyQ');
+    expect(onAction.mock.calls).toEqual([['skill1'], ['quests']]);
   });
 
   it('losing focus releases every key, and unbinding stops everything', () => {

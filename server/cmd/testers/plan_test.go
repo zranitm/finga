@@ -163,15 +163,15 @@ func TestEachTestersSkillBarIsItsKeyableSkillsMainFirstThenChainRoots(t *testing
 				t.Fatal(err)
 			}
 			skills := points(sd)
-			bar, ok := barToSet(data, sd.class, sd.main, skills, make([]string, 6))
+			bar, ok := barToSet(data, sd.class, sd.main, skills, make([]string, 8)) // the server's bar of eight keys
 			if tr.stage == fresh {
 				if ok {
 					t.Fatalf("a level-1 character with no skill points gets the bar %v", bar)
 				}
 				return
 			}
-			if !ok || len(bar) != 6 || bar[0] != sd.main {
-				t.Fatalf("bar %v (set %v); want six keys led by its main skill %s", bar, ok, sd.main)
+			if !ok || len(bar) != 8 || bar[0] != sd.main {
+				t.Fatalf("bar %v (set %v); want eight keys led by its main skill %s", bar, ok, sd.main)
 			}
 			roots := map[string]bool{}
 			for _, ch := range sd.class.Chains {
@@ -219,8 +219,8 @@ func TestASkillBarGoesMainSkillChainRootsThenItsClasssActivesThenTheOnesAbove(t 
 	warrior, _ := data.Class("warrior")
 	// lunge and iron_body are follow-ups here, toughness a passive, spark magic, charge unlearned
 	skills := map[string]int{"slash_blast": 5, "strike": 3, "war_cry": 1, "taunt": 1, "throw": 1, "spark": 1, "iron_body": 1, "toughness": 1, "lunge": 1, "charge": 0}
-	bar, ok := barToSet(data, warrior, "slash_blast", skills, make([]string, 6))
-	if want := []string{"slash_blast", "strike", "war_cry", "taunt", "throw", ""}; !ok || !slices.Equal(bar, want) {
+	bar, ok := barToSet(data, warrior, "slash_blast", skills, make([]string, 8))
+	if want := []string{"slash_blast", "strike", "war_cry", "taunt", "throw", "", "", ""}; !ok || !slices.Equal(bar, want) {
 		t.Fatalf("bar %v (set %v); want %v", bar, ok, want)
 	}
 }
@@ -228,7 +228,7 @@ func TestASkillBarGoesMainSkillChainRootsThenItsClasssActivesThenTheOnesAbove(t 
 func TestASkillBarArrangedAlreadyIsKept(t *testing.T) {
 	data := gamedatatest.Shipped(t)
 	warrior, _ := data.Class("warrior")
-	if bar, ok := barToSet(data, warrior, "slash_blast", map[string]int{"slash_blast": 5, "taunt": 1}, []string{"", "", "taunt", "", "", ""}); ok {
+	if bar, ok := barToSet(data, warrior, "slash_blast", map[string]int{"slash_blast": 5, "taunt": 1}, []string{"", "", "taunt", "", "", "", "", ""}); ok {
 		t.Fatalf("a bar with a key set is replaced by %v", bar)
 	}
 }

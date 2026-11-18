@@ -1,7 +1,6 @@
 import type { Input } from '@/sim/input';
 
-import { presets } from './presets';
-import type { Preset } from './presets';
+import type { KeyTable } from './bindings';
 
 export type Action =
   | 'left'
@@ -23,7 +22,8 @@ export type Action =
   | 'chat'
   | 'close'; // the top-most window
 
-export type SkillKey = 'skill1' | 'skill2' | 'skill3' | 'skill4' | 'skill5' | 'skill6';
+export type SkillKey =
+  'skill1' | 'skill2' | 'skill3' | 'skill4' | 'skill5' | 'skill6' | 'skill7' | 'skill8';
 
 /** The skill bar's keys, in its order. */
 export const skillKeys: readonly SkillKey[] = [
@@ -33,6 +33,8 @@ export const skillKeys: readonly SkillKey[] = [
   'skill4',
   'skill5',
   'skill6',
+  'skill7',
+  'skill8',
 ];
 
 export const actions: readonly Action[] = [
@@ -58,8 +60,8 @@ export const actions: readonly Action[] = [
 
 const movement: readonly Action[] = ['left', 'right', 'up', 'down', 'jump'];
 
-export function actionFor(code: string, preset: Preset): Action | undefined {
-  const table = presets[preset];
+/** The action a key takes in the table, if any. */
+export function actionFor(code: string, table: KeyTable): Action | undefined {
   for (const action of actions) {
     if (table[action].includes(code)) {
       return action;

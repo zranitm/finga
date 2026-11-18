@@ -1,91 +1,58 @@
 import { describe, expect, it } from 'vitest';
 
 import { actionFor, actions, heldInput, isMovement } from './actions';
-import { presets } from './presets';
-import type { Preset } from './presets';
+import { defaults } from './bindings';
 
-const skillDigits = {
-  skill1: 'Digit1',
-  skill2: 'Digit2',
-  skill3: 'Digit3',
-  skill4: 'Digit4',
-  skill5: 'Digit5',
-  skill6: 'Digit6',
+// key-bindings.md section 2.
+const table: Readonly<Record<string, string>> = {
+  left: 'ArrowLeft',
+  right: 'ArrowRight',
+  up: 'ArrowUp',
+  down: 'ArrowDown',
+  jump: 'Space',
+  attack: 'KeyX',
+  nextTarget: 'Tab',
+  talk: 'KeyZ',
+  hpPotion: 'Digit1',
+  skill1: 'KeyQ',
+  skill2: 'KeyW',
+  skill3: 'KeyE',
+  skill4: 'KeyR',
+  skill5: 'KeyA',
+  skill6: 'KeyS',
+  skill7: 'KeyD',
+  skill8: 'KeyF',
+  inventory: 'KeyI',
+  character: 'KeyC',
+  skills: 'KeyK',
+  party: 'KeyP',
+  quests: 'KeyJ',
+  map: 'KeyM',
+  chat: 'Enter',
+  close: 'Escape',
 };
 
-const table: Record<Preset, Record<string, string>> = {
-  classic: {
-    left: 'ArrowLeft',
-    right: 'ArrowRight',
-    up: 'ArrowUp',
-    down: 'ArrowDown',
-    jump: 'Space',
-    attack: 'KeyX',
-    nextTarget: 'Tab',
-    talk: 'KeyZ',
-    hpPotion: 'KeyA',
-    ...skillDigits,
-    inventory: 'KeyI',
-    character: 'KeyC',
-    skills: 'KeyK',
-    party: 'KeyP',
-    quests: 'KeyQ',
-    map: 'KeyM',
-    chat: 'Enter',
-    close: 'Escape',
-  },
-  wasd: {
-    left: 'KeyA',
-    right: 'KeyD',
-    up: 'KeyW',
-    down: 'KeyS',
-    jump: 'Space',
-    attack: 'KeyJ',
-    nextTarget: 'Tab',
-    talk: 'KeyE',
-    hpPotion: 'KeyR',
-    ...skillDigits,
-    inventory: 'KeyI',
-    character: 'KeyC',
-    skills: 'KeyK',
-    party: 'KeyP',
-    quests: 'KeyQ',
-    map: 'KeyM',
-    chat: 'Enter',
-    close: 'Escape',
-  },
-};
-
-describe('key presets', () => {
-  it.each(['classic', 'wasd'] as const)(
-    '%s maps every action in the Screens and controls table',
-    (preset) => {
-      for (const action of actions) {
-        expect(actionFor(table[preset][action] ?? '', preset), action).toBe(action);
-      }
-      expect(Object.keys(presets[preset]).sort()).toEqual([...actions].sort());
-    },
-  );
-
-  it.each([
-    { preset: 'classic' as const, code: 'KeyW' },
-    { preset: 'wasd' as const, code: 'ArrowLeft' },
-    { preset: 'classic' as const, code: 'KeyE' },
-    { preset: 'wasd' as const, code: 'KeyZ' },
-    { preset: 'wasd' as const, code: 'KeyX' },
-  ])('$preset: $code maps to nothing', ({ preset, code }) => {
-    expect(actionFor(code, preset)).toBeUndefined();
+describe('the default keys', () => {
+  it('map every action as key-bindings.md section 2 lists it, the skills on Q W E R A S D F', () => {
+    for (const action of actions) {
+      expect(actionFor(table[action] ?? '', defaults), action).toBe(action);
+    }
+    expect(Object.keys(defaults).sort()).toEqual([...actions].sort());
   });
 
-  it('no key maps to two actions within a preset', () => {
-    for (const preset of ['classic', 'wasd'] as const) {
-      const codes = Object.values(presets[preset]).flat();
-      expect(new Set(codes).size).toBe(codes.length);
+  it('a key no action takes maps to nothing: the old digits past the potion, and the old WASD movement keys', () => {
+    for (const code of ['Digit2', 'Digit6', 'KeyG', 'KeyV']) {
+      expect(actionFor(code, defaults), code).toBeUndefined();
     }
   });
 
+  it('no key maps to two actions', () => {
+    const codes = Object.values(defaults).flat();
+    expect(new Set(codes).size).toBe(codes.length);
+  });
+
   it('the numpad Enter opens chat too', () => {
-    expect(actionFor('NumpadEnter', 'classic')).toBe('chat');
+    expect(actionFor('NumpadEnter', defaults)).toBe('chat');
   });
 
   it('held actions become the sim input; commands are not movement', () => {

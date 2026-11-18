@@ -119,6 +119,17 @@
 1. **Eight keys and the new defaults:** `bindings.ts`, the server's bar of eight, and the hints. Presets go.
 2. **The window and the saved bindings:** `KeyBindings.tsx`, `keys` in the account's settings, and the cache.
 
+### As built: PR 1
+
+- **The bar's eight keys** are `SkillBarKeys` on the server and `SKILL_KEYS` in the client's bar store, with a test that the input has a skill key for each.
+- **No wipe:** migration 00011 pads each stored bar with two empty keys, keeping its six in order, and sets the eight-key default and check.
+- **`control_preset` goes from the server in PR 1,** since the presets went from the client. A settings save naming it is a malformed body.
+  - `BAD_CONTROL_PRESET` (110007) goes, and `SESSION_RACE` moves from 110008 to 110007, as an area's codes count up with no gap.
+  - PR 2's `BAD_KEY_BINDINGS` takes 110008.
+- **`input/bindings.ts`** holds `defaults`, `keyName` with US names, and `keyOf`, the name of an action's first key. The keyboard reads its table through a function at each key, so PR 2's saved keys apply at once. `keyTable(overrides)` and the layout map come with PR 2, which has their input.
+- **Hints:** the skill bar's keys and their tooltips, and the card's "with its keys". The client named no other key: there's no potion or talk hint yet.
+- **The HUD** widens from 257 px to 339 px, so the eight keys stay one row, Q to F, under the player's frame. Two rows of four were tried and left half the tray empty.
+
 ## 9. Decisions
 
 The user's choices are in section 1. These calls were made in planning and logged for the user to push back on:

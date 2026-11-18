@@ -192,7 +192,7 @@ export function SkillCard({
       {skill.traits.length > 0 && <Traits skill={skill} points={points} trait={trait} />}
       <ChainList cls={cls} root={skill.id} invested={invested} />
       {active && keyable(cls, skill.id) && (
-        <p className="skill-text muted">Drag onto the skill bar to use it with keys 1 to 6.</p>
+        <p className="skill-text muted">Drag onto the skill bar to use it with its keys.</p>
       )}
     </div>
   );

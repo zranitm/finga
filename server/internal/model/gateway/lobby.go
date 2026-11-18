@@ -15,7 +15,6 @@ type Account struct {
 
 // Settings are an account's settings.
 type Settings struct {
-	ControlPreset    string
 	AutoAssignPoints bool
 	ChatPinned       bool
 	HideMinimap      bool
@@ -36,6 +35,6 @@ type Character struct {
 	Stats Stats
 	HP    int
 	MapID string
-	// The skill on each of keys 1 to 6, "" for none.
+	// The skill on each of the bar's eight keys, "" for none.
 	SkillBar []string
 }

@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ERR } from '@/protocol/errors';
-import { PRESET_KEY, settings } from '@/state/settings';
+import { settings } from '@/state/settings';
 import { fakeFetch, restClientOn } from '@/testing/fake-fetch';
 import { resetStores } from '@/testing/reset-stores';
 import { user } from '@/testing/user';
@@ -15,40 +15,18 @@ describe('SettingsPanel', () => {
     resetStores();
   });
 
-  it('choosing WASD calls PUT /api/settings and updates the cached preset at once', async () => {
-    const ff = fakeFetch(({ method }) =>
-      method === 'PUT'
-        ? { status: 200, body: { control_preset: 'wasd' } }
-        : { status: 200, body: { control_preset: 'classic' } },
-    );
+  it('has no control presets: the skills sit on Q W E R A S D F', () => {
+    const ff = fakeFetch(() => ({ status: 200, body: {} }));
     render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
-    await waitFor(() => expect(ff.of('GET', '/api/settings')).toHaveLength(1));
-    await user.click(screen.getByLabelText(/WASD/));
-    expect(settings.getState().preset).toBe('wasd');
-    expect(localStorage.getItem(PRESET_KEY)).toBe('wasd');
-    await waitFor(() => expect(ff.of('PUT', '/api/settings')).toHaveLength(1));
-    expect(ff.of('PUT', '/api/settings')[0]?.body).toEqual({
-      control_preset: 'wasd',
-      auto_assign_points: false,
-      chat_pinned: false,
-      hide_minimap: false,
-    });
-    expect(screen.getByLabelText(/WASD/)).toBeChecked();
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Controls' })).toBeNull();
   });
 
-  it('the saved preset from the account wins over the cache when it arrives', async () => {
-    const ff = fakeFetch(() => ({ status: 200, body: { control_preset: 'wasd' } }));
-    render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
-    expect(screen.getByLabelText(/Classic/)).toBeChecked();
-    await waitFor(() => expect(settings.getState().preset).toBe('wasd'));
-    expect(screen.getByLabelText(/WASD/)).toBeChecked();
-  });
-
-  it('the auto-assign switch shows the account’s setting, and a change saves it with the preset', async () => {
+  it('the auto-assign switch shows the account’s setting, and a change saves it with the rest', async () => {
     const ff = fakeFetch(({ method }) =>
       method === 'PUT'
-        ? { status: 200, body: { control_preset: 'wasd', auto_assign_points: false } }
-        : { status: 200, body: { control_preset: 'wasd', auto_assign_points: true } },
+        ? { status: 200, body: { auto_assign_points: false } }
+        : { status: 200, body: { auto_assign_points: true } },
     );
     render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
     const auto = screen.getByLabelText(/Auto-assign at every level-up/);
@@ -59,7 +37,6 @@ describe('SettingsPanel', () => {
     expect(settings.getState().autoAssignPoints).toBe(false);
     await waitFor(() => expect(ff.of('PUT', '/api/settings')).toHaveLength(1));
     expect(ff.of('PUT', '/api/settings')[0]?.body).toEqual({
-      control_preset: 'wasd',
       auto_assign_points: false,
       chat_pinned: false,
       hide_minimap: false,
@@ -70,7 +47,7 @@ describe('SettingsPanel', () => {
     settings.getState().setAutoAssignPoints(true);
     settings.getState().setChatPinned(true);
     settings.getState().setShowMinimap(false);
-    const ff = fakeFetch(() => ({ status: 200, body: { control_preset: 'classic' } }));
+    const ff = fakeFetch(() => ({ status: 200, body: {} }));
     render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
     await waitFor(() => expect(settings.getState().autoAssignPoints).toBe(false));
     expect([settings.getState().chatPinned, settings.getState().showMinimap]).toEqual([
@@ -81,9 +58,7 @@ describe('SettingsPanel', () => {
 
   it('the minimap switch shows the account’s setting, and turning it off saves it hidden', async () => {
     const ff = fakeFetch(({ method }) =>
-      method === 'PUT'
-        ? { status: 200, body: { control_preset: 'classic', hide_minimap: true } }
-        : { status: 200, body: { control_preset: 'classic' } },
+      method === 'PUT' ? { status: 200, body: { hide_minimap: true } } : { status: 200, body: {} },
     );
     render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
     await waitFor(() => expect(ff.of('GET', '/api/settings')).toHaveLength(1));
@@ -93,7 +68,6 @@ describe('SettingsPanel', () => {
     expect(settings.getState().showMinimap).toBe(false);
     await waitFor(() => expect(ff.of('PUT', '/api/settings')).toHaveLength(1));
     expect(ff.of('PUT', '/api/settings')[0]?.body).toEqual({
-      control_preset: 'classic',
       auto_assign_points: false,
       chat_pinned: false,
       hide_minimap: true,
@@ -103,12 +77,12 @@ describe('SettingsPanel', () => {
   it('the account’s chat pin arrives with its settings, and a change here keeps it', async () => {
     const ff = fakeFetch(({ method }) =>
       method === 'PUT'
-        ? { status: 200, body: { control_preset: 'wasd', chat_pinned: true } }
-        : { status: 200, body: { control_preset: 'classic', chat_pinned: true } },
+        ? { status: 200, body: { chat_pinned: true } }
+        : { status: 200, body: { chat_pinned: true } },
     );
     render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
     await waitFor(() => expect(settings.getState().chatPinned).toBe(true));
-    await user.click(screen.getByLabelText(/WASD/));
+    await user.click(screen.getByLabelText('Show the minimap'));
     await waitFor(() => expect(ff.of('PUT', '/api/settings')).toHaveLength(1));
     expect(ff.of('PUT', '/api/settings')[0]?.body).toMatchObject({ chat_pinned: true });
   });
@@ -118,14 +92,15 @@ describe('SettingsPanel', () => {
     const ff = fakeFetch(({ method }) =>
       method === 'PUT'
         ? { status: 500, body: { code: ERR.INTERNAL, message: 'database unavailable' } }
-        : { status: 200, body: { control_preset: 'classic' } },
+        : { status: 200, body: {} },
     );
     render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={onClose} />);
-    await user.click(screen.getByLabelText(/WASD/));
+    await waitFor(() => expect(ff.of('GET', '/api/settings')).toHaveLength(1));
+    await user.click(screen.getByLabelText('Show the minimap'));
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Something went wrong on the server. Try again.',
     );
-    expect(settings.getState().preset).toBe('wasd');
+    expect(settings.getState().showMinimap).toBe(false);
     await user.click(screen.getByRole('button', { name: 'Done' }));
     expect(onClose).toHaveBeenCalledTimes(1);
   });

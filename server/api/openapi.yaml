@@ -97,7 +97,7 @@ paths:
   /api/characters/{id}/skill-bar:
     put:
       summary: Save a character's skill bar
-      description: The skill on each of keys 1 to 6, "" for none. Each is empty or an active skill in the game data; the world refuses one the character hasn't learned when it's used.
+      description: The skill on each of the bar's eight keys, "" for none. Each is empty or an active skill in the game data; the world refuses one the character hasn't learned when it's used.
       security: [{ bearer: [] }]
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -128,7 +128,7 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
     put:
       summary: Save settings
-      description: The control preset must be classic or wasd.
+      description: Replaces every setting; a flag left out is false.
       security: [{ bearer: [] }]
       requestBody:
         required: true
@@ -207,20 +207,20 @@ components:
         map_id: { type: string }
         skill_bar:
           type: array
-          description: The skill on each of keys 1 to 6, "" for none
+          description: The skill on each of the bar's eight keys, "" for none
           items: { type: string }
-          minItems: 6
-          maxItems: 6
+          minItems: 8
+          maxItems: 8
     SkillBar:
       type: object
       required: [slots]
       properties:
         slots:
           type: array
-          description: The skill on each of keys 1 to 6, "" for none
+          description: The skill on each of the bar's eight keys, "" for none
           items: { type: string }
-          minItems: 6
-          maxItems: 6
+          minItems: 8
+          maxItems: 8
     Characters:
       type: object
       required: [characters]
@@ -230,9 +230,7 @@ components:
           items: { $ref: "#/components/schemas/Character" }
     Settings:
       type: object
-      required: [control_preset]
       properties:
-        control_preset: { type: string, enum: [classic, wasd] }
         auto_assign_points: { type: boolean, default: false, description: "The client spends each level's points by the class's split; left out of a PUT, false" }
         chat_pinned: { type: boolean, default: false, description: "The chat stays open while the player isn't typing; left out of a PUT, false" }
         hide_minimap: { type: boolean, default: false, description: "The minimap is hidden; left out of a PUT, false, so the minimap shows" }

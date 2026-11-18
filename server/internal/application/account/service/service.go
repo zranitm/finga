@@ -70,12 +70,11 @@ var usernameRe = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
 
 // Service is the account module's use cases. It implements pkg/auth.
 type Service struct {
-	store      Store
-	notifier   Notifier
-	hasher     *password.Hasher
-	dummy      string            // verified for unknown usernames, so they take as long
-	byUser     ratelimit.Limiter // per-IP limits belong to the edge (nginx)
-	presetList []model.Preset
+	store    Store
+	notifier Notifier
+	hasher   *password.Hasher
+	dummy    string            // verified for unknown usernames, so they take as long
+	byUser   ratelimit.Limiter // per-IP limits belong to the edge (nginx)
 }
 
 // NewService wires the service over deps; it fails when the hasher cannot make the dummy hash.
@@ -85,12 +84,11 @@ func NewService(deps Deps) (*Service, error) {
 		return nil, fmt.Errorf("account: dummy hash: %w", err)
 	}
 	return &Service{
-		store:      deps.Store,
-		notifier:   deps.Notifier,
-		hasher:     deps.Hasher,
-		dummy:      dummy,
-		byUser:     ratelimit.NewBuckets(loginRatePerMinute/60.0, loginBurst),
-		presetList: []model.Preset{model.PresetClassic, model.PresetWASD},
+		store:    deps.Store,
+		notifier: deps.Notifier,
+		hasher:   deps.Hasher,
+		dummy:    dummy,
+		byUser:   ratelimit.NewBuckets(loginRatePerMinute/60.0, loginBurst),
 	}, nil
 }
 
@@ -106,7 +104,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (model.Account
 	if err != nil {
 		return model.Account{}, busy(err)
 	}
-	a := model.NewAccount{ID: kernel.NewAccountID(), Username: in.Username, PasswordHash: hash, Settings: model.DefaultSettings()}
+	a := model.NewAccount{ID: kernel.NewAccountID(), Username: in.Username, PasswordHash: hash}
 	var created time.Time
 	err = s.store.InTx(ctx, func(uow UnitOfWork) error {
 		var err error
@@ -361,15 +359,8 @@ func (s *Service) Settings(ctx context.Context, id kernel.AccountID) (model.Sett
 	return s.store.Settings(ctx, id)
 }
 
-// UpdateSettings saves an account's settings; the preset must be known.
+// UpdateSettings saves an account's settings.
 func (s *Service) UpdateSettings(ctx context.Context, id kernel.AccountID, st model.Settings) error {
-	known := false
-	for _, p := range s.presetList {
-		known = known || p == st.ControlPreset
-	}
-	if !known {
-		return model.ErrBadPreset
-	}
 	return s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Accounts().UpdateSettings(ctx, id, st)
 	})

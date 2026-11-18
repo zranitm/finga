@@ -130,17 +130,17 @@ func TestAcceptance(t *testing.T) {
 		token := s.Call("POST", "/api/sessions", "", map[string]string{"username": "dave", "password": "correct horse"}).Body["token"].(string)
 		initial := s.Call("GET", "/api/settings", token, nil)
 		s.MustStatus(initial, http.StatusOK)
-		if initial.Body["control_preset"] != "classic" {
+		if initial.Body["hide_minimap"] != false || initial.Body["control_preset"] != nil {
 			t.Fatalf("default settings %v", initial.Body)
 		}
-		s.MustStatus(s.Call("PUT", "/api/settings", token, map[string]string{"control_preset": "wasd"}), http.StatusOK)
-		s.MustStatus(s.Call("PUT", "/api/settings", token, map[string]string{"control_preset": "vim"}), http.StatusBadRequest)
+		s.MustStatus(s.Call("PUT", "/api/settings", token, map[string]any{"hide_minimap": true}), http.StatusOK)
+		s.MustStatus(s.Call("PUT", "/api/settings", token, map[string]any{"control_preset": "wasd"}), http.StatusBadRequest) // the presets are gone (B6)
 		after := s.Call("GET", "/api/settings", token, nil)
-		if after.Body["control_preset"] != "wasd" {
+		if after.Body["hide_minimap"] != true {
 			t.Fatalf("settings after save %v", after.Body)
 		}
 		token2 := s.Call("POST", "/api/sessions", "", map[string]string{"username": "dave", "password": "correct horse"}).Body["token"].(string)
-		if s.Call("GET", "/api/settings", token2, nil).Body["control_preset"] != "wasd" {
+		if s.Call("GET", "/api/settings", token2, nil).Body["hide_minimap"] != true {
 			t.Fatal("settings did not survive a new session")
 		}
 	})

@@ -103,12 +103,6 @@
   },
   {
     "code": 110007,
-    "name": "BAD_CONTROL_PRESET",
-    "status": 400,
-    "message": "control preset must be classic or wasd"
-  },
-  {
-    "code": 110008,
     "name": "SESSION_RACE",
     "status": 409,
     "message": "another login is in progress, try again"
@@ -153,7 +147,7 @@
     "code": 120007,
     "name": "BAD_SKILL_BAR",
     "status": 400,
-    "message": "a skill bar has six keys, each empty or an active skill"
+    "message": "a skill bar has eight keys, each empty or an active skill"
   },
   {
     "code": 220001,

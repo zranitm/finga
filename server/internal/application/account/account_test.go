@@ -35,7 +35,7 @@ var (
 
 func (f *fakeService) Register(_ context.Context, in application.RegisterInput) (model.Account, error) {
 	f.in = in
-	return model.Account{ID: accountID, Username: in.Username, Settings: model.Settings{ControlPreset: model.PresetWASD, ChatPinned: true}, CreatedAt: created}, f.err
+	return model.Account{ID: accountID, Username: in.Username, Settings: model.Settings{ChatPinned: true}, CreatedAt: created}, f.err
 }
 
 func (f *fakeService) Login(_ context.Context, in application.LoginInput) (string, error) {
@@ -63,7 +63,7 @@ func (f *fakeService) RevokeAll(_ context.Context, id kernel.AccountID) error {
 
 func (f *fakeService) Settings(_ context.Context, id kernel.AccountID) (model.Settings, error) {
 	f.id = id
-	return model.Settings{ControlPreset: model.PresetClassic, AutoAssignPoints: true}, f.err
+	return model.Settings{AutoAssignPoints: true}, f.err
 }
 
 func (f *fakeService) UpdateSettings(_ context.Context, id kernel.AccountID, s model.Settings) error {
@@ -86,7 +86,7 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 	m := newModule(t, f)
 	t.Run("Register", func(t *testing.T) {
 		a, err := m.Register(ctx, Credentials{Username: "alice", Password: "correct horse"})
-		want := Account{ID: accountID, Username: "alice", Settings: Settings{ControlPreset: "wasd", ChatPinned: true}, CreatedAt: created}
+		want := Account{ID: accountID, Username: "alice", Settings: Settings{ChatPinned: true}, CreatedAt: created}
 		if err != nil || a != want || f.in != (application.RegisterInput{Username: "alice", Password: "correct horse"}) {
 			t.Fatalf("got %+v from %+v, err %v", a, f.in, err)
 		}
@@ -122,13 +122,13 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 	})
 	t.Run("Settings", func(t *testing.T) {
 		s, err := m.Settings(ctx, accountID)
-		if err != nil || s != (Settings{ControlPreset: "classic", AutoAssignPoints: true}) || f.id != accountID {
+		if err != nil || s != (Settings{AutoAssignPoints: true}) || f.id != accountID {
 			t.Fatalf("got %+v, err %v", s, err)
 		}
 	})
 	t.Run("UpdateSettings", func(t *testing.T) {
-		err := m.UpdateSettings(ctx, accountID, Settings{ControlPreset: "wasd", ChatPinned: true})
-		if err != nil || f.settings != (model.Settings{ControlPreset: model.PresetWASD, ChatPinned: true}) || f.id != accountID {
+		err := m.UpdateSettings(ctx, accountID, Settings{ChatPinned: true})
+		if err != nil || f.settings != (model.Settings{ChatPinned: true}) || f.id != accountID {
 			t.Fatalf("got %+v, err %v", f.settings, err)
 		}
 	})

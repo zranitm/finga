@@ -27,14 +27,11 @@ export interface Character {
   readonly stats: Stats;
   readonly hp: number;
   readonly map_id: string;
-  /** The skill on each of keys 1 to 6, '' for none. */
+  /** The skill on each of the bar's eight keys, '' for none. */
   readonly skill_bar: readonly string[];
 }
 
-export type ControlPreset = 'classic' | 'wasd';
-
 export interface Settings {
-  readonly control_preset: ControlPreset;
   /** False when the account never set it. */
   readonly auto_assign_points?: boolean;
   /** False when the account never set it. */

@@ -60,7 +60,7 @@ func TestRegister(t *testing.T) {
 		acc := register(t, svc, "Alice_01", "correct horse")
 		stored := store.accounts[acc.ID]
 		// created_at is the store's, not a clock the service reads.
-		if acc.Username != "Alice_01" || acc.ID.IsZero() || acc.CreatedAt.IsZero() || !acc.CreatedAt.Equal(stored.Account.CreatedAt) || acc.Settings != model.DefaultSettings() {
+		if acc.Username != "Alice_01" || acc.ID.IsZero() || acc.CreatedAt.IsZero() || !acc.CreatedAt.Equal(stored.Account.CreatedAt) || acc.Settings != (model.Settings{}) {
 			t.Fatalf("account = %+v", acc)
 		}
 		if !strings.HasPrefix(stored.PasswordHash, "$argon2id$v=19$") {
@@ -337,30 +337,12 @@ func TestSettings(t *testing.T) {
 	ctx := context.Background()
 	svc := newService(t, newFakeStore())
 	acc := register(t, svc, "alice", "correct horse")
-	tests := []struct {
-		name    string
-		preset  model.Preset
-		wantErr error
-	}{
-		{"classic", model.PresetClassic, nil},
-		{"wasd", model.PresetWASD, nil},
-		{"unknown preset is rejected", "vim", model.ErrBadPreset},
-		{"empty preset is rejected", "", model.ErrBadPreset},
+	want := model.Settings{AutoAssignPoints: true, HideMinimap: true}
+	if err := svc.UpdateSettings(ctx, acc.ID, want); err != nil {
+		t.Fatal(err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := svc.UpdateSettings(ctx, acc.ID, model.Settings{ControlPreset: tt.preset})
-			if !errors.Is(err, tt.wantErr) {
-				t.Fatalf("err = %v, want %v", err, tt.wantErr)
-			}
-			if tt.wantErr != nil {
-				return
-			}
-			got, err := svc.Settings(ctx, acc.ID)
-			if err != nil || got.ControlPreset != tt.preset {
-				t.Fatalf("settings = %+v, %v", got, err)
-			}
-		})
+	if got, err := svc.Settings(ctx, acc.ID); err != nil || got != want {
+		t.Fatalf("settings = %+v, %v; want %+v", got, err, want)
 	}
 }
 

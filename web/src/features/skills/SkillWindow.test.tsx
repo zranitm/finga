@@ -107,7 +107,7 @@ describe('SkillWindow', () => {
     expect(card('Strike')).toHaveTextContent('Takes 1s. A basic attack can cut it short.');
     expect(card('Strike')).toHaveTextContent('Each point: power +0.05×');
     expect(card('Strike')).toHaveTextContent('Evolves into Heavy Strike at 10 points (2 more).');
-    expect(card('Strike')).toHaveTextContent('Drag onto the skill bar to use it with keys 1 to 6.');
+    expect(card('Strike')).toHaveTextContent('Drag onto the skill bar to use it with its keys.');
     expect(card('Volley')).toHaveTextContent(
       '3.75× physical attack · 2 energy · 4.5s cooldown · range 11.875 · up to 3 foes',
     );

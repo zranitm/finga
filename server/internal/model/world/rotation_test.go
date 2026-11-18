@@ -20,7 +20,7 @@ import (
 const horizon = 10 * 60 * 20
 
 // keysOnBar is how many keys a skill bar has, the character module's SkillBarKeys.
-const keysOnBar = 6
+const keysOnBar = 8
 
 // act is an action a rotation takes: its expected damage, its length, hit and cancel point in ticks, and for a skill its id, cooldown and energy, and for a follow-up its root and the ticks after the root's hit it may go within.
 type act struct {
@@ -66,7 +66,7 @@ func planned(d *gamedata.Data, class, future gamedata.Class, level int) map[stri
 	return points
 }
 
-// rotationOf is a character's rotation against a mob, with the skills on its six keys and the damage over time its buffs' hits inflict, on the default traits and on every extra.
+// rotationOf is a character's rotation against a mob, with the skills on its eight keys and the damage over time its buffs' hits inflict, on the default traits and on every extra.
 func rotationOf(d *gamedata.Data, me progression.Derived, c gamedata.Class, points map[string]int, m gamedata.Mob) rotation {
 	length := model.TicksIn(c.Attack.Length, tickInterval)
 	hitAt, cancelAt := model.ActionPoints(length, c.Attack.Hit, c.Attack.Cancel)
@@ -336,8 +336,8 @@ func TestTheRotationCountsRepeatsAndDamageOverTime(t *testing.T) {
 	}
 }
 
-// C18: a rotation carries six keys, each a skill its class lets stand on a key with its follow-ups right after it, those waiting on a far lock, a control or a dodge left out; the six whose strongest use deals the most.
-func TestARotationCarriesSixKeys(t *testing.T) {
+// C18 and B6: a rotation carries eight keys, each a skill its class lets stand on a key with its follow-ups right after it, those waiting on a far lock, a control or a dodge left out; the eight whose strongest use deals the most.
+func TestARotationCarriesEightKeys(t *testing.T) {
 	d := gamedatatest.Shipped(t)
 	items := realItemList(t, d)
 	mob, _ := d.Mob("green_slime")
@@ -373,14 +373,14 @@ func TestARotationCarriesSixKeys(t *testing.T) {
 	if i := slices.IndexFunc(thief, func(a act) bool { return a.id == "flurry" }); i < 0 || thief[i].root != "double_stab" || thief[i].after != 40 || slices.Contains(ids(thief), "shadow_step") || poison == 0 {
 		t.Errorf("a Thief carries %+v and %v of poison, want Flurry 40 ticks after Double Stab's hit, no Shadow Step, and Poison Blade's poison", thief, poison)
 	}
-	// Seven damage keys, Arrow Rain waiting on a control: the weakest goes.
-	six, _ := carried("bowman", keysOnBar)
-	seven, _ := carried("bowman", 99)
-	if len(six) != 6 || len(seven) != 7 || slices.Contains(ids(seven), "arrow_rain") {
-		t.Fatalf("a Bowman carries %v of %v, want six of seven, no Arrow Rain", ids(six), ids(seven))
+	// Seven damage keys, Arrow Rain waiting on a control: eight keys carry them all, and a key fewer than them leaves the weakest off.
+	eight, _ := carried("bowman", keysOnBar)
+	six, _ := carried("bowman", 6)
+	if len(eight) != 7 || len(six) != 6 || slices.Contains(ids(eight), "arrow_rain") {
+		t.Fatalf("a Bowman carries %v on eight keys and %v on six, want all seven, then six, no Arrow Rain", ids(eight), ids(six))
 	}
-	if weakest := seven[len(seven)-1]; slices.ContainsFunc(six, func(a act) bool { return a.id == weakest.id }) {
-		t.Errorf("a Bowman carries %v, want %s, the weakest of %v, left off", ids(six), weakest.id, ids(seven))
+	if weakest := eight[len(eight)-1]; slices.ContainsFunc(six, func(a act) bool { return a.id == weakest.id }) {
+		t.Errorf("a Bowman carries %v on six keys, want %s, the weakest of %v, left off", ids(six), weakest.id, ids(eight))
 	}
 	// Meteor waits on a control.
 	if got, _ := carried("magician", keysOnBar); slices.Contains(ids(got), "meteor") || !slices.Contains(ids(got), "frost_nova") {

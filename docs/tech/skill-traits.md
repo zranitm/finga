@@ -309,7 +309,7 @@ Three PRs, and the chains panel on its own:
   - follows the pointer on hover, and sits beside a tile that takes keyboard focus;
   - hides when the pointer leaves, focus goes, or a drag starts;
   - is a `tooltip` the tile's `aria-describedby` names;
-  - holds this section's list without the traits, and "Drag onto the skill bar to use it with keys 1 to 6." for a skill that can stand on a key.
+  - holds this section's list without the traits, and "Drag onto the skill bar to use it with keys 1 to 6." for a skill that can stand on a key. Since [Key bindings](./key-bindings.md), "with its keys".
 - **No room for the diamonds yet:** PR 3 adds them under the active tiles.
 
 ### As built: the chains panel
