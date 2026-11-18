@@ -107,4 +107,5 @@ func (i *Instance) hitPlayer(t, by *player, s mobs.Strike, damages bool) {
 			i.inflict(t, in)
 		}
 	}
+	i.restrain(t, tick+1) // as a mob's blow does: the Delta's one correction for the hit carries the hold and slow it puts on
 }

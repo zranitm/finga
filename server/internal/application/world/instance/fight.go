@@ -176,6 +176,7 @@ func (i *Instance) mobHit(p *player, dealt model.Damage, h mobs.Hit, guard uint6
 	for _, in := range inflicts {
 		i.inflict(p, in)
 	}
+	i.restrain(p, i.tick+1) // the hold and slow the next input steps with, so the Delta's one correction for the blow carries them
 	i.cancelTeleport(p, model.TeleportHit)
 }
 

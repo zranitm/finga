@@ -254,7 +254,7 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 			p.pending = slices.Delete(p.pending, 0, 1) // deep a second: the oldest goes
 		}
 		hold := false
-		i.restrain(p)
+		i.restrain(p, i.tick)
 		if len(p.pending) > 0 {
 			next := p.pending[0]
 			p.held, p.view = next.in, next.view

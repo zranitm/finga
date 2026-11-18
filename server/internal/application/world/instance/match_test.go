@@ -620,3 +620,46 @@ func TestAFighterGoneAtPrepsEndCantArriveLate(t *testing.T) {
 		}
 	})
 }
+
+// A player's hit and the hold it puts on reach the target in one Delta, as a mob's do (#288): the hit's own carries the pin the next input steps with.
+func TestAPlayersHitAndItsPinShareADelta(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		ayla, robin := fighterFrom(t, data, "Ayla"), fighterFrom(t, data, "Robin")
+		ayla.Class = "bowman"
+		inst, stop := worldtest.RunMatch(t, data, duel(model.Fighter{Character: ayla.ID}, model.Fighter{Character: robin.ID}), nil, worldtest.Options{})
+		defer stop()
+		as, rs := &worldtest.Sink{}, &worldtest.Sink{}
+		for _, j := range []struct {
+			p model.Player
+			s *worldtest.Sink
+		}{{ayla, as}, {robin, rs}} {
+			if err := inst.Join(context.Background(), j.p, j.s); err != nil {
+				t.Fatal(err)
+			}
+		}
+		sleep(data.Pvp().Rounds.Prep + data.Pvp().Rounds.Countdown + worldtest.TickInterval)
+		robinAt, _ := rs.Own(robin.ID)
+		walkTo(inst, as, ayla.ID, 0, robinAt.State.Z-1.2, 0.2)
+		if err := inst.UseSkill(context.Background(), ayla.ID, ayla.Connection, model.SkillUse{Skill: "pinning_shot", Root: "pinning_shot", Target: model.EntityRef{Player: robin.ID}}, 0); err != nil {
+			t.Fatal(err)
+		}
+		sleep(2 * time.Second)
+		hits := hitsOn(rs, robin.ID)
+		if len(hits) == 0 {
+			t.Fatal("the shot never landed")
+		}
+		var got *sim.State
+		for _, d := range rs.Deltas() {
+			for _, v := range d.Players {
+				if d.Tick == hits[0].Tick && v.ID == robin.ID {
+					got = &v.State
+				}
+			}
+		}
+		// The kit's pinning_shot is at its last stage, Nailing Shot, which pins for 4 s: its ticks from the next, 3 sub-steps each.
+		if want := int(4*time.Second/worldtest.TickInterval) * 3; got == nil || got.Held != want {
+			t.Fatalf("the hit's Delta at tick %d: %+v; want held %d sub-steps", hits[0].Tick, got, want)
+		}
+	})
+}

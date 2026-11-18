@@ -55,9 +55,8 @@ export function useTraits(socket: Pick<GameSocket, 'request'>): TraitChoice {
     setNotice(null);
     socket.request('chooseTrait', { skill: skill.id, trait }).then(
       () => {
-        setSent((was) =>
-          was === mine ? { ...mine, over: character.getState().character?.sheet } : was,
-        );
+        const over = character.getState().character?.sheet; // as the answer came: React may run the update after a later sheet
+        setSent((was) => (was === mine ? { ...mine, over } : was));
       },
       (err: unknown) => {
         setSent((was) => (was === mine ? null : was));
