@@ -520,6 +520,8 @@ As built for 1v1 (build step 2):
 
 - **The harness,** `pvp_balance_test.go`, sits beside the rotation harness in `model/world`, on its helpers, against a player's kit, whom no blow MISSes. Its targets:
   - **Time to down:** for each pair of classes, the attacker's rotation, chained as players fight on the default traits, on a still kit defender downs it in 12 to 18 s. The mean over all pairs is 14 to 16 s.
+    - Presses come at human timing: each cut and each skill coming ready lands 100 ms (2 ticks) past the earliest point. An attack held to repeat follows at its end.
+    - The burst below keeps perfect timing, as a cap should hold for the best hands.
   - **Burst:** the longest control-into-chain burst takes at most 40% of a kit's HP.
     - A burst starts with a control that keeps its target from acting (stun, freeze, sleep or knockdown; a pin holds only the feet), with every skill ready and the energy full.
     - It chains as players fight, a follow-up that waits on a control open while one holds, and each control that lands adding its hold. A sleep ends at the next blow.
@@ -530,14 +532,18 @@ As built for 1v1 (build step 2):
 
   | attacker → defender | Bowman | Magician | Thief | Warrior |
   | --- | --- | --- | --- | --- |
-  | Bowman | 15.8 s | 13.4 s | 15.0 s | 16.7 s |
+  | Bowman | 15.9 s | 13.3 s | 15.0 s | 16.8 s |
   | Magician | 13.6 s | 17.1 s | 13.6 s | 13.3 s |
   | Thief | 16.0 s | 13.5 s | 15.2 s | 17.0 s |
   | Warrior | 16.0 s | 13.5 s | 15.1 s | 16.9 s |
 
   - The mean is 15.1 s. The Thief's evasiveness in a match is its dodges': it downs the others in 13.5 to 17.0 s, and they down it in 13.6 to 15.2 s.
-  - The longest burst is the Warrior's Charge stun into Ground Slam on a Magician: 37% of its HP.
+  - The longest burst is the Warrior's Charge stun into Ground Slam on a Magician: 38% of its HP.
   - The kits' HP in a match: Bowman 4,549, Thief 4,285, Magician 4,227, Warrior 3,452.
+  - **Human timing,** after #294's live pass, where a Thief downed a Warrior in about 22.5 s against the table's 17.0:
+    - The live presses cut at the cancel points within about 80 ms. Six presses a round went skill straight after skill, though, and a skill waits out its full second for the next. The table assumes an attack cuts every skill. The damage per press matched the harness.
+    - Pressing 100 ms late made the Bowman's, Thief's and Warrior's rotations 5 to 14% slower. Their `damage` factors took it back: Bowman 0.81 to 0.92, Thief 1.10 to 1.21, Warrior 1.19 to 1.25. The Magician's rotation cuts little, so it kept 0.94.
+    - At the old factors and human timing, Thief on Warrior took 18.7 s and the mean was 16.2 s, past the band.
 - **Playtests** judge the rest, class against class:
   - block uptime, such as the Warrior's Bastion every 2 s;
   - dodges and heals;

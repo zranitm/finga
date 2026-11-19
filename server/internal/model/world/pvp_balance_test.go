@@ -72,10 +72,10 @@ func kits(t *testing.T, d *gamedata.Data) []kit {
 // on is the kit as a rotation's target: a player in a match, whom no blow MISSes.
 func (k kit) on() target { return target{Defender: model.PlayerDefender(k.me), sure: true} }
 
-// downIn is how long a's rotation, chained as players fight on the default traits, takes to down a still b: b's HP over a's damage a second on b, both scaled.
+// downIn is how long a's rotation, chained as players fight on the default traits with each press a little late, takes to down a still b: b's HP over a's damage a second on b, both scaled.
 func downIn(d *gamedata.Data, a, b kit) float64 {
 	skills, onHit := keysOf(d, a.me, a.class, a.points, nil, b.on(), keysOnBar)
-	return b.hp / ((chain(basicOf(d, a.me, a.class, b.on()), skills, d.Energy()) + onHit) * a.damage)
+	return b.hp / ((chain(basicOf(d, a.me, a.class, b.on()), skills, d.Energy(), pressLate) + onHit) * a.damage)
 }
 
 // Time to down: each class's rotation downs a still kit of each class in 12 to 18 s, and in 14 to 16 s over all of them.
