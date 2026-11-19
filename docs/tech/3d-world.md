@@ -377,6 +377,7 @@ On the client, as an action starts:
   - The server sets the player's drawn facing to it and uses it for the action's shape.
   - It doesn't check the pick: walking already lets a player face any way.
 - **The outline** marks the mob a basic attack would pick now. It's recomputed each frame from the same rule, and drawn with Babylon's `HighlightLayer`.
+  - As built in the crowd PR, the layer's pass draws only what could cover the locked figure (Crowds, under Characters and mobs).
 
 As built in slice PR 8:
 - **An action's reach** is its shape's: an arc's radius, a shot's range, an area's radius.
@@ -625,6 +626,7 @@ As built, slice PRs 4 and 5 removed Phaser, the 2D client and its sprites, since
 - **The ground** is a mesh from the height grid, in a toon material keyed by `look.ground`.
 - **Solids and props** load their kit models by key. Every instance of a model shares one copy.
 - **Sky, fog, and light** follow `look.sky`. A sun casts soft shadows from characters and mobs only.
+  - As built in the crowd PR, another player casts only within 25 m of the camera's target (Crowds, under Characters and mobs).
 - **The camera** is a fixed-angle follow camera: 50° down, 16 m back, looking north, easing toward the player at 0.15 a frame as today. A map's edge holds it.
 - **Fading:** a solid or prop between the camera and the player's head fades to 30%.
 
@@ -823,6 +825,38 @@ As built in slice PR 7:
   - white with a dark rim;
   - fading from 0.8 over 300 ms;
   - drifting back 0.44 m, today's 14 px.
+- **Crowds,** as built in the crowd PR. 40 players in town took 12–17 ms a frame against the 8 ms target ([Large regions](./large-regions.md) section 13). The cost was about 0.26 ms a player: animation about 5 ms, the lock's outline 1.5–2 ms, shadows about 1.4 ms.
+  - **The lock's outline:**
+    - **The cost:** the `HighlightLayer` drew every mesh in view a second time, the locked figure bright and the rest dark so they hide it where they cover it.
+    - **Now:** it draws only a mesh whose bounding sphere comes within a cone from the eye to the locked figure, wide enough for the figure and 0.5 m past it (`Outline.cull` in `world3d/outline.ts`). That's 152 meshes of 724 in town, and a still matches the old pass.
+    - **The figure's size:** it's taken from its unit's cylinder, height and radius, since a skinned mesh's bounds don't follow its bones.
+    - **The hook:** the cull runs in the layer's own per-mesh test, which is private. A test drawing through the public `onBeforeRenderMeshToEffect` pins it.
+    - **Why not the list:** setting the layer's render list each frame cost more than the pass it saved.
+  - **One clip at full weight** is written unweighted (Babylon's weight -1), which skips its blend. A cross-fade still blends.
+  - **Locomotion on the body's own clock:**
+    - Walk, run and the rest are started and paused. `Figure.update` moves each clip's phase on and poses the bones only when told to, so a body skipped for a frame keeps its pose and its clips run on meanwhile.
+    - Actions are posed the same way.
+  - **Pacing** (`world3d/pacing.ts`) says which bodies are posed each frame:
+    - one whose bounds lie off the screen as last drawn is not;
+    - one farther than 30 m from the camera's target is posed every 2nd frame, and every 4th past 60 m (`POSE_EVERY`);
+    - each body takes its own beat as it's made, so the far ones spread across the frames;
+    - **the player's own body and the locked one are posed every frame,** wherever they stand: the locked figure wears the outline, so a stutter would show most there, and the camera eases after a teleport;
+    - **a new body is posed on its first update,** whatever its pacing, so it's never drawn in its rig's rest pose.
+  - **Shadows:** another player farther than 25 m from the camera's target casts none (`CAST_M` in `world3d/world.ts`). Mobs, solids, props and the player cast as before.
+    - **A metre either way** (`CAST_EDGE_M`): a shadow starts within 24 m and stops past 26 m, so a player on the line doesn't flicker.
+    - **A new figure** takes its player's state before any frame draws it, so a redraw past 25 m never casts for a frame.
+    - **Why 25 m:** at the closest zoom, everything past it is off the screen. At full zoom, it's where figures stand about 20 px tall in the fog, their shadows blobs of about 6 px.
+    - The sun fits its shadow map round all its casters, so far players no longer widen it.
+  - **Measured:** on a profile page, 40 players at 1280×800, every frame waited on the GPU. Before is main's body with the cull, pacing and cast range off, in alternating runs. Totals swing with the machine's load, while stage times hold.
+
+    | 40 players | Before | After |
+    | --- | --- | --- |
+    | in town, close together | 16.3 ms, animation 4.0 | 15.0 ms, animation 3.1 |
+    | the same, one locked | 19.0 ms, outline pass 1.4, 724 draws | 17.6 ms, outline pass 0.9, 154 draws |
+    | spread 0–90 m round the target | 14.1 ms, animation 4.1, shadows 1.5 | 8.8 ms, animation 0.6, shadows 0.2 |
+
+    - **Spread players** reach the target.
+    - **A town packed in view doesn't.** Every body there is near and on screen, so what's left is about 5.5 ms on the GPU (mostly the ink's 360 draws), 2.2 ms choosing the meshes in view, and 3 ms posing bones. Ink by distance and vertex-animation textures are the next steps.
 
 ### Effects
 

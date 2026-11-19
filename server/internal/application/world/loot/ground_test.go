@@ -573,6 +573,10 @@ func TestAPouchIsToldOnlyToItsOwner(t *testing.T) {
 		if c := s.g.Changes(bo.ID); len(c.Changed) != 0 {
 			t.Fatalf("Bo's changes %+v, want none", c)
 		}
+		s.g.Roll(solo(slime, bo))
+		if va, vb := s.g.Views(ayla.ID), s.g.Views(bo.ID); len(va) != 1 || va[0].ID != p.ID || len(vb) != 1 || vb[0].ID == p.ID {
+			t.Fatalf("views %+v and %+v; want each their own pouch alone, as a join shows it", va, vb)
+		}
 	})
 }
 
@@ -626,6 +630,9 @@ func TestEachRefusedPick(t *testing.T) {
 		{"the same item twice in one take", func(s *scene, ayla, _ loot.Owner, p model.PouchView) *answered {
 			return s.take(ayla, model.Pick{Pouch: p.ID, Item: 1}, model.Pick{Pouch: p.ID, Item: 1})
 		}, []error{nil, model.ErrPouchGone}},
+		{"an item refused, named again in the take", func(s *scene, ayla, _ loot.Owner, p model.PouchView) *answered {
+			return s.takeFrom(ayla, loot.Point{X: killX, Y: reach + 0.6, Z: killZ}, model.Pick{Pouch: p.ID, Item: 1}, model.Pick{Pouch: p.ID, Item: 1})
+		}, []error{model.ErrPouchOutOfReach, model.ErrPouchGone}},
 		{"an item already taken", func(s *scene, ayla, _ loot.Owner, p model.PouchView) *answered {
 			s.take(ayla, model.Pick{Pouch: p.ID, Item: 1})
 			s.step()
@@ -824,6 +831,33 @@ func TestACallCarriesAtMostTheBatchMax(t *testing.T) {
 	})
 }
 
+// A player has at most the most pouches and boxes on a map: a new one ends the oldest's life at once, with what was left in it; another player's count apart.
+func TestANewPouchPastTheMostEndsTheOldest(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newScene(t, &grants{answers: []answer{every(model.GrantAdded)}})
+		ayla, bo := owner("Ayla"), owner("Bo")
+		most := s.data.Loot().PouchesMax
+		for range most {
+			s.g.Roll(solo(slime, ayla))
+		}
+		s.g.Roll(solo(slime, bo))
+		if settled := s.step(); lootIn(settled) != nil || len(s.g.Views(ayla.ID)) != most {
+			t.Fatalf("loot %v, %d pouches; want all %d kept", lootIn(settled), len(s.g.Views(ayla.ID)), most)
+		}
+		oldest := s.g.Views(ayla.ID)[0]
+		s.g.Box(trio, killX, 0, killZ, ayla)
+		settled := s.step()
+		left := lootIn(settled)
+		if len(left) != 1 || left[0].Kind != model.LootLeft || left[0].Pouch != oldest.ID || !slices.Equal(names(left[0].Items), []string{"slime_gel"}) {
+			t.Fatalf("loot %+v; want the oldest pouch left with its gels", left)
+		}
+		views := s.g.Views(ayla.ID)
+		if len(views) != most || views[0].ID == oldest.ID || views[len(views)-1].Kind != model.PouchBox || len(s.g.Views(bo.ID)) != 1 {
+			t.Fatalf("%d pouches, first %d, last %+v; Bo's %d; want the most, the oldest gone for the box, and Bo's kept", len(views), views[0].ID, views[len(views)-1], len(s.g.Views(bo.ID)))
+		}
+	})
+}
+
 // A pouch's life ends with what it still holds, which its owner hears was left; a box lasts longer.
 func TestALifeEndsWithWhatWasLeft(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
@@ -907,6 +941,42 @@ func TestAnItemGrantedBeforeAnswersItsStoredReply(t *testing.T) {
 		inv := settled[0].Inventory
 		if len(inv) != 2 || inv[0].Revision != 4 || inv[0].Slots[0] != potion || inv[1].Revision != 9 {
 			t.Fatalf("inventory changes %+v; want the stored reply at 4, then the call's at 9", inv)
+		}
+	})
+}
+
+// A retry of items whose call got no answer that finds every worker's queue full waits the interval again, not a tick.
+func TestARetryWithTheQueueFullWaitsTheIntervalAgain(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		items := &grants{answers: []answer{down, down, every(model.GrantAdded)}}
+		s := newScene(t, items)
+		ayla := owner("Ayla")
+		s.g.Roll(solo(slime, ayla))
+		s.take(ayla, all(s.only(ayla))...)
+		s.step()
+		failed := s.tick
+		release := make(chan struct{})
+		block := func(ctx context.Context) {
+			select {
+			case <-release:
+			case <-ctx.Done():
+			}
+		}
+		for range 2 { // the workers each hold a job, then the queue fills
+			for s.workers.Submit(block) {
+			}
+			synctest.Wait()
+		}
+		s.until(failed + s.retry)
+		close(release)
+		synctest.Wait()
+		s.until(failed + 2*s.retry - 1)
+		if got := len(items.made()); got != 2 {
+			t.Fatalf("%d calls before a second interval, want only the failed call's 2", got)
+		}
+		s.step()
+		if got := len(items.made()); got != 3 {
+			t.Fatalf("%d calls once it passed, want the gels asked again", got)
 		}
 	})
 }

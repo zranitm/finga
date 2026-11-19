@@ -3,3 +3,4 @@ pouch: {normal: 0.25, elite: 0.5}  # the chance a kill leaves a pouch; a boss al
 reach: 2                           # metres from the character's middle to a pouch or box to open it
 pouch_life: 60s                    # a pouch still holding items then is gone
 box_life: 2m                       # a boss's box still holding items then is gone
+pouches_max: 30                    # a player's pouches and boxes on a map at most: a new one ends the oldest's life

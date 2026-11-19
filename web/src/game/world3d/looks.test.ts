@@ -34,6 +34,21 @@ describe('looks', () => {
     );
   });
 
+  it('wear the bare head of a hooded class under headwear, and keep its hood under none or a bare head', () => {
+    const bare = { slot: 'face', file: 'kaykit/Rogue.glb', meshes: ['Rogue_Head'] };
+    const wear = (cls: string, looks: string[], bareHead = false) =>
+      classLook(cls, { looks, bareHead }).wear;
+    expect(wear('bowman', ['knight_helmet'])).toEqual([PIECE_LOOKS.knight_helmet, bare]);
+    expect(wear('bowman', ['mage_hat', 'mage_body'])).toEqual([
+      PIECE_LOOKS.mage_hat,
+      PIECE_LOOKS.mage_body,
+      bare,
+    ]);
+    expect(wear('bowman', ['mage_body'])).toEqual([PIECE_LOOKS.mage_body]);
+    expect(wear('bowman', ['knight_helmet'], true)).toEqual([]);
+    expect(wear('thief', ['knight_helmet'])).toEqual([PIECE_LOOKS.knight_helmet]); // a head with no hood
+  });
+
   it('draw the class’s own for a piece this client’s data lacks, as an older client sees a newer one, and say so once', () => {
     const said = vi.spyOn(console, 'info').mockImplementation(() => undefined);
     const none = { outfit: '', headwear: '', face: '', weapon: '', wings: '', hideHeadwear: false };
@@ -63,6 +78,13 @@ describe('looks', () => {
     expect(drawnAs('bowman', { ...none, outfit: 'mage_robe' })).not.toBe(
       drawnAs('thief', { ...none, outfit: 'mage_robe' }),
     );
+  });
+
+  it('fit a piece only to bodies a class is drawn as, so a misnamed file can’t leave it unfitted', () => {
+    const bodies = new Set(classes.map((c) => classLook(c.id).file));
+    const fitted = Object.values(PIECE_LOOKS).flatMap((p) => Object.keys(p.fit ?? {}));
+    expect(fitted.length).toBeGreaterThan(0);
+    expect(fitted.filter((f) => !bodies.has(f))).toEqual([]);
   });
 
   it('give every wardrobe piece in the data a look of its slot', () => {

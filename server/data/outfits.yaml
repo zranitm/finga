@@ -8,7 +8,7 @@ pieces:
   - {id: mage_robe,      slot: outfit,   name: Mage's Robe,      stars: 3, look: mage_body,        from: [{boss: moth_empress, chance: 0.05}]}
   - {id: crimson_plate,  slot: outfit,   name: Crimson Plate,    stars: 4, look: knight_crimson,   from: [{boss: crypt_warden, chance: 0.02}]}
   - {id: knight_helm,    slot: headwear, name: Knight's Helm,    stars: 3, look: knight_helmet,    from: [{boss: dune_baron, chance: 0.05}]}
-  - {id: horned_hat,     slot: headwear, name: Horned Hat,       stars: 2, look: barbarian_hat,    from: [{boss: king_slime, chance: 0.05}]}
+  - {id: horned_hat,     slot: headwear, name: Bear Hood,        stars: 2, look: barbarian_hat,    from: [{boss: king_slime, chance: 0.05}]}
   - {id: pointed_hat,    slot: headwear, name: Pointed Hat,      stars: 3, look: mage_hat,         from: [{boss: lantern_slime, chance: 0.05}]}
   - {id: greatsword,     slot: weapon,   kind: one_handed, name: Greatsword,    stars: 3, look: two_handed_sword, from: [{boss: cliff_reaper, chance: 0.05}]}
   - {id: greataxe,       slot: weapon,   kind: one_handed, name: Greataxe,      stars: 3, look: two_handed_axe,   from: [{boss: avalanche_slime, chance: 0.05}]}

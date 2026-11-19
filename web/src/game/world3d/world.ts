@@ -115,6 +115,7 @@ import type { ModelSource } from './models';
 import { NumberLayer } from './numbers';
 import { Outline } from './outline';
 import { Overlay } from './overlay';
+import { Pacing } from './pacing';
 import { buildPlace, fade, fogFor } from './place';
 import type { Place } from './place';
 import { PouchMarks } from './pouch';
@@ -173,25 +174,37 @@ const PROMPT_LIFT_PX = 42; // the talk prompt over an NPC's name and marker
 const POUCH_PROMPT_M = 0.9; // the loot prompt over a pouch, above a box's lid
 const ZOOM_STEP = 0.125; // a zoom key's press, or a wheel's notch, of the way from close to far
 const WHEEL_PX = 800; // a wheel's pixels from close to far, so a notch of 100 px is a step
+const CAST_M = 25; // another player casts a shadow within this of the camera's target; past it the shadow map spares their draws
+const CAST_EDGE_M = 1; // starting at CAST_M less this, stopping at CAST_M more
 const FAR_PLANE_M = 1500; // the camera sees no farther (large-regions.md section 9)
 
 /** A figure drawn for one of the map's bodies, made in the background; its turn eases toward its facing. */
 class Drawn {
   figure: Figure | null = null;
   yaw: number;
+  pinned = false; // posed every frame whatever its pacing: the player's own, and the one locked
+  private casting = true;
   private gone = false;
   private latest = 0; // the redraw whose figure it waits for; an older one that comes after is dropped
   private last: { x: number; y: number; z: number } | null = null;
   private posed: { p: Pose; at: number } = { p: 'up', at: 0 };
   private keyed: { cls: string; look: LookWire | undefined } | null = null;
+  private readonly beat: number;
+  private readonly middle: number; // how high its bounds' middle is over its feet
+  private readonly reach: number; // and how far they reach round it, a hover and gear past its cylinder too
 
-  /** as: what it's drawn as, which a redraw changes. */
+  /** as: what it's drawn as, which a redraw changes; pacing says which frames its bones are posed, sized as look. */
   constructor(
     made: Promise<Figure>,
     yaw: number,
     public as: string,
+    private readonly pacing: Pacing,
+    look: ModelLook,
   ) {
     this.yaw = yaw;
+    this.beat = pacing.beat();
+    this.middle = look.height / 2;
+    this.reach = Math.hypot(look.height / 2, (look.width ?? look.height) / 2) + look.height / 2; // round its middle, and half its height more for a weapon or a wing swung out
     this.redraw(made, as);
   }
 
@@ -219,6 +232,7 @@ class Drawn {
         }
         this.figure?.dispose();
         this.figure = f;
+        f.cast(this.casting); // before any frame draws it
         if (this.posed.p !== 'up') {
           f.pose(this.posed.p, this.posed.at); // taken while it loaded
         }
@@ -245,7 +259,12 @@ class Drawn {
     }
     f.root.position.set(x, y, z);
     f.root.rotation.y = this.yaw;
-    f.update(now, dtMs, gait ?? gaitAt(dtMs > 0 ? (moved * 1000) / dtMs : 0, true));
+    f.update(
+      now,
+      dtMs,
+      gait ?? gaitAt(dtMs > 0 ? (moved * 1000) / dtMs : 0, true),
+      this.pinned || this.pacing.poses(x, y + this.middle, z, this.reach, this.beat),
+    );
   }
 
   act(kind: ActionPose, beats: Beats): void {
@@ -260,6 +279,12 @@ class Drawn {
   /** Draws it faded, as a dodge shows, or whole; set each frame. */
   fade(on: boolean): void {
     this.figure?.fade(on);
+  }
+
+  /** Casts its shadow while away, its distance from the camera's target, is within CAST_M, by a metre either way so one on the line doesn't flicker. */
+  castAt(away: number): void {
+    this.casting = away < CAST_M + (this.casting ? CAST_EDGE_M : -CAST_EDGE_M);
+    this.figure?.cast(this.casting);
   }
 
   /** Takes pose p from at, once. */
@@ -414,6 +439,7 @@ export class World {
   private me: Drawn | null = null;
   private meCls = '';
   private readonly follow = new Vector3();
+  private readonly pacing = new Pacing();
   private zoom = settings.getState().zoom; // the zoom drawn, easing toward the setting
   private readonly lookAt = new Vector3();
   private readonly head = new Vector3();
@@ -505,6 +531,11 @@ export class World {
         predictor.subStep();
       }
     }
+    this.pacing.next(
+      this.follow.x,
+      this.follow.z,
+      scene.getRenderId() > 0 ? scene.getTransformMatrix() : null,
+    );
     this.drawMe(now, dt);
     this.drawRemotes(now, dt);
     this.showShields(now);
@@ -526,6 +557,7 @@ export class World {
       this.bars.place();
       this.labels.place();
       this.numbers.place(now);
+      this.outline?.cull(this.camera);
     }
     scene.render();
   }
@@ -647,6 +679,7 @@ export class World {
     const at = arriving.at;
     this.meCls = this.cls;
     this.me = this.drawn(playerLook(this.meCls, undefined), at?.yaw ?? 0, this.meCls); // dressed by its first frame
+    this.me.pinned = true;
     if (at) {
       this.follow.set(at.x, at.y + CHEST_M, at.z);
     }
@@ -1031,6 +1064,7 @@ export class World {
         changed = true;
       }
       v.dress(cls, look, this.dressing);
+      v.pinned = this.lockedId === `p:${id}`;
       const aim = this.remoteAims.get(id);
       v.draw(
         s.x,
@@ -1043,6 +1077,7 @@ export class World {
       );
       v.pose(this.deadRemotes.has(id) ? 'dead' : 'up', now);
       v.fade(looks.get(id)?.dodging ?? false);
+      v.castAt(Math.hypot(s.x - this.follow.x, s.z - this.follow.z));
       const info = remotes.infoOf(id);
       const side = relationOf(this.myTeam, info?.team ?? 0);
       this.labels.set(
@@ -1124,6 +1159,7 @@ export class World {
         this.mobViews.set(id, v);
         this.mobTypes.set(id, s.type);
       }
+      v.pinned = this.lockedId === mark.id;
       v.draw(s.x, s.y, s.z, s.yaw, now, dtMs);
       v.pose(poseOf(s.pose), now - s.poseMs);
     }
@@ -1313,7 +1349,7 @@ export class World {
 
   /** A figure for look, drawn as as, made in the background. */
   private drawn(look: ModelLook, yaw: number, as = look.file): Drawn {
-    return new Drawn(this.made(look), yaw, as);
+    return new Drawn(this.made(look), yaw, as, this.pacing, look);
   }
 
   /** A figure for look; a model that fails to load, but for its map going first, says why once. */
@@ -1434,7 +1470,13 @@ export class World {
     const ref = locked ? parseRef(locked.id) : undefined;
     const view = ref && this.drawnOf(ref);
     const at = view?.at;
-    this.outline?.mark(view?.figure ?? null);
+    const height =
+      ref?.kind === 'mob' ? mobById(this.mobTypes.get(ref.id))?.height : movement.height;
+    this.outline?.mark(
+      locked && view?.figure
+        ? { figure: view.figure, height: height ?? movement.height, radius: locked.radius }
+        : null,
+    );
     this.ring?.show(locked && at ? { ...at, radius: locked.radius } : null, now);
     this.lockedAt = locked && at ? { x: at.x, z: at.z } : null;
     this.lockedId = locked?.id ?? null;

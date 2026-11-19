@@ -41,7 +41,7 @@ const isCape = (name: string) => name.endsWith('_Cape');
 /** A worn part's name, apart from the class's own of the same mesh. */
 const wornName = (mesh: string) => `${mesh} worn`;
 
-/** Hides the class's own meshes each worn piece takes the place of, its headwear on a bare head and its cape under wings, then draws the pieces' meshes on model: skinned ones on skeleton, rigid ones on their joints, wings on hinges. */
+/** Hides the class's own meshes each worn piece takes the place of, its headwear on a bare head, its hooded head under headwear and its cape under wings, then draws the pieces' meshes on model: skinned ones on skeleton, rigid ones on their joints, wings on hinges. */
 export function dress(
   model: TransformNode,
   skeleton: Skeleton | undefined,
@@ -67,6 +67,7 @@ export function dress(
       w.piece.slot === 'face' || w.piece.slot === 'wings' ? [] : own[w.piece.slot],
     ),
     ...(look.bareHead ? own.headwear : []),
+    ...(look.hood && worn.some((w) => w.piece.slot === 'headwear') ? [look.hood.head] : []), // its bare head is worn in its place
   ];
   for (const name of hidden) {
     nodes.get(name)?.setEnabled(false);

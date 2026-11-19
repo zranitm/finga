@@ -52,6 +52,10 @@ const KNIGHT = 'kaykit/Knight.glb';
 const BARBARIAN = 'kaykit/Barbarian.glb';
 const MAGE = 'kaykit/Mage.glb';
 const ROGUE = 'kaykit/Rogue.glb';
+const ROGUE_HOODED = 'kaykit/Rogue_Hooded.glb';
+
+/** The Knight's Helm over a Rogue's head, wide enough that the earring sits inside its cheek guard. */
+const OVER_EARRING: Fit = { offset: [0, 0, 0], scale: 1.08 };
 
 export const PIECE_LOOKS: Readonly<Record<string, PieceLook>> = {
   knight_body: { slot: 'outfit', file: KNIGHT, meshes: body('Knight') },
@@ -64,7 +68,12 @@ export const PIECE_LOOKS: Readonly<Record<string, PieceLook>> = {
   barbarian_body: { slot: 'outfit', file: BARBARIAN, meshes: body('Barbarian') },
   mage_body: { slot: 'outfit', file: MAGE, meshes: body('Mage') },
   rogue_body: { slot: 'outfit', file: ROGUE, meshes: body('Rogue') },
-  knight_helmet: { slot: 'headwear', file: KNIGHT, meshes: ['Knight_Helmet'] },
+  knight_helmet: {
+    slot: 'headwear',
+    file: KNIGHT,
+    meshes: ['Knight_Helmet'],
+    fit: { [ROGUE]: OVER_EARRING, [ROGUE_HOODED]: OVER_EARRING },
+  },
   barbarian_hat: { slot: 'headwear', file: BARBARIAN, meshes: ['Barbarian_Hat'] },
   mage_hat: { slot: 'headwear', file: MAGE, meshes: ['Mage_Hat'] },
   two_handed_sword: { slot: 'weapon', file: KNIGHT, meshes: ['2H_Sword'] },

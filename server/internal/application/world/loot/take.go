@@ -72,6 +72,7 @@ type Result struct {
 func (g *Ground) Take(o Owner, at Point, picks []model.Pick, answer func([]model.PickAnswer)) {
 	a := &ask{answers: make([]model.PickAnswer, len(picks)), at: map[*entry]int{}, answer: answer}
 	var items []picked
+	named := map[*entry]bool{} // every item a pick names, taken or refused, so naming one again is refused as gone
 	for k, pk := range picks {
 		a.answers[k].Pick = pk
 		p := g.find(pk.Pouch)
@@ -80,7 +81,7 @@ func (g *Ground) Take(o Owner, at Point, picks []model.Pick, answer func([]model
 			e = p.entry(pk.Item)
 		}
 		switch {
-		case e == nil || a.has(e):
+		case e == nil || named[e]:
 			a.answers[k].Err = model.ErrPouchGone
 		case e.taking:
 			a.answers[k].Err = model.ErrTakeBusy
@@ -91,6 +92,9 @@ func (g *Ground) Take(o Owner, at Point, picks []model.Pick, answer func([]model
 		default:
 			a.at[e] = k
 			items = append(items, picked{p, e})
+		}
+		if e != nil {
+			named[e] = true
 		}
 	}
 	st := g.owners[o.ID]
@@ -117,11 +121,6 @@ func (g *Ground) Take(o Owner, at Point, picks []model.Pick, answer func([]model
 	}
 }
 
-func (a *ask) has(e *entry) bool {
-	_, ok := a.at[e]
-	return ok
-}
-
 // joins reports whether items may join the waiting take: all from its pouches, within one call.
 func (t *take) joins(items []picked, most int) bool {
 	if len(t.items)+len(items) > most {
@@ -143,7 +142,7 @@ func distance(at Point, p *pouch) float64 {
 	return math.Sqrt(float64(dx*dx) + float64(dy*dy) + float64(dz*dz))
 }
 
-// send hands a worker the owner's call; when the pool's queue is full, its items go back and its takes hear they can try again.
+// send hands a worker the owner's call; when the pool's queue is full, its items go back, its takes hear they can try again, and items whose call got no answer wait the interval again.
 func (g *Ground) send(o *owner, t *take) {
 	in := model.GrantCall{Account: o.Account, Character: o.ID, Drops: make([]model.Grant, 0, len(t.items))}
 	for _, it := range t.items {
@@ -152,6 +151,7 @@ func (g *Ground) send(o *owner, t *take) {
 	}
 	if !g.deps.ItemCalls.Submit(func(ctx context.Context) { g.deps.Settle(ctx, g.grant(ctx, o.ID, t.items, in)) }) {
 		busy := fmt.Errorf("%w: every item-call worker is busy", transient.ErrUnavailable)
+		o.retryAt = g.tick + g.retry
 		for _, it := range t.items {
 			it.entry.taking = it.entry.unsettled // one whose call got no answer stays taken, for its next try
 		}
@@ -220,7 +220,7 @@ func (g *Ground) Settle(r Result) Settled {
 			e.unsettled, unsettled = true, true
 			err = fmt.Errorf("%w: no answer from the item module; it is asked again", transient.ErrUnavailable)
 		case r.err != nil:
-			g.deps.Logger.Error("an item's grant got no answer past its pouch's life; it is given up", "character_id", p.owner, "template", e.template, "key", e.key)
+			g.deps.Logger.Error("an item's grant got no answer past its pouch's life; it is given up, granted or not: its key keeps it from being granted twice", "character_id", p.owner, "template", e.template, "key", e.key)
 			p.drop(e)
 			err = model.ErrPouchGone
 		case answer.Kind == model.GrantAdded || answer.Kind == model.GrantReplayed:
@@ -264,6 +264,11 @@ func (g *Ground) Settle(r Result) Settled {
 	if unsettled {
 		o.retryAt = g.tick + g.retry
 	}
+	if o.unsettled() {
+		g.retrying[o.ID] = o
+	} else {
+		delete(g.retrying, o.ID)
+	}
 	asking := o.asking
 	o.asking = nil
 	for _, a := range asking {
@@ -277,24 +282,33 @@ func (g *Ground) Settle(r Result) Settled {
 	return out
 }
 
-// retryUnsettled asks again, under their keys, for the items of owners with no call in flight whose last call got no answer.
+// retryUnsettled asks again, under their keys, for the items of owners with no call in flight whose last call got no answer, once their interval passed.
 func (g *Ground) retryUnsettled() {
-	for _, o := range g.owners {
+	for id, o := range g.retrying {
 		if o.busy || o.waiting != nil || g.tick < o.retryAt {
 			continue
 		}
 		var items []picked
-		for _, p := range g.pouches {
+		for _, p := range o.pouches {
 			for _, e := range p.items {
-				if p.owner == o.ID && e.unsettled && len(items) < g.tuning.BatchMax {
+				if e.unsettled && len(items) < g.tuning.BatchMax {
 					items = append(items, picked{p, e})
 				}
 			}
 		}
-		if len(items) > 0 {
-			g.send(o, &take{items: items})
+		if len(items) == 0 {
+			delete(g.retrying, id)
+			continue
 		}
+		g.send(o, &take{items: items})
 	}
+}
+
+// unsettled reports whether any of the owner's items had a call with no answer.
+func (o *owner) unsettled() bool {
+	return slices.ContainsFunc(o.pouches, func(p *pouch) bool {
+		return slices.ContainsFunc(p.items, func(e *entry) bool { return e.unsettled })
+	})
 }
 
 // tabFull is the refusal of an item whose tab has no free slot.

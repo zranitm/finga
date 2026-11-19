@@ -214,10 +214,21 @@ Changing looks in combat is `IN_COMBAT` (330037), the code a trait change in com
 - **As built (step 2):**
   - `npm run gen` writes each piece's id, slot and look key to `gamedata/outfits.ts`. A test checks each has a look of its slot. A piece id the client's data lacks, as an older client meets, is drawn as the class's own for that slot (3d-world.md section 11).
   - A body is named by its class and each slot's piece, so a promotion or a look change redraws it, and a look wearing nothing keeps the class's own figure. The player is dressed by their own first frame, others by theirs. The old figure stays until the new one is in.
-  - Dressing comes after `stand()`, so no piece or bare head changes the body's size. A bare head hides headwear only. The hooded Rogue's hood is part of its head, so it stays, and headwear sits over it.
+  - Dressing comes after `stand()`, so no piece or bare head changes the body's size. A bare head hides headwear only. The hooded Rogue's hood is part of its head, so it stays under a bare head; worn headwear swaps the head (below).
   - Rigged class files and parts files keep raw positions. Quantizing folds each file's grid into its skins' inverse bind matrices, so files' rigs differed; a test holds one rig across them.
   - A skin swatch is the face's atlas cell and any cell sharing its colours, such as the Mage's hands.
   - A crowd of 40 dressed players drew within noise of 40 in their class's own looks.
+- **As built after the outfits playtest:**
+  - **The hooded head under headwear:**
+    - **The problem:** the Bowman's hood is part of its head, `Rogue_Head_Hooded`, so every hat sat over it. The green hood filled the Knight's Helm's face opening and wrapped the face under the Bear Hood.
+    - **Now:** under a worn piece of headwear, the head swaps for the bare `Rogue_Head`, skinned on the same rig and drawn in the same atlas. The hood is headwear in all but name, so only one thing sits on the head. A bare head, or none worn, keeps the hood.
+    - **The look table:** the model gives the swap as `hood: { head, file, bare }` in `model-looks.ts`. `classLook` wears the bare head as a piece from that file's parts, and `dress()` hides the hooded head.
+    - **The parts file:** `npm run models` keeps the bare head in the Rogue parts file, which grew from 154.6 KB to 191.3 KB (76.0 to 94.1 KB gzipped).
+  - **The Knight's Helm on a Rogue head:** the earring is part of the skinned `Rogue_Head`, so it can't hide on its own.
+    - **Now:** the helm's `fit` scales it 1.08 on both Rogue files, so the earring sits inside its cheek guard.
+    - **Why 1.08:** in close-up stills, 1.05 and 1.06 still showed its tip, and 1.07 a glint. Both are rigid to the head, so it holds in every pose.
+    - **A test** checks every fit names a body a class is drawn as, so a misnamed file can't leave a piece unfitted.
+  - **The Horned Hat is the Bear Hood:** it's KayKit's `Barbarian_Hat`, a bear's head. Only the name changed; its id stays `horned_hat`, so saved wardrobes keep it.
 
 ## 7. Client: the wardrobe and the character window
 

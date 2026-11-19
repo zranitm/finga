@@ -109,7 +109,7 @@ func (p *pouch) entry(id uint32) *entry {
 // owner is an owner's pouches and calls: at most one call in flight, and at most one take waiting for it.
 type owner struct {
 	Owner
-	pouches int // on the ground, gone ones still holding items in a call included
+	pouches []*pouch // on the ground, oldest first, gone ones still holding items in a call included
 	busy    bool
 	asking  []*ask // the takes the call in flight answers
 	waiting *take  // the take sent once it settles
@@ -126,12 +126,14 @@ type Ground struct {
 	// The lives and the retry in ticks.
 	pouchLife, boxLife, retry, turnIdle uint64
 
-	tick    uint64
-	pouches []*pouch // oldest first
-	nextID  uint64
-	owners  map[kernel.CharacterID]*owner
-	turns   map[string]*turn                      // by party
-	changes map[kernel.CharacterID]*model.Pouches // this tick's, by owner
+	tick     uint64
+	pouches  []*pouch // oldest first
+	byID     map[uint64]*pouch
+	nextID   uint64
+	owners   map[kernel.CharacterID]*owner
+	retrying map[kernel.CharacterID]*owner         // those with items whose call got no answer
+	turns    map[string]*turn                      // by party
+	changes  map[kernel.CharacterID]*model.Pouches // this tick's, by owner
 }
 
 // NewGround is a map's empty ground.
@@ -141,7 +143,7 @@ func NewGround(d Deps, t Tuning) *Ground {
 	return &Ground{
 		roll: d.Roll, deps: d, tuning: t, tracer: d.Traces.Tracer(tracerName), rules: l,
 		pouchLife: ticks(l.PouchLife), boxLife: ticks(l.BoxLife), retry: ticks(retryEvery), turnIdle: ticks(turnIdle),
-		owners: map[kernel.CharacterID]*owner{}, turns: map[string]*turn{}, changes: map[kernel.CharacterID]*model.Pouches{},
+		byID: map[uint64]*pouch{}, owners: map[kernel.CharacterID]*owner{}, retrying: map[kernel.CharacterID]*owner{}, turns: map[string]*turn{}, changes: map[kernel.CharacterID]*model.Pouches{},
 	}
 }
 
@@ -201,7 +203,7 @@ func (g *Ground) rolled(m gamedata.Mob, wanted func(item string) bool) []*entry 
 	return out
 }
 
-// place lays a pouch of items for o on the ground where something died, which its owner alone is told of.
+// place lays a pouch of items for o on the ground where something died, which its owner alone is told of; past the most an owner may have, the oldest's life ends.
 func (g *Ground) place(kind model.PouchKind, o Owner, x, y, z float64, items []*entry, life uint64) {
 	if ry, ok := g.deps.Rest(x, z, y); ok {
 		y = ry
@@ -209,14 +211,24 @@ func (g *Ground) place(kind model.PouchKind, o Owner, x, y, z float64, items []*
 	g.nextID++
 	p := &pouch{id: g.nextID, kind: kind, owner: o.ID, x: x, y: y, z: z, items: items, goneAt: g.tick + life}
 	g.pouches = append(g.pouches, p)
+	g.byID[p.id] = p
 	st, ok := g.owners[o.ID]
 	if !ok {
 		st = &owner{}
 		g.owners[o.ID] = st
 	}
 	st.Owner = o // their newest sink: their latest connection
-	st.pouches++
+	st.pouches = append(st.pouches, p)
 	g.changed(p)
+	g.crowd(st)
+}
+
+// crowd ends, at this tick's step, the lives of the owner's oldest pouches past the most they may have.
+func (g *Ground) crowd(o *owner) {
+	live := slices.DeleteFunc(slices.Clone(o.pouches), func(p *pouch) bool { return p.gone || p.goneAt <= g.tick })
+	for _, p := range live[:max(0, len(live)-g.rules.PouchesMax)] {
+		p.goneAt = g.tick
+	}
 }
 
 // between is a whole number from lo to hi, both included, uniformly; a range of one number draws nothing.
@@ -256,9 +268,13 @@ func (g *Ground) of(id kernel.CharacterID) *model.Pouches {
 
 // Views are the owner's pouches on the ground, as their Snapshot shows them.
 func (g *Ground) Views(id kernel.CharacterID) []model.PouchView {
+	o, ok := g.owners[id]
+	if !ok {
+		return nil
+	}
 	var out []model.PouchView
-	for _, p := range g.pouches {
-		if p.owner == id && !p.gone {
+	for _, p := range o.pouches {
+		if !p.gone {
 			out = append(out, p.view(g.tick, g.tuning.TickInterval))
 		}
 	}
@@ -310,10 +326,12 @@ func (g *Ground) sweep() {
 		if !p.gone {
 			g.vanish(p)
 		}
+		delete(g.byID, p.id)
 		o := g.owners[p.owner]
-		o.pouches--
-		if o.pouches == 0 && !o.busy && o.waiting == nil {
+		o.pouches = slices.DeleteFunc(o.pouches, func(q *pouch) bool { return q == p })
+		if len(o.pouches) == 0 && !o.busy && o.waiting == nil {
 			delete(g.owners, p.owner)
+			delete(g.retrying, p.owner)
 		}
 		return true
 	})
@@ -323,9 +341,4 @@ func (g *Ground) loot(p *pouch, kind model.LootKind, items []model.LootItem) mod
 	return model.Loot{Tick: g.tick, Kind: kind, MapID: g.deps.MapID, Pouch: p.id, Owner: p.owner, OwnerName: g.owners[p.owner].Name, Items: items}
 }
 
-func (g *Ground) find(id uint64) *pouch {
-	if k := slices.IndexFunc(g.pouches, func(p *pouch) bool { return p.id == id }); k >= 0 {
-		return g.pouches[k]
-	}
-	return nil
-}
+func (g *Ground) find(id uint64) *pouch { return g.byID[id] }

@@ -14,9 +14,10 @@ type lootYAML struct {
 		Normal float64 `yaml:"normal"`
 		Elite  float64 `yaml:"elite"`
 	} `yaml:"pouch"`
-	Reach     float64       `yaml:"reach"`
-	PouchLife time.Duration `yaml:"pouch_life"`
-	BoxLife   time.Duration `yaml:"box_life"`
+	Reach      float64       `yaml:"reach"`
+	PouchLife  time.Duration `yaml:"pouch_life"`
+	BoxLife    time.Duration `yaml:"box_life"`
+	PouchesMax int           `yaml:"pouches_max"`
 }
 
 func (l *loader) loadLoot(dir string) error {
@@ -40,7 +41,10 @@ func (l *loader) loadLoot(dir string) error {
 			return fmt.Errorf("%s: %s must be positive", lootFile, v.name)
 		}
 	}
-	l.loot = gamedata.Loot{Pouch: gamedata.PouchChance{Normal: y.Pouch.Normal, Elite: y.Pouch.Elite}, Reach: y.Reach, PouchLife: y.PouchLife, BoxLife: y.BoxLife}
+	if y.PouchesMax < 1 {
+		return fmt.Errorf("%s: pouches_max must be at least 1", lootFile)
+	}
+	l.loot = gamedata.Loot{Pouch: gamedata.PouchChance{Normal: y.Pouch.Normal, Elite: y.Pouch.Elite}, Reach: y.Reach, PouchLife: y.PouchLife, BoxLife: y.BoxLife, PouchesMax: y.PouchesMax}
 	return nil
 }
 

@@ -68,9 +68,11 @@ func TestLootAndKeep(t *testing.T) {
 				t.Fatalf("pouch %+v holds %+v", pouch, it)
 			}
 		}
-		// No key, no pickup: a few seconds on, nothing reached the inventory, and the watcher never heard of the pouch.
-		killer.Pump(2*time.Second, nil)
-		watcher.Pump(time.Second, nil)
+		// No key, no pickup: two seconds of ticks after it fell, nothing reached the inventory, and the watcher's frames past its fall never named it.
+		fell := killer.FellAt[pouch.GetId()]
+		if !killer.Until(5*time.Second, func() bool { return killer.Tick() >= fell+2*uint64(killer.TickHz) }) || !watcher.Until(5*time.Second, func() bool { return watcher.Tick() > fell }) {
+			t.Fatalf("frames to ticks %d and %d; want both past the pouch's fall at %d", killer.Tick(), watcher.Tick(), fell)
+		}
 		if killer.Inventory != 0 || len(watcher.Seen) != 0 {
 			t.Fatalf("%d InventoryChanged before a take; the watcher saw pouches %v", killer.Inventory, watcher.Seen)
 		}
@@ -87,7 +89,7 @@ func TestLootAndKeep(t *testing.T) {
 		if lt := killer.LootOf(pouch.GetId(), clientv1.LootKind_LOOT_KIND_TAKEN)[0]; lt.GetOwnerId() != id || lt.GetOwnerName() != "Liam" || len(lt.GetItems()) != len(pouch.GetItems()) {
 			t.Fatalf("loot %+v; want the pouch's items taken by Liam", lt)
 		}
-		if watcher.Pump(time.Second, nil); len(watcher.Loots) != 0 || len(watcher.Seen) != 0 {
+		if !watcher.Until(5*time.Second, func() bool { return watcher.Tick() > killer.Tick() }) || len(watcher.Loots) != 0 || len(watcher.Seen) != 0 {
 			t.Fatalf("the watcher heard loot %v and saw pouches %v; want nothing of a stranger's", watcher.Loots, watcher.Seen)
 		}
 		var lootEvents, distinctKeys int
@@ -176,24 +178,59 @@ func TestLootAndKeep(t *testing.T) {
 			t.Fatalf("accept: %+v", r)
 		}
 		pia.PartyState(t, 2)
-		ravi.PartyState(t, 2) // the world's copy of the party follows the social module's stream
-		time.Sleep(500 * time.Millisecond)
+		ravi.PartyState(t, 2)
 
-		// Pia kills; each kill's pouch goes in turn, from the first member in join order: Pia, Ravi, Pia... Each sees only their own.
-		if !pia.HuntPouches(30*time.Second, 2) {
-			t.Fatalf("%d pouches of Pia's in 30 s of hunting, want 2", len(pia.Seen))
+		// Pia kills. The world's copy of the party follows the social module's stream: from the tick of the first kill Ravi earns a share of, each kill's pouch goes in turn, from the first member in join order: Pia, Ravi, Pia... Before it, they're Pia's alone. Each sees only their own.
+		var party uint64
+		shared := func(m wsconn.Message) bool {
+			if _, ok := m.Data.(*clientv1.ExpGained); ok && party == 0 {
+				party = m.Tick
+			}
+			return false
 		}
-		ravi.Pump(time.Second, nil)
-		owner := map[uint32]string{}
+		since := func() []uint32 { // Pia's pouches from the party's tick on
+			var out []uint32
+			for id, at := range pia.FellAt {
+				if party != 0 && at >= party {
+					out = append(out, id)
+				}
+			}
+			return out
+		}
+		next := time.Now()
+		for deadline := time.Now().Add(30 * time.Second); len(since()) < 2; {
+			if time.Now().After(deadline) {
+				t.Fatalf("Ravi's first share at tick %d, Pia's pouches by tick %v, in 30 s of hunting; want two of hers since", party, pia.FellAt)
+			}
+			if !time.Now().Before(next) {
+				if err := pia.Swing(); err != nil {
+					t.Fatal(err)
+				}
+				next = time.Now().Add(850 * time.Millisecond)
+			}
+			pia.Pump(50*time.Millisecond, nil)
+			ravi.Pump(10*time.Millisecond, shared)
+		}
+		last := slices.Max(since())
+		if !ravi.Until(5*time.Second, func() bool { return ravi.Tick() > pia.FellAt[last] }) {
+			t.Fatalf("Ravi's frames reached tick %d, want past %d", ravi.Tick(), pia.FellAt[last])
+		}
+		owner, fell := map[uint32]string{}, map[uint32]uint64{}
 		for _, l := range ls {
 			for id := range l.Seen {
-				owner[id] = l.ID
+				owner[id], fell[id] = l.ID, l.FellAt[id]
 			}
 		}
+		var turn int
 		ids := slices.Sorted(maps.Keys(owner))
-		for k, id := range ids {
-			if want := []string{pia.ID, ravi.ID}[k%2]; owner[id] != want {
-				t.Fatalf("pouch %d of %v is %s's, want %s's: the turn", id, ids, owner[id], want)
+		for _, id := range ids {
+			want := pia.ID
+			if fell[id] >= party {
+				want = []string{pia.ID, ravi.ID}[turn%2]
+				turn++
+			}
+			if owner[id] != want {
+				t.Fatalf("pouch %d of %v, fallen at tick %d with the party known from %d, is %s's; want %s's: the turn", id, ids, fell[id], party, owner[id], want)
 			}
 		}
 		// Pia takes her first; both members hear it, naming her.

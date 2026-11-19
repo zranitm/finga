@@ -36,6 +36,7 @@ type Looter struct {
 	Inventory int                            // InventoryChanged messages seen
 	Seen      map[uint32]*clientv1.PouchView // every pouch of its own seen on this map, gone or not, as last seen
 	Gone      map[uint32]bool                // pouches seen go: emptied, or their life ended
+	FellAt    map[uint32]uint64              // the tick of the frame that first carried each pouch Seen
 	Loots     []*clientv1.Loot
 	Failures  []*clientv1.Response
 	taking    string    // the request ID of the TakeLoot Farm waits on
@@ -76,12 +77,12 @@ func NewLooter(p *Player, snap *clientv1.Snapshot) *Looter {
 
 // enter takes a map's Snapshot: its mobs and the player's own pouches, whose IDs and ticks are the map's own.
 func (l *Looter) enter(snap *clientv1.Snapshot) {
-	l.Mobs, l.Pouches, l.Seen, l.Gone = map[uint32]*clientv1.MobView{}, map[uint32]*clientv1.PouchView{}, map[uint32]*clientv1.PouchView{}, map[uint32]bool{}
+	l.Mobs, l.Pouches, l.Seen, l.Gone, l.FellAt = map[uint32]*clientv1.MobView{}, map[uint32]*clientv1.PouchView{}, map[uint32]*clientv1.PouchView{}, map[uint32]bool{}, map[uint32]uint64{}
 	for _, mv := range snap.Mobs {
 		l.Mobs[mv.GetId()] = mv
 	}
 	for _, p := range snap.Pouches {
-		l.Pouches[p.GetId()], l.Seen[p.GetId()] = p, p
+		l.Pouches[p.GetId()], l.Seen[p.GetId()], l.FellAt[p.GetId()] = p, p, l.tick
 	}
 	for _, v := range snap.Players {
 		l.see(v)
@@ -111,6 +112,9 @@ func (l *Looter) Observe(m wsconn.Message) {
 			delete(l.Mobs, id)
 		}
 		for _, p := range d.Pouches {
+			if _, ok := l.Seen[p.GetId()]; !ok {
+				l.FellAt[p.GetId()] = m.Tick
+			}
 			l.Pouches[p.GetId()], l.Seen[p.GetId()] = p, p
 		}
 		for _, id := range d.PouchesGone {
@@ -150,6 +154,9 @@ func (l *Looter) Observe(m wsconn.Message) {
 		l.BossesGone = append(l.BossesGone, Ticked[*clientv1.FieldBossGone]{m.Tick, d})
 	}
 }
+
+// Tick is the newest frame's tick, in its map's ticks.
+func (l *Looter) Tick() uint64 { return l.tick }
 
 // Reply is a Response with the request id it answers.
 type Reply struct {
@@ -516,7 +523,7 @@ func GameData(t *testing.T, edits ...DataEdit) string {
 
 // LootRules rewrites loot.yaml: a kill's pouch chance, normal and elite alike, and a pouch's life; reach and a box's life stay.
 func LootRules(chance float64, pouchLife string) DataEdit {
-	return DataEdit{File: "loot.yaml", New: fmt.Sprintf("pouch: {normal: %v, elite: %v}\nreach: 2\npouch_life: %s\nbox_life: 2m\n", chance, chance, pouchLife)}
+	return DataEdit{File: "loot.yaml", New: fmt.Sprintf("pouch: {normal: %v, elite: %v}\nreach: 2\npouch_life: %s\nbox_life: 2m\npouches_max: 30\n", chance, chance, pouchLife)}
 }
 
 // QuickSlimes has the forest's ground slimes die to one hit and come back a second later, so a hunt takes a shot or two.

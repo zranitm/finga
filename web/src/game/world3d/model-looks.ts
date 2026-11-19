@@ -32,7 +32,15 @@ export interface Model {
   readonly flies?: boolean; // drawn at its height's middle, as the spits it shoots, when its circle draws it shorter
   readonly over?: readonly string[]; // meshes worn over the body, as a boss's crown, that its fit to the mob's height and circle leaves out
   readonly own?: Own; // a class's: the meshes each slot's outfit piece takes the place of
+  readonly hood?: Hood;
   readonly clips: Clips;
+}
+
+/** A head with its hood built in, headwear in all but name: under a worn piece of headwear it's swapped for the bare head, from file's parts on the same rig, so only one thing sits on the head. */
+export interface Hood {
+  readonly head: string;
+  readonly file: string;
+  readonly bare: string;
 }
 
 /** A class model's own meshes for the outfit slots (outfits.md section 6): its body below the head and its cape, its headwear, its weapon. */
@@ -159,7 +167,8 @@ export const MODELS: Readonly<Record<string, Model>> = {
     exposure: 1,
     spine: 'spine',
     tinted: 'Rogue_Cape',
-    own: { outfit: ownBody('Rogue'), headwear: [], weapon: ['2H_Crossbow'] }, // the hood is its head, so headwear sits over it
+    own: { outfit: ownBody('Rogue'), headwear: [], weapon: ['2H_Crossbow'] }, // a bare head keeps the hood, which is its head
+    hood: { head: 'Rogue_Head_Hooded', file: 'kaykit/Rogue.glb', bare: 'Rogue_Head' },
     clips: { ...KAYKIT, attack: SHOOT, skill: SHOOT, block: GUARD },
   },
   mage: {
