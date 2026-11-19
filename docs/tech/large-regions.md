@@ -279,14 +279,14 @@ biomes:
   - **For 1c:** sleep.
 - **As built (step 1b):**
   - **Party spots** come from the instance, not through `tellParty`, so the social module's party store isn't rewritten every second.
-    - Once a second, on a map cut by cells, each player is told a private `PartySpots`: their party members on the map whom they don't see, and where they stand.
-    - An empty one goes once, after the last of them is back in sight. A map sent whole tells nothing.
-  - **The client** marks a member here who isn't drawn on the minimap and the world map: where the server last said, and until it says, where last drawn. A member who leaves the map drops off, and a map change forgets the spots.
-  - **Their party frame** says "Out of sight" in place of their statuses, which the frames don't bring; never an empty row.
+    - Once a second, on a map cut by cells, each player in a party is told a private `PartySpots`: their party members on the map whom they don't see, and where they stand. It goes when it's empty too, so the client hears within a second of a member leaving the map, its channel or the game. A map sent whole tells nothing.
+  - **The client** marks a member who isn't drawn on the minimap and the world map, and their party frame says "Out of sight" in place of their statuses, which the frames don't bring; never an empty row. That's only on a map cut by cells, for a member online and on the map by the party's news, and only while the server's latest spots list them. Between their leaving view and the server's next word, it keeps them where last drawn.
+  - **The server decides who's here,** not the party's map id: a member in another channel of the map has the same id, and one gone offline keeps theirs.
   - **The side edge:** on a map cut by cells, the client draws a body faded from 88 m to the side, and not at all past 96 m (`side × cell`, which the block holds from anywhere in the player's cell).
     - A body past it has no name, bar, shield or status marks, so nothing pops in and out at the block's sides as the player crosses a cell line.
     - Only a wide screen at the far zoom sees that far: the top corners are 76 m to the side at 16:9, and 100 m at 21:9.
     - A hidden mob's attack still shows its warning area, as the attacks are drawn on their own clock.
+    - The lock's marks for enemy players aren't cut at the edge: only the arenas have enemies, and they're sent whole.
   - **The gateway** keeps each frame's encoded parts while the frame lives, by a weak pointer that a cleanup drops, and the last frame's at hand for its run of players. So the frames of several maps can interleave: two maps of 50 players each take 0.18 ms, against 1.97 ms with one frame kept.
   - **A player whose join failed** never reached a frame, so nobody is told they left.
 
@@ -574,7 +574,7 @@ Built with step 1, which says who watches a cell.
       - a party member out of sight told once a second where they stand, and an empty list once after they're back; nothing on a map sent whole;
       - a join that failed told to nobody, on both paths;
       - a frame's encodings kept across another map's frame, dropped with it, and a live frame's kept as others go;
-      - on the client: an out-of-sight member on the map views where last drawn and then where told, "Out of sight" on their frame, and both gone when they leave or the map changes;
+      - on the client: an out-of-sight member where last drawn till the server's next spots, then where they list them; dropped when the spots stop listing them, or the party's news has them offline or on another map; and on a map sent whole, never out of sight;
       - bodies fading toward 96 m to the side and none past it on a map cut by cells, and every body whole on a 128 m map sent whole.
   - **Indexes:** each check equals a full scan on randomized cases. `rapid` (pgregory.net/rapid) is already a dependency.
   - **Sleep:** a far camp stays full, and its mobs wake as a player comes.

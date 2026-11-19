@@ -7747,7 +7747,7 @@ func (x *PartyState) GetParty() *PartyView {
 	return nil
 }
 
-// PartySpots is where the player's party members on their map stand that the frames don't bring, once a second on a map cut by cells; empty once all are in sight again.
+// PartySpots is where the player's party members on their map stand that the frames don't bring, once a second to a player in a party on a map cut by cells, empty when none are out of sight; a member it doesn't list isn't here.
 type PartySpots struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Spots         []*PartySpot           `protobuf:"bytes,1,rep,name=spots,proto3" json:"spots,omitempty"`

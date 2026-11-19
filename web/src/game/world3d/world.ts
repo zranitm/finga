@@ -35,7 +35,7 @@ import { moveSpeedWith } from '@/progression/stats';
 import { blocked } from '@/progression/statuses';
 import type { StatusOn } from '@/progression/statuses';
 import { MobPose } from '@/protocol/messages';
-import type { Data } from '@/protocol/messages';
+import type { Data, PartyView } from '@/protocol/messages';
 import type { Input } from '@/sim/input';
 import { endSprint, sprintSteps } from '@/sim/step';
 import type { State, Way } from '@/sim/step';
@@ -51,7 +51,8 @@ import { keyboardLayout } from '@/state/keyboard-layout';
 import { mapView } from '@/state/map-view';
 import type { Spot as MapSpot } from '@/state/map-view';
 import { nearby } from '@/state/nearby';
-import { party } from '@/state/party';
+import { isMember, party } from '@/state/party';
+import type { PartyState } from '@/state/party';
 import { picksInReach, pouches } from '@/state/pouches';
 import { countdownTicks, pvp, walled } from '@/state/pvp';
 import { questPlayer, quests } from '@/state/quests';
@@ -395,7 +396,8 @@ export class World {
   private marksDue = 0;
   private sideM: number | null = null; // how far to each side every frame brings bodies, on a map cut by cells; null on one sent whole
   private readonly edgeHidden = new Set<string>(); // the refs of bodies past it this frame, drawn nowhere
-  private readonly mateSpots = new Map<string, MapSpot>(); // each party member here where last drawn, or where the server last said of one out of sight
+  private readonly leftSight = new Map<string, { at: MapSpot; spots: PartyState['spots'] }>(); // each party member who stopped being drawn: where, and the spots the server had told then
+  private readonly markedUnits = new Map<string, readonly StatusOn[]>(); // showStatuses', less those past the side edge
   private readonly overlay: Overlay;
   private readonly labels: Labels;
   private readonly bars: Bars;
@@ -724,13 +726,6 @@ export class World {
       pouches.subscribe((now, before) => {
         if (now.pouches !== before.pouches) {
           this.pouchMarks?.show(now.pouches);
-        }
-      }),
-      party.subscribe((now, before) => {
-        if (now.spots !== before.spots) {
-          for (const [id, at] of Object.entries(now.spots)) {
-            this.mateSpots.set(id, at);
-          }
         }
       }),
       quests.subscribe((now, before) => {
@@ -1084,6 +1079,10 @@ export class World {
     this.remoteLooks = looks;
     let changed = gone.length > 0;
     for (const id of gone) {
+      const at = this.remoteViews.get(id)?.at;
+      if (at && this.sideM !== null && isMember(party.getState().party, id)) {
+        this.leftSight.set(id, { at: { x: at.x, z: at.z }, spots: party.getState().spots });
+      }
       this.remoteViews.get(id)?.dispose();
       this.remoteViews.delete(id);
       this.labels.delete(`p:${id}`);
@@ -1495,11 +1494,17 @@ export class World {
     for (const id of this.mobViews.keys()) {
       put(`m:${id}`, this.mobs.statusesOf(id));
     }
-    this.combat?.statuses(
-      this.edgeHidden.size === 0
-        ? units
-        : new Map([...units].filter(([ref]) => !this.edgeHidden.has(ref))),
-    );
+    let marked: ReadonlyMap<string, readonly StatusOn[]> = units;
+    if (this.edgeHidden.size > 0) {
+      this.markedUnits.clear();
+      for (const [ref, on] of units) {
+        if (!this.edgeHidden.has(ref)) {
+          this.markedUnits.set(ref, on);
+        }
+      }
+      marked = this.markedUnits;
+    }
+    this.combat?.statuses(marked);
     this.publishStatuses(units, now);
   }
 
@@ -1525,10 +1530,9 @@ export class World {
     const me = this.deps.player.characterId;
     const here: Record<string, ShownStatus[] | null> = {};
     for (const m of party.getState().party?.members ?? []) {
-      if (m.characterId !== me && m.mapId === this.mapId) {
-        here[m.characterId] = this.remoteViews.has(m.characterId)
-          ? timed(`p:${m.characterId}`)
-          : null; // not drawn here, so out of sight: the frames don't bring theirs
+      const known = m.characterId === me ? null : this.mateAt(m);
+      if (known) {
+        here[m.characterId] = known.drawn ? timed(`p:${m.characterId}`) : null; // out of sight: the frames don't bring theirs
       }
     }
     shownStatuses.getState().show({
@@ -1664,23 +1668,39 @@ export class World {
     this.marksDue = now + MARKS_MS;
     const s = this.predictor?.state;
     const me = this.me?.at;
-    const members = party.getState().party?.members ?? [];
+    const { party: joined, spots } = party.getState();
+    const members = joined?.members ?? [];
+    for (const [id, left] of this.leftSight) {
+      if (left.spots !== spots) {
+        this.leftSight.delete(id); // the server has spoken since, a second at most
+      }
+    }
     const boss = fieldBoss.getState().boss;
     const bossAt = boss ? this.mobViews.get(boss.mobId)?.at : undefined;
     mapView.getState().mark({
       me: me && s ? { x: me.x, z: me.z, yaw: yawOf(s.hx, s.hz) } : null,
       party: members.flatMap((m) => {
-        const drawn = this.remoteViews.get(m.characterId)?.at; // drawn here, so on this map
-        if (drawn) {
-          this.mateSpots.set(m.characterId, { x: drawn.x, z: drawn.z });
-        }
-        const at =
-          drawn ?? (m.mapId === this.mapId ? this.mateSpots.get(m.characterId) : undefined);
+        const at = m.characterId === this.deps.player.characterId ? null : this.mateAt(m)?.at;
         return at ? [{ id: m.characterId, name: m.name, x: at.x, z: at.z }] : [];
       }),
       lock: this.lockedAt,
       boss: bossAt ? { x: bossAt.x, z: bossAt.z } : null,
     });
+  }
+
+  /** Where party member m stands here as far as the player knows: drawn; or, on a map cut by cells, online and out of sight where the server's latest spots list them, or where last drawn till it next speaks (large-regions.md section 5). */
+  private mateAt(m: PartyView['members'][number]): { at: MapSpot; drawn: boolean } | null {
+    const drawn = this.remoteViews.get(m.characterId)?.at;
+    if (drawn) {
+      return { at: drawn, drawn: true };
+    }
+    if (!m.online || m.mapId !== this.mapId) {
+      return null;
+    }
+    const spots = party.getState().spots;
+    const left = this.leftSight.get(m.characterId);
+    const at = spots[m.characterId] ?? (left?.spots === spots ? left.at : undefined);
+    return at ? { at, drawn: false } : null;
   }
 
   /** Tab: locks the next mob or enemy farther than the locked one, on a map with combat while the player may act. */
@@ -2329,7 +2349,6 @@ export class World {
     this.remoteViews.clear();
     this.remoteAims.clear();
     this.deadRemotes.clear();
-    this.mateSpots.clear();
     nearby.getState().clear();
     for (const v of this.mobViews.values()) {
       v.dispose();

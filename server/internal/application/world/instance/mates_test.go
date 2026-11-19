@@ -11,16 +11,18 @@ import (
 	"finga/internal/shared/sim"
 )
 
-// On a map cut by cells, a party's members hear once a second where the others on it stand that they don't see; once all are in sight again, once more with none.
+// On a map cut by cells, a party's members hear once a second where the others on it stand that they don't see, and with none listed once all are in sight; a party of one hears nothing.
 func TestAPartyMateOutOfSightIsSpottedOnceASecond(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		cell := data.Interest().Cell
-		ayla, robin := worldtest.NewPlayer("Ayla", 20, 20), worldtest.NewPlayer("Robin", 20, 5*cell+16)        // rows 0 and 5, out of each other's blocks
-		parties := &fakeParties{parties: [][]kernel.CharacterID{{ayla.ID, robin.ID, kernel.NewCharacterID()}}} // the third on another map
+		ayla, robin := worldtest.NewPlayer("Ayla", 20, 20), worldtest.NewPlayer("Robin", 20, 5*cell+16) // rows 0 and 5, out of each other's blocks
+		kai := worldtest.NewPlayer("Kai", 300, 300)
+		parties := &fakeParties{parties: [][]kernel.CharacterID{{ayla.ID, robin.ID, kernel.NewCharacterID()}, {kai.ID}}} // the third on another map; Kai alone
 		inst, stop := worldtest.RunMap(t, data, plain(t, nil, nil), nil, worldtest.Options{Parties: parties})
 		defer stop()
 		sa, sr := join(t, inst, ayla), join(t, inst, robin)
+		sk := join(t, inst, kai)
 		second := int(time.Second / worldtest.TickInterval)
 		tick(second)
 		told := eventsOf[model.PartySpots](sa)
@@ -39,8 +41,11 @@ func TestAPartyMateOutOfSightIsSpottedOnceASecond(t *testing.T) {
 		before := len(eventsOf[model.PartySpots](sa))
 		tick(2 * second)
 		after := eventsOf[model.PartySpots](sa)[before:]
-		if len(after) != 1 || len(after[0].Spots) != 0 {
-			t.Fatalf("Ayla told %+v in two seconds with Robin in sight; want once, with no one", after)
+		if len(after) != 2 || len(after[0].Spots)+len(after[1].Spots) != 0 {
+			t.Fatalf("Ayla told %+v in two seconds with Robin in sight; want twice, with no one", after)
+		}
+		if told := eventsOf[model.PartySpots](sk); len(told) != 0 {
+			t.Fatalf("Kai, in a party of one, told %+v", told)
 		}
 	})
 }

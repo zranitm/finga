@@ -79,7 +79,7 @@ type TeleportCancelled struct {
 	Reason TeleportCancel
 }
 
-// PartySpots is where the player's party members on their map stand that the frames don't bring; empty once all are in sight again.
+// PartySpots is where the player's party members on their map stand that the frames don't bring; a member it doesn't list isn't here.
 type PartySpots struct {
 	Spots []PartySpot
 }

@@ -3,6 +3,7 @@ package push
 import (
 	"runtime"
 	"testing"
+	"time"
 	"weak"
 
 	model "finga/internal/model/gateway"
@@ -18,20 +19,20 @@ func TestAFramesEncodingsGoWithIt(t *testing.T) {
 		f.shared(frame(), []int{0})
 	}
 	f.shared(kept, []int{0})
-	for range 100 {
-		runtime.GC()
+	held := func() (int, *encoding) {
 		f.mu.Lock()
-		left := len(f.frames)
-		f.mu.Unlock()
-		if left == 1 {
-			break
-		}
-		runtime.Gosched()
+		defer f.mu.Unlock()
+		return len(f.frames), f.frames[weak.Make(kept)]
 	}
-	if len(f.frames) != 1 {
-		t.Fatalf("%d frames' encodings kept; want the one frame still sent", len(f.frames))
+	left, e := held()
+	for deadline := time.Now().Add(10 * time.Second); left > 1 && time.Now().Before(deadline); left, e = held() {
+		runtime.GC() // the cleanups run on a goroutine of their own after it
+		time.Sleep(time.Millisecond)
 	}
-	if e := f.frames[weak.Make(kept)]; e == nil || e.parts[0] != first {
+	if left != 1 {
+		t.Fatalf("%d frames' encodings kept; want the one frame still sent", left)
+	}
+	if e == nil || e.parts[0] != first {
 		t.Fatal("another frame's going took the encoding of one still sent")
 	}
 	runtime.KeepAlive(kept)

@@ -789,13 +789,22 @@ describe('World', () => {
       const slime = mobLook('green_slime').file;
       let tick = 1;
       const slow = [create(StatusViewSchema, { id: 'slow', ends: 9999 })];
-      const frame = (x: number) => {
+      const boar = { ...mob(2, 'wild_boar', 30), statuses: slow };
+      let boarSent = true;
+      const frame = (x: number, boarGone = false) => {
+        const leaving = boarGone && boarSent; // said once, as the server does
+        boarSent = !boarGone;
         const players = [
           standing(60, 20, 'c-kai', 'magician'),
           { ...standing(94, 20, 'c-robin', 'thief'), statuses: slow, shield: 10 },
           { ...standing(x, 20, 'c-jade', 'bowman'), statuses: slow, shield: 10 },
         ];
-        p.push('delta', { players, mobs: [mob(1, 'green_slime', x)] }, { tick: ++tick });
+        const mobs = [mob(1, 'green_slime', x), ...(boarGone ? [] : [boar])];
+        p.push(
+          'delta',
+          { players, mobs, ...(leaving && { unseen: { mobs: [2] } }) },
+          { tick: ++tick },
+        );
         p.frames(1);
       };
       frame(jadeX);
@@ -837,9 +846,13 @@ describe('World', () => {
         robin: 'faded',
         jade: ['hidden', null],
         slime: ['hidden', false],
-        marked: [94],
+        marked: [30, 94],
         bubbles: [94],
       });
+      for (let i = 0; i < 5; i++) {
+        frame(104, true);
+      }
+      expect(seen().marked).toEqual([94]); // the boar went out of sight while Jade was hidden
       frame(99);
       frame(99);
       expect(seen()).toEqual({
@@ -847,7 +860,7 @@ describe('World', () => {
         robin: 'faded',
         jade: ['faded', 'Robin'],
         slime: ['faded', true],
-        marked: [94, 99],
+        marked: [30, 94, 99],
         bubbles: [94, 99],
       });
     });
@@ -859,7 +872,7 @@ describe('World', () => {
         robin: 'whole',
         jade: ['whole', 'Robin'],
         slime: ['whole', true],
-        marked: [94, 124],
+        marked: [30, 94, 124],
         bubbles: [94, 124],
       });
     });
@@ -2487,81 +2500,91 @@ describe('World', () => {
     expect(marks().boss).toBeNull();
   });
 
-  it('keeps a party member here who went out of sight on the map views, where last drawn and then where the server says, tells the HUD they are out of sight, and forgets them with the map', async () => {
-    const p = await playing(FLAT, 10, 20);
-    const members = (mapId: string) =>
+  describe('a party member out of sight', () => {
+    const party3 = (robin: { mapId: string; online: boolean }) =>
       create(PartyStateSchema, {
         party: create(PartyViewSchema, {
           leader: ME,
           members: [
-            { characterId: ME, name: 'Ayla', mapId, online: true },
-            { characterId: 'c-robin', name: 'Robin', mapId, online: true },
+            { characterId: ME, name: 'Ayla', mapId: REGIONED, online: true },
+            { characterId: 'c-robin', name: 'Robin', ...robin },
             { characterId: 'c-jade', name: 'Jade', mapId: 'cave', online: true },
           ],
         }),
       });
-    party.getState().applyPartyState(members(FLAT));
-    const marked = () => mapView.getState().party.map((q) => [q.id, q.x, q.z]);
-    const robin = () => statuses.getState().party['c-robin'];
-    const known: unknown[] = [];
-    let tick = 1;
-    const frame = (d: ServerInit<'delta'> = {}) => {
-      p.push('delta', d, { tick: ++tick });
-      p.frames(1);
-    };
-    frame({ players: [standing(16, 22, 'c-robin', 'thief')] });
-    known.push(robin());
-    for (let i = 0; i < 6; i++) {
-      frame();
-      known.push(robin());
-    }
-    expect(known.every((s) => Array.isArray(s))).toBe(true); // in sight from the first frame bringing them
-    expect(marked()).toEqual([['c-robin', 16, 22]]);
-    frame({ unseen: { players: ['c-robin'] } });
-    for (let i = 0; i < 4; i++) {
-      frame();
-    }
-    expect([robin(), 'c-jade' in statuses.getState().party]).toEqual([null, false]);
-    expect(marked()).toEqual([['c-robin', 16, 22]]); // where last drawn
-    party
-      .getState()
-      .applyPartySpots(
-        create(PartySpotsSchema, { spots: [{ characterId: 'c-robin', x: 50, z: 30 }] }),
-      );
-    frame();
-    frame();
-    expect(marked()).toEqual([['c-robin', 50, 30]]);
-    frame({ players: [standing(20, 24, 'c-robin', 'thief')] });
-    for (let i = 0; i < 4; i++) {
-      frame();
-    }
-    expect([robin(), marked()]).toEqual([[], [['c-robin', 20, 24]]]);
-    frame({ removedPlayers: ['c-robin'] }); // through a portal to the cave
-    party.getState().applyPartyState(
-      create(PartyStateSchema, {
-        party: create(PartyViewSchema, {
-          leader: ME,
-          members: [
-            { characterId: ME, name: 'Ayla', mapId: FLAT, online: true },
-            { characterId: 'c-robin', name: 'Robin', mapId: 'cave', online: true },
-          ],
+    const spots = (...list: [number, number][]) =>
+      party.getState().applyPartySpots(
+        create(PartySpotsSchema, {
+          spots: list.map(([x, z]) => ({ characterId: 'c-robin', x, z })),
         }),
-      }),
-    );
-    for (let i = 0; i < 4; i++) {
-      frame();
-    }
-    expect(['c-robin' in statuses.getState().party, marked()]).toEqual([false, []]);
-    changeMap(p, { mapId: FLAT2, x: 44, y: 0, z: 16, yaw: 0 });
-    p.push('snapshot', { players: [standing(44, 16)] }, { tick: 300 });
-    party.getState().applyPartyState(members(FLAT2));
-    await vi.waitFor(
-      () => expect(p.scene()?.transformNodes.some((n) => n.name === `place ${FLAT2}`)).toBe(true),
-      WAIT,
-    );
-    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), WAIT);
-    p.frames(3);
-    expect([robin(), marked()]).toEqual([null, []]); // not drawn on FLAT2 yet, and not where FLAT had them
+      );
+    const seen = () => ({
+      marked: mapView.getState().party.map((q) => [q.id, q.x, q.z]),
+      statuses: statuses.getState().party,
+    });
+    const on = async (mapId: string) => {
+      const p = await playing(mapId, 10, 20);
+      party.getState().applyPartyState(party3({ mapId, online: true }));
+      let tick = 1;
+      const frame = (d: ServerInit<'delta'> = {}) => {
+        p.push('delta', d, { tick: ++tick });
+        p.frames(1);
+      };
+      const frames = (n: number, d?: ServerInit<'delta'>) => {
+        frame(d);
+        for (let i = 1; i < n; i++) {
+          frame();
+        }
+      };
+      return frames;
+    };
+
+    it('stays on the map views and says so on a map cut by cells: where last drawn till the server speaks, then as long as it lists them, online and on the map', async () => {
+      const frames = await on(REGIONED);
+      frames(7, { players: [standing(16, 22, 'c-robin', 'thief')] });
+      expect(seen()).toEqual({ marked: [['c-robin', 16, 22]], statuses: { 'c-robin': [] } });
+      frames(5, { unseen: { players: ['c-robin'] } });
+      expect(seen()).toEqual({ marked: [['c-robin', 16, 22]], statuses: { 'c-robin': null } }); // where last drawn
+      spots([50, 30]);
+      frames(2);
+      expect(seen()).toEqual({ marked: [['c-robin', 50, 30]], statuses: { 'c-robin': null } });
+      spots(); // to another channel of the map: not here, though on it
+      frames(2);
+      expect(seen()).toEqual({ marked: [], statuses: {} });
+      spots([60, 30]);
+      frames(2);
+      expect(seen()).toEqual({ marked: [['c-robin', 60, 30]], statuses: { 'c-robin': null } });
+      party.getState().applyPartyState(party3({ mapId: REGIONED, online: false }));
+      frames(2);
+      expect(seen()).toEqual({ marked: [], statuses: {} });
+      party.getState().applyPartyState(party3({ mapId: 'cave', online: true }));
+      frames(2);
+      expect(seen()).toEqual({ marked: [], statuses: {} });
+      party.getState().applyPartyState(party3({ mapId: REGIONED, online: true }));
+      frames(6, { players: [standing(20, 24, 'c-robin', 'thief')] });
+      expect(seen()).toEqual({ marked: [['c-robin', 20, 24]], statuses: { 'c-robin': [] } });
+    });
+
+    it('is marked only once the server lists them, if they went out of view before joining the party', async () => {
+      const frames = await on(REGIONED);
+      party.getState().applyPartyState(create(PartyStateSchema, {}));
+      frames(7, { players: [standing(16, 22, 'c-robin', 'thief')] });
+      frames(5, { unseen: { players: ['c-robin'] } });
+      party.getState().applyPartyState(party3({ mapId: REGIONED, online: true }));
+      frames(2);
+      expect(seen()).toEqual({ marked: [], statuses: {} });
+      spots([50, 30]);
+      frames(2);
+      expect(seen()).toEqual({ marked: [['c-robin', 50, 30]], statuses: { 'c-robin': null } });
+    });
+
+    it('drops off a map sent whole, where everyone on it is drawn', async () => {
+      const frames = await on(FLAT);
+      frames(7, { players: [standing(16, 22, 'c-robin', 'thief')] });
+      expect(seen()).toEqual({ marked: [['c-robin', 16, 22]], statuses: { 'c-robin': [] } });
+      frames(5, { removedPlayers: ['c-robin'] }); // to another channel, or gone with the frame's news still to come
+      expect(seen()).toEqual({ marked: [], statuses: {} });
+    });
   });
 
   /** How far yaw a is from yaw b, round the circle. */
