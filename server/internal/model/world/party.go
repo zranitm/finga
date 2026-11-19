@@ -29,6 +29,20 @@ func (PartiesSubscribed) partyEvent() {}
 func (PartiesLost) partyEvent()       {}
 func (Membership) partyEvent()        {}
 
+// PartySpots is where the player's party members on the map stand that the player doesn't see, once a second to a player in a party on a map cut by cells, empty when none are out of sight.
+type PartySpots struct {
+	Tick  uint64
+	Spots []PartySpot
+}
+
+// PartySpot is a party member where they stand.
+type PartySpot struct {
+	ID   kernel.CharacterID
+	X, Z float64
+}
+
+func (PartySpots) event() {}
+
 // MemberUpdate is what a map saw of a party member, for the social module.
 type MemberUpdate struct {
 	ID    kernel.CharacterID

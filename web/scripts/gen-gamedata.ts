@@ -683,6 +683,15 @@ const limits = {
   ),
 };
 
+// world.yaml's interest block, from which the client takes the distance the server always sends round the player (large-regions.md section 5).
+const interestFile = must(worldFile.interest, isRecord, 'world.yaml interest');
+const interest = {
+  cell: must(interestFile.cell, isNumber, 'world.yaml interest cell'),
+  behind: must(interestFile.behind, isNumber, 'world.yaml interest behind'),
+  ahead: must(interestFile.ahead, isNumber, 'world.yaml interest ahead'),
+  side: must(interestFile.side, isNumber, 'world.yaml interest side'),
+};
+
 // The gateway's error catalog, each code by its name: ERR.EQUIP_TAB_FULL reads better than 220005.
 const errorCodes = Object.fromEntries(
   must(JSON.parse(readFileSync(codesFile, 'utf8')), isArray, 'codes.json').map((raw) => {
@@ -708,6 +717,7 @@ const files: Record<string, unknown> = {
   'npcs.ts': npcs,
   'quests.ts': quests,
   'limits.ts': limits,
+  'interest.ts': interest,
   'pvp.ts': pvp,
   'outfits.ts': outfits,
   'error-codes.ts': errorCodes,

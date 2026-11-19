@@ -202,12 +202,13 @@ func (i *Instance) remove(id kernel.CharacterID) {
 
 // detach drops a player without a checkpoint; the caller has saved one. A skill use still waiting for its turn hears it won't go.
 func (i *Instance) detach(id kernel.CharacterID) {
-	if m := i.players[id].waitingCast; m != nil {
+	p := i.players[id]
+	if m := p.waitingCast; m != nil {
 		m.done <- fmt.Errorf("%w: the character left the map before its skill's turn", transient.ErrUnavailable)
 	}
 	delete(i.players, id)
 	i.order = slices.DeleteFunc(i.order, func(x kernel.CharacterID) bool { return x == id })
-	i.interest.leave(id)
+	i.interest.leave(id, !p.joined)
 	i.arena.DropBy(id) // their damage over time ends with them
 }
 

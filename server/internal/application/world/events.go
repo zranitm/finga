@@ -246,6 +246,17 @@ type TeleportCancelled struct {
 	Reason TeleportCancel
 }
 
+// PartySpots is where the player's party members on the map stand that the player doesn't see; a member it doesn't list isn't here.
+type PartySpots struct {
+	Spots []PartySpot
+}
+
+// PartySpot is a party member where they stand.
+type PartySpot struct {
+	ID   kernel.CharacterID
+	X, Z float64
+}
+
 // TeleportCancel is what ended a teleport channel early.
 type TeleportCancel int
 
@@ -303,6 +314,7 @@ func (Snapshot) worldEvent()          {}
 func (Frame) worldEvent()             {}
 func (Teleport) worldEvent()          {}
 func (TeleportCancelled) worldEvent() {}
+func (PartySpots) worldEvent()        {}
 func (Detached) worldEvent()          {}
 func (Damage) worldEvent()            {}
 func (Died) worldEvent()              {}
@@ -603,6 +615,12 @@ func deliveryOf(e model.Event) Delivery {
 		return Delivery{Tick: ev.Tick, Event: ExpGained{Amount: ev.Amount, Exp: ev.Exp}}
 	case model.TeleportCancelled:
 		return Delivery{Tick: ev.Tick, Event: TeleportCancelled{Reason: TeleportCancel(ev.Reason)}}
+	case model.PartySpots:
+		spots := make([]PartySpot, len(ev.Spots))
+		for k, s := range ev.Spots {
+			spots[k] = PartySpot(s)
+		}
+		return Delivery{Tick: ev.Tick, Event: PartySpots{Spots: spots}}
 	case model.LevelUp:
 		return Delivery{Tick: ev.Tick, Event: levelUpOf(ev)}
 	case model.Promoted:

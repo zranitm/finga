@@ -101,6 +101,7 @@ message ServerMessage {
     PvpOfferGone pvp_offer_gone = 35;
     MatchState match_state = 36;
     MatchEnded match_ended = 37;
+    PartySpots party_spots = 38;
   }
 }
 
@@ -956,6 +957,18 @@ message ChatMessage {
 // PartyState is the whole party after any change; party is unset when there is none.
 message PartyState {
   PartyView party = 1;
+}
+
+// PartySpots is where the player's party members on their map stand that the frames don't bring, once a second to a player in a party on a map cut by cells, empty when none are out of sight; a member it doesn't list isn't here.
+message PartySpots {
+  repeated PartySpot spots = 1;
+}
+
+// PartySpot is a party member where they stand.
+message PartySpot {
+  string character_id = 1;
+  float x = 2;
+  float z = 3;
 }
 
 message PartyInvited {

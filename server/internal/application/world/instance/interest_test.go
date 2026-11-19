@@ -353,6 +353,26 @@ func TestAPlayerOnAMapLeftEmptyHearsNothingOfThoseWhoLeft(t *testing.T) {
 	})
 }
 
+// A player whose join failed never reached a frame, so nobody is told they left.
+func TestAJoinThatFailedIsNeverToldGone(t *testing.T) {
+	bothPaths(t, func(t *testing.T, side float64) {
+		data := worldtest.LoadData(t)
+		inst, stop := worldtest.RunMap(t, data, arenaOf(t, time.Hour, side), nil, worldtest.Options{})
+		defer stop()
+		s := join(t, inst, worldtest.NewPlayer("Bruno", arenaX, spawnZ))
+		ayla := worldtest.NewPlayer("Ayla", arenaX, spawnZ)
+		if err := inst.Join(context.Background(), ayla, worldtest.Refusing()); err == nil {
+			t.Fatal("a join through a closed sink went through")
+		}
+		tick(5)
+		for _, d := range s.Deltas() {
+			if slices.Contains(d.Removed, ayla.ID) {
+				t.Fatalf("Bruno was told at tick %d that Ayla, whose join failed, left", d.Tick)
+			}
+		}
+	})
+}
+
 // bothPaths runs f in a bubble on ground 40 m square, sent whole as today's maps are, and on ground 320 m square, cut by cells.
 func bothPaths(t *testing.T, f func(t *testing.T, side float64)) {
 	for _, side := range []float64{40, plainSize} {

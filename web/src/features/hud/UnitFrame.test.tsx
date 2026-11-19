@@ -140,6 +140,27 @@ describe('PartyPanel', () => {
     ).toEqual(['Poison']);
     const jade = screen.getByRole('group', { name: 'Party member Jade' });
     expect(within(jade).queryByRole('list', { name: 'Statuses' })).toBeNull();
+    expect(jade).not.toHaveTextContent('Out of sight');
+  });
+
+  it('says a member on the map out of sight is, in place of statuses nobody knows', () => {
+    render(<PartyPanel />);
+    act(() =>
+      party.getState().applyPartyState(
+        create(PartyStateSchema, {
+          party: create(PartyViewSchema, {
+            leader: 'c-robin',
+            members: [{ characterId: 'c-robin', name: 'Robin', online: true }],
+          }),
+        }),
+      ),
+    );
+    act(() => statuses.getState().show({ me: [], target: [], party: { 'c-robin': null } }));
+    const robin = screen.getByRole('group', { name: 'Party member Robin' });
+    expect(robin).toHaveTextContent('Out of sight');
+    expect(within(robin).queryByRole('list', { name: 'Statuses' })).toBeNull();
+    act(() => statuses.getState().show({ me: [], target: [], party: { 'c-robin': [] } }));
+    expect(robin).not.toHaveTextContent('Out of sight');
   });
 
   it('draws each member as a compact ally frame with their level, the leader starred, an offline one dimmed', () => {

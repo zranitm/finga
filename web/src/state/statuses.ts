@@ -11,8 +11,8 @@ export interface ShownStatus {
 export interface Shown {
   readonly me: readonly ShownStatus[];
   readonly target: readonly ShownStatus[];
-  /** By character id: only members on the player's map, whose statuses the frames carry. */
-  readonly party: Readonly<Record<string, readonly ShownStatus[]>>;
+  /** By character id: only members on the player's map, whose statuses the frames carry; null for one the frames don't bring, whose statuses nobody knows. */
+  readonly party: Readonly<Record<string, readonly ShownStatus[] | null>>;
 }
 
 export interface StatusesState extends Shown {
@@ -34,9 +34,9 @@ export const statuses = defineStore<StatusesState>((set, get) => ({
     const was = get();
     const keep = (a: readonly ShownStatus[], b: readonly ShownStatus[]) =>
       same(a, b) ? a : b.length === 0 ? none : b;
-    const party: Record<string, readonly ShownStatus[]> = {};
+    const party: Record<string, readonly ShownStatus[] | null> = {};
     for (const [id, list] of Object.entries(next.party)) {
-      party[id] = keep(was.party[id] ?? none, list);
+      party[id] = list && keep(was.party[id] ?? none, list);
     }
     const partySame =
       Object.keys(party).length === Object.keys(was.party).length &&

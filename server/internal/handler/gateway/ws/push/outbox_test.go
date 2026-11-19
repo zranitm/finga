@@ -238,6 +238,8 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 		},
 		{model.MapChange{MapID: "forest", X: 2, Z: 1, Yaw: -0.5}, &clientv1.MapChange{MapId: "forest", X: 2, Z: 1, Yaw: -0.5}},
 		{model.TeleportCancelled{Reason: model.TeleportMoved}, &clientv1.TeleportCancelled{Reason: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_MOVED}},
+		{model.PartySpots{Spots: []model.PartySpot{{CharacterID: "p-2", X: 140.5, Z: 812.25}}}, &clientv1.PartySpots{Spots: []*clientv1.PartySpot{{CharacterId: "p-2", X: 140.5, Z: 812.25}}}},
+		{model.PartySpots{}, &clientv1.PartySpots{}},
 		{model.TeleportCancelled{Reason: model.TeleportActed}, &clientv1.TeleportCancelled{Reason: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_ACTED}},
 		{model.TeleportCancelled{Reason: model.TeleportHit}, &clientv1.TeleportCancelled{Reason: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_HIT}},
 		{model.TeleportCancelled{Reason: model.TeleportDied}, &clientv1.TeleportCancelled{Reason: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_DIED}},
@@ -361,8 +363,11 @@ func TestAFramesPlayersShareEachPartsEncoding(t *testing.T) {
 	if a[0] != b[1] || b[0] == b[1] || c[0] != b[0] {
 		t.Fatal("two players sent one part got two encodings of it, or two parts shared one")
 	}
-	if shared(next, []int{0}, 1)[0] == shared(frame, []int{0}, 4)[0] {
-		t.Fatal("the next frame reused the last one's encoding")
+	if shared(next, []int{0}, 1)[0] == a[0] {
+		t.Fatal("another frame reused this one's encoding")
+	}
+	if shared(frame, []int{0}, 4)[0] != a[0] {
+		t.Fatal("a frame's encoding was lost to another map's frame sent between its players")
 	}
 }
 
