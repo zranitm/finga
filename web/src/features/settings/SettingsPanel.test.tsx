@@ -1,8 +1,8 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ERR } from '@/protocol/errors';
 import { watchPlaySettings } from '@/features/shared/settings';
+import { ERR } from '@/protocol/errors';
 import { settings } from '@/state/settings';
 import { fakeFetch, restClientOn } from '@/testing/fake-fetch';
 import { resetStores } from '@/testing/reset-stores';
