@@ -48,7 +48,7 @@ import { mapView } from '@/state/map-view';
 import type { Spot as MapSpot } from '@/state/map-view';
 import { nearby } from '@/state/nearby';
 import { party } from '@/state/party';
-import { pvp, walled } from '@/state/pvp';
+import { countdownTicks, pvp, walled } from '@/state/pvp';
 import { questPlayer, quests } from '@/state/quests';
 import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
@@ -455,6 +455,7 @@ export class World {
     const now = this.deps.now();
     this.setStalled(this.feed.stalled(now));
     this.raiseWall(predictor);
+    predictor.holdFor(countdownTicks(pvp.getState().match, this.timing.tickMs)); // known from prep's or the gap's end, before the count's first Delta
     if (this.placed) {
       if (this.attackHeld) {
         this.attack(false);

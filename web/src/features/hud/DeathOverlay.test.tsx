@@ -44,6 +44,7 @@ describe('DeathOverlay', () => {
         .getState()
         .applyMatchState(
           create(MatchStateSchema, { match: 'mt-1', mode: 'duel', phase: MatchPhase.FIGHT }),
+          0,
         );
       character.getState().setDead(true);
     });
