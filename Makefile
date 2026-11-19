@@ -16,7 +16,7 @@ NPM       ?= npm --prefix web
 # The build's version, which logs and spans carry: the nearest tag and the commits since, or the commit alone.
 VERSION   ?= $(shell git describe --tags --always --dirty --abbrev=12 2>/dev/null || echo dev)
 
-.PHONY: up config prod-check down run test test-go test-web rules-go cover cover-go cover-web lint lint-go lint-web fma-check breaking gen region-preview smoke edge bots testers
+.PHONY: up config prod-check down run test test-go test-web rules-go cover cover-go cover-web lint lint-go lint-web fma-check breaking gen region-preview smoke edge bots testers recipes-check
 
 # OBS=1 also runs the observability stack and sends it the game's traces: Grafana at http://localhost:3000.
 OBSERVED = $(if $(OBS),FINGA_TRACING_OTLP_ENDPOINT=alloy:4317)
@@ -91,6 +91,29 @@ lint: lint-go lint-web   ## golangci-lint and buf lint, then the client: eslint,
 
 lint-go:
 	cd $(SERVER) && golangci-lint run ./... && $(GO) tool buf lint
+
+lint-web:
+	$(NPM) run lint
+
+# buf compares server/api/proto with the same files at BREAKING_AGAINST (CI fetches it).
+BREAKING_AGAINST ?= HEAD~1
+breaking:      ## buf breaking: the client contract against BREAKING_AGAINST (default HEAD~1)
+	cd $(SERVER) && $(GO) tool buf breaking --against '../.git#ref=$(BREAKING_AGAINST),subdir=server'
+
+smoke:         ## against a running stack (make up): a client signs up, enters the world and moves
+	cd $(SERVER) && FINGA_SMOKE_URL=$(SMOKE_URL) $(GO) test -count=1 -run TestSmoke ./test/
+
+# Uses up the address's login allowance at nginx for a minute: run it last.
+edge:          ## against a running stack (make up): nginx limits per client address, the gateway does not
+	cd $(SERVER) && FINGA_EDGE_URL=$(EDGE_URL) FINGA_GATEWAY_URL=$(SMOKE_URL) $(GO) test -count=1 -run TestEdge ./test/
+
+# A .PHONY target left with no recipe passes in silence: #291 dropped four that way, and CI ran none of them for 16 merges.
+recipes-check: ## every .PHONY target does something under make -n (CI runs it)
+	@for t in $$(sed -n 's/^\.PHONY://p' $(firstword $(MAKEFILE_LIST))); do \
+	  [ "$$t" = recipes-check ] && continue; \
+	  out=$$($(MAKE) -n --no-print-directory $$t 2>&1) || { echo "$$t: $$out"; exit 1; }; \
+	  if [ -z "$$out" ] || printf '%s\n' "$$out" | grep -q 'Nothing to be done'; then echo "$$t: listed in .PHONY with no recipe"; exit 1; fi; \
+	done; echo "every .PHONY target has a recipe"
 
 # The packages whose numbers are the same bits on every CPU: each product rounded on its own (float64(a*b)), so arm64 can't fuse it into an add.
 FMA_PKGS := sim mapfile nav regiongen
