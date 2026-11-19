@@ -86,6 +86,38 @@ describe('MatchBar', () => {
     expect(within(bar).queryByRole('button', { name: 'Leave match' })).not.toBeInTheDocument(); // it's over
   });
 
+  it('in 3v3 leaves the enemies’ names to their frames under it', () => {
+    render(<MatchBar socket={fakeSocket().socket} />);
+    act(() =>
+      pvp.getState().applyMatchState(
+        create(MatchStateSchema, {
+          match: 'mt-1',
+          mode: 'team',
+          phase: MatchPhase.FIGHT,
+          round: 1,
+          sides: [
+            {
+              fighters: [
+                { id: 'c-ayla', name: 'Ayla', class: 'warrior' },
+                { id: 'c-robin', name: 'Robin', class: 'magician' },
+              ],
+            },
+            {
+              fighters: [
+                { id: 'c-ash', name: 'Ash', class: 'thief' },
+                { id: 'b-1', name: 'Cole', class: 'bowman', bot: true },
+              ],
+            },
+          ],
+        }),
+        0,
+      ),
+    );
+    const bar = screen.getByRole('group', { name: 'Match' });
+    expect(within(bar).getByRole('img', { name: 'Their rounds: 0 of 2' })).toBeInTheDocument();
+    expect(bar.querySelector('.side-enemy')).not.toHaveTextContent(/Ash|Cole/);
+  });
+
   it('counts into a round in big numbers over the world', () => {
     render(
       <>

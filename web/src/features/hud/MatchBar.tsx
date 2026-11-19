@@ -1,8 +1,8 @@
-// The match bar (pvp.md section 13): each side's rounds won as pips, the phase and its time counted down from what the server said, the enemy's names, and Leave match, which forfeits after a second press; and the count into a round over the world.
+// The match bar (pvp.md section 13): each side's rounds won as pips, the phase and its time counted down from what the server said, the enemy's name where no frames show them, and Leave match, which forfeits after a second press; and the count into a round over the world.
 import { useState } from 'react';
 
 import { Button } from '@/components/Button';
-import { roundsToWin } from '@/features/pvp/modes';
+import { roundsToWin, teamOf } from '@/features/pvp/modes';
 import { problemOf } from '@/features/shared/problem';
 import { useNow } from '@/features/shared/useNow';
 import { timeLeft } from '@/features/shared/words';
@@ -37,7 +37,7 @@ function Shown({
   const side = sideOf(match, me);
   const mine = match.wins[side - 1] ?? 0;
   const theirs = match.wins[2 - side] ?? 0;
-  const enemies = match.sides[2 - side] ?? [];
+  const enemies = teamOf(match.mode) > 1 ? [] : (match.sides[2 - side] ?? []); // a team's show as frames under the bar
   const need = roundsToWin(match.mode);
   const left = match.endsAt - now;
   const forfeit = async () => {

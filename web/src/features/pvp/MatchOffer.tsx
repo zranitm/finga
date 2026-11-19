@@ -1,4 +1,4 @@
-// The match-found card (pvp.md section 13): the mode and its bots, Accept and Decline, and the seconds left counted down from the offer.
+// The match-found card (pvp.md section 13): the mode and its bots, the party members queued with the player, Accept and Decline, and the seconds left counted down from the offer.
 import { useState } from 'react';
 
 import { Button } from '@/components/Button';
@@ -9,6 +9,7 @@ import { character } from '@/state/character';
 import { pvp } from '@/state/pvp';
 import type { Offer } from '@/state/pvp';
 
+import { useWith } from './mates';
 import { modeName } from './modes';
 
 export interface MatchOfferProps {
@@ -29,6 +30,7 @@ function Shown({
 }) {
   const now = useNow(250);
   const dead = character.use((s) => s.dead);
+  const mates = useWith(pvp.use((s) => s.queued?.members ?? none));
   const [busy, setBusy] = useState(false);
   const [accepted, setAccepted] = useState<string | null>(null); // the offer accepted: its answer comes once the match opens
   const [problem, setProblem] = useState<string | null>(null);
@@ -57,6 +59,7 @@ function Shown({
       <span>
         {modeName(offer.mode)} · {botsIn(offer.bots)}
       </span>
+      {mates && <span className="muted">{mates}</span>}
       <span className="match-offer-time" aria-label={`${left} seconds left`}>
         {left}s
       </span>
@@ -83,6 +86,8 @@ function Shown({
     </div>
   );
 }
+
+const none: readonly string[] = [];
 
 function botsIn(n: number): string {
   return n === 0 ? 'no bots' : n === 1 ? '1 bot' : `${n} bots`;
