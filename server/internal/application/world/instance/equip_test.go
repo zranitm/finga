@@ -3,6 +3,7 @@ package instance_test
 import (
 	"context"
 	"errors"
+	"math"
 	"reflect"
 	"sync"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"
+	"finga/internal/shared/sim"
 	"finga/pkg/transient"
 )
 
@@ -289,9 +291,18 @@ func TestAnEquipInFlightHoldsThePlayerOnItsMap(t *testing.T) {
 			p := warriorAt(nextToSlime)
 			p.HP, p.Connection = 1, "c1"
 			s := join(t, inst, p)
+			// The equip goes out just before the slime's hop lands: in flight past the 3 s respawn, inside its own 3.5 s.
+			for k := 0; len(eventsOf[model.MobAttacked](s)) == 0; k++ {
+				if k == 100 {
+					t.Fatal("the slime never hopped")
+				}
+				tick(1)
+			}
+			slime, _ := data.Mob("green_slime")
+			time.Sleep(slime.Attacks[0].Windup + slime.Attacks[0].Travel - 200*time.Millisecond)
 			done := equipAsync(inst, p.ID, "c1")
-			untilDead(t, s, p.ID)               // to the slime's hop, with the equip in flight
-			time.Sleep(3500 * time.Millisecond) // past the 3 s respawn, short of the equip's 5 s timeout
+			untilDead(t, s, p.ID)
+			time.Sleep(3*time.Second + 2*worldtest.TickInterval) // past the respawn
 			synctest.Wait()
 			if moved(tr) != 0 {
 				t.Fatal("respawned off the map with an equip in flight")
@@ -309,36 +320,63 @@ func TestAnEquipInFlightHoldsThePlayerOnItsMap(t *testing.T) {
 		})
 	})
 	t.Run("before a portal", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			data := worldtest.LoadData(t)
-			eq := &fakeEquipment{answer: sword(), gate: make(chan struct{})}
-			tr := &transferRecorder{}
-			inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t), Transfer: tr})
-			defer stop()
-			at := data.StartTown().Portals[0].At
-			p := worldtest.NewPlayer("Ayla", at.X, at.Z)
-			p.Connection = "c1"
-			join(t, inst, p)
-			done := equipAsync(inst, p.ID, "c1")
-			tick(1)
-			_ = inst.EnterPortal(p.ID)
-			tick(1)
-			if moved(tr) != 0 {
-				t.Fatal("took a portal with an equip in flight")
-			}
-			close(eq.gate)
-			tick(1)
-			if err := <-done; err != nil {
-				t.Fatal(err)
-			}
-			_ = inst.EnterPortal(p.ID)
-			tick(1)
-			tr.mu.Lock()
-			defer tr.mu.Unlock()
-			if len(tr.moved) != 1 || !reflect.DeepEqual(tr.moved[0].Worn, sword().Worn) {
-				t.Fatalf("moved %+v; want the portal to carry the sword", tr.moved)
-			}
-		})
+		for _, tt := range []struct {
+			name   string
+			walked bool // out of the portal before the call settles
+		}{{"taken once it settles", false}, {"not once walked out", true}} {
+			t.Run(tt.name, func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					data := worldtest.LoadData(t)
+					eq := &fakeEquipment{answer: sword(), gate: make(chan struct{})}
+					tr := &transferRecorder{}
+					inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t), Transfer: tr})
+					defer stop()
+					portal := data.StartTown().Portals[0]
+					p := worldtest.NewPlayer("Ayla", portal.At.X, portal.At.Z)
+					p.Connection = "c1"
+					s := join(t, inst, p)
+					done := equipAsync(inst, p.ID, "c1")
+					tick(1)
+					_ = inst.EnterPortal(p.ID) // pressed once, as the client does
+					tick(1)
+					if moved(tr) != 0 {
+						t.Fatal("took a portal with an equip in flight")
+					}
+					if tt.walked {
+						_ = inst.Input(p.ID, 1, sim.Input{Down: true}, 0)
+						tick(20)
+						_ = inst.Input(p.ID, 2, sim.Input{}, 0)
+						tick(1)
+						if v, _ := s.Own(p.ID); math.Hypot(v.State.X-portal.At.X, v.State.Z-portal.At.Z) <= portal.Radius {
+							t.Fatalf("still in the portal at %+v", v.State)
+						}
+					}
+					close(eq.gate)
+					tick(1)
+					if err := <-done; err != nil {
+						t.Fatal(err)
+					}
+					tick(1)
+					if tt.walked { // back in: the press was spent when the call settled
+						_ = inst.Input(p.ID, 3, sim.Input{Up: true}, 0)
+						tick(20)
+						_ = inst.Input(p.ID, 4, sim.Input{}, 0)
+						tick(2)
+						if v, _ := s.Own(p.ID); math.Hypot(v.State.X-portal.At.X, v.State.Z-portal.At.Z) > portal.Radius {
+							t.Fatalf("not back in the portal at %+v", v.State)
+						}
+					}
+					tr.mu.Lock()
+					defer tr.mu.Unlock()
+					switch {
+					case tt.walked && len(tr.moved) != 0:
+						t.Fatalf("moved %+v; want the press dropped once the player walked out", tr.moved)
+					case !tt.walked && (len(tr.moved) != 1 || !reflect.DeepEqual(tr.moved[0].Worn, sword().Worn)):
+						t.Fatalf("moved %+v; want the press taken once the equip settled, carrying the sword", tr.moved)
+					}
+				})
+			})
+		}
 	})
 }
 

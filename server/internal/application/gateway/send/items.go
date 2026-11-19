@@ -2,14 +2,21 @@ package send
 
 import (
 	"context"
+	"time"
 
 	"finga/internal/application/gateway/session"
 	model "finga/internal/model/gateway"
+	"finga/pkg/transient"
 )
+
+// itemCallFor is all a call to the item module for a command may take: inside the 5 s the gateway gives a command, so the command answers unavailable rather than failing at that deadline.
+const itemCallFor = 3500 * time.Millisecond
 
 // MoveItem moves an item and returns the slots it changed.
 func (g *Gateway) MoveItem(ctx context.Context, s *session.Session, in model.ItemMove) (model.InventoryChanged, error) {
-	return g.deps.Items.Move(ctx, s.Actor(), in)
+	return transient.Within(ctx, itemCallFor, "the item module, asked for a move", func(ctx context.Context) (model.InventoryChanged, error) {
+		return g.deps.Items.Move(ctx, s.Actor(), in)
+	})
 }
 
 // Equip wears an item through the world, which checks the live level and applies the new stats; the changes come on its stream, before or after the answer.
@@ -29,17 +36,23 @@ func (g *Gateway) UseItem(ctx context.Context, s *session.Session, in model.Item
 
 // DiscardItem destroys some or all of a stack and returns the slots it changed.
 func (g *Gateway) DiscardItem(ctx context.Context, s *session.Session, in model.ItemDiscard) (model.InventoryChanged, error) {
-	return g.deps.Items.Discard(ctx, s.Actor(), in)
+	return transient.Within(ctx, itemCallFor, "the item module, asked for a discard", func(ctx context.Context) (model.InventoryChanged, error) {
+		return g.deps.Items.Discard(ctx, s.Actor(), in)
+	})
 }
 
 // DiscardItems destroys whole items or stacks, all of them or none, and returns the slots it changed.
 func (g *Gateway) DiscardItems(ctx context.Context, s *session.Session, in model.ItemDiscardMany) (model.InventoryChanged, error) {
-	return g.deps.Items.DiscardMany(ctx, s.Actor(), in)
+	return transient.Within(ctx, itemCallFor, "the item module, asked for a discard", func(ctx context.Context) (model.InventoryChanged, error) {
+		return g.deps.Items.DiscardMany(ctx, s.Actor(), in)
+	})
 }
 
 // AddToWardrobe takes one of an item that holds a piece and adds the piece to the account's wardrobe, returning the slot it changed.
 func (g *Gateway) AddToWardrobe(ctx context.Context, s *session.Session, in model.WardrobeAdd) (model.InventoryChanged, error) {
-	return g.deps.Items.AddToWardrobe(ctx, s.Actor(), in)
+	return transient.Within(ctx, itemCallFor, "the item module, asked for a wardrobe add", func(ctx context.Context) (model.InventoryChanged, error) {
+		return g.deps.Items.AddToWardrobe(ctx, s.Actor(), in)
+	})
 }
 
 // TakeLoot takes picked items from the player's own pouches through the world, answering each pick: taken, or refused with why.

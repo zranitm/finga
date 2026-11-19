@@ -3,15 +3,11 @@ package instance
 import (
 	"context"
 	"fmt"
-	"time"
 
 	model "finga/internal/model/world"
 	"finga/internal/shared/kernel"
 	"finga/pkg/transient"
 )
-
-// useTimeout bounds one use call to the item module.
-const useTimeout = 5 * time.Second
 
 // UseItem drinks a potion and returns once its HP applies, or ctx ends; template is what the client saw in the slot.
 func (i *Instance) UseItem(ctx context.Context, id kernel.CharacterID, conn, key string, item kernel.ItemID, template string) error {
@@ -33,9 +29,15 @@ func (i *Instance) startUse(m useMsg) {
 	c := m.call
 	c.Account, c.Character = p.Account, p.ID
 	submitted := i.deps.ItemCalls.Submit(func(ctx context.Context) {
-		callCtx, cancel := context.WithTimeout(ctx, useTimeout)
-		result, replayed, err := i.deps.Potions.Use(callCtx, c)
-		cancel()
+		type used struct {
+			inv      model.Inventory
+			replayed bool
+		}
+		u, err := itemCall(ctx, "the potion", func(ctx context.Context) (used, error) {
+			inv, replayed, err := i.deps.Potions.Use(ctx, c)
+			return used{inv, replayed}, err
+		})
+		result, replayed := u.inv, u.replayed
 		select {
 		case i.inbox <- usedMsg{id: m.id, caller: p, call: c, result: result, replayed: replayed, err: err, done: m.done}:
 		case <-ctx.Done(): // the map stopped first; its inbox may never drain

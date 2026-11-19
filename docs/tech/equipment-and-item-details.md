@@ -164,6 +164,11 @@ sequenceDiagram
   - It queues `InventoryChanged` (inventory and equip slots, revision) and `StatsChanged` (the sheet and HP) as the player's private events.
   - It answers the waiting RPC.
 - **Ordering:** the gateway's per-connection command queue runs one command at a time, so a player never has two equips in flight. An `InventoryMove` can still interleave, since it goes straight to the item module; the owner's lock serializes the two, and the revision orders what the client shows.
+  - **As built (the pouches playtest's fix):**
+    - Actions (`Input`, `Attack`, `UseSkill`, `EnterPortal` and `Teleport`) run on a queue of their own beside the commands, in their own order. So a command waiting on the item module never holds the player still.
+    - Actions keep their order with each other, as the world counts a press from the input after it. They wait for `Hello`'s answer.
+    - So an attack sent right after an equip, without waiting for its answer, uses the old weapon until the equip settles. A client that waits for the answer first isn't affected.
+    - A portal press during an item call waits for it to settle, then enters if the player is still alive and in the portal. The client sends a press once.
 - **Gateway routes:** `Equip` and `Unequip` join `InventoryMove` and `InventoryDiscard` under the shared 5-per-second limit, with `respond`, so the client gets a Response carrying its request ID.
 
 ### Join, rejoin, and moves between maps
@@ -174,7 +179,7 @@ sequenceDiagram
 - **Welcome:** the gateway's `Inventory` call already happens during Hello. Its worn items go into `Welcome.equipment` under the same revision as the inventory.
 - **Rejoin after a world restart** reloads the worn items the same way, so combat is right again after the freeze. The client's view doesn't change, since nothing it holds changed.
 - **Portals, deaths, and level-ups:** the worn sum travels with the player through `handOff`. Level-up re-derives with it (`progress.go`), as does every landing (`players.go`). Respawn HP is half of the maximum with equipment.
-- **An equip in flight keeps the player on its map:** a portal is refused and a respawn away from the map waits until the result settles, so it applies where the player is and the hand-off carries it. An item call takes milliseconds, and at most its 5-second timeout.
+- **An equip in flight keeps the player on its map:** a portal is refused and a respawn away from the map waits until the result settles, so it applies where the player is and the hand-off carries it. An item call takes milliseconds, and at most 3.5 s, every try included. That's inside the 5 s the gateway gives a command, so one with no answer is `UNAVAILABLE`, never the gateway's own deadline. The same 3.5 s bounds unequips, looks, potions, inventory moves, discards and wardrobe adds.
 - **Checkpoints don't change:** the character module stores HP and energy. Max values are never stored, and a join clamps HP to the maximum it derives.
 
 ## 7. Protocol

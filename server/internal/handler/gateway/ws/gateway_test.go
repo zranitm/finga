@@ -1118,6 +1118,36 @@ func TestAnUnexpectedCommandErrorIsInternalAndLoggedWithItsCause(t *testing.T) {
 	})
 }
 
+// An inventory command whose item module never answers is unavailable 3.5 s in, inside the 5 s the gateway gives it, not internal at that deadline, and logs no failure.
+func TestAnUnansweredInventoryCommandIsUnavailable(t *testing.T) {
+	for _, m := range []proto.Message{
+		&clientv1.InventoryMove{IdempotencyKey: "k", ItemId: kernel.NewItemID().String(), Tab: "use", Slot: 1},
+		&clientv1.InventoryDiscard{IdempotencyKey: "k", ItemId: kernel.NewItemID().String(), Quantity: 1},
+		&clientv1.InventoryDiscardMany{IdempotencyKey: "k", ItemIds: []string{kernel.NewItemID().String()}},
+		&clientv1.AddToWardrobe{IdempotencyKey: "k", ItemId: kernel.NewItemID().String()},
+	} {
+		t.Run(string(m.ProtoReflect().Descriptor().Name()), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				logs := &lockedBuffer{}
+				h := newHarness(t, func(d *deps) {
+					d.Items = &fakeItems{hang: true}
+					d.Logger = slog.New(slog.NewJSONHandler(logs, nil))
+				})
+				c := h.joined(t)
+				began := time.Now()
+				c.send(wsconn.Message{ReqID: "r-1", Data: m})
+				r := c.expect("Response").Data.(*clientv1.Response)
+				if took := time.Since(began); r.Code != int32(model.Unavailable.Code) || took < 3500*time.Millisecond || took >= 4*time.Second {
+					t.Fatalf("response %+v after %v; want unavailable at 3.5 s", r, took)
+				}
+				if strings.Contains(logs.String(), `"command failed"`) {
+					t.Fatalf("log %s; want no failure logged", logs.String())
+				}
+			})
+		})
+	}
+}
+
 // panickingItems is an item module whose Discard panics on the connection's command goroutine, as a bug in the gateway's adapter would.
 type panickingItems struct{ adapter.ItemModule }
 
@@ -2206,33 +2236,125 @@ func TestCommandsReachTheServicesInTheOrderTheyArrived(t *testing.T) {
 	})
 }
 
-func TestAFullCommandQueueAnswersRateLimited(t *testing.T) {
+// Each queue answers rate_limited when full, apart from the other: actions fill theirs behind an attack the world holds while a command still goes, and commands fill theirs behind a take it holds while an input still goes.
+func TestAFullQueueAnswersRateLimited(t *testing.T) {
+	hold := func(t *testing.T, h *harness) func() {
+		h.world.mu.Lock()
+		h.world.block, h.world.blocked = make(chan struct{}), make(chan error, 2)
+		h.world.mu.Unlock()
+		release := sync.OnceFunc(func() { close(h.world.block) })
+		t.Cleanup(release) // a failure still lets the held call end
+		return release
+	}
+	t.Run("actions", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			h := newHarness(t, func(d *deps) { d.CommandQueue = 2 })
+			c := h.joined(t)
+			release := hold(t, h)
+			c.send(wsconn.Message{Seq: 1, Data: &clientv1.Attack{}})
+			if err := <-h.world.blocked; err != nil { // in flight; the queue behind it is empty
+				t.Fatal(err)
+			}
+			c.send(wsconn.Message{Seq: 2, Data: &clientv1.Input{Right: true}})
+			c.send(wsconn.Message{Seq: 3, Data: &clientv1.Input{}})
+			c.send(wsconn.Message{Seq: 4, Data: &clientv1.Input{Left: true}}) // dropped: no request ID to answer
+			c.send(wsconn.Message{ReqID: "s-1", Seq: 4, Data: &clientv1.UseSkill{Skill: "strike"}})
+			if r := c.expect("Response"); r.ReqID != "s-1" || r.Data.(*clientv1.Response).Code != int32(model.RateLimited.Code) {
+				t.Fatalf("response %+v, want the skill refused", r)
+			}
+			c.send(wsconn.Message{ReqID: "p-1", Data: &clientv1.PartyLeave{}})
+			if r := c.expect("Response"); r.ReqID != "p-1" || !r.Data.(*clientv1.Response).GetOk() {
+				t.Fatalf("response %+v, want the command through", r)
+			}
+			release()
+			if err := <-h.world.blocked; err != nil {
+				t.Fatal(err)
+			}
+			waitFor(t, "the queued inputs", h.world.inputList, 2) // and nothing else is coming
+			if got := h.world.inputList(); len(got) != 2 || got[0].seq != 2 || got[1].seq != 3 {
+				t.Fatalf("inputs %+v, want the two that fit", got)
+			}
+		})
+	})
+	t.Run("commands", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			h := newHarness(t, func(d *deps) { d.CommandQueue = 2 })
+			c := h.joined(t)
+			release := hold(t, h)
+			c.send(wsconn.Message{ReqID: "t-1", Data: &clientv1.TakeLoot{Picks: []*clientv1.LootPick{{Pouch: 1, Item: 1}}}})
+			if err := <-h.world.blocked; err != nil {
+				t.Fatal(err)
+			}
+			c.send(wsconn.Message{ReqID: "p-1", Data: &clientv1.PartyLeave{}})
+			c.send(wsconn.Message{ReqID: "p-2", Data: &clientv1.PartyLeave{}})
+			c.send(wsconn.Message{ReqID: "p-3", Data: &clientv1.PartyLeave{}})
+			if r := c.expect("Response"); r.ReqID != "p-3" || r.Data.(*clientv1.Response).Code != int32(model.RateLimited.Code) {
+				t.Fatalf("response %+v, want the third command refused", r)
+			}
+			c.send(wsconn.Message{Seq: 1, Data: &clientv1.Input{Right: true}})
+			waitFor(t, "the input past the full command queue", h.world.inputList, 1)
+			release()
+			if err := <-h.world.blocked; err != nil {
+				t.Fatal(err)
+			}
+		})
+	})
+}
+
+// A command the world holds, as a take waiting on the item module, never holds the player's actions: their inputs, skills and portal go on, in order, and the take answers once the world does.
+func TestASlowCommandNeverHoldsThePlayersActions(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		h := newHarness(t, func(d *deps) { d.CommandQueue = 2 })
+		h := newHarness(t)
 		c := h.joined(t)
 		h.world.mu.Lock()
 		h.world.block, h.world.blocked = make(chan struct{}), make(chan error, 2)
 		h.world.mu.Unlock()
-		c.send(wsconn.Message{Seq: 1, Data: &clientv1.Attack{}})
-		if err := <-h.world.blocked; err != nil { // in flight; the queue behind it is empty
+		release := sync.OnceFunc(func() { close(h.world.block) })
+		t.Cleanup(release) // a failure still lets the held take end
+		c.send(wsconn.Message{ReqID: "t-1", Data: &clientv1.TakeLoot{Picks: []*clientv1.LootPick{{Pouch: 1, Item: 1}}}})
+		if err := <-h.world.blocked; err != nil { // the world holds the take
 			t.Fatal(err)
 		}
-		c.send(wsconn.Message{Seq: 2, Data: &clientv1.Input{Right: true}})
-		c.send(wsconn.Message{Seq: 3, Data: &clientv1.Input{}})
-		c.send(wsconn.Message{Seq: 4, Data: &clientv1.Input{Left: true}}) // dropped: no request ID to answer
-		c.send(wsconn.Message{ReqID: "p-1", Data: &clientv1.PartyLeave{}})
-		r := c.expect("Response")
-		if r.ReqID != "p-1" || r.Data.(*clientv1.Response).Code != int32(model.RateLimited.Code) {
-			t.Fatalf("response %+v", r)
+		c.send(wsconn.Message{Seq: 1, Data: &clientv1.Input{Right: true}})
+		c.send(wsconn.Message{ReqID: "s-1", Seq: 1, Data: &clientv1.UseSkill{Skill: "strike"}})
+		c.send(wsconn.Message{Seq: 2, Data: &clientv1.Input{}})
+		c.send(wsconn.Message{Seq: 3, Data: &clientv1.EnterPortal{}})
+		if r := c.expect("Response"); r.ReqID != "s-1" {
+			t.Fatalf("response %+v, want the skill answered while the take waits", r)
 		}
-		close(h.world.block)
+		got := waitFor(t, "the actions behind the take", h.world.callList, 4)
+		if want := []string{"take", "input 1", "input 2", "portal"}; strings.Join(got, ", ") != strings.Join(want, ", ") {
+			t.Fatalf("calls %v while the take waits, want %v", got, want)
+		}
+		release()
 		if err := <-h.world.blocked; err != nil {
 			t.Fatal(err)
 		}
-		waitFor(t, "the queued inputs", h.world.inputList, 2) // and nothing else is coming
-		if got := h.world.inputList(); len(got) != 2 || got[0].seq != 2 || got[1].seq != 3 {
-			t.Fatalf("inputs %+v, want the two that fit", got)
+		if r := c.expect("Response"); r.ReqID != "t-1" {
+			t.Fatalf("response %+v, want the take's once the world answered", r)
 		}
+	})
+}
+
+// Actions sent before Hello is answered wait for it, as they did behind it in one queue: none reaches the world before the join.
+func TestActionsWaitForHello(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		gate, joining := make(chan struct{}), make(chan struct{}, 1)
+		h.world.mu.Lock()
+		h.world.joinGate, h.world.joining = gate, joining
+		h.world.mu.Unlock()
+		c := h.dial(t)
+		c.hello(tokenAlice, aylaID)
+		<-joining
+		c.send(wsconn.Message{Seq: 1, Data: &clientv1.Input{Right: true}})
+		synctest.Wait()
+		if got := h.world.inputList(); len(got) != 0 {
+			t.Fatalf("inputs %+v before the join answered, want none", got)
+		}
+		close(gate)
+		c.expect("Snapshot")
+		waitFor(t, "the input after the join", h.world.inputList, 1)
 	})
 }
 

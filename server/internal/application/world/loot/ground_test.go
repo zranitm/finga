@@ -83,8 +83,9 @@ type grants struct {
 	mu      sync.Mutex
 	answers []answer
 	calls   []model.GrantCall
-	spans   []trace.SpanContext // each call's
-	gate    chan struct{}       // when set, each call waits for it to close
+	spans   []trace.SpanContext                    // each call's
+	gate    chan struct{}                          // when set, each call waits for it to close
+	hold    func(ctx context.Context, n int) error // when set, the n-th call runs it first, failing with what it returns
 }
 
 func (f *grants) AddMany(ctx context.Context, c model.GrantCall) (model.Granted, error) {
@@ -92,10 +93,15 @@ func (f *grants) AddMany(ctx context.Context, c model.GrantCall) (model.Granted,
 	f.calls = append(f.calls, c)
 	f.spans = append(f.spans, trace.SpanContextFromContext(ctx))
 	n := len(f.calls)
-	a, gate := f.answers[min(n, len(f.answers))-1], f.gate
+	a, gate, hold := f.answers[min(n, len(f.answers))-1], f.gate, f.hold
 	f.mu.Unlock()
 	if gate != nil {
 		<-gate
+	}
+	if hold != nil {
+		if err := hold(ctx, n); err != nil {
+			return model.Granted{}, err
+		}
 	}
 	return a(n, c)
 }
@@ -721,6 +727,48 @@ func TestAnUnansweredCallIsAskedAgainUnderTheSameKeys(t *testing.T) {
 			t.Fatalf("loot %v; want the gel taken once, and the pouch gone", got)
 		}
 	})
+}
+
+// A grant call with no answer is cut off 3.5 s in, its retry included, so a take answers each pick unavailable inside the 5 s the gateway waits rather than the gateway giving up on the whole request.
+func TestATakeWithNoAnswerIsAnsweredInsideTheGatewaysWait(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		hold  func(ctx context.Context, n int) error
+		calls int
+	}{
+		{"a call that hangs", func(ctx context.Context, _ int) error { <-ctx.Done(); return ctx.Err() }, 1},
+		{"a retry after a slow failure", func(ctx context.Context, n int) error {
+			if n == 1 {
+				time.Sleep(3 * time.Second)
+				return errDown
+			}
+			<-ctx.Done()
+			return ctx.Err()
+		}, 2},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				items := &grants{answers: []answer{every(model.GrantAdded)}, hold: tt.hold}
+				s := newScene(t, items)
+				ayla := owner("Ayla")
+				s.g.Roll(solo(slime, ayla))
+				p := s.only(ayla)
+				began := time.Now()
+				a := s.take(ayla, all(p)...)
+				for !a.done && time.Since(began) < 10*time.Second {
+					time.Sleep(tick)
+					s.step()
+				}
+				took := time.Since(began)
+				if !a.done || !errors.Is(a.got[0].Err, transient.ErrUnavailable) || took < 3500*time.Millisecond || took > 3500*time.Millisecond+2*tick {
+					t.Fatalf("answered %v after %v with %+v; want each pick unavailable at 3.5 s", a.done, took, a.got)
+				}
+				if n := len(items.made()); n != tt.calls {
+					t.Fatalf("%d calls in the take's time, want %d", n, tt.calls)
+				}
+			})
+		})
+	}
 }
 
 // An item still unanswered when its pouch's life ends has one more try; with no answer then, it's given up and logged.

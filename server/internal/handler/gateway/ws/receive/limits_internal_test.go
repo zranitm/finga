@@ -22,21 +22,21 @@ func TestALimitedCommandAllowsItsBurstThenRefills(t *testing.T) {
 		log := slog.New(slog.DiscardHandler)
 		reg := session.NewRegistry(session.Deps{Logger: log, Traces: noop.NewTracerProvider()}, session.Options{})
 		h := New(send.New(send.Deps{Logger: log, Registry: reg}, send.Options{}), Options{Logger: log, Traces: noop.NewTracerProvider()})
-		// Past Hello, with a queue nobody drains: the queue holds what the limit let through.
-		in := &Inbox{helloSeen: true, session: reg.Open("c-1", nil), limiters: map[string]*rate.Limiter{}, queue: make(chan func(), 80)}
+		// Past Hello, with queues nobody drains: inputs are actions, and the action queue holds what the limit let through.
+		in := &Inbox{helloSeen: true, session: reg.Open("c-1", nil), limiters: map[string]*rate.Limiter{}, queue: make(chan func(), 80), actions: make(chan func(), 80)}
 		inputs := func() {
 			for range 40 {
 				h.Dispatch(in, wsconn.Message{Type: "Input", Data: &clientv1.Input{Right: true}})
 			}
 		}
 		inputs()
-		if len(in.queue) != 30 {
-			t.Fatalf("%d of 40 inputs at one instant passed, want the burst of 30", len(in.queue))
+		if len(in.actions) != 30 {
+			t.Fatalf("%d of 40 inputs at one instant passed, want the burst of 30", len(in.actions))
 		}
 		time.Sleep(time.Second)
 		inputs()
-		if len(in.queue) != 60 {
-			t.Fatalf("%d passed after a second, want 30 more", len(in.queue))
+		if len(in.actions) != 60 {
+			t.Fatalf("%d passed after a second, want 30 more", len(in.actions))
 		}
 	})
 }
@@ -78,12 +78,12 @@ func TestGroupedCommandsShareOneBudget(t *testing.T) {
 				log := slog.New(slog.DiscardHandler)
 				reg := session.NewRegistry(session.Deps{Logger: log, Traces: noop.NewTracerProvider()}, session.Options{})
 				h := New(send.New(send.Deps{Logger: log, Registry: reg}, send.Options{}), Options{Logger: log, Traces: noop.NewTracerProvider()})
-				in := &Inbox{helloSeen: true, session: reg.Open("c-1", nil), limiters: map[string]*rate.Limiter{}, queue: make(chan func(), 80)}
+				in := &Inbox{helloSeen: true, session: reg.Open("c-1", nil), limiters: map[string]*rate.Limiter{}, queue: make(chan func(), 80), actions: make(chan func(), 80)}
 				for _, m := range tt.msgs {
 					h.Dispatch(in, m)
 				}
-				if len(in.queue) != tt.want {
-					t.Fatalf("%d of %d passed, want %d", len(in.queue), len(tt.msgs), tt.want)
+				if got := len(in.queue) + len(in.actions); got != tt.want { // commands and actions, each on its own queue
+					t.Fatalf("%d of %d passed, want %d", got, len(tt.msgs), tt.want)
 				}
 			})
 		})

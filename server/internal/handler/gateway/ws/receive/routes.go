@@ -80,12 +80,12 @@ func (h *Handler) routes() *wsrouter.Router[*Inbox] {
 	wsrouter.Handle(r, "Hello", h.hello, h.queued, h.traced)
 	wsrouter.Handle(r, "Ping", h.ping)
 
-	wsrouter.Handle(r, "Input", h.input, h.command(inputs, h.logged)...)
-	wsrouter.Handle(r, "Attack", h.attack, h.command(attacks, h.logged)...)
-	wsrouter.Handle(r, "UseSkill", h.useSkill, h.command(skills, h.respond)...)
+	wsrouter.Handle(r, "Input", h.input, h.action(inputs, h.logged)...)
+	wsrouter.Handle(r, "Attack", h.attack, h.action(attacks, h.logged)...)
+	wsrouter.Handle(r, "UseSkill", h.useSkill, h.action(skills, h.respond)...)
+	wsrouter.Handle(r, "EnterPortal", h.enterPortal, h.action(portals, h.logged)...)
+	wsrouter.Handle(r, "Teleport", h.teleport, h.action(teleports, h.respond)...)
 	wsrouter.Handle(r, "TakeLoot", h.takeLoot, h.command(loot, h.respond)...)
-	wsrouter.Handle(r, "EnterPortal", h.enterPortal, h.command(portals, h.logged)...)
-	wsrouter.Handle(r, "Teleport", h.teleport, h.command(teleports, h.respond)...)
 
 	wsrouter.Handle(r, "InventoryMove", h.inventoryMove, h.command(inventory, h.respond)...)
 	wsrouter.Handle(r, "InventoryDiscard", h.inventoryDiscard, h.command(inventory, h.respond)...)
@@ -126,4 +126,9 @@ func (h *Handler) routes() *wsrouter.Router[*Inbox] {
 // command is a rate-limited command's chain; the limit runs on the read loop so a flood never fills the queue.
 func (h *Handler) command(l limit, rest ...handler) []handler {
 	return append([]handler{h.limited(l), h.queued, h.traced, h.joined, h.within}, rest...)
+}
+
+// action is a rate-limited action's chain: a command's, on the action goroutine.
+func (h *Handler) action(l limit, rest ...handler) []handler {
+	return append([]handler{h.limited(l), h.acted, h.traced, h.joined, h.within}, rest...)
 }
