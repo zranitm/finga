@@ -41,8 +41,16 @@ describe('pvp', () => {
   it('counts a ticket’s wait from when the queue said it had waited, and an offer’s lapse from its time left', () => {
     vi.advanceTimersByTime(50_000);
     const now = performance.now();
-    pvp.getState().applyQueued(create(PvpQueuedSchema, { mode: 'duel', sinceMs: 4000 }));
-    expect(pvp.getState().queued).toEqual({ mode: 'duel', since: now - 4000 });
+    pvp
+      .getState()
+      .applyQueued(
+        create(PvpQueuedSchema, { mode: 'team', sinceMs: 4000, members: ['c-ayla', 'c-robin'] }),
+      );
+    expect(pvp.getState().queued).toEqual({
+      mode: 'team',
+      since: now - 4000,
+      members: ['c-ayla', 'c-robin'],
+    });
     pvp
       .getState()
       .applyOffer(create(PvpOfferSchema, { offer: 'of-1', mode: 'duel', bots: 1, untilMs: 9500 }));

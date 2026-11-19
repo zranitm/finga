@@ -9,6 +9,8 @@ export interface Queued {
   readonly mode: string;
   /** When the ticket began waiting. */
   readonly since: number;
+  /** The ticket's characters: the player alone, or their party. */
+  readonly members: readonly string[];
 }
 
 export interface Offer {
@@ -95,7 +97,7 @@ export const pvp = defineStore<PvpState>((set, get) => ({
   left: null,
   outcome: null,
   applyQueued: (d) => {
-    set({ queued: { mode: d.mode, since: performance.now() - d.sinceMs } });
+    set({ queued: { mode: d.mode, since: performance.now() - d.sinceMs, members: d.members } });
   },
   applyUnqueued: () => {
     set({ queued: null, offer: null });

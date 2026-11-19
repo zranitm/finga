@@ -43,6 +43,8 @@ import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
 import { energy } from '@/state/energy';
 import { fieldBoss } from '@/state/field-boss';
+import { fighters } from '@/state/fighters';
+import type { FighterLive } from '@/state/fighters';
 import { inventory } from '@/state/inventory';
 import { keyboardLayout } from '@/state/keyboard-layout';
 import { mapView } from '@/state/map-view';
@@ -1447,7 +1449,7 @@ export class World {
     this.publishStatuses(units, now);
   }
 
-  /** The HUD's statuses: the player's own, the locked mob's, and each party member's on this map, each timed from when it first showed, or restarted, to its end tick. */
+  /** The HUD's statuses: the player's own, the locked mob's, and each party member's on this map, each timed from when it first showed, or restarted, to its end tick; and in a match, each fighter's for their frame, with their level and HP. */
   private publishStatuses(units: ReadonlyMap<string, readonly StatusOn[]>, now: number): void {
     const seen = new Set<string>();
     const timed = (ref: string): ShownStatus[] =>
@@ -1478,6 +1480,21 @@ export class World {
       target: this.lockedId === null ? [] : timed(this.lockedId),
       party: here,
     });
+    const fought: Record<string, FighterLive> = {};
+    for (const f of pvp.getState().match?.sides.flat() ?? []) {
+      const p = this.remotes?.infoOf(f.id); // never the player, who isn't among the remotes
+      if (p) {
+        const down = this.deadRemotes.has(f.id);
+        fought[f.id] = {
+          level: p.level,
+          hp: down ? 0 : p.hp,
+          maxHp: p.maxHp,
+          down,
+          statuses: timed(`p:${f.id}`),
+        };
+      }
+    }
+    fighters.getState().show(fought);
     for (const key of this.statusTimes.keys()) {
       if (!seen.has(key)) {
         this.statusTimes.delete(key);

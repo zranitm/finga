@@ -22,6 +22,7 @@ import { NpcWindow } from '@/features/npc/NpcWindow';
 import { InviteToasts } from '@/features/party/InviteToast';
 import { PartyWindow } from '@/features/party/PartyWindow';
 import { ArenaWindow } from '@/features/pvp/ArenaWindow';
+import { EnemyFrames, TeamFrames } from '@/features/pvp/MatchFrames';
 import { MatchOffer } from '@/features/pvp/MatchOffer';
 import { MatchResult } from '@/features/pvp/MatchResult';
 import { QueueTag } from '@/features/pvp/QueueTag';
@@ -196,6 +197,7 @@ function WorldOverlay({
       <ConnectionNotice />
       <TopBars>
         <MatchBar socket={socket} />
+        <EnemyFrames />
       </TopBars>
       <MatchCount />
       <Minimap />
@@ -211,6 +213,7 @@ function WorldOverlay({
           Back to characters
         </button>
         <PartyPanel />
+        <TeamFrames />
       </div>
       <InviteToasts socket={socket} />
       <ChatBox socket={socket} rest={rest} />

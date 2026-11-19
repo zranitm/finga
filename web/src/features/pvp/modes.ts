@@ -18,6 +18,11 @@ export function roundsToWin(id: string): number {
   return best > 0 ? Math.floor(best / 2) + 1 : 0;
 }
 
+/** How many fight on a side in the mode, 1 for one this client doesn't know. */
+export function teamOf(id: string): number {
+  return modeById(id)?.team ?? 1;
+}
+
 /** m:ss of a wait, rounded down. */
 export function waited(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));

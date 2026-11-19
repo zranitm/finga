@@ -8,9 +8,14 @@ import {
   MatchOutcome,
   MatchPhase,
   MatchStateSchema,
+  PartyStateSchema,
+  PartyViewSchema,
   PvpOfferSchema,
+  PvpQueuedSchema,
+  WelcomeSchema,
 } from '@/protocol/messages';
 import { character } from '@/state/character';
+import { party } from '@/state/party';
 import { pvp } from '@/state/pvp';
 import { refusal } from '@/testing/refusal';
 import { resetStores } from '@/testing/reset-stores';
@@ -67,6 +72,39 @@ describe('MatchOffer', () => {
     expect(calls).toEqual([{ t: 'pvpAnswer', d: { offer: 'of-1', accept: true } }]);
     expect(card).toHaveTextContent('Waiting for the others…');
     expect(within(card).queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('names the party members queued with the player', () => {
+    render(<MatchOffer socket={fakeSocket().socket} />);
+    act(() => {
+      character
+        .getState()
+        .applyWelcome(
+          create(WelcomeSchema, { character: { id: 'c-ayla', name: 'Ayla', class: 'warrior' } }),
+        );
+      party.getState().applyPartyState(
+        create(PartyStateSchema, {
+          party: create(PartyViewSchema, {
+            leader: 'c-ayla',
+            members: [
+              { characterId: 'c-ayla', name: 'Ayla' },
+              { characterId: 'c-robin', name: 'Robin' },
+            ],
+          }),
+        }),
+      );
+      pvp
+        .getState()
+        .applyQueued(create(PvpQueuedSchema, { mode: 'team', members: ['c-ayla', 'c-robin'] }));
+      pvp
+        .getState()
+        .applyOffer(
+          create(PvpOfferSchema, { offer: 'of-1', mode: 'team', bots: 3, untilMs: 10_000 }),
+        );
+    });
+    expect(screen.getByRole('alertdialog', { name: 'Match found' })).toHaveTextContent(
+      '3v3 · 3 botswith Robin',
+    );
   });
 
   it('an accept refused gives the buttons back, saying why', async () => {

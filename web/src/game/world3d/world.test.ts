@@ -54,6 +54,7 @@ import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
 import { energy } from '@/state/energy';
 import { fieldBoss } from '@/state/field-boss';
+import { fighters } from '@/state/fighters';
 import { mapView } from '@/state/map-view';
 import { nearby } from '@/state/nearby';
 import { party } from '@/state/party';
@@ -3237,6 +3238,65 @@ describe('World', () => {
       p.frames(1);
       expect(statuses.getState().me).toEqual([]);
       expect(statuses.getState().party['c-robin']!.map((s) => s.id)).toEqual(['slow']);
+    });
+
+    it('tells a match’s frames each other fighter’s level, HP and statuses as of the newest frame, and who’s down; none outside a match', async () => {
+      const p = await playing(FLAT, 10, 20);
+      const on = (id: string, ends: number) => [create(StatusViewSchema, { id, ends })];
+      const robin = {
+        ...standing(14, 20, 'c-robin', 'magician'),
+        team: 1,
+        level: 28,
+        hp: 30,
+        statuses: on('slow', 50),
+      };
+      const ash = {
+        ...standing(10, 30, 'c-ash', 'thief'),
+        name: 'Ash',
+        team: 2,
+        level: 30,
+        hp: 45,
+      };
+      const send = (tick: number, ...players: PlayerWire[]) => {
+        p.push('delta', { players: [{ ...standing(10, 20), team: 1 }, ...players] }, { tick });
+        p.frames(1);
+      };
+      send(2, robin, ash);
+      expect(fighters.getState().live).toEqual({}); // no match
+      pvp.getState().applyMatchState(
+        create(MatchStateSchema, {
+          match: 'mt-1',
+          mode: 'team',
+          phase: MatchPhase.FIGHT,
+          round: 1,
+          sides: [
+            {
+              fighters: [
+                { id: ME, name: 'Ayla', class: 'warrior' },
+                { id: 'c-robin', name: 'Robin', class: 'magician' },
+              ],
+            },
+            {
+              fighters: [
+                { id: 'c-ash', name: 'Ash', class: 'thief' },
+                { id: 'c-far', name: 'Far', class: 'bowman' },
+              ],
+            },
+          ],
+        }),
+        0,
+      );
+      send(3, robin, ash);
+      const live = fighters.getState().live;
+      expect(Object.keys(live).sort()).toEqual(['c-ash', 'c-robin']); // not the player's own, nor one never drawn
+      expect(live['c-robin']).toMatchObject({ level: 28, hp: 30, maxHp: 50, down: false });
+      expect(live['c-robin']!.statuses.map((s) => [s.id, s.until - s.from])).toEqual([
+        ['slow', 47 * 50],
+      ]);
+      expect(live['c-ash']).toMatchObject({ level: 30, hp: 45, down: false, statuses: [] });
+      send(4, robin, { ...ash, dead: true });
+      expect(fighters.getState().live['c-ash']).toMatchObject({ hp: 0, down: true });
+      expect(fighters.getState().live['c-robin']).toBe(live['c-robin']); // unchanged, so its frame doesn't render again
     });
 
     it('pops a damage-over-time tick small in its status’s colour, with no spark or hold, leaving its inflicter’s windup to its own hit', async () => {

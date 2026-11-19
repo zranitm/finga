@@ -1834,12 +1834,25 @@ body {
   flex-wrap: wrap;
   font-size: 12px;
 }
-/* The party panel: a compact ally frame for each member. */
+/* The party panel: a compact ally frame for each member; in a round mode, the teammates'. */
 .party-panel {
   width: 180px;
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+/* In a team mode, the enemies' compact frames side by side under the match bar: one row wider than the bars, wrapping before it reaches the corner's 180 px frames. */
+.enemy-frames {
+  align-self: center;
+  width: max-content;
+  max-width: calc(100vw - 2 * 204px);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+}
+.enemy-frames > .unit-frame {
+  width: 150px;
 }
 .invites {
   position: fixed;
