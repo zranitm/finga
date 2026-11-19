@@ -56,6 +56,11 @@ beforeAll(async () => {
     (f) => files.get(f) ?? new Uint8Array(readFileSync(path.join(MODELS, f))),
   );
   figures = new Figures(scene, lighting, models);
+  const used = new Set([
+    ...classes.map((c) => classLook(c.id).file),
+    ...Object.values(PIECE_LOOKS).map((p) => partsFile(p.file)),
+  ]);
+  await Promise.all([...used].map((f) => models.load(f))); // once, before any test times its own work
 });
 
 afterAll(() => {
@@ -93,39 +98,56 @@ function boundsOnRig(m: AbstractMesh): number[] {
 const JOINT: Readonly<Record<string, string>> = { headwear: 'head', weapon: 'handslot.r' };
 
 describe('an outfit piece worn', () => {
-  it('binds on every class’s rig: skinned parts on its skeleton, the rest on their joints, its own meshes for the slot hidden, its size as before', async () => {
-    for (const c of classes) {
-      const plain = await make(classLook(c.id));
+  const bySlot = new Map<string, [string, PieceLook][]>();
+  for (const entry of Object.entries(PIECE_LOOKS)) {
+    bySlot.set(entry[1].slot, [...(bySlot.get(entry[1].slot) ?? []), entry]);
+  }
+  const slots = [...bySlot.values()];
+  // each figure wears a piece of every slot at once, so every piece is worn in as few figures as the fullest slot has pieces
+  const sets = Array.from({ length: Math.max(...slots.map((g) => g.length)) }, (_, i) =>
+    slots.map((g) => g[i % g.length]!),
+  );
+
+  it('wears every piece in some figure', () => {
+    expect(new Set(sets.flat().map(([key]) => key))).toEqual(new Set(Object.keys(PIECE_LOOKS)));
+  });
+
+  it.each(classes.map((c) => c.id))(
+    'binds on the %s’s rig: skinned parts on its skeleton, the rest on their joints, its own meshes for the slot hidden, its size as before',
+    async (cls) => {
+      const plain = await make(classLook(cls));
       const scale = plain.root.scaling.x;
       plain.dispose();
-      for (const [key, piece] of Object.entries(PIECE_LOOKS)) {
-        const look = wearing(c.id, key);
+      for (const set of sets) {
+        const look = wearing(cls, ...set.map(([key]) => key));
         const b = await make(look);
         const own = [...b.root.getChildMeshes(false)].find(
           (m) => m.skeleton && !m.name.endsWith(' worn'),
         )!;
-        for (const name of piece.meshes) {
-          const m = mesh(b, `${name} worn`);
-          expect(m?.isEnabled(), `${c.id} ${name}`).toBe(true);
-          if (m!.skeleton) {
-            expect(m!.skeleton, `${c.id} ${name}`).toBe(own.skeleton);
-            expect(m!.parent?.name).toBe('Rig');
-          } else {
-            expect(m!.parent?.name, `${c.id} ${name}`).toBe(
-              name.endsWith('_Cape') ? 'chest' : JOINT[piece.slot],
-            );
+        for (const [key, piece] of set) {
+          for (const name of piece.meshes) {
+            const m = mesh(b, `${name} worn`);
+            expect(m?.isEnabled(), name).toBe(true);
+            if (m!.skeleton) {
+              expect(m!.skeleton, name).toBe(own.skeleton);
+              expect(m!.parent?.name).toBe('Rig');
+            } else {
+              expect(m!.parent?.name, name).toBe(
+                name.endsWith('_Cape') ? 'chest' : JOINT[piece.slot],
+              );
+            }
+          }
+          if (piece.slot !== 'face' && piece.slot !== 'wings') {
+            for (const name of look.own![piece.slot]) {
+              expect(mesh(b, name)?.isEnabled(), `${key} ${name}`).toBe(false);
+            }
           }
         }
-        if (piece.slot !== 'face' && piece.slot !== 'wings') {
-          for (const name of look.own![piece.slot]) {
-            expect(mesh(b, name)?.isEnabled(), `${c.id} ${key} ${name}`).toBe(false);
-          }
-        }
-        expect(b.root.scaling.x, `${c.id} ${key}`).toBeCloseTo(scale, 9);
+        expect(b.root.scaling.x, set.map(([key]) => key).join(' ')).toBeCloseTo(scale, 9);
         b.dispose();
       }
-    }
-  });
+    },
+  );
 
   it('skins a part on another class’s rig just as on its own: a knight’s body on a magician lies where the knight’s own does', async () => {
     const knight = await make(classLook('warrior'));
