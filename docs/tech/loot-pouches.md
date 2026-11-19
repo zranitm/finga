@@ -92,7 +92,7 @@
 - **Calm until hit** (decision 11):
   - A standing boss sees nobody. Any blow from a player wakes it, an area hit or a miss included, and so does a status or a taunt; a skill whose every status only hides its user doesn't.
   - Awake, it fights as any mob: sight, chase, attacks and warning areas. It goes after whoever hit it, and others it sees as any fighting mob does.
-  - It's calm again once its reset takes it home: led past its leash, hit from beyond it, or with nobody left it sees. A blow on the way home that still provokes it when it arrives keeps it awake. One caught on the way is put back at its spot. HP stays as it is, as for any mob. There's no calm cue.
+  - It's calm again once its reset takes it home: led past its leash, hit from beyond it, or with nobody left it sees, which includes its map emptying. On an empty map it gives up as it would with players there, walks home and calms, so whoever joins next, even beside it, is let be. A blow on the way home that still provokes it when it arrives keeps it awake. One caught on the way is put back at its spot. HP stays as it is, as for any mob. There's no calm cue.
   - Mobs in its circle are as before.
 - **Who hears it:**
   - Each player on the map, or in the area in a region, gets a notice and a line in the General tab: "King Slime has appeared!"

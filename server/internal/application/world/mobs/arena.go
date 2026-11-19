@@ -290,7 +290,7 @@ func (a *Arena) Blockers() *sim.Blockers {
 	return &a.standingBlocking
 }
 
-// Rest starts tick n on a map nobody is on: respawns, spits in flight, statuses, pushes, acts under way and walks home go on, but no mob looks for anyone or wanders, so an empty map costs next to nothing.
+// Rest starts tick n on a map nobody is on: respawns, spits in flight, statuses, pushes, acts under way and walks home go on, and a standing boss still awake gives up, as with nobody left to fight; but no mob looks for anyone or wanders, so an empty map costs next to nothing.
 func (a *Arena) Rest(n uint64) {
 	a.start(n, nil)
 	a.runStatuses()
@@ -302,7 +302,12 @@ func (a *Arena) Rest(n uint64) {
 		}
 		if mb.attack >= 0 {
 			a.advance(mb, nil)
-		} else if mb.homing && mb.pauseUntil <= a.tick && !mb.held() {
+			continue
+		}
+		if mb.spawn == noSpawn && !mb.calm && !mb.homing {
+			a.giveUp(mb) // it walks home, and calms there
+		}
+		if mb.homing && mb.pauseUntil <= a.tick && !mb.held() {
 			a.goHome(mb)
 		}
 	}

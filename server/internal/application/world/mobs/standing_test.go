@@ -1,6 +1,7 @@
 package mobs_test
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -61,6 +62,54 @@ func TestAStandingBossFightsOnlyOnceHit(t *testing.T) {
 	run(200, p) // the player gone: nobody left to fight
 	if run(200, p, p) {
 		t.Fatal("the boss, with nobody left, stayed awake and bit a player coming back")
+	}
+}
+
+// A standing boss still awake when its map empties gives up as it would with nobody left to fight: on the empty map it walks home and calms, so whoever comes next, even beside its spot, is let be.
+func TestABossAwakeWhenItsMapEmptiesWalksHomeAndCalms(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		by   mobs.Body // who woke it, where the boss fought them as the map emptied
+	}{
+		{"awake at its spot", player(30, 27)},
+		{"chasing, out of its circle", player(30, 20)}, // 10 m south, within its leash
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			a := newArena(t, meadow(t, open()), worldtest.FixedRoll{V: 0.5})
+			def, spot := king(t)
+			a.SpawnBoss(def, spot)
+			var n uint64
+			step := func(ticks int, bodies ...mobs.Body) (bit bool) { // with nobody given, the map is empty and rests, as an instance's does
+				for range ticks {
+					n++
+					if len(bodies) == 0 {
+						a.Rest(n)
+						continue
+					}
+					a.Step(n, bodies)
+					bit = bit || bitten(a, bodies[0].ID)
+				}
+				return bit
+			}
+			fromSpot := func() float64 {
+				v := a.Views()[0]
+				return math.Hypot(v.X-spot.At.X, v.Z-spot.At.Z)
+			}
+			a.Strike(wake(tt.by))
+			if !step(200, tt.by) {
+				t.Fatal("the boss never fought the player who woke it")
+			}
+			if out := fromSpot() > spot.Radius; out != (tt.by.Z < 25) {
+				t.Fatalf("the boss %.1f m from its spot as the map empties", fromSpot())
+			}
+			step(int(20 * time.Second / tick))
+			if d := fromSpot(); d > spot.Radius {
+				t.Fatalf("the boss %.1f m from its spot after 20 s of an empty map, want home", d)
+			}
+			if stranger := player(30, 27); step(200, stranger) {
+				t.Fatal("the boss bit a stranger who came after the map emptied, beside its spot")
+			}
+		})
 	}
 }
 
