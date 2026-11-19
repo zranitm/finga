@@ -6,9 +6,11 @@ import type { GameSocket } from '@/net/socket';
 import type { Arrival } from '../systems/arrival';
 import type { WorldEntry } from '../view';
 
+import { workerChunks } from './chunk-workers';
 import { World } from './world';
 
 const READOUT_MS = 500;
+const CHUNK_WORKERS = 2; // a region's chunks build two at a time, beside the page's thread
 
 /** Opens the world for entry in parent, from the map arriving holds; the returned close takes it all down, built or not. */
 export function run(
@@ -28,6 +30,7 @@ export function run(
       parent,
       player: { characterId: entry.characterId, cls: entry.cls, name: entry.name },
       models: (file) => `${import.meta.env.BASE_URL}models/${file}`,
+      chunks: workerChunks(CHUNK_WORKERS),
       now: () => performance.now(),
     },
     arriving,

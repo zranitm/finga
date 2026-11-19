@@ -2,16 +2,23 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"image"
 	"image/png"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"finga/internal/shared/regiongen"
 )
 
 const tinyPlan = "testdata/tiny.yaml"
+
+var update = flag.Bool("update", false, "rewrite the web client's fixture from the tiny bake")
+
+// clientFixture is the tiny bake the web client's tests read, its tiles aside.
+const clientFixture = "../../../web/src/testing/regions/tiny"
 
 // A plan's bake lands under <id>/<hash>/, each file as the region bakes it, a tile as its pixels; a stale bake goes and nothing else under out is touched; the preview lands as <id>.png.
 func TestABakeIsWrittenUnderItsHash(t *testing.T) {
@@ -131,5 +138,47 @@ func TestABakeIsRenamedIntoPlaceWhole(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(out, "tiny", tinyBake(t).Hash[:hashLen], "region.json")); err != nil {
 		t.Errorf("the bake isn't in place: %v", err)
+	}
+}
+
+// The web client's tests read the bake Go writes, so its reader is checked against these bytes and not a copy of the format: run with -update after a change to the format or the generator.
+func TestTheClientsFixtureIsTheTinyBake(t *testing.T) {
+	b := tinyBake(t)
+	var want []string
+	for _, f := range b.Files {
+		if f.Tile != nil {
+			continue
+		}
+		want = append(want, f.Path)
+		at := filepath.Join(clientFixture, filepath.FromSlash(f.Path))
+		if *update {
+			if err := os.MkdirAll(filepath.Dir(at), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(at, f.Data, 0o644); err != nil { //nolint:gosec // a fixture in the repo
+				t.Fatal(err)
+			}
+		}
+		raw, err := os.ReadFile(at)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(raw, f.Data) {
+			t.Errorf("%s differs from the tiny bake's (go test ./cmd/regionbake -run TestTheClientsFixtureIsTheTinyBake -update)", f.Path)
+		}
+	}
+	var got []string
+	err := filepath.WalkDir(clientFixture, func(path string, d os.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			rel, _ := filepath.Rel(clientFixture, path)
+			got = append(got, filepath.ToSlash(rel))
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("the fixture holds %v; the bake %v", got, want)
 	}
 }

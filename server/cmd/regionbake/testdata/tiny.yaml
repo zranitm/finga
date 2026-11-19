@@ -1,7 +1,7 @@
 # The smallest region a bake makes: one map tile, four chunks, a road and some trees.
 name: Tiny
 size: [128, 128]
-cell: 1
+cell: 2
 seed: 3
 look: {sky: day}
 ground: {noise: {scale: 60, amplitude: 2, octaves: 2}}
