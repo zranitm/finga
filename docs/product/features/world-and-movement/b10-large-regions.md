@@ -10,7 +10,7 @@
 ## Acceptance
 
 - **Three regions,** each about 1 km across: a green region for levels 1–12, a desert for 12–22, and snow mountains for 22–30 with the endgame keep (World).
-- **Seamless inside:** a region is one place. Walking, sprinting (B11) and fighting cross it with no loading screen. Only a gate to another region, a teleport to another region, or dying in a region not yet built loads.
+- **Seamless inside:** a region is one place. Walking, sprinting (B11) and fighting cross it with no loading screen. Only a gate to another region, a teleport to another region, going underground or underwater (B13), or dying in a region not yet built loads.
 - **Areas:**
   - Each region is divided into about five named areas, each with its mob levels and its field boss.
   - Walking into an area shows its name and, outside towns, its level range, as entering a map does today.
@@ -43,7 +43,7 @@
 
 ## Not in this feature
 
-- Mounts, gliding and swimming. Deep water can't be entered.
+- Mounts, gliding and swimming. Deep water can't be entered. Underwater places are reached through a dive spot (B13).
 - Dungeons and instanced areas.
 - Weather and day and night.
 - One seamless world with no loads between regions.

@@ -1,5 +1,7 @@
 # Minimap and world map
 
+> **Changed by [Underground and underwater](./underground-and-underwater.md):** inside a place below, the minimap and This region draw its tiles. The region's map marks each gate below with the place's name and levels. A party member below shows at its gate.
+
 > **Changed by [Loot pouches and timed bosses](./loot-pouches.md):** the client's map copy carries the boss's circle. While the boss is down, the map window marks its spot, greyed, with when it's back.
 
 > **Changed by [Large regions](./large-regions.md) section 10:** the minimap and This region draw baked tiles, and the World tab charts regions.

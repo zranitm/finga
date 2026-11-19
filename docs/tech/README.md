@@ -32,3 +32,4 @@ One rule runs through every page: **the client computes, the server validates.**
 - [PvP](./pvp.md): I1 to I4; matchmaking with bots, match instances, combat between players, 1v1 and 3v3 rounds, 15v15 capture points, and ratings.
 - [Loot pouches and timed bosses](./loot-pouches.md): D1, C10; pouches and bosses' treasure boxes opened with T, and bosses back 5 minutes after they're beaten.
 - [Outfits](./outfits.md): D8, D9; a wardrobe per account with outfit, headwear, face, weapon looks and wings on KayKit's rig, from boss drops, PvP ranks, quests and feats.
+- [Underground and underwater](./underground-and-underwater.md): B13; caves lit by torches and a sunken shrine, small regions entered through a gate, with a baked light map and a sea look.

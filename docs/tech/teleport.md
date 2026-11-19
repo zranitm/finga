@@ -1,5 +1,7 @@
 # Teleport
 
+> **Changed by [Underground and underwater](./underground-and-underwater.md):** a place below's waypoints are teleported to as any, listed under the region above.
+
 > **Changed by [Large regions](./large-regions.md) section 8:** a teleport targets a found waypoint or a region's main town, not a map.
 
 > **Status: approved · 2026-11-17, built · 2026-11-17.** The high-level design for [B9. Teleport](../product/features/world-and-movement/b9-teleport.md). The server runs the channel and moves the player with the portals' own hand-off. The client sends the request and draws the bar. Section 10 records where the build went into more detail.
