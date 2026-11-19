@@ -43,6 +43,8 @@ jobs:
           git log --format=%B "$MESSAGES" > "$RUNNER_TEMP/messages"   # fails the step when the range can't be read
           if grep -niE 'claude[.]ai|claude[-]session' "$RUNNER_TEMP/messages"; then echo "a commit message links to a Claude session"; exit 1; fi
           if git grep -niE 'claude[.]ai|claude[-]session'; then echo "a file links to a Claude session"; exit 1; fi
+      # A target CI calls that lost its recipe would pass without running anything.
+      - run: make recipes-check
       - run: make lint-go
       # The architecture rules read the code, so they run here, plain, rather than under go's -race and coverage.
       - run: make rules-go
