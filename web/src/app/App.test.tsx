@@ -33,9 +33,9 @@ import { ui } from '@/state/ui';
 import { fakeFetch, sampleCharacter } from '@/testing/fake-fetch';
 import type { FakeFetch, Script } from '@/testing/fake-fetch';
 import { FakeWebSocket } from '@/testing/fake-socket';
+import { pointerReaches } from '@/testing/pointer';
 import { resetStores } from '@/testing/reset-stores';
 import { user } from '@/testing/user';
-import { pointerReaches } from '@/testing/pointer';
 
 import { App } from './App';
 import { socketUrl } from './services';
