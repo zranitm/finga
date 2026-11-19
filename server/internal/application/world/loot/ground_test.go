@@ -228,19 +228,13 @@ func sceneWith(t *testing.T, items *grants, o options) *scene {
 	return s
 }
 
-// step runs one tick: the answers back settle, then the ground steps; the workers answer before it returns.
+// step runs one tick: the answers back by its start settle, then the ground steps; the workers answer before it returns. A call one of them sends answers on the next tick, however soon its worker does: settling it this tick too would be a race the instance, draining its inbox to empty, may or may not win.
 func (s *scene) step() []loot.Settled {
 	s.tick++
 	s.g.Begin(s.tick)
 	var out []loot.Settled
-	for {
-		select {
-		case r := <-s.results:
-			out = append(out, s.g.Settle(r))
-			continue
-		default:
-		}
-		break
+	for range len(s.results) {
+		out = append(out, s.g.Settle(<-s.results))
 	}
 	out = append(out, s.g.Step()...)
 	synctest.Wait()
@@ -845,6 +839,35 @@ func TestAnOwnerHasOneCallInFlightAndOneTakeWaiting(t *testing.T) {
 		if !waiting.done || !joins.done || waiting.got[0].Err != nil || joins.got[0].Err != nil || len(calls) != 2 ||
 			calls[1].Drops[0].Template != "red_potion" || calls[1].Drops[1].Template != "mushroom_cap" || !slices.Equal(s.batches.sizes, []int{1, 2}) {
 			t.Fatalf("calls %+v, batches %v; want the waiting take and the one that joined it in one call, both taken", calls, s.batches.sizes)
+		}
+	})
+}
+
+// The instance drains its inbox to empty, so a waiting take's call, sent as the first one settles, may answer while it drains: both settle on one tick, each take hearing its own.
+func TestAWaitingTakesCallMaySettleOnTheTickThatSentIt(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		items := &grants{answers: []answer{every(model.GrantAdded)}, gate: make(chan struct{})}
+		s := newScene(t, items)
+		ayla := owner("Ayla")
+		s.g.Roll(solo(trio, ayla))
+		first := s.only(ayla)
+		inFlight := s.take(ayla, model.Pick{Pouch: first.ID, Item: 1})
+		waiting := s.take(ayla, model.Pick{Pouch: first.ID, Item: 2})
+		close(items.gate)
+		synctest.Wait()
+		s.tick++
+		s.g.Begin(s.tick)
+		var settled []loot.Settled
+		settled = append(settled, s.g.Settle(<-s.results))
+		synctest.Wait() // the waiting take's call, sent by that settle, answers within the tick
+		settled = append(settled, s.g.Settle(<-s.results))
+		settled = append(settled, s.g.Step()...)
+		calls := items.made()
+		if !inFlight.done || !waiting.done || inFlight.got[0].Err != nil || waiting.got[0].Err != nil || len(calls) != 2 || len(calls[1].Drops) != 1 || calls[1].Drops[0].Template != "red_potion" {
+			t.Fatalf("calls %+v; want the first take and the waiting one each answered taken on one tick, the second call its potion alone", calls)
+		}
+		if left := s.only(ayla).Items; len(left) != 1 || left[0].Template != "mushroom_cap" || len(lootIn(settled)) != 2 {
+			t.Fatalf("pouch holds %+v, loot %+v; want the cap left and each take said taken", left, lootIn(settled))
 		}
 	})
 }
