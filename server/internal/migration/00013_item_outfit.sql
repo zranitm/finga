@@ -8,7 +8,8 @@ CREATE TABLE account_pieces (
   cause_type text NOT NULL,                    -- item, rank, quest or feat
   cause_ref  text,                             -- the rank, quest or feat; null for an item
   item_id    uuid,                             -- the item added, for an item alone
-  added_at   timestamptz NOT NULL,
+  created_at timestamptz NOT NULL,             -- when it was added
+  updated_at timestamptz NOT NULL,
   PRIMARY KEY (account_id, piece_id),
   CONSTRAINT account_pieces_cause CHECK (cause_type IN ('item', 'rank', 'quest', 'feat')),
   CONSTRAINT account_pieces_item CHECK ((cause_type = 'item') = (item_id IS NOT NULL) AND (cause_type = 'item') = (cause_ref IS NULL))

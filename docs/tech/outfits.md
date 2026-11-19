@@ -104,7 +104,7 @@ feats:
 
 - **Why the item module:** adding a piece takes an item and makes a wardrobe entry. That's one transaction, as a quest hand-in already is there. Pieces are possessions, as items are.
 - **Migration `00013_item_outfit.sql`:**
-  - `account_pieces(account_id, piece_id, cause_type, cause_ref, item_id NULL, added_at, PRIMARY KEY (account_id, piece_id))`: the wardrobe. `cause_type` is `item`, `rank`, `quest` or `feat`. `item_id` is set exactly when it's `item`, and `cause_ref` exactly when it isn't.
+  - `account_pieces(account_id, piece_id, cause_type, cause_ref, item_id NULL, created_at, updated_at, PRIMARY KEY (account_id, piece_id))`: the wardrobe. `cause_type` is `item`, `rank`, `quest` or `feat`. `item_id` is set exactly when it's `item`, and `cause_ref` exactly when it isn't.
   - `item_id` names the stack added from. It isn't unique: a stack outlives one add.
   - `character_looks(character_id PRIMARY KEY, outfit, headwear, face, weapon, wings, hide_headwear, revision)`. A null pick is the class's own, and a null `wings` is none. No row means the class's own look.
 - **Item events:**

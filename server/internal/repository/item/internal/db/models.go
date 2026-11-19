@@ -17,7 +17,8 @@ type AccountPiece struct {
 	CauseType string
 	CauseRef  *string
 	ItemID    *uuid.UUID
-	AddedAt   time.Time
+	CreatedAt dbx.Stamp
+	UpdatedAt dbx.Stamp
 }
 
 type CharacterLook struct {

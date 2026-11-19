@@ -21,7 +21,7 @@ func (p *Postgres) Pieces(ctx context.Context, account kernel.AccountID) ([]mode
 	}
 	out := make([]model.Piece, 0, len(rows))
 	for _, r := range rows {
-		piece := model.Piece{ID: r.PieceID, Cause: model.PieceCause(r.CauseType), AddedAt: r.AddedAt}
+		piece := model.Piece{ID: r.PieceID, Cause: model.PieceCause(r.CauseType), AddedAt: r.CreatedAt.Time()}
 		if r.ItemID != nil {
 			id := kernel.ItemID(*r.ItemID)
 			piece.Item = &id
@@ -52,7 +52,7 @@ type closet struct {
 // Add puts piece in the account's wardrobe, from item; false when it has it.
 func (c closet) Add(ctx context.Context, account kernel.AccountID, piece string, item kernel.ItemID) (bool, error) {
 	id := uuid.UUID(item)
-	n, err := c.q.AddPiece(ctx, db.AddPieceParams{AccountID: uuid.UUID(account), PieceID: piece, CauseType: string(model.PieceFromItem), ItemID: &id, Now: c.now.Time()})
+	n, err := c.q.AddPiece(ctx, db.AddPieceParams{AccountID: uuid.UUID(account), PieceID: piece, CauseType: string(model.PieceFromItem), ItemID: &id, Now: c.now})
 	return n == 1, err
 }
 

@@ -131,7 +131,7 @@ func TestAWardrobeEntryNamesWhatGaveIt(t *testing.T) {
 	pool := migratedDB(t)
 	account, item := uuidv7.New(), uuidv7.New()
 	insert := func(piece, cause string, ref *string, item *uuid.UUID) error {
-		_, err := pool.Exec(ctx, `INSERT INTO account_pieces (account_id, piece_id, cause_type, cause_ref, item_id, added_at) VALUES ($1, $2, $3, $4, $5, now())`, account, piece, cause, ref, item)
+		_, err := pool.Exec(ctx, `INSERT INTO account_pieces (account_id, piece_id, cause_type, cause_ref, item_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, now(), now())`, account, piece, cause, ref, item)
 		return err
 	}
 	silver := "silver"

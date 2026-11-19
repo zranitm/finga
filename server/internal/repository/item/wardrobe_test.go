@@ -251,7 +251,7 @@ func TestCheckThirteenCatchesAWardrobeOutOfStep(t *testing.T) {
 	ctx := context.Background()
 	for _, c := range []struct{ name, corrupt string }{
 		{"an entry lost", `DELETE FROM account_pieces`},
-		{"an entry naming an item with no collected event", `INSERT INTO account_pieces (account_id, piece_id, cause_type, item_id, added_at) SELECT account_id, 'mage_robe', 'item', gen_random_uuid(), now() FROM account_pieces`},
+		{"an entry naming an item with no collected event", `INSERT INTO account_pieces (account_id, piece_id, cause_type, item_id, created_at, updated_at) SELECT account_id, 'mage_robe', 'item', gen_random_uuid(), now(), now() FROM account_pieces`},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			h := newHarness(t)

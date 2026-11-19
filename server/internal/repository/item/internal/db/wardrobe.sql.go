@@ -7,15 +7,14 @@ package db
 
 import (
 	"context"
-	"time"
 
 	"finga/pkg/dbx"
 	"github.com/google/uuid"
 )
 
 const addPiece = `-- name: AddPiece :execrows
-INSERT INTO account_pieces (account_id, piece_id, cause_type, cause_ref, item_id, added_at)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO account_pieces (account_id, piece_id, cause_type, cause_ref, item_id, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $6)
 ON CONFLICT (account_id, piece_id) DO NOTHING
 `
 
@@ -25,7 +24,7 @@ type AddPieceParams struct {
 	CauseType string
 	CauseRef  *string
 	ItemID    *uuid.UUID
-	Now       time.Time
+	Now       dbx.Stamp
 }
 
 // A piece into the account's wardrobe, unless it has it.
@@ -106,9 +105,9 @@ func (q *Queries) FindLook(ctx context.Context, characterID uuid.UUID) (FindLook
 }
 
 const listPieces = `-- name: ListPieces :many
-SELECT piece_id, cause_type, cause_ref, item_id, added_at FROM account_pieces
+SELECT piece_id, cause_type, cause_ref, item_id, created_at FROM account_pieces
 WHERE account_id = $1
-ORDER BY added_at, piece_id
+ORDER BY created_at, piece_id
 `
 
 type ListPiecesRow struct {
@@ -116,7 +115,7 @@ type ListPiecesRow struct {
 	CauseType string
 	CauseRef  *string
 	ItemID    *uuid.UUID
-	AddedAt   time.Time
+	CreatedAt dbx.Stamp
 }
 
 func (q *Queries) ListPieces(ctx context.Context, accountID uuid.UUID) ([]ListPiecesRow, error) {
@@ -133,7 +132,7 @@ func (q *Queries) ListPieces(ctx context.Context, accountID uuid.UUID) ([]ListPi
 			&i.CauseType,
 			&i.CauseRef,
 			&i.ItemID,
-			&i.AddedAt,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
