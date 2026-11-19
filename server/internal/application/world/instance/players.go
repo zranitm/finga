@@ -129,10 +129,8 @@ func (i *Instance) add(j *joinMsg) {
 	i.nextSlot = (i.nextSlot + 1) % i.ticksPer // players joining together save on different ticks
 	i.players[p.ID] = p
 	i.order = append(i.order, p.ID)
-	snap := model.Snapshot{Tick: i.tick, MapID: i.m.ID, Players: make([]model.PlayerView, 0, len(i.order)), Mobs: i.arena.Views(), Pouches: i.ground.Views(j.player.ID)}
-	for _, id := range i.order {
-		snap.Players = append(snap.Players, i.view(i.players[id]))
-	}
+	snap := model.Snapshot{Tick: i.tick, MapID: i.m.ID, Pouches: i.ground.Views(j.player.ID)}
+	i.watchFrom(p, &snap)
 	switch {
 	case i.boss != nil:
 		up := i.bossUp()
@@ -209,6 +207,7 @@ func (i *Instance) detach(id kernel.CharacterID) {
 	}
 	delete(i.players, id)
 	i.order = slices.DeleteFunc(i.order, func(x kernel.CharacterID) bool { return x == id })
+	i.interest.leave(id)
 	i.arena.DropBy(id) // their damage over time ends with them
 }
 

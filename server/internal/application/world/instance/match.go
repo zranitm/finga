@@ -180,19 +180,14 @@ func (i *Instance) goToMatch(m toMatchMsg) {
 }
 
 // pendingMatches hands off those waiting for an item call to settle.
-func (i *Instance) pendingMatches() []kernel.CharacterID {
-	var left []kernel.CharacterID
+func (i *Instance) pendingMatches() {
 	for _, id := range slices.Clone(i.order) {
 		if p := i.players[id]; p.toMatch != nil && p.itemCalls == 0 {
 			m := *p.toMatch
 			p.toMatch = nil
 			i.goToMatch(m)
-			if _, still := i.players[id]; !still {
-				left = append(left, id)
-			}
 		}
 	}
-	return left
 }
 
 // kitted is pl as the match fights: the class's kit at its level, every skill it learns at its last stage with its traits, full HP and energy, at its side's spot, with no timers.
@@ -295,10 +290,10 @@ func (i *Instance) enterPhase(phase model.MatchPhase, d time.Duration) {
 }
 
 // stepMatch runs the match's clock at the tick's start: prep and between into a countdown, the countdown into a round, a round out of time to its outcome, and the result out.
-func (i *Instance) stepMatch() []kernel.CharacterID {
+func (i *Instance) stepMatch() {
 	mt := i.match
 	if mt == nil || i.tick < mt.ends {
-		return nil
+		return
 	}
 	switch mt.phase {
 	case model.PhasePrep:
@@ -317,7 +312,7 @@ func (i *Instance) stepMatch() []kernel.CharacterID {
 			}
 		}
 		if i.settleLeavers() {
-			return nil
+			return
 		}
 		i.enterPhase(model.PhaseCountdown, mt.rules.Rounds.Countdown)
 	case model.PhaseCountdown:
@@ -329,9 +324,8 @@ func (i *Instance) stepMatch() []kernel.CharacterID {
 		i.resetRound()
 		i.enterPhase(model.PhaseCountdown, mt.rules.Rounds.Countdown)
 	case model.PhaseResult:
-		return i.closeMatch()
+		i.closeMatch()
 	}
-	return nil
 }
 
 // judgeRound ends the round when a whole side is down or gone: the other side takes it, and an even round when both are.
@@ -571,15 +565,13 @@ func (i *Instance) resetRound() {
 }
 
 // closeMatch takes everyone back to where they came from and stops the instance.
-func (i *Instance) closeMatch() []kernel.CharacterID {
-	left := slices.Clone(i.order)
-	for _, id := range left {
+func (i *Instance) closeMatch() {
+	for _, id := range slices.Clone(i.order) {
 		i.goBack(i.players[id])
 	}
 	i.match.phase = model.PhaseResult
 	i.ended.Store(true)
 	i.cancel()
-	return left
 }
 
 // goBack hands a player in a match back to their return point as they were there, their timers counting on; a bot just goes.
@@ -608,15 +600,15 @@ func (i *Instance) worldStats(pl model.Player) model.StatsChanged {
 }
 
 // forfeit takes the player out of the match: before the outcome it's a loss, which ends a match whose side has no one left.
-func (i *Instance) forfeit(m forfeitMsg) []kernel.CharacterID {
+func (i *Instance) forfeit(m forfeitMsg) {
 	p, ok := i.players[m.id]
 	switch {
 	case !ok || p.Connection != m.conn:
 		m.done <- model.ErrNotInMatch
-		return nil
+		return
 	case i.match == nil:
 		m.done <- model.ErrNotInMatch
-		return nil
+		return
 	}
 	if i.match.phase != model.PhaseResult {
 		i.match.fighters[p.ID].left = true
@@ -625,7 +617,6 @@ func (i *Instance) forfeit(m forfeitMsg) []kernel.CharacterID {
 	i.goBack(p)
 	i.settleLeavers()
 	m.done <- nil
-	return []kernel.CharacterID{m.id}
 }
 
 // leftMatch marks a fighter who left the map some other way than the outcome, logged out or dropped, body as they were; in a team mode a stand-in takes it.

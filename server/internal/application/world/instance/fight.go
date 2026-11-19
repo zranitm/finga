@@ -8,7 +8,6 @@ import (
 	"finga/internal/application/world/mobs"
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
-	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"
 	"finga/internal/shared/sim"
 )
@@ -222,9 +221,8 @@ func (i *Instance) kill(p *player) {
 	i.events = append(i.events, model.Died{Tick: i.tick, ID: p.ID, X: p.state.X, Y: p.state.Y, Z: p.state.Z})
 }
 
-// deathsAndRespawns revives the dead at the town spawn and returns those handed off.
-func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
-	var left []kernel.CharacterID
+// deathsAndRespawns revives the dead at the town spawn, handing off those on another map.
+func (i *Instance) deathsAndRespawns() {
 	for _, id := range slices.Clone(i.order) {
 		p := i.players[id]
 		if !p.dead || p.deadUntil > i.tick || p.itemCalls > 0 && i.m.Town != i.m.ID {
@@ -249,7 +247,5 @@ func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
 		i.events = append(i.events, respawned)
 		p.sink.Send(respawned)
 		i.handOff(p, town, at.X, at.Z, yaw)
-		left = append(left, id)
 	}
-	return left
 }

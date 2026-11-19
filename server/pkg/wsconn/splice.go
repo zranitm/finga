@@ -22,15 +22,18 @@ func (s *Shared) bytes() ([]byte, error) {
 	return s.wire, s.err
 }
 
-// Spliced is a Shared body plus Own, of the same type with only this message's fields; protobuf reads both as one.
+// Spliced is Shared bodies plus Own, all of one type, Own with only this message's fields; protobuf reads them in turn as one.
 type Spliced struct {
-	Shared *Shared
+	Shared []*Shared
 	Own    proto.Message
 }
 
 // Message is the body as one message.
 func (s Spliced) Message() proto.Message {
-	m := proto.Clone(s.Shared.msg)
+	m := s.Own.ProtoReflect().New().Interface()
+	for _, part := range s.Shared {
+		proto.Merge(m, part.msg)
+	}
 	proto.Merge(m, s.Own)
 	return m
 }

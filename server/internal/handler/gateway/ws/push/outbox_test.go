@@ -184,36 +184,56 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 			model.Snapshot{Mobs: mobs, FieldBossGone: &model.FieldBossGone{MobID: 9, Type: "king_slime", BackInMs: 180000}},
 			&clientv1.Snapshot{Mobs: wireMobs, FieldBossGone: &clientv1.FieldBossGone{MobId: 9, Type: "king_slime", BackInMs: 180000}},
 		},
+		{ // the boss anywhere on the map, for its bar
+			model.Snapshot{FieldBoss: &model.FieldBoss{MobID: 9, Type: "king_slime"}, Boss: &model.MobView{ID: 9, Type: "king_slime", X: 400, HP: 900, MaxHP: 1000}},
+			&clientv1.Snapshot{FieldBoss: &clientv1.FieldBoss{MobId: 9, Type: "king_slime"}, Boss: &clientv1.MobView{Id: 9, Type: "king_slime", X: 400, Hp: 900, MaxHp: 1000}},
+		},
 		{model.FieldBoss{MobID: 9, Type: "king_slime"}, &clientv1.FieldBoss{MobId: 9, Type: "king_slime"}},
 		{model.FieldBossGone{MobID: 9, Type: "king_slime", BackInMs: 300000}, &clientv1.FieldBossGone{MobId: 9, Type: "king_slime", BackInMs: 300000}},
 		{
-			model.Delta{AckSeq: 3, Energy: proto.Uint32(6), Pouches: pouches, PouchesGone: []uint64{2}, Frame: &model.Frame{Players: players, Mobs: mobs, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint64{6}}},
+			model.Delta{AckSeq: 3, Energy: proto.Uint32(6), Pouches: pouches, PouchesGone: []uint64{2}, Frame: &model.Frame{Parts: []model.Part{{Players: players, Mobs: mobs, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint64{6}}}}, Parts: []int{0}},
 			&clientv1.Delta{AckSeq: 3, Energy: proto.Uint32(6), Pouches: wirePouches, PouchesGone: []uint32{2}, Players: wirePlayers, Mobs: wireMobs, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint32{6}},
 		},
 		{
-			model.Delta{Frame: &model.Frame{Mobs: []model.MobView{{ID: 1, Pose: model.Flinching}, {ID: 2, Pose: model.Down}, {ID: 3, Pose: model.Rising}}}},
+			model.Delta{Frame: &model.Frame{Parts: []model.Part{{Mobs: []model.MobView{{ID: 1, Pose: model.Flinching}, {ID: 2, Pose: model.Down}, {ID: 3, Pose: model.Rising}}}}}, Parts: []int{0}},
 			&clientv1.Delta{Mobs: []*clientv1.MobView{{Id: 1, Pose: clientv1.MobPose_MOB_POSE_FLINCH}, {Id: 2, Pose: clientv1.MobPose_MOB_POSE_DOWN}, {Id: 3, Pose: clientv1.MobPose_MOB_POSE_RISING}}},
 		},
 		{
-			model.Delta{Frame: &model.Frame{
+			model.Delta{Frame: &model.Frame{Parts: []model.Part{{
 				Players: []model.PlayerView{{ID: "p-1", Held: 30, Slow: model.PlayerSlow{Left: 12, Factor: 0.6}, Statuses: []model.StatusView{{ID: "slow", Ends: 81246}, {ID: "stun", Ends: 81250}}}},
 				Mobs:    []model.MobView{{ID: 7, Statuses: []model.StatusView{{ID: "poison", Ends: 81290}}}},
-			}},
+			}}}, Parts: []int{0}},
 			&clientv1.Delta{
 				Players: []*clientv1.PlayerView{{Id: "p-1", Held: 30, Slow: &clientv1.SlowWalk{Left: 12, Factor: 0.6}, Statuses: []*clientv1.StatusView{{Id: "slow", Ends: 81246}, {Id: "stun", Ends: 81250}}, Look: &clientv1.Look{}}},
 				Mobs:    []*clientv1.MobView{{Id: 7, Statuses: []*clientv1.StatusView{{Id: "poison", Ends: 81290}}}},
 			},
 		},
+		{ // two cells' parts and the map's, in the player's order, the parts they're not sent left out, and what they stopped seeing
+			model.Delta{
+				Frame: &model.Frame{Parts: []model.Part{
+					{Mobs: []model.MobView{{ID: 1}}, RemovedMobs: []uint64{4}},
+					{Players: []model.PlayerView{{ID: "p-9"}}},
+					{Mobs: []model.MobView{{ID: 2}}, RemovedMobs: []uint64{5}},
+					{Boss: &model.MobView{ID: 9, HP: 800}},
+				}},
+				Parts:  []int{2, 0, 3},
+				Unseen: &model.Unseen{Players: []string{"p-3"}, Mobs: []uint64{6, 7}},
+			},
+			&clientv1.Delta{
+				Mobs: []*clientv1.MobView{{Id: 2}, {Id: 1}}, RemovedMobs: []uint32{5, 4}, Boss: &clientv1.MobView{Id: 9, Hp: 800},
+				Unseen: &clientv1.Unseen{Players: []string{"p-3"}, Mobs: []uint32{6, 7}},
+			},
+		},
 		{ // a sprint's count, which the player's own reconcile steps on from
-			model.Delta{Frame: &model.Frame{Players: []model.PlayerView{{ID: "p-1", Sprint: 120}}}},
+			model.Delta{Frame: &model.Frame{Parts: []model.Part{{Players: []model.PlayerView{{ID: "p-1", Sprint: 120}}}}}, Parts: []int{0}},
 			&clientv1.Delta{Players: []*clientv1.PlayerView{{Id: "p-1", Sprint: 120, Look: &clientv1.Look{}}}},
 		},
 		{ // walk mode, the mode the player's own reconcile steps on in
-			model.Delta{Frame: &model.Frame{Players: []model.PlayerView{{ID: "p-1", Walk: true}}}},
+			model.Delta{Frame: &model.Frame{Parts: []model.Part{{Players: []model.PlayerView{{ID: "p-1", Walk: true}}}}}, Parts: []int{0}},
 			&clientv1.Delta{Players: []*clientv1.PlayerView{{Id: "p-1", Walk: true, Look: &clientv1.Look{}}}},
 		},
 		{ // a break-free's leap through mobs, with the farthest point it reached clear of them
-			model.Delta{Frame: &model.Frame{Players: []model.PlayerView{{ID: "p-1", Move: model.PlayerMove{VX: -13, Left: 9, Through: true, ClearX: 6.5, ClearZ: 3}}}}},
+			model.Delta{Frame: &model.Frame{Parts: []model.Part{{Players: []model.PlayerView{{ID: "p-1", Move: model.PlayerMove{VX: -13, Left: 9, Through: true, ClearX: 6.5, ClearZ: 3}}}}}}, Parts: []int{0}},
 			&clientv1.Delta{Players: []*clientv1.PlayerView{{Id: "p-1", Move: &clientv1.SkillMove{Vx: -13, Left: 9, Through: true, ClearX: 6.5, ClearZ: 3}, Look: &clientv1.Look{}}}},
 		},
 		{model.MapChange{MapID: "forest", X: 2, Z: 1, Yaw: -0.5}, &clientv1.MapChange{MapId: "forest", X: 2, Z: 1, Yaw: -0.5}},
@@ -314,25 +334,26 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 	}
 }
 
-// A frame's players share one encoding of it; each message adds only its player's ack.
-func TestAFramesPlayersShareOneEncoding(t *testing.T) {
+// The players sent a frame's part share one encoding of it; each message adds only its player's own fields.
+func TestAFramesPlayersShareEachPartsEncoding(t *testing.T) {
 	frames := push.NewFrames()
-	frame, next := &model.Frame{Players: []model.PlayerView{{ID: "p-1"}}}, &model.Frame{}
-	shared := func(f *model.Frame, ack uint32) *wsconn.Shared {
+	frame := &model.Frame{Parts: []model.Part{{Players: []model.PlayerView{{ID: "p-1"}}}, {Mobs: []model.MobView{{ID: 2}}}}}
+	next := &model.Frame{Parts: []model.Part{{}}}
+	shared := func(f *model.Frame, parts []int, ack uint32) []*wsconn.Shared {
 		t.Helper()
 		s := &socket{}
-		push.NewOutbox(s, s, frames).Deliver(model.Delivery{Tick: 9, Push: model.Delta{Frame: f, AckSeq: ack}})
+		push.NewOutbox(s, s, frames).Deliver(model.Delivery{Tick: 9, Push: model.Delta{Frame: f, Parts: parts, AckSeq: ack}})
 		sp, ok := s.sent[0].Data.(wsconn.Spliced)
-		if !ok || !proto.Equal(sp.Own, &clientv1.Delta{AckSeq: ack}) {
+		if !ok || !proto.Equal(sp.Own, &clientv1.Delta{AckSeq: ack}) || len(sp.Shared) != len(parts) {
 			t.Fatalf("sent %+v", s.sent[0].Data)
 		}
 		return sp.Shared
 	}
-	a, b := shared(frame, 1), shared(frame, 2)
-	if a != b {
-		t.Fatal("two players of one frame got two encodings")
+	a, c, b := shared(frame, []int{0}, 1), shared(frame, []int{1}, 2), shared(frame, []int{1, 0}, 3)
+	if a[0] != b[1] || b[0] == b[1] || c[0] != b[0] {
+		t.Fatal("two players sent one part got two encodings of it, or two parts shared one")
 	}
-	if shared(next, 1) == a {
+	if shared(next, []int{0}, 1)[0] == shared(frame, []int{0}, 4)[0] {
 		t.Fatal("the next frame reused the last one's encoding")
 	}
 }

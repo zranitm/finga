@@ -88,18 +88,25 @@ func TestAnEventSharesNothingTheMapChanges(t *testing.T) {
 	sheet := model.Sheet{Skills: model.Skills{Points: skills}}
 	stats := deliveryOf(model.StatsChanged{Sheet: &sheet}).Event.(StatsChanged)
 	level := deliveryOf(model.LevelUp{Sheet: sheet}).Event.(LevelUp)
-	removed := &model.Frame{Removed: []kernel.CharacterID{kernel.NewCharacterID()}, RemovedMobs: []uint64{1}}
+	removed := &model.Frame{Parts: []model.Part{{Removed: []kernel.CharacterID{kernel.NewCharacterID()}, RemovedMobs: []uint64{1}}}}
 	pouch := model.PouchView{ID: 4, Items: []model.PouchItem{{ID: 1, Template: "slime_gel", Quantity: 2}}}
-	to := []model.Recipient{{Pouches: model.Pouches{Changed: []model.PouchView{pouch}, Gone: []uint64{2}}}}
+	unseen := &model.Unseen{Players: []kernel.CharacterID{kernel.NewCharacterID()}, Mobs: []uint64{4}}
+	to := []model.Recipient{{Parts: []int{0}, Unseen: unseen, Pouches: model.Pouches{Changed: []model.PouchView{pouch}, Gone: []uint64{2}}}}
 	frame := frameOf(removed, to)
 	progress[0], skills["strike"] = 9, 9
-	removed.Removed[0], removed.RemovedMobs[0] = kernel.CharacterID{}, 9
+	part := removed.Parts[0]
+	part.Removed[0], part.RemovedMobs[0] = kernel.CharacterID{}, 9
+	to[0].Parts[0], unseen.Players[0], unseen.Mobs[0] = 9, kernel.CharacterID{}, 9
 	to[0].Pouches.Gone[0], pouch.Items[0].Quantity = 9, 9
 	if quest.Quest.Progress[0] != 1 || stats.Sheet.Skills.Points["strike"] != 2 || level.Sheet.Skills.Points["strike"] != 2 {
 		t.Fatalf("the events changed with the map: progress %v, skills %v and %v", quest.Quest.Progress, stats.Sheet.Skills.Points, level.Sheet.Skills.Points)
 	}
-	if own := frame.Recipients[0].Pouches; frame.Removed[0].IsZero() || frame.RemovedMobs[0] != 1 || own.Gone[0] != 2 || own.Changed[0].Items[0].Quantity != 2 {
+	got, r := frame.Parts[0], frame.Recipients[0]
+	if got.Removed[0].IsZero() || got.RemovedMobs[0] != 1 {
 		t.Fatalf("the frame changed with the map: %+v", frame)
+	}
+	if r.Parts[0] != 0 || r.Unseen.Players[0].IsZero() || r.Unseen.Mobs[0] != 4 || r.Pouches.Gone[0] != 2 || r.Pouches.Changed[0].Items[0].Quantity != 2 {
+		t.Fatalf("the recipient changed with the map: %+v", r)
 	}
 }
 
@@ -114,15 +121,15 @@ func TestAFrameGoesToItsGatewayOnce(t *testing.T) {
 		t.Fatal("two gateways share a stream")
 	}
 	energy := 6
-	to := []model.Recipient{{Character: a.character, Connection: "c-a", AckSeq: 8, Energy: &energy}, {Character: b.character, Connection: "c-b"}}
-	if !a.Stream().SendFrame(&model.Frame{Tick: 3, RemovedMobs: []uint64{6}}, to) {
+	to := []model.Recipient{{Character: a.character, Connection: "c-a", Parts: []int{0}, AckSeq: 8, Energy: &energy}, {Character: b.character, Connection: "c-b", Parts: []int{0}}}
+	if !a.Stream().SendFrame(&model.Frame{Tick: 3, Parts: []model.Part{{RemovedMobs: []uint64{6}}}}, to) {
 		t.Fatal("the stream refused the frame")
 	}
 	if n := len(sub.C()); n != 1 {
 		t.Fatalf("%d deliveries on the stream, want 1", n)
 	}
 	d := <-sub.C()
-	want := Delivery{Tick: 3, Event: Frame{RemovedMobs: []uint64{6}, Recipients: []Recipient{{Character: a.character, Connection: "c-a", AckSeq: 8, Energy: &energy}, {Character: b.character, Connection: "c-b"}}}}
+	want := Delivery{Tick: 3, Event: Frame{Parts: []Part{{RemovedMobs: []uint64{6}}}, Recipients: []Recipient{{Character: a.character, Connection: "c-a", Parts: []int{0}, AckSeq: 8, Energy: &energy}, {Character: b.character, Connection: "c-b", Parts: []int{0}}}}}
 	if !reflect.DeepEqual(d, want) {
 		t.Fatalf("got %+v, want %+v", d, want)
 	}
@@ -209,7 +216,7 @@ func TestAMobViewCarriesItsPose(t *testing.T) {
 		if len(snap.Mobs) != 1 || snap.Mobs[0].Pose != want {
 			t.Errorf("pose %d went out on a Snapshot as %+v, want %d", pose, snap.Mobs, want)
 		}
-		if got := frameOf(&model.Frame{Mobs: mobs}, nil).Mobs; len(got) != 1 || got[0].Pose != want {
+		if got := frameOf(&model.Frame{Parts: []model.Part{{Mobs: mobs}}}, nil).Parts[0].Mobs; len(got) != 1 || got[0].Pose != want {
 			t.Errorf("pose %d went out on a frame as %+v, want %d", pose, got, want)
 		}
 	}

@@ -38,11 +38,13 @@ import (
 // TickInterval is the tick Options give a map by default.
 const TickInterval = 50 * time.Millisecond
 
-// Delta is a tick's frame as one player got it.
+// Delta is a tick's frame as one player got it: their parts as one, as the client reads them, and what they stopped seeing.
 type Delta struct {
-	*model.Frame
+	*model.Part
+	Tick    uint64
 	AckSeq  uint32
 	Energy  *int          // set when the player's energy changed, and in the first frame after a join
+	Unseen  model.Unseen  // what they stopped seeing
 	Pouches model.Pouches // the player's own that changed
 }
 
@@ -61,7 +63,28 @@ func (s *Sink) Stream() instance.Stream { return s }
 
 // SendFrame records the frame as the player's Delta.
 func (s *Sink) SendFrame(f *model.Frame, to []model.Recipient) bool {
-	return s.record(Delta{Frame: f, AckSeq: to[0].AckSeq, Energy: to[0].Energy, Pouches: to[0].Pouches})
+	r := to[0]
+	d := Delta{Part: Joined(f, r.Parts), Tick: f.Tick, AckSeq: r.AckSeq, Energy: r.Energy, Pouches: r.Pouches}
+	if r.Unseen != nil {
+		d.Unseen = *r.Unseen
+	}
+	return s.record(d)
+}
+
+// Joined is a frame's parts as one, each list theirs in turn, as protobuf merges them.
+func Joined(f *model.Frame, parts []int) *model.Part {
+	out := &model.Part{}
+	for _, k := range parts {
+		p := f.Parts[k]
+		out.Players = append(out.Players, p.Players...)
+		out.Mobs = append(out.Mobs, p.Mobs...)
+		out.Removed = append(out.Removed, p.Removed...)
+		out.RemovedMobs = append(out.RemovedMobs, p.RemovedMobs...)
+		if p.Boss != nil {
+			out.Boss = p.Boss
+		}
+	}
+	return out
 }
 
 func (s *Sink) record(e any) bool {
@@ -100,7 +123,7 @@ func (s *Sink) Deltas() []Delta {
 func (s *Sink) Last() Delta {
 	ds := s.Deltas()
 	if len(ds) == 0 {
-		return Delta{Frame: &model.Frame{}}
+		return Delta{Part: &model.Part{}}
 	}
 	return ds[len(ds)-1]
 }
@@ -158,7 +181,7 @@ func LoadData(t testing.TB) *gamedata.Data {
 }
 
 // LoadDataWith is the game data the server ships, each file named in edits changed by its function first; tests making the same edits share it.
-func LoadDataWith(t *testing.T, edits map[string]func(string) string) *gamedata.Data {
+func LoadDataWith(t testing.TB, edits map[string]func(string) string) *gamedata.Data {
 	t.Helper()
 	src := gamedatatest.Dir()
 	texts := map[string]string{}
@@ -204,7 +227,7 @@ func Flat(size float64) sim.Geometry {
 }
 
 // Gridded is m with the walk grid of its geometry, as the loader gives every map.
-func Gridded(t *testing.T, m *gamedata.Map) *gamedata.Map {
+func Gridded(t testing.TB, m *gamedata.Map) *gamedata.Map {
 	t.Helper()
 	m.Grid = nav.New(m.Geometry, LoadData(t).Movement().Step)
 	return m

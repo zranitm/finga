@@ -84,9 +84,8 @@ func (i *Instance) movedOn(p *player) {
 
 func moving(in sim.Input) bool { return in.Left || in.Right || in.Up || in.Down || in.Jump }
 
-// teleports hands off each player whose channel ends this tick to its map's player spawn, and returns those handed off; an item call in flight settles here first.
-func (i *Instance) teleports() []kernel.CharacterID {
-	var left []kernel.CharacterID
+// teleports hands off each player whose channel ends this tick to its map's player spawn; an item call in flight settles here first.
+func (i *Instance) teleports() {
 	for _, id := range slices.Clone(i.order) {
 		p := i.players[id]
 		c := p.channel
@@ -95,7 +94,5 @@ func (i *Instance) teleports() []kernel.CharacterID {
 		}
 		p.channel = nil
 		i.handOff(p, c.target, c.target.PlayerSpawn.X, c.target.PlayerSpawn.Z, float32(c.target.SpawnYaw))
-		left = append(left, id)
 	}
-	return left
 }

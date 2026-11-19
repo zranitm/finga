@@ -295,6 +295,9 @@ teleport:
   channel: 2500ms
 interest:
   cell: 32
+  behind: 1
+  ahead: 3
+  side: 3
 `,
 		"maps/pit.yaml": `
 name: Pit
@@ -430,8 +433,9 @@ func TestValidDataLoads(t *testing.T) {
 		}
 	})
 	t.Run("the most active quests and the longest chat line", func(t *testing.T) {
-		if d.MaxActiveQuests() != 20 || d.ChatLineMax() != 120 || d.TeleportChannel() != 2500*time.Millisecond || d.InterestCell() != 32 {
-			t.Fatalf("max active %d, chat line %d, teleport channel %v, interest cell %v", d.MaxActiveQuests(), d.ChatLineMax(), d.TeleportChannel(), d.InterestCell())
+		in := gamedata.Interest{Cell: 32, Behind: 1, Ahead: 3, Side: 3}
+		if d.MaxActiveQuests() != 20 || d.ChatLineMax() != 120 || d.TeleportChannel() != 2500*time.Millisecond || d.InterestCell() != 32 || d.Interest() != in {
+			t.Fatalf("max active %d, chat line %d, teleport channel %v, interest %+v", d.MaxActiveQuests(), d.ChatLineMax(), d.TeleportChannel(), d.Interest())
 		}
 	})
 	t.Run("a mob's attacks from the table, with its own changes, and the rules they share", func(t *testing.T) {
@@ -820,8 +824,16 @@ func TestRejections(t *testing.T) {
 		{"a player width off the walk grid's steps", "movement.yaml", "radius: 0.375", "radius: 0.38", []string{"movement.yaml", "radius 0.38", "2⁻¹³ m steps"}},
 		{"a cancel point that isn't a number", "actions.yaml", "cancel: 0.85", "cancel: .nan", []string{"actions.yaml", "cancel"}},
 		{"an endless gravity", "movement.yaml", "gravity: 38", "gravity: .inf", []string{"movement.yaml", "gravity"}},
-		{"world.yaml without an interest cell", "world.yaml", "interest:\n  cell: 32\n", "", []string{"world.yaml", "interest.cell"}},
+		{"world.yaml without an interest cell", "world.yaml", "  cell: 32\n", "", []string{"world.yaml", "interest.cell"}},
 		{"an interest cell that isn't a number", "world.yaml", "  cell: 32\n", "  cell: .nan\n", []string{"world.yaml", "interest.cell"}},
+		{"no interest row behind the player", "world.yaml", "  behind: 1\n", "  behind: 0\n", []string{"world.yaml", "interest.behind"}},
+		{"no interest column to the side", "world.yaml", "  side: 3\n", "", []string{"world.yaml", "side"}},
+		{"a mob seeing past the row behind", "mobs.yaml", "sight: 9.375", "sight: 32.5", []string{"world.yaml", "a mob's sight", "32.5 m", "32 m"}},
+		{"a mob's shot flying past the row behind", "mobs.yaml", "    attacks: [{use: hop}]\n", "    attacks: [{use: spit, range: 32}]\n", []string{"world.yaml", "green_slime's spit", "32.1875 m"}},
+		{"a mob's leap landing past the row behind", "mobs.yaml", "{use: hop, distance: 5", "{use: hop, distance: 31", []string{"world.yaml", "slime_lord's hop"}},
+		{"a class's shot past the row behind", "classes.yaml", "range: 13.125", "range: 32.5", []string{"world.yaml", "class bowman's attack", "32.5 m"}},
+		{"a skill's arc past the row behind", "skills.yaml", "shape: {kind: arc, radius: 2.375", "shape: {kind: arc, radius: 33", []string{"world.yaml", "skill strike", "33 m"}},
+		{"a cell too small for the rows behind", "world.yaml", "  cell: 32\n", "  cell: 12\n", []string{"world.yaml", "13.125 m", "12 m"}},
 		{"a talk reach that isn't a number", "npcs.yaml", "talk_reach: 1.875", "talk_reach: .nan", []string{"npcs.yaml", "talk_reach"}},
 		{"an endless melee attack", "classes.yaml", "radius: 2.375, angle: 120, height: 1.75, length: 600ms", "radius: .inf, angle: 120, height: 1.75, length: 600ms", []string{"classes.yaml", "warrior", "radius"}},
 		{"a ranged attack's range that isn't a number", "classes.yaml", "range: 13.125", "range: .nan", []string{"classes.yaml", "bowman", "range"}},

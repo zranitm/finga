@@ -2,6 +2,7 @@ package wsconn
 
 import (
 	"fmt"
+	"slices"
 
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/encoding/protowire"
@@ -85,10 +86,12 @@ func (c *ProtoCodec) Encode(m Message) ([]byte, error) {
 	return proto.Marshal(env.Interface())
 }
 
-// encodeSpliced writes the envelope, then the body field: the shared bytes and the message's own after them.
+// encodeSpliced writes the envelope, then the body field: each shared part's bytes and the message's own after them.
 func (c *ProtoCodec) encodeSpliced(m Message, s Spliced) ([]byte, error) {
-	if s.Shared == nil || s.Own == nil || s.Shared.msg.ProtoReflect().Descriptor().FullName() != s.Own.ProtoReflect().Descriptor().FullName() {
-		return nil, fmt.Errorf("%w: a spliced body needs a shared and an own part of one type", ErrUnknownType)
+	if s.Own == nil || slices.ContainsFunc(s.Shared, func(p *Shared) bool {
+		return p.msg.ProtoReflect().Descriptor() != s.Own.ProtoReflect().Descriptor()
+	}) {
+		return nil, fmt.Errorf("%w: a spliced body needs shared parts and an own part of one type", ErrUnknownType)
 	}
 	if c.format == JSON {
 		m.Data = s.Message()
@@ -98,21 +101,32 @@ func (c *ProtoCodec) encodeSpliced(m Message, s Spliced) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	shared, err := s.Shared.bytes()
-	if err != nil {
-		return nil, err
-	}
 	own, err := proto.Marshal(s.Own)
 	if err != nil {
 		return nil, err
+	}
+	size := len(own)
+	for _, p := range s.Shared {
+		shared, err := p.bytes()
+		if err != nil {
+			return nil, err
+		}
+		size += len(shared)
 	}
 	b, err := proto.Marshal(env.Interface())
 	if err != nil {
 		return nil, err
 	}
 	b = protowire.AppendTag(b, field.Number(), protowire.BytesType)
-	b = protowire.AppendVarint(b, uint64(len(shared)+len(own)))
-	return append(append(b, shared...), own...), nil
+	b = protowire.AppendVarint(b, uint64(size))
+	if len(s.Shared) > 1 { // one buffer for many parts; a lone part's append makes one without zeroing it first
+		b = slices.Grow(b, size)
+	}
+	for _, p := range s.Shared {
+		shared, _ := p.bytes() // made above
+		b = append(b, shared...)
+	}
+	return append(b, own...), nil
 }
 
 // envelope is a new out envelope holding m's seq, req and tick, and the body field data's type goes in.

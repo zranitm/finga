@@ -5,6 +5,7 @@ import (
 
 	"finga/internal/application/world"
 	model "finga/internal/model/gateway"
+	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"
 )
 
@@ -19,7 +20,8 @@ func delivered(d world.Delivery, deliver func(model.WorldEvent)) {
 				e := uint32(*r.Energy) //nolint:gosec // energy is 0 to the data's max
 				energy = &e
 			}
-			deliver(model.WorldDelivery{Connection: r.Connection, Character: r.Character, Delivery: model.Delivery{Tick: d.Tick, Push: model.Delta{Frame: frame, AckSeq: r.AckSeq, Energy: energy, Pouches: pouchViews(r.Pouches.Changed), PouchesGone: r.Pouches.Gone}}})
+			delta := model.Delta{Frame: frame, Parts: r.Parts, AckSeq: r.AckSeq, Energy: energy, Unseen: unseenOf(r.Unseen), Pouches: pouchViews(r.Pouches.Changed), PouchesGone: r.Pouches.Gone}
+			deliver(model.WorldDelivery{Connection: r.Connection, Character: r.Character, Delivery: model.Delivery{Tick: d.Tick, Push: delta}})
 		}
 	case world.Detached:
 		deliver(model.Detached{Connection: d.Conn, Character: d.Character})
@@ -34,7 +36,7 @@ func delivered(d world.Delivery, deliver func(model.WorldEvent)) {
 func worldPush(e world.Event) (model.Push, bool) {
 	switch ev := e.(type) {
 	case world.Snapshot:
-		snap := model.Snapshot{Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Pouches: pouchViews(ev.Pouches)}
+		snap := model.Snapshot{Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Pouches: pouchViews(ev.Pouches), Boss: mobView(ev.Boss)}
 		if ev.FieldBoss != nil {
 			boss := fieldBoss(*ev.FieldBoss)
 			snap.FieldBoss = &boss
@@ -243,11 +245,30 @@ func derived(d progression.Derived) model.DerivedStats {
 
 // frameOf is a Frame as every recipient shares it, read-only as the facade's is.
 func frameOf(f world.Frame) *model.Frame {
-	out := &model.Frame{
-		Players: playerViews(f.Players), Mobs: mobViews(f.Mobs), RemovedMobs: f.RemovedMobs,
+	out := &model.Frame{Parts: make([]model.Part, len(f.Parts))}
+	for i, p := range f.Parts {
+		out.Parts[i] = model.Part{
+			Players: playerViews(p.Players), Mobs: mobViews(p.Mobs), RemovedPlayers: ids(p.Removed),
+			RemovedMobs: p.RemovedMobs, Boss: mobView(p.Boss),
+		}
 	}
-	for _, id := range f.Removed {
-		out.RemovedPlayers = append(out.RemovedPlayers, id.String())
+	return out
+}
+
+func unseenOf(u *world.Unseen) *model.Unseen {
+	if u == nil {
+		return nil
+	}
+	return &model.Unseen{Players: ids(u.Players), Mobs: u.Mobs}
+}
+
+func ids(cs []kernel.CharacterID) []string {
+	if len(cs) == 0 {
+		return nil
+	}
+	out := make([]string, len(cs))
+	for i, id := range cs {
+		out[i] = id.String()
 	}
 	return out
 }
@@ -296,12 +317,24 @@ func mobViews(ms []world.MobView) []model.MobView {
 	}
 	out := make([]model.MobView, 0, len(ms))
 	for _, m := range ms {
-		out = append(out, model.MobView{
-			ID: m.ID, Type: m.Type, X: m.X, Y: m.Y, HP: m.HP, MaxHP: m.MaxHP, Pose: mobPoses[m.Pose], Z: m.Z, Yaw: m.Yaw,
-			Statuses: statusViews(m.Statuses),
-		})
+		out = append(out, mobViewOf(m))
 	}
 	return out
+}
+
+func mobView(m *world.MobView) *model.MobView {
+	if m == nil {
+		return nil
+	}
+	v := mobViewOf(*m)
+	return &v
+}
+
+func mobViewOf(m world.MobView) model.MobView {
+	return model.MobView{
+		ID: m.ID, Type: m.Type, X: m.X, Y: m.Y, HP: m.HP, MaxHP: m.MaxHP, Pose: mobPoses[m.Pose], Z: m.Z, Yaw: m.Yaw,
+		Statuses: statusViews(m.Statuses),
+	}
 }
 
 func pouchViews(ps []world.PouchView) []model.PouchView {

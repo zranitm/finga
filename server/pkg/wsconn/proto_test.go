@@ -60,6 +60,37 @@ func TestProtoCodecRoundTrips(t *testing.T) {
 	}
 }
 
+// Shared parts in turn and a message's own fields after them read as one message, each repeated field the parts' in order; with no parts, the own alone.
+func TestSplicedPartsReadAsTheirUnion(t *testing.T) {
+	east := wsconn.NewShared(&clientv1.Delta{Players: []*clientv1.PlayerView{{Id: "p-1", X: 40}}, RemovedMobs: []uint32{6}})
+	west := wsconn.NewShared(&clientv1.Delta{Players: []*clientv1.PlayerView{{Id: "p-2", X: 3}}, Mobs: []*clientv1.MobView{{Id: 9}}})
+	own := &clientv1.Delta{AckSeq: 7, Unseen: &clientv1.Unseen{Mobs: []uint32{4}}}
+	want := &clientv1.Delta{
+		AckSeq: 7, Players: []*clientv1.PlayerView{{Id: "p-1", X: 40}, {Id: "p-2", X: 3}}, Mobs: []*clientv1.MobView{{Id: 9}},
+		RemovedMobs: []uint32{6}, Unseen: &clientv1.Unseen{Mobs: []uint32{4}},
+	}
+	for _, f := range []wsconn.Format{wsconn.Binary, wsconn.JSON} {
+		t.Run(f.String(), func(t *testing.T) {
+			for _, c := range []struct {
+				parts []*wsconn.Shared
+				want  *clientv1.Delta
+			}{{[]*wsconn.Shared{east, west}, want}, {nil, own}} {
+				b, err := serverCodec(f).Encode(wsconn.Message{Tick: 9, Data: wsconn.Spliced{Shared: c.parts, Own: own}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				back, err := clientCodec(f).Decode(b)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !proto.Equal(back.Data.(proto.Message), c.want) {
+					t.Fatalf("decoded %v, want %v", back.Data, c.want)
+				}
+			}
+		})
+	}
+}
+
 // A spliced body, shared bytes and a message's own fields after them, reads as the whole message.
 func TestASplicedBodyReadsAsTheWholeMessage(t *testing.T) {
 	shared := wsconn.NewShared(&clientv1.Delta{Players: []*clientv1.PlayerView{{Id: "p-1", X: 3}}, RemovedMobs: []uint32{6}})
@@ -67,7 +98,7 @@ func TestASplicedBodyReadsAsTheWholeMessage(t *testing.T) {
 	for _, f := range []wsconn.Format{wsconn.Binary, wsconn.JSON} {
 		t.Run(f.String(), func(t *testing.T) {
 			for _, ack := range []uint32{7, 7} { // the second reuses the shared bytes
-				b, err := serverCodec(f).Encode(wsconn.Message{ReqID: "r-2", Tick: 81235, Data: wsconn.Spliced{Shared: shared, Own: &clientv1.Delta{AckSeq: ack}}})
+				b, err := serverCodec(f).Encode(wsconn.Message{ReqID: "r-2", Tick: 81235, Data: wsconn.Spliced{Shared: []*wsconn.Shared{shared}, Own: &clientv1.Delta{AckSeq: ack}}})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -82,12 +113,12 @@ func TestASplicedBodyReadsAsTheWholeMessage(t *testing.T) {
 		})
 	}
 	t.Run("as one message", func(t *testing.T) {
-		if got := (wsconn.Spliced{Shared: shared, Own: &clientv1.Delta{AckSeq: 7}}).Message(); !proto.Equal(got, want) {
+		if got := (wsconn.Spliced{Shared: []*wsconn.Shared{shared}, Own: &clientv1.Delta{AckSeq: 7}}).Message(); !proto.Equal(got, want) {
 			t.Fatalf("got %v", got)
 		}
 	})
 	t.Run("a body the envelope does not carry", func(t *testing.T) {
-		_, err := serverCodec(wsconn.Binary).Encode(wsconn.Message{Data: wsconn.Spliced{Shared: wsconn.NewShared(&clientv1.Input{}), Own: &clientv1.Input{}}})
+		_, err := serverCodec(wsconn.Binary).Encode(wsconn.Message{Data: wsconn.Spliced{Shared: []*wsconn.Shared{wsconn.NewShared(&clientv1.Input{})}, Own: &clientv1.Input{}}})
 		if !errors.Is(err, wsconn.ErrUnknownType) {
 			t.Fatalf("err = %v", err)
 		}

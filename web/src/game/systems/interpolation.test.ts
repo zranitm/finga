@@ -196,6 +196,15 @@ describe('RemotePlayers', () => {
     expect(r.render(1200)).toEqual({ shown: new Map(), looks: new Map(), gone: [] });
   });
 
+  it('a player back, in sight or on the map, before their removal was drawn past stays drawn, from their new frame', () => {
+    const r = new RemotePlayers('me', TICK_MS);
+    r.applySnapshot(1000, [wire('a', 10)]);
+    r.applyDelta(1050, [], ['a']);
+    r.applyDelta(1100, [wire('a', 12)], []);
+    expect(r.render(1060)).toMatchObject({ gone: [] });
+    expect(r.render(1100).shown.get('a')?.x).toBe(12);
+  });
+
   it('a dodge shows from its frame to the next that ends it, unblended, and goes with its player', () => {
     const r = new RemotePlayers('me', TICK_MS);
     const dodging = (x: number) => ({ ...wire('a', x), dodging: true });

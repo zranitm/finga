@@ -7,20 +7,19 @@ import (
 
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
-	"finga/internal/shared/kernel"
 	"finga/internal/shared/nav"
 	"finga/internal/shared/sim"
 )
 
-// enterPortal reports whether the player left through a portal. A press during an item call waits for it to settle, as the hand-off must carry its result; the client sends a press once.
-func (i *Instance) enterPortal(p *player) bool {
+// enterPortal hands the player off through the portal they stand in, if any. A press during an item call waits for it to settle, as the hand-off must carry its result; the client sends a press once.
+func (i *Instance) enterPortal(p *player) {
 	if p.itemCalls > 0 {
 		p.portalPress = true
-		return false
+		return
 	}
 	p.portalPress = false
 	if p.dead {
-		return false
+		return
 	}
 	for _, portal := range i.m.Portals {
 		if !i.standsIn(portal, p.state) {
@@ -28,28 +27,25 @@ func (i *Instance) enterPortal(p *player) bool {
 		}
 		target, ok := i.data.Map(portal.TargetMap)
 		if !ok {
-			return false
+			return
 		}
 		k := slices.IndexFunc(target.Portals, func(q gamedata.Portal) bool { return q.Name == portal.TargetPortal })
 		if k < 0 {
-			return false
+			return
 		}
 		arrival := target.Portals[k].At
 		i.handOff(p, target, arrival.X, arrival.Z, awayFrom(target, arrival.X, arrival.Z))
-		return true
+		return
 	}
-	return false
 }
 
 // pendingPortals tries each portal press that waited for an item call, once it settles: the player leaves if still alive and in a portal.
-func (i *Instance) pendingPortals() []kernel.CharacterID {
-	var left []kernel.CharacterID
+func (i *Instance) pendingPortals() {
 	for _, id := range slices.Clone(i.order) {
-		if p := i.players[id]; p.portalPress && p.itemCalls == 0 && i.match == nil && i.enterPortal(p) {
-			left = append(left, id)
+		if p := i.players[id]; p.portalPress && p.itemCalls == 0 && i.match == nil {
+			i.enterPortal(p)
 		}
 	}
-	return left
 }
 
 // standsIn reports whether s has its feet centre in the portal's circle, edge included, within portalHeight of the ground at its centre.

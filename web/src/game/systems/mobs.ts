@@ -67,6 +67,7 @@ export class MobTracker {
     }
   >();
   private readonly tracks = new Map<number, Track>();
+  private readonly outOfSight = new Set<number>(); // removed as out of sight, not killed
   private newest = 0;
 
   constructor(private readonly tickMs: number) {}
@@ -79,22 +80,36 @@ export class MobTracker {
     }
   }
 
-  applyDelta(t: number, mobs: readonly MobWire[], removed: readonly number[]): void {
+  /** A frame: the mobs that changed, those killed, which show dead until they drain, and those out of sight, which go as they are. */
+  applyDelta(
+    t: number,
+    mobs: readonly MobWire[],
+    removed: readonly number[],
+    unseen: readonly number[],
+  ): void {
     for (const m of mobs) {
       this.put(t, m);
     }
     for (const id of removed) {
-      this.buffers.get(id)?.remove(t);
       const i = this.info.get(id);
       if (i) {
-        i.hp = 0; // killed: it shows dead until it drains
+        i.hp = 0;
       }
-      const tr = this.tracks.get(id);
-      if (tr) {
-        tr.gone = this.tickOf(t);
-      }
+      this.leave(t, id);
+    }
+    for (const id of unseen) {
+      this.outOfSight.add(id);
+      this.leave(t, id);
     }
     this.prune();
+  }
+
+  private leave(t: number, id: number): void {
+    this.buffers.get(id)?.remove(t);
+    const tr = this.tracks.get(id);
+    if (tr) {
+      tr.gone = this.tickOf(t);
+    }
   }
 
   /** The mobs' circles as view's frame left them, in id order as the world keeps them, which it blocks inputs at view against. */
@@ -139,14 +154,16 @@ export class MobTracker {
     return gone == null ? undefined : gone * this.tickMs;
   }
 
-  render(renderTime: number): { shown: Map<number, MobState>; gone: number[] } {
+  /** The mobs drawn at renderTime, and those drawn past their removal: killed, gone, or out of sight, unseen. */
+  render(renderTime: number): { shown: Map<number, MobState>; gone: number[]; unseen: number[] } {
     const shown = new Map<number, MobState>();
     const gone: number[] = [];
+    const unseen: number[] = [];
     for (const [id, b] of this.buffers) {
       if (b.drained(renderTime)) {
         this.buffers.delete(id);
         this.info.delete(id);
-        gone.push(id);
+        (this.outOfSight.delete(id) ? unseen : gone).push(id);
         continue;
       }
       const s = b.sample(renderTime);
@@ -166,13 +183,14 @@ export class MobTracker {
         });
       }
     }
-    return { shown, gone };
+    return { shown, gone, unseen };
   }
 
   clear(): void {
     this.buffers.clear();
     this.info.clear();
     this.tracks.clear();
+    this.outOfSight.clear();
     this.newest = 0;
   }
 
@@ -186,6 +204,9 @@ export class MobTracker {
     if (!tr) {
       tr = { type: m.type, at: [], gone: null };
       this.tracks.set(m.id, tr);
+    }
+    if (tr.gone !== null && tick > tr.gone) {
+      tr.gone = null; // back in sight
     }
     const last = tr.at.at(-1);
     if (last?.tick === tick) {
@@ -212,6 +233,7 @@ export class MobTracker {
   }
 
   private put(t: number, m: MobWire): void {
+    this.outOfSight.delete(m.id);
     this.track(this.tickOf(t), m);
     let b = this.buffers.get(m.id);
     if (!b) {

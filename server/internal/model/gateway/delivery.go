@@ -13,13 +13,14 @@ type Delivery struct {
 //sumtype:decl
 type Push interface{ push() }
 
-// Snapshot is everything on the player's map; a join waits for it.
+// Snapshot is what the player sees of their map, the cells round them; a join waits for it.
 type Snapshot struct {
 	Players       []PlayerView
 	Mobs          []MobView
 	Pouches       []PouchView    // the player's own
 	FieldBoss     *FieldBoss     // while one is up
 	FieldBossGone *FieldBossGone // while the map's is beaten
+	Boss          *MobView       // the field boss as it stands while one is up, wherever on the map, for its bar
 }
 
 // FieldBoss is the map's field boss: its mob and its type. It stays until it's beaten.
@@ -35,21 +36,35 @@ type FieldBossGone struct {
 	BackInMs int64
 }
 
-// Delta is what changed on the player's map since the last tick, AckSeq, the player's last input the world applied, the player's energy as of then when it changed or the player just joined, and the player's own pouches that changed, which no other player's Delta carries.
+// Delta is what changed round the player since the last tick: the frame's Parts the player is sent, by index; AckSeq, the player's last input the world applied; the player's energy as of then when it changed or the player just joined; what the player stopped seeing; and the player's own pouches that changed, which no other player's Delta carries.
 type Delta struct {
-	*Frame
+	Frame       *Frame
+	Parts       []int
 	AckSeq      uint32
 	Energy      *uint32
+	Unseen      *Unseen // nil when nothing went out of their sight
 	Pouches     []PouchView
 	PouchesGone []uint64
 }
 
-// Frame is what changed on a map in one tick; it is shared, and read-only.
+// Frame is what changed on a map in one tick, in parts its players share; read-only.
 type Frame struct {
+	Parts []Part
+}
+
+// Part is what changed in one of a map's cells in a tick, or, for the map's own part, its field boss as it changed.
+type Part struct {
 	Players        []PlayerView
 	Mobs           []MobView
 	RemovedPlayers []string
 	RemovedMobs    []uint64
+	Boss           *MobView // the map's part: the field boss as it changed, for every player's bar
+}
+
+// Unseen are the bodies a player stopped seeing, out of the cells round them though still on the map.
+type Unseen struct {
+	Players []string
+	Mobs    []uint64
 }
 
 // MapChange moves the player to another map.

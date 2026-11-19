@@ -82,6 +82,7 @@ type Instance struct {
 	saves    Checkpoints
 	arena    *mobs.Arena
 	ground   *loot.Ground
+	interest *interest
 	roll     model.Roll // the map's random source, which equipment rewards roll from as drops do
 
 	tick     uint64
@@ -94,10 +95,9 @@ type Instance struct {
 	bossBack uint64     // the tick a beaten boss is back; 0 until one is beaten
 	fallen   uint64     // the beaten boss's mob, while it is down
 
-	dropped []kernel.CharacterID // removed during the last broadcast, reported next tick
-	events  []model.Event        // map-wide events of the current tick
-	later   []model.Event        // events raised after a tick's were sent, which open the next tick's
-	casts   []skillMsg           // this tick's skill uses, resolved after movement
+	events []model.Event // map-wide events of the current tick
+	later  []model.Event // events raised after a tick's were sent, which open the next tick's
+	casts  []skillMsg    // this tick's skill uses, resolved after movement
 }
 
 // message is what the tick drains from the inbox.
@@ -199,6 +199,7 @@ func New(d Deps, t Tuning) *Instance {
 		players:  map[kernel.CharacterID]*player{},
 		ticksPer: max(uint64(t.CheckpointInterval/t.TickInterval), 1),
 		roll:     roll,
+		interest: newInterest(d.Data.Interest(), d.Map.Geometry.SizeX, d.Map.Geometry.SizeZ),
 	}
 	if d.Match != nil {
 		i.match = newMatch(*d.Match, d.Data.Pvp(), i.ticksFor)
@@ -318,7 +319,10 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.events = append(i.events[:0], i.later...)
 	i.later = i.later[:0]
 	i.ground.Begin(n)
-	removed := slices.Concat(i.dropped, i.drain(), i.stepMatch(), i.pendingMatches(), i.pendingPortals())
+	i.drain()
+	i.stepMatch()
+	i.pendingMatches()
+	i.pendingPortals()
 	i.thinkBots()
 	changed := i.simulate()
 	if len(i.order) == 0 {
@@ -337,9 +341,9 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.resolveAttacks()
 	i.mobHits()
 	i.settleDowns()
-	removed = append(removed, i.deathsAndRespawns()...)
+	i.deathsAndRespawns()
 	i.judgeRound()
-	removed = append(removed, i.teleports()...)
+	i.teleports()
 	i.stepBoss()
 	if n%i.ticksFor(time.Second) == 0 {
 		i.regen()
@@ -355,28 +359,16 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 		}
 	}
 	i.retellParties()
-	i.dropped = i.broadcast(changed, i.gone(removed))
+	i.broadcast(changed)
 }
 
-// gone keeps the removed players not back: a rejoin in one tick is an update, and the client applies removals last.
-func (i *Instance) gone(removed []kernel.CharacterID) []kernel.CharacterID {
-	out := removed[:0]
-	for _, id := range removed {
-		if _, back := i.players[id]; !back && !slices.Contains(out, id) {
-			out = append(out, id)
-		}
-	}
-	return out
-}
-
-func (i *Instance) drain() []kernel.CharacterID {
-	var removed []kernel.CharacterID
+func (i *Instance) drain() {
 	for range drainLimit {
 		var m message
 		select {
 		case m = <-i.inbox:
 		default:
-			return removed
+			return
 		}
 		switch m := m.(type) {
 		case *joinMsg:
@@ -393,8 +385,8 @@ func (i *Instance) drain() []kernel.CharacterID {
 		case settleMsg:
 			i.settle(i.ground.Settle(m.result))
 		case portalMsg:
-			if p, ok := i.players[m.id]; ok && i.match == nil && i.enterPortal(p) {
-				removed = append(removed, m.id)
+			if p, ok := i.players[m.id]; ok && i.match == nil {
+				i.enterPortal(p)
 			}
 		case equipMsg:
 			if !i.refused(m.done) {
@@ -446,12 +438,9 @@ func (i *Instance) drain() []kernel.CharacterID {
 				i.startUse(m)
 			}
 		case forfeitMsg:
-			removed = append(removed, i.forfeit(m)...)
+			i.forfeit(m)
 		case toMatchMsg:
 			i.goToMatch(m)
-			if _, still := i.players[m.id]; !still {
-				removed = append(removed, m.id)
-			}
 		case fightMsg:
 			i.canFight(m)
 		case usedMsg:
@@ -463,14 +452,12 @@ func (i *Instance) drain() []kernel.CharacterID {
 		case leaveMsg:
 			if p, ok := i.players[m.id]; ok && (m.conn == "" || p.Connection == m.conn) {
 				i.remove(m.id)
-				removed = append(removed, m.id)
 			}
 			if m.done != nil {
 				close(m.done)
 			}
 		}
 	}
-	return removed
 }
 
 // settled posts a grant call's answer to the tick, unless the map has stopped and nothing drains the inbox.

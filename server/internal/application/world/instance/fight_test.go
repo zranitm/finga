@@ -30,8 +30,14 @@ const (
 
 func arena(t *testing.T, respawn time.Duration) *gamedata.Map {
 	t.Helper()
+	return arenaOf(t, respawn, 40)
+}
+
+// arenaOf is the arena on flat ground side metres square.
+func arenaOf(t *testing.T, respawn time.Duration, side float64) *gamedata.Map {
+	t.Helper()
 	return worldtest.Gridded(t, &gamedata.Map{
-		ID: "arena", Kind: gamedata.Hunting, Town: "town", Geometry: worldtest.Flat(40),
+		ID: "arena", Kind: gamedata.Hunting, Town: "town", Geometry: worldtest.Flat(side),
 		Spawns:      []gamedata.Spawn{{Mob: "green_slime", Max: 1, Respawn: respawn, At: gamedata.Point{X: arenaX, Z: slimeZ}, Radius: 0.01}},
 		PlayerSpawn: gamedata.Point{X: arenaX, Z: spawnZ},
 	})
