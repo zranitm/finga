@@ -45,7 +45,7 @@ func (i *Instance) startTeleport(m teleportMsg) {
 	}
 	target, ok := i.data.Map(m.mapID)
 	switch {
-	case !ok:
+	case !ok || target.Kind == gamedata.Pvp: // a match's map is reached by a match alone
 		m.done <- model.ErrTeleportUnknownMap
 	case target.ID == i.m.ID:
 		m.done <- model.ErrTeleportSameMap

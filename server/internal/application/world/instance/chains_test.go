@@ -78,12 +78,20 @@ func chainer(x, z float64) model.Player {
 	return p
 }
 
+// mobRef is the lock on mob id, none for 0.
+func mobRef(id uint32) model.EntityRef {
+	if id == 0 {
+		return model.EntityRef{}
+	}
+	return model.EntityRef{Mob: uint64(id)}
+}
+
 // press uses skill from root's key, as pressed during input seq, and returns the answer once a tick resolves it, waiting at most 10 s for its turn.
 func press(t *testing.T, inst *instance.Instance, id kernel.CharacterID, skill, root string, target uint32, seq uint32) error {
 	t.Helper()
 	done := make(chan error, 1)
 	go func() {
-		done <- inst.UseSkill(context.Background(), id, "c1", model.SkillUse{Skill: skill, Root: root, Target: target}, seq)
+		done <- inst.UseSkill(context.Background(), id, "c1", model.SkillUse{Skill: skill, Root: root, Target: mobRef(target)}, seq)
 	}()
 	for range 200 {
 		tick(1)

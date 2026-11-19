@@ -20,6 +20,7 @@ import (
 	adapter "finga/internal/adapter/gateway"
 	"finga/internal/application/account"
 	"finga/internal/application/item"
+	"finga/internal/application/pvp"
 	"finga/internal/application/social"
 	"finga/internal/application/world"
 	"finga/internal/handler/gateway/ws/receive"
@@ -179,6 +180,8 @@ func (f *fakeAccount) Subscribe(gateway string) *hub.Sub[account.Event] {
 // fakeWorld is the world module; Join sends what came before and a Snapshot on the stream before answering.
 type fakeWorld struct {
 	deliveries *stream[world.Delivery]
+	forfeits   []world.Presence
+	forfeitErr error
 	mu         sync.Mutex
 	chars      map[kernel.CharacterID]fakeCharacter
 	conns      map[kernel.CharacterID]string // the connection each character last joined through
@@ -248,7 +251,7 @@ type (
 	attackCall struct {
 		p      world.Presence
 		aim    float32
-		target uint32
+		target world.EntityRef
 	}
 	sayCall struct {
 		p          world.Presence
@@ -499,7 +502,7 @@ func (f *fakeWorld) Input(_ context.Context, p world.Presence, seq uint32, in si
 	return nil
 }
 
-func (f *fakeWorld) Attack(ctx context.Context, p world.Presence, aim float32, target uint32) (err error) {
+func (f *fakeWorld) Attack(ctx context.Context, p world.Presence, aim float32, target world.EntityRef) (err error) {
 	f.ops.Add(1)
 	ctx, call := worldCalls.Start(ctx, "Attack")
 	defer call.End(&err)
@@ -637,6 +640,14 @@ func (f *fakeWorld) AbandonQuest(_ context.Context, p world.Presence, quest stri
 func (f *fakeWorld) HandInQuest(_ context.Context, p world.Presence, npc, quest string) error {
 	f.ops.Add(1)
 	return f.questCall(questCall{method: "HandInQuest", p: p, npc: npc, quest: quest})
+}
+
+func (f *fakeWorld) Forfeit(_ context.Context, p world.Presence) error {
+	f.ops.Add(1)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.forfeits = append(f.forfeits, p)
+	return f.forfeitErr
 }
 
 func (f *fakeWorld) questCall(c questCall) error {
@@ -846,6 +857,47 @@ type fakeSocial struct {
 type offlineCall struct {
 	id   kernel.CharacterID
 	conn string
+}
+
+// fakePvp records the queue's commands, answering err, and streams what a test pushes.
+type fakePvp struct {
+	pushes *stream[pvp.Push]
+	mu     sync.Mutex
+	calls  []string
+	err    error
+}
+
+func newFakePvp() *fakePvp { return &fakePvp{pushes: newStream[pvp.Push]()} }
+
+func (f *fakePvp) record(call string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, call)
+	return f.err
+}
+
+func (f *fakePvp) Queue(_ context.Context, who pvp.Player, mode string) error {
+	return f.record("Queue " + who.ID.String() + " " + who.Name + " " + mode)
+}
+
+func (f *fakePvp) LeaveQueue(_ context.Context, who kernel.CharacterID) error {
+	return f.record("LeaveQueue " + who.String())
+}
+
+func (f *fakePvp) Answer(_ context.Context, who kernel.CharacterID, offer string, accept bool) error {
+	return f.record(fmt.Sprintf("Answer %s %s %v", who, offer, accept))
+}
+
+func (f *fakePvp) Offline(_ context.Context, who kernel.CharacterID) error {
+	return f.record("Offline " + who.String())
+}
+
+func (f *fakePvp) Subscribe(gateway string) *hub.Sub[pvp.Push] { return f.pushes.subscribe(gateway) }
+
+func (f *fakePvp) recorded() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.calls)
 }
 
 func newFakeSocial() *fakeSocial {

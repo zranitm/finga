@@ -44,11 +44,22 @@ func newGatewayWith(w *world, g *guard, checkEvery time.Duration) gateway {
 // newGatewayOver is newGatewayWith over items, which every Welcome reads the inventory from.
 func newGatewayOver(w *world, g *guard, checkEvery time.Duration, items session.Items) gateway {
 	log := slog.New(slog.DiscardHandler)
-	sessions := session.NewRegistry(session.Deps{World: w, Social: idle{}, Items: items, Logger: log, Panics: panics.NewRecorder(log, nil), Traces: noop.NewTracerProvider(), Observer: idle{}}, session.Options{Gateway: "gw-1", JoinTimeout: joinTimeout})
+	sessions := session.NewRegistry(session.Deps{World: w, Social: idle{}, Pvp: noPvp{}, Items: items, Logger: log, Panics: panics.NewRecorder(log, nil), Traces: noop.NewTracerProvider(), Observer: idle{}}, session.Options{Gateway: "gw-1", JoinTimeout: joinTimeout})
 	return gateway{
-		Gateway: send.New(send.Deps{Sessions: g, Registry: sessions, World: w, Items: idle{}, Social: idle{}, Logger: log, Observer: idle{}}, send.Options{JoinTimeout: joinTimeout}),
-		pushes:  push.New(push.Deps{Sessions: g, Registry: sessions, World: w, Social: idle{}, Account: idle{}, Logger: log, Panics: panics.NewRecorder(log, nil), Traces: noop.NewTracerProvider()}, push.Options{SessionCheckInterval: checkEvery}),
+		Gateway: send.New(send.Deps{Sessions: g, Registry: sessions, World: w, Items: idle{}, Social: idle{}, Pvp: noPvp{}, Logger: log, Observer: idle{}}, send.Options{JoinTimeout: joinTimeout}),
+		pushes:  push.New(push.Deps{Sessions: g, Registry: sessions, World: w, Social: idle{}, Pvp: noPvp{}, Account: idle{}, Logger: log, Panics: panics.NewRecorder(log, nil), Traces: noop.NewTracerProvider()}, push.Options{SessionCheckInterval: checkEvery}),
 	}
+}
+
+// noPvp is the pvp module, which these tests don't exercise: no queue, and a stream that waits for its end.
+type noPvp struct{}
+
+func (noPvp) Queue(context.Context, model.Player, string) error              { return nil }
+func (noPvp) LeaveQueue(context.Context, kernel.CharacterID) error           { return nil }
+func (noPvp) Answer(context.Context, kernel.CharacterID, string, bool) error { return nil }
+func (noPvp) Offline(context.Context, kernel.CharacterID) error              { return nil }
+func (noPvp) FollowDeliveries(ctx context.Context, _ string, _ func(model.PvpDelivery)) {
+	<-ctx.Done()
 }
 
 // idle is every module these tests do not exercise: it answers nothing went wrong, and its streams wait for their end.
@@ -387,7 +398,7 @@ func (w *world) Leave(context.Context, model.Presence) error {
 	return nil
 }
 func (w *world) Input(context.Context, model.Presence, uint32, model.Keys, uint32) error { return nil }
-func (w *world) Attack(context.Context, model.Presence, float32, uint32) error           { return nil }
+func (w *world) Attack(context.Context, model.Presence, float32, model.Target) error     { return nil }
 func (w *world) EnterPortal(context.Context, model.Presence) error                       { return nil }
 func (w *world) Say(context.Context, model.Presence, string, string) error               { return nil }
 func (w *world) Equip(context.Context, model.Presence, model.ItemEquip) error            { return nil }
@@ -406,6 +417,7 @@ func (w *world) UseSkill(context.Context, model.Presence, model.SkillUse, uint32
 }
 func (w *world) Teleport(context.Context, model.Presence, string, uint32) error    { return nil }
 func (w *world) Promote(context.Context, model.Presence, string, string) error     { return nil }
+func (w *world) Forfeit(context.Context, model.Presence) error                     { return nil }
 func (w *world) Talk(context.Context, model.Presence, string) error                { return nil }
 func (w *world) AcceptQuest(context.Context, model.Presence, model.QuestAsk) error { return nil }
 func (w *world) AbandonQuest(context.Context, model.Presence, string) error        { return nil }

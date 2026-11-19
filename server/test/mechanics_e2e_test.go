@@ -54,7 +54,7 @@ func TestAnAreaAtTheLockFallsOnTheLockedSlime(t *testing.T) {
 	// struck uses Meteor and reports whether it hit the slime, judged by the frames: its hit lands as it's used, and a frame 10 ticks on comes after any damage of that tick.
 	struck := func(req string, target uint32) bool {
 		t.Helper()
-		l.Send(wsconn.Message{ReqID: req, Seq: l.Seq, Data: &clientv1.UseSkill{Skill: "test_meteor", Aim: east, Target: target}})
+		l.Send(wsconn.Message{ReqID: req, Seq: l.Seq, Data: &clientv1.UseSkill{Skill: "test_meteor", Aim: east, Target: e2etest.MobRef(target)}})
 		var used uint64
 		hit, past := false, false
 		l.Pump(10*time.Second, func(m wsconn.Message) bool {

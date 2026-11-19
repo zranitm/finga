@@ -121,6 +121,8 @@ type Player struct {
 	Timers     SkillTimers // travels with the player too, and the checkpoint keeps it
 	// HandedIn are completions the item module handed in while the world missed the reply; the map's join finishes them.
 	HandedIn []HandedIn
+	// Back is where a player going into a match returns to; nil outside one.
+	Back *Return
 }
 
 // Character is a character as last saved, loaded to join.
@@ -179,6 +181,8 @@ type PlayerView struct {
 	State    sim.State    // Held and Slow carry its statuses' hold on its movement
 	Aim      float32      // the yaw its latest attack or skill aimed along
 	Statuses []StatusView // its abnormal statuses
+	Team     int          // its side in a match, 1 or 2; 0 outside one
+	Bot      bool
 }
 
 // MobView is a mob as everyone on the map sees it.
@@ -209,6 +213,9 @@ type EntityRef struct {
 	Player kernel.CharacterID // zero when the entity is a mob
 	Mob    uint64
 }
+
+// IsZero reports whether the reference names nothing, as an unset lock.
+func (e EntityRef) IsZero() bool { return e == EntityRef{} }
 
 // IsMob reports whether the reference names a mob.
 func (e EntityRef) IsMob() bool { return e.Player.IsZero() }
@@ -319,6 +326,8 @@ type StatsChanged struct {
 	Sheet *Sheet // set when the sheet changed, as gear and points change it; nil when only HP moved
 	HP    int
 	MaxHP int
+	// Timers, when set, replace every cooldown and buff the player holds: entering and leaving a match, and at each round's reset.
+	Timers *SkillTimers
 }
 
 func (Snapshot) event() {}
@@ -365,7 +374,7 @@ type SkillUsed struct {
 	Stage  int
 	Trait  string // the extra trait it was used with, "" for the default
 	Aim    float32
-	Target uint32 // the mob it was aimed at, 0 for none
+	Target EntityRef // the lock it was aimed at, zero for none
 }
 
 func (SkillUsed) event() {}

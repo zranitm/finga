@@ -30,7 +30,7 @@ func (o *Outbox) body(p model.Push) any {
 	case model.Damage:
 		return &clientv1.Damage{Source: entityRef(p.Source), Target: entityRef(p.Target), Amount: int32(p.Amount), Crit: p.Crit, Miss: p.Miss, Dodge: p.Dodge, Block: p.Block, StatusId: p.Status, Shielded: int32(p.Shielded)}
 	case model.SkillUsed:
-		return &clientv1.SkillUsed{Caster: p.Caster, Skill: p.Skill, Stage: int32(p.Stage), Trait: p.Trait, Aim: p.Aim, Target: p.Target}
+		return &clientv1.SkillUsed{Caster: p.Caster, Skill: p.Skill, Stage: int32(p.Stage), Trait: p.Trait, Aim: p.Aim, Target: lockRef(p.Target)}
 	case model.AttackUsed:
 		return &clientv1.AttackUsed{Attacker: p.Attacker, LengthTicks: uint32(p.LengthTicks), Aim: p.Aim} //nolint:gosec // lengths are small
 	case model.MobAttacked:
@@ -51,6 +51,18 @@ func (o *Outbox) body(p model.Push) any {
 		return InventoryChanged(p)
 	case model.StatsChanged:
 		return statsChanged(p)
+	case model.MatchState:
+		return matchState(p)
+	case model.PvpQueued:
+		return &clientv1.PvpQueued{Mode: p.Mode, SinceMs: uint32(p.Since.Milliseconds()), Members: p.Members} //nolint:gosec // a wait of minutes
+	case model.PvpUnqueued:
+		return &clientv1.PvpUnqueued{Reason: unqueueReasons[p.Reason]}
+	case model.PvpOffer:
+		return &clientv1.PvpOffer{Offer: p.Offer, Mode: p.Mode, Bots: int32(p.Bots), UntilMs: uint32(p.Until.Milliseconds())} //nolint:gosec // a few bots, seconds
+	case model.PvpOfferCancelled:
+		return &clientv1.PvpOfferGone{Offer: p.Offer, Reason: goneReasons[p.Reason], Requeued: p.Requeued}
+	case model.MatchEnded:
+		return matchEnded(p)
 	case model.Loot:
 		return &clientv1.Loot{
 			Kind: lootKinds[p.Kind], MapId: p.MapID, DropId: uint32(p.DropID), OwnerId: p.Owner, OwnerName: p.OwnerName, Template: p.Template, Quantity: int32(p.Quantity),

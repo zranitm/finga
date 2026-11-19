@@ -49,9 +49,9 @@ type player struct {
 	class        gamedata.Class
 	derived      progression.Derived
 	attackQueued bool
-	attackAim    float32 // the queued attack's
-	attackTarget uint32  // the queued attack's locked mob, 0 for none
-	aim          float32 // the yaw the latest action started aimed along
+	attackAim    float32         // the queued attack's
+	attackTarget model.EntityRef // the queued attack's lock, zero for none
+	aim          float32         // the yaw the latest action started aimed along
 	action       action
 	windUps      []windUp // hits still to land
 	invulnUntil  uint64   // shown: a hit's blink
@@ -88,10 +88,16 @@ type player struct {
 	channel      *channel          // a teleport under way
 	buffs        map[string]buff   // by skill
 	statuses     model.Statuses
-	combatUntil  uint64 // in combat before this tick: combat's length after the latest Damage naming the player
+	combatUntil  uint64      // in combat before this tick: combat's length after the latest Damage naming the player
+	toMatch      *toMatchMsg // a hand-off to a match waiting for the item calls in flight
+	bot          *brain      // a match's bot's, which presses its keys; nil for a player
 }
 
 func (i *Instance) add(j *joinMsg) {
+	if i.match != nil && !i.joinMatch(j) {
+		j.done <- model.ErrNotInMatch // a fighter there already keeps their place
+		return
+	}
 	if _, dup := i.players[j.player.ID]; dup {
 		i.remove(j.player.ID) // a stale presence; the new connection wins
 	}
@@ -133,6 +139,10 @@ func (i *Instance) add(j *joinMsg) {
 		i.remove(p.ID)
 		j.done <- ErrSinkClosed
 		return
+	}
+	if i.match != nil {
+		p.bot = i.brainFor(p)
+		i.welcome(p)
 	}
 	i.tellParty(p, i.m.ID) // a join is a map change, and gives the party the member as the world has them
 	for _, h := range p.HandedIn {
@@ -182,6 +192,7 @@ func (i *Instance) remove(id kernel.CharacterID) {
 	}
 	i.checkpoint(p)
 	i.detach(id)
+	i.leftMatch(id)
 }
 
 // detach drops a player without a checkpoint; the caller has saved one. A skill use still waiting for its turn hears it won't go.
@@ -260,7 +271,7 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 		before := p.state
 		if !p.dead && !hold {
 			moves := i.movement(p)
-			g := i.m.Geometry.Blocking(i.arena.BlockersAt(i.seen(p.view)))
+			g := i.geometry().Blocking(i.arena.BlockersAt(i.seen(p.view)))
 			if passed, _ := slices.BinarySearch(p.sprintEnds, p.lastSeq); passed > 0 {
 				p.sprintEnds = slices.Delete(p.sprintEnds, 0, passed)
 				p.state = sim.EndSprint(p.state)
@@ -332,7 +343,7 @@ func (i *Instance) view(p *player) model.PlayerView {
 	return model.PlayerView{
 		ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.derived.MaxHP, Dead: p.dead, Invulnerable: p.invulnUntil > i.tick,
 		Dodging: p.dodging(i.tick), Shield: p.shield(), State: p.state, Aim: p.aim,
-		Statuses: p.statuses.Shown(),
+		Statuses: p.statuses.Shown(), Team: i.side(p.ID), Bot: p.bot != nil,
 	}
 }
 
@@ -340,6 +351,14 @@ func (i *Instance) view(p *player) model.PlayerView {
 func (i *Instance) checkpoint(p *player) { i.checkpointOn(p, i.m.ID) }
 
 func (i *Instance) checkpointOn(p *player, mapID string) {
+	if p.bot != nil {
+		return // a bot has no row
+	}
+	if b := p.Back; b != nil { // in a match, where they go back to
+		c := b.Player
+		i.saves.Put(model.Checkpoint{ID: c.ID, Class: c.Class, MapID: b.MapID, X: c.X, Y: c.Y, Z: c.Z, Yaw: c.Yaw, HP: c.HP, Energy: c.Energy, Level: c.Level, Exp: c.Exp, Points: c.Points, Skills: c.Skills.Clone(), Quests: c.Quests.Clone(), Timers: c.Timers.Clone()})
+		return
+	}
 	cp := model.Checkpoint{ID: p.ID, Class: p.Class, MapID: mapID, X: p.state.X, Y: p.state.Y, Z: p.state.Z, Yaw: facing(p.state), HP: p.HP, Energy: p.Energy, Level: p.Level, Exp: p.Exp, Points: p.Points, Skills: p.Skills.Clone(), Quests: p.Quests.Clone(), Timers: i.timersOf(p, time.Now())}
 	if p.dead { // the respawn it is owed; the death penalty is already taken
 		town := i.town()

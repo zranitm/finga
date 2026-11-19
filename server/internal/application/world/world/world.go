@@ -2,6 +2,7 @@
 package world
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -39,6 +40,8 @@ type World struct {
 	deps      Deps
 	instances map[string]*instance.Instance
 	order     []string
+	matches   matches // opened on demand
+	tuning    instance.Tuning
 	presences presences
 	locks     *keylock.Locks[kernel.CharacterID] // every presence change of a character but the tick's, one at a time
 	// saves holds each character's newest checkpoint until the persistence worker has saved it.
@@ -67,6 +70,7 @@ type Deps struct {
 	Panics       *panics.Recorder // a transfer's panic
 	Logger       *slog.Logger
 	SaveObserver SaveObserver
+	Results      instance.Results // where matches' outcomes go
 }
 
 // Tuning is how often the maps tick and checkpoint, how long the last saves may take on shutdown, and how many drops one grant call may carry.
@@ -87,8 +91,12 @@ func New(d Deps, t Tuning) *World {
 	}
 	w.mapsCtx, w.mapsStopped = context.WithCancel(context.Background())
 	w.jobsCtx, w.stopBackground = context.WithCancel(context.Background())
+	w.tuning = instance.Tuning{TickInterval: t.TickInterval, CheckpointInterval: t.CheckpointInterval, BatchMax: t.BatchMax}
 	for _, m := range data.Maps() {
-		w.instances[m.ID] = instance.New(instance.Deps{Services: d.Services, Map: m, Data: data, Saves: w.saves, Mover: w, Logger: d.Logger}, instance.Tuning{TickInterval: t.TickInterval, CheckpointInterval: t.CheckpointInterval, BatchMax: t.BatchMax})
+		if m.Kind == gamedata.Pvp {
+			continue // a match opens its own
+		}
+		w.instances[m.ID] = instance.New(instance.Deps{Services: d.Services, Map: m, Data: data, Saves: w.saves, Mover: w, Logger: d.Logger}, w.tuning)
 		w.order = append(w.order, m.ID)
 	}
 	return w
@@ -103,10 +111,13 @@ func (w *World) mapNamed(mapID string) (*instance.Instance, error) {
 	return i, nil
 }
 
-// Run ticks every map until ctx is done or a map panics, whose suspect state is not saved; then it stops the transfers, and Save flushes the rest. Run once.
+// Run ticks every map, and every match as it opens, until ctx is done or one panics, whose suspect state is not saved; then it stops the transfers, and Save flushes the rest. Run once.
 func (w *World) Run(ctx context.Context) error {
 	defer w.mapsStopped() // no more checkpoints can arrive
-	g, gctx := errgroup.WithContext(ctx)
+	runCtx, fail := context.WithCancelCause(ctx)
+	defer fail(nil)
+	w.matches.start(runCtx, fail)
+	g, gctx := errgroup.WithContext(runCtx)
 	for _, id := range w.order {
 		inst := w.instances[id]
 		g.Go(func() (err error) {
@@ -120,6 +131,8 @@ func (w *World) Run(ctx context.Context) error {
 		})
 	}
 	err := g.Wait()
+	fail(nil) // the matches stop with the maps
+	err = cmp.Or(err, w.matches.stop())
 	w.stopBackground()
 	w.background.Wait()
 	return err

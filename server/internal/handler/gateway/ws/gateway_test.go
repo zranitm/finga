@@ -85,6 +85,7 @@ type deps struct {
 	World                adapter.WorldModule
 	Items                adapter.ItemModule
 	Social               adapter.SocialModule
+	Pvp                  adapter.PvpModule
 	Logger               *slog.Logger
 	Observer             observer
 	CORSOrigins          []string
@@ -99,12 +100,13 @@ type deps struct {
 func (d deps) build() (*push.Gateway, http.Handler) {
 	worldPort := adapter.NewWorld(d.World, d.Logger, nil)
 	socialPort := adapter.NewSocial(d.Social, d.Logger, nil)
+	pvpPort := adapter.NewPvp(d.Pvp, d.Logger, nil)
 	recorder := panics.NewRecorder(d.Logger, nil)
 	items := adapter.NewItems(d.Items)
 	guard := adapter.NewGuard(d.Account)
-	sessions := session.NewRegistry(session.Deps{World: worldPort, Social: socialPort, Items: items, Logger: d.Logger, Panics: recorder, Traces: d.Traces, Observer: d.Observer}, session.Options{Gateway: d.ID, JoinTimeout: d.JoinTimeout})
-	sends := send.Deps{Sessions: guard, Registry: sessions, World: worldPort, Items: items, Social: socialPort, Logger: d.Logger, Observer: d.Observer}
-	pushes := push.Deps{Sessions: guard, Registry: sessions, World: worldPort, Social: socialPort, Account: adapter.NewSessionEnds(d.Account, d.Logger, nil), Logger: d.Logger, Panics: recorder, Traces: d.Traces}
+	sessions := session.NewRegistry(session.Deps{World: worldPort, Social: socialPort, Pvp: pvpPort, Items: items, Logger: d.Logger, Panics: recorder, Traces: d.Traces, Observer: d.Observer}, session.Options{Gateway: d.ID, JoinTimeout: d.JoinTimeout})
+	sends := send.Deps{Sessions: guard, Registry: sessions, World: worldPort, Items: items, Social: socialPort, Pvp: pvpPort, Logger: d.Logger, Observer: d.Observer}
+	pushes := push.Deps{Sessions: guard, Registry: sessions, World: worldPort, Social: socialPort, Pvp: pvpPort, Account: adapter.NewSessionEnds(d.Account, d.Logger, nil), Logger: d.Logger, Panics: recorder, Traces: d.Traces}
 	return push.New(pushes, push.Options{SessionCheckInterval: d.SessionCheckInterval}), ws.New(send.New(sends, send.Options{JoinTimeout: d.JoinTimeout}), ws.Options{
 		Origins: d.CORSOrigins, HelloTimeout: d.HelloTimeout, CommandQueue: d.CommandQueue, Observer: d.Observer, Logger: d.Logger, Panics: recorder, Traces: d.Traces,
 	})
@@ -126,6 +128,7 @@ func newHarnessOn(t *testing.T, fw *fakeWorld, opts ...func(*deps)) *harness {
 		World:                fw,
 		Items:                &fakeItems{},
 		Social:               newFakeSocial(),
+		Pvp:                  newFakePvp(),
 		Logger:               slog.New(slog.DiscardHandler),
 		Observer:             obs,
 		HelloTimeout:         200 * time.Millisecond,
@@ -666,10 +669,19 @@ func TestAttackIsRoutedAsTheSenderWithItsAimAndLock(t *testing.T) {
 		c := h.dial(t)
 		c.hello(tokenAlice, aylaID)
 		c.expect("Snapshot")
-		c.send(wsconn.Message{Seq: 3, Data: &clientv1.Attack{Aim: 1.25, Target: 42}})
+		c.send(wsconn.Message{Seq: 3, Data: &clientv1.Attack{Aim: 1.25, Target: "m:42"}})
 		attacks := waitFor(t, "the attack", h.world.attackList, 1)
-		if len(attacks) != 1 || attacks[0].p.Character != aylaID || attacks[0].p.Conn != h.world.joins()[0].p.Conn || attacks[0].aim != 1.25 || attacks[0].target != 42 {
+		if len(attacks) != 1 || attacks[0].p.Character != aylaID || attacks[0].p.Conn != h.world.joins()[0].p.Conn || attacks[0].aim != 1.25 || attacks[0].target != (world.EntityRef{Mob: 42}) {
 			t.Fatalf("attacks %+v", attacks)
+		}
+		for _, bad := range []string{"m:0", "m:x", "p:not-an-id", "42"} {
+			c.send(wsconn.Message{Seq: 4, Data: &clientv1.Attack{Target: bad}}) // refused: none reaches the world
+		}
+		c.send(wsconn.Message{Seq: 5, Data: &clientv1.Attack{Aim: 0.5, Target: "p:" + robinID.String()}})
+		c.send(wsconn.Message{Seq: 6, Data: &clientv1.Attack{Aim: 0.25}})
+		attacks = waitFor(t, "the player's and the unlocked attacks", h.world.attackList, 3)
+		if len(attacks) != 3 || attacks[1].target != (world.EntityRef{Player: robinID}) || attacks[2].target != (world.EntityRef{}) {
+			t.Fatalf("attacks after the malformed locks, a player's and none %+v", attacks)
 		}
 	})
 }
@@ -1236,7 +1248,7 @@ func (failingPortals) EnterPortal(context.Context, world.Presence) error {
 	return errors.New("world bug")
 }
 
-func (failingPortals) Attack(context.Context, world.Presence, float32, uint32) error {
+func (failingPortals) Attack(context.Context, world.Presence, float32, world.EntityRef) error {
 	return errDown
 }
 
@@ -2449,11 +2461,11 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 			h.world.failPoints(nil)
 		})
 		part(t, "UseSkill goes to the world as the sender with its aim, lock, way and input seq, answering once the tick resolved it, or with its refusal", func() {
-			c.send(wsconn.Message{Seq: 7, ReqID: "u-1", Data: &clientv1.UseSkill{Skill: "strike", ChainRoot: "strike", Aim: -1.5, Target: 9, Way: &clientv1.SkillWay{X: 0.6, Z: -0.8, Length: 4.25}}})
+			c.send(wsconn.Message{Seq: 7, ReqID: "u-1", Data: &clientv1.UseSkill{Skill: "strike", ChainRoot: "strike", Aim: -1.5, Target: "m:9", Way: &clientv1.SkillWay{X: 0.6, Z: -0.8, Length: 4.25}}})
 			if r := c.expect("Response"); r.ReqID != "u-1" || !r.Data.(*clientv1.Response).GetOk() {
 				t.Fatalf("response %+v, want ok to u-1", r)
 			}
-			if casts := h.world.castCalls(); len(casts) != 1 || casts[0].p.Character != aylaID || casts[0].use != (world.SkillUse{Skill: "strike", Root: "strike", Aim: -1.5, Target: 9, Way: sim.Way{X: 0.6, Z: -0.8, Length: 4.25}}) || casts[0].seq != 7 {
+			if casts := h.world.castCalls(); len(casts) != 1 || casts[0].p.Character != aylaID || casts[0].use != (world.SkillUse{Skill: "strike", Root: "strike", Aim: -1.5, Target: world.EntityRef{Mob: 9}, Way: sim.Way{X: 0.6, Z: -0.8, Length: 4.25}}) || casts[0].seq != 7 {
 				t.Fatalf("skill uses %+v", casts)
 			}
 			time.Sleep(time.Second) // under the skill limit of 5 a second

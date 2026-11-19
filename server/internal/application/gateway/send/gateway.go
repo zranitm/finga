@@ -22,7 +22,7 @@ type Sessions interface {
 // World is the world module's commands; each is fire and forget, but Equip, Unequip, UseItem, SpendPoints, ResetPoints, SpendSkillPoints and ChooseTrait, which answer once the new stats apply, UseSkill, Promote and the quest commands, which answer once applied, and Teleport, which answers once its channel starts.
 type World interface {
 	Input(ctx context.Context, p model.Presence, seq uint32, keys model.Keys, view uint32) error
-	Attack(ctx context.Context, p model.Presence, aim float32, target uint32) error
+	Attack(ctx context.Context, p model.Presence, aim float32, target model.Target) error
 	EnterPortal(ctx context.Context, p model.Presence) error
 	Teleport(ctx context.Context, p model.Presence, mapID string, seq uint32) error
 	Say(ctx context.Context, p model.Presence, name, text string) error
@@ -39,6 +39,14 @@ type World interface {
 	AbandonQuest(ctx context.Context, p model.Presence, quest string) error
 	HandInQuest(ctx context.Context, p model.Presence, in model.QuestAsk) error
 	Promote(ctx context.Context, p model.Presence, npc, class string) error
+	Forfeit(ctx context.Context, p model.Presence) error
+}
+
+// Pvp is the pvp module's queue.
+type Pvp interface {
+	Queue(ctx context.Context, who model.Player, mode string) error
+	LeaveQueue(ctx context.Context, who kernel.CharacterID) error
+	Answer(ctx context.Context, who kernel.CharacterID, offer string, accept bool) error
 }
 
 // Items is the item module: the inventory and its commands.
@@ -72,6 +80,7 @@ type Deps struct {
 	World    World
 	Items    Items
 	Social   Social
+	Pvp      Pvp
 	Logger   *slog.Logger
 	Observer Observer
 }

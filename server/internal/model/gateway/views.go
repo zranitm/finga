@@ -21,6 +21,8 @@ type PlayerView struct {
 	Sprint          int  // sub-steps walked toward a sprint
 	Slow            PlayerSlow
 	Statuses        []StatusView
+	Team            int // its side in a match, 1 or 2; 0 outside one
+	Bot             bool
 }
 
 // PlayerSlow is a status slowing a player's walk: Factor × the walk speed for Left more sub-steps; Left 0 is none.

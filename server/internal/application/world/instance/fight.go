@@ -28,6 +28,9 @@ func (i *Instance) ticksFor(d time.Duration) uint64 { return model.TicksIn(d, i.
 
 // regen gives each living player a second of HP regen, in towns too.
 func (i *Instance) regen() {
+	if i.match != nil {
+		return // a match's fighters heal by its rules alone
+	}
 	for _, id := range i.order {
 		p := i.players[id]
 		if p.dead {
@@ -67,7 +70,7 @@ func (i *Instance) resolveAttacks() {
 			continue
 		}
 		p.attackQueued = false
-		if town || p.dead || p.statuses.Blocks(gamedata.BlocksAct) {
+		if town || p.dead || !i.fighting() || p.statuses.Blocks(gamedata.BlocksAct) {
 			continue
 		}
 		a, power := p.class.Attack, model.PlayerAttacker(p.derived, p.class.Attack.Damage)
@@ -75,7 +78,7 @@ func (i *Instance) resolveAttacks() {
 		p.aimAt(p.attackAim)
 		i.events = append(i.events, model.AttackUsed{Tick: i.tick, Attacker: p.ID, Length: length, Aim: p.aim}) // before begin: a hit at share 0 lands now, and a watcher times its Damage by this attack
 		i.begin(p, attackAction, i.tick, length, a.Timing, true, func() {
-			if i.strike(p, mobs.Strike{Shape: a.Shape, Most: 1, Target: uint64(p.attackTarget), Power: power}, a.Damage, gamedata.Inflict{}) {
+			if i.strike(p, p.attackTarget, mobs.Strike{Shape: a.Shape, Most: 1, Power: power}, a.Damage, gamedata.Inflict{}) {
 				i.gainEnergy(p) // a basic attack that reaches a mob, hit or MISS
 			}
 		})
@@ -177,14 +180,23 @@ func (i *Instance) mobHit(p *player, dealt model.Damage, h mobs.Hit, guard uint6
 	i.cancelTeleport(p, model.TeleportHit)
 }
 
-// rescue takes a player who fell out of the map back to its spawn, alive and with nothing lost; the Delta corrects the client.
+// rescue takes a player who fell out of the map back to its spawn, or a fighter to their spot, alive and with nothing lost; the Delta corrects the client.
 func (i *Instance) rescue(p *player) {
 	i.log.Warn("a player fell out of the map; it took them back to its spawn", "character_id", p.ID, "map_id", i.m.ID, "x", p.state.X, "y", p.state.Y, "z", p.state.Z)
-	p.state = i.standing(i.m.PlayerSpawn.X, 0, i.m.PlayerSpawn.Z, float32(i.m.SpawnYaw)) // the action runs on, as through a knockback
-	p.moveMark = nil                                                                     // but a skill's move, ended with the state, doesn't start from the spawn
+	at, yaw := i.m.PlayerSpawn, i.m.SpawnYaw
+	if f, ok := i.match.fighterOf(p.ID); ok {
+		spot := i.m.Sides[f.side][f.slot]
+		at, yaw = spot.At, spot.Yaw
+	}
+	p.state = i.standing(at.X, 0, at.Z, float32(yaw)) // the action runs on, as through a knockback
+	p.moveMark = nil                                  // but a skill's move, ended with the state, doesn't start from the spawn
 }
 
 func (i *Instance) kill(p *player) {
+	if i.match != nil {
+		i.fall(p)
+		return
+	}
 	p.HP = 0
 	p.dead = true
 	p.deadUntil = i.tick + i.ticksFor(respawnDelay)

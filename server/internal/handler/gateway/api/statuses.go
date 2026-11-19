@@ -114,6 +114,17 @@ var statuses = map[model.Public]int{
 	model.BadChatChannel:       http.StatusBadRequest,
 	model.ChatNoParty:          http.StatusNotFound,
 	model.ChatRateLimited:      http.StatusTooManyRequests,
+	model.PvpNotPromoted:       http.StatusConflict,
+	model.PvpAlreadyQueued:     http.StatusConflict,
+	model.PvpNotQueued:         http.StatusConflict,
+	model.PvpPartyTooBig:       http.StatusConflict,
+	model.PvpPartyNotReady:     http.StatusConflict,
+	model.PvpInMatch:           http.StatusConflict,
+	model.PvpOfferGone:         http.StatusConflict,
+	model.PvpNotInMatch:        http.StatusConflict,
+	model.MatchNotStarted:      http.StatusConflict,
+	model.BadPvpBuild:          http.StatusBadRequest,
+	model.PvpUnknownMode:       http.StatusBadRequest,
 }
 
 // status is p's HTTP status; one the table lacks answers 500, and TestEveryFailureHasAStatus keeps that from happening.

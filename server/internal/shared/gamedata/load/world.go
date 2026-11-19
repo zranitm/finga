@@ -5,6 +5,8 @@ import (
 	"math"
 	"slices"
 	"time"
+
+	"finga/internal/shared/gamedata"
 )
 
 const (
@@ -42,8 +44,12 @@ func (l *loader) loadWorld(dir string) error {
 	l.interestCell = y.Interest.Cell
 	ids := make([]string, 0, len(y.Places))
 	for id, p := range y.Places {
-		if !l.maps.has(id) {
+		m, ok := l.maps.get(id)
+		if !ok {
 			return fmt.Errorf("%s: a place for %s, which is no map", worldFile, id)
+		}
+		if m.Kind == string(gamedata.Pvp) {
+			return fmt.Errorf("%s: a place for %s, a pvp map, which no chart shows", worldFile, id)
 		}
 		if p[0] < 0 || p[0] > chartSize || p[1] < 0 || p[1] > chartSize {
 			return fmt.Errorf("%s: %s's place %v is off the chart, 0 to %g", worldFile, id, p, chartSize)
@@ -51,7 +57,7 @@ func (l *loader) loadWorld(dir string) error {
 		ids = append(ids, id)
 	}
 	for _, m := range l.maps.list {
-		if _, ok := y.Places[m.ID]; !ok {
+		if _, ok := y.Places[m.ID]; !ok && m.Kind != string(gamedata.Pvp) {
 			return fmt.Errorf("%s: map %s has no place", worldFile, m.ID)
 		}
 	}

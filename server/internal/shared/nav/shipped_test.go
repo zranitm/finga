@@ -115,6 +115,16 @@ func TestEveryShippedMapCanBeCrossed(t *testing.T) {
 			}
 			starts := []spot{{what: "the player spawn", at: m.PlayerSpawn.At}}
 			var targets []spot
+			if m.Kind == "pvp" { // a match's fighters start on its sides and meet with the prep wall down
+				starts = nil
+				for k, side := range m.Sides {
+					for i, at := range side {
+						what := fmt.Sprintf("side %d's spot %d", k+1, i+1)
+						starts = append(starts, spot{what: what, at: at.At})
+						targets = append(targets, spot{what, at.At, p.Radius})
+					}
+				}
+			}
 			for _, pt := range m.Portals {
 				starts = append(starts, spot{what: "portal " + pt.Name, at: pt.At})
 				targets = append(targets, spot{"portal " + pt.Name, pt.At, pt.Radius})

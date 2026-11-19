@@ -25,9 +25,9 @@ type Checkpoints interface {
 	Put(cp model.Checkpoint)
 }
 
-// Mover moves a player to another map's instance; it must not block the calling tick.
+// Mover moves a player to another instance, a map's or a match's by its id; it must not block the calling tick.
 type Mover interface {
-	Transfer(from *Instance, p model.Player, sink Sink, mapID string)
+	Transfer(from *Instance, p model.Player, sink Sink, dest string)
 	// Dropped tells of a player the map removed because its sink failed.
 	Dropped(from *Instance, id kernel.CharacterID, conn string)
 }
@@ -52,6 +52,11 @@ type Gifts interface {
 // replayed is true when an earlier call under the key took the item.
 type Potions interface {
 	Use(ctx context.Context, c model.UseCall) (inv model.Inventory, replayed bool, err error)
+}
+
+// Results takes a match's outcome; Ended must not block.
+type Results interface {
+	Ended(r model.MatchResult)
 }
 
 // Notices takes what a map announces to every player online; Announce must not block.

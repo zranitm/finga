@@ -34,6 +34,7 @@ var (
 	party     = limit{group: "party", perSecond: 2, burst: 5}     // the five party commands together; a leader may use each at once
 	points    = limit{group: "points", perSecond: 2, burst: 4}    // spends, resets and trait choices together: an Apply, or an auto-assign on a level-up
 	dialog    = limit{group: "dialog", perSecond: 5, burst: 5}    // talks and the three quest commands together
+	pvp       = limit{group: "pvp", perSecond: 2, burst: 4}       // queueing, leaving, answering and forfeiting together
 )
 
 // assumedTickRate sizes a per-tick limit until a join reports the world's rate.
@@ -59,6 +60,7 @@ var sampled = map[string]bool{
 	"Hello": true, "InventoryMove": true, "InventoryDiscard": true, "InventoryDiscardMany": true, "Equip": true, "Unequip": true, "UseItem": true, "SpendPoints": true, "ResetPoints": true, "SpendSkillPoints": true, "ChooseTrait": true, "UseSkill": true, "Teleport": true, "Promote": true, "ChatSend": true,
 	"PartyInvite": true, "PartyRespond": true, "PartyLeave": true, "PartyKick": true, "PartyPromote": true,
 	"Talk": true, "AcceptQuest": true, "AbandonQuest": true, "HandInQuest": true,
+	"PvpQueue": true, "PvpLeaveQueue": true, "PvpAnswer": true, "PvpForfeit": true,
 }
 
 // EntryPoint reports whether a root span of this name starts a trace that is kept.
@@ -107,6 +109,11 @@ func (h *Handler) routes() *wsrouter.Router[*Inbox] {
 	wsrouter.Handle(r, "PartyLeave", h.partyLeave, h.command(party, h.respond)...)
 	wsrouter.Handle(r, "PartyKick", h.partyKick, h.command(party, h.respond)...)
 	wsrouter.Handle(r, "PartyPromote", h.partyPromote, h.command(party, h.respond)...)
+
+	wsrouter.Handle(r, "PvpQueue", h.pvpQueue, h.command(pvp, h.respond)...)
+	wsrouter.Handle(r, "PvpLeaveQueue", h.pvpLeaveQueue, h.command(pvp, h.respond)...)
+	wsrouter.Handle(r, "PvpAnswer", h.pvpAnswer, h.command(pvp, h.respond)...)
+	wsrouter.Handle(r, "PvpForfeit", h.pvpForfeit, h.command(pvp, h.respond)...)
 
 	// No limit here: the social module answers chat_rate_limited itself.
 	wsrouter.Handle(r, "ChatSend", h.chatSend, h.queued, h.traced, h.joined, h.within, h.respondOnError)

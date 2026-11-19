@@ -36,7 +36,7 @@ func chained(t *testing.T, l *e2etest.Looter, req, skill, root string, lock uint
 	if err := l.Input(&clientv1.Input{}); err != nil {
 		t.Fatal(err)
 	}
-	l.Send(wsconn.Message{ReqID: req, Seq: l.Seq, Data: &clientv1.UseSkill{Skill: skill, ChainRoot: root, Target: lock, Aim: aim, Way: way}})
+	l.Send(wsconn.Message{ReqID: req, Seq: l.Seq, Data: &clientv1.UseSkill{Skill: skill, ChainRoot: root, Target: e2etest.MobRef(lock), Aim: aim, Way: way}})
 	var got *clientv1.Response
 	l.Pump(10*time.Second, func(m wsconn.Message) bool {
 		if r, ok := m.Data.(*clientv1.Response); ok && m.ReqID == req {

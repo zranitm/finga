@@ -291,6 +291,44 @@ teleport:
 interest:
   cell: 32
 `,
+		"maps/pit.yaml": `
+name: Pit
+kind: pvp
+look: {ground: sand, sky: day}
+size: [20, 20]
+terrain: {cell: 4}
+portals: []
+sides:
+  - [{at: [10, 4], yaw: 0}]
+  - [{at: [10, 16], yaw: 180}]
+prep_wall:
+  - {box: [10, 10, 20, 0.6], height: 3, model: prep_wall}
+`,
+		"pvp.yaml": `
+modes:
+  duel: {name: 1v1, team: 1, party: 1, map: pit, rated: true, rounds: {best_of: 3, most: 5, length: 60s}}
+queue: {bots_after: 15s, offer: 10s, window: {start: 2, per_second: 0.2, most: 8}}
+rounds: {prep: 10s, countdown: 3s, between: 5s}
+result: 10s
+kit: {level: 4}
+scale: {hp: 1.0, damage: 1.0}
+rating: {mu: 25, sigma: 8.333, beta: 4.167, tau: 0.083, shown: {base: 1000, per_point: 40}, placement: 5}
+ranks:
+  - {id: bronze, from: 0}
+  - {id: silver, from: 1200}
+bots:
+  most: 600
+  tiers:
+    - {id: novice, mu: 15, reaction: 450ms, defend: 0.15, chain: 0.3, break_free: 1.2s, aim: 20}
+    - {id: adept, mu: 20, reaction: 350ms, defend: 0.35, chain: 0.55, break_free: 0.8s, aim: 12}
+  names: [N01, N02, N03, N04, N05, N06, N07, N08, N09, N10, N11, N12, N13, N14, N15,
+          N16, N17, N18, N19, N20, N21, N22, N23, N24, N25, N26, N27, N28, N29, N30]
+  builds:
+    warrior:
+      - {bar: [strike, '', '', '', '', '', '', ''], traits: {}, order: [strike]}
+    bowman:
+      - {bar: [strike, '', '', '', '', '', '', ''], traits: {}, order: [strike]}
+`,
 		"maps/town.yaml": `
 name: Somewhere
 kind: town
@@ -611,8 +649,48 @@ func TestValidDataLoads(t *testing.T) {
 		if g := field.Grid; g == nil || !g.Fits(nav.Point{X: 3, Z: 10}, 0.375) {
 			t.Fatal("the field's walk grid isn't built at load, with the player's spawn standing room")
 		}
-		if len(d.Maps()) != 2 {
+		if len(d.Maps()) != 3 {
 			t.Fatalf("%d maps", len(d.Maps()))
+		}
+	})
+	t.Run("a match's map, its sides and prep wall, and pvp.yaml with each promoted class's kit", func(t *testing.T) {
+		pit, ok := d.Map("pit")
+		if !ok || pit.Kind != gamedata.Pvp || pit.Town != "" || len(pit.Portals) != 0 {
+			t.Fatalf("pit %+v", pit)
+		}
+		want := [2][]gamedata.Spot{{{At: gamedata.Point{X: 10, Z: 4}}}, {{At: gamedata.Point{X: 10, Z: 16}, Yaw: math.Pi}}}
+		if !reflect.DeepEqual(pit.Sides, want) || pit.PlayerSpawn != want[0][0].At {
+			t.Fatalf("pit's sides %+v, its catch spot %+v; want %+v and side 1's first", pit.Sides, pit.PlayerSpawn, want)
+		}
+		if len(pit.Geometry.Boxes) != 0 || len(pit.Walled.Boxes) != 1 || pit.Walled.Boxes[0].HalfW != 10 || pit.Walled.Boxes[0].Top != 3 {
+			t.Fatalf("pit's boxes %+v, walled %+v: want the prep wall in the walled geometry alone", pit.Geometry.Boxes, pit.Walled.Boxes)
+		}
+		duel, ok := d.PvpMode("duel")
+		if !ok || duel != (gamedata.PvpMode{ID: "duel", Name: "1v1", Team: 1, Party: 1, Map: "pit", Rated: true, Rounds: gamedata.ModeRounds{BestOf: 3, Most: 5, Length: time.Minute}}) {
+			t.Fatalf("duel %+v", duel)
+		}
+		r := d.Pvp()
+		if r.Queue.BotsAfter != 15*time.Second || r.Queue.Window != (gamedata.QueueWindow{Start: 2, PerSecond: 0.2, Most: 8}) || r.Rounds.Countdown != 3*time.Second || r.Result != 10*time.Second {
+			t.Fatalf("queue %+v, rounds %+v, result %v", r.Queue, r.Rounds, r.Result)
+		}
+		if r.Rating.Shown.PerPoint != 40 || r.Rating.Placement != 5 || len(r.Ranks) != 2 || r.Ranks[1] != (gamedata.Rank{ID: "silver", From: 1200}) {
+			t.Fatalf("rating %+v, ranks %+v", r.Rating, r.Ranks)
+		}
+		if len(r.Bots.Tiers) != 2 || r.Bots.Tiers[0].Aim != 20*math.Pi/180 || len(r.Bots.Names) != 30 || len(r.Bots.Builds["warrior"]) != 1 {
+			t.Fatalf("bots %+v", r.Bots)
+		}
+		// Level 4: the root's stats and 15 points by each split, then each slot's best item the class can wear with them.
+		kits := map[kernel.Class]gamedata.Kit{
+			"warrior": {Level: 4, Own: gamedata.Stats{STR: 21, DEX: 5, INT: 4, AGI: 5, VIT: 16}, Worn: []gamedata.KitItem{{Slot: "weapon", Item: "wooden_sword"}, {Slot: "hat", Item: "leather_cap"}}},
+			"bowman":  {Level: 4, Own: gamedata.Stats{STR: 12, DEX: 14, INT: 4, AGI: 11, VIT: 10}, Worn: []gamedata.KitItem{{Slot: "weapon", Item: "short_bow"}, {Slot: "hat", Item: "leather_cap"}}},
+		}
+		for class, want := range kits {
+			if got, ok := d.Kit(class); !ok || !reflect.DeepEqual(got, want) {
+				t.Errorf("%s's kit %+v, want %+v", class, got, want)
+			}
+		}
+		if _, ok := d.Kit("beginner"); ok {
+			t.Error("the Beginner has a kit, though only promoted characters fight")
 		}
 	})
 	t.Run("NPCs, placed by their maps", func(t *testing.T) {
@@ -902,6 +980,33 @@ func TestRejections(t *testing.T) {
 		{"actions.yaml with the auto-aim's cone", "actions.yaml", "ready: 0.85\n", "ready: 0.85\naim_cone: 70\n", []string{"actions.yaml", "aim_cone"}},
 		{"actions.yaml with the lock's old range", "actions.yaml", "ready: 0.85\n", "ready: 0.85\nlock_range: 12\n", []string{"actions.yaml", "lock_range"}},
 		{"a map with no place on the world chart", "world.yaml", "  field: [60, 50]\n", "", []string{"world.yaml", "field", "no place"}},
+		{"a place for a pvp map", "world.yaml", "  field: [60, 50]\n", "  field: [60, 50]\n  pit: [10, 10]\n", []string{"world.yaml", "pit", "pvp"}},
+		{"pvp.yaml without modes", "pvp.yaml", "  duel: {name: 1v1, team: 1, party: 1, map: pit, rated: true, rounds: {best_of: 3, most: 5, length: 60s}}\n", "", []string{"pvp.yaml", "no modes"}},
+		{"a mode on a hunting map", "pvp.yaml", "map: pit", "map: field", []string{"pvp.yaml", "duel", "field", "no pvp map"}},
+		{"a mode's team past its map's spots", "pvp.yaml", "team: 1, party: 1", "team: 2, party: 1", []string{"pvp.yaml", "duel", "fewer than 2 spots"}},
+		{"a party past the team", "pvp.yaml", "team: 1, party: 1", "team: 1, party: 2", []string{"pvp.yaml", "duel", "party"}},
+		{"an even best_of", "pvp.yaml", "best_of: 3", "best_of: 2", []string{"pvp.yaml", "duel", "odd best_of"}},
+		{"most rounds under best_of", "pvp.yaml", "most: 5", "most: 2", []string{"pvp.yaml", "duel", "most"}},
+		{"an unrated mode with no rating to read", "pvp.yaml", "rated: true", "rated: false", []string{"pvp.yaml", "duel", "rating_from"}},
+		{"an offer that never lapses", "pvp.yaml", "offer: 10s", "offer: 0s", []string{"pvp.yaml", "offer"}},
+		{"a window whose most is under its start", "pvp.yaml", "most: 8}", "most: 1}", []string{"pvp.yaml", "window"}},
+		{"no countdown", "pvp.yaml", "countdown: 3s", "countdown: 0s", []string{"pvp.yaml", "countdown"}},
+		{"a kit past the level cap", "pvp.yaml", "kit: {level: 4}", "kit: {level: 5}", []string{"pvp.yaml", "kit", "cap 4"}},
+		{"a hit scaled to nothing", "pvp.yaml", "damage: 1.0}", "damage: 0}", []string{"pvp.yaml", "scale"}},
+		{"a rating with no skill gap", "pvp.yaml", "beta: 4.167", "beta: 0", []string{"pvp.yaml", "rating", "beta"}},
+		{"ranks not from 0", "pvp.yaml", "{id: bronze, from: 0}", "{id: bronze, from: 100}", []string{"pvp.yaml", "bronze", "rise from 0"}},
+		{"ranks that don't rise", "pvp.yaml", "{id: silver, from: 1200}", "{id: silver, from: 0}", []string{"pvp.yaml", "silver", "rise"}},
+		{"tiers whose mu doesn't rise", "pvp.yaml", "{id: adept, mu: 20,", "{id: adept, mu: 15,", []string{"pvp.yaml", "adept", "mu must rise"}},
+		{"a tier that defends past always", "pvp.yaml", "defend: 0.35", "defend: 1.5", []string{"pvp.yaml", "adept", "defend"}},
+		{"too few names", "pvp.yaml", " N30]", "]", []string{"pvp.yaml", "29 names"}},
+		{"a name twice", "pvp.yaml", " N30]", " N29]", []string{"pvp.yaml", "N29"}},
+		{"a promoted class with no build", "pvp.yaml", "    bowman:\n      - {bar: [strike, '', '', '', '', '', '', ''], traits: {}, order: [strike]}\n", "", []string{"pvp.yaml", "bowman", "no build"}},
+		{"builds for the Beginner", "pvp.yaml", "    bowman:\n", "    beginner:\n      - {bar: [strike, '', '', '', '', '', '', ''], traits: {}, order: [strike]}\n    bowman:\n", []string{"pvp.yaml", "beginner", "no promoted class"}},
+		{"a build with seven keys", "pvp.yaml", "    warrior:\n      - {bar: [strike, '', '', '', '', '', '', '']", "    warrior:\n      - {bar: [strike, '', '', '', '', '', '']", []string{"pvp.yaml", "warrior", "7 keys"}},
+		{"a build with a passive", "pvp.yaml", "    warrior:\n      - {bar: [strike, '',", "    warrior:\n      - {bar: [strike, second_wind,", []string{"pvp.yaml", "warrior", "second_wind", "no active skill"}},
+		{"a build with a skill twice", "pvp.yaml", "    warrior:\n      - {bar: [strike, '',", "    warrior:\n      - {bar: [strike, strike,", []string{"pvp.yaml", "warrior", "another key"}},
+		{"a trait for no skill on the bar", "pvp.yaml", "    warrior:\n      - {bar: [strike, '', '', '', '', '', '', ''], traits: {}", "    warrior:\n      - {bar: [strike, '', '', '', '', '', '', ''], traits: {second_wind: x}", []string{"pvp.yaml", "warrior", "second_wind"}},
+		{"an order with a skill off the bar", "pvp.yaml", "    warrior:\n      - {bar: [strike, '', '', '', '', '', '', ''], traits: {}, order: [strike]}", "    warrior:\n      - {bar: ['', '', '', '', '', '', '', ''], traits: {}, order: [strike]}", []string{"pvp.yaml", "warrior", "not on a key"}},
 		{"a place for no map", "world.yaml", "  field: [60, 50]\n", "  field: [60, 50]\n  marsh: [10, 10]\n", []string{"world.yaml", "marsh", "no map"}},
 		{"a map placed twice", "world.yaml", "  field: [60, 50]\n", "  field: [60, 50]\n  town: [20, 20]\n", []string{"world.yaml", "town"}},
 		{"two maps on the same spot", "world.yaml", "field: [60, 50]", "field: [44, 53]", []string{"world.yaml", "field", "town", "closer"}},
@@ -1377,8 +1482,11 @@ func TestRealDataLoads(t *testing.T) {
 			}
 		}
 	})
-	t.Run("every map can be walked to from the start town, and every hunting map back to its town", func(t *testing.T) {
+	t.Run("every map can be walked to from the start town, and every hunting map back to its town; a match's map, which a match alone reaches, aside", func(t *testing.T) {
 		for _, m := range d.Maps() {
+			if m.Kind == gamedata.Pvp {
+				continue
+			}
 			if !reaches(d, d.StartTown().ID, m.ID) {
 				t.Errorf("%s: no portals lead there from %s", m.ID, d.StartTown().ID)
 			}
@@ -1406,6 +1514,9 @@ func TestRealDataLoads(t *testing.T) {
 	})
 	t.Run("every hunting map's portals lead somewhere and back", func(t *testing.T) {
 		for _, m := range d.Maps() {
+			if m.Kind == gamedata.Pvp {
+				continue // a match's map has no portals
+			}
 			if len(m.Portals) == 0 {
 				t.Fatalf("map %s has no portals", m.ID)
 			}

@@ -10,7 +10,7 @@ import (
 )
 
 func TestMapRejections(t *testing.T) {
-	const town, field = "maps/town.yaml", "maps/field.yaml"
+	const town, field, pit = "maps/town.yaml", "maps/field.yaml", "maps/pit.yaml"
 	tests := []struct {
 		name    string
 		file    string
@@ -34,6 +34,17 @@ func TestMapRejections(t *testing.T) {
 		{"a boss below the map's top level", field, "levels: [1, 5]", "levels: [1, 6]", []string{field, "slime_lord", "level"}},
 		{"a boss brought by no kills", field, "kills: 20", "kills: 0", []string{field, "slime_lord", "kills"}},
 		{"a boss circle narrower than its body", field, "radius: 4, mob: slime_lord", "radius: 1, mob: slime_lord", []string{field, "slime_lord", "narrower"}},
+
+		// A match's map: its sides and prep wall, and none of the world's.
+		{"a hunting map with sides", field, "player_spawn:", "sides: [[{at: [10, 4], yaw: 0}], [{at: [10, 16], yaw: 180}]]\nplayer_spawn:", []string{field, "only a pvp map"}},
+		{"a pvp map with one side", pit, "  - [{at: [10, 16], yaw: 180}]\n", "", []string{pit, "two sides"}},
+		{"a pvp map with an empty side", pit, "  - [{at: [10, 16], yaw: 180}]\n", "  - []\n", []string{pit, "two sides"}},
+		{"a pvp map without a prep wall", pit, "prep_wall:\n  - {box: [10, 10, 20, 0.6], height: 3, model: prep_wall}\n", "", []string{pit, "prep_wall"}},
+		{"a pvp map with a player spawn", pit, "portals: []", "portals: []\nplayer_spawn: {at: [10, 10], yaw: 0}", []string{pit, "player_spawn"}},
+		{"a pvp map with a town", pit, "kind: pvp", "kind: pvp\ntown: town", []string{pit, "town"}},
+		{"a pvp map with a portal", pit, "portals: []", "portals:\n  - {name: back, at: [2, 2], radius: 1, to: {map: town, portal: to_field}}", []string{pit, "portals"}},
+		{"a spot inside the prep wall", pit, "{at: [10, 4], yaw: 0}", "{at: [10, 10], yaw: 0}", []string{pit, "side 1", "prep wall"}},
+		{"a prep wall off the map", pit, "box: [10, 10, 20, 0.6]", "box: [30, 10, 20, 0.6]", []string{pit, "prep_wall"}},
 
 		// The shapes.
 		{"an unknown key", field, "yaw: 30", "turn: 30", []string{field, "turn"}},

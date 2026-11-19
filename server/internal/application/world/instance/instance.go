@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"math"
 	"slices"
+	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
@@ -57,6 +58,7 @@ type Deps struct {
 	Saves  Checkpoints
 	Mover  Mover
 	Logger *slog.Logger // the map's log: for the tick, such as a rescued fall, and for work off it with no one else to tell, such as a grant call
+	Match  *Match       // a match's instance has one; a world map's is nil
 }
 
 // Instance is one map's actor; only its tick goroutine touches its state.
@@ -74,6 +76,9 @@ type Instance struct {
 	mover    Mover
 	inbox    chan message
 	stopped  chan struct{} // closed once Run has returned: nothing drains the inbox
+	cancel   context.CancelFunc
+	ended    atomic.Bool // the instance closed itself, as a match does at its end
+	match    *match      // nil on a world map
 	saves    Checkpoints
 	arena    *mobs.Arena
 	ground   *loot.Ground
@@ -118,7 +123,7 @@ type (
 	attackMsg struct {
 		id     kernel.CharacterID
 		aim    float32
-		target uint32
+		target model.EntityRef
 	}
 	settleMsg struct{ result loot.Result }
 	portalMsg struct{ id kernel.CharacterID }
@@ -193,6 +198,10 @@ func New(d Deps, t Tuning) *Instance {
 		ticksPer: max(uint64(t.CheckpointInterval/t.TickInterval), 1),
 		roll:     roll,
 	}
+	if d.Match != nil {
+		i.match = newMatch(*d.Match, d.Data.Pvp(), i.ticksFor)
+		i.addBots()
+	}
 	i.ground = loot.NewGround(loot.Deps{
 		MapID: d.Map.ID, Items: d.Items, ItemCalls: d.ItemCalls, Observer: d.Batches, Traces: d.Traces, Roll: roll, Data: d.Data, Rest: i.rest, Logger: d.Logger, Settle: i.settled,
 	}, loot.Tuning{TickInterval: t.TickInterval, BatchMax: t.BatchMax})
@@ -202,9 +211,14 @@ func New(d Deps, t Tuning) *Instance {
 // MapID is the map the instance runs.
 func (i *Instance) MapID() string { return i.m.ID }
 
-// Run ticks until ctx is done, then checkpoints the players still on the map.
+// Ended reports whether the instance closed itself, as a match does once it's over, rather than stopping with the world.
+func (i *Instance) Ended() bool { return i.ended.Load() }
+
+// Run ticks until ctx is done or the instance closes itself, then checkpoints the players still on it.
 func (i *Instance) Run(ctx context.Context) error {
 	defer close(i.stopped)
+	ctx, i.cancel = context.WithCancel(ctx)
+	defer i.cancel()
 	mapID := i.m.ID
 	err := tick.Run(ctx, i.tuning.TickInterval, i, tick.WithObserver(func(_ uint64, took, interval time.Duration) {
 		i.deps.Observer.ObserveTick(mapID, took, interval)
@@ -246,8 +260,8 @@ func (i *Instance) Input(id kernel.CharacterID, seq uint32, in sim.Input, view u
 	return i.post(inputMsg{id: id, seq: seq, in: in, view: view})
 }
 
-// Attack queues a basic attack aimed along a yaw, at the locked mob target first (0 for none); the tick enforces the cooldown.
-func (i *Instance) Attack(id kernel.CharacterID, aim float32, target uint32) error {
+// Attack queues a basic attack aimed along a yaw, at the lock target first (zero for none); the tick enforces the cooldown.
+func (i *Instance) Attack(id kernel.CharacterID, aim float32, target model.EntityRef) error {
 	return i.post(attackMsg{id: id, aim: aim, target: target})
 }
 
@@ -298,7 +312,8 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.tick = n
 	i.events = i.events[:0]
 	i.ground.Begin(n)
-	removed := slices.Concat(i.dropped, i.drain())
+	removed := slices.Concat(i.dropped, i.drain(), i.stepMatch(), i.pendingMatches())
+	i.thinkBots()
 	changed := i.simulate()
 	if len(i.order) == 0 {
 		i.arena.Rest(n)
@@ -315,7 +330,9 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.castSkills()
 	i.resolveAttacks()
 	i.mobHits()
+	i.settleDowns()
 	removed = append(removed, i.deathsAndRespawns()...)
+	i.judgeRound()
 	removed = append(removed, i.teleports()...)
 	i.stepBoss()
 	if n%i.ticksFor(time.Second) == 0 {
@@ -370,26 +387,36 @@ func (i *Instance) drain() []kernel.CharacterID {
 		case settleMsg:
 			i.settle(i.ground.Settle(m.result))
 		case portalMsg:
-			if p, ok := i.players[m.id]; ok && i.enterPortal(p) {
+			if p, ok := i.players[m.id]; ok && i.match == nil && i.enterPortal(p) {
 				removed = append(removed, m.id)
 			}
 		case equipMsg:
-			i.startEquip(m)
+			if !i.refused(m.done) {
+				i.startEquip(m)
+			}
 		case equippedMsg:
 			i.settleEquip(m)
 		case pointsMsg:
-			i.settlePoints(m)
+			if !i.refused(m.done) {
+				i.settlePoints(m)
+			}
 		case skillPointsMsg:
-			i.settleSkillPoints(m)
+			if !i.refused(m.done) {
+				i.settleSkillPoints(m)
+			}
 		case traitMsg:
-			i.chooseTrait(m)
+			if !i.refused(m.done) {
+				i.chooseTrait(m)
+			}
 		case skillMsg:
 			if p, ok := i.players[m.id]; ok {
 				p.pressed()
 			}
 			i.casts = append(i.casts, m)
 		case teleportMsg:
-			i.startTeleport(m)
+			if !i.refused(m.done) {
+				i.startTeleport(m)
+			}
 		case talkMsg:
 			i.talk(m)
 		case questMsg:
@@ -401,7 +428,18 @@ func (i *Instance) drain() []kernel.CharacterID {
 		case giftedMsg:
 			i.settlePromotion(m)
 		case useMsg:
-			i.startUse(m)
+			if !i.refused(m.done) {
+				i.startUse(m)
+			}
+		case forfeitMsg:
+			removed = append(removed, i.forfeit(m)...)
+		case toMatchMsg:
+			i.goToMatch(m)
+			if _, still := i.players[m.id]; !still {
+				removed = append(removed, m.id)
+			}
+		case fightMsg:
+			i.canFight(m)
 		case usedMsg:
 			i.settleUse(m)
 		case chatMsg:

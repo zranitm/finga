@@ -1,6 +1,8 @@
 package gateway
 
 import (
+	"time"
+
 	"finga/internal/application/world"
 	model "finga/internal/model/gateway"
 	"finga/internal/shared/progression"
@@ -47,7 +49,7 @@ func worldPush(e world.Event) (model.Push, bool) {
 	case world.Damage:
 		return model.Damage{Source: entity(ev.Source), Target: entity(ev.Target), Amount: ev.Amount, Crit: ev.Crit, Miss: ev.Miss, Dodge: ev.Dodge, Block: ev.Block, Status: ev.Status, Shielded: ev.Shielded}, true
 	case world.SkillUsed:
-		return model.SkillUsed{Caster: ev.Caster.String(), Skill: ev.Skill, Stage: ev.Stage, Trait: ev.Trait, Aim: ev.Aim, Target: ev.Target}, true
+		return model.SkillUsed{Caster: ev.Caster.String(), Skill: ev.Skill, Stage: ev.Stage, Trait: ev.Trait, Aim: ev.Aim, Target: lockOf(ev.Target)}, true
 	case world.AttackUsed:
 		return model.AttackUsed{Attacker: ev.Attacker.String(), LengthTicks: int(ev.Length), Aim: ev.Aim}, true //nolint:gosec // lengths are small
 	case world.MobAttacked:
@@ -74,7 +76,18 @@ func worldPush(e world.Event) (model.Push, bool) {
 			sheet := statSheet(*ev.Sheet)
 			sc.Sheet = &sheet
 		}
+		if ev.Timers != nil {
+			sc.Retimed, sc.Timers = true, timersLeft(*ev.Timers, time.Now())
+		}
 		return sc, true
+	case world.MatchState:
+		st := model.MatchState{Match: ev.Match.String(), Mode: ev.Mode, Phase: model.MatchPhase(ev.Phase), Round: ev.Round, Wins: ev.Wins, EndsIn: ev.EndsIn}
+		for s, side := range ev.Sides {
+			for _, f := range side {
+				st.Sides[s] = append(st.Sides[s], model.MatchFighter{ID: f.ID.String(), Name: f.Name, Class: f.Class.String(), Bot: f.Bot})
+			}
+		}
+		return st, true
 	case world.Loot:
 		return model.Loot{
 			Kind: lootKinds[ev.Kind], MapID: ev.MapID, DropID: ev.DropID, Owner: ev.Owner.String(), OwnerName: ev.OwnerName,
@@ -162,6 +175,14 @@ func npcDialog(d world.NpcDialog) model.NpcDialog {
 	return out
 }
 
+// lockOf is r as a lock, the zero Entity for none.
+func lockOf(r world.EntityRef) model.Entity {
+	if r == (world.EntityRef{}) {
+		return model.Entity{}
+	}
+	return entity(r)
+}
+
 func entity(r world.EntityRef) model.Entity {
 	if r.IsMob() {
 		return model.Entity{Mob: r.Mob}
@@ -238,6 +259,8 @@ func playerViews(ps []world.PlayerView) []model.PlayerView {
 			Sprint:   p.State.Sprint,
 			Slow:     model.PlayerSlow{Left: p.State.Slow.Left, Factor: p.State.Slow.Factor},
 			Statuses: statusViews(p.Statuses),
+			Team:     p.Team,
+			Bot:      p.Bot,
 		})
 	}
 	return out

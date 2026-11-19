@@ -49,7 +49,7 @@ func TestWalkingBreaksIntoASprintAndAPressEndsIt(t *testing.T) {
 		for k := uint32(1); k <= 2; k++ {
 			_ = inst.Input(p.ID, seq+k, east, 0)
 		}
-		_ = inst.Attack(p.ID, 0, 0) // north, at nothing in reach
+		_ = inst.Attack(p.ID, 0, model.EntityRef{}) // north, at nothing in reach
 		seq = worldtest.Walk(inst, p.ID, seq+2, east, 2)
 		tick(2) // the two queued before the press step too
 		want := sim.EndSprint(walked(sprinting, 2))
@@ -88,7 +88,7 @@ func TestEachPressInABacklogEndsTheSprint(t *testing.T) {
 		for k := uint32(1); k <= 4; k++ {
 			_ = inst.Input(p.ID, seq+k, east, 0)
 			if k%2 == 0 {
-				_ = inst.Attack(p.ID, 0, 0) // after inputs seq+2, then seq+4
+				_ = inst.Attack(p.ID, 0, model.EntityRef{}) // after inputs seq+2, then seq+4
 			}
 		}
 		tick(4)

@@ -26,6 +26,58 @@ func statsChanged(sc model.StatsChanged) *clientv1.StatsChanged {
 	if sc.Sheet != nil {
 		out.Sheet = statSheet(*sc.Sheet)
 	}
+	if sc.Retimed {
+		out.Timers = &clientv1.SkillTimers{Timers: skillTimers(sc.Timers)}
+	}
+	return out
+}
+
+var unqueueReasons = map[model.PvpUnqueueReason]clientv1.PvpUnqueueReason{
+	model.PvpUnqueueLeft:         clientv1.PvpUnqueueReason_PVP_UNQUEUE_REASON_LEFT,
+	model.PvpUnqueueDeclined:     clientv1.PvpUnqueueReason_PVP_UNQUEUE_REASON_DECLINED,
+	model.PvpUnqueueLapsed:       clientv1.PvpUnqueueReason_PVP_UNQUEUE_REASON_LAPSED,
+	model.PvpUnqueuePartyChanged: clientv1.PvpUnqueueReason_PVP_UNQUEUE_REASON_PARTY_CHANGED,
+}
+
+var goneReasons = map[model.PvpGoneReason]clientv1.PvpOfferGoneReason{
+	model.PvpGoneDeclined: clientv1.PvpOfferGoneReason_PVP_OFFER_GONE_REASON_DECLINED,
+	model.PvpGoneLapsed:   clientv1.PvpOfferGoneReason_PVP_OFFER_GONE_REASON_LAPSED,
+}
+
+var matchOutcomes = map[model.MatchOutcome]clientv1.MatchOutcome{
+	model.MatchWin:  clientv1.MatchOutcome_MATCH_OUTCOME_WIN,
+	model.MatchLoss: clientv1.MatchOutcome_MATCH_OUTCOME_LOSS,
+	model.MatchDraw: clientv1.MatchOutcome_MATCH_OUTCOME_DRAW,
+}
+
+func matchEnded(e model.MatchEnded) *clientv1.MatchEnded {
+	out := &clientv1.MatchEnded{Result: matchOutcomes[e.Result], Wins: []int32{int32(e.Wins[0]), int32(e.Wins[1])}} //nolint:gosec // a few rounds
+	if r := e.Rating; r != nil {
+		out.Rating = &clientv1.PvpRatingChange{Before: int32(r.Before), After: int32(r.After), RankBefore: r.RankBefore, RankAfter: r.RankAfter, PlacementLeft: int32(r.PlacementLeft)} //nolint:gosec // ratings fit
+	}
+	return out
+}
+
+var matchPhases = map[model.MatchPhase]clientv1.MatchPhase{
+	model.PhasePrep:      clientv1.MatchPhase_MATCH_PHASE_PREP,
+	model.PhaseCountdown: clientv1.MatchPhase_MATCH_PHASE_COUNTDOWN,
+	model.PhaseFight:     clientv1.MatchPhase_MATCH_PHASE_FIGHT,
+	model.PhaseBetween:   clientv1.MatchPhase_MATCH_PHASE_BETWEEN,
+	model.PhaseResult:    clientv1.MatchPhase_MATCH_PHASE_RESULT,
+}
+
+func matchState(st model.MatchState) *clientv1.MatchState {
+	out := &clientv1.MatchState{
+		Match: st.Match, Mode: st.Mode, Phase: matchPhases[st.Phase], Round: int32(st.Round), //nolint:gosec // a few rounds
+		Wins: []int32{int32(st.Wins[0]), int32(st.Wins[1])}, EndsInMs: uint32(st.EndsIn.Milliseconds()), //nolint:gosec // seconds, a few rounds
+	}
+	for _, side := range st.Sides {
+		s := &clientv1.MatchSide{}
+		for _, f := range side {
+			s.Fighters = append(s.Fighters, &clientv1.MatchFighter{Id: f.ID, Name: f.Name, Class: f.Class, Bot: f.Bot})
+		}
+		out.Sides = append(out.Sides, s)
+	}
 	return out
 }
 
@@ -88,6 +140,7 @@ func playerViews(ps []model.PlayerView) []*clientv1.PlayerView {
 			Invulnerable: p.Invulnerable, Z: p.Z, Vz: p.VZ, Hx: p.HX, Hz: p.HZ, Aim: p.Aim,
 			Move: skillMove(p.Move), Dodging: p.Dodging, Shield: int32(p.Shield), //nolint:gosec // a shield is a few hundred
 			Held: int32(p.Held), Slow: slowWalk(p.Slow), Statuses: statusViews(p.Statuses), //nolint:gosec // a hold is a few hundred sub-steps
+			Team: int32(p.Team), Bot: p.Bot, //nolint:gosec // 0, 1 or 2
 			Sprint: int32(p.Sprint), //nolint:gosec // a sprint's count stops at its start, a few hundred sub-steps
 		})
 	}
@@ -311,6 +364,14 @@ var questChanges = map[model.QuestChange]clientv1.QuestChange{
 	model.QuestAccepted:   clientv1.QuestChange_QUEST_CHANGE_ACCEPTED,
 	model.QuestHandedIn:   clientv1.QuestChange_QUEST_CHANGE_HANDED_IN,
 	model.QuestAbandoned:  clientv1.QuestChange_QUEST_CHANGE_ABANDONED,
+}
+
+// lockRef is a lock as the client names it, empty for none.
+func lockRef(e model.Entity) string {
+	if e == (model.Entity{}) {
+		return ""
+	}
+	return entityRef(e)
 }
 
 // entityRef is how the client names a player or a mob: p:<character id> or m:<mob id>.

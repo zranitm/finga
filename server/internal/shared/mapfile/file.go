@@ -6,7 +6,7 @@ import "time"
 // File is one map as written in data/maps/<id>.yaml. Lengths are metres, angles degrees, positions [x, z] with x east and z north.
 type File struct {
 	Name        string     `yaml:"name"`
-	Kind        string     `yaml:"kind"` // town or hunting
+	Kind        string     `yaml:"kind"` // town, hunting or pvp
 	Start       bool       `yaml:"start,omitempty"`
 	Town        string     `yaml:"town,omitempty"`        // a hunting map's respawn town
 	Levels      [2]int     `yaml:"levels,omitempty,flow"` // a hunting map's mob levels, lowest and highest
@@ -20,6 +20,8 @@ type File struct {
 	PlayerSpawn Place      `yaml:"player_spawn,flow"`
 	NPCs        []NPC      `yaml:"npcs,omitempty"`
 	Boss        *Boss      `yaml:"boss,omitempty,flow"`
+	Sides       [][]Place  `yaml:"sides,omitempty"`     // a pvp map's two sides, each its starting spots
+	PrepWall    []Solid    `yaml:"prep_wall,omitempty"` // a pvp map's solids standing only before a round starts
 }
 
 // Look is the client's art keys for the ground and the sky.

@@ -132,3 +132,18 @@ var (
 	ChatRateLimited = Public{440015, "CHAT_RATE_LIMITED", "too many chat lines; slow down"}
 	// 440016, PARTY_CHAT_UNAVAILABLE, is retired: no module ever answered it.
 )
+
+// 55: PvP matches, their queue and ratings.
+var (
+	PvpNotPromoted   = Public{550001, "PVP_NOT_PROMOTED", "only a promoted character can fight in PvP"}
+	PvpAlreadyQueued = Public{550002, "PVP_ALREADY_QUEUED", "already in a PvP queue"}
+	PvpNotQueued     = Public{550003, "PVP_NOT_QUEUED", "not in a PvP queue"}
+	PvpPartyTooBig   = Public{550004, "PVP_PARTY_TOO_BIG", "the party is larger than the mode allows"}
+	PvpPartyNotReady = Public{550005, "PVP_PARTY_NOT_READY", "a party member is offline, not promoted, in a match or queued"}
+	PvpInMatch       = Public{550006, "PVP_IN_MATCH", "not while in a match"}
+	PvpOfferGone     = Public{550007, "PVP_OFFER_GONE", "that offer lapsed or was declined"}
+	PvpNotInMatch    = Public{550008, "PVP_NOT_IN_MATCH", "not in a match"}
+	MatchNotStarted  = Public{550009, "MATCH_NOT_STARTED", "the round hasn't started"}
+	BadPvpBuild      = Public{550010, "BAD_PVP_BUILD", "an arena build has eight keys, each empty or one of the class's active skills, with each trait one of its skill's"}
+	PvpUnknownMode   = Public{550011, "PVP_UNKNOWN_MODE", "unknown PvP mode"}
+)

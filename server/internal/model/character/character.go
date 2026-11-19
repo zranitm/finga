@@ -26,7 +26,7 @@ var (
 )
 
 // SkillBarKeys is how many keys the skill bar has: Q W E R A S D F by default, which the client binds.
-const SkillBarKeys = 8
+const SkillBarKeys = gamedata.BarKeys
 
 // Character is a character as stored.
 type Character struct {

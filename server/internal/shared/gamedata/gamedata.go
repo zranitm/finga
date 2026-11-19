@@ -44,6 +44,7 @@ type Parts struct {
 	MaxActiveQuests int
 	ChatLineMax     int
 	TeleportChannel time.Duration
+	Pvp             PvpRules
 	InterestCell    float64
 }
 

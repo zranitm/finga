@@ -61,6 +61,8 @@ func samples() []wsconn.Message {
 	// A player breaking free with Vanish: leaping back through a mob, nine sub-steps of its move left, the farthest point it reached clear of mobs behind it, dodging, behind a shield.
 	leaping := &clientv1.PlayerView{Id: charD, Name: "Mira", Class: "thief", Level: 12, X: 20, Y: 0.25, Vy: 3.5, Hp: 300, MaxHp: 300, Z: 8, Hz: 1,
 		Move: &clientv1.SkillMove{Vx: 0, Vz: -13.333333333333334, Left: 9, Through: true, ClearX: 20, ClearZ: 8.5}, Dodging: true, Shield: 64}
+	// A bot on side 2 of a match.
+	bot := &clientv1.PlayerView{Id: "0192f6a4-7002-7c3e-8a1b-2c3d4e5f6a7b", Name: "Cedar", Class: "magician", Level: 30, X: 22, Hp: 410, MaxHp: 410, Z: 18, Hx: -1, Team: 2, Bot: true}
 	mob := func() *clientv1.MobView { // just hit: flinching, poisoned
 		return &clientv1.MobView{Id: 7, Type: "green_slime", X: 15.625, Y: 0.5, Hp: 30, MaxHp: 30, Pose: clientv1.MobPose_MOB_POSE_FLINCH, Z: 1.25, Yaw: -1.5,
 			Statuses: []*clientv1.StatusView{{Id: "poison", Ends: 81290}}}
@@ -99,7 +101,7 @@ func samples() []wsconn.Message {
 		{Type: "ResetPoints", ReqID: "r-11", Data: &clientv1.ResetPoints{ExpectedUnspent: 0}},
 		{Type: "SpendSkillPoints", ReqID: "r-17", Data: &clientv1.SpendSkillPoints{ExpectedUnspent: 5, Points: map[string]int32{"strike": 3, "second_wind": 2}}},
 		{Type: "ChooseTrait", ReqID: "r-22", Data: &clientv1.ChooseTrait{Skill: "strike", Trait: "concussion"}},
-		{Type: "UseSkill", ReqID: "r-18", Data: &clientv1.UseSkill{Skill: "lunge", ChainRoot: "strike", Aim: -1.5, Target: 7, Way: &clientv1.SkillWay{X: 0.6, Z: -0.8, Length: 3.25}}},
+		{Type: "UseSkill", ReqID: "r-18", Data: &clientv1.UseSkill{Skill: "lunge", ChainRoot: "strike", Aim: -1.5, Target: "m:7", Way: &clientv1.SkillWay{X: 0.6, Z: -0.8, Length: 3.25}}},
 		{Type: "Promote", ReqID: "r-19", Data: &clientv1.Promote{NpcId: "warrior_trainer", Class: "warrior"}},
 		{Type: "Talk", ReqID: "r-12", Data: &clientv1.Talk{NpcId: "town_guide"}},
 		{Type: "AcceptQuest", ReqID: "r-13", Data: &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "slime_cleanup"}},
@@ -124,9 +126,9 @@ func samples() []wsconn.Message {
 		}},
 		// A map whose field boss is up, leaving in 7 minutes.
 		{Type: "Snapshot", Tick: 81234, Data: &clientv1.Snapshot{Players: []*clientv1.PlayerView{player()}, Mobs: []*clientv1.MobView{mob(), boss()}, Drops: []*clientv1.DropView{drop()}, FieldBoss: &clientv1.FieldBoss{MobId: 9, Type: "king_slime", LeavesInMs: 420000}}},
-		{Type: "Delta", Tick: 81235, Data: &clientv1.Delta{AckSeq: 117, Energy: proto.Uint32(8), Players: []*clientv1.PlayerView{player(), hurt, leaping}, Mobs: []*clientv1.MobView{mob()}, Drops: []*clientv1.DropView{drop()}, RemovedPlayers: []string{charC}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{11}, CollectedDrops: []uint32{10}}},
+		{Type: "Delta", Tick: 81235, Data: &clientv1.Delta{AckSeq: 117, Energy: proto.Uint32(8), Players: []*clientv1.PlayerView{player(), hurt, leaping, bot}, Mobs: []*clientv1.MobView{mob()}, Drops: []*clientv1.DropView{drop()}, RemovedPlayers: []string{charC}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{11}, CollectedDrops: []uint32{10}}},
 		{Type: "Damage", Tick: 81235, Data: &clientv1.Damage{Source: "p:" + charA, Target: "m:7", Amount: 23, Crit: true}},
-		{Type: "SkillUsed", Tick: 81235, Data: &clientv1.SkillUsed{Caster: charA, Skill: "strike", Stage: 2, Trait: "concussion", Aim: -1.5}},
+		{Type: "SkillUsed", Tick: 81235, Data: &clientv1.SkillUsed{Caster: charA, Skill: "strike", Stage: 2, Trait: "concussion", Aim: -1.5, Target: "m:7"}},
 		{Type: "AttackUsed", Tick: 81236, Data: &clientv1.AttackUsed{Attacker: charA, LengthTicks: 18, Aim: 1.5}},
 		{Type: "MobAttacked", Tick: 81236, Data: &clientv1.MobAttacked{Mob: 7, Attack: 1, ToX: 13.625, Yaw: -1.5, ToY: 0.5, ToZ: 3.25}},
 		{Type: "FieldBoss", Tick: 81235, Data: &clientv1.FieldBoss{MobId: 9, Type: "king_slime", LeavesInMs: 600000}},
@@ -143,10 +145,32 @@ func samples() []wsconn.Message {
 			Equipment: []*clientv1.EquipSlot{{EquipSlot: "hat", Item: leatherCap()}},
 			Revision:  8,
 		}},
-		{Type: "StatsChanged", Data: &clientv1.StatsChanged{Sheet: sheet(), Hp: 250, MaxHp: 280}},
+		{Type: "StatsChanged", Data: &clientv1.StatsChanged{Sheet: sheet(), Hp: 250, MaxHp: 280, Timers: &clientv1.SkillTimers{Timers: []*clientv1.SkillTimer{
+			{Skill: "war_cry", Kind: clientv1.SkillTimerKind_SKILL_TIMER_KIND_COOLDOWN, LeftMs: 41250},
+		}}}},
 		{Type: "Loot", Tick: 81236, Data: &clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_COLLECTED, MapId: "forest", DropId: 10, OwnerId: charB, OwnerName: "Robin", Template: "slime_gel", Quantity: 2}},
 		{Type: "MapChange", Data: &clientv1.MapChange{MapId: "forest", X: 2, Y: 0, Z: 1, Yaw: -0.5}},
 		{Type: "TeleportCancelled", Data: &clientv1.TeleportCancelled{Reason: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_HIT}},
+		{Type: "PvpQueue", ReqID: "r-30", Data: &clientv1.PvpQueue{Mode: "duel"}},
+		{Type: "PvpLeaveQueue", ReqID: "r-31", Data: &clientv1.PvpLeaveQueue{}},
+		{Type: "PvpAnswer", ReqID: "r-32", Data: &clientv1.PvpAnswer{Offer: "0192f6a4-7000-7c3e-8a1b-2c3d4e5f6a7b", Accept: true}},
+		{Type: "PvpForfeit", ReqID: "r-33", Data: &clientv1.PvpForfeit{}},
+		{Type: "PvpQueued", Data: &clientv1.PvpQueued{Mode: "team", SinceMs: 4250, Members: []string{charA, charB}}},
+		{Type: "PvpUnqueued", Data: &clientv1.PvpUnqueued{Reason: clientv1.PvpUnqueueReason_PVP_UNQUEUE_REASON_PARTY_CHANGED}},
+		{Type: "PvpOffer", Data: &clientv1.PvpOffer{Offer: "0192f6a4-7000-7c3e-8a1b-2c3d4e5f6a7b", Mode: "duel", Bots: 1, UntilMs: 10000}},
+		{Type: "PvpOfferGone", Data: &clientv1.PvpOfferGone{Offer: "0192f6a4-7000-7c3e-8a1b-2c3d4e5f6a7b", Reason: clientv1.PvpOfferGoneReason_PVP_OFFER_GONE_REASON_DECLINED, Requeued: true}},
+		// A 1v1 against a bot in its second round's countdown, side 1 a round up.
+		{Type: "MatchState", Tick: 412, Data: &clientv1.MatchState{
+			Match: "0192f6a4-7001-7c3e-8a1b-2c3d4e5f6a7b", Mode: "duel", Phase: clientv1.MatchPhase_MATCH_PHASE_COUNTDOWN, Round: 2, Wins: []int32{1, 0}, EndsInMs: 3000,
+			Sides: []*clientv1.MatchSide{
+				{Fighters: []*clientv1.MatchFighter{{Id: charA, Name: "Ayla", Class: "warrior"}}},
+				{Fighters: []*clientv1.MatchFighter{{Id: "0192f6a4-7002-7c3e-8a1b-2c3d4e5f6a7b", Name: "Cedar", Class: "magician", Bot: true}}},
+			},
+		}},
+		{Type: "MatchEnded", Tick: 2810, Data: &clientv1.MatchEnded{
+			Result: clientv1.MatchOutcome_MATCH_OUTCOME_WIN, Wins: []int32{2, 1},
+			Rating: &clientv1.PvpRatingChange{Before: 1000, After: 1046, RankBefore: "bronze", RankAfter: "bronze", PlacementLeft: 4},
+		}},
 		{Type: "ChatMessage", Data: &clientv1.ChatMessage{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Sender: charA, SenderName: "Ayla", Text: "hello there"}},
 		{Type: "PartyState", Data: &clientv1.PartyState{Party: party()}},
 		{Type: "PartyInvited", Data: &clientv1.PartyInvited{InviteId: "inv-1", From: charA, FromName: "Ayla"}},

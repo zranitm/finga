@@ -5,6 +5,7 @@
     "skill": "strike",
     "stage": 2,
     "aim": -1.5,
+    "target": "m:7",
     "trait": "concussion"
   }
 }

@@ -9,6 +9,7 @@ type (
 	characterKind struct{}
 	itemKind      struct{}
 	sessionKind   struct{}
+	matchKind     struct{}
 )
 
 // Distinct UUIDv7 ID types: passing one kind where another is expected does not compile.
@@ -21,6 +22,8 @@ type (
 	ItemID = typedid.ID[itemKind]
 	// SessionID identifies a login session.
 	SessionID = typedid.ID[sessionKind]
+	// MatchID identifies a PvP match.
+	MatchID = typedid.ID[matchKind]
 )
 
 // ErrBadID is a malformed ID in a request.
@@ -43,3 +46,6 @@ func ParseItemID(s string) (ItemID, error) { return typedid.Parse[itemKind](s) }
 
 // NewSessionID mints a new ID.
 func NewSessionID() SessionID { return typedid.New[sessionKind]() }
+
+// NewMatchID mints a new ID.
+func NewMatchID() MatchID { return typedid.New[matchKind]() }

@@ -104,6 +104,7 @@ func TestATeleportIsRefused(t *testing.T) {
 		want  error
 	}{
 		{"to a map that isn't one", "atlantis", model.ErrTeleportUnknownMap},
+		{"to a match's map, which a match alone reaches", "ring", model.ErrTeleportUnknownMap},
 		{"to the player's own map", "town", model.ErrTeleportSameMap},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -250,7 +251,7 @@ func TestATeleportIsCancelled(t *testing.T) {
 			p.Connection = "c1"
 			s := join(t, inst, p)
 			teleport(t, inst, s, p.ID, "forest", 0)
-			_ = inst.Attack(p.ID, 0, 0)
+			_ = inst.Attack(p.ID, 0, model.EntityRef{})
 			tick(1)
 			if len(eventsOf[model.AttackUsed](s)) != 1 {
 				t.Fatal("the attack didn't start")

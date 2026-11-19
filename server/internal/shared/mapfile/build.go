@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"sync"
 
 	"finga/internal/shared/nav"
@@ -17,6 +18,7 @@ type Map struct {
 	ID string
 	File
 	Geometry sim.Geometry
+	Walled   sim.Geometry // Geometry with the prep wall standing; zero on a map with none
 	step     float64
 	grid     *sharedGrid
 }
@@ -75,8 +77,19 @@ func Build(id string, f File, p sim.Params) (*Map, error) {
 			return nil, fmt.Errorf("prop %d: %w", i+1, err)
 		}
 	}
+	var walled sim.Geometry
+	if len(f.PrepWall) > 0 {
+		walled = g
+		walled.Boxes, walled.Cylinders = slices.Clone(g.Boxes), slices.Clone(g.Cylinders)
+		for i, s := range f.PrepWall {
+			if err := solid(&walled, f.Size, s); err != nil {
+				return nil, fmt.Errorf("prep_wall %d (%s): %w", i+1, s.Model, err)
+			}
+		}
+		walled = sim.Indexed(walled)
+	}
 	g = sim.Indexed(g)
-	return &Map{ID: id, File: f, Geometry: g, step: p.Step, grid: gridFor(g, p)}, nil
+	return &Map{ID: id, File: f, Geometry: g, Walled: walled, step: p.Step, grid: gridFor(g, p)}, nil
 }
 
 // terrain adds each hill, then each mesa, in file order at the grid points it reaches, so every build sums them alike; a point it doesn't reach would add 0.

@@ -65,6 +65,9 @@ func (l *loader) mapRules(m *mapfile.Map) error {
 	if m.Name == "" {
 		return errors.New("needs a name, the one players see")
 	}
+	if gamedata.MapKind(m.Kind) != gamedata.Pvp && (len(m.Sides) > 0 || len(m.PrepWall) > 0) {
+		return errors.New("only a pvp map has sides and a prep_wall")
+	}
 	switch gamedata.MapKind(m.Kind) {
 	case gamedata.Town:
 		if m.Town != "" || m.Levels != [2]int{} {
@@ -83,6 +86,19 @@ func (l *loader) mapRules(m *mapfile.Map) error {
 		}
 		if m.Boss == nil {
 			return errors.New("a hunting map has a field boss")
+		}
+	case gamedata.Pvp:
+		switch {
+		case m.Town != "" || m.Levels != [2]int{} || m.Start:
+			return errors.New("a pvp map has no town, levels or start")
+		case len(m.Portals) > 0 || len(m.Spawns) > 0 || m.Boss != nil || len(m.NPCs) > 0:
+			return errors.New("a pvp map has no portals, mob spawns, field boss or NPCs")
+		case m.PlayerSpawn != (mapfile.Place{}):
+			return errors.New("a pvp map's fighters start on its sides, so it has no player_spawn")
+		case len(m.Sides) != 2 || len(m.Sides[0]) == 0 || len(m.Sides[1]) == 0:
+			return errors.New("a pvp map has two sides, each with its starting spots")
+		case len(m.PrepWall) == 0:
+			return errors.New("a pvp map has a prep_wall, standing before each round")
 		}
 	default:
 		return fmt.Errorf("unknown kind %q", m.Kind)
@@ -174,8 +190,15 @@ func (l *loader) spots(m *mapfile.Map) error {
 			return err
 		}
 	}
-	if !nav.FitsAt(m.Geometry, l.movement.Step, mapfile.Point(m.PlayerSpawn.At), player) {
+	if gamedata.MapKind(m.Kind) != gamedata.Pvp && !nav.FitsAt(m.Geometry, l.movement.Step, mapfile.Point(m.PlayerSpawn.At), player) {
 		return fmt.Errorf("player_spawn %v isn't ground a player fits on", m.PlayerSpawn.At)
+	}
+	for s, side := range m.Sides {
+		for _, at := range side {
+			if !nav.FitsAt(m.Walled, l.movement.Step, mapfile.Point(at.At), player) {
+				return fmt.Errorf("side %d's spot %v isn't ground a player fits on, the prep wall standing", s+1, at.At)
+			}
+		}
 	}
 	for _, n := range m.NPCs {
 		if !l.npcs.has(n.ID) {
@@ -203,7 +226,7 @@ func (l *loader) linkMaps() error {
 				return fmt.Errorf("%s: portal %q: target portal %q not in map %q", file, p.Name, p.To.Portal, p.To.Map)
 			}
 		}
-		if town, ok := l.maps.get(m.Town); !ok || town.Kind != string(gamedata.Town) {
+		if town, ok := l.maps.get(m.Town); m.Kind != string(gamedata.Pvp) && (!ok || town.Kind != string(gamedata.Town)) {
 			return fmt.Errorf("%s: town %q is not a town", file, m.Town)
 		}
 		if m.Boss != nil {
@@ -262,6 +285,14 @@ func mapOf(m *mapfile.Map) *gamedata.Map {
 	}
 	if b := m.Boss; b != nil {
 		out.Boss = &gamedata.BossSpot{Mob: b.Mob, Kills: b.Kills, At: point(b.At), Radius: b.Radius}
+	}
+	for s, side := range m.Sides {
+		for _, at := range side {
+			out.Sides[s] = append(out.Sides[s], gamedata.Spot{At: point(at.At), Yaw: radians(at.Yaw)})
+		}
+	}
+	if gamedata.MapKind(m.Kind) == gamedata.Pvp {
+		out.PlayerSpawn, out.SpawnYaw, out.Walled = out.Sides[0][0].At, out.Sides[0][0].Yaw, m.Walled // where one who falls out is caught
 	}
 	return out
 }
