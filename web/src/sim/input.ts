@@ -5,4 +5,6 @@ export interface Input {
   readonly up: boolean;
   readonly down: boolean;
   readonly jump: boolean;
+  /** Walk mode, which never sprints (large-regions.md section 7); absent in sprint mode. */
+  readonly walk?: boolean;
 }

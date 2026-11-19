@@ -98,6 +98,7 @@
 - **As built:**
   - **Icon authors:** `features/settings/Credits.tsx` names each one from the icon paths' first part, capitalised: Delapouite, Lorc and Zeromancer, as the site names them.
   - **Status icons** (statuses.md, as built in B2b) are counted too, and the line reads "Skill and status icons from game-icons.net by". Their authors, Delapouite and Lorc, were already named through the skills.
+  - **The walk icon** (large-regions.md section 7) is counted too, from `features/shared/hudIcons.ts`, and the line now reads "Icons from game-icons.net by". Its author, Delapouite, was already named.
   - **The 3D packs:** no Kenney model ships (`public/models/LICENSES.md` lists none), so the line thanks Kay Lousberg (KayKit) and Quaternius. A test fails if that file names a maker the credits don't.
 
 ## 8. Testing

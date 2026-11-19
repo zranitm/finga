@@ -99,7 +99,7 @@ func TestAccounts(t *testing.T) {
 
 	t.Run("settings are read and written", func(t *testing.T) {
 		id, _ := insertAccount(t, store, "bob")
-		want := model.Settings{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true, Zoom: 0.625, Keys: map[string]string{"attack": "KeyV", "skill1": "ShiftLeft"}}
+		want := model.Settings{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true, Zoom: 0.625, Walk: true, Keys: map[string]string{"attack": "KeyV", "skill1": "ShiftLeft"}}
 		err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Accounts().UpdateSettings(ctx, id, want) })
 		if err != nil {
 			t.Fatal(err)

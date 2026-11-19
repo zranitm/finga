@@ -366,6 +366,22 @@ Built with step 1, which says who watches a cell.
 - **Shown:**
   - Each switch gives a notice, "Walk" or "Sprint".
   - While walk mode is on, a walk icon from game-icons.net (credited as C16's are) comes first in the player's own frame row (frame-icons.md). Its hover reads "Walk mode: no sprint. <key> to switch."
+- **As built:**
+  - **The first sub-step:** walk mode stops a sprint on the switch's own sub-step, as combat does, so `sprinting` reads `Input.Walk` as well as the count.
+  - **A hold** keeps the mode in the input itself: `Input{Walk: in.Walk}`.
+  - **The vectors:**
+    - `walk-never-sprints`;
+    - `walk-switch-while-walking`;
+    - `walk-switch-standing`;
+    - `walk-switch-in-combat`;
+    - `walk-held-keeps-mode`.
+  - **The client:**
+    - The mode is `settings.walk`, which the input sender reads for every input.
+    - The zoom's watcher, now `watchPlaySettings`, saves it 800 ms after the last switch, so a quick double switch makes one PUT.
+    - The notice is an info toast.
+  - **The icon:**
+    - Delapouite's `walk`, in `public/icons/hud/`, on a slate tile edged in the text colour.
+    - Its path is in `features/shared/hudIcons.ts`, which the credits read too.
 
 ## 8. Waypoints and teleport
 

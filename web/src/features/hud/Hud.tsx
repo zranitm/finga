@@ -6,6 +6,7 @@ import { actions } from '@/gamedata/actions';
 import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
 import { energy } from '@/state/energy';
+import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
 import { statuses } from '@/state/statuses';
 import { ui } from '@/state/ui';
@@ -25,6 +26,7 @@ export function Hud() {
   const slots = skillBar.use((s) => s.slots);
   const live = skillBar.use((s) => s.live);
   const cooldowns = skillBar.use((s) => s.cooldowns);
+  const walk = settings.use((s) => s.walk);
   if (!c) {
     return null;
   }
@@ -41,7 +43,7 @@ export function Hud() {
         shield={shield}
         label="Status"
         statuses={mine}
-        own={{ buffs, cooldowns: cooling }}
+        own={{ buffs, cooldowns: cooling, walk }}
       >
         <EnergyPips />
         <Bar

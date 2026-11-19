@@ -201,6 +201,10 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 			model.Delta{Frame: &model.Frame{Players: []model.PlayerView{{ID: "p-1", Sprint: 120}}}},
 			&clientv1.Delta{Players: []*clientv1.PlayerView{{Id: "p-1", Sprint: 120}}},
 		},
+		{ // walk mode, the mode the player's own reconcile steps on in
+			model.Delta{Frame: &model.Frame{Players: []model.PlayerView{{ID: "p-1", Walk: true}}}},
+			&clientv1.Delta{Players: []*clientv1.PlayerView{{Id: "p-1", Walk: true}}},
+		},
 		{ // a break-free's leap through mobs, with the farthest point it reached clear of them
 			model.Delta{Frame: &model.Frame{Players: []model.PlayerView{{ID: "p-1", Move: model.PlayerMove{VX: -13, Left: 9, Through: true, ClearX: 6.5, ClearZ: 3}}}}},
 			&clientv1.Delta{Players: []*clientv1.PlayerView{{Id: "p-1", Move: &clientv1.SkillMove{Vx: -13, Left: 9, Through: true, ClearX: 6.5, ClearZ: 3}}}},

@@ -93,6 +93,7 @@ type QuestAsk struct {
 // Keys are the keys a player holds.
 type Keys struct {
 	Left, Right, Up, Down, Jump bool
+	Walk                        bool // walk mode, which never sprints
 }
 
 // ItemMove moves an item to a slot of a tab.

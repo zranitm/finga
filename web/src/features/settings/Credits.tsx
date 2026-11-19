@@ -1,16 +1,19 @@
 // The credits (skill-icons.md section 7): game-icons.net's CC BY 3.0 asks for each author's name; the CC0 model packs are thanked as a courtesy.
+import { hudIcons } from '@/features/shared/hudIcons';
 import { skills } from '@/gamedata/skills';
 import { statusIcons } from '@/progression/statuses';
 
 /** Authors game-icons.net spells otherwise than their path capitalised. */
 const spelled: Readonly<Record<string, string>> = { darkzaitzev: 'DarkZaitzev' };
 
-/** Each author whose icon a skill or a status uses, from the icons' paths, author/name, as game-icons.net names them: lorc is Lorc. */
+/** Each author whose icon a skill, a status or the HUD uses, from the icons' paths, author/name, as game-icons.net names them: lorc is Lorc. */
 const iconAuthors = [
   ...new Set(
-    [...skills.flatMap((s) => s.stages.map((st) => st.icon)), ...Object.values(statusIcons)].map(
-      (icon) => icon.split('/')[0]!,
-    ),
+    [
+      ...skills.flatMap((s) => s.stages.map((st) => st.icon)),
+      ...Object.values(statusIcons),
+      ...Object.values(hudIcons),
+    ].map((icon) => icon.split('/')[0]!),
   ),
 ]
   .sort()
@@ -35,7 +38,7 @@ export function Credits() {
     <section aria-label="Credits">
       <h2>Credits</h2>
       <p className="credits">
-        Skill and status icons from{' '}
+        Icons from{' '}
         <a href="https://game-icons.net" target="_blank" rel="noreferrer">
           game-icons.net
         </a>{' '}

@@ -174,6 +174,27 @@ describe('Predictor in combat (large-regions.md section 7)', () => {
     expect([pred.state.sprint, pred.resets]).toEqual([30, 0]); // all 10 inputs counted
   });
 
+  it('switching back to sprint mode mid-walk, with the switch and inputs around it on their way, replays with no correction: both sprint from its next sub-step', () => {
+    const pred = walking();
+    const RW: Input = { ...R, walk: true };
+    const inputs = [...Array<Input>(SPRINT_TICKS + 5).fill(RW), ...Array<Input>(6).fill(R)];
+    const world = worldWalk(inputs, () => false);
+    const switched = SPRINT_TICKS + 6; // the first input in sprint mode
+    inputs.forEach((input, i) => {
+      run(pred, [input], i + 1);
+      if (i >= 3) {
+        pred.reconcile(world[i - 3]!, i - 2, 100 + i - 2); // three inputs behind
+      }
+    });
+    expect([pred.state, pred.resets]).toEqual([world.at(-1), 0]);
+    expect(world[switched - 2]!.sprint).toBeUndefined(); // never sprinting in walk mode
+    expect(world[switched - 1]!.sprint).toBe(sprintSteps(params)); // the switch's tick: sprinting from its second sub-step
+    expect(world[switched - 1]!.x - world[switched - 2]!.x).toBeCloseTo(
+      params.dt * (params.walk_speed + 2 * params.walk_speed * params.sprint.speed),
+      9,
+    );
+  });
+
   it('a press ends the count from the first input past it, as the world ends it', () => {
     const pred = walking();
     run(pred, Array<Input>(SPRINT_TICKS + 5).fill(R));
@@ -275,7 +296,7 @@ describe('Predictor', () => {
     },
   );
 
-  it.each([{ held: 9 }, { slow: { left: 30, factor: 0.6 } }, { sprint: 7 }])(
+  it.each([{ held: 9 }, { slow: { left: 30, factor: 0.6 } }, { sprint: 7 }, { walk: true }])(
     'a world that differs in %o alone resets, and the prediction steps on from it as the world will',
     (status) => {
       const pred = predictor();
@@ -744,15 +765,21 @@ describe('wireState', () => {
     });
   });
 
-  it('takes a hold and a slow from the wire, and leaves out none', () => {
+  it('takes a hold, a slow, a sprint and walk mode from the wire, and leaves out none', () => {
     const view = { x: 1, y: 2, z: 3, vx: 4, vy: 5, vz: 6, onGround: true, hx: 0, hz: -1 };
-    expect(wireState({ ...view, held: 12, slow: { left: 30, factor: 0.6 } })).toMatchObject({
+    expect(
+      wireState({ ...view, held: 12, slow: { left: 30, factor: 0.6 }, sprint: 7, walk: true }),
+    ).toMatchObject({
       held: 12,
       slow: { left: 30, factor: 0.6 },
+      sprint: 7,
+      walk: true,
     });
-    const none = wireState({ ...view, held: 0, slow: undefined });
+    const none = wireState({ ...view, held: 0, slow: undefined, sprint: 0, walk: false });
     expect(none).not.toHaveProperty('held');
     expect(none).not.toHaveProperty('slow');
+    expect(none).not.toHaveProperty('sprint');
+    expect(none).not.toHaveProperty('walk');
   });
 
   it('takes a body from the wire into sim terms', () => {
@@ -772,7 +799,10 @@ describe('wireState', () => {
 });
 
 /** s with field moved the least it can be: a bit, or on_ground flipped. */
-function nudged(s: State, field: Exclude<keyof State, 'move' | 'held' | 'slow' | 'sprint'>): State {
+function nudged(
+  s: State,
+  field: Exclude<keyof State, 'move' | 'held' | 'slow' | 'sprint' | 'walk'>,
+): State {
   const v = s[field];
   return {
     ...s,

@@ -406,6 +406,7 @@ export class World {
   private constructor(private readonly deps: WorldDeps) {
     this.sender = new InputSender({
       send: (input, tick, view) => deps.socket.sendInput(input, tick, view),
+      walk: () => settings.getState().walk,
     });
     this.overlay = new Overlay(deps.parent);
     this.labels = new Labels(this.overlay);
@@ -762,6 +763,12 @@ export class World {
       case 'arena':
         ui.getState().toggleWindow(action);
         return;
+      case 'walk': {
+        const walk = !settings.getState().walk;
+        settings.getState().setWalk(walk); // the next input carries it; saved with the zoom
+        toasts.getState().push(walk ? 'Walk' : 'Sprint', 'info');
+        return;
+      }
       case 'zoomIn':
         zoomBy(-ZOOM_STEP);
         return;

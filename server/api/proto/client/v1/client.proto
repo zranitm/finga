@@ -131,6 +131,8 @@ message Input {
   bool jump = 5;
   // The server tick of the mobs the client drew, which the world blocks this input against.
   uint32 view = 6;
+  // Walk mode, which never sprints, sent with every input as the sim steps it as Input.Walk (large-regions.md section 7).
+  bool walk = 7;
 }
 
 // Attack swings or shoots the way the character faces.
@@ -556,6 +558,8 @@ message PlayerView {
   bool bot = 30;
   // Sub-steps walked toward a sprint, which the sim steps as State.Sprint, held at movement.yaml's sprint.after once there: from the next, it sprints; 0 when none.
   int32 sprint = 31;
+  // The mode it last stepped in, State.Walk: walk mode, or sprint mode when false; the player's own reconcile replays from it.
+  bool walk = 32;
 }
 
 // SlowWalk is a status slowing a player's walk: factor × the walk speed for left more sub-steps.

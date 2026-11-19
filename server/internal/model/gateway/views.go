@@ -19,6 +19,7 @@ type PlayerView struct {
 	Shield          int  // what's left of its shields
 	Held            int  // sub-steps left of a status holding it
 	Sprint          int  // sub-steps walked toward a sprint
+	Walk            bool // the mode it last stepped in: walk mode, or sprint mode when false
 	Slow            PlayerSlow
 	Statuses        []StatusView
 	Team            int // its side in a match, 1 or 2; 0 outside one

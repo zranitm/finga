@@ -176,7 +176,7 @@ describe('bindKeyboard', () => {
 
   it('a key held as a modal opens is let go at once, so no more movement goes out, and walks again only on its repeat once the modal closes', () => {
     const sent: Input[] = [];
-    const sender = new InputSender({ send: (input) => sent.push(input) > 0 });
+    const sender = new InputSender({ send: (input) => sent.push(input) > 0, walk: () => false });
     unbinds.push(bindKeyboard({ target: sender, keys: () => defaults, typing: () => false }));
     const key = (type: 'keydown' | 'keyup', code: string, init: KeyboardEventInit = {}) =>
       window.dispatchEvent(new KeyboardEvent(type, { code, cancelable: true, ...init }));
