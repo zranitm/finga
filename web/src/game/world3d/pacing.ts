@@ -35,14 +35,21 @@ export class Pacing {
 
   /** Whether a figure whose bounds are a sphere reach round (x, y, z), on beat, is posed this frame. */
   poses(x: number, y: number, z: number, reach: number, beat: number): boolean {
-    if (
-      this.seen &&
-      this.planes.some((p) => p.normal.x * x + p.normal.y * y + p.normal.z * z + p.d < -reach)
-    ) {
-      return false; // off the screen: it's posed again as it comes back
+    if (this.seen) {
+      for (const p of this.planes) {
+        if (p.normal.x * x + p.normal.y * y + p.normal.z * z + p.d < -reach) {
+          return false; // off the screen: it's posed again as it comes back
+        }
+      }
     }
     const away = Math.hypot(x - this.x, z - this.z);
-    const every = POSE_EVERY.find(([beyond]) => away > beyond)?.[1] ?? 1;
+    let every = 1;
+    for (const [beyond, n] of POSE_EVERY) {
+      if (away > beyond) {
+        every = n;
+        break;
+      }
+    }
     return (this.frame + beat) % every === 0;
   }
 }

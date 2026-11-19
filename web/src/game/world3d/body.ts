@@ -85,7 +85,7 @@ export interface Figure {
   fade(on: boolean): void;
   /** Casts its shadow, as it does from the start, or none, which spares the shadow map its draws. */
   cast(on: boolean): void;
-  /** Steps its clocks and blends by dtMs to now; its bones are posed only when posed, so a far or unseen one skips frames and its clips run on meanwhile. */
+  /** Steps its clocks and blends by dtMs to now; its bones are posed only when posed, so a far or unseen one skips frames and its clips run on meanwhile, and always on its first, so it's never drawn in its rig's rest pose. */
   update(now: number, dtMs: number, gait: Gait, posed: boolean): void;
   dispose(): void;
 }
@@ -143,6 +143,7 @@ export class Body implements Figure {
   private readonly shades: { mesh: AbstractMesh; whole: Material; faded: Material }[] = [];
   private readonly casters: AbstractMesh[] = [];
   private casting = true;
+  private fresh = true; // not yet posed
   private readonly shadows: ShadowGenerator;
   private readonly inks: AbstractMesh[] = [];
   private faded = false;
@@ -361,7 +362,9 @@ export class Body implements Figure {
   }
 
   /** Steps the blends by dtMs to now: locomotion by gait, an action fading out to be gone at its ready point, the mask switching as the body starts or stops moving. */
-  update(now: number, dtMs: number, gait: Gait, posed: boolean): void {
+  update(now: number, dtMs: number, gait: Gait, asked: boolean): void {
+    const posed = asked || this.fresh;
+    this.fresh = false;
     if (this.waiting && now >= this.waiting.start) {
       const w = this.waiting;
       this.play(w.clip, w.share, w.start, w.readyAt);

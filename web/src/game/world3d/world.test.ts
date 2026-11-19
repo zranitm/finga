@@ -933,6 +933,129 @@ describe('World', () => {
     expect([off(lo), at()]).toEqual([expect.closeTo(1, 2), [true, true, true, true]]);
   });
 
+  it('poses the player every frame, even far from the camera’s target, as after a respawn across the map', async () => {
+    const update = vi.spyOn(Body.prototype, 'update');
+    const p = await playing(FLAT, 4, 20);
+    p.frames(2);
+    p.push('died', { characterId: ME, x: 4, y: 0, z: 20 }, { tick: 2 });
+    p.push('delta', { players: [standing(68, 20)], ackSeq: 0 }, { tick: 3 });
+    p.push('respawned', { characterId: ME, mapId: FLAT, x: 68, y: 0, z: 20, hp: 50 }, { tick: 3 });
+    update.mockClear();
+    p.frames(8);
+    const mine = update.mock.calls.flatMap((c, i) =>
+      (update.mock.contexts[i] as Body).root.position.x === 68 ? [c[3]] : [],
+    );
+    expect(mine).toEqual(Array(8).fill(true)); // 64 m from where the camera eases from, every 4th frame were it paced
+  });
+
+  it('poses the locked mob every frame, even 40 m off', async () => {
+    const update = vi.spyOn(Body.prototype, 'update');
+    settings.getState().setZoom(1); // at its farthest, where it's in view to lock
+    const p = await playing(FLAT, 4, 20);
+    const far = { ...mob(1, 'green_slime', 4), z: 60 };
+    frames(p, 2, 6, [far]);
+    await vi.waitFor(() => {
+      frames(p, 7, 7, [far]);
+      expect(outlined(p, 'quaternius/GreenBlob.glb')).toBe(true);
+    }, WAIT);
+    update.mockClear();
+    frames(p, 8, 15, [far]);
+    const slime = update.mock.calls.flatMap((c, i) =>
+      (update.mock.contexts[i] as Body).root.position.z === 60 ? [c[3]] : [],
+    );
+    expect(slime).toEqual(Array(8).fill(true));
+  });
+
+  it('poses a locked enemy every frame in a match, even 40 m off', async () => {
+    const update = vi.spyOn(Body.prototype, 'update');
+    settings.getState().setZoom(1);
+    const p = await playing(FLAT, 4, 20);
+    const players = [
+      { ...standing(4, 20), team: 1 },
+      { ...standing(4, 60, 'c-robin', 'thief'), team: 2 },
+    ];
+    let tick = 2;
+    await vi.waitFor(() => {
+      p.push('delta', { players }, { tick: tick++ });
+      p.frames(1);
+      expect(target.getState().target).not.toBeNull();
+      expect(p.root(classLook('thief').file)).toBeDefined();
+    }, WAIT);
+    update.mockClear();
+    for (let k = 0; k < 8; k++) {
+      p.push('delta', { players }, { tick: tick++ });
+      p.frames(1);
+    }
+    const robin = update.mock.calls.flatMap((c, i) =>
+      (update.mock.contexts[i] as Body).root.position.z === 60 ? [c[3]] : [],
+    );
+    expect(robin).toEqual(Array(8).fill(true));
+  });
+
+  it('keeps another player’s shadow on, or off, within a metre of 25 m, so one on the line doesn’t flicker', async () => {
+    const p = await playing(FLAT, 4, 20);
+    const casting = (z: number) => {
+      const list = p.scene()!.lights[0]!.getShadowGenerator()!.getShadowMap()!.renderList!;
+      const root = p
+        .scene()!
+        .transformNodes.find((n) => n.name === classLook('thief').file && n.position.z === z);
+      return !!root && root.getChildMeshes(false).some((m) => list.includes(m));
+    };
+    const at = (east: number, north: number, tick: number) => {
+      p.push(
+        'delta',
+        {
+          players: [
+            standing(4 + east, 20, 'c-east', 'thief'),
+            standing(4, 20 + north, 'c-north', 'thief'),
+          ],
+        },
+        { tick },
+      );
+      p.live(16);
+    };
+    at(24, 27, 2);
+    await vi.waitFor(() => {
+      p.frames(1);
+      expect([casting(20), casting(47)]).toEqual([true, false]);
+    }, WAIT);
+    at(25.5, 25.5, 30);
+    expect([casting(20), casting(45.5)]).toEqual([true, false]); // both on the line, each as it was
+    at(26.5, 23.5, 60);
+    expect([casting(20), casting(43.5)]).toEqual([false, true]);
+  });
+
+  it('never lets a figure past 25 m cast, not even in a frame drawn before its player is, when it’s made or redrawn', async () => {
+    const p = await playing(FLAT, 4, 20);
+    const shadowMap = p.scene()!.lights[0]!.getShadowGenerator()!.getShadowMap()!;
+    let cast = 0;
+    shadowMap.onBeforeRenderObservable.add(() => {
+      const thieves = p.scene()!.transformNodes.filter((n) => n.name === classLook('thief').file); // a new figure stands at the origin till it's drawn
+      cast += thieves.some((n) =>
+        n.getChildMeshes(false).some((m) => shadowMap.renderList!.includes(m)),
+      )
+        ? 1
+        : 0;
+    });
+    const robin = (look: Partial<LookWire>) => ({
+      ...standing(34, 20, 'c-robin', 'thief'),
+      look: create(LookSchema, look),
+    });
+    const arrived = async (meshName: string) =>
+      vi.waitFor(() => {
+        p.scene()!.render(); // as a frame does that the remotes' loop skips
+        expect(p.scene()!.meshes.some((m) => m.name === meshName && m.isEnabled())).toBe(true);
+      }, WAIT);
+    p.push('delta', { players: [robin({})] }, { tick: 2 });
+    p.frames(1);
+    await arrived('Rogue_Body');
+    p.push('delta', { players: [robin({ headwear: 'pointed_hat' })] }, { tick: 3 });
+    p.frames(1);
+    await arrived('Mage_Hat worn');
+    p.frames(2);
+    expect(cast).toBe(0); // 30 m off
+  });
+
   it('lets another player cast a shadow within 25 m of the camera’s target, and none past it', async () => {
     const p = await playing(FLAT, 4, 20);
     const casting = (x: number) => {

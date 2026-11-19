@@ -839,8 +839,12 @@ As built in slice PR 7:
   - **Pacing** (`world3d/pacing.ts`) says which bodies are posed each frame:
     - one whose bounds lie off the screen as last drawn is not;
     - one farther than 30 m from the camera's target is posed every 2nd frame, and every 4th past 60 m (`POSE_EVERY`);
-    - each body takes its own beat as it's made, so the far ones spread across the frames.
+    - each body takes its own beat as it's made, so the far ones spread across the frames;
+    - **the player's own body and the locked one are posed every frame,** wherever they stand: the locked figure wears the outline, so a stutter would show most there, and the camera eases after a teleport;
+    - **a new body is posed on its first update,** whatever its pacing, so it's never drawn in its rig's rest pose.
   - **Shadows:** another player farther than 25 m from the camera's target casts none (`CAST_M` in `world3d/world.ts`). Mobs, solids, props and the player cast as before.
+    - **A metre either way** (`CAST_EDGE_M`): a shadow starts within 24 m and stops past 26 m, so a player on the line doesn't flicker.
+    - **A new figure** takes its player's state before any frame draws it, so a redraw past 25 m never casts for a frame.
     - **Why 25 m:** at the closest zoom, everything past it is off the screen. At full zoom, it's where figures stand about 20 px tall in the fog, their shadows blobs of about 6 px.
     - The sun fits its shadow map round all its casters, so far players no longer widen it.
   - **Measured:** on a profile page, 40 players at 1280×800, every frame waited on the GPU. Before is main's body with the cull, pacing and cast range off, in alternating runs. Totals swing with the machine's load, while stage times hold.

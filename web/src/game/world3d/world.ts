@@ -174,12 +174,15 @@ const PROMPT_LIFT_PX = 42; // the talk prompt over an NPC's name and marker
 const ZOOM_STEP = 0.125; // a zoom key's press, or a wheel's notch, of the way from close to far
 const WHEEL_PX = 800; // a wheel's pixels from close to far, so a notch of 100 px is a step
 const CAST_M = 25; // another player casts a shadow within this of the camera's target; past it the shadow map spares their draws
+const CAST_EDGE_M = 1; // starting at CAST_M less this, stopping at CAST_M more
 const FAR_PLANE_M = 1500; // the camera sees no farther (large-regions.md section 9)
 
 /** A figure drawn for one of the map's bodies, made in the background; its turn eases toward its facing. */
 class Drawn {
   figure: Figure | null = null;
   yaw: number;
+  pinned = false; // posed every frame whatever its pacing: the player's own, and the one locked
+  private casting = true;
   private gone = false;
   private latest = 0; // the redraw whose figure it waits for; an older one that comes after is dropped
   private last: { x: number; y: number; z: number } | null = null;
@@ -228,6 +231,7 @@ class Drawn {
         }
         this.figure?.dispose();
         this.figure = f;
+        f.cast(this.casting); // before any frame draws it
         if (this.posed.p !== 'up') {
           f.pose(this.posed.p, this.posed.at); // taken while it loaded
         }
@@ -258,7 +262,7 @@ class Drawn {
       now,
       dtMs,
       gait ?? gaitAt(dtMs > 0 ? (moved * 1000) / dtMs : 0, true),
-      this.pacing.poses(x, y + this.middle, z, this.reach, this.beat),
+      this.pinned || this.pacing.poses(x, y + this.middle, z, this.reach, this.beat),
     );
   }
 
@@ -276,9 +280,10 @@ class Drawn {
     this.figure?.fade(on);
   }
 
-  /** Casts its shadow or not. */
-  cast(on: boolean): void {
-    this.figure?.cast(on);
+  /** Casts its shadow while away, its distance from the camera's target, is within CAST_M, by a metre either way so one on the line doesn't flicker. */
+  castAt(away: number): void {
+    this.casting = away < CAST_M + (this.casting ? CAST_EDGE_M : -CAST_EDGE_M);
+    this.figure?.cast(this.casting);
   }
 
   /** Takes pose p from at, once. */
@@ -673,6 +678,7 @@ export class World {
     const at = arriving.at;
     this.meCls = this.cls;
     this.me = this.drawn(playerLook(this.meCls, undefined), at?.yaw ?? 0, this.meCls); // dressed by its first frame
+    this.me.pinned = true;
     if (at) {
       this.follow.set(at.x, at.y + CHEST_M, at.z);
     }
@@ -1086,6 +1092,7 @@ export class World {
         changed = true;
       }
       v.dress(cls, look, this.dressing);
+      v.pinned = this.lockedId === `p:${id}`;
       const aim = this.remoteAims.get(id);
       v.draw(
         s.x,
@@ -1098,7 +1105,7 @@ export class World {
       );
       v.pose(this.deadRemotes.has(id) ? 'dead' : 'up', now);
       v.fade(looks.get(id)?.dodging ?? false);
-      v.cast(Math.hypot(s.x - this.follow.x, s.z - this.follow.z) <= CAST_M);
+      v.castAt(Math.hypot(s.x - this.follow.x, s.z - this.follow.z));
       const info = remotes.infoOf(id);
       const side = relationOf(this.myTeam, info?.team ?? 0);
       this.labels.set(
@@ -1180,6 +1187,7 @@ export class World {
         this.mobViews.set(id, v);
         this.mobTypes.set(id, s.type);
       }
+      v.pinned = this.lockedId === mark.id;
       v.draw(s.x, s.y, s.z, s.yaw, now, dtMs);
       v.pose(poseOf(s.pose), now - s.poseMs);
     }

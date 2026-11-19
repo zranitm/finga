@@ -599,6 +599,22 @@ describe('posing', () => {
     b.dispose();
   });
 
+  it('poses its bones on its first update even unasked, so it’s never drawn in its rig’s rest pose', async () => {
+    const look = classLook('warrior');
+    const [rest, asked, unasked] = [await body(look), await body(look), await body(look)];
+    asked.update(FRAME_MS, FRAME_MS, STILL, true);
+    unasked.update(FRAME_MS, FRAME_MS, STILL, false);
+    scene.animate();
+    expect(joints(unasked)).toEqual(joints(asked));
+    expect(joints(unasked)).not.toEqual(joints(rest));
+    const before = joints(unasked);
+    unasked.update(2 * FRAME_MS, FRAME_MS, { pace: 'run', onGround: true }, false);
+    expect(joints(unasked)).toEqual(before); // the next unasked is skipped
+    for (const b of [rest, asked, unasked]) {
+      b.dispose();
+    }
+  });
+
   it('poses its bones only when asked, its clips and actions running on meanwhile, so a skipped frame keeps the last pose and the next lands where every frame would', async () => {
     const look = classLook('warrior');
     const [every, some] = [await body(look), await body(look)];
@@ -615,7 +631,7 @@ describe('posing', () => {
       const before = joints(some);
       some.update(t, FRAME_MS, i < 12 ? STILL : run, i % 4 === 0);
       scene.animate();
-      if (i % 4 === 0) {
+      if (i % 4 === 0 || i === 1) {
         joints(some).forEach((q, k) => expect(q, `frame ${i}`).toBeCloseTo(joints(every)[k]!, 6));
       } else {
         expect(joints(some), `frame ${i}`).toEqual(before);
