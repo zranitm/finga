@@ -49,6 +49,15 @@ func (w *World) Equip(ctx context.Context, id kernel.CharacterID, conn, key stri
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.Equip(ctx, id, conn, key, item, equipSlot) })
 }
 
+// TakeLoot takes picked items from the player's own pouches, and returns what each pick came to.
+func (w *World) TakeLoot(ctx context.Context, id kernel.CharacterID, conn string, picks []model.Pick) (answers []model.PickAnswer, err error) {
+	err = w.wait(id, conn, func(i *instance.Instance) error {
+		answers, err = i.TakeLoot(ctx, id, conn, picks)
+		return err
+	})
+	return answers, err
+}
+
 // SetLook wears a look and returns once everyone sees it.
 func (w *World) SetLook(ctx context.Context, id kernel.CharacterID, conn, key string, look model.Look) error {
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.SetLook(ctx, id, conn, key, look) })

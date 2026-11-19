@@ -34,29 +34,33 @@ type Snapshot struct {
 	MapID         string
 	Players       []PlayerView
 	Mobs          []MobView
-	Drops         []DropView
+	Pouches       []PouchView    // the joiner's own
 	FieldBoss     *FieldBoss     // while one is up
 	FieldBossGone *FieldBossGone // while the map's is beaten
 }
 
 // Frame is what changed on a map in one tick, once for every player there through the gateway; read-only.
 type Frame struct {
-	Players        []PlayerView
-	Mobs           []MobView
-	Drops          []DropView // new on the ground
-	Removed        []kernel.CharacterID
-	RemovedMobs    []uint64
-	RemovedDrops   []uint64 // gone without an owner taking them: expired or lost
-	CollectedDrops []uint64 // left the ground for their owners' inventories
-	Recipients     []Recipient
+	Players     []PlayerView
+	Mobs        []MobView
+	Removed     []kernel.CharacterID
+	RemovedMobs []uint64
+	Recipients  []Recipient
 }
 
-// Recipient is a player a frame goes to, with AckSeq, the latest input applied for it, and its energy as of then when it changed or the player just joined.
+// Recipient is a player a frame goes to, with AckSeq, the latest input applied for it, its energy as of then when it changed or the player just joined, and its own pouches that changed, which nobody else's frame carries.
 type Recipient struct {
 	Character  kernel.CharacterID
 	Connection string
 	AckSeq     uint32
 	Energy     *int
+	Pouches    Pouches
+}
+
+// Pouches are the changes to a player's own pouches in a frame: those new or changed, and those gone.
+type Pouches struct {
+	Changed []PouchView
+	Gone    []uint64
 }
 
 // Teleport moves the player to another map, whose snapshot follows.
@@ -206,15 +210,20 @@ type Chat struct {
 	Text       string
 }
 
-// Loot tells a player what became of a drop: their own, or a party member's they saw collected.
+// Loot tells a player what became of a pouch's items: their own taken or left, or a party member's taken.
 type Loot struct {
 	Kind      LootKind
-	MapID     string // drop IDs are the map's own
-	DropID    uint64
+	MapID     string // pouch IDs are the map's own
+	Pouch     uint64
 	Owner     kernel.CharacterID
 	OwnerName string
-	Template  string
-	Quantity  int
+	Items     []LootItem
+}
+
+// LootItem is an item a Loot names.
+type LootItem struct {
+	Template string
+	Quantity int
 }
 
 // TeleportCancelled tells the player their teleport channel ended before it took them, and why.
@@ -233,14 +242,13 @@ const (
 	TeleportDied
 )
 
-// LootKind is what became of a drop.
+// LootKind is what became of a pouch's items.
 type LootKind int
 
 // The kinds of loot, as the model counts them.
 const (
-	LootCollected LootKind = iota + 1 // in its owner's inventory
-	LootWaiting                       // on the ground until its owner has room
-	LootLost                          // gone at the end of its life, never collected
+	LootTaken LootKind = iota + 1 // in the taker's inventory
+	LootLeft                      // still in the pouch when its life ended
 )
 
 // InventoryChanged tells the player which slots and equip slots a committed change touched, at the inventory's Revision.
@@ -360,13 +368,42 @@ const (
 	Rising
 )
 
-// DropView is an item on the ground as everyone sees it, with the player it will fly to.
-type DropView struct {
-	ID       uint64
+// PouchView is a pouch as its owner alone sees it, gone after GoneIn.
+type PouchView struct {
+	ID      uint64
+	Kind    PouchKind
+	X, Y, Z float64
+	Items   []PouchItem
+	GoneIn  time.Duration
+}
+
+// PouchKind is what a pouch is.
+type PouchKind int
+
+// The pouch kinds, as the model counts them.
+const (
+	PouchSmall PouchKind = iota + 1 // a kill's
+	PouchBox                        // a boss's, one per eligible player
+)
+
+// PouchItem is an item in a pouch; ID is its own within the pouch.
+type PouchItem struct {
+	ID       uint32
 	Template string
 	Quantity int
-	X, Y, Z  float64
-	Owner    kernel.CharacterID
+	Stats    *progression.ItemStats // equipment's roll, nil for anything else
+}
+
+// Pick is one item a take asks for.
+type Pick struct {
+	Pouch uint64
+	Item  uint32
+}
+
+// PickAnswer is what a pick came to: taken when Err is nil, else refused with why.
+type PickAnswer struct {
+	Pick
+	Err error
 }
 
 // EntityRef names a player or a mob in a combat event.
@@ -491,12 +528,15 @@ func (g stream) SendFrame(f *model.Frame, to []model.Recipient) bool {
 // frameOf is the map's frame as the facade's own: its lists are copies, small and mostly empty, so no module shares the map's buffers.
 func frameOf(f *model.Frame, to []model.Recipient) Frame {
 	out := Frame{
-		Players: playerViews(f.Players), Mobs: mobViews(f.Mobs), Drops: dropViews(f.Drops),
-		Removed: slices.Clone(f.Removed), RemovedMobs: slices.Clone(f.RemovedMobs), RemovedDrops: slices.Clone(f.RemovedDrops), CollectedDrops: slices.Clone(f.CollectedDrops),
+		Players: playerViews(f.Players), Mobs: mobViews(f.Mobs),
+		Removed: slices.Clone(f.Removed), RemovedMobs: slices.Clone(f.RemovedMobs),
 		Recipients: make([]Recipient, len(to)),
 	}
 	for i, r := range to {
-		out.Recipients[i] = Recipient(r)
+		out.Recipients[i] = Recipient{
+			Character: r.Character, Connection: r.Connection, AckSeq: r.AckSeq, Energy: r.Energy,
+			Pouches: Pouches{Changed: pouchViews(r.Pouches.Changed), Gone: slices.Clone(r.Pouches.Gone)},
+		}
 	}
 	return out
 }
@@ -505,7 +545,7 @@ func frameOf(f *model.Frame, to []model.Recipient) Frame {
 func deliveryOf(e model.Event) Delivery {
 	switch ev := e.(type) {
 	case model.Snapshot:
-		snap := Snapshot{MapID: ev.MapID, Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Drops: dropViews(ev.Drops)}
+		snap := Snapshot{MapID: ev.MapID, Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Pouches: pouchViews(ev.Pouches)}
 		if b := ev.FieldBoss; b != nil {
 			snap.FieldBoss = &FieldBoss{Mob: b.Mob, Type: b.Type}
 		}
@@ -563,9 +603,11 @@ func deliveryOf(e model.Event) Delivery {
 	case model.InventoryChanged:
 		return Delivery{Tick: ev.Tick, Event: InventoryChanged{Revision: ev.Revision, Slots: slotsOf(ev.Slots), Equipment: equipSlotsOf(ev.Equipment)}}
 	case model.Loot:
-		return Delivery{Tick: ev.Tick, Event: Loot{
-			Kind: LootKind(ev.Kind), MapID: ev.MapID, DropID: ev.DropID, Owner: ev.Owner, OwnerName: ev.OwnerName, Template: ev.Template, Quantity: ev.Quantity,
-		}}
+		items := make([]LootItem, len(ev.Items))
+		for i, it := range ev.Items {
+			items[i] = LootItem(it)
+		}
+		return Delivery{Tick: ev.Tick, Event: Loot{Kind: LootKind(ev.Kind), MapID: ev.MapID, Pouch: ev.Pouch, Owner: ev.Owner, OwnerName: ev.OwnerName, Items: items}}
 	case model.Detached:
 		return Delivery{Event: Detached{}}
 	case model.NpcDialog:
@@ -623,13 +665,17 @@ func mobViews(ms []model.MobView) []MobView {
 	return out
 }
 
-func dropViews(ds []model.DropView) []DropView {
-	if len(ds) == 0 {
+func pouchViews(ps []model.PouchView) []PouchView {
+	if len(ps) == 0 {
 		return nil
 	}
-	out := make([]DropView, len(ds))
-	for i, d := range ds {
-		out[i] = DropView(d)
+	out := make([]PouchView, len(ps))
+	for i, p := range ps {
+		items := make([]PouchItem, len(p.Items))
+		for k, it := range p.Items {
+			items[k] = PouchItem(it)
+		}
+		out[i] = PouchView{ID: p.ID, Kind: PouchKind(p.Kind), X: p.X, Y: p.Y, Z: p.Z, Items: items, GoneIn: p.GoneIn}
 	}
 	return out
 }

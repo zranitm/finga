@@ -6,7 +6,7 @@ import type { Shape, Skill, Stage } from '@/progression/skills';
 import { ERR, errorText } from '@/protocol/errors';
 import type { Cooldown } from '@/state/skill-bar';
 
-import type { Point } from './drops';
+import type { Point } from './mob-attacks';
 
 /** What the checks read of the player; null before Welcome. */
 export interface Caster {

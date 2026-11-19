@@ -82,7 +82,8 @@ type RequestType =
   | 'pvpQueue'
   | 'pvpLeaveQueue'
   | 'pvpAnswer'
-  | 'pvpForfeit';
+  | 'pvpForfeit'
+  | 'takeLoot';
 type ActionType = 'attack' | 'enterPortal';
 
 /** A server message as handlers see it: the body's case and value, with the envelope's req and tick. */

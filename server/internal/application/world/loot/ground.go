@@ -1,10 +1,9 @@
-// Package loot runs a map's drops: rolled from kills, each owned by one player from the moment it falls, and collected for them through the item module.
+// Package loot runs a map's pouches: rolled from kills, each its owner's alone, and taken item by item through the item module.
 package loot
 
 import (
 	"context"
 	"log/slog"
-	"math"
 	"slices"
 	"time"
 
@@ -19,31 +18,25 @@ import (
 	"finga/pkg/uuidv7"
 )
 
-const (
-	dropRing    = 0.75 // metres from where the mob died
-	dropSpacing = 0.6  // metres round that ring between several drops of one mob
-	ringSpots   = 8    // the ring's spots, its length over dropSpacing rounded up
-)
-
 // Items is the item module, called from the item-call pool, never inside a tick.
 type Items interface {
-	// AddMany grants one owner's drops in one call, answering each drop.
+	// AddMany grants one owner's items in one call, answering each.
 	AddMany(ctx context.Context, c model.GrantCall) (model.Granted, error)
 	// Retryable reports whether a failed call is transient.
 	Retryable(err error) bool
 }
 
-// Observer sees how many drops each grant call carries.
+// Observer sees how many items each grant call carries.
 type Observer interface {
-	ObserveBatch(drops int)
+	ObserveBatch(items int)
 }
 
-// Sink is where an owner who left the map hears of their drops; Send must not block.
+// Sink is where an owner who left the map hears of their pouches; Send must not block.
 type Sink interface {
 	Send(model.Event) bool
 }
 
-// Owner is who a drop goes to: the character, the account that scopes its grant's key, the name their party sees, and where they hear of it once they left the map.
+// Owner is who a pouch is for: the character, the account that scopes its grants' keys, the name their party sees, and where they hear of it once they left the map.
 type Owner struct {
 	ID      kernel.CharacterID
 	Account kernel.AccountID
@@ -59,74 +52,86 @@ type Deps struct {
 	Observer  Observer
 	Traces    trace.TracerProvider // starts each grant call's trace
 	Roll      model.Roll           // the map's random source, used only on its tick goroutine
-	Data      *gamedata.Data       // the loot timings, and the item templates equipment rolls its stats from
-	// Rest is the ground a drop at (x, z) thrown from feet at y lies on, false where it'd be off the map or in a solid.
-	Rest   func(x, z, y float64) (float64, bool)
-	Logger *slog.Logger
+	Data      *gamedata.Data       // the loot rules, and the item templates equipment rolls its stats from
+	// Rest is the ground a pouch at (x, z) from feet at y lies on, false where it'd be off the map or in a solid.
+	Rest func(x, z, y float64) (float64, bool)
+	// Collects reports whether an active quest of the owner's collects the item: a kill that leaves no pouch still rolls those.
+	Collects func(owner kernel.CharacterID, item string) bool
+	Logger   *slog.Logger
 	// Settle takes a grant call's Result back to the map's tick; it runs on a worker, and must return once the map has stopped.
 	Settle func(ctx context.Context, r Result)
 }
 
-// Tuning is the map's tick, and how many drops one grant call may carry.
+// Tuning is the map's tick, and how many items one grant call may carry.
 type Tuning struct {
 	TickInterval time.Duration
 	BatchMax     int
 }
 
-// drop is an item on the ground, in memory only until its grant commits.
-type drop struct {
-	id        uint64    // the wire ID
+// entry is an item in a pouch, in memory only until its grant commits.
+type entry struct {
+	id        uint32    // its own within the pouch
 	key       uuid.UUID // the idempotency key of its grant, the same on every try
 	template  string
 	quantity  int
 	stats     *progression.ItemStats // equipment's roll, nil for anything else
-	x, y, z   float64
-	owner     kernel.CharacterID
-	collectAt uint64 // it falls until then
-	expiresAt uint64
-	state     state
-	told      bool // its owner heard it waits for room
-	last      bool // its life ended: one more try under its key, then it is lost
+	taking    bool                   // picked: in its owner's call, or in the take waiting for it
+	unsettled bool                   // its call got no answer, so it may be granted: asked again under its key
 }
 
-type state int
-
-const (
-	fresh     state = iota // never answered: falling until collectAt, then due
-	sent                   // in its owner's call in flight
-	noRoom                 // refused for room; tried again at its owner's room check
-	unsettled              // its call failed, so it may be granted; tried again under its key
-)
-
-func (d *drop) view() model.DropView {
-	return model.DropView{ID: d.id, Template: d.template, Quantity: d.quantity, X: d.x, Y: d.y, Z: d.z, Owner: d.owner}
+// pouch is a kill's pouch or a boss's box on the ground, its owner's alone.
+type pouch struct {
+	id      uint64
+	kind    model.PouchKind
+	owner   kernel.CharacterID
+	x, y, z float64
+	items   []*entry
+	goneAt  uint64
+	gone    bool // its life ended: hidden from its owner, kept only for items still in a call
 }
 
-// owner is an owner's grant calls: at most one in flight, and when the drops waiting for room or an answer go again.
+func (p *pouch) view(tick uint64, interval time.Duration) model.PouchView {
+	items := make([]model.PouchItem, 0, len(p.items))
+	for _, e := range p.items {
+		items = append(items, model.PouchItem{ID: e.id, Template: e.template, Quantity: e.quantity, Stats: e.stats})
+	}
+	left := time.Duration(p.goneAt-min(tick, p.goneAt)) * interval
+	return model.PouchView{ID: p.id, Kind: p.kind, X: p.x, Y: p.y, Z: p.z, Items: items, GoneIn: left}
+}
+
+func (p *pouch) entry(id uint32) *entry {
+	if k := slices.IndexFunc(p.items, func(e *entry) bool { return e.id == id }); k >= 0 {
+		return p.items[k]
+	}
+	return nil
+}
+
+// owner is an owner's pouches and calls: at most one call in flight, and at most one take waiting for it.
 type owner struct {
 	Owner
-	drops   int // on the ground
+	pouches int // on the ground, gone ones still holding items in a call included
 	busy    bool
-	retryAt uint64
+	asking  []*ask // the takes the call in flight answers
+	waiting *take  // the take sent once it settles
+	retryAt uint64 // when items whose call got no answer go again
 }
 
-// Ground is one map's drops; only the map's tick goroutine touches it, and its grant calls run on the item-call pool.
+// Ground is one map's pouches; only the map's tick goroutine touches it, and its grant calls run on the item-call pool.
 type Ground struct {
 	roll   model.Roll
 	deps   Deps
 	tuning Tuning
 	tracer trace.Tracer
-	// The loot timings in ticks.
-	collectDelay, life, roomCheck, turnIdle uint64
+	rules  gamedata.Loot
+	// The lives and the retry in ticks.
+	pouchLife, boxLife, retry, turnIdle uint64
 
-	tick      uint64
-	drops     []*drop // oldest first
-	nextID    uint64
-	owners    map[kernel.CharacterID]*owner
-	turns     map[string]*turn // by party
-	added     []model.DropView // this tick's
-	removed   []uint64
-	collected []uint64
+	tick    uint64
+	pouches []*pouch // oldest first
+	nextID  uint64
+	owners  map[kernel.CharacterID]*owner
+	turns   map[string]*turn                      // by party
+	changes map[kernel.CharacterID]*model.Pouches // this tick's, by owner
 }
 
 // NewGround is a map's empty ground.
@@ -134,21 +139,19 @@ func NewGround(d Deps, t Tuning) *Ground {
 	ticks := func(d time.Duration) uint64 { return model.TicksIn(d, t.TickInterval) }
 	l := d.Data.Loot()
 	return &Ground{
-		roll: d.Roll, deps: d, tuning: t, tracer: d.Traces.Tracer(tracerName),
-		collectDelay: ticks(l.CollectDelay), life: ticks(l.DropLife), roomCheck: ticks(l.RoomCheckEvery), turnIdle: ticks(turnIdle),
-		owners: map[kernel.CharacterID]*owner{}, turns: map[string]*turn{},
+		roll: d.Roll, deps: d, tuning: t, tracer: d.Traces.Tracer(tracerName), rules: l,
+		pouchLife: ticks(l.PouchLife), boxLife: ticks(l.BoxLife), retry: ticks(retryEvery), turnIdle: ticks(turnIdle),
+		owners: map[kernel.CharacterID]*owner{}, turns: map[string]*turn{}, changes: map[kernel.CharacterID]*model.Pouches{},
 	}
 }
 
 // Begin starts tick n, forgetting the last tick's changes.
 func (g *Ground) Begin(n uint64) {
 	g.tick = n
-	g.added = g.added[:0]
-	g.removed = g.removed[:0]
-	g.collected = g.collected[:0]
+	clear(g.changes)
 }
 
-// Kill is a mob's death as its drops need it: where they fall, and who may own them.
+// Kill is a mob's death as its pouch needs it: where it falls, and who may own it.
 type Kill struct {
 	Mob     gamedata.Mob
 	X, Y, Z float64 // where it died
@@ -158,53 +161,62 @@ type Kill struct {
 	Eligible []Owner
 }
 
-// Roll drops the mob's table round a ring where it died, each owned by the next eligible party member in turn, or by the killer.
+// Roll leaves one pouch where the mob died, for the next eligible party member in turn or the killer: holding the mob's whole roll when the pouch's chance passes, else only what an active quest of theirs collects, and nothing at all when nothing came of either.
 func (g *Ground) Roll(k Kill) {
-	spot, start := 0, 0.0
-	for _, entry := range k.Mob.Drops {
-		if g.roll.Float64() >= entry.Chance {
-			continue
-		}
-		qty := g.between(entry.Min, entry.Max)
-		var stats *progression.ItemStats
-		if tmpl, ok := g.deps.Data.Item(entry.Item); ok && tmpl.Tab == gamedata.Equip {
-			rolled := progression.Rolled(tmpl.Rolls, func(r gamedata.Range) int { return g.between(r.Min, r.Max) })
-			stats = &rolled
-		}
-		to := g.next(k)
-		g.own(to)
-		g.nextID++
-		if spot == 0 {
-			start = 2 * math.Pi * g.roll.Float64()
-		}
-		x, y, z := k.X, k.Y, k.Z // where the mob stood, if no spot round it is clear
-		for range ringSpots {
-			sin, cos := math.Sincos(start + float64(spot)*dropSpacing/dropRing)
-			spot++
-			rx, rz := k.X+float64(dropRing*sin), k.Z+float64(dropRing*cos)
-			if ry, ok := g.deps.Rest(rx, rz, k.Y); ok {
-				x, y, z = rx, ry, rz
-				break
-			}
-		}
-		d := &drop{
-			id: g.nextID, key: uuidv7.New(), template: entry.Item, quantity: qty, stats: stats,
-			x: x, y: y, z: z, owner: to.ID, collectAt: g.tick + g.collectDelay, expiresAt: g.tick + g.life,
-		}
-		g.drops = append(g.drops, d)
-		g.added = append(g.added, d.view())
+	to, take := g.next(k)
+	chance := g.rules.Pouch.Normal
+	if k.Mob.Elite {
+		chance = g.rules.Pouch.Elite
+	}
+	whole := g.roll.Float64() < chance
+	items := g.rolled(k.Mob, func(item string) bool { return whole || g.deps.Collects(to.ID, item) })
+	if len(items) == 0 {
+		return
+	}
+	take()
+	g.place(model.PouchSmall, to, k.X, k.Y, k.Z, items, g.pouchLife)
+}
+
+// Box leaves the boss's whole roll in a box of the owner's own where it fell; it isn't gated, and party turns don't apply.
+func (g *Ground) Box(boss gamedata.Mob, x, y, z float64, o Owner) {
+	if items := g.rolled(boss, func(string) bool { return true }); len(items) > 0 {
+		g.place(model.PouchBox, o, x, y, z, items, g.boxLife)
 	}
 }
 
-// own counts a drop for o, whose newest sink is their latest connection.
-func (g *Ground) own(o Owner) {
+// rolled is the mob's drop table rolled for each item wanted: its chance, quantity, and equipment's stats.
+func (g *Ground) rolled(m gamedata.Mob, wanted func(item string) bool) []*entry {
+	var out []*entry
+	for _, d := range m.Drops {
+		if !wanted(d.Item) || g.roll.Float64() >= d.Chance {
+			continue
+		}
+		e := &entry{id: uint32(len(out) + 1), key: uuidv7.New(), template: d.Item, quantity: g.between(d.Min, d.Max)}
+		if tmpl, ok := g.deps.Data.Item(d.Item); ok && tmpl.Tab == gamedata.Equip {
+			rolled := progression.Rolled(tmpl.Rolls, func(r gamedata.Range) int { return g.between(r.Min, r.Max) })
+			e.stats = &rolled
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+// place lays a pouch of items for o on the ground where something died, which its owner alone is told of.
+func (g *Ground) place(kind model.PouchKind, o Owner, x, y, z float64, items []*entry, life uint64) {
+	if ry, ok := g.deps.Rest(x, z, y); ok {
+		y = ry
+	}
+	g.nextID++
+	p := &pouch{id: g.nextID, kind: kind, owner: o.ID, x: x, y: y, z: z, items: items, goneAt: g.tick + life}
+	g.pouches = append(g.pouches, p)
 	st, ok := g.owners[o.ID]
 	if !ok {
 		st = &owner{}
 		g.owners[o.ID] = st
 	}
-	st.Owner = o
-	st.drops++
+	st.Owner = o // their newest sink: their latest connection
+	st.pouches++
+	g.changed(p)
 }
 
 // between is a whole number from lo to hi, both included, uniformly; a range of one number draws nothing.
@@ -215,16 +227,105 @@ func (g *Ground) between(lo, hi int) int {
 	return min(lo+int(g.roll.Float64()*float64(hi-lo+1)), hi)
 }
 
-// Views are every drop, as a Snapshot shows them.
-func (g *Ground) Views() []model.DropView {
-	out := make([]model.DropView, 0, len(g.drops))
-	for _, d := range g.drops {
-		out = append(out, d.view())
+// changed tells p's owner its view in this tick's frame, the latest of the tick standing.
+func (g *Ground) changed(p *pouch) {
+	c := g.of(p.owner)
+	v := p.view(g.tick, g.tuning.TickInterval)
+	if k := slices.IndexFunc(c.Changed, func(o model.PouchView) bool { return o.ID == p.id }); k >= 0 {
+		c.Changed[k] = v
+		return
+	}
+	c.Changed = append(c.Changed, v)
+}
+
+// vanish tells p's owner it's gone.
+func (g *Ground) vanish(p *pouch) {
+	c := g.of(p.owner)
+	c.Changed = slices.DeleteFunc(c.Changed, func(o model.PouchView) bool { return o.ID == p.id })
+	c.Gone = append(c.Gone, p.id)
+}
+
+func (g *Ground) of(id kernel.CharacterID) *model.Pouches {
+	c, ok := g.changes[id]
+	if !ok {
+		c = &model.Pouches{}
+		g.changes[id] = c
+	}
+	return c
+}
+
+// Views are the owner's pouches on the ground, as their Snapshot shows them.
+func (g *Ground) Views(id kernel.CharacterID) []model.PouchView {
+	var out []model.PouchView
+	for _, p := range g.pouches {
+		if p.owner == id && !p.gone {
+			out = append(out, p.view(g.tick, g.tuning.TickInterval))
+		}
 	}
 	return out
 }
 
-// Changes are the drops added this tick, those gone without an owner taking them, and those collected.
-func (g *Ground) Changes() (added []model.DropView, removed, collected []uint64) {
-	return slices.Clone(g.added), slices.Clone(g.removed), slices.Clone(g.collected)
+// Changes are this tick's changes to the owner's pouches, which their frame alone carries.
+func (g *Ground) Changes(id kernel.CharacterID) model.Pouches {
+	c, ok := g.changes[id]
+	if !ok {
+		return model.Pouches{}
+	}
+	return model.Pouches{Changed: slices.Clone(c.Changed), Gone: slices.Clone(c.Gone)}
+}
+
+// Step ends the lives that ran out, with what was left in them, and asks again for items whose call got no answer; it returns what to tell their owners.
+func (g *Ground) Step() []Settled {
+	var out []Settled
+	for _, p := range g.pouches {
+		if p.gone || p.goneAt > g.tick {
+			continue
+		}
+		var left []model.LootItem
+		p.items = slices.DeleteFunc(p.items, func(e *entry) bool {
+			if e.taking {
+				return false
+			}
+			left = append(left, model.LootItem{Template: e.template, Quantity: e.quantity})
+			return true
+		})
+		p.gone = true
+		g.vanish(p)
+		if len(left) > 0 {
+			out = append(out, Settled{Owner: g.owners[p.owner].Owner, Loot: []model.Loot{g.loot(p, model.LootLeft, left)}})
+		}
+	}
+	g.sweep()
+	g.retryUnsettled()
+	g.forgetIdleTurns()
+	return out
+}
+
+// sweep takes away the pouches gone or emptied that no call still holds, and forgets owners with none left.
+func (g *Ground) sweep() {
+	g.pouches = slices.DeleteFunc(g.pouches, func(p *pouch) bool {
+		if len(p.items) > 0 {
+			return false
+		}
+		if !p.gone {
+			g.vanish(p)
+		}
+		o := g.owners[p.owner]
+		o.pouches--
+		if o.pouches == 0 && !o.busy && o.waiting == nil {
+			delete(g.owners, p.owner)
+		}
+		return true
+	})
+}
+
+func (g *Ground) loot(p *pouch, kind model.LootKind, items []model.LootItem) model.Loot {
+	return model.Loot{Tick: g.tick, Kind: kind, MapID: g.deps.MapID, Pouch: p.id, Owner: p.owner, OwnerName: g.owners[p.owner].Name, Items: items}
+}
+
+func (g *Ground) find(id uint64) *pouch {
+	if k := slices.IndexFunc(g.pouches, func(p *pouch) bool { return p.id == id }); k >= 0 {
+		return g.pouches[k]
+	}
+	return nil
 }

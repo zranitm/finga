@@ -84,10 +84,10 @@ func run(url, metrics, dataDir string, n int, duration time.Duration, prefix str
 	for _, b := range bots {
 		s := b.snapshot()
 		total.add(s)
-		fmt.Printf("%-14s kills %3d  items collected %3d  deaths %2d  hops %3d  chat %3d  spends %2d  skills %4d  quests taken %2d  handed in %2d  messages %7d  refused %3d  reconnects %d  login failures %d  stalls %d\n",
+		fmt.Printf("%-14s kills %3d  items taken %3d  deaths %2d  hops %3d  chat %3d  spends %2d  skills %4d  quests taken %2d  handed in %2d  messages %7d  refused %3d  reconnects %d  login failures %d  stalls %d\n",
 			b.name, s.kills, s.items, s.deaths, s.hops, s.chats, s.spends, s.skills, s.accepted, s.handedIn, s.messages, s.refused, s.reconnects, s.loginFailures, s.stalls)
 	}
-	fmt.Printf("%-14s kills %3d  items collected %3d  deaths %2d  hops %3d  chat %3d  spends %2d  skills %4d  quests taken %2d  handed in %2d  messages %7d  refused %3d  reconnects %d  login failures %d  stalls %d\n\n",
+	fmt.Printf("%-14s kills %3d  items taken %3d  deaths %2d  hops %3d  chat %3d  spends %2d  skills %4d  quests taken %2d  handed in %2d  messages %7d  refused %3d  reconnects %d  login failures %d  stalls %d\n\n",
 		"total", total.kills, total.items, total.deaths, total.hops, total.chats, total.spends, total.skills, total.accepted, total.handedIn, total.messages, total.refused, total.reconnects, total.loginFailures, total.stalls)
 	promoted := 0
 	for _, b := range bots {
@@ -185,7 +185,10 @@ type bot struct {
 	energy      int       // as its newest Delta, or its Welcome, said
 	skillReady  time.Time // when its damage skill may be used again, as far as it knows
 	onGround    bool
-	mobs        map[uint32]*clientv1.MobView // on its map, by ID
+	mobs        map[uint32]*clientv1.MobView   // on its map, by ID
+	pouches     map[uint32]*clientv1.PouchView // its own on its map, by ID
+	leftPouches map[uint32]bool                // pouches it leaves: one it found no way to, or one holding an item it has no room for
+	taking      bool                           // a TakeLoot waits for its Response
 	portalAt    time.Time
 	frameTick   uint64               // its map's newest frame, the view each input names
 	bossBack    map[string]time.Time // when each map's beaten boss is back, as the bot heard on that map; a map's boss is up otherwise
@@ -462,10 +465,11 @@ func (b *bot) request(reqID string, d proto.Message) {
 	_ = b.send(wsconn.Message{ReqID: reqID, Data: d})
 }
 
-// The request IDs of a Promote and a UseSkill, their type names as command gives the rest.
+// The request IDs of a Promote, a UseSkill and a TakeLoot, their type names as command gives the rest.
 const (
 	promoteReq = "Promote"
 	skillReq   = "UseSkill"
+	takeReq    = "TakeLoot"
 )
 
 // skillBackoff is how long a bot leaves its skill after the world refuses a use.
@@ -591,6 +595,10 @@ func (b *bot) observe(m wsconn.Message) {
 		for _, mob := range d.GetMobs() {
 			b.mobs[mob.GetId()] = mob
 		}
+		b.pouches, b.leftPouches = map[uint32]*clientv1.PouchView{}, map[uint32]bool{}
+		for _, p := range d.GetPouches() {
+			b.pouches[p.GetId()] = p
+		}
 	case *clientv1.Delta:
 		b.frameTick = max(b.frameTick, m.Tick)
 		if d.Energy != nil {
@@ -610,6 +618,16 @@ func (b *bot) observe(m wsconn.Message) {
 		for _, id := range d.GetRemovedMobs() {
 			delete(b.mobs, id)
 		}
+		if b.pouches == nil {
+			b.pouches, b.leftPouches = map[uint32]*clientv1.PouchView{}, map[uint32]bool{}
+		}
+		for _, p := range d.GetPouches() {
+			b.pouches[p.GetId()] = p
+		}
+		for _, id := range d.GetPouchesGone() {
+			delete(b.pouches, id)
+			delete(b.leftPouches, id)
+		}
 		b.killed(b.kills.removedMobs(m.Tick, d.GetRemovedMobs(), b.id))
 	case *clientv1.Damage:
 		b.killed(b.kills.blow(m.Tick, d, b.id))
@@ -625,6 +643,8 @@ func (b *bot) observe(m wsconn.Message) {
 		b.onMap.Store(new(d.GetMapId()))
 		clear(b.mobs)
 		clear(b.gaveUp)
+		clear(b.pouches)
+		clear(b.leftPouches)
 		b.boss = 0
 		b.input(&clientv1.Input{})
 		b.sendInput() // the world held the old map's keys
@@ -641,15 +661,26 @@ func (b *bot) observe(m wsconn.Message) {
 			b.dead = false
 			b.mapID, b.x, b.y, b.z = d.GetMapId(), d.GetX(), d.GetY(), d.GetZ()
 			b.onMap.Store(new(d.GetMapId()))
+			clear(b.pouches)
+			clear(b.leftPouches)
 			b.input(&clientv1.Input{})
 			b.sendInput() // the world held the keys it died with
 			b.stop, b.talked = 0, time.Time{}
 		}
 	case *clientv1.Loot:
-		if d.GetKind() == clientv1.LootKind_LOOT_KIND_COLLECTED && d.GetOwnerId() == b.id {
-			b.count(func(s *stats) { s.items++ })
+		if d.GetKind() == clientv1.LootKind_LOOT_KIND_TAKEN && d.GetOwnerId() == b.id {
+			b.count(func(s *stats) { s.items += len(d.GetItems()) })
 		}
 	case *clientv1.Response:
+		if m.ReqID == takeReq {
+			b.taking = false
+			for _, a := range d.GetPicks() {
+				if a.GetCode() != 0 {
+					b.leftPouches[a.GetPick().GetPouch()] = true
+					b.count(func(s *stats) { s.refused++ })
+				}
+			}
+		}
 		if !d.GetOk() {
 			b.count(func(s *stats) { s.refused++ })
 			fmt.Fprintf(os.Stderr, "%s: %s refused with %d\n", b.name, m.ReqID, d.GetCode())
@@ -861,7 +892,10 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 		case talkGoal:
 			b.talkTo(g.npc)
 		case huntGoal:
-			// Drops fly to their owners: the bot only hunts. The world plays a skill and an attack one a turn, so a skill puts the next attack off a cooldown.
+			if b.loot() {
+				return
+			}
+			// The world plays a skill and an attack one a turn, so a skill puts the next attack off a cooldown.
 			if m := b.hunt(g.spot, g.prey); m != nil {
 				strike(m)
 			}

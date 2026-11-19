@@ -67,7 +67,7 @@ describe('KeyBindings', () => {
       'Skill 7: D',
       'Skill 8: F',
     ]);
-    expect(group('World')).toEqual(['Talk, or enter a portal: Z']);
+    expect(group('World')).toEqual(['Talk, or enter a portal: Z', 'Loot pouches in reach: T']);
     expect(group('Windows')).toEqual([
       'Inventory: I',
       'Character: C',

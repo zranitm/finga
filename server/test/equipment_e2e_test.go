@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 // capsOnly is a copy of the game data where a green slime dies to one hit and drops a leather cap every kill, and nothing else.
 func capsOnly(t *testing.T) string {
 	t.Helper()
-	return e2etest.GameData(t, append(e2etest.QuickSlimes(), slimesDrop(oneCap))...)
+	return e2etest.GameData(t, append(e2etest.QuickSlimes(), slimesDrop(oneCap), e2etest.LootRules(1, "60s"))...) // every kill a pouch, so a hunt takes a shot or two
 }
 
 func TestEquipment(t *testing.T) {
@@ -42,7 +43,7 @@ func TestEquipment(t *testing.T) {
 		s.CheckInvariants(t)
 	})
 
-	t.Run("E2/on-a-full-equip-tab-a-swap-works-and-a-drop-waits-on-the-ground", func(t *testing.T) {
+	t.Run("E2/on-a-full-equip-tab-a-swap-works-and-a-cap-taken-stays-in-its-pouch", func(t *testing.T) {
 		t.Parallel()
 		s := newStackOver(t, capsOnly(t))
 		token, id := s.CreateCharacter(t, "tess", "Tess", "bowman")
@@ -77,24 +78,17 @@ func TestEquipment(t *testing.T) {
 			t.Fatalf("an unequip into the full tab answered %+v, want EQUIP_TAB_FULL", r)
 		}
 
-		// A slime drops a cap; the full tab has no slot for it, so it waits on the ground.
-		drop, ok := l.Hunt(30*time.Second, "leather_cap")
+		// A slime leaves a cap in a pouch; the full tab has no slot for it, so a take leaves it there.
+		pouch, ok := l.Hunt(30*time.Second, "leather_cap")
 		if !ok {
-			t.Fatal("no cap dropped in 30 s of hunting")
+			t.Fatal("no cap fell in 30 s of hunting")
 		}
-		// No key: past its collect delay and a room check, the cap is still on the ground, waiting, and nothing reached the inventory.
-		l.Pump(4*time.Second, nil)
-		if _, still := l.Drops[drop.GetId()]; !still || l.Inventory != 1 {
-			t.Fatalf("the cap left the ground or something reached the inventory: drops %v, %d InventoryChanged", l.Drops, l.Inventory)
+		if r := l.GoTake(t, pouch); !r.GetOk() || !slices.Equal(e2etest.Codes(r), []int32{code("EQUIP_TAB_FULL")}) {
+			t.Fatalf("taking the cap answered %+v, want it refused for the full Equip tab", r)
 		}
-		var waiting int
-		for _, lt := range l.Loots {
-			if lt.GetDropId() == drop.GetId() && lt.GetKind() == clientv1.LootKind_LOOT_KIND_WAITING {
-				waiting++
-			}
-		}
-		if waiting != 1 {
-			t.Fatalf("loot %v; want the cap told waiting, once", l.Loots)
+		l.Pump(time.Second, nil)
+		if _, still := l.Pouches[pouch.GetId()]; !still || l.Inventory != 1 || len(l.Loots) != 0 {
+			t.Fatalf("pouches %v, %d InventoryChanged, loot %v; want the cap still in its pouch and nothing taken", l.Pouches, l.Inventory, l.Loots)
 		}
 		var tab, caps int
 		if err := s.DB.QueryRow(context.Background(), `

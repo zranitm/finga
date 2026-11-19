@@ -564,7 +564,7 @@ As built in slice PR 5:
 | `Attack`, `UseSkill` | `aim` (float, yaw) |
 | `PlayerView` | `z`, `vz`, `hx`, `hz`, `aim` (the current action's yaw). `facing` and `climbing` are reserved |
 | `MobView` | `z`, `yaw`; `facing` is reserved |
-| `DropView`, `Died` | `z` |
+| `DropView` (since replaced by `PouchView`, [Loot pouches](./loot-pouches.md)), `Died` | `z` |
 | `Respawned`, `MapChange` | `z`, `yaw` |
 | `SkillUsed`, `AttackUsed` | `aim` replaces `facing` |
 | `MobAttacked` | `yaw`, and `to` as x, y, z, replacing `facing` and `to_x` |

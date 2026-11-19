@@ -38,7 +38,7 @@ func guideByThePortal() e2etest.DataEdit {
 
 func TestQuests(t *testing.T) {
 	t.Parallel()
-	s := newStackOver(t, e2etest.GameData(t, slices.Concat(quickCleanup(), e2etest.QuickSlimes(), []e2etest.DataEdit{slimesDrop(oneGel), guideByThePortal()})...))
+	s := newStackOver(t, e2etest.GameData(t, slices.Concat(quickCleanup(), e2etest.QuickSlimes(), []e2etest.DataEdit{slimesDrop(oneGel), everyKill, guideByThePortal()})...))
 	quinnToken, quinnID := s.CreateCharacter(t, "quinn", "Quinn", "bowman")
 	riaToken, riaID := s.CreateCharacter(t, "ria", "Ria", "warrior")
 	// Both stand by the guide.
@@ -112,7 +112,7 @@ func TestQuests(t *testing.T) {
 	})
 
 	t.Run("H1/accept-kill-collect-and-hand-in", func(t *testing.T) {
-		// Out of the party, every gel Quinn's kills drop is hers: she needs one for each quest.
+		// Out of the party, every gel Quinn's kills leave is hers: she needs one for each quest, and takes them as she hunts.
 		if r := ria.Command(t, "p-3", &clientv1.PartyLeave{}); !r.GetOk() {
 			t.Fatalf("leave the party: %+v", r)
 		}
@@ -129,8 +129,8 @@ func TestQuests(t *testing.T) {
 			quinn.Farm(time.Second)
 			ria.Pump(100*time.Millisecond, nil)
 		}
-		if !quinn.Settle(15 * time.Second) { // the last kills' drops land before the hand-in's counts, wherever she is
-			t.Fatalf("Quinn's drops still down after 15 s: %v", quinn.Drops)
+		if !quinn.Clear(15 * time.Second) { // the last kills' pouches are taken before the hand-in's counts
+			t.Fatalf("Quinn's pouches still down after 15 s: %v", quinn.Pouches)
 		}
 		quinn.Hop(t, e2etest.ForestFromTown, "town", e2etest.TownPortal)
 		if !quinn.WalkTo(byTheGuide, 30*time.Second) {

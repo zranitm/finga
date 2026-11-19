@@ -35,6 +35,7 @@ var (
 	points    = limit{group: "points", perSecond: 2, burst: 4}    // spends, resets and trait choices together: an Apply, or an auto-assign on a level-up
 	dialog    = limit{group: "dialog", perSecond: 5, burst: 5}    // talks and the three quest commands together
 	pvp       = limit{group: "pvp", perSecond: 2, burst: 4}       // queueing, leaving, answering and forfeiting together
+	loot      = limit{group: "loot", perSecond: 5, burst: 5}      // takes: a click on a row, or Take all
 )
 
 // assumedTickRate sizes a per-tick limit until a join reports the world's rate.
@@ -57,7 +58,7 @@ const spanPrefix = "ws."
 
 // sampled are the commands whose traces are kept: each answers after calls across modules; the rest only queue work.
 var sampled = map[string]bool{
-	"Hello": true, "InventoryMove": true, "InventoryDiscard": true, "InventoryDiscardMany": true, "Equip": true, "Unequip": true, "AddToWardrobe": true, "SetLook": true, "UseItem": true, "SpendPoints": true, "ResetPoints": true, "SpendSkillPoints": true, "ChooseTrait": true, "UseSkill": true, "Teleport": true, "Promote": true, "ChatSend": true,
+	"Hello": true, "InventoryMove": true, "InventoryDiscard": true, "InventoryDiscardMany": true, "Equip": true, "Unequip": true, "AddToWardrobe": true, "SetLook": true, "TakeLoot": true, "UseItem": true, "SpendPoints": true, "ResetPoints": true, "SpendSkillPoints": true, "ChooseTrait": true, "UseSkill": true, "Teleport": true, "Promote": true, "ChatSend": true,
 	"PartyInvite": true, "PartyRespond": true, "PartyLeave": true, "PartyKick": true, "PartyPromote": true,
 	"Talk": true, "AcceptQuest": true, "AbandonQuest": true, "HandInQuest": true,
 	"PvpQueue": true, "PvpLeaveQueue": true, "PvpAnswer": true, "PvpForfeit": true,
@@ -82,7 +83,7 @@ func (h *Handler) routes() *wsrouter.Router[*Inbox] {
 	wsrouter.Handle(r, "Input", h.input, h.command(inputs, h.logged)...)
 	wsrouter.Handle(r, "Attack", h.attack, h.command(attacks, h.logged)...)
 	wsrouter.Handle(r, "UseSkill", h.useSkill, h.command(skills, h.respond)...)
-	wsrouter.Handle(r, "PickUp", h.ignore)
+	wsrouter.Handle(r, "TakeLoot", h.takeLoot, h.command(loot, h.respond)...)
 	wsrouter.Handle(r, "EnterPortal", h.enterPortal, h.command(portals, h.logged)...)
 	wsrouter.Handle(r, "Teleport", h.teleport, h.command(teleports, h.respond)...)
 

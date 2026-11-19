@@ -10,7 +10,7 @@ import (
 func (o *Outbox) body(p model.Push) any {
 	switch p := p.(type) {
 	case model.Snapshot:
-		snap := &clientv1.Snapshot{Players: playerViews(p.Players), Mobs: mobViews(p.Mobs), Drops: dropViews(p.Drops)}
+		snap := &clientv1.Snapshot{Players: playerViews(p.Players), Mobs: mobViews(p.Mobs), Pouches: pouchViews(p.Pouches)}
 		if p.FieldBoss != nil {
 			snap.FieldBoss = fieldBoss(*p.FieldBoss)
 		}
@@ -23,7 +23,7 @@ func (o *Outbox) body(p model.Push) any {
 	case model.FieldBossGone:
 		return bossGone(p)
 	case model.Delta:
-		return wsconn.Spliced{Shared: o.frames.shared(p.Frame), Own: &clientv1.Delta{AckSeq: p.AckSeq, Energy: p.Energy}}
+		return wsconn.Spliced{Shared: o.frames.shared(p.Frame), Own: &clientv1.Delta{AckSeq: p.AckSeq, Energy: p.Energy, Pouches: pouchViews(p.Pouches), PouchesGone: instanceIDs(p.PouchesGone)}}
 	case model.MapChange:
 		return &clientv1.MapChange{MapId: p.MapID, X: p.X, Y: p.Y, Z: p.Z, Yaw: p.Yaw}
 	case model.TeleportCancelled:
@@ -65,9 +65,11 @@ func (o *Outbox) body(p model.Push) any {
 	case model.MatchEnded:
 		return matchEnded(p)
 	case model.Loot:
-		return &clientv1.Loot{
-			Kind: lootKinds[p.Kind], MapId: p.MapID, DropId: uint32(p.DropID), OwnerId: p.Owner, OwnerName: p.OwnerName, Template: p.Template, Quantity: int32(p.Quantity),
+		items := make([]*clientv1.LootItem, 0, len(p.Items))
+		for _, it := range p.Items {
+			items = append(items, &clientv1.LootItem{Template: it.Template, Quantity: int32(it.Quantity)}) //nolint:gosec // a stack's size
 		}
+		return &clientv1.Loot{Kind: lootKinds[p.Kind], MapId: p.MapID, PouchId: uint32(p.Pouch), OwnerId: p.Owner, OwnerName: p.OwnerName, Items: items} //nolint:gosec // pouch IDs count up within one map instance
 	case model.PartyState:
 		return &clientv1.PartyState{Party: partyView(p.Party)}
 	case model.PartyInvited:

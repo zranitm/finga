@@ -126,13 +126,17 @@ func dealt(s *worldtest.Sink, mob uint64, hp int) map[kernel.CharacterID]int {
 	return out
 }
 
-// dropsOf is every drop s saw fall of template, by owner, collected or not.
-func dropsOf(s *worldtest.Sink, template string) map[kernel.CharacterID]int {
+// boxesOf counts the boxes holding template each player's sink heard fall for them, which no other player's hears.
+func boxesOf(template string, sinks map[kernel.CharacterID]*worldtest.Sink) map[kernel.CharacterID]int {
 	out := map[kernel.CharacterID]int{}
-	for _, d := range s.Deltas() {
-		for _, v := range d.Drops {
-			if v.Template == template {
-				out[v.Owner]++
+	for id, s := range sinks {
+		seen := map[uint64]bool{}
+		for _, d := range s.Deltas() {
+			for _, p := range d.Pouches.Changed {
+				if p.Kind == model.PouchBox && !seen[p.ID] && slices.ContainsFunc(p.Items, func(it model.PouchItem) bool { return it.Template == template }) {
+					seen[p.ID] = true
+					out[id]++
+				}
 			}
 		}
 	}
@@ -208,7 +212,7 @@ func TestAnUnbeatenBossNeverLeaves(t *testing.T) {
 	})
 }
 
-// A beaten boss pays each player alone by the HP they took from it: EXP by their share, and a drop roll of their own once their share reaches the drop share; a bystander gets nothing.
+// A beaten boss pays each player alone by the HP they took from it: EXP by their share, and a box of their own once their share reaches the drop share; a bystander gets nothing.
 func TestABeatenBossPaysEachPlayerByTheHPTheyTook(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const hp = 400
@@ -242,13 +246,13 @@ func TestABeatenBossPaysEachPlayerByTheHPTheyTook(t *testing.T) {
 		if got := expAfterBoss(s); got != 0 {
 			t.Errorf("the hunter, who never hit the king, got %d EXP", got)
 		}
-		if caps := dropsOf(s, "leather_cap"); len(caps) != 1 || caps[robin.ID] != 1 {
-			t.Fatalf("caps by owner %v; want Robin's roll alone, Ayla being under the drop share", caps)
+		if caps := boxesOf("leather_cap", map[kernel.CharacterID]*worldtest.Sink{hunter.ID: s, ayla.ID: sa, robin.ID: sr}); len(caps) != 1 || caps[robin.ID] != 1 {
+			t.Fatalf("boxes by owner %v; want Robin's alone, Ayla being under the drop share", caps)
 		}
 	})
 }
 
-// A party's damage pools, its members' gone or dead included, and its members alive on the map split the group's EXP with the party bonus, each rolling drops of their own. A member dead when it falls, one on another map and one who left collect nothing.
+// A party's damage pools, its members' gone or dead included, and its members alive on the map split the group's EXP with the party bonus, each given a box of their own. A member dead when it falls, one on another map and one who left get nothing.
 func TestAPartyPoolsItsDamageAndOnlyThePresentCollect(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const hp = 400
@@ -284,8 +288,9 @@ func TestAPartyPoolsItsDamageAndOnlyThePresentCollect(t *testing.T) {
 		if expAfterBoss(sc) != 0 || expAfterBoss(se) != 0 {
 			t.Error("the dead member or the one who left got EXP")
 		}
-		if caps := dropsOf(sb, "leather_cap"); len(caps) != 3 || caps[ayla.ID] != 1 || caps[bram.ID] != 1 || caps[lone.ID] != 1 {
-			t.Fatalf("caps by owner %v; want one each for Ayla, Bram and Lone", caps)
+		sinks := map[kernel.CharacterID]*worldtest.Sink{ayla.ID: sa, bram.ID: sb, cora.ID: sc, eli.ID: se, lone.ID: sl}
+		if caps := boxesOf("leather_cap", sinks); len(caps) != 3 || caps[ayla.ID] != 1 || caps[bram.ID] != 1 || caps[lone.ID] != 1 {
+			t.Fatalf("boxes by owner %v; want one each for Ayla, Bram and Lone", caps)
 		}
 	})
 }

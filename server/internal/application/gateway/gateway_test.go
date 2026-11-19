@@ -406,8 +406,11 @@ func (w *world) EnterPortal(context.Context, model.Presence) error              
 func (w *world) Say(context.Context, model.Presence, string, string) error               { return nil }
 func (w *world) Equip(context.Context, model.Presence, model.ItemEquip) error            { return nil }
 func (w *world) SetLook(context.Context, model.Presence, model.LookSet) error            { return nil }
-func (w *world) Unequip(context.Context, model.Presence, model.ItemUnequip) error        { return nil }
-func (w *world) UseItem(context.Context, model.Presence, model.ItemUse) error            { return nil }
+func (w *world) TakeLoot(context.Context, model.Presence, []model.LootPick) ([]model.PickAnswer, error) {
+	return nil, nil
+}
+func (w *world) Unequip(context.Context, model.Presence, model.ItemUnequip) error { return nil }
+func (w *world) UseItem(context.Context, model.Presence, model.ItemUse) error     { return nil }
 func (w *world) SpendPoints(context.Context, model.Presence, model.PointsSpend) error {
 	return nil
 }

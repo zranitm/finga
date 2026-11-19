@@ -88,14 +88,17 @@ func TestAnEventSharesNothingTheMapChanges(t *testing.T) {
 	sheet := model.Sheet{Skills: model.Skills{Points: skills}}
 	stats := deliveryOf(model.StatsChanged{Sheet: &sheet}).Event.(StatsChanged)
 	level := deliveryOf(model.LevelUp{Sheet: sheet}).Event.(LevelUp)
-	removed := &model.Frame{Removed: []kernel.CharacterID{kernel.NewCharacterID()}, RemovedMobs: []uint64{1}, RemovedDrops: []uint64{2}, CollectedDrops: []uint64{3}}
-	frame := frameOf(removed, nil)
+	removed := &model.Frame{Removed: []kernel.CharacterID{kernel.NewCharacterID()}, RemovedMobs: []uint64{1}}
+	pouch := model.PouchView{ID: 4, Items: []model.PouchItem{{ID: 1, Template: "slime_gel", Quantity: 2}}}
+	to := []model.Recipient{{Pouches: model.Pouches{Changed: []model.PouchView{pouch}, Gone: []uint64{2}}}}
+	frame := frameOf(removed, to)
 	progress[0], skills["strike"] = 9, 9
-	removed.Removed[0], removed.RemovedMobs[0], removed.RemovedDrops[0], removed.CollectedDrops[0] = kernel.CharacterID{}, 9, 9, 9
+	removed.Removed[0], removed.RemovedMobs[0] = kernel.CharacterID{}, 9
+	to[0].Pouches.Gone[0], pouch.Items[0].Quantity = 9, 9
 	if quest.Quest.Progress[0] != 1 || stats.Sheet.Skills.Points["strike"] != 2 || level.Sheet.Skills.Points["strike"] != 2 {
 		t.Fatalf("the events changed with the map: progress %v, skills %v and %v", quest.Quest.Progress, stats.Sheet.Skills.Points, level.Sheet.Skills.Points)
 	}
-	if frame.Removed[0].IsZero() || frame.RemovedMobs[0] != 1 || frame.RemovedDrops[0] != 2 || frame.CollectedDrops[0] != 3 {
+	if own := frame.Recipients[0].Pouches; frame.Removed[0].IsZero() || frame.RemovedMobs[0] != 1 || own.Gone[0] != 2 || own.Changed[0].Items[0].Quantity != 2 {
 		t.Fatalf("the frame changed with the map: %+v", frame)
 	}
 }
@@ -248,9 +251,14 @@ func TestATrainersDialogCarriesItsPromotion(t *testing.T) {
 
 // Each loot kind, quest change, quest status and offer state reaches the gateway as the facade's value of the same name, which a cast keeps only while both lists stay in step.
 func TestEachEnumKeepsItsName(t *testing.T) {
-	for kind, want := range map[model.LootKind]LootKind{model.LootCollected: LootCollected, model.LootWaiting: LootWaiting, model.LootLost: LootLost} {
+	for kind, want := range map[model.LootKind]LootKind{model.LootTaken: LootTaken, model.LootLeft: LootLeft} {
 		if got := deliveryOf(model.Loot{Kind: kind}).Event.(Loot).Kind; got != want {
 			t.Errorf("loot kind %d went out as %d, want %d", kind, got, want)
+		}
+	}
+	for kind, want := range map[model.PouchKind]PouchKind{model.PouchSmall: PouchSmall, model.PouchBox: PouchBox} {
+		if got := deliveryOf(model.Snapshot{Pouches: []model.PouchView{{Kind: kind}}}).Event.(Snapshot).Pouches[0].Kind; got != want {
+			t.Errorf("pouch kind %d went out as %d, want %d", kind, got, want)
 		}
 	}
 	for change, want := range map[model.QuestChange]QuestChange{

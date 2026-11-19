@@ -41,17 +41,16 @@ function isBoolean(value: unknown): value is boolean {
   return typeof value === 'boolean';
 }
 
-/** "600ms" or "1.5s" to whole milliseconds, as Go's time.Duration parses them. */
+/** "600ms", "1.5s" or "2m" to whole milliseconds, as Go's time.Duration parses them. */
 function durationMs(value: unknown, what: string): number {
   if (typeof value !== 'string') {
     throw new Error(`gamedata: ${what} must be a duration string like 600ms`);
   }
-  const m = /^(\d+(?:\.\d+)?)(ms|s)$/.exec(value);
+  const m = /^(\d+(?:\.\d+)?)(ms|s|m)$/.exec(value);
   if (!m) {
     throw new Error(`gamedata: ${what}: cannot parse duration ${value}`);
   }
-  const n = Number(m[1]);
-  return m[2] === 's' ? Math.round(n * 1000) : Math.round(n);
+  return Math.round(Number(m[1]) * { ms: 1, s: 1000, m: 60_000 }[m[2] as 'ms' | 's' | 'm']);
 }
 
 // movement.yaml: every key, as the sim reads it.
@@ -473,14 +472,13 @@ const statuses = must(statusesFile.statuses, isArray, 'statuses.yaml statuses').
 // stats.yaml: what each point gives, the curves, the limits and each class's bases, for the character window's preview.
 const stats = must(load('stats.yaml'), isRecord, 'stats.yaml');
 
-// loot.yaml: each duration becomes milliseconds, as drop_life_ms.
+// loot.yaml: how near a pouch opens, and each life in milliseconds.
 const lootFile = must(load('loot.yaml'), isRecord, 'loot.yaml');
-const loot = Object.fromEntries(
-  Object.entries(lootFile).map(([key, value]) => [
-    `${key}_ms`,
-    durationMs(value, `loot.yaml ${key}`),
-  ]),
-);
+const loot = {
+  reach: must(lootFile.reach, isNumber, 'loot.yaml reach'),
+  pouch_life_ms: durationMs(lootFile.pouch_life, 'loot.yaml pouch_life'),
+  box_life_ms: durationMs(lootFile.box_life, 'loot.yaml box_life'),
+};
 
 // npcs.yaml, each NPC with the map that places it: at x east and z north in metres, facing its yaw, radians from north toward east.
 const npcsFile = must(load('npcs.yaml'), isRecord, 'npcs.yaml');

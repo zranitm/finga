@@ -198,6 +198,8 @@ type fakeWorld struct {
 	says       []sayCall
 	equips     []equipCall
 	looks      []lookCall
+	takes      [][]world.Pick
+	taken      []world.PickAnswer // TakeLoot answers with them
 	unequips   []unequipCall
 	equipErr   error // Equip and Unequip fail with it
 	uses       []useCall
@@ -558,6 +560,16 @@ func (f *fakeWorld) SetLook(_ context.Context, p world.Presence, key string, loo
 
 func (f *fakeWorld) lookCalls() []lookCall { return copied(&f.mu, &f.looks) }
 
+func (f *fakeWorld) TakeLoot(_ context.Context, _ world.Presence, picks []world.Pick) ([]world.PickAnswer, error) {
+	f.ops.Add(1)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.takes = append(f.takes, picks)
+	return f.taken, f.equipErr
+}
+
+func (f *fakeWorld) takeCalls() [][]world.Pick { return copied(&f.mu, &f.takes) }
+
 func (f *fakeWorld) Equip(_ context.Context, p world.Presence, key string, it kernel.ItemID, equipSlot string) error {
 	f.ops.Add(1)
 	f.mu.Lock()
@@ -697,6 +709,17 @@ func (f *fakeWorld) delta(to kernel.CharacterID, tick uint64, ack uint32, fr wor
 		r.Energy = &e
 	}
 	fr.Recipients = []world.Recipient{r}
+	f.deliveries.send(world.Delivery{Tick: tick, Event: fr})
+}
+
+// frame sends one Frame to each recipient, every one through the connection it last joined by.
+func (f *fakeWorld) frame(tick uint64, fr world.Frame, to ...world.Recipient) {
+	f.mu.Lock()
+	for k := range to {
+		to[k].Connection = f.conns[to[k].Character]
+	}
+	f.mu.Unlock()
+	fr.Recipients = to
 	f.deliveries.send(world.Delivery{Tick: tick, Event: fr})
 }
 

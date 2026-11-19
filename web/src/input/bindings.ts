@@ -34,6 +34,7 @@ export const defaults: KeyTable = {
   attack: ['KeyX'],
   nextTarget: ['Tab'],
   talk: ['KeyZ'],
+  loot: ['KeyT'],
   hpPotion: ['Digit1'],
   skill1: ['KeyQ'],
   skill2: ['KeyW'],

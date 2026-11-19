@@ -128,7 +128,7 @@ func (i *Instance) add(j *joinMsg) {
 	i.nextSlot = (i.nextSlot + 1) % i.ticksPer // players joining together save on different ticks
 	i.players[p.ID] = p
 	i.order = append(i.order, p.ID)
-	snap := model.Snapshot{Tick: i.tick, MapID: i.m.ID, Players: make([]model.PlayerView, 0, len(i.order)), Mobs: i.arena.Views(), Drops: i.ground.Views()}
+	snap := model.Snapshot{Tick: i.tick, MapID: i.m.ID, Players: make([]model.PlayerView, 0, len(i.order)), Mobs: i.arena.Views(), Pouches: i.ground.Views(j.player.ID)}
 	for _, id := range i.order {
 		snap.Players = append(snap.Players, i.view(i.players[id]))
 	}

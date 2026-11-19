@@ -15,6 +15,7 @@ import { TopBars } from '@/features/hud/TargetFrame';
 import { TeleportBar } from '@/features/hud/TeleportBar';
 import { Toasts } from '@/features/hud/Toasts';
 import { InventoryWindow } from '@/features/inventory/InventoryWindow';
+import { LootWindow } from '@/features/loot/LootWindow';
 import { MapWindow } from '@/features/map/MapWindow';
 import { Minimap } from '@/features/map/Minimap';
 import { NpcWindow } from '@/features/npc/NpcWindow';
@@ -176,6 +177,7 @@ function WorldOverlay({
   const mapOpen = ui.use((s) => s.windows.includes('map'));
   const arenaOpen = ui.use((s) => s.windows.includes('arena'));
   const npcOpen = ui.use((s) => s.windows.includes('npc'));
+  const lootOpen = ui.use((s) => s.windows.includes('loot'));
   const me = characterStore.use((s) => s.character?.id ?? '');
   const [settingsOpen, setSettingsOpen] = useState(false);
   // The next entry starts with no window open, whichever way this one ends.
@@ -239,6 +241,9 @@ function WorldOverlay({
           <ArenaWindow socket={socket} onClose={() => ui.getState().closeWindow('arena')} />
         )}
         {npcOpen && <NpcWindow socket={socket} onClose={() => ui.getState().closeWindow('npc')} />}
+        {lootOpen && (
+          <LootWindow socket={socket} onClose={() => ui.getState().closeWindow('loot')} />
+        )}
       </div>
       <MatchOffer socket={socket} />
       <MatchResult />

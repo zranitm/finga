@@ -41,8 +41,9 @@ const TickInterval = 50 * time.Millisecond
 // Delta is a tick's frame as one player got it.
 type Delta struct {
 	*model.Frame
-	AckSeq uint32
-	Energy *int // set when the player's energy changed, and in the first frame after a join
+	AckSeq  uint32
+	Energy  *int          // set when the player's energy changed, and in the first frame after a join
+	Pouches model.Pouches // the player's own that changed
 }
 
 // Sink records a player's events, and each frame as its Delta: the player has a stream of its own.
@@ -60,7 +61,7 @@ func (s *Sink) Stream() instance.Stream { return s }
 
 // SendFrame records the frame as the player's Delta.
 func (s *Sink) SendFrame(f *model.Frame, to []model.Recipient) bool {
-	return s.record(Delta{Frame: f, AckSeq: to[0].AckSeq, Energy: to[0].Energy})
+	return s.record(Delta{Frame: f, AckSeq: to[0].AckSeq, Energy: to[0].Energy, Pouches: to[0].Pouches})
 }
 
 func (s *Sink) record(e any) bool {

@@ -45,11 +45,10 @@ const loot = (kind: LootKind, template: string, quantity: number, ownerName = 'A
   create(LootSchema, {
     kind,
     mapId: 'meadow',
-    dropId: 7,
+    pouchId: 7,
     ownerId: `c-${ownerName.toLowerCase()}`,
     ownerName,
-    template,
-    quantity,
+    items: [{ template, quantity }],
   });
 
 const tab = (name: string) => screen.getByRole('tab', { name });
@@ -357,7 +356,7 @@ describe('ChatBox', () => {
       await user.click(tab('Party'));
       act(() => {
         chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'again'));
-        combatLog.getState().applyLoot(loot(LootKind.COLLECTED, 'slime_gel', 1));
+        combatLog.getState().applyLoot(loot(LootKind.TAKEN, 'slime_gel', 1));
       });
       expect(tab('Party')).toHaveAttribute('aria-selected', 'true');
       expect(shown()).toEqual(['[Party] Ayla: go']);
@@ -437,25 +436,29 @@ describe('ChatBox', () => {
         text: 'You became a Warrior!',
       },
       {
-        name: 'an item this player collected',
-        add: () => combatLog.getState().applyLoot(loot(LootKind.COLLECTED, 'slime_gel', 2)),
-        text: 'You got Slime Gel ★ ×2.',
+        name: 'an item this player took',
+        add: () => combatLog.getState().applyLoot(loot(LootKind.TAKEN, 'slime_gel', 2)),
+        text: 'Took Slime Gel ★ ×2.',
       },
       {
         name: "a party member's item",
+        add: () => combatLog.getState().applyLoot(loot(LootKind.TAKEN, 'iron_sword', 1, 'Robin')),
+        text: 'Robin took Iron Sword ★★.',
+      },
+      {
+        name: 'a pouch left behind, all it held in one line',
         add: () =>
-          combatLog.getState().applyLoot(loot(LootKind.COLLECTED, 'iron_sword', 1, 'Robin')),
-        text: 'Robin got Iron Sword ★★.',
-      },
-      {
-        name: 'a drop waiting for room',
-        add: () => combatLog.getState().applyLoot(loot(LootKind.WAITING, 'slime_gel', 2)),
-        text: 'Inventory full: Slime Gel ★ ×2 waits on the ground.',
-      },
-      {
-        name: 'a drop lost uncollected',
-        add: () => combatLog.getState().applyLoot(loot(LootKind.LOST, 'slime_gel', 1)),
-        text: 'Slime Gel ★ disappeared uncollected.',
+          combatLog.getState().applyLoot(
+            create(LootSchema, {
+              kind: LootKind.LEFT,
+              ownerId: 'c-ayla',
+              items: [
+                { template: 'red_potion', quantity: 1 },
+                { template: 'slime_gel', quantity: 2 },
+              ],
+            }),
+          ),
+        text: 'A pouch was left behind: Red Potion ★, Slime Gel ★ ×2.',
       },
       {
         name: 'a skill evolved',
@@ -520,11 +523,11 @@ describe('ChatBox', () => {
     it('an item name takes its star colour', async () => {
       setup();
       await user.click(tab('Combat'));
-      act(() => combatLog.getState().applyLoot(loot(LootKind.COLLECTED, 'gold_ring', 1)));
+      act(() => combatLog.getState().applyLoot(loot(LootKind.TAKEN, 'gold_ring', 1)));
       expect(screen.getByText('Gold Ring ★★★★')).toHaveClass('stars-4');
     });
 
-    it('the tab keeps every line the store does, a boss kill’s drops never pushing out its EXP', async () => {
+    it('the tab keeps every line the store does, a boss kill’s loot never pushing out its EXP', async () => {
       setup();
       await user.click(tab('Combat'));
       act(() => {
@@ -532,7 +535,7 @@ describe('ChatBox', () => {
         for (let i = 0; i < 11; i++) {
           combatLog
             .getState()
-            .applyLoot(loot(LootKind.COLLECTED, 'red_potion', 1, i % 2 ? 'Robin' : 'Ayla'));
+            .applyLoot(loot(LootKind.TAKEN, 'red_potion', 1, i % 2 ? 'Robin' : 'Ayla'));
         }
       });
       expect(shown()).toHaveLength(12);

@@ -302,18 +302,23 @@ function CombatText({ line, me }: { readonly line: CombatLine; readonly me: stri
       );
     }
     case 'loot': {
-      const item = <Item template={line.template} quantity={line.quantity} />;
+      const items = line.items.map((it, i) => (
+        <span key={i}>
+          {i > 0 && ', '}
+          <Item template={it.template} quantity={it.quantity} />
+        </span>
+      ));
       switch (line.loot) {
-        case LootKind.COLLECTED:
-          return (
+        case LootKind.TAKEN:
+          return line.ownerId === me ? (
+            <>Took {items}.</>
+          ) : (
             <>
-              {line.ownerId === me ? 'You' : line.ownerName} got {item}.
+              {line.ownerName} took {items}.
             </>
           );
-        case LootKind.WAITING:
-          return <>Inventory full: {item} waits on the ground.</>;
-        case LootKind.LOST:
-          return <>{item} disappeared uncollected.</>;
+        case LootKind.LEFT:
+          return <>A pouch was left behind: {items}.</>;
       }
       return null;
     }

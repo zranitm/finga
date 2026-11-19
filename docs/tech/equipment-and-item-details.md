@@ -127,7 +127,7 @@ Checks 5, 6, and 8 hold unchanged. Check 6 already sums every item's quantity wh
 - **One roll per drop:** the drop's key is the idempotency key, so a retried `Add` carries the same roll and gets the stored reply. Two players can't both take the drop, because the reservation is unchanged.
 - **Replays stay exact:** rolling with the instance's generator, beside the drop table, keeps a recorded fight's loot identical on replay.
 - **A world crash before the drop is collected** loses the drop and its roll together, as today: drops live only in memory.
-- `DropView` does not carry the roll: ground drops show no details (D7).
+- `DropView` did not carry the roll, so ground drops showed no details. Since pouches ([Loot pouches](./loot-pouches.md)), each `PouchItem` carries its roll, and the loot window's card shows it (D7).
 
 ### Equip and unequip
 

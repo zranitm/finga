@@ -158,8 +158,12 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 		Look: &clientv1.Look{Outfit: "knight_plate", Headwear: "knight_helm", Face: "round_glasses", Weapon: "greatsword", Wings: "bat_wings", HideHeadwear: true}}}
 	mobs := []model.MobView{{ID: 7, Type: "green_slime", X: 3, Y: 4, Z: 5, Yaw: 1.5, HP: 9, MaxHP: 30}}
 	wireMobs := []*clientv1.MobView{{Id: 7, Type: "green_slime", X: 3, Y: 4, Z: 5, Yaw: 1.5, Hp: 9, MaxHp: 30}}
-	drops := []model.DropView{{ID: 3, Template: "slime_gel", Quantity: 2, X: 5, Y: 6}}
-	wireDrops := []*clientv1.DropView{{Id: 3, Template: "slime_gel", Quantity: 2, X: 5, Y: 6}}
+	pouches := []model.PouchView{{ID: 3, Kind: model.PouchBox, X: 5, Y: 6, Z: 7, GoneInMs: 60000, Items: []model.PouchItem{
+		{ID: 1, Template: "slime_gel", Quantity: 2}, {ID: 2, Template: "iron_sword", Quantity: 1, Stats: &model.ItemStats{PhysicalAttack: 17, CritRate: 5}},
+	}}}
+	wirePouches := []*clientv1.PouchView{{Id: 3, Kind: clientv1.PouchKind_POUCH_KIND_BOX, X: 5, Y: 6, Z: 7, GoneInMs: 60000, Items: []*clientv1.PouchItem{
+		{Item: 1, Template: "slime_gel", Quantity: 2}, {Item: 2, Template: "iron_sword", Quantity: 1, Stats: &clientv1.ItemStats{PhysicalAttack: 17, CritRate: 5}},
+	}}}
 	party := &model.PartyView{Leader: "p-1", Members: []model.PartyMember{{CharacterID: "p-1", Name: "Robin", Class: "bowman", Level: 3, HP: 50, MaxHP: 105, MapID: "forest", Online: true}}}
 	wireParty := &clientv1.PartyView{Leader: "p-1", Members: []*clientv1.PartyMember{{CharacterId: "p-1", Name: "Robin", Class: "bowman", Level: 3, Hp: 50, MaxHp: 105, MapId: "forest", Online: true}}}
 	character := model.CharacterView{ID: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: model.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 50, MaxHP: 105, Energy: 6, Sheet: sheet}
@@ -170,7 +174,8 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 		push model.Push
 		want proto.Message
 	}{
-		{model.Snapshot{Players: players, Mobs: mobs, Drops: drops}, &clientv1.Snapshot{Players: wirePlayers, Mobs: wireMobs, Drops: wireDrops}},
+		{model.Snapshot{Players: players, Mobs: mobs, Pouches: pouches}, &clientv1.Snapshot{Players: wirePlayers, Mobs: wireMobs, Pouches: wirePouches}},
+		{model.Snapshot{Pouches: []model.PouchView{{ID: 4, Kind: model.PouchSmall}}}, &clientv1.Snapshot{Pouches: []*clientv1.PouchView{{Id: 4, Kind: clientv1.PouchKind_POUCH_KIND_POUCH, Items: []*clientv1.PouchItem{}}}}},
 		{
 			model.Snapshot{Mobs: mobs, FieldBoss: &model.FieldBoss{MobID: 9, Type: "king_slime"}},
 			&clientv1.Snapshot{Mobs: wireMobs, FieldBoss: &clientv1.FieldBoss{MobId: 9, Type: "king_slime"}},
@@ -182,8 +187,8 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 		{model.FieldBoss{MobID: 9, Type: "king_slime"}, &clientv1.FieldBoss{MobId: 9, Type: "king_slime"}},
 		{model.FieldBossGone{MobID: 9, Type: "king_slime", BackInMs: 300000}, &clientv1.FieldBossGone{MobId: 9, Type: "king_slime", BackInMs: 300000}},
 		{
-			model.Delta{AckSeq: 3, Energy: proto.Uint32(6), Frame: &model.Frame{Players: players, Mobs: mobs, Drops: drops, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint64{6}, RemovedDrops: []uint64{2}}},
-			&clientv1.Delta{AckSeq: 3, Energy: proto.Uint32(6), Players: wirePlayers, Mobs: wireMobs, Drops: wireDrops, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{2}},
+			model.Delta{AckSeq: 3, Energy: proto.Uint32(6), Pouches: pouches, PouchesGone: []uint64{2}, Frame: &model.Frame{Players: players, Mobs: mobs, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint64{6}}},
+			&clientv1.Delta{AckSeq: 3, Energy: proto.Uint32(6), Pouches: wirePouches, PouchesGone: []uint32{2}, Players: wirePlayers, Mobs: wireMobs, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint32{6}},
 		},
 		{
 			model.Delta{Frame: &model.Frame{Mobs: []model.MobView{{ID: 1, Pose: model.Flinching}, {ID: 2, Pose: model.Down}, {ID: 3, Pose: model.Rising}}}},
@@ -249,11 +254,10 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 		{model.StatsChanged{Sheet: &sheet, HP: 50, MaxHP: 135}, &clientv1.StatsChanged{Sheet: wireSheet, Hp: 50, MaxHp: 135}},
 		{model.StatsChanged{HP: 50, MaxHP: 135}, &clientv1.StatsChanged{Hp: 50, MaxHp: 135}}, // regen: the sheet stays unset, not zeroed
 		{
-			model.Loot{Kind: model.LootCollected, MapID: "forest", DropID: 7, Owner: "p-2", OwnerName: "Robin", Template: "slime_gel", Quantity: 2},
-			&clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_COLLECTED, MapId: "forest", DropId: 7, OwnerId: "p-2", OwnerName: "Robin", Template: "slime_gel", Quantity: 2},
+			model.Loot{Kind: model.LootTaken, MapID: "forest", Pouch: 7, Owner: "p-2", OwnerName: "Robin", Items: []model.LootItem{{Template: "slime_gel", Quantity: 2}, {Template: "red_potion", Quantity: 1}}},
+			&clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_TAKEN, MapId: "forest", PouchId: 7, OwnerId: "p-2", OwnerName: "Robin", Items: []*clientv1.LootItem{{Template: "slime_gel", Quantity: 2}, {Template: "red_potion", Quantity: 1}}},
 		},
-		{model.Loot{Kind: model.LootWaiting, DropID: 8}, &clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_WAITING, DropId: 8}},
-		{model.Loot{Kind: model.LootLost, DropID: 9}, &clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_LOST, DropId: 9}},
+		{model.Loot{Kind: model.LootLeft, Pouch: 9}, &clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_LEFT, PouchId: 9, Items: []*clientv1.LootItem{}}},
 		{model.PartyState{Party: party}, &clientv1.PartyState{Party: wireParty}},
 		{model.PartyState{}, &clientv1.PartyState{}},
 		{model.PartyInvited{InviteID: "inv-2", From: "p-1", FromName: "Robin"}, &clientv1.PartyInvited{InviteId: "inv-2", From: "p-1", FromName: "Robin"}},

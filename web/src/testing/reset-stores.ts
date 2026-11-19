@@ -10,6 +10,7 @@ import { keyboardLayout } from '@/state/keyboard-layout';
 import { mapView } from '@/state/map-view';
 import { nearby } from '@/state/nearby';
 import { party } from '@/state/party';
+import { pouches } from '@/state/pouches';
 import { pvp } from '@/state/pvp';
 import { quests } from '@/state/quests';
 import { session } from '@/state/session';
@@ -45,6 +46,7 @@ export function resetStores(): void {
     mapView,
     teleport,
     pvp,
+    pouches,
   ]) {
     store.reset();
   }

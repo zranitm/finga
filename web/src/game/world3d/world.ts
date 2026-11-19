@@ -8,6 +8,7 @@ import { Scene } from '@babylonjs/core/scene';
 
 import { actions as actionData } from '@/gamedata/actions';
 import { limits } from '@/gamedata/limits';
+import { loot as lootData } from '@/gamedata/loot';
 import { maps } from '@/gamedata/maps';
 import { movement } from '@/gamedata/movement';
 import { npcs as npcData } from '@/gamedata/npcs';
@@ -48,6 +49,7 @@ import { mapView } from '@/state/map-view';
 import type { Spot as MapSpot } from '@/state/map-view';
 import { nearby } from '@/state/nearby';
 import { party } from '@/state/party';
+import { picksInReach, pouches } from '@/state/pouches';
 import { countdownTicks, pvp, walled } from '@/state/pvp';
 import { questPlayer, quests } from '@/state/quests';
 import { settings } from '@/state/settings';
@@ -74,8 +76,6 @@ import { ChainMemory, liveSkill } from '../systems/chains';
 import type { ChainNow } from '../systems/chains';
 import { InvulnFlash, parseRef } from '../systems/combat-view';
 import type { Ref } from '../systems/combat-view';
-import { departure, DropTracker } from '../systems/drops';
-import type { DropChanges, Point } from '../systems/drops';
 import { FeedWatch } from '../systems/feed-watch';
 import { InputSender } from '../systems/input-sender';
 import { RemotePlayers, RenderClock } from '../systems/interpolation';
@@ -84,6 +84,7 @@ import { bindKeyboard } from '../systems/keyboard';
 import { Lock } from '../systems/lock';
 import { initialTransition, transition } from '../systems/map-transition';
 import type { TransitionAction, TransitionMsg, TransitionState } from '../systems/map-transition';
+import type { Point } from '../systems/mob-attacks';
 import { MobTracker } from '../systems/mobs';
 import { PotionKeys } from '../systems/potion-keys';
 import { Predictor, movementParams, wireState } from '../systems/prediction';
@@ -100,7 +101,6 @@ import { STILL, sunShadows } from './body';
 import type { ChunkSource } from './chunk-build';
 import { Combat, playerBody } from './combat';
 import { cutMobs } from './cut-mobs';
-import { DropMark, warmGems } from './drop';
 import { Figures } from './figures';
 import { CHEST_M, cameraAt, easeShare, heldView, yawOf } from './follow';
 import { Labels } from './labels';
@@ -117,6 +117,7 @@ import { Outline } from './outline';
 import { Overlay } from './overlay';
 import { buildPlace, fade, fogFor } from './place';
 import type { Place } from './place';
+import { PouchMarks } from './pouch';
 import { PrepWall } from './prep-wall';
 import { buildRegion } from './region-place';
 import { ShieldBubbles } from './shield-bubbles';
@@ -145,7 +146,6 @@ export interface WorldDeps {
 
 type Wire = Data<'snapshot'>['players'][number];
 type MobWire = Data<'snapshot'>['mobs'][number];
-type DropWire = Data<'snapshot'>['drops'][number];
 /** A living mob's mark, rewritten in place each frame. */
 type LiveMark = { -readonly [K in keyof Mark]: Mark[K] };
 
@@ -170,6 +170,7 @@ const NAME_LIFT_M = 0.35; // a name over its head
 const MARKER_LIFT_PX = 18; // a marker over its name
 const PORTAL_LABEL_M = 2.2;
 const PROMPT_LIFT_PX = 42; // the talk prompt over an NPC's name and marker
+const POUCH_PROMPT_M = 0.9; // the loot prompt over a pouch, above a box's lid
 const ZOOM_STEP = 0.125; // a zoom key's press, or a wheel's notch, of the way from close to far
 const WHEEL_PX = 800; // a wheel's pixels from close to far, so a notch of 100 px is a step
 const FAR_PLANE_M = 1500; // the camera sees no farther (large-regions.md section 9)
@@ -341,6 +342,7 @@ export class World {
   private camera: TargetCamera | null = null;
   private figures: Figures | null = null;
   private lighting: Lighting | null = null;
+  private pouchMarks: PouchMarks | null = null;
   private place: Place | null = null;
   private map: WorldMap | null = null;
   private combat: Combat | null = null;
@@ -431,9 +433,6 @@ export class World {
     string,
     { readonly view: Drawn; readonly npc: Npc; readonly y: number }
   >();
-  private readonly drops = new DropTracker();
-  private readonly dropViews = new Map<number, DropMark>();
-  private readonly leaving: DropMark[] = [];
 
   private constructor(private readonly deps: WorldDeps) {
     this.sender = new InputSender({
@@ -516,10 +515,10 @@ export class World {
     this.showChains();
     this.publishMarks(now);
     this.drawNpcs(now, dt);
-    this.drawDrops(now);
     this.moveCamera(dt);
     this.combat?.frame(now);
     this.closeDialogOutOfReach();
+    this.reachPouches();
     this.showPrompt();
     skillBar.getState().endBuffs(now);
     if (this.camera) {
@@ -580,12 +579,14 @@ export class World {
     let place: Place;
     let lighting: Lighting;
     let figures: Figures;
+    let pouchMarks: PouchMarks;
     let fx: Fx;
     try {
       const sun = new DirectionalLight('sun', SUN.normalizeToNew(), scene);
       lighting = { palette: new Palette(scene), shadows: sunShadows(sun, SHADOW_MAP) };
       const models = new Models(scene, this.deps.models);
       figures = new Figures(scene, lighting, models);
+      pouchMarks = new PouchMarks(scene, models, lighting);
       fx = new Fx(scene, map, art, this.deps.now, lighting.palette);
       place = map.region
         ? await buildRegion(scene, map.region, lighting, models, this.deps.chunks)
@@ -605,6 +606,7 @@ export class World {
     this.scene = scene;
     this.lighting = lighting;
     this.figures = figures;
+    this.pouchMarks = pouchMarks;
     this.place = place;
     this.map = map;
     this.camera = new TargetCamera('camera', Vector3.Zero(), scene);
@@ -615,7 +617,6 @@ export class World {
     this.bubbles = new ShieldBubbles(scene);
     this.prepWall = map.prepWall && new PrepWall(scene, map.prepWall.boxes, map.geometry.terrain);
     fx.warm(); // every look's shaders built before a fight needs them
-    warmGems(scene, lighting.palette);
     mapView
       .getState()
       .showMap(map.id, [map.geometry.size_x, map.geometry.size_z], groundImage(map));
@@ -668,7 +669,13 @@ export class World {
       );
     }
     this.banner(map.id);
+    this.pouchMarks?.show(pouches.getState().pouches);
     this.offs.push(
+      pouches.subscribe((now, before) => {
+        if (now.pouches !== before.pouches) {
+          this.pouchMarks?.show(now.pouches);
+        }
+      }),
       quests.subscribe((now, before) => {
         if (now.log !== before.log) {
           this.showMarkers();
@@ -811,6 +818,9 @@ export class World {
       case 'talk':
         this.talk();
         return;
+      case 'loot':
+        this.loot();
+        return;
       case 'nextTarget':
         this.nextTarget();
         return;
@@ -839,7 +849,7 @@ export class World {
     this.feed.heard();
     switch (m.t) {
       case 'snapshot':
-        this.onSnapshot(m.d.players, m.d.mobs, m.d.drops, this.tickOf(m.tick));
+        this.onSnapshot(m.d.players, m.d.mobs, this.tickOf(m.tick));
         return;
       case 'delta':
         this.onDelta(m.d, this.tickOf(m.tick));
@@ -859,18 +869,12 @@ export class World {
     return this.lastTick;
   }
 
-  private onSnapshot(
-    players: readonly Wire[],
-    mobs: readonly MobWire[],
-    drops: readonly DropWire[],
-    tick: number,
-  ): void {
+  private onSnapshot(players: readonly Wire[], mobs: readonly MobWire[], tick: number): void {
     const now = this.deps.now();
     const t = tick * this.timing.tickMs;
     this.renderClock.update(tick, now);
     this.remotes?.applySnapshot(t, players);
     this.mobs.applySnapshot(t, mobs);
-    this.applyDrops(this.drops.applySnapshot(drops), now);
     this.deadRemotes.clear();
     for (const p of players) {
       if (p.dead && p.id !== this.deps.player.characterId) {
@@ -894,7 +898,6 @@ export class World {
     this.renderClock.update(tick, now);
     this.remotes?.applyDelta(t, d.players, d.removedPlayers);
     this.mobs.applyDelta(t, d.mobs, d.removedMobs);
-    this.applyDrops(this.drops.applyDelta(d.drops, d.removedDrops, d.collectedDrops), now);
     for (const p of d.players) {
       if (p.id === this.deps.player.characterId) {
         continue;
@@ -970,37 +973,6 @@ export class World {
     this.placed = true;
     character.getState().setHp(me.hp);
     character.getState().setShield(me.shield);
-  }
-
-  private applyDrops({ added, removed, collected }: DropChanges, now: number): void {
-    const lighting = this.lighting;
-    const scene = this.scene;
-    if (!lighting || !scene) {
-      return;
-    }
-    for (const d of added) {
-      this.dropViews.set(
-        d.id,
-        new DropMark(scene, d.template, { x: d.x, y: d.y, z: d.z }, lighting),
-      );
-    }
-    for (const d of [...removed, ...collected]) {
-      const v = this.dropViews.get(d.id);
-      if (!v) {
-        continue;
-      }
-      this.dropViews.delete(d.id);
-      const how = departure(collected.includes(d), this.middleOf(d.ownerId));
-      v.leave(now, how.kind === 'fly' ? () => this.middleOf(d.ownerId) ?? how.to : null);
-      this.leaving.push(v);
-    }
-  }
-
-  /** The middle of a player drawn on this map, undefined when they aren't. */
-  private middleOf(id: string): Point | undefined {
-    const at =
-      id === this.deps.player.characterId ? this.predictor?.state : this.remoteViews.get(id)?.at;
-    return at && { x: at.x, y: at.y + movement.height / 2, z: at.z };
   }
 
   private drawMe(now: number, dtMs: number): void {
@@ -1204,17 +1176,6 @@ export class World {
   private drawNpcs(now: number, dtMs: number): void {
     for (const { view, npc, y } of this.npcViews.values()) {
       view.draw(npc.x, y, npc.z, npc.yaw, now, dtMs, STILL);
-    }
-  }
-
-  private drawDrops(now: number): void {
-    for (const v of this.dropViews.values()) {
-      v.update(now);
-    }
-    for (let i = this.leaving.length - 1; i >= 0; i--) {
-      if (!this.leaving[i]!.update(now)) {
-        this.leaving.splice(i, 1);
-      }
     }
   }
 
@@ -1959,6 +1920,42 @@ export class World {
     });
   }
 
+  /** The loot key opens the loot window on the player's pouches within reach; while it's open, it takes every item in them. */
+  private loot(): void {
+    const s = pouches.getState();
+    if (!this.free() || s.inReach.length === 0) {
+      return;
+    }
+    if (!ui.getState().windows.includes('loot')) {
+      ui.getState().openWindow('loot');
+      return;
+    }
+    void s.take(picksInReach(s), (picks) =>
+      this.deps.socket.request('takeLoot', { picks: [...picks] }),
+    );
+  }
+
+  /** How far the player's middle is from a pouch, as the server measures loot reach. */
+  private reachToPouch(x: number, y: number, z: number, p: State): number {
+    return Math.hypot(x - p.x, y - (p.y + movement.height / 2), z - p.z);
+  }
+
+  /** The player's pouches within reach, by id, for the window and the prompt; the window closes once none is, or the player died. */
+  private reachPouches(): void {
+    const p = this.predictor?.state;
+    const inReach =
+      p && this.placed && !this.transitionState.dead
+        ? pouches
+            .getState()
+            .pouches.filter((o) => this.reachToPouch(o.x, o.y, o.z, p) <= lootData.reach)
+            .map((o) => o.id)
+        : [];
+    pouches.getState().setInReach(inReach);
+    if (inReach.length === 0 && ui.getState().windows.includes('loot')) {
+      ui.getState().closeWindow('loot');
+    }
+  }
+
   /** How far the player's middle is from an NPC's point, as the server measures talk reach. */
   private reachTo(npc: Npc, p: State): number {
     const ground = this.map ? groundUnder(this.map, npc.x, npc.z) : 0;
@@ -2014,6 +2011,36 @@ export class World {
     } else {
       this.labels.set('prompt', 'prompt', '', 0, 0, 0);
     }
+    this.showLootPrompt(p);
+  }
+
+  /** The loot key's prompt over the nearest pouch in reach while the loot window is shut. */
+  private showLootPrompt(p: State | undefined): void {
+    const s = pouches.getState();
+    const near =
+      p && this.free() && !ui.getState().windows.includes('loot')
+        ? s.pouches
+            .filter((o) => s.inReach.includes(o.id))
+            .map((o) => ({ o, d: this.reachToPouch(o.x, o.y, o.z, p) }))
+            .sort((a, b) => a.d - b.d)[0]?.o
+        : undefined;
+    if (!near) {
+      this.labels.set('loot-prompt', 'prompt', '', 0, 0, 0);
+      return;
+    }
+    const key = keyOf(
+      keyTable(settings.getState().keys),
+      'loot',
+      keyboardLayout.getState().printed,
+    );
+    this.labels.set(
+      'loot-prompt',
+      'prompt',
+      `${key} Loot`,
+      near.x,
+      near.y + POUCH_PROMPT_M,
+      near.z,
+    );
   }
 
   /** Each NPC's name, and over it the marker of what it has for the player. */
@@ -2171,12 +2198,8 @@ export class World {
       d.view.dispose();
     }
     this.dying.length = 0;
-    this.drops.clear();
-    for (const v of [...this.dropViews.values(), ...this.leaving]) {
-      v.dispose();
-    }
-    this.dropViews.clear();
-    this.leaving.length = 0;
+    this.pouchMarks?.dispose();
+    pouches.getState().setInReach([]);
   }
 
   /** Takes the map down: its scene and all it drew, its listeners and keys' state; the next build starts afresh. */
@@ -2241,6 +2264,7 @@ export class World {
     this.camera = null;
     this.place = null;
     this.figures = null;
+    this.pouchMarks = null;
     this.lighting = null;
     this.map = null;
     this.scene?.dispose();

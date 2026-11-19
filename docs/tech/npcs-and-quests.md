@@ -169,7 +169,7 @@ From the code, the rules this design keeps:
   - Hand in is enabled once the quest is ready by the live log and inventory, items to bring included, so it doesn't wait for another Talk.
   - **Room for the reward** (`features/npc/room.ts`): the dialog places the reward as the item module would (§8), and sends nothing while it doesn't fit. It says how many slots to free in each tab, as "Free 2 slots in your Equip tab and 1 in your Use tab to take this reward.":
     - the quest's items leave first, smallest stacks first, and free a slot only when a stack empties; a reward that stacks fills its stacks first;
-    - the count is, per tab, the fewest slots freed after which this player's drops waiting for room there (`Loot` waiting, which only the owner gets) land first and the reward still fits. A waiting drop lands as the item module adds one, whole or not at all, and a reward can stack onto it. Waiting drops count toward what to free, never toward whether it fits now, and a tab the reward doesn't use never shows;
+    - the count is, per tab, the fewest slots freed after which the reward fits. A tab the reward doesn't use never shows. Nothing else waits for room since pouches ([Loot pouches](./loot-pouches.md)): an item that doesn't fit stays in its pouch;
     - a full tab's refusal from the server (the bag changed, or a template the client doesn't know) is counted again the same way, with at least one slot in the tab it named.
   - A quest under way that the NPC also takes back shows once, under Hand in.
   - Walking out of reach closes it, and so does a quest it lists being accepted, handed in, or abandoned, even after its request gave up.

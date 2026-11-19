@@ -44,7 +44,6 @@ There is no story: a quest is a task with a reward, and narrative quests stay a 
   - If there is no room for an item reward, the hand-in is refused, with nothing taken, until there is (the user's call of 2026-11-12):
     - The player is told how many slots to free in each tab: "Free 2 slots in your Equip tab and 1 in your Use tab to take this reward."
     - The count lets the quest's items leave first, but one frees a slot only if its whole stack goes. A reward that stacks fills the player's stacks of it first.
-    - Drops waiting for room in a tab the reward needs count too, as each takes a slot freed there before the reward can (Items → Inventory). One in any other tab doesn't.
   - A trainer's weapon at a promotion follows the same rule. The trainer lists room for it among the promotion's conditions, met or not like the others, with how many slots to free while it falls short: "Room in your Equip tab for your weapon · free 3 slots". The promotion waits for it, as for every condition.
 - **One-time or repeatable:** each quest says which. Promotion trials are one-time.
 - **Abandoning:** allowed at any time from the quest log. Progress is lost, and the quest can be taken again.

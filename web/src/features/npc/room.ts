@@ -5,7 +5,7 @@ import type { ItemView } from '@/protocol/messages';
 import { isTab, tabs } from '@/state/inventory';
 import type { Slots, Tab } from '@/state/inventory';
 
-/** Items of one template to place or take: what a quest takes or gives, a promotion's weapon, or a drop waiting for room. */
+/** Items of one template to place or take: what a quest takes or gives, or a promotion's weapon. */
 export interface Line {
   readonly template: string;
   readonly tab: Tab;
@@ -29,23 +29,22 @@ export const trainerWeapon: Line = { template: '', tab: 'equip', maxStack: 1, qu
 
 /** Whether the gives fit after the takes now, as the item module judges a hand-in or a gift. */
 export function fitsNow(slots: Slots, take: readonly Line[], give: readonly Line[]): boolean {
-  return tabs.every((t) => fitsWith(slots[t], 0, [], inTab(take, t), inTab(give, t)));
+  return tabs.every((t) => fitsWith(slots[t], 0, inTab(take, t), inTab(give, t)));
 }
 
-/** The fewest slots to free in each tab so the gives fit once the drops waiting for room there have landed, as each takes a freed slot first; a tab short now, or the one a refusal named, needs at least one. */
+/** The fewest slots to free in each tab so the gives fit; a tab short now, or the one a refusal named, needs at least one. */
 export function toFree(
   slots: Slots,
   take: readonly Line[],
   give: readonly Line[],
-  waiting: readonly Line[],
   refused?: Tab,
 ): Shortfall {
   const short: Shortfall = {};
   for (const t of tabs) {
-    const [w, tk, g] = [inTab(waiting, t), inTab(take, t), inTab(give, t)];
-    let n = t === refused || !fitsWith(slots[t], 0, [], tk, g) ? 1 : 0;
-    // Each waiting or given line needs at most one slot of its own, so this ends.
-    while (!fitsWith(slots[t], n, w, tk, g)) {
+    const [tk, g] = [inTab(take, t), inTab(give, t)];
+    let n = t === refused || !fitsWith(slots[t], 0, tk, g) ? 1 : 0;
+    // Each given line needs at most one slot of its own, so this ends.
+    while (!fitsWith(slots[t], n, tk, g)) {
       n++;
     }
     if (n > 0) {
@@ -59,11 +58,10 @@ type Stack = { template: string; quantity: number } | null;
 
 const inTab = (lines: readonly Line[], t: Tab) => lines.filter((l) => l.tab === t);
 
-// One tab with extra free slots: the waiting drops that find room land, then the takes go, then every give must find room.
+// One tab with extra free slots: the takes go, then every give must find room.
 function fitsWith(
   slots: readonly (ItemView | null)[],
   extra: number,
-  waiting: readonly Line[],
   take: readonly Line[],
   give: readonly Line[],
 ): boolean {
@@ -71,7 +69,6 @@ function fitsWith(
     ...slots.map((it): Stack => (it ? { template: it.template, quantity: it.quantity } : null)),
     ...Array<Stack>(extra).fill(null),
   ];
-  waiting.forEach((l) => place(bag, l));
   take.forEach((l) => takeOut(bag, l));
   return give.every((l) => place(bag, l));
 }

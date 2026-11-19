@@ -1,0 +1,15 @@
+{
+  "req": "r-22",
+  "take_loot": {
+    "picks": [
+      {
+        "pouch": 12,
+        "item": 1
+      },
+      {
+        "pouch": 12,
+        "item": 2
+      }
+    ]
+  }
+}

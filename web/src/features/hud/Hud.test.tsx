@@ -6,12 +6,9 @@ import {
   StatsChangedSchema,
   ExpGainedSchema,
   LevelUpSchema,
-  LootKind,
-  LootSchema,
   WelcomeSchema,
 } from '@/protocol/messages';
 import { character } from '@/state/character';
-import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
 import { energy } from '@/state/energy';
 import { settings } from '@/state/settings';
@@ -237,29 +234,6 @@ describe('Hud', () => {
     expect(exp).toHaveAttribute('aria-valuenow', '1');
     expect(exp).toHaveAttribute('aria-valuemax', '1');
     expect(exp).toHaveTextContent('MAX');
-  });
-
-  it('says how many drops wait for room while any do', () => {
-    const loot = (kind: LootKind, dropId: number) =>
-      create(LootSchema, {
-        kind,
-        mapId: 'meadow',
-        dropId,
-        ownerId: 'c-ayla',
-        template: 'slime_gel',
-      });
-    character.getState().applyWelcome(welcome);
-    render(<Hud />);
-    expect(screen.queryByText(/Inventory full/)).not.toBeInTheDocument();
-    act(() => {
-      combatLog.getState().applyLoot(loot(LootKind.WAITING, 7));
-      combatLog.getState().applyLoot(loot(LootKind.WAITING, 8));
-    });
-    expect(screen.getByText('Inventory full: 2 waiting')).toBeInTheDocument();
-    act(() => combatLog.getState().applyLoot(loot(LootKind.COLLECTED, 7)));
-    expect(screen.getByText('Inventory full: 1 waiting')).toBeInTheDocument();
-    act(() => combatLog.getState().applyLoot(loot(LootKind.LOST, 8)));
-    expect(screen.queryByText(/Inventory full/)).not.toBeInTheDocument();
   });
 });
 

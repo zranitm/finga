@@ -29,6 +29,7 @@ type WorldModule interface {
 	Say(ctx context.Context, p world.Presence, name, text string) error
 	Equip(ctx context.Context, p world.Presence, key string, item kernel.ItemID, equipSlot string) error
 	SetLook(ctx context.Context, p world.Presence, key string, look world.Look) error
+	TakeLoot(ctx context.Context, p world.Presence, picks []world.Pick) ([]world.PickAnswer, error)
 	UseItem(ctx context.Context, p world.Presence, key string, item kernel.ItemID, template string) error
 	Unequip(ctx context.Context, p world.Presence, key, equipSlot string, toSlot *int) error
 	SpendPoints(ctx context.Context, p world.Presence, expected int, points gamedata.Stats) error
@@ -128,6 +129,26 @@ func (w World) Teleport(ctx context.Context, p model.Presence, mapID string, seq
 // Equip wears an item; it answers once the world applied the new stats.
 func (w World) Equip(ctx context.Context, p model.Presence, in model.ItemEquip) error {
 	return worldErr(w.w.Equip(ctx, presence(p), in.IdempotencyKey, in.Item, in.EquipSlot))
+}
+
+// TakeLoot takes picked items from the player's own pouches; each pick's refusal is a public error.
+func (w World) TakeLoot(ctx context.Context, p model.Presence, picks []model.LootPick) ([]model.PickAnswer, error) {
+	in := make([]world.Pick, len(picks))
+	for k, pk := range picks {
+		in[k] = world.Pick(pk)
+	}
+	answers, err := w.w.TakeLoot(ctx, presence(p), in)
+	if err != nil {
+		return nil, worldErr(err)
+	}
+	out := make([]model.PickAnswer, len(answers))
+	for k, a := range answers {
+		out[k] = model.PickAnswer{LootPick: model.LootPick(a.Pick)}
+		if a.Err != nil {
+			out[k].Err = worldErr(a.Err)
+		}
+	}
+	return out, nil
 }
 
 // SetLook wears a look; it answers once the world applied it.

@@ -1,5 +1,4 @@
 // The Combat tab's lines: this player's EXP, level-ups, promotions, loot, quests, potions and skill evolutions, kept until they leave the world.
-import { loot } from '@/gamedata/loot';
 import { skillById, stageAt } from '@/progression/skills';
 import { LootKind, QuestChange } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
@@ -14,11 +13,10 @@ export type CombatEvent =
   | { readonly kind: 'promoted'; readonly cls: string }
   | {
       readonly kind: 'loot';
-      readonly loot: LootKind.COLLECTED | LootKind.WAITING | LootKind.LOST;
+      readonly loot: LootKind.TAKEN | LootKind.LEFT;
       readonly ownerId: string;
       readonly ownerName: string;
-      readonly template: string;
-      readonly quantity: number;
+      readonly items: readonly LootLineItem[];
     }
   | {
       readonly kind: 'drank';
@@ -46,19 +44,13 @@ const questLines: Partial<Record<QuestChange, QuestLineKind>> = {
 
 export type CombatLine = CombatEvent & { readonly id: number };
 
-/** A drop of this player's waiting for room, as map/drop since drop IDs are a map's own; the world tells only its owner. */
-export interface Waiting {
-  readonly key: string;
-  /** No drop waits past its life, so one never heard of again is forgotten then (Unix ms). */
-  readonly until: number;
-  /** What it is, so a reward's room counts it: it can take a freed slot first. */
+export interface LootLineItem {
   readonly template: string;
   readonly quantity: number;
 }
 
 export interface CombatLogState {
   readonly lines: readonly CombatLine[];
-  readonly waiting: readonly Waiting[];
   /** amount is negative on the death penalty. */
   applyExpGained(d: Data<'expGained'>): void;
   applyLevelUp(d: Data<'levelUp'>): void;
@@ -84,17 +76,8 @@ export const combatLog = defineStore<CombatLogState>((set, get) => {
     const lines = [...get().lines, { ...e, id: nextId++ }];
     set({ lines: lines.slice(-MAX_COMBAT_LINES) });
   };
-  const expire = () => {
-    const { waiting } = get();
-    const now = Date.now();
-    const live = waiting.filter((w) => w.until > now);
-    if (live.length !== waiting.length) {
-      set({ waiting: live });
-    }
-  };
   return {
     lines: [],
-    waiting: [],
     applyExpGained: (d) => {
       if (d.amount !== 0n) {
         add({ kind: 'exp', amount: Number(d.amount) });
@@ -111,22 +94,12 @@ export const combatLog = defineStore<CombatLogState>((set, get) => {
       }
     },
     applyLoot: (d) => {
-      const { kind, ownerId, ownerName, template, quantity } = d;
-      if (kind !== LootKind.COLLECTED && kind !== LootKind.WAITING && kind !== LootKind.LOST) {
+      const { kind, ownerId, ownerName } = d;
+      if ((kind !== LootKind.TAKEN && kind !== LootKind.LEFT) || d.items.length === 0) {
         return; // no kind, or one from a newer server
       }
-      add({ kind: 'loot', loot: kind, ownerId, ownerName, template, quantity });
-      const key = `${d.mapId}/${d.dropId}`;
-      const { waiting } = get();
-      const others = waiting.filter((w) => w.key !== key);
-      if (kind === LootKind.WAITING) {
-        set({
-          waiting: [...others, { key, until: Date.now() + loot.drop_life_ms, template, quantity }],
-        });
-        setTimeout(expire, loot.drop_life_ms);
-      } else if (others.length !== waiting.length) {
-        set({ waiting: others });
-      }
+      const items = d.items.map(({ template, quantity }) => ({ template, quantity }));
+      add({ kind: 'loot', loot: kind, ownerId, ownerName, items });
     },
     applyQuestChanged: (d) => {
       const change = questLines[d.change];
@@ -151,7 +124,7 @@ export const combatLog = defineStore<CombatLogState>((set, get) => {
       add({ kind: 'quest', change: 'ready', quest, progress: [] });
     },
     clear: () => {
-      set({ lines: [], waiting: [] });
+      set({ lines: [] });
     },
   };
 });

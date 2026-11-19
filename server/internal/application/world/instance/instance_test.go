@@ -3,6 +3,7 @@ package instance_test
 import (
 	"context"
 	"math"
+	"reflect"
 	"slices"
 	"sync"
 	"testing"
@@ -64,7 +65,7 @@ func TestATicksFrameGoesOnceToEachStream(t *testing.T) {
 		gateway.mu.Lock()
 		defer gateway.mu.Unlock()
 		want := []model.Recipient{{Character: ayla.ID, Connection: "c-ayla", AckSeq: 7}, {Character: robin.ID, Connection: "c-robin"}}
-		if len(gateway.sent) == 0 || !slices.Equal(gateway.sent[len(gateway.sent)-1], want) {
+		if len(gateway.sent) == 0 || !reflect.DeepEqual(gateway.sent[len(gateway.sent)-1], want) {
 			t.Fatalf("frames to the shared stream %+v, want each tick's once to %+v", gateway.sent, want)
 		}
 	})

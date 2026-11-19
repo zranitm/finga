@@ -1,7 +1,6 @@
 package e2e_test
 
 import (
-	"maps"
 	"math"
 	"slices"
 	"testing"
@@ -148,22 +147,24 @@ func TestFieldBoss(t *testing.T) {
 				t.Fatalf("%s heard the boss gone as %+v; want the king, back in 3 s", l.ID, g)
 			}
 		}
-		tuskOwners := func() map[string]bool {
-			owners := map[string]bool{}
-			for _, d := range ann.Seen {
-				if d.GetTemplate() == "boar_tusk" {
-					owners[d.GetOwnerId()] = true
-				}
-			}
-			return owners
-		}
-		want := map[string]bool{ann.ID: true, ben.ID: true}
-		if !ann.Until(5*time.Second, func() bool { return maps.Equal(tuskOwners(), want) }) {
-			t.Fatalf("the tusks are %v's, want one each", tuskOwners())
-		}
+		// Each sees a box of their own holding a tusk, and none of the other's; each takes theirs.
 		for _, l := range []*e2etest.Looter{ann, ben} {
+			var box *clientv1.PouchView
+			if !l.Until(5*time.Second, func() bool {
+				for _, p := range l.Pouches {
+					if p.GetKind() == clientv1.PouchKind_POUCH_KIND_BOX && e2etest.Holds(p, "boar_tusk") {
+						box = p
+					}
+				}
+				return box != nil
+			}) || len(l.Seen) != 1 {
+				t.Fatalf("%s saw pouches %v; want one box of their own, holding a tusk", l.ID, l.Seen)
+			}
+			if r := l.GoTake(t, box); !r.GetOk() || slices.ContainsFunc(e2etest.Codes(r), func(c int32) bool { return c != 0 }) {
+				t.Fatalf("%s's take answered %+v", l.ID, r)
+			}
 			e2etest.Take(t, l, "Loot of its own tusk", &l.Loots, 10*time.Second, func(lt *clientv1.Loot) bool {
-				return lt.GetTemplate() == "boar_tusk" && lt.GetKind() == clientv1.LootKind_LOOT_KIND_COLLECTED && lt.GetOwnerId() == l.ID
+				return slices.Contains(e2etest.Templates(lt), "boar_tusk") && lt.GetKind() == clientv1.LootKind_LOOT_KIND_TAKEN && lt.GetOwnerId() == l.ID
 			})
 		}
 	}) {

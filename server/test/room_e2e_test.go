@@ -3,7 +3,6 @@ package e2e_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -13,25 +12,10 @@ import (
 	"finga/test/e2etest"
 )
 
-// TestRoomForAReward is the user's rule of 2026-11-12: a reward that doesn't fit is refused for the first short tab, and goes through once the slots the client counts are free, a drop waiting for room taking one of them first.
+// TestRoomForAReward is the user's rule of 2026-11-12: a reward that doesn't fit is refused for the first short tab, and goes through once the slots the client counts are free. Nothing else waits for room: an item a pouch holds stays in it.
 func TestRoomForAReward(t *testing.T) {
 	t.Parallel()
-	// A slime dies to a hit and drops a cap; a drop waits a minute for room, looked at each second.
-	data := e2etest.GameData(t, append(e2etest.QuickSlimes(), slimesDrop(oneCap), lootTimes("1s", "60s", "1s"), guideByThePortal())...)
-
-	// waitingCap hunts the forest until a cap drops, which a full Equip tab leaves waiting, then goes to the town.
-	waitingCap := func(t *testing.T, l *e2etest.Looter) *clientv1.DropView {
-		t.Helper()
-		cap, ok := l.Hunt(30*time.Second, "leather_cap")
-		if !ok {
-			t.Fatal("no cap dropped in 30 s of hunting")
-		}
-		if !l.Until(5*time.Second, func() bool { return len(l.LootOf(cap.GetId(), clientv1.LootKind_LOOT_KIND_WAITING)) == 1 }) {
-			t.Fatalf("loot %v; want the cap waiting for room", l.Loots)
-		}
-		l.Hop(t, e2etest.ForestFromTown, "town", e2etest.TownPortal)
-		return cap
-	}
+	data := e2etest.GameData(t, guideByThePortal())
 	// freeOne discards a cap from the bag.
 	freeOne := func(t *testing.T, s *e2etest.Stack, l *e2etest.Looter, req string) {
 		t.Helper()
@@ -43,14 +27,7 @@ func TestRoomForAReward(t *testing.T) {
 			t.Fatalf("discard: %+v", r)
 		}
 	}
-	collected := func(t *testing.T, l *e2etest.Looter, cap *clientv1.DropView) {
-		t.Helper()
-		if !l.Until(5*time.Second, func() bool { return len(l.LootOf(cap.GetId(), clientv1.LootKind_LOOT_KIND_COLLECTED)) == 1 }) {
-			t.Fatalf("loot %v; want the waiting cap collected into the freed slot", l.Loots)
-		}
-	}
-
-	t.Run("H1/a-hand-in-refused-for-a-full-tab-goes-through-once-the-reward-and-the-waiting-drop-have-room", func(t *testing.T) {
+	t.Run("H1/a-hand-in-refused-for-a-full-tab-goes-through-once-the-reward-has-room", func(t *testing.T) {
 		t.Parallel()
 		s := newStackOver(t, data)
 		token, id := s.CreateCharacter(t, "hana", "Hana", "bowman")
@@ -69,30 +46,20 @@ func TestRoomForAReward(t *testing.T) {
 		for range 24 {
 			s.Give(t, id, "leather_cap", &progression.ItemStats{PhysicalDefense: 3})
 		}
-		s.Place(t, id, "forest", e2etest.SlimeField, 134, 0)
+		s.Place(t, id, "town", byTheGuide, 134, 0)
 		l, _ := s.Hello(t, token, id)
-		cap := waitingCap(t, l)
-		if !l.WalkTo(byTheGuide, 30*time.Second) {
-			t.Fatalf("Hana could not reach the guide (at %.2f, %.2f)", l.X, l.Z)
-		}
 		handIn := &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}
 		if r := l.Command(t, "h-1", handIn); r.GetOk() || r.GetCode() != code("EQUIP_TAB_FULL") {
 			t.Fatalf("handing in with a full Equip tab: %+v", r)
 		}
-		// One slot freed: the waiting cap takes it first, so the reward still has none.
+		// The one slot the client counts: the hand-in goes through.
 		freeOne(t, s, l, "d-1")
-		collected(t, l, cap)
-		if r := l.Command(t, "h-2", handIn); r.GetOk() || r.GetCode() != code("EQUIP_TAB_FULL") {
-			t.Fatalf("handing in after one slot freed, the cap in it: %+v", r)
-		}
-		// The second the client counts: the hand-in goes through.
-		freeOne(t, s, l, "d-2")
-		if r := l.Command(t, "h-3", handIn); !r.GetOk() {
+		if r := l.Command(t, "h-2", handIn); !r.GetOk() {
 			t.Fatalf("handing in with room: %+v", r)
 		}
 		after := s.InventoryTotals(t, id)
 		if after["slime_gel"] != 0 || after["leather_cap"] != 24 {
-			t.Fatalf("held %v; want the gels taken and 24 caps: two freed, the waiting one and the reward", after)
+			t.Fatalf("held %v; want the gels taken and 24 caps: one freed and the reward", after)
 		}
 		s.CheckInvariants(t)
 	})
@@ -114,12 +81,8 @@ func TestRoomForAReward(t *testing.T) {
 		for range 24 {
 			s.Give(t, id, "leather_cap", &progression.ItemStats{PhysicalDefense: 3})
 		}
-		s.Place(t, id, "forest", e2etest.SlimeField, 134, 0)
+		s.Place(t, id, "town", e2etest.ByTheTrainer, 134, 0)
 		l, _ := s.Hello(t, token, id)
-		cap := waitingCap(t, l)
-		if !l.WalkTo(e2etest.ByTheTrainer, 30*time.Second) {
-			t.Fatalf("Pavo could not reach the trainer (at %.2f, %.2f)", l.X, l.Z)
-		}
 		gift := uuidv7.Derived(uuid.MustParse(id), "promotion:warrior").String()
 		keyed := func() int {
 			var n int
@@ -136,12 +99,7 @@ func TestRoomForAReward(t *testing.T) {
 			t.Fatalf("%d replies kept under the gift's key after a refusal; want none, so a retry gives it", n)
 		}
 		freeOne(t, s, l, "d-1")
-		collected(t, l, cap)
-		if r := l.Command(t, "p-2", promote); r.GetOk() || r.GetCode() != code("EQUIP_TAB_FULL") {
-			t.Fatalf("promoting after one slot freed, the cap in it: %+v", r)
-		}
-		freeOne(t, s, l, "d-2")
-		if r := l.Command(t, "p-3", promote); !r.GetOk() {
+		if r := l.Command(t, "p-2", promote); !r.GetOk() {
 			t.Fatalf("promoting with room: %+v", r)
 		}
 		if rows, _, _ := s.ItemTotals(t, id, "wooden_sword"); rows != 1 {

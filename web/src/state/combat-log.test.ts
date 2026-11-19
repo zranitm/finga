@@ -1,7 +1,6 @@
 import { create } from '@bufbuild/protobuf';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
-import { loot as timings } from '@/gamedata/loot';
 import {
   CharacterViewSchema,
   ExpGainedSchema,
@@ -13,27 +12,20 @@ import {
 
 import { MAX_COMBAT_LINES, combatLog } from './combat-log';
 
-const loot = (kind: LootKind, dropId: number, mapId = 'meadow') =>
+const loot = (kind: LootKind, items = [{ template: 'slime_gel', quantity: 2 }]) =>
   create(LootSchema, {
     kind,
-    mapId,
-    dropId,
+    mapId: 'meadow',
+    pouchId: 7,
     ownerId: 'c-ayla',
     ownerName: 'Ayla',
-    template: 'slime_gel',
-    quantity: 2,
+    items,
   });
 const exp = (amount: bigint) => create(ExpGainedSchema, { amount, exp: 40n });
 
-const keys = () => combatLog.getState().waiting.map((w) => w.key);
-
 describe('combatLog', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
     combatLog.reset();
-  });
-  afterEach(() => {
-    vi.useRealTimers();
   });
 
   it('EXP, a level-up, a promotion, loot and a potion each add a line, oldest first', () => {
@@ -44,7 +36,13 @@ describe('combatLog', () => {
     s.applyPromoted(
       create(PromotedSchema, { character: create(CharacterViewSchema, { class: 'thief' }) }),
     );
-    s.applyLoot(loot(LootKind.COLLECTED, 7));
+    s.applyLoot(loot(LootKind.TAKEN));
+    s.applyLoot(
+      loot(LootKind.LEFT, [
+        { template: 'red_potion', quantity: 1 },
+        { template: 'slime_gel', quantity: 2 },
+      ]),
+    );
     s.drank('red_potion', 50);
     expect(combatLog.getState().lines).toMatchObject([
       { kind: 'exp', amount: 12 },
@@ -53,16 +51,23 @@ describe('combatLog', () => {
       { kind: 'promoted', cls: 'thief' },
       {
         kind: 'loot',
-        loot: LootKind.COLLECTED,
+        loot: LootKind.TAKEN,
         ownerId: 'c-ayla',
         ownerName: 'Ayla',
-        template: 'slime_gel',
-        quantity: 2,
+        items: [{ template: 'slime_gel', quantity: 2 }],
+      },
+      {
+        kind: 'loot',
+        loot: LootKind.LEFT,
+        items: [
+          { template: 'red_potion', quantity: 1 },
+          { template: 'slime_gel', quantity: 2 },
+        ],
       },
       { kind: 'drank', template: 'red_potion', hp: 50 },
     ]);
     const ids = combatLog.getState().lines.map((l) => l.id);
-    expect(new Set(ids).size).toBe(6);
+    expect(new Set(ids).size).toBe(7);
   });
 
   it.each([
@@ -77,11 +82,15 @@ describe('combatLog', () => {
     },
     {
       name: 'a Loot with no kind',
-      apply: () => combatLog.getState().applyLoot(loot(LootKind.UNSPECIFIED, 7)),
+      apply: () => combatLog.getState().applyLoot(loot(LootKind.UNSPECIFIED)),
     },
     {
       name: 'a Loot of a kind from a newer server',
-      apply: () => combatLog.getState().applyLoot(loot(9 as LootKind, 7)),
+      apply: () => combatLog.getState().applyLoot(loot(9 as LootKind)),
+    },
+    {
+      name: 'a Loot naming no item',
+      apply: () => combatLog.getState().applyLoot(loot(LootKind.TAKEN, [])),
     },
   ])('$name adds nothing', ({ apply }) => {
     apply();
@@ -109,47 +118,10 @@ describe('combatLog', () => {
     expect(lines.at(-1)).toMatchObject({ amount: MAX_COMBAT_LINES + 5 });
   });
 
-  it('counts drops waiting for room by map and drop, until collected or lost', () => {
+  it('clear forgets the lines', () => {
     const s = combatLog.getState();
-    s.applyLoot(loot(LootKind.WAITING, 7));
-    s.applyLoot(loot(LootKind.WAITING, 8));
-    s.applyLoot(loot(LootKind.WAITING, 7, 'cave'));
-    s.applyLoot(loot(LootKind.WAITING, 7));
-    expect(keys()).toEqual(['meadow/8', 'cave/7', 'meadow/7']);
-    s.applyLoot(loot(LootKind.COLLECTED, 7));
-    s.applyLoot(loot(LootKind.LOST, 7, 'cave'));
-    s.applyLoot(loot(LootKind.COLLECTED, 99));
-    expect(keys()).toEqual(['meadow/8']);
-  });
-
-  it("forgets a waiting drop at the end of a drop's life, when no word of it came", () => {
-    const s = combatLog.getState();
-    s.applyLoot(loot(LootKind.WAITING, 7));
-    vi.advanceTimersByTime(timings.drop_life_ms / 2);
-    s.applyLoot(loot(LootKind.WAITING, 8));
-    vi.advanceTimersByTime(timings.drop_life_ms / 2 - 1);
-    expect(keys()).toEqual(['meadow/7', 'meadow/8']);
-    vi.advanceTimersByTime(1);
-    expect(keys()).toEqual(['meadow/8']);
-    vi.advanceTimersByTime(timings.drop_life_ms / 2);
-    expect(keys()).toEqual([]);
-  });
-
-  it('a drop told waiting again, its ID reused after a world restart, waits a full life from then', () => {
-    const s = combatLog.getState();
-    s.applyLoot(loot(LootKind.WAITING, 7));
-    vi.advanceTimersByTime(timings.drop_life_ms - 1);
-    s.applyLoot(loot(LootKind.WAITING, 7));
-    vi.advanceTimersByTime(1);
-    expect(keys()).toEqual(['meadow/7']);
-    vi.advanceTimersByTime(timings.drop_life_ms - 1);
-    expect(keys()).toEqual([]);
-  });
-
-  it('clear forgets the lines and the waiting drops', () => {
-    const s = combatLog.getState();
-    s.applyLoot(loot(LootKind.WAITING, 7));
+    s.applyLoot(loot(LootKind.TAKEN));
     s.clear();
-    expect(combatLog.getState()).toMatchObject({ lines: [], waiting: [] });
+    expect(combatLog.getState().lines).toEqual([]);
   });
 });

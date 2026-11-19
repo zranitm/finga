@@ -153,6 +153,9 @@ func TestEachKernelErrorReachesTheClientByName(t *testing.T) {
 		{kernel.ErrTraitUnknown, "TRAIT_UNKNOWN", none},
 		{kernel.ErrInCombat, "IN_COMBAT", none},
 		{kernel.ErrTraitLocked, "TRAIT_LOCKED", none},
+		{kernel.ErrPouchGone, "POUCH_GONE", none},
+		{kernel.ErrPouchOutOfReach, "POUCH_OUT_OF_REACH", none},
+		{kernel.ErrTakeBusy, "TAKE_BUSY", none},
 	} {
 		t.Run(tt.err.Error(), func(t *testing.T) {
 			err := wrap(tt.err)

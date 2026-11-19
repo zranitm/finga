@@ -48,6 +48,7 @@ type service interface {
 	Say(id kernel.CharacterID, conn, name, text string) error
 	Equip(ctx context.Context, id kernel.CharacterID, conn, key string, item kernel.ItemID, equipSlot string) error
 	SetLook(ctx context.Context, id kernel.CharacterID, conn, key string, look model.Look) error
+	TakeLoot(ctx context.Context, id kernel.CharacterID, conn string, picks []model.Pick) ([]model.PickAnswer, error)
 	UseItem(ctx context.Context, id kernel.CharacterID, conn, key string, item kernel.ItemID, template string) error
 	Unequip(ctx context.Context, id kernel.CharacterID, conn, key, equipSlot string, toSlot *int) error
 	SpendPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points gamedata.Stats) error
@@ -272,6 +273,25 @@ func (m *Module) SetLook(ctx context.Context, p Presence, key string, look Look)
 	ctx, call := m.calls.Start(ctx, "SetLook")
 	defer call.End(&err)
 	return m.svc.SetLook(ctx, p.Character, p.Conn, key, model.Look(look))
+}
+
+// TakeLoot takes picked items from the player's own pouches within reach, and answers each pick once the item module did: taken, or refused with the rule's error.
+func (m *Module) TakeLoot(ctx context.Context, p Presence, picks []Pick) (_ []PickAnswer, err error) {
+	ctx, call := m.calls.Start(ctx, "TakeLoot")
+	defer call.End(&err)
+	in := make([]model.Pick, len(picks))
+	for k, pk := range picks {
+		in[k] = model.Pick(pk)
+	}
+	answers, err := m.svc.TakeLoot(ctx, p.Character, p.Conn, in)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]PickAnswer, len(answers))
+	for k, a := range answers {
+		out[k] = PickAnswer{Pick: Pick(a.Pick), Err: errorTable.Kernel(a.Err)}
+	}
+	return out, nil
 }
 
 // UseItem drinks a potion and answers once its HP applies.

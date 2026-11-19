@@ -527,6 +527,26 @@ func TestWorldEventsReachTheClient(t *testing.T) {
 	})
 }
 
+// A frame shared by two players carries each one's pouches to that player alone.
+func TestAPouchReachesOnlyItsOwnersDelta(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		ayla, bruno := h.dial(t), h.dial(t)
+		ayla.hello(tokenAlice, aylaID)
+		ayla.expect("Snapshot")
+		bruno.hello(tokenBob, brunoID)
+		bruno.expect("Snapshot")
+		mine := world.Pouches{Changed: []world.PouchView{{ID: 3, Kind: world.PouchSmall, Items: []world.PouchItem{{ID: 1, Template: "slime_gel", Quantity: 1}}}}, Gone: []uint64{2}}
+		h.world.frame(12, world.Frame{RemovedMobs: []uint64{7}}, world.Recipient{Character: aylaID, Pouches: mine}, world.Recipient{Character: brunoID})
+		if d := ayla.expect("Delta").Data.(*clientv1.Delta); len(d.Pouches) != 1 || len(d.PouchesGone) != 1 || !slices.Equal(d.RemovedMobs, []uint32{7}) {
+			t.Fatalf("Ayla's delta %+v, want her pouch, its gone one, and the shared frame", d)
+		}
+		if d := bruno.expect("Delta").Data.(*clientv1.Delta); len(d.Pouches) != 0 || len(d.PouchesGone) != 0 || !slices.Equal(d.RemovedMobs, []uint32{7}) {
+			t.Fatalf("Bruno's delta %+v, want the shared frame and none of Ayla's pouches", d)
+		}
+	})
+}
+
 func TestCloseLeavesTheMap(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t)
@@ -783,13 +803,28 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 		}
 		c.expect("Snapshot")
 
-		part(t, "PickUp, retired, reaches nothing and is answered with nothing", func() {
-			worldBefore, itemsBefore := h.world.ops.Load(), items.ops.Load()
-			c.send(wsconn.Message{Seq: 4, Data: &clientv1.PickUp{}})
-			c.send(wsconn.Message{Data: &clientv1.Ping{ClientTime: 1}})
-			c.expect("Pong")
-			if w, i := h.world.ops.Load()-worldBefore, items.ops.Load()-itemsBefore; w != 0 || i != 0 {
-				t.Fatalf("a PickUp made %d world calls and %d item calls; want none", w, i)
+		part(t, "TakeLoot reaches the world with its picks, and its Response answers each, a refusal with its code", func() {
+			h.world.mu.Lock()
+			h.world.taken = []world.PickAnswer{{Pouch: 3, Item: 1}, {Pouch: 3, Item: 2, Err: kernel.ErrEtcTabFull}}
+			h.world.mu.Unlock()
+			c.send(wsconn.Message{ReqID: "t-1", Data: &clientv1.TakeLoot{Picks: []*clientv1.LootPick{{Pouch: 3, Item: 1}, {Pouch: 3, Item: 2}}}})
+			r := c.expect("Response")
+			want := &clientv1.Response{Ok: true, Picks: []*clientv1.PickAnswer{
+				{Pick: &clientv1.LootPick{Pouch: 3, Item: 1}}, {Pick: &clientv1.LootPick{Pouch: 3, Item: 2}, Code: int32(model.EtcTabFull.Code)},
+			}}
+			if r.ReqID != "t-1" || !proto.Equal(r.Data.(*clientv1.Response), want) {
+				t.Fatalf("response %+v, want %v", r, want)
+			}
+			if takes := h.world.takeCalls(); len(takes) != 1 || !slices.Equal(takes[0], []world.Pick{{Pouch: 3, Item: 1}, {Pouch: 3, Item: 2}}) {
+				t.Fatalf("takes %+v", takes)
+			}
+			picks := make([]*clientv1.LootPick, model.MaxPicks+1)
+			for k := range picks {
+				picks[k] = &clientv1.LootPick{Pouch: 3, Item: uint32(k)}
+			}
+			c.send(wsconn.Message{ReqID: "t-2", Data: &clientv1.TakeLoot{Picks: picks}})
+			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.MalformedBody.Code) || len(h.world.takeCalls()) != 1 {
+				t.Fatalf("a take of %d picks answered %+v; want it refused as malformed before the world", len(picks), r)
 			}
 		})
 		part(t, "InventoryMove answers ok and sends the changed slots at their revision, with the connection's identity", func() {
@@ -859,16 +894,25 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 			}
 			items.err = nil
 		})
-		part(t, "drops, where they fly, and what became of them reach the client", func() {
-			h.world.delta(aylaID, 12, 0, world.Frame{Drops: []world.DropView{{ID: 3, Template: "slime_gel", Quantity: 2, X: 10, Y: 20, Owner: aylaID}}, RemovedDrops: []uint64{2}, CollectedDrops: []uint64{1}})
+		part(t, "the player's own pouches, and what became of their items, reach the client", func() {
+			sword := &progression.ItemStats{PhysicalAttack: 17}
+			h.world.frame(12, world.Frame{}, world.Recipient{Character: aylaID, Pouches: world.Pouches{
+				Changed: []world.PouchView{{ID: 3, Kind: world.PouchBox, X: 10, Y: 1, Z: 20, GoneIn: 2 * time.Minute, Items: []world.PouchItem{
+					{ID: 1, Template: "slime_gel", Quantity: 2}, {ID: 2, Template: "iron_sword", Quantity: 1, Stats: sword},
+				}}},
+				Gone: []uint64{2},
+			}})
 			d := c.expect("Delta").Data.(*clientv1.Delta)
-			if len(d.Drops) != 1 || d.Drops[0].Template != "slime_gel" || d.Drops[0].OwnerId != aylaID.String() || d.RemovedDrops[0] != 2 || len(d.CollectedDrops) != 1 || d.CollectedDrops[0] != 1 {
-				t.Fatalf("delta %+v", d)
+			want := &clientv1.PouchView{Id: 3, Kind: clientv1.PouchKind_POUCH_KIND_BOX, X: 10, Y: 1, Z: 20, GoneInMs: 120000, Items: []*clientv1.PouchItem{
+				{Item: 1, Template: "slime_gel", Quantity: 2}, {Item: 2, Template: "iron_sword", Quantity: 1, Stats: &clientv1.ItemStats{PhysicalAttack: 17}},
+			}}
+			if len(d.Pouches) != 1 || !proto.Equal(d.Pouches[0], want) || !slices.Equal(d.PouchesGone, []uint32{2}) {
+				t.Fatalf("delta %+v, want the box %v and pouch 2 gone", d, want)
 			}
-			h.world.push(aylaID, 13, world.Loot{Kind: world.LootCollected, MapID: "forest", DropID: 1, Owner: aylaID, OwnerName: "Ayla", Template: "slime_gel", Quantity: 2})
-			want := &clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_COLLECTED, MapId: "forest", DropId: 1, OwnerId: aylaID.String(), OwnerName: "Ayla", Template: "slime_gel", Quantity: 2}
-			if l := c.expect("Loot"); l.Tick == 0 || !proto.Equal(l.Data.(*clientv1.Loot), want) {
-				t.Fatalf("loot %+v, want %v", l, want)
+			h.world.push(aylaID, 13, world.Loot{Kind: world.LootTaken, MapID: "forest", Pouch: 1, Owner: aylaID, OwnerName: "Ayla", Items: []world.LootItem{{Template: "slime_gel", Quantity: 2}}})
+			loot := &clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_TAKEN, MapId: "forest", PouchId: 1, OwnerId: aylaID.String(), OwnerName: "Ayla", Items: []*clientv1.LootItem{{Template: "slime_gel", Quantity: 2}}}
+			if l := c.expect("Loot"); l.Tick == 0 || !proto.Equal(l.Data.(*clientv1.Loot), loot) {
+				t.Fatalf("loot %+v, want %v", l, loot)
 			}
 			h.world.push(aylaID, 14, world.InventoryChanged{Revision: 6, Slots: []world.Slot{
 				{Tab: "etc", Slot: 1, Item: &world.SlotItem{ID: kernel.NewItemID(), Template: "slime_gel", Quantity: 2}},

@@ -72,8 +72,11 @@ func samples() []wsconn.Message {
 	boss := func() *clientv1.MobView {
 		return &clientv1.MobView{Id: 9, Type: "king_slime", X: 43.75, Y: 1, Hp: 3100, MaxHp: 4260, Z: 30, Yaw: 3}
 	}
-	drop := func() *clientv1.DropView {
-		return &clientv1.DropView{Id: 12, Template: "slime_gel", Quantity: 2, X: 16.25, Y: 0.5, OwnerId: charA, Z: 0.5}
+	// A box of the player's from a field boss: a gel, and a sword with its roll.
+	pouch := func() *clientv1.PouchView {
+		return &clientv1.PouchView{Id: 12, Kind: clientv1.PouchKind_POUCH_KIND_BOX, X: 43.75, Y: 1, Z: 30, GoneInMs: 118000, Items: []*clientv1.PouchItem{
+			{Item: 1, Template: "slime_gel", Quantity: 2}, {Item: 2, Template: "iron_sword", Quantity: 1, Stats: &clientv1.ItemStats{PhysicalAttack: 18, CritRate: 15}},
+		}}
 	}
 	party := func() *clientv1.PartyView {
 		return &clientv1.PartyView{Leader: charA, Members: []*clientv1.PartyMember{
@@ -85,8 +88,8 @@ func samples() []wsconn.Message {
 		{Type: "Hello", Data: &clientv1.Hello{Token: "opaque-session-token", ProtocolVersion: protocol.Version, CharacterId: charA}},
 		{Type: "Input", Seq: 117, Data: &clientv1.Input{Right: true, Jump: true, View: 4810}},
 		{Type: "Attack", Seq: 118, Data: &clientv1.Attack{Aim: 1.5}},
-		{Type: "PickUp", Seq: 119, Data: &clientv1.PickUp{}},
 		{Type: "EnterPortal", Seq: 120, Data: &clientv1.EnterPortal{}},
+		{Type: "TakeLoot", ReqID: "r-22", Data: &clientv1.TakeLoot{Picks: []*clientv1.LootPick{{Pouch: 12, Item: 1}, {Pouch: 12, Item: 2}}}},
 		{Type: "Teleport", Seq: 121, ReqID: "r-21", Data: &clientv1.Teleport{MapId: "forest"}},
 		{Type: "ChatSend", Data: &clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Text: "hello there"}},
 		{Type: "PartyInvite", ReqID: "r-1", Data: &clientv1.PartyInvite{CharacterId: charB}},
@@ -127,8 +130,8 @@ func samples() []wsconn.Message {
 			},
 		}},
 		// A map whose field boss is up.
-		{Type: "Snapshot", Tick: 81234, Data: &clientv1.Snapshot{Players: []*clientv1.PlayerView{player()}, Mobs: []*clientv1.MobView{mob(), boss()}, Drops: []*clientv1.DropView{drop()}, FieldBoss: &clientv1.FieldBoss{MobId: 9, Type: "king_slime"}}},
-		{Type: "Delta", Tick: 81235, Data: &clientv1.Delta{AckSeq: 117, Energy: proto.Uint32(8), Players: []*clientv1.PlayerView{player(), hurt, leaping, bot}, Mobs: []*clientv1.MobView{mob()}, Drops: []*clientv1.DropView{drop()}, RemovedPlayers: []string{charC}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{11}, CollectedDrops: []uint32{10}}},
+		{Type: "Snapshot", Tick: 81234, Data: &clientv1.Snapshot{Players: []*clientv1.PlayerView{player()}, Mobs: []*clientv1.MobView{mob(), boss()}, Pouches: []*clientv1.PouchView{pouch()}, FieldBoss: &clientv1.FieldBoss{MobId: 9, Type: "king_slime"}}},
+		{Type: "Delta", Tick: 81235, Data: &clientv1.Delta{AckSeq: 117, Energy: proto.Uint32(8), Players: []*clientv1.PlayerView{player(), hurt, leaping, bot}, Mobs: []*clientv1.MobView{mob()}, Pouches: []*clientv1.PouchView{pouch()}, PouchesGone: []uint32{11}, RemovedPlayers: []string{charC}, RemovedMobs: []uint32{6}}},
 		{Type: "Damage", Tick: 81235, Data: &clientv1.Damage{Source: "p:" + charA, Target: "m:7", Amount: 23, Crit: true}},
 		{Type: "SkillUsed", Tick: 81235, Data: &clientv1.SkillUsed{Caster: charA, Skill: "strike", Stage: 2, Trait: "concussion", Aim: -1.5, Target: "m:7"}},
 		{Type: "AttackUsed", Tick: 81236, Data: &clientv1.AttackUsed{Attacker: charA, LengthTicks: 18, Aim: 1.5}},
@@ -149,7 +152,7 @@ func samples() []wsconn.Message {
 		{Type: "StatsChanged", Data: &clientv1.StatsChanged{Sheet: sheet(), Hp: 250, MaxHp: 280, Timers: &clientv1.SkillTimers{Timers: []*clientv1.SkillTimer{
 			{Skill: "war_cry", Kind: clientv1.SkillTimerKind_SKILL_TIMER_KIND_COOLDOWN, LeftMs: 41250},
 		}}}},
-		{Type: "Loot", Tick: 81236, Data: &clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_COLLECTED, MapId: "forest", DropId: 10, OwnerId: charB, OwnerName: "Robin", Template: "slime_gel", Quantity: 2}},
+		{Type: "Loot", Tick: 81236, Data: &clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_TAKEN, MapId: "forest", PouchId: 10, OwnerId: charB, OwnerName: "Robin", Items: []*clientv1.LootItem{{Template: "slime_gel", Quantity: 2}, {Template: "red_potion", Quantity: 1}}}},
 		{Type: "MapChange", Data: &clientv1.MapChange{MapId: "forest", X: 2, Y: 0, Z: 1, Yaw: -0.5}},
 		{Type: "TeleportCancelled", Data: &clientv1.TeleportCancelled{Reason: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_HIT}},
 		{Type: "PvpQueue", ReqID: "r-30", Data: &clientv1.PvpQueue{Mode: "duel"}},

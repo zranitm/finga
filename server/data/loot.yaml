@@ -1,4 +1,5 @@
-# How drops behave on the ground: when one flies to its owner, how long it can wait for room, and how often a full inventory is asked again.
-collect_delay: 1s      # from the kill until the drop flies to its owner
-drop_life: 60s         # a drop still on the ground then is lost
-room_check_every: 2s   # an owner's drops waiting for room are tried again this often
+# Loot on the ground: how often a kill leaves a pouch, how near a character opens one, and how long pouches and a boss's boxes last.
+pouch: {normal: 0.25, elite: 0.5}  # the chance a kill leaves a pouch; a boss always leaves each eligible player a box
+reach: 2                           # metres from the character's middle to a pouch or box to open it
+pouch_life: 60s                    # a pouch still holding items then is gone
+box_life: 2m                       # a boss's box still holding items then is gone

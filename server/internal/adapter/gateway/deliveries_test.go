@@ -15,14 +15,16 @@ import (
 
 // worldEnums take a valid value of their own, as an unknown one reads as the zero one; the maps between them have their own tests.
 var worldEnums = map[reflect.Type]any{
-	reflect.TypeFor[world.LootKind]():        world.LootWaiting,
+	reflect.TypeFor[world.LootKind]():        world.LootLeft,
+	reflect.TypeFor[world.PouchKind]():       world.PouchBox,
 	reflect.TypeFor[world.QuestChange]():     world.QuestHandedIn,
 	reflect.TypeFor[world.QuestStatus]():     world.QuestFinished,
 	reflect.TypeFor[world.OfferState]():      world.OfferUnmet, // so the conditions it lacks go too
 	reflect.TypeFor[world.ConditionKind]():   world.ConditionSkill,
 	reflect.TypeFor[world.MobPose]():         world.Down,
 	reflect.TypeFor[world.TeleportCancel]():  world.TeleportHit,
-	reflect.TypeFor[model.LootKind]():        model.LootWaiting,
+	reflect.TypeFor[model.LootKind]():        model.LootLeft,
+	reflect.TypeFor[model.PouchKind]():       model.PouchBox,
 	reflect.TypeFor[model.QuestChange]():     model.QuestHandedIn,
 	reflect.TypeFor[model.QuestStatus]():     model.QuestFinished,
 	reflect.TypeFor[model.QuestOfferState](): model.OfferUnmet,
@@ -102,6 +104,7 @@ func TestEveryWorldEventKeepsItsValues(t *testing.T) {
 			m := match()
 			with(m.Renames, map[string]string{
 				"Event.Players.State": "Delivery.Push.Players", "Event.FieldBoss.Mob": "Delivery.Push.FieldBoss.MobID", "Event.FieldBossGone.Mob": "Delivery.Push.FieldBossGone.MobID", "Event.FieldBossGone.BackIn": "Delivery.Push.FieldBossGone.BackInMs",
+				"Event.Pouches.GoneIn": "Delivery.Push.Pouches.GoneInMs",
 			})
 			with(m.Skip, map[string]string{"Event.MapID": "the join or the teleport names the map"})
 			return eventDiff[world.Snapshot](t, model.Snapshot{}, m)
@@ -200,10 +203,12 @@ func TestEveryWorldEventKeepsItsValues(t *testing.T) {
 
 // frameRecipient is one recipient's share of a frame: what differs between the events a frame becomes.
 type frameRecipient struct {
-	Connection string
-	Character  kernel.CharacterID
-	AckSeq     uint32
-	Energy     *uint32
+	Connection  string
+	Character   kernel.CharacterID
+	AckSeq      uint32
+	Energy      *uint32
+	Pouches     []model.PouchView
+	PouchesGone []uint64
 }
 
 // A frame becomes one push per recipient, all sharing one copy of it, with every value the world sent but the movement state the client keeps itself.
@@ -215,7 +220,10 @@ func TestAFrameKeepsItsValues(t *testing.T) {
 	}
 	const recipients = "a frame names its recipients instead"
 	m := match()
-	with(m.Renames, map[string]string{"Tick": "Tick", "Event": "Frame", "Event.Players.State": "Frame.Players", "Event.Removed": "Frame.RemovedPlayers", "Event.Recipients": "Recipients"})
+	with(m.Renames, map[string]string{
+		"Tick": "Tick", "Event": "Frame", "Event.Players.State": "Frame.Players", "Event.Removed": "Frame.RemovedPlayers", "Event.Recipients": "Recipients",
+		"Event.Recipients.Pouches.Changed": "Recipients.Pouches", "Event.Recipients.Pouches.Changed.GoneIn": "Recipients.Pouches.GoneInMs", "Event.Recipients.Pouches.Gone": "Recipients.PouchesGone",
+	})
 	with(m.Skip, map[string]string{"Character": recipients, "Conn": recipients})
 	m.Enums = worldEnums
 	got := copytest.Diff(m, func(s streamed[world.Frame]) pushed {
@@ -230,7 +238,7 @@ func TestAFrameKeepsItsValues(t *testing.T) {
 				t.Fatal("the recipients' pushes share no frame")
 			}
 			out.Tick, out.Frame = d.Delivery.Tick, delta.Frame
-			out.Recipients = append(out.Recipients, frameRecipient{Connection: d.Connection, Character: d.Character, AckSeq: delta.AckSeq, Energy: delta.Energy})
+			out.Recipients = append(out.Recipients, frameRecipient{Connection: d.Connection, Character: d.Character, AckSeq: delta.AckSeq, Energy: delta.Energy, Pouches: delta.Pouches, PouchesGone: delta.PouchesGone})
 		})
 		return out
 	})
@@ -404,11 +412,14 @@ func TestEachPromotionConditionKeepsItsKind(t *testing.T) {
 
 // Each loot kind, quest change, quest status and offer state reaches the use cases as its own; one the gateway doesn't know reads as none.
 func TestEachWorldEnumKeepsItsValue(t *testing.T) {
-	for kind, want := range map[world.LootKind]model.LootKind{
-		world.LootCollected: model.LootCollected, world.LootWaiting: model.LootWaiting, world.LootLost: model.LootLost, world.LootKind(9): 0,
-	} {
+	for kind, want := range map[world.LootKind]model.LootKind{world.LootTaken: model.LootTaken, world.LootLeft: model.LootLeft, world.LootKind(9): 0} {
 		if push, _ := worldPush(world.Loot{Kind: kind}); push.(model.Loot).Kind != want {
 			t.Errorf("loot kind %d: %+v, want %d", kind, push, want)
+		}
+	}
+	for kind, want := range map[world.PouchKind]model.PouchKind{world.PouchSmall: model.PouchSmall, world.PouchBox: model.PouchBox, world.PouchKind(9): 0} {
+		if push, _ := worldPush(world.Snapshot{Pouches: []world.PouchView{{Kind: kind}}}); push.(model.Snapshot).Pouches[0].Kind != want {
+			t.Errorf("pouch kind %d: %+v, want %d", kind, push, want)
 		}
 	}
 	for change, want := range map[world.QuestChange]model.QuestChange{

@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { Bar } from '@/components/Bar';
 import { actions } from '@/gamedata/actions';
 import { character } from '@/state/character';
-import { combatLog } from '@/state/combat-log';
 import { energy } from '@/state/energy';
 import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
@@ -59,7 +58,6 @@ export function Hud() {
         <ExpDelta />
         <PointsBadge />
         <SkillPointsBadge />
-        <WaitingNotice />
       </div>
     </div>
   );
@@ -106,13 +104,6 @@ function SkillPointsBadge() {
     <button type="button" className="hud-points" onClick={() => ui.getState().openWindow('skills')}>
       {unspent} skill {unspent === 1 ? 'point' : 'points'}
     </button>
-  ) : null;
-}
-
-function WaitingNotice() {
-  const waiting = combatLog.use((s) => s.waiting.length);
-  return waiting > 0 ? (
-    <span className="hud-waiting">Inventory full: {waiting} waiting</span>
   ) : null;
 }
 
