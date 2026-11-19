@@ -29,6 +29,8 @@ type Player struct {
 	attackTicks uint64 // the basic attack's length in the world's ticks, from the Welcome
 	TickHz      uint32 // the world's ticks a second, from the Welcome
 	Joined      uint64 // the tick of the Snapshot it joined to, in its map's ticks
+	MapID       string // the map it's on, from the Welcome and each MapChange read
+	stack       *Stack // whose game data a walk paths on
 }
 
 // NextSeq numbers the next input or action this connection sends.
@@ -56,7 +58,7 @@ func (p *Player) Hello(token string) (*clientv1.Welcome, *clientv1.Snapshot) {
 	p.Send(wsconn.Message{Data: &clientv1.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterId: p.ID}})
 	w := p.Expect("Welcome").Data.(*clientv1.Welcome)
 	p.Token = w.Token // rotated on Hello; REST calls use this one from now on
-	p.attackTicks, p.TickHz = uint64(w.GetCharacter().GetSheet().GetAttackLengthTicks()), w.GetTickRateHz()
+	p.attackTicks, p.TickHz, p.MapID = uint64(w.GetCharacter().GetSheet().GetAttackLengthTicks()), w.GetTickRateHz(), w.GetMapId()
 	var snap *clientv1.Snapshot
 	registered := false
 	deadline := time.Now().Add(5 * time.Second)
@@ -96,7 +98,7 @@ func (s *Stack) Connect(t *testing.T, id string) *Player {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = conn.CloseNow() })
-	p := &Player{t: t, ID: id, Conn: conn, codec: protocol.ClientCodec(wsconn.Binary), msgs: make(chan wsconn.Message, 1024), done: make(chan struct{})}
+	p := &Player{t: t, ID: id, Conn: conn, codec: protocol.ClientCodec(wsconn.Binary), msgs: make(chan wsconn.Message, 1024), done: make(chan struct{}), stack: s}
 	go func() {
 		defer close(p.done)
 		for {
@@ -128,12 +130,16 @@ func (p *Player) Send(m wsconn.Message) {
 
 // Read gives what hello held first, then the next message off the connection.
 func (p *Player) Read(d time.Duration) (wsconn.Message, bool) {
+	m, ok := wsconn.Message{}, true
 	if len(p.held) > 0 {
-		m := p.held[0]
-		p.held = p.held[1:]
-		return m, true
+		m, p.held = p.held[0], p.held[1:]
+	} else {
+		m, ok = p.receive(d)
 	}
-	return p.receive(d)
+	if mc, is := m.Data.(*clientv1.MapChange); is {
+		p.MapID = mc.GetMapId()
+	}
+	return m, ok
 }
 
 // receive is the next message off the connection, waiting up to d.

@@ -338,44 +338,13 @@ func (l *Looter) GoTake(t *testing.T, p *clientv1.PouchView) *clientv1.Response 
 	return l.Take(t, All(p)...)
 }
 
-// WalkTo walks to within 0.375 m of to and stands there, still on the ground, re-aiming after knockback and jumping when stuck.
-func (l *Looter) WalkTo(to gamedata.Point, d time.Duration) bool {
-	deadline := time.Now().Add(d)
-	lastX, lastZ, stuck := l.X, l.Z, 0
-	for time.Now().Before(deadline) {
-		dx, dz := to.X-l.X, to.Z-l.Z
-		if math.Hypot(dx, dz) < 0.375 {
-			if err := l.Input(&clientv1.Input{}); err != nil {
-				return false
-			}
-			l.Pump(100*time.Millisecond, nil)
-			if math.Hypot(to.X-l.X, to.Z-l.Z) < 0.75 && l.Standing() {
-				return true
-			}
-			continue // in the air or still moving, as a stuck jump or a lagging frame leaves it, or knocked back while stopping
-		}
-		if math.Hypot(l.X-lastX, l.Z-lastZ) < 0.03 {
-			stuck++
-		} else {
-			stuck = 0
-		}
-		lastX, lastZ = l.X, l.Z
-		in := Toward(dx, dz)
-		in.Jump = stuck >= 3
-		if err := l.Input(in); err != nil {
-			return false
-		}
-		l.Pump(50*time.Millisecond, nil)
-	}
-	_ = l.Input(&clientv1.Input{})
-	return false
-}
-
 // Farm hunts for d: it swings every 850 ms, and walks to each pouch of its own and takes all it holds, one take at a time without waiting on it; it returns the InventoryChanged seen.
 func (l *Looter) Farm(d time.Duration) int {
 	deadline := time.Now().Add(d)
 	nextAttack := time.Now()
 	walking := false
+	var w Walk
+	var toward uint32 // the pouch w walks to
 	for time.Now().Before(deadline) {
 		switch p := l.nearestPouch(""); {
 		case p != nil && l.taking == "" && math.Hypot(p.GetX()-l.X, p.GetZ()-l.Z) <= 1:
@@ -393,7 +362,10 @@ func (l *Looter) Farm(d time.Duration) int {
 				return l.Inventory
 			}
 		case p != nil && l.taking == "":
-			if l.Input(Toward(p.GetX()-l.X, p.GetZ()-l.Z)) != nil {
+			if !walking || toward != p.GetId() {
+				w, toward = Walk{}, p.GetId()
+			}
+			if l.Step(&w, gamedata.Point{X: p.GetX(), Z: p.GetZ()}) != nil {
 				return l.Inventory
 			}
 			walking = true

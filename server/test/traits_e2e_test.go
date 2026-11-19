@@ -128,23 +128,15 @@ func TestATraitOpensAtTheLastStageAndWaitsOutAFight(t *testing.T) {
 		t.Fatalf("a change mid-fight answered %+v, want IN_COMBAT", r)
 	}
 
-	// Back out of the slimes' sight along the chase's trail, jumping when stuck as WalkTo does, then a change every 600 ms until one goes through.
-	lastX, lastZ, stuck := l.X, l.Z, 0
+	// Back out of the slimes' sight along the chase's trail, each point walked to as WalkTo walks, then a change every 600 ms until one goes through.
+	var w e2etest.Walk
 	for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline) && len(trail) > 0; {
 		to := trail[len(trail)-1]
 		if math.Hypot(to.X-l.X, to.Z-l.Z) < 0.5 {
-			trail = trail[:len(trail)-1]
+			trail, w = trail[:len(trail)-1], e2etest.Walk{}
 			continue
 		}
-		if math.Hypot(l.X-lastX, l.Z-lastZ) < 0.03 {
-			stuck++
-		} else {
-			stuck = 0
-		}
-		lastX, lastZ = l.X, l.Z
-		in := e2etest.Toward(to.X-l.X, to.Z-l.Z)
-		in.Jump = stuck >= 3
-		if err := l.Input(in); err != nil {
+		if err := l.Step(&w, to); err != nil {
 			t.Fatal(err)
 		}
 		l.Pump(50*time.Millisecond, func(m wsconn.Message) bool { watch(m); return false })

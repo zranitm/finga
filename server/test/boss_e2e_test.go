@@ -38,8 +38,7 @@ const kingSlimeDrops = `      - {item: red_potion, chance: 1, min: 2, max: 4}
 func fightBoss(t *testing.T, boss uint32, reach float64, d time.Duration, fighters, everyone []*e2etest.Looter) {
 	t.Helper()
 	deadline, next := time.Now().Add(d), time.Now()
-	walking := map[*e2etest.Looter]bool{}
-	last, stuck := map[*e2etest.Looter]gamedata.Point{}, map[*e2etest.Looter]int{}
+	walks := map[*e2etest.Looter]*e2etest.Walk{} // each fighter's while it walks
 	for slices.ContainsFunc(fighters, func(l *e2etest.Looter) bool { return !l.Beaten(boss) }) {
 		if time.Now().After(deadline) {
 			t.Fatalf("the boss still stands after %s", d)
@@ -56,17 +55,12 @@ func fightBoss(t *testing.T, boss uint32, reach float64, d time.Duration, fighte
 			var err error
 			switch dx, dz := mv.GetX()-l.X, mv.GetZ()-l.Z; {
 			case math.Hypot(dx, dz) > reach:
-				if math.Hypot(l.X-last[l].X, l.Z-last[l].Z) < 0.03 {
-					stuck[l]++
-				} else {
-					stuck[l] = 0
+				if walks[l] == nil {
+					walks[l] = &e2etest.Walk{}
 				}
-				last[l], walking[l] = gamedata.Point{X: l.X, Z: l.Z}, true
-				in := e2etest.Toward(dx, dz)
-				in.Jump = stuck[l] >= 3
-				err = l.Input(in)
-			case walking[l]:
-				walking[l] = false
+				err = l.Step(walks[l], gamedata.Point{X: mv.GetX(), Z: mv.GetZ()})
+			case walks[l] != nil:
+				delete(walks, l)
 				err = l.Input(&clientv1.Input{})
 			case strike:
 				err = l.Attack(l.AimAt(mv))
