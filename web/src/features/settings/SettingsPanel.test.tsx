@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { watchPlaySettings } from '@/features/shared/settings';
 import { ERR } from '@/protocol/errors';
 import { settings } from '@/state/settings';
 import { fakeFetch, restClientOn } from '@/testing/fake-fetch';
@@ -13,6 +14,26 @@ describe('SettingsPanel', () => {
   beforeEach(() => {
     localStorage.clear();
     resetStores();
+  });
+
+  it('opened inside a switch’s save, it saves the switch first and keeps it, in the store and the account', async () => {
+    let held: Record<string, unknown> = { walk: false, zoom: 0 };
+    const ff = fakeFetch(({ method, body }) => {
+      if (method === 'PUT') {
+        held = body as Record<string, unknown>;
+      }
+      return { status: 200, body: held };
+    });
+    const rest = restClientOn(ff.fetch);
+    const stop = watchPlaySettings(rest, vi.fn());
+    settings.getState().setWalk(true); // the switch, then Settings 100 ms later
+    render(<SettingsPanel rest={rest} onClose={vi.fn()} />);
+    await waitFor(() => expect(ff.of('GET', '/api/settings')).toHaveLength(1));
+    expect(ff.of('PUT', '/api/settings').map((c) => (c.body as { walk: boolean }).walk)).toEqual([
+      true,
+    ]);
+    expect(settings.getState().walk).toBe(true);
+    stop();
   });
 
   it('Key bindings opens the key-binding window in place, and Back returns', async () => {

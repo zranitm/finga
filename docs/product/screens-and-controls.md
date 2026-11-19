@@ -17,7 +17,8 @@ The screens players see and the keys they use. This is the input for the design 
 | **Character select** | Pick a character to play | P1 |
 | **Channel select** | Pick or switch channel | P1 |
 | **Character window** | See level, EXP, HP, every stat, and the ten equipment slots around the character as it looks, in 3D (D8); equip and unequip; spend, auto-assign, and reset stat points | P1 |
-| **Wardrobe** | O: the account's outfit pieces by slot (outfit, headwear, face, weapon look), collected ones lit and the rest greyed with how to get them; try any on the character shown, wear collected ones, hide headwear (D8, D9) | P1 |
+| **Loot window** | T near the player's pouches or boxes: one list of everything in reach, each item's card on hover; click to take, Take all or T again for everything (D1) | P0 |
+| **Wardrobe** | O: the account's outfit pieces by slot (outfit, headwear, face, weapon look, wings), collected ones lit and the rest greyed with how to get them; try any on the character shown, wear collected ones, hide headwear (D8, D9) | P1 |
 | **Item details** | Hover an item to see its stars, stats, and requirements, compared with what's worn | P1 |
 | **NPC shop** | Buy and sell at fixed prices | P1 |
 | **Skill window** | See every skill you can learn as a grid of icons, by class, with each skill's details on a card when hovered; spend skill points, follow evolutions, choose each active skill's trait out of combat (C20); drag active skills to the skill bar by their icons | P1 |
@@ -57,6 +58,7 @@ Every key but Enter and Esc can be rebound in Settings → Key bindings (B6). Th
 | Party | P |
 | Character window | C |
 | Talk to an NPC | Z, while in reach |
+| Open the pouches and boxes in reach; again to take all | T |
 | Drink an HP potion | 1 |
 | Skill window | K |
 | Quest log | J |
@@ -64,4 +66,4 @@ Every key but Enter and Esc can be rebound in Settings → Key bindings (B6). Th
 | Close the top window | Esc (fixed) |
 | Use the skill on the skill bar's key | Q, W, E, R, A, S, D, F |
 
-There is no pickup key: drops are collected automatically (D1).
+Mobs drop pouches and field bosses leave treasure boxes, seen only by their owner. T, within about 2 metres, lists what's in them, to take item by item or all at once (D1).

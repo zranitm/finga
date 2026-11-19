@@ -42,8 +42,8 @@ func StatsOf(data Content, class gamedata.Class, level int, points model.Points,
 // stats are p's stats, their sheet listing the buffs running on them.
 func (i *Instance) stats(p *player) Stats {
 	s := StatsOf(i.data, p.class, p.Level, p.Points, p.Skills, p.Worn, p.buffed(), i.tuning.TickInterval)
-	if i.match != nil { // the kit's HP scaled, and no regen
-		s.Derived.MaxHP = int(math.Round(float64(s.Derived.MaxHP) * i.match.rules.Scale.HP))
+	if i.match != nil { // the kit's HP scaled, by scale.hp and its class's factor, and no regen
+		s.Derived.MaxHP = int(math.Round(float64(s.Derived.MaxHP) * i.match.rules.Scale.HP * i.match.rules.Kits[p.class.ID].HP))
 		s.Derived.HPRegen = 0
 		s.Sheet.Derived = s.Derived
 	}

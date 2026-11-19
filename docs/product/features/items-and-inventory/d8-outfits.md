@@ -5,18 +5,24 @@
 - **Priority:** P1
 - **Status:** Agreed
 
-**Story:** As a player, I dress my character in outfits I've collected, as in Blade & Soul: a costume, headwear, a face piece and a weapon look, whatever gear I wear for stats. Other players see it.
+**Story:** As a player, I dress my character in outfits I've collected, as in Blade & Soul: a costume, headwear, a face piece, a weapon look and wings, whatever gear I wear for stats. Other players see it.
 
 ## Acceptance
 
 - **Gear never shows.** What a character wears for stats (D3) doesn't change how it looks. It looks like its class, or wears the pieces the player picks.
-- **Four slots:**
+- **Five slots:**
   - **Outfit:** the whole body, its cape included.
   - **Headwear:** a hat, helmet or hood. It can be hidden.
   - **Face:** a mask, glasses, an eye patch or goggles.
   - **Weapon look:** how the class's weapon looks. A weapon look fits the classes whose weapon is its kind: one-handed (Beginner, Warrior), knife (Thief), crossbow (Bowman) or staff (Magician).
-  - Any slot can stay on the class's own look.
-- **Any class** can wear any outfit, headwear and face piece.
+  - **Wings:** on the back. While wings are worn, the outfit's cape hides, so the two never clip.
+  - Any slot can stay on the class's own look. A class has no wings of its own.
+- **Wings move by themselves:**
+  - a slow flutter standing, faster when walking and faster still sprinting;
+  - spread wide in a jump;
+  - folded during an attack or skill, so they never hide the action.
+  - Prestige wings glow softly.
+- **Any class** can wear any outfit, headwear, face piece and wings.
 - **The wardrobe** (O):
   - One per account. A piece collected by one character can be worn by all the account's characters.
   - It lists every piece in the game, slot by slot. Collected pieces are lit. The rest are greyed, with how to get them.
@@ -44,6 +50,7 @@
 - Hair, face and colours chosen at creation (A4).
 - Off-hand looks, such as shields and books.
 - Hiding other players' outfits.
+- Flying, gliding or falling slowly: wings are looks only.
 
 ## Rules
 

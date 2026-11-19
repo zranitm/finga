@@ -11,121 +11,8 @@ import (
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/nav"
 	"finga/internal/shared/sim"
+	"finga/internal/shared/steer"
 )
-
-func TestKeysWalkTheWayNearestTheWayWanted(t *testing.T) {
-	for _, c := range []struct {
-		dx, dz float64
-		want   *clientv1.Input
-	}{
-		{1, 0, &clientv1.Input{Right: true}},
-		{0, -2, &clientv1.Input{Down: true}},
-		{1, 1, &clientv1.Input{Right: true, Up: true}},
-		{-1, -1, &clientv1.Input{Left: true, Down: true}},
-		{1, 0.3, &clientv1.Input{Right: true}},           // 17° off east
-		{1, 0.5, &clientv1.Input{Right: true, Up: true}}, // 27° off east, nearer north-east
-		{0, 0, &clientv1.Input{}},
-	} {
-		got := keysToward(c.dx, c.dz)
-		if got.GetLeft() != c.want.GetLeft() || got.GetRight() != c.want.GetRight() || got.GetUp() != c.want.GetUp() || got.GetDown() != c.want.GetDown() {
-			t.Errorf("toward (%v, %v) presses %v, want %v", c.dx, c.dz, got, c.want)
-		}
-	}
-	if a := yawTo(nav.Point{}, nav.Point{X: 0, Z: 1}); a != 0 {
-		t.Errorf("north aims %v", a)
-	}
-	if a := yawTo(nav.Point{}, nav.Point{X: 1, Z: 0}); math.Abs(float64(a)-math.Pi/2) > 1e-6 {
-		t.Errorf("east aims %v, want π/2", a)
-	}
-}
-
-func TestAStallIsAWayPressedOnTheGroundThatGoesNowhere(t *testing.T) {
-	right, still := &clientv1.Input{Right: true}, &clientv1.Input{}
-	at := nav.Point{X: 5, Z: 5}
-	for _, c := range []struct {
-		name     string
-		onGround bool
-		held     *clientv1.Input
-		want     bool
-	}{
-		{"against a wall", true, right, true},
-		{"in the air, its updates late", false, right, false},
-		{"standing to attack", true, still, false},
-	} {
-		t.Run(c.name, func(t *testing.T) {
-			s := stall{at: at}
-			s.stalled(at, c.onGround, c.held) // the way pressed, which counts from the next decision
-			for k := range 2 * stallFor {
-				if got := s.stalled(at, c.onGround, c.held); got != (c.want && k%stallFor == stallFor-1) {
-					t.Fatalf("decision %d: stalled %v; a stall is told once, then counted again", k+1, got)
-				}
-			}
-		})
-	}
-	s := stall{at: at}
-	for range stallFor {
-		s.stalled(at, true, right)
-	}
-	for k := range stallFor - 1 {
-		if s.stalled(nav.Point{X: 5.1, Z: 5}, true, right) {
-			t.Fatalf("decision %d after a step on: stalled; the step starts the count again", k+1)
-		}
-	}
-	s = stall{at: at}
-	for range stallFor {
-		s.stalled(at, true, right)
-	}
-	if s.stalled(at, true, &clientv1.Input{Up: true}) {
-		t.Fatal("stalled the decision a new way was pressed; its first steps take a round trip to show")
-	}
-}
-
-func TestAStalledWalkerJumpsThenStepsAsideEachSideInTurn(t *testing.T) {
-	data, w := testWorld(t)
-	m, r := w.maps["town"], data.Movement().Radius
-	from, to, now := point(m.PlayerSpawn), point(m.PlayerSpawn), time.Unix(1_000_000, 0)
-	to.X += 4
-	var wk walker
-	ahead := wayOf(wk.keys(m, r, from, to, now, false))
-	jump := wk.keys(m, r, from, to, now, true)
-	if !jump.GetJump() || wayOf(jump) != ahead {
-		t.Fatalf("the first stall presses %v, want a jump ahead %v", jump, ahead)
-	}
-	aside := wayOf(wk.keys(m, r, from, to, now, true))
-	if aside == ([2]int{}) || aside[0]*ahead[0]+aside[1]*ahead[1] != 0 {
-		t.Fatalf("the second stall steps %v, want across the way ahead %v", aside, ahead)
-	}
-	for k := 1; k < asideFor; k++ {
-		if got := wayOf(wk.keys(m, r, from, to, now, false)); got != aside {
-			t.Fatalf("decision %d of the step aside presses %v, want %v", k+1, got, aside)
-		}
-	}
-	if got := wayOf(wk.keys(m, r, from, to, now, false)); got != ahead {
-		t.Fatalf("after the step aside it presses %v, want %v", got, ahead)
-	}
-	if !wk.keys(m, r, from, to, now, true).GetJump() {
-		t.Fatal("the third stall doesn't jump")
-	}
-	if got := wayOf(wk.keys(m, r, from, to, now, true)); got != [2]int{-aside[0], -aside[1]} {
-		t.Fatalf("the fourth stall steps %v, want the other side of %v", got, aside)
-	}
-}
-
-func TestAWalkerWithNoWayWalksStraightAndLooksAgainASecondOn(t *testing.T) {
-	data, w := testWorld(t)
-	m, r := w.maps["forest"], data.Movement().Radius
-	from, onTop, now := nav.Point{X: 40, Z: 28}, nav.Point{X: 50, Z: 28}, time.Unix(1_000_000, 0) // a ledge only a jump gets onto
-	var wk walker
-	if got := wayOf(wk.keys(m, r, from, onTop, now, false)); !wk.lost() || got != [2]int{1, 0} {
-		t.Fatalf("lost %v, pressing %v; want lost, straight east", wk.lost(), got)
-	}
-	if wk.keys(m, r, from, onTop, now.Add(repathEvery/2), true); wk.found != now {
-		t.Fatal("a stall with no way looked again within the second")
-	}
-	if wk.keys(m, r, from, nav.Point{X: 30, Z: 20}, now.Add(repathEvery/2), false); wk.lost() {
-		t.Fatal("still lost once its end moved to open ground")
-	}
-}
 
 // The bots walk their maps by the game's own movement: from where players appear, and from each portal, to every portal, NPC and point a hunt roams to that it has a way to.
 func TestABotWalksToEveryPortalNPCAndHuntOnItsMaps(t *testing.T) {
@@ -179,18 +66,18 @@ func TestABotWalksToEveryPortalNPCAndHuntOnItsMaps(t *testing.T) {
 func walkOffline(m *gamedata.Map, mv sim.Params, from, to nav.Point, within float64) (time.Duration, bool) {
 	const steps = 3 // of mv.Dt to a decision
 	s := sim.State{X: from.X, Y: sim.Ground(from.X, from.Z, math.Inf(1), m.Geometry), Z: from.Z, OnGround: true}
-	var walk walker
-	stuck, held := stall{at: from}, &clientv1.Input{}
+	var walk steer.Walker
+	var stuck steer.Stall
+	var held sim.Input
 	limit := time.Minute + time.Duration(2*nav.Distance(from, to)/mv.WalkSpeed*float64(time.Second))
-	now := time.Unix(1_000_000, 0)
 	for took := time.Duration(0); took < limit; took += time.Duration(steps * mv.Dt * float64(time.Second)) {
 		at := nav.Point{X: s.X, Z: s.Z}
 		if nav.Distance(at, to) <= within {
 			return took, true
 		}
-		held = walk.keys(m, mv.Radius, at, to, now.Add(took), stuck.stalled(at, s.OnGround, held))
+		held = walk.Keys(m, mv.Radius, at, to, took, stuck.Stalled(at, s.OnGround, held))
 		for range steps {
-			s = sim.Step(s, sim.Input{Left: held.GetLeft(), Right: held.GetRight(), Up: held.GetUp(), Down: held.GetDown(), Jump: held.GetJump()}, m.Geometry, mv)
+			s = sim.Step(s, held, m.Geometry, mv)
 		}
 	}
 	return limit, false

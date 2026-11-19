@@ -43,23 +43,24 @@ Every item type names its slot. A ring fits either ring slot.
 ## Drops
 
 - Each mob type has a drop list: which items and currency it can drop, and the chance of each.
-- Drops land on the ground and are collected automatically; there is no pickup key. After a short delay (1 second to start, tunable in game data) a drop flies to its owner and goes into their inventory, wherever they are on the map.
-- Every drop belongs to one player from the moment it falls:
+- A kill drops a pouch about 1 time in 4, and an elite's about 1 time in 2, holding what that kill rolled. An item the owner's active quest still needs is rolled at its own chance, even without a pouch, and comes in one (D1).
+- A field boss leaves each eligible player their own treasure box, holding their own roll (Combat → Field bosses).
+- Every pouch belongs to one player from the moment it falls:
   - hunting alone, the killer;
-  - in a party, the members on the map take turns (Social → Party);
-  - a field boss's drops, each player's own roll (Combat → Field bosses).
-- Nobody can take a drop that isn't theirs. A drop that can't be collected vanishes after 60 seconds.
+  - in a party, the members on the map take turns, one pouch each (Social → Party).
+- Only its owner sees a pouch or box. They walk within about 2 metres and press T to list what's in reach, then take items one by one or all at once.
+- A pouch is gone 60 seconds after it falls, and a box after 2 minutes, with whatever is left in it.
 
 ## Inventory
 
 - Each tab has a fixed number of slots. Stacks have a maximum size.
-- With a full inventory, a drop waits on the ground for its owner and is collected within a few seconds of a slot freeing up. The owner is told what is waiting. A drop still waiting after 60 seconds vanishes.
-- A quest's item reward, or a trainer's weapon, is refused while it doesn't fit, and the player is told how many slots to free in each tab. Drops waiting for room in a tab the reward needs are counted in, since each takes a slot freed there first (the user's call of 2026-11-12; NPCs and quests → Handing in).
+- An item whose tab is full stays in its pouch, and the player is told why.
+- A quest's item reward, or a trainer's weapon, is refused while it doesn't fit, and the player is told how many slots to free in each tab (NPCs and quests → Handing in).
 - Items can be discarded, one at a time or several at once. Several go together, whole stacks and all, from one tab: either all of them are discarded or none are. The confirm gives the count and names any item of four stars or more, so a rare one isn't lost by a misclick (the user's call of 2026-11-12). A worn item must be unequipped first. Items can no longer be dropped on the ground for someone else, since nobody could pick them up; giving items is trade (F3, F4).
 
 ## Outfits
 
-- **Looks, not stats:** gear never shows. A character looks like its class, or wears outfit pieces in four slots: outfit, headwear, face and weapon look (D8).
+- **Looks, not stats:** gear never shows. A character looks like its class, or wears outfit pieces in five slots: outfit, headwear, face, weapon look and wings (D8). Wings come only from late, hard play (D9).
 - **One wardrobe per account,** shared by its characters. Any class wears any outfit, headwear or face piece. A weapon look fits the classes whose weapon is its kind.
 - **Pieces from drops are items,** tradeable until added to the wardrobe. Pieces from PvP ranks, quests and feats go straight into it and are never traded (D9).
 - **Later sources:** an outfit vendor once NPC shops exist, and gacha if it's ever decided.

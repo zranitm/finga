@@ -21,16 +21,22 @@
   - A first-time deed gives a piece, once per account.
   - Examples: reaching level 10 or 30, a first field boss beaten, a first PvP win, a promotion.
   - The wardrobe names the feat under its piece.
+- **Wings are prestige:**
+  - Diamond and Master give wings.
+  - The hardest bosses, of levels 22 to 30, drop wings very rarely.
+  - Late feats, such as reaching level 30, give wings.
+  - No early source gives wings, so wings show a player who's gone far.
 - **Ranks, quests and feats** put the piece straight in the wardrobe. It can't be traded.
 - **Later:**
   - An outfit vendor in town, once gold and NPC shops exist (F1, F2).
   - Gacha or a paid shop, if either is ever decided (G1).
   - Nothing paid is in this feature.
-- **The first catalogue,** about 45 pieces:
+- **The first catalogue,** about 50 pieces:
   - about 19 outfits: the five adventurers' outfits in three colourways each, and four skeleton outfits;
   - about 10 headwear;
   - 4 face pieces made for the game;
-  - about 12 weapon looks.
+  - about 12 weapon looks;
+  - about 6 wings made for the game, such as feathered, dark, bat, butterfly, dragon and crystal.
   - Its colourways, and which source gives which piece, are designed with the user from previews first.
 
 ## Not in this feature

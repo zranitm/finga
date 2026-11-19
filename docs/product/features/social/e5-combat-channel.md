@@ -17,11 +17,11 @@
 - New combat lines never switch the tab, and never push what players say out of General or Party.
 - The Combat tab shows, as it happens:
   - EXP gained from a kill, and EXP lost on death;
-  - each item collected, with its quantity and stars, the name in its star colour;
+  - each item taken from a pouch or box, with its quantity and stars, the name in its star colour;
   - currency collected, once F1 exists;
   - level-ups;
-  - a drop waiting on the ground because the inventory is full, and when it disappears uncollected;
-  - in a party, which member got each drop, for example "Ayla got Iron Sword ★★".
+  - what a pouch or box still held when it was gone;
+  - in a party, which member took what, for example "Ayla took Iron Sword ★★".
 - The lines are for the player alone: nobody else sees them, and they aren't kept after logging out. The tab keeps the most recent 200 lines (proposal).
 
 ## Not in this feature

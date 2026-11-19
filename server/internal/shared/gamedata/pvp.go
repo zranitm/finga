@@ -8,8 +8,8 @@ import (
 	"finga/internal/shared/kernel"
 )
 
-// BotPathMargin is how much farther than a player's radius a bot's path keeps from walls, so it doesn't graze corners; the loader checks the sum on the walk grid's steps.
-const BotPathMargin = 1.0 / 8
+// BotMemory is how far back a match's bots see the fighters: a tier's reaction is under it.
+const BotMemory = time.Second
 
 // BarKeys is how many keys a skill bar has, the world's and a match's alike.
 const BarKeys = 8
@@ -61,11 +61,12 @@ type PvpRounds struct {
 	Prep, Countdown, Between time.Duration
 }
 
-// Kit is what a class fights with in a match: its own stats at Level, spent by its auto-assign split, and the best item it can wear in each equip slot.
+// Kit is what a class fights with in a match: its own stats at Level, spent by its auto-assign split, and the best item it can wear in each equip slot; and its own factors on its max HP and the hits it deals, beside the PvpScale, which the balance harness tunes.
 type Kit struct {
-	Level int
-	Own   Stats
-	Worn  []KitItem // one per equip slot, in slot order
+	Level      int
+	Own        Stats
+	Worn       []KitItem // one per equip slot, in slot order
+	HP, Damage float64
 }
 
 // KitItem is the item a kit wears in an equip slot, its stats at the middle of their rolls.

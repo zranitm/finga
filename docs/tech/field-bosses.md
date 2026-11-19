@@ -1,5 +1,7 @@
 # Field bosses
 
+> **Changed by [Loot pouches and timed bosses](./loot-pouches.md):** a boss is up at its spot when its map starts, comes back `respawn` (5 min) after it's beaten, and never leaves. The kill count, `kills`, `life` and social's boss announcement go, and only the map's players are told. Each eligible player's roll comes in their own treasure box, opened with T.
+
 > **Changed by [Outfits](./outfits.md):** a boss's drop list gains the items of the outfit pieces `outfits.yaml` gives it, added by the loader and rolled on each player's own roll as the rest.
 
 > **Status: approved · 2026-11-12.** The high-level design for [C10. Field bosses](../product/features/combat-and-progression/c10-field-bosses.md) and [Systems → Combat → Field bosses](../product/systems/combat.md). It builds on `main` after [Animation cancel](./animation-cancel.md), whose pace step retunes the same mobs, and describes the change it plans. Since [Mobs fight back](./mobs-fight-back.md) (C12), a boss fights with attacks, not touches, as every mob does.

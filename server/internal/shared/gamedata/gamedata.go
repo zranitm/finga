@@ -111,6 +111,9 @@ func find[K comparable, T any](all []T, idx map[K]int, id K) (T, bool) {
 // Movement is the simulation's constants.
 func (d *Data) Movement() sim.Params { return d.p.Movement }
 
+// BotPathMargin is how much farther than a player's radius a bot's path keeps from walls where it can, as eight-way keys stray off its line; the loader checks the sum on the walk grid's steps.
+const BotPathMargin = 0.25
+
 // ChatLineMax is the most characters a chat line holds, after cleaning.
 func (d *Data) ChatLineMax() int { return d.p.ChatLineMax }
 

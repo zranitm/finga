@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/Button';
-import { saveSettings } from '@/features/shared/settings';
+import { holdReadsFor, saveSettings } from '@/features/shared/settings';
 import { useKeys } from '@/features/shared/useKeys';
 import type { Action } from '@/input/actions';
 import { fixedActions, keyName, rebind, reservedKeys } from '@/input/bindings';
@@ -132,7 +132,9 @@ export function KeyBindings({ rest, onBack }: KeyBindingsProps) {
   );
   useEffect(() => {
     window.addEventListener('pagehide', queue.flush);
+    const held = holdReadsFor(queue);
     return () => {
+      held();
       window.removeEventListener('pagehide', queue.flush);
       queue.flush(); // leaving the window saves a change still waiting
     };

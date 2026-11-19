@@ -1,5 +1,7 @@
 # Large regions
 
+> **Changed by [Loot pouches and timed bosses](./loot-pouches.md):** an area's boss stands at its circle from the channel's start and comes back 5 minutes after it's beaten. Kills don't count toward it, and its notices go to the area's players, not the whole channel. Pouches go in the owner's private part of the frame.
+
 > **Status: approved · 2026-11-18.** The high-level design for [B10. Large regions](../product/features/world-and-movement/b10-large-regions.md), [B11. Sprint and waypoints](../product/features/world-and-movement/b11-sprint-and-waypoints.md) and [B12. Camera zoom](../product/features/world-and-movement/b12-camera-zoom.md). It changes [Minimap and world map](./map-views.md), [Teleport](./teleport.md) and the map parts of [3D world](./3d-world.md).
 
 ## 1. What has to hold
@@ -405,6 +407,7 @@ Built with step 1, which says who watches a cell.
   - Two new rebindable actions, `zoomIn` and `zoomOut`, sit on `Equal` and `Minus`. Each press steps an eighth. They're in the key-binding window's Windows group (key-bindings.md).
   - The camera eases to the zoom as it eases after the player.
 - **Saved** in the account's settings as `zoom`, 0 to 1, as the minimap flag is. It's saved 800 ms after the wheel stops, and as the player leaves the world. A zoom outside 0 to 1 is `BAD_ZOOM` (110009).
+  - **A read of the settings,** such as opening Settings, first saves a change still waiting and waits for every save under way, so it reads what the player set. A setting changed while it waits or is out keeps its change, and the read sets the others. Before this, opening Settings inside the 800 ms undid a zoom step or a walk switch.
 - **Fog and the far plane** follow the zoom. Each sky's fog draws back up to 3.6 times as far: the day sky's from 45–140 m close up to about 160–500 m zoomed out. `maxZ` is 1,500 m.
 - **`heldView`'s clamp** keeps the view inside the region, as it does the map.
 
