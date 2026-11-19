@@ -64,7 +64,7 @@ func (i *Instance) promote(m promoteMsg) {
 	submitted := i.deps.ItemCalls.Submit(func(ctx context.Context) {
 		result, err := i.callGift(ctx, call)
 		select {
-		case i.inbox <- giftedMsg{id: p.ID, caller: p, npc: m.npc, class: class.ID, result: result, err: err, done: m.done}:
+		case i.inbox <- giftedMsg{id: call.Character, caller: p, npc: m.npc, class: class.ID, result: result, err: err, done: m.done}: // p only as who called, never read here
 		case <-ctx.Done(): // the map stopped first; its inbox may never drain
 		}
 	})

@@ -172,7 +172,7 @@ func (i *Instance) handIn(p *player, npc gamedata.NPC, m questMsg) error {
 	submitted := i.deps.ItemCalls.Submit(func(ctx context.Context) {
 		result, err := i.callHandIn(ctx, call)
 		select {
-		case i.inbox <- handedInMsg{id: p.ID, caller: p, quest: q.ID, completion: completion, result: result, err: err, done: m.done}:
+		case i.inbox <- handedInMsg{id: call.Character, caller: p, quest: q.ID, completion: completion, result: result, err: err, done: m.done}: // p only as who called, never read here
 		case <-ctx.Done(): // the map stopped first; its inbox may never drain
 		}
 	})

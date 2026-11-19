@@ -729,6 +729,25 @@ func TestAnUnansweredCallIsAskedAgainUnderTheSameKeys(t *testing.T) {
 	})
 }
 
+// A grant call's worker reads only its own copies: the owner's next pouch, falling mid-call, rewrites the owner on the tick. Run under -race, as CI runs it; no wait comes between the take and the pouch, as synctest.Wait would order the two.
+func TestAGrantCallsWorkerReadsNothingTheTickWrites(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		items := &grants{answers: []answer{every(model.GrantAdded)}, gate: make(chan struct{})}
+		s := newScene(t, items)
+		ayla := owner("Ayla")
+		s.g.Roll(solo(slime, ayla))
+		a := &answered{}
+		s.g.Take(ayla, here, all(s.only(ayla)), func(got []model.PickAnswer) { a.got, a.done = got, true })
+		s.g.Roll(solo(slime, ayla)) // the owner's next pouch, its sink their newest
+		close(items.gate)
+		s.step()
+		s.step()
+		if !a.done || len(a.got) != 1 || a.got[0].Err != nil || len(s.g.Views(ayla.ID)) != 1 {
+			t.Fatalf("answered %+v, %d pouches; want the first pouch's gel taken and the second left", a.got, len(s.g.Views(ayla.ID)))
+		}
+	})
+}
+
 // A grant call with no answer is cut off 3.5 s in, its retry included, so a take answers each pick unavailable inside the 5 s the gateway waits rather than the gateway giving up on the whole request.
 func TestATakeWithNoAnswerIsAnsweredInsideTheGatewaysWait(t *testing.T) {
 	for _, tt := range []struct {
