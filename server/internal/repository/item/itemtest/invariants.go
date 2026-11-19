@@ -221,6 +221,30 @@ func wornMatchesEvents(ctx context.Context, pool *pgxpool.Pool) ([]string, error
 	return out, rows.Err()
 }
 
+// collectedMatchesWardrobe is check 13: each item has as many collected events as wardrobe entries name it, both ways.
+func collectedMatchesWardrobe(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT item_id, coalesce(e.n, 0), coalesce(p.n, 0)
+		FROM (SELECT item_id, count(*) AS n FROM item_events WHERE kind = 'collected' GROUP BY item_id) e
+		FULL JOIN (SELECT item_id, count(*) AS n FROM account_pieces WHERE item_id IS NOT NULL GROUP BY item_id) p USING (item_id)
+		WHERE coalesce(e.n, 0) <> coalesce(p.n, 0)
+		ORDER BY item_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id uuid.UUID
+		var events, pieces int64
+		if err := rows.Scan(&id, &events, &pieces); err != nil {
+			return nil, err
+		}
+		out = append(out, fmt.Sprintf("item %s: %d collected events, %d wardrobe entries name it", id, events, pieces))
+	}
+	return out, rows.Err()
+}
+
 // dbOnly is a check that needs no game data.
 func dbOnly(run func(context.Context, *pgxpool.Pool) ([]string, error)) func(context.Context, *pgxpool.Pool, Content) ([]string, error) {
 	return func(ctx context.Context, pool *pgxpool.Pool, _ Content) ([]string, error) { return run(ctx, pool) }
@@ -239,6 +263,7 @@ var checks = []struct {
 	{"10 worn items fit their slots", wornFitsItsSlot},
 	{"11 equipment has its roll", equipmentHasItsRoll},
 	{"12 worn matches equip events", dbOnly(wornMatchesEvents)},
+	{"13 collected events match the wardrobe", dbOnly(collectedMatchesWardrobe)},
 }
 
 // CheckInvariants runs every check against the game data's templates and returns all mismatches, each named by its check, in check order.
