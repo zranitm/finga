@@ -8,7 +8,7 @@ The screens players see and the keys they use. This is the input for the design 
 | --- | --- | --- |
 | **Sign up and log in** | Create an account, log in | P0 |
 | **Character creation** | Pick a name; every character starts as a Beginner | P0 |
-| **Game view and HUD** | Play: the map, seen from above, looking north at a fixed angle, the camera easing after the player; HP and EXP bars, the energy pips, and level at the top left; the field boss's bar and, smaller under it, the locked mob's target window with its stats, at the top centre (C15). The player's frame, the party's, and the target window share one look: a green edge and dot for the player and allies, a red edge and ✕ for enemies, and the unit's statuses as icons under its HP bar (C19), with, on the player's own frame, their buffs before them and the cooldowns of the follow-ups no key shows after (C22); Back to characters and the party panel at the top right; the chat at the bottom left (see [Chat](#chat)); the minimap at the bottom right (B8); currency from P1 | P0 |
+| **Game view and HUD** | Play: the map, seen from above, looking north at a fixed angle, the camera easing after the player; HP and EXP bars, the energy pips, and level at the top left; the field boss's bar and, smaller under it, the locked mob's target window with its stats, at the top centre (C15). The player's frame, the party's, and the target window share one look: a green edge and dot for the player and allies, a red edge and ✕ for enemies, and the unit's statuses as icons under its HP bar (C19), with, on the player's own frame, their buffs before them and the cooldowns of the follow-ups no key shows after (C22), and a walk icon first while walk mode is on (B11); Back to characters and the party panel at the top right; the chat at the bottom left (see [Chat](#chat)); the minimap at the bottom right (B8); currency from P1 | P0 |
 | **Inventory** | See items by tab; drink potions; discard them, one at a time or several at once | P0 |
 | **Party window** | Invite, accept, leave, kick, hand over leadership | P0 |
 | **Marketplace** | Browse and search, buy, list an item, manage my listings | P1 |
@@ -44,6 +44,7 @@ Every key but Enter and Esc can be rebound in Settings → Key bindings (B6). Th
 | --- | --- |
 | Walk up, down, left, and right on screen; two together walk diagonally | Arrow keys |
 | Jump | Space |
+| Switch between walking and sprinting out of combat (B11) | Left Shift |
 | Enter a portal | Z, while standing in it |
 | Attack | X |
 | Lock the next closest mob | Tab |

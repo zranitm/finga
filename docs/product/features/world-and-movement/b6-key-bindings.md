@@ -15,6 +15,7 @@
   | --- | --- |
   | Walk up, down, left, and right on screen; two together walk diagonally | Arrow keys |
   | Jump | Space |
+  | Switch between walking and sprinting out of combat (B11) | Left Shift |
   | Attack | X |
   | Lock the next closest mob (C15) | Tab |
   | Talk to an NPC in reach, or enter the portal the player stands in | Z |
