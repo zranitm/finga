@@ -60,7 +60,7 @@ Every item type names its slot. A ring fits either ring slot.
 
 ## Outfits
 
-- **Looks, not stats:** gear never shows. A character looks like its class, or wears outfit pieces in four slots: outfit, headwear, face and weapon look (D8).
+- **Looks, not stats:** gear never shows. A character looks like its class, or wears outfit pieces in five slots: outfit, headwear, face, weapon look and wings (D8). Wings come only from late, hard play (D9).
 - **One wardrobe per account,** shared by its characters. Any class wears any outfit, headwear or face piece. A weapon look fits the classes whose weapon is its kind.
 - **Pieces from drops are items,** tradeable until added to the wardrobe. Pieces from PvP ranks, quests and feats go straight into it and are never traded (D9).
 - **Later sources:** an outfit vendor once NPC shops exist, and gacha if it's ever decided.
