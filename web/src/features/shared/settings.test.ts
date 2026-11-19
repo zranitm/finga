@@ -127,13 +127,13 @@ describe('reading the settings', () => {
     let land!: () => void;
     let answer!: (s: Settings) => void;
     const rest = {
-      putSettings: vi.fn(() => new Promise<Settings>((r) => (land = () => r({})))),
+      putSettings: vi.fn((put: Settings) => new Promise<Settings>((r) => (land = () => r(put)))),
       getSettings: vi.fn(() => new Promise<Settings>((r) => (answer = r))),
     };
     return { rest, land: () => land(), answer: (s: Settings) => answer(s) };
   }
 
-  it('a read waits for a save under way, and a change made while it waits stands over what it reads', async () => {
+  it('a read waits for a save under way, and a setting changed while it waits keeps its change', async () => {
     const { rest, land, answer } = slow();
     settings.getState().setChatPinned(true);
     const saving = saveSettings(rest);
@@ -144,21 +144,39 @@ describe('reading the settings', () => {
     land();
     await saving;
     await vi.waitFor(() => expect(rest.getSettings).toHaveBeenCalledOnce());
-    answer({ chat_pinned: true });
+    answer({ chat_pinned: true, zoom: 0.25 });
     await reading;
-    expect([settings.getState().chatPinned, settings.getState().showMinimap]).toEqual([
-      true,
-      false,
-    ]);
+    expect([
+      settings.getState().chatPinned,
+      settings.getState().showMinimap,
+      settings.getState().zoom,
+    ]).toEqual([true, false, 0.25]);
   });
 
-  it('a change made while a read is out stands over what it reads', async () => {
+  it('a walk switch while the login read is out keeps walk, the read sets the rest, and the next save carries the saved keys', async () => {
     const { rest, answer } = slow();
+    const stop = watchPlaySettings(rest, vi.fn());
     const reading = loadSettings(rest);
     await vi.waitFor(() => expect(rest.getSettings).toHaveBeenCalledOnce());
-    settings.getState().setZoom(0.5);
-    answer({ zoom: 0, chat_pinned: true });
+    settings.getState().setWalk(true); // Shift while the GET is out
+    answer({ walk: false, zoom: 0.5, hide_minimap: true, keys: { attack: 'KeyB' } });
     await reading;
-    expect([settings.getState().zoom, settings.getState().chatPinned]).toEqual([0.5, false]);
+    const { walk, zoom, showMinimap, keys } = settings.getState();
+    expect({ walk, zoom, showMinimap, keys }).toEqual({
+      walk: true,
+      zoom: 0.5,
+      showMinimap: false,
+      keys: { attack: 'KeyB' },
+    });
+    vi.advanceTimersByTime(1000);
+    expect(rest.putSettings.mock.calls.map(([put]) => put)).toEqual([
+      expect.objectContaining({
+        walk: true,
+        zoom: 0.5,
+        hide_minimap: true,
+        keys: { attack: 'KeyB' },
+      }),
+    ]);
+    stop();
   });
 });

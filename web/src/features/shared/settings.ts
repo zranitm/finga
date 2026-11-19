@@ -1,9 +1,10 @@
-// The account's settings: read after login, and saved whole on each change, from whichever screen makes it; a read waits for the saves before it and gives way to a change made while it was out.
+// The account's settings: read after login, and saved whole on each change, from whichever screen makes it; a read waits for the saves before it, and a setting changed while it was out keeps its change.
 import { saveQueue } from '@/lib/save-queue';
 import type { SaveQueue } from '@/lib/save-queue';
 import { RestError } from '@/net/rest';
 import type { RestClient } from '@/net/rest';
 import { settings } from '@/state/settings';
+import type { SettingsState } from '@/state/settings';
 
 /** The queues of settings saves on screen, and the saves under way, which a read lets land first. */
 const queues = new Set<SaveQueue>();
@@ -15,7 +16,7 @@ export function holdReadsFor(queue: SaveQueue): () => void {
   return () => queues.delete(queue);
 }
 
-/** The account's saved settings win over the local ones once they arrive; until then, every flag off, the minimap on, the camera close, sprint mode and this browser's last keys stay in force. A change still waiting is saved first, so the read has it, and one made while the read is out stands over what it reads. */
+/** The account's saved settings win over the local ones once they arrive; until then, every flag off, the minimap on, the camera close, sprint mode and this browser's last keys stay in force. A change still waiting is saved first, so the read has it; a setting changed while the read is out keeps its change, and the read sets the rest. */
 export async function loadSettings(rest: Pick<RestClient, 'getSettings'>): Promise<void> {
   const before = settings.getState();
   for (const q of queues) {
@@ -24,16 +25,14 @@ export async function loadSettings(rest: Pick<RestClient, 'getSettings'>): Promi
   await Promise.all([...[...queues].map((q) => q.settled()), ...sending]);
   try {
     const saved = await rest.getSettings();
-    if (settings.getState() !== before) {
-      return; // changed while it was out: the change is newer, and saves itself
-    }
     const s = settings.getState();
-    s.setAutoAssignPoints(saved.auto_assign_points ?? false);
-    s.setChatPinned(saved.chat_pinned ?? false);
-    s.setShowMinimap(!(saved.hide_minimap ?? false));
-    s.setZoom(saved.zoom ?? 0);
-    s.setWalk(saved.walk ?? false);
-    s.setKeys(saved.keys ?? {});
+    const read = (k: keyof SettingsState) => s[k] === before[k]; // one changed while it was out is newer, and saves itself
+    if (read('autoAssignPoints')) s.setAutoAssignPoints(saved.auto_assign_points ?? false);
+    if (read('chatPinned')) s.setChatPinned(saved.chat_pinned ?? false);
+    if (read('showMinimap')) s.setShowMinimap(!(saved.hide_minimap ?? false));
+    if (read('zoom')) s.setZoom(saved.zoom ?? 0);
+    if (read('walk')) s.setWalk(saved.walk ?? false);
+    if (read('keys')) s.setKeys(saved.keys ?? {});
   } catch {
     // Kept as they are until the next try.
   }
