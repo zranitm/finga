@@ -16,6 +16,12 @@
   - The character runs with a longer stride and leans in.
   - Move speed from stats and buffs (C6) counts as before, and the sprint multiplies it.
   - Sprint is not a dash: it never happens in a fight.
+- **Walk mode:**
+  - Left Shift (rebindable, B6) switches between sprint mode, the default, and walk mode.
+  - In walk mode the character never breaks into a sprint, for a player who wants to walk out of combat.
+  - Switching back to sprint mode while moving out of combat sprints at once, with no 2-second wait.
+  - Each switch shows a notice, "Walk" or "Sprint". While walk mode is on, a walk icon sits first in the player's own frame row, and its hover names the key.
+  - The mode is kept with the account's settings, as the zoom is.
 - **Waypoints:**
   - A waypoint is a tall stone with a glow at the top, in every town and at crossroads, camps and passes, about every 150 m along the roads.
   - Walking within 12 m of one finds it. A notice says "Waypoint found: <name>", and it's remembered for the character.
@@ -29,7 +35,7 @@
 ## Not in this feature
 
 - Mounts and gliding.
-- A sprint key or a stamina bar.
+- A key held to sprint, or a stamina bar.
 - Teleport costs.
 
 ## Rules
