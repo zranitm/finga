@@ -45,15 +45,17 @@ describe('SettingsPanel', () => {
       chat_pinned: false,
       hide_minimap: false,
       zoom: 0,
+      walk: false,
       keys: {},
     });
   });
 
-  it('an account that never set auto-assign, the chat pin, the minimap or the zoom has both off, the minimap on and the camera close', async () => {
+  it('an account that never set auto-assign, the chat pin, the minimap, the zoom or walk mode has both off, the minimap on, the camera close and sprint mode', async () => {
     settings.getState().setAutoAssignPoints(true);
     settings.getState().setChatPinned(true);
     settings.getState().setShowMinimap(false);
     settings.getState().setZoom(0.5);
+    settings.getState().setWalk(true);
     const ff = fakeFetch(() => ({ status: 200, body: {} }));
     render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
     await waitFor(() => expect(settings.getState().autoAssignPoints).toBe(false));
@@ -61,20 +63,25 @@ describe('SettingsPanel', () => {
       settings.getState().chatPinned,
       settings.getState().showMinimap,
       settings.getState().zoom,
-    ]).toEqual([false, true, 0]);
+      settings.getState().walk,
+    ]).toEqual([false, true, 0, false]);
   });
 
-  it('the account’s zoom arrives with its settings, and a change here saves it as it was', async () => {
+  it('the account’s zoom and walk mode arrive with its settings, and a change here saves them as they were', async () => {
     const ff = fakeFetch(({ method }) =>
-      method === 'PUT' ? { status: 200, body: {} } : { status: 200, body: { zoom: 0.625 } },
+      method === 'PUT'
+        ? { status: 200, body: {} }
+        : { status: 200, body: { zoom: 0.625, walk: true } },
     );
     render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
     await waitFor(() => expect(settings.getState().zoom).toBe(0.625));
+    expect(settings.getState().walk).toBe(true);
     await user.click(screen.getByLabelText('Show the minimap'));
     await waitFor(() => expect(ff.of('PUT', '/api/settings')).toHaveLength(1));
     expect(ff.of('PUT', '/api/settings')[0]?.body).toMatchObject({
       hide_minimap: true,
       zoom: 0.625,
+      walk: true,
     });
   });
 
@@ -94,6 +101,7 @@ describe('SettingsPanel', () => {
       chat_pinned: false,
       hide_minimap: true,
       zoom: 0,
+      walk: false,
       keys: {},
     });
   });

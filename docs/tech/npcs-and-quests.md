@@ -1,5 +1,7 @@
 # NPCs and task quests
 
+> **Changed by [Outfits](./outfits.md):** a quest's rewards gain `pieces`, outfit pieces granted to the account's wardrobe in the hand-in's transaction.
+
 > **Status: approved · 2026-11-10.** The high-level design for [H1. NPCs](../product/features/npcs-and-quests/h1-npcs.md), [H2. Task quests](../product/features/npcs-and-quests/h2-task-quests.md), and [Systems → NPCs and quests](../product/systems/npcs-and-quests.md). It builds on `main`, after the [stat system](./stat-system.md) (PR #5 and #6). It is the first of two designs: [Classes and skills](./classes-and-skills.md) builds on it, since promotions happen at NPCs and need trial quests.
 
 ## 1. What has to hold

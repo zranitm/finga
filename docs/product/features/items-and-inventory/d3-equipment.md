@@ -24,8 +24,7 @@
 
 ## Not in this feature
 
-- Equipment changing how the character looks (A4, P2).
-- Seeing what other players wear.
+- Equipment changing how the character looks: gear never shows. Outfits are the look (D8), and other players see those.
 
 ## Rules
 

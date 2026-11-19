@@ -12,7 +12,7 @@ function sender() {
     sent.push({ input, tick });
     return true;
   });
-  return { s: new InputSender({ send }), sent, send };
+  return { s: new InputSender({ send, walk: () => false }), sent, send };
 }
 
 describe('InputSender', () => {
@@ -80,6 +80,7 @@ describe('InputSender', () => {
         sent.push(tick);
         return tick !== 2;
       },
+      walk: () => false,
     });
     s.tickStart(0);
     s.tickStart(0);

@@ -760,6 +760,9 @@ body {
 .frame-icon-buff .skill-icon-face {
   border: 2px solid var(--ally);
 }
+.frame-icon-walk .skill-icon-face {
+  border: 2px solid var(--text);
+}
 .frame-icon-cooling .skill-icon-face {
   border: 2px solid var(--muted);
   filter: grayscale(0.7) brightness(0.7);

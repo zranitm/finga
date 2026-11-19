@@ -29,6 +29,7 @@
   | Map | M |
   | Zoom the camera in and out (B12) | = and −, besides the mouse wheel |
   | Arena window (I1) | V |
+  | Wardrobe (D8) | O |
   | Open the chat; send or close it while typing | Enter; Esc |
   | Close the top window | Esc |
 

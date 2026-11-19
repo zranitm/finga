@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { hudIcons } from '@/features/shared/hudIcons';
 import { skills } from '@/gamedata/skills';
 import { statuses } from '@/gamedata/statuses';
 import { statusIcon, statusIcons } from '@/progression/statuses';
@@ -60,6 +61,27 @@ describe('status icons', () => {
         /^<svg xmlns="http:\/\/www.w3.org\/2000\/svg" viewBox="0 0 512 512">(<path d="[^"]+"\/>)+<\/svg>\n$/,
       );
       expect(svg, f).not.toContain('M0 0h512v512H0z');
+    }
+  });
+});
+
+describe('HUD icons', () => {
+  const used = Object.values(hudIcons)
+    .map((i) => `hud/${i}.svg`)
+    .sort();
+  const files = readdirSync(path.join(ICONS, 'hud'), { recursive: true, encoding: 'utf8' })
+    .filter((f) => f.endsWith('.svg'))
+    .map((f) => `hud/${f}`)
+    .sort();
+
+  it('has an SVG for every HUD icon, none unused, each listed in LICENSES.md and keeping only the glyph', () => {
+    expect(files).toEqual(used);
+    const licences = readFileSync(path.join(ICONS, 'LICENSES.md'), 'utf8');
+    expect([...licences.matchAll(/^\| (hud\/\S+\.svg) /gm)].map((m) => m[1]).sort()).toEqual(files);
+    for (const f of files) {
+      expect(readFileSync(path.join(ICONS, f), 'utf8'), f).toMatch(
+        /^<svg xmlns="http:\/\/www.w3.org\/2000\/svg" viewBox="0 0 512 512">(<path d="[^"]+"\/>)+<\/svg>\n$/,
+      );
     }
   });
 });

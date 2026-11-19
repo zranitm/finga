@@ -14,6 +14,7 @@ import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
 import { energy } from '@/state/energy';
+import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
 import { statuses } from '@/state/statuses';
 import { ui } from '@/state/ui';
@@ -127,6 +128,17 @@ describe('Hud', () => {
         .getAllByRole('listitem')
         .map((li) => li.title),
     ).toEqual(['Stun']);
+  });
+
+  it('shows walk mode first under the player’s HP while it’s on (large-regions.md section 7)', () => {
+    character.getState().applyWelcome(welcome);
+    render(<Hud />);
+    const own = screen.getByRole('group', { name: 'Status' });
+    expect(within(own).queryByRole('listitem', { name: 'Walk mode' })).toBeNull();
+    act(() => settings.getState().setWalk(true));
+    expect(within(own).getByRole('listitem', { name: 'Walk mode' })).toBeInTheDocument();
+    act(() => settings.getState().setWalk(false));
+    expect(within(own).queryByRole('listitem', { name: 'Walk mode' })).toBeNull();
   });
 
   it('shows the player’s buffs from the sheet and a follow-up cooling off the keys under their HP, until a key offers it (C22)', () => {

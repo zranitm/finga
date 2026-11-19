@@ -21,6 +21,7 @@
   | Buff | the skill's icon at its stage, in its colour (C16) | the ally green | seconds left | drains as it runs out |
   | Status | as today | its status's colour | seconds left | as today |
   | Cooldown | the skill's icon, dimmed | grey | seconds to ready | the skill bar's dark sweep |
+  | Walk mode (large-regions.md section 7) | the walk icon on slate, first while walk mode is on | the text colour | none | none |
 
 - **Order within a kind:** soonest to end first. Statuses keep hard control first.
 - **Room:** up to 12 of each kind, then "+N" for that kind (the user's call of 2026-11-18). The row wraps onto more lines inside the frame's width. Party frames and the target window keep statuses to six.

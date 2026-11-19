@@ -124,6 +124,8 @@ export interface State {
   readonly slow?: Slow;
   /** Sub-steps walked toward a sprint, held at sprintSteps once there: from the next, it sprints; absent when none. */
   readonly sprint?: number;
+  /** The mode it last stepped in: walk mode, absent in sprint mode. */
+  readonly walk?: boolean;
 }
 
 /** A status slowing the walk: factor × the walk speed for left more sub-steps; a skill's move keeps its speed. */
@@ -229,6 +231,7 @@ function inMob(s: State, g: Geometry, p: Params): boolean {
 export function step(s: State, pressed: Input, g: Geometry, p: Params): State {
   const held = (s.held ?? 0) > 0; // held where it is, its heading kept, a skill's move ended
   const input = held ? NO_KEYS : pressed;
+  const walk = pressed.walk === true; // a hold keeps the mode
   let x = keys(input.right, input.left);
   let z = keys(input.up, input.down);
   if (x !== 0 && z !== 0) {
@@ -243,10 +246,17 @@ export function step(s: State, pressed: Input, g: Geometry, p: Params): State {
   const moving = !held && (s.move?.left ?? 0) > 0;
   const walks = (x !== 0 || z !== 0) && !moving;
   const sprintAt = sprintSteps(p);
-  const { sprint: walked = 0, ...uncounted } = s;
-  const sprinting = walks && sprintAt > 0 && walked >= sprintAt;
-  // standing, a skill's move, a hold or a fight ends the count; a jump keeps it
-  const count = !walks || sprintAt === 0 ? 0 : walked < sprintAt ? walked + 1 : walked;
+  const { sprint: walked = 0, walk: wasWalk, ...uncounted } = s;
+  const sprinting = walks && sprintAt > 0 && walked >= sprintAt && !walk;
+  // standing, a skill's move, a hold, a fight or walk mode ends the count; a jump keeps it; back to sprint mode while walking, it sprints from the next sub-step
+  const count =
+    !walks || sprintAt === 0 || walk
+      ? 0
+      : wasWalk
+        ? sprintAt
+        : walked < sprintAt
+          ? walked + 1
+          : walked;
   let speed = sprinting ? p.walk_speed * p.sprint!.speed : p.walk_speed;
   if ((s.slow?.left ?? 0) > 0) {
     speed = speed * s.slow!.factor;
@@ -322,7 +332,14 @@ export function step(s: State, pressed: Input, g: Geometry, p: Params): State {
     onGround = false;
   }
   const { move, held: heldFor, slow, ...body } = at;
-  let next: State = { ...body, y, vy, on_ground: onGround, ...(count > 0 && { sprint: count }) };
+  let next: State = {
+    ...body,
+    y,
+    vy,
+    on_ground: onGround,
+    ...(count > 0 && { sprint: count }),
+    ...(walk && { walk }),
+  };
   if (moving && move) {
     const inside = move.through === true && inMob(next, g, p);
     const kept = move.through && !inside ? { ...move, clear_x: next.x, clear_z: next.z } : move;

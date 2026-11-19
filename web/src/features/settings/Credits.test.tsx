@@ -13,7 +13,7 @@ describe('Credits', () => {
     render(<Credits />);
     const credits = screen.getByRole('region', { name: 'Credits' });
     expect(credits).toHaveTextContent(
-      'Skill and status icons from game-icons.net by DarkZaitzev, Delapouite, Lorc and Zeromancer, under CC BY 3.0.',
+      'Icons from game-icons.net by DarkZaitzev, Delapouite, Lorc and Zeromancer, under CC BY 3.0.',
     );
     const authors = new Set(skills.flatMap((s) => s.stages.map((st) => st.icon.split('/')[0]!)));
     for (const a of authors) {
@@ -34,7 +34,7 @@ describe('Credits', () => {
     const authors = new Set(
       table
         .split('\n')
-        .filter((l) => l.startsWith('| skills/'))
+        .filter((l) => /^\| (skills|statuses|hud)\//.test(l))
         .map((l) => l.split('|')[2]!.trim()),
     );
     expect(authors.size).toBeGreaterThan(0);

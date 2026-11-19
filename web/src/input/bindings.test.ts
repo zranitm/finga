@@ -29,8 +29,12 @@ describe('key names', () => {
 
 describe('the player’s keys', () => {
   it('lay the changes over the defaults', () => {
-    const table = keyTable({ attack: 'KeyB', skill1: 'ShiftLeft' });
-    expect([table.attack, table.skill1, table.skill2]).toEqual([['KeyB'], ['ShiftLeft'], ['KeyW']]);
+    const table = keyTable({ attack: 'KeyB', skill1: 'ShiftRight' });
+    expect([table.attack, table.skill1, table.skill2]).toEqual([
+      ['KeyB'],
+      ['ShiftRight'],
+      ['KeyW'],
+    ]);
     expect(keyTable({})).toEqual(defaults);
   });
 

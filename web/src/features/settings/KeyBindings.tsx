@@ -23,6 +23,7 @@ const names: Readonly<Record<Action, string>> = {
   left: 'Walk left',
   right: 'Walk right',
   jump: 'Jump',
+  walk: 'Walk or sprint',
   attack: 'Attack',
   nextTarget: 'Lock the next target',
   hpPotion: 'HP potion',
@@ -49,7 +50,7 @@ const names: Readonly<Record<Action, string>> = {
 };
 
 const groups: readonly { readonly name: string; readonly actions: readonly Action[] }[] = [
-  { name: 'Movement', actions: ['up', 'down', 'left', 'right', 'jump'] },
+  { name: 'Movement', actions: ['up', 'down', 'left', 'right', 'jump', 'walk'] },
   {
     name: 'Combat',
     actions: [

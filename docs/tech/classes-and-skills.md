@@ -1,5 +1,7 @@
 # Classes, promotion, and skills
 
+> **Changed by [Outfits](./outfits.md):** each class gains `weapon`, the kind of weapon look it holds: `one_handed`, `knife`, `crossbow` or `staff`. A promotion clears a weapon look the new kind doesn't take.
+
 > **Status: approved · 2026-11-10.** The high-level design for [C8. Class promotion](../product/features/combat-and-progression/c8-class-promotion.md), [C5. Skills](../product/features/combat-and-progression/c5-skills.md), the new [A2](../product/features/account-and-character/a2-create-a-character.md), and [Systems → Classes and skills](../product/systems/classes-and-skills.md). It builds on `main`, after the [stat system](./stat-system.md) (PR #5 and #6), plus [NPCs and task quests](./npcs-and-quests.md), which comes first.
 
 > **As built in 3D (2026-11-16).** The 3D rework ([3D world](./3d-world.md) sections 6 and 10) keeps the classes, promotion and skills below, and changes their looks and shapes. The YAML samples below are the 2D build's.

@@ -51,6 +51,7 @@ describe('KeyBindings', () => {
       'Walk left: ←',
       'Walk right: →',
       'Jump: Space',
+      'Walk or sprint: Left Shift',
     ]);
     expect(group('Combat')).toEqual([
       'Attack: X',
@@ -110,8 +111,8 @@ describe('KeyBindings', () => {
   it('a modifier on its own is a key', () => {
     setup();
     listen('Jump');
-    press('ShiftLeft');
-    expect(chip('Jump: Left Shift')).toBeInTheDocument();
+    press('ShiftRight');
+    expect(chip('Jump: Right Shift')).toBeInTheDocument();
   });
 
   it('with a Ctrl key bound, says the browser may take Ctrl with other keys', () => {
@@ -221,6 +222,7 @@ describe('KeyBindings', () => {
           chat_pinned: false,
           hide_minimap: false,
           zoom: 0,
+          walk: false,
           keys: { attack: 'KeyB', jump: 'KeyG' },
         },
       ],

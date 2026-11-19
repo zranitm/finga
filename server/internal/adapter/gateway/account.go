@@ -52,12 +52,12 @@ func (a Accounts) Settings(ctx context.Context, id kernel.AccountID) (model.Sett
 	if err != nil {
 		return model.Settings{}, wrap(err)
 	}
-	return model.Settings{AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap, Zoom: s.Zoom, Keys: s.Keys}, nil
+	return model.Settings{AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap, Zoom: s.Zoom, Walk: s.Walk, Keys: s.Keys}, nil
 }
 
 // UpdateSettings replaces the account's settings.
 func (a Accounts) UpdateSettings(ctx context.Context, id kernel.AccountID, s model.Settings) error {
-	return wrap(a.a.UpdateSettings(ctx, id, account.Settings{AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap, Zoom: s.Zoom, Keys: s.Keys}))
+	return wrap(a.a.UpdateSettings(ctx, id, account.Settings{AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap, Zoom: s.Zoom, Walk: s.Walk, Keys: s.Keys}))
 }
 
 // Guard is the lobby's, the send flow's and the push flow's session ports over the account module.

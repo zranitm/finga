@@ -1,5 +1,5 @@
 import { create } from '@bufbuild/protobuf';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { chainsOf } from '@/progression/chains';
@@ -8,6 +8,7 @@ import { statusColor } from '@/progression/statuses';
 import { PartyStateSchema } from '@/protocol/messages';
 import type { FrameBuff } from '@/state/character';
 import { party } from '@/state/party';
+import { settings } from '@/state/settings';
 import type { ShownStatus } from '@/state/statuses';
 import { resetStores } from '@/testing/reset-stores';
 
@@ -115,6 +116,7 @@ describe('FrameIcons', () => {
         <FrameIcons
           statuses={[on('burn', 3000), on('stun', 4000)]}
           own={{
+            walk: false,
             buffs: [buff('war_cry', 9000), buff('iron_body', 2000)],
             cooldowns: [cooling('ground_slam', 7000)],
           }}
@@ -123,11 +125,32 @@ describe('FrameIcons', () => {
       expect(labels()).toEqual(['Iron Body', 'War Cry', 'Stun', 'Burn', 'Ground Slam, cooling']);
     });
 
+    it('shows walk mode first while it’s on, alone too, its hover naming the key that switches it as bound', () => {
+      const { rerender } = render(
+        <FrameIcons
+          statuses={[on('burn', 3000)]}
+          own={{ walk: true, buffs: [buff('war_cry', 9000)], cooldowns: [] }}
+        />,
+      );
+      expect(labels()).toEqual(['Walk mode', 'War Cry', 'Burn']);
+      const walk = within(own()).getByRole('listitem', { name: 'Walk mode' });
+      expect(walk.title).toBe('Walk mode: no sprint. Left Shift to switch.');
+      expect(walk.querySelector<HTMLElement>('.skill-icon')!.style.getPropertyValue('--icon')).toBe(
+        'url("/icons/hud/delapouite/walk.svg")',
+      );
+      act(() => settings.getState().setKeys({ walk: 'KeyG' }));
+      expect(walk.title).toBe('Walk mode: no sprint. G to switch.');
+      rerender(<FrameIcons statuses={[]} own={{ walk: true, buffs: [], cooldowns: [] }} />);
+      expect(labels()).toEqual(['Walk mode']);
+      rerender(<FrameIcons statuses={[]} own={{ walk: false, buffs: [], cooldowns: [] }} />);
+      expect(screen.queryByRole('list')).toBeNull();
+    });
+
     it('draws a buff as its skill’s icon at its stage in its colour, edged ally green, its time left swept and counted', () => {
       render(
         <FrameIcons
           statuses={[]}
-          own={{ buffs: [buff('iron_body', 15000, '', 30000)], cooldowns: [] }}
+          own={{ walk: false, buffs: [buff('iron_body', 15000, '', 30000)], cooldowns: [] }}
         />,
       );
       const tile = within(own())
@@ -151,7 +174,10 @@ describe('FrameIcons', () => {
 
     it('draws a hidden cooldown as its skill’s icon dimmed and edged grey, its seconds to ready counted', () => {
       render(
-        <FrameIcons statuses={[]} own={{ buffs: [], cooldowns: [cooling('ground_slam', 6500)] }} />,
+        <FrameIcons
+          statuses={[]}
+          own={{ walk: false, buffs: [], cooldowns: [cooling('ground_slam', 6500)] }}
+        />,
       );
       const tile = within(own())
         .getByRole('listitem', { name: 'Ground Slam, cooling' })
@@ -170,6 +196,7 @@ describe('FrameIcons', () => {
         <FrameIcons
           statuses={many.map((id, k) => on(id, 1000 * (k + 1)))}
           own={{
+            walk: false,
             buffs: ids.map((id, k) => buff(id, 1000 * (k + 1))),
             cooldowns: ['ground_slam', 'charge'].map((id, k) => cooling(id, 1000 * (k + 1))),
           }}
@@ -201,6 +228,7 @@ describe('FrameIcons', () => {
         <FrameIcons
           statuses={[]}
           own={{
+            walk: false,
             buffs: [
               buff('iron_body', 11200),
               buff('war_cry', 8000, 'c-robin'),
@@ -222,7 +250,10 @@ describe('FrameIcons', () => {
 
     it('tells a hidden cooldown’s seconds to ready, and on which key and while what it comes up', () => {
       render(
-        <FrameIcons statuses={[]} own={{ buffs: [], cooldowns: [cooling('ground_slam', 6500)] }} />,
+        <FrameIcons
+          statuses={[]}
+          own={{ walk: false, buffs: [], cooldowns: [cooling('ground_slam', 6500)] }}
+        />,
       );
       expect(within(own()).getByRole('listitem', { name: 'Ground Slam, cooling' }).title).toBe(
         'Ground Slam: ready in 7 s. On Strike’s key while the target is stunned or frozen.',

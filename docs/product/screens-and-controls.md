@@ -9,14 +9,15 @@ The screens players see and the keys they use. This is the input for the design 
 | **Sign up and log in** | Create an account, log in | P0 |
 | **Character creation** | Pick a name; every character starts as a Beginner | P0 |
 | **Game view and HUD** | Play: the map, seen from above, looking north at a fixed angle, the camera easing after the player; HP and EXP bars, the energy pips, and level at the top left; the field boss's bar and, smaller under it, the locked mob's target window with its stats, at the top centre (C15). The player's frame, the party's, and the target window share one look: a green edge and dot for the player and allies, a red edge and ✕ for enemies, and the unit's statuses as icons under its HP bar (C19), with, on the player's own frame, their buffs before them and the cooldowns of the follow-ups no key shows after (C22), and a walk icon first while walk mode is on (B11); Back to characters and the party panel at the top right; the chat at the bottom left (see [Chat](#chat)); the minimap at the bottom right (B8); currency from P1 | P0 |
-| **Inventory** | See items by tab; drink potions; discard them, one at a time or several at once | P0 |
+| **Inventory** | See items by tab; drink potions; discard them, one at a time or several at once; preview an outfit item or add it to the wardrobe (D8) | P0 |
 | **Party window** | Invite, accept, leave, kick, hand over leadership | P0 |
 | **Marketplace** | Browse and search, buy, list an item, manage my listings | P1 |
 | **Settings** | Rebind keys in the Key bindings window (B6); turn on spending stat points automatically at level-up (off by default); show the minimap (on by default); Credits, naming the icons' and art's authors (C16) | P0 |
 | **Map window** | M: This region, the current region with pan and zoom: its areas with their levels, towns, camps, found and unfound waypoints, gates, NPCs and party, and the channel to switch (B10, B11); on an old map still in use, This map as before. World, the regions and old maps as a chart, with where the player and their party are. A found waypoint, or a region's main town, has a Teleport here button (B8, B9, B11) | P1 |
 | **Character select** | Pick a character to play | P1 |
 | **Channel select** | Pick or switch channel | P1 |
-| **Character window** | See level, EXP, HP, every stat, and the ten equipment slots; equip and unequip; spend, auto-assign, and reset stat points | P1 |
+| **Character window** | See level, EXP, HP, every stat, and the ten equipment slots around the character as it looks, in 3D (D8); equip and unequip; spend, auto-assign, and reset stat points | P1 |
+| **Wardrobe** | O: the account's outfit pieces by slot (outfit, headwear, face, weapon look), collected ones lit and the rest greyed with how to get them; try any on the character shown, wear collected ones, hide headwear (D8, D9) | P1 |
 | **Item details** | Hover an item to see its stars, stats, and requirements, compared with what's worn | P1 |
 | **NPC shop** | Buy and sell at fixed prices | P1 |
 | **Skill window** | See every skill you can learn as a grid of icons, by class, with each skill's details on a card when hovered; spend skill points, follow evolutions, choose each active skill's trait out of combat (C20); drag active skills to the skill bar by their icons | P1 |
@@ -52,6 +53,7 @@ Every key but Enter and Esc can be rebound in Settings → Key bindings (B6). Th
 | Map | M |
 | Zoom the camera in and out, still facing north (B12) | Mouse wheel; = and − |
 | Arena window | V |
+| Wardrobe | O |
 | Party | P |
 | Character window | C |
 | Talk to an NPC | Z, while in reach |

@@ -26,7 +26,7 @@ import { MatchResult } from '@/features/pvp/MatchResult';
 import { QueueTag } from '@/features/pvp/QueueTag';
 import { QuestLog } from '@/features/quests/QuestLog';
 import { SettingsPanel } from '@/features/settings/SettingsPanel';
-import { loadSettings, watchZoom } from '@/features/shared/settings';
+import { loadSettings, watchPlaySettings } from '@/features/shared/settings';
 import { watchSkillBar } from '@/features/skills/saveSkillBar';
 import { SkillWindow } from '@/features/skills/SkillWindow';
 import type { Character } from '@/net/rest';
@@ -187,7 +187,7 @@ function WorldOverlay({
     const stop = watchSkillBar(rest, me, (text) => toasts.getState().push(text));
     return () => keepSaves(stop());
   }, [rest, me, keepSaves]);
-  useEffect(() => watchZoom(rest, (text) => toasts.getState().push(text)), [rest]);
+  useEffect(() => watchPlaySettings(rest, (text) => toasts.getState().push(text)), [rest]);
   return (
     <>
       <Hud />

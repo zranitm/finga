@@ -86,11 +86,11 @@ describe('SkillBar', () => {
   });
 
   it('shows a long key name short on the key, so it never covers the icon, and in full in its label', () => {
-    settings.getState().setKeys({ skill1: 'ShiftLeft', skill2: 'ControlRight' });
+    settings.getState().setKeys({ skill1: 'ShiftRight', skill2: 'ControlRight' });
     skillBar.getState().load(['strike']);
     render(<SkillBar />);
-    const key = screen.getByRole('listitem', { name: /^Key Left Shift: Strike/ });
-    expect(key.querySelector('.skill-key-bound')).toHaveTextContent(/^LShift$/);
+    const key = screen.getByRole('listitem', { name: /^Key Right Shift: Strike/ });
+    expect(key.querySelector('.skill-key-bound')).toHaveTextContent(/^RShift$/);
     expect(
       screen
         .getByRole('listitem', { name: /^Key Right Ctrl: empty/ })

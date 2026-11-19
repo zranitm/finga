@@ -203,7 +203,7 @@ func (h *api) updateSettings(c *gin.Context) {
 	if decode(c, &req) != nil {
 		return
 	}
-	s := model.Settings{AutoAssignPoints: req.AutoAssignPoints, ChatPinned: req.ChatPinned, HideMinimap: req.HideMinimap, Zoom: req.Zoom, Keys: req.Keys}
+	s := model.Settings{AutoAssignPoints: req.AutoAssignPoints, ChatPinned: req.ChatPinned, HideMinimap: req.HideMinimap, Zoom: req.Zoom, Walk: req.Walk, Keys: req.Keys}
 	if err := h.lobby.UpdateSettings(c.Request.Context(), principalFrom(c), s); err != nil {
 		writeError(c, err)
 		return

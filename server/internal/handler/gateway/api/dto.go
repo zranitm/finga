@@ -81,6 +81,7 @@ type SettingsRequest struct {
 	ChatPinned       bool              `json:"chat_pinned"`
 	HideMinimap      bool              `json:"hide_minimap"`
 	Zoom             float64           `json:"zoom"`
+	Walk             bool              `json:"walk"`
 	Keys             map[string]string `json:"keys"`
 }
 
@@ -90,6 +91,7 @@ type SettingsResponse struct {
 	ChatPinned       bool              `json:"chat_pinned"`
 	HideMinimap      bool              `json:"hide_minimap"`
 	Zoom             float64           `json:"zoom"`
+	Walk             bool              `json:"walk"`
 	Keys             map[string]string `json:"keys"` // never null: {} for the defaults
 }
 
@@ -125,5 +127,5 @@ func toSettings(s model.Settings) SettingsResponse {
 	if keys == nil {
 		keys = map[string]string{}
 	}
-	return SettingsResponse{AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap, Zoom: s.Zoom, Keys: keys}
+	return SettingsResponse{AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap, Zoom: s.Zoom, Walk: s.Walk, Keys: keys}
 }

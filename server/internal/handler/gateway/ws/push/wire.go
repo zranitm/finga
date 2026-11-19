@@ -142,6 +142,7 @@ func playerViews(ps []model.PlayerView) []*clientv1.PlayerView {
 			Held: int32(p.Held), Slow: slowWalk(p.Slow), Statuses: statusViews(p.Statuses), //nolint:gosec // a hold is a few hundred sub-steps
 			Team: int32(p.Team), Bot: p.Bot, //nolint:gosec // 0, 1 or 2
 			Sprint: int32(p.Sprint), //nolint:gosec // a sprint's count stops at its start, a few hundred sub-steps
+			Walk:   p.Walk,
 		})
 	}
 	return out

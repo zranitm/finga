@@ -28,6 +28,7 @@ type Settings struct {
 	ChatPinned       bool    // the chat stays open while the player isn't typing
 	HideMinimap      bool    // the minimap is hidden
 	Zoom             float64 // how far the camera has pulled back, 0 close to 1 far
+	Walk             bool    // walk mode, which never sprints, instead of sprint mode
 	// Keys are the key bindings that differ from the client's defaults, an action to a KeyboardEvent.code.
 	Keys map[string]string
 }
@@ -43,9 +44,9 @@ func accountOf(a model.Account) Account {
 }
 
 func settingsOf(s model.Settings) Settings {
-	return Settings{AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap, Zoom: s.Zoom, Keys: maps.Clone(s.Keys)}
+	return Settings{AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap, Zoom: s.Zoom, Walk: s.Walk, Keys: maps.Clone(s.Keys)}
 }
 
 func (s Settings) model() model.Settings {
-	return model.Settings{AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap, Zoom: s.Zoom, Keys: maps.Clone(s.Keys)}
+	return model.Settings{AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap, Zoom: s.Zoom, Walk: s.Walk, Keys: maps.Clone(s.Keys)}
 }

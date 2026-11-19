@@ -32,6 +32,7 @@ type Settings struct {
 	ChatPinned       bool    `json:"chat_pinned"`        // the chat stays open while the player isn't typing
 	HideMinimap      bool    `json:"hide_minimap"`       // the minimap is hidden; stored as hidden so an account saved before it shows it
 	Zoom             float64 `json:"zoom"`               // how far the camera has pulled back, 0 close to 1 far
+	Walk             bool    `json:"walk"`               // walk mode, which never sprints, instead of sprint mode
 	// Keys are the player's key bindings that differ from the client's defaults, an action to a KeyboardEvent.code; the actions are the client's.
 	Keys map[string]string `json:"keys,omitempty"`
 }

@@ -106,7 +106,7 @@ func (w World) Leave(ctx context.Context, p model.Presence) error {
 
 // Input sends one input.
 func (w World) Input(ctx context.Context, p model.Presence, seq uint32, k model.Keys, view uint32) error {
-	return worldErr(w.w.Input(ctx, presence(p), seq, sim.Input{Left: k.Left, Right: k.Right, Up: k.Up, Down: k.Down, Jump: k.Jump}, view))
+	return worldErr(w.w.Input(ctx, presence(p), seq, sim.Input{Left: k.Left, Right: k.Right, Up: k.Up, Down: k.Down, Jump: k.Jump, Walk: k.Walk}, view))
 }
 
 // Attack attacks along the aim's yaw, at the lock first.

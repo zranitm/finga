@@ -1,8 +1,10 @@
-// A frame's icon row (frame-icons.md section 2): every frame's statuses, and on the player's own their buffs before them and their hidden follow-up cooldowns after. Up to twelve of each kind on the player's own, six on the others, then "+N" for it; the row wraps.
+// A frame's icon row (frame-icons.md section 2): every frame's statuses, and on the player's own walk mode's icon first, their buffs before the statuses and their hidden follow-up cooldowns after. Up to twelve of each kind on the player's own, six on the others, then "+N" for it; the row wraps.
 import { useReducer } from 'react';
 import type { CSSProperties } from 'react';
 
 import { Sweep } from '@/components/SkillIcon';
+import { hudIcons } from '@/features/shared/hudIcons';
+import { useKeys } from '@/features/shared/useKeys';
 import { conditionText } from '@/progression/chains';
 import { colorOf, pointsIn, skillById, stageAt } from '@/progression/skills';
 import { statusColor, statusIcon, statusName, statusOf } from '@/progression/statuses';
@@ -44,25 +46,32 @@ function ordered(list: readonly ShownStatus[]): ShownStatus[] {
   return [...list].sort((a, b) => rank(a.id) - rank(b.id) || a.until - b.until);
 }
 
+/** What the player's own row shows besides statuses. */
+export interface OwnIcons {
+  readonly buffs: readonly FrameBuff[];
+  readonly cooldowns: readonly HiddenCooldown[];
+  /** Walk mode is on (large-regions.md section 7). */
+  readonly walk: boolean;
+}
+
 export interface FrameIconsProps {
   readonly statuses: readonly ShownStatus[];
   /** The player's own frame's alone: given, the row is theirs, with room for twelve of each kind. */
-  readonly own?: {
-    readonly buffs: readonly FrameBuff[];
-    readonly cooldowns: readonly HiddenCooldown[];
-  };
+  readonly own?: OwnIcons;
 }
 
 /** The list's frame says whose they are. */
 export function FrameIcons({ statuses, own }: FrameIconsProps) {
   const buffs = own?.buffs ?? [];
   const cooldowns = own?.cooldowns ?? [];
-  if (statuses.length + buffs.length + cooldowns.length === 0) {
+  const walk = own?.walk === true;
+  if (statuses.length + buffs.length + cooldowns.length === 0 && !walk) {
     return null;
   }
   const most = own ? OWN_MOST : MOST;
   return (
     <ul className="frame-icons" aria-label={own ? 'Buffs, statuses and cooldowns' : 'Statuses'}>
+      {walk && <WalkTile />}
       {[...buffs]
         .sort((a, b) => a.until - b.until)
         .slice(0, most)
@@ -94,6 +103,29 @@ function More({ n, kind }: { readonly n: number; readonly kind: string }) {
   return (
     <li className="frame-icons-more" aria-label={kind ? `${n} more ${kind}` : `${n} more`}>
       +{n}
+    </li>
+  );
+}
+
+const WALK_STYLE = {
+  '--skill': '#5d7a96',
+  '--icon': `url("${import.meta.env.BASE_URL}icons/hud/${hudIcons.walk}.svg")`,
+} as CSSProperties;
+
+/** Walk mode's tile, while it's on: a player who logs in walking sees why they never sprint, and the key that switches it. */
+function WalkTile() {
+  const keys = useKeys();
+  return (
+    <li title={`Walk mode: no sprint. ${keys.name('walk')} to switch.`} aria-label="Walk mode">
+      <span
+        className="skill-icon skill-icon-status frame-icon-walk"
+        style={WALK_STYLE}
+        aria-hidden="true"
+      >
+        <span className="skill-icon-face">
+          <span className="skill-icon-glyph" />
+        </span>
+      </span>
     </li>
   );
 }
