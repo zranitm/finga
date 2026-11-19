@@ -340,7 +340,7 @@ func TestSettings(t *testing.T) {
 	svc := newService(t, newFakeStore())
 	acc := register(t, svc, "alice", "correct horse")
 	// Any action the client names: the server checks the shape, and a left Shift on its own is a key.
-	want := model.Settings{AutoAssignPoints: true, HideMinimap: true, Zoom: 0.375, Keys: map[string]string{"attack": "KeyV", "skill1": "ShiftLeft", "someLaterAction": "Digit9"}}
+	want := model.Settings{AutoAssignPoints: true, HideMinimap: true, Zoom: 0.375, Walk: true, Keys: map[string]string{"attack": "KeyV", "skill1": "ShiftLeft", "someLaterAction": "Digit9"}}
 	if err := svc.UpdateSettings(ctx, acc.ID, want); err != nil {
 		t.Fatal(err)
 	}

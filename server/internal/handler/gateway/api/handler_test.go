@@ -413,7 +413,7 @@ func TestSettings(t *testing.T) {
 			if id != accountID {
 				t.Fatalf("id %s", id)
 			}
-			return account.Settings{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true, Zoom: 0.5, Keys: map[string]string{"attack": "KeyV"}}, nil
+			return account.Settings{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true, Zoom: 0.5, Walk: true, Keys: map[string]string{"attack": "KeyV"}}, nil
 		}
 		rec := h.do("GET", "/api/settings", "", authed())
 		if rec.Code != http.StatusOK {
@@ -421,7 +421,7 @@ func TestSettings(t *testing.T) {
 		}
 		var body api.SettingsResponse
 		decode(t, rec, &body)
-		if !reflect.DeepEqual(body, api.SettingsResponse{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true, Zoom: 0.5, Keys: map[string]string{"attack": "KeyV"}}) {
+		if !reflect.DeepEqual(body, api.SettingsResponse{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true, Zoom: 0.5, Walk: true, Keys: map[string]string{"attack": "KeyV"}}) {
 			t.Fatalf("body %+v", body)
 		}
 	})
@@ -443,18 +443,18 @@ func TestSettings(t *testing.T) {
 			savedFor, saved = id, s
 			return nil
 		}
-		rec := h.do("PUT", "/api/settings", `{"auto_assign_points":true,"chat_pinned":true,"hide_minimap":true,"zoom":0.25,"keys":{"attack":"KeyV","skill1":"KeyX"}}`, authed())
+		rec := h.do("PUT", "/api/settings", `{"auto_assign_points":true,"chat_pinned":true,"hide_minimap":true,"zoom":0.25,"walk":true,"keys":{"attack":"KeyV","skill1":"KeyX"}}`, authed())
 		keys := map[string]string{"attack": "KeyV", "skill1": "KeyX"}
-		if rec.Code != http.StatusOK || !reflect.DeepEqual(saved, account.Settings{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true, Zoom: 0.25, Keys: keys}) || savedFor != accountID {
+		if rec.Code != http.StatusOK || !reflect.DeepEqual(saved, account.Settings{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true, Zoom: 0.25, Walk: true, Keys: keys}) || savedFor != accountID {
 			t.Fatalf("status %d saved %+v for %s", rec.Code, saved, savedFor)
 		}
 		var body api.SettingsResponse
 		decode(t, rec, &body)
-		if !reflect.DeepEqual(body, api.SettingsResponse{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true, Zoom: 0.25, Keys: keys}) {
+		if !reflect.DeepEqual(body, api.SettingsResponse{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true, Zoom: 0.25, Walk: true, Keys: keys}) {
 			t.Fatalf("body %+v", body)
 		}
-		if rec := h.do("PUT", "/api/settings", `{}`, authed()); rec.Code != http.StatusOK || saved.AutoAssignPoints || saved.ChatPinned || saved.HideMinimap || saved.Zoom != 0 || len(saved.Keys) != 0 {
-			t.Fatalf("status %d saved %+v; want the flags left out as false, the zoom 0 and no keys changed", rec.Code, saved)
+		if rec := h.do("PUT", "/api/settings", `{}`, authed()); rec.Code != http.StatusOK || saved.AutoAssignPoints || saved.ChatPinned || saved.HideMinimap || saved.Zoom != 0 || saved.Walk || len(saved.Keys) != 0 {
+			t.Fatalf("status %d saved %+v; want the flags left out as false, sprint mode, the zoom 0 and no keys changed", rec.Code, saved)
 		}
 	})
 	t.Run("bad key bindings are the module's rule", func(t *testing.T) {

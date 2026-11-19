@@ -131,7 +131,7 @@ func TestAcceptance(t *testing.T) {
 		token := s.Call("POST", "/api/sessions", "", map[string]string{"username": "dave", "password": "correct horse"}).Body["token"].(string)
 		initial := s.Call("GET", "/api/settings", token, nil)
 		s.MustStatus(initial, http.StatusOK)
-		if initial.Body["hide_minimap"] != false || initial.Body["zoom"] != float64(0) || initial.Body["control_preset"] != nil || !reflect.DeepEqual(initial.Body["keys"], map[string]any{}) {
+		if initial.Body["hide_minimap"] != false || initial.Body["zoom"] != float64(0) || initial.Body["walk"] != false || initial.Body["control_preset"] != nil || !reflect.DeepEqual(initial.Body["keys"], map[string]any{}) {
 			t.Fatalf("default settings %v", initial.Body)
 		}
 		s.MustStatus(s.Call("PUT", "/api/settings", token, map[string]any{"hide_minimap": true}), http.StatusOK)
@@ -141,7 +141,7 @@ func TestAcceptance(t *testing.T) {
 			t.Fatalf("settings after save %v", after.Body)
 		}
 		keys := map[string]any{"attack": "KeyV", "skill1": "KeyX"}
-		s.MustStatus(s.Call("PUT", "/api/settings", token, map[string]any{"hide_minimap": true, "zoom": 0.75, "keys": keys}), http.StatusOK)
+		s.MustStatus(s.Call("PUT", "/api/settings", token, map[string]any{"hide_minimap": true, "zoom": 0.75, "walk": true, "keys": keys}), http.StatusOK)
 		if bad := s.Call("PUT", "/api/settings", token, map[string]any{"keys": map[string]any{"attack": "Enter"}}); bad.Status != http.StatusBadRequest || bad.Body["code"] != float64(code("BAD_KEY_BINDINGS")) {
 			t.Fatalf("Enter for attack answered %d %v; want BAD_KEY_BINDINGS", bad.Status, bad.Body)
 		}
@@ -149,8 +149,8 @@ func TestAcceptance(t *testing.T) {
 			t.Fatalf("a zoom of 1.5 answered %d %v; want BAD_ZOOM", bad.Status, bad.Body)
 		}
 		token2 := s.Call("POST", "/api/sessions", "", map[string]string{"username": "dave", "password": "correct horse"}).Body["token"].(string)
-		if again := s.Call("GET", "/api/settings", token2, nil).Body; again["hide_minimap"] != true || again["zoom"] != 0.75 || !reflect.DeepEqual(again["keys"], keys) {
-			t.Fatalf("settings in a new session %v; want the minimap hidden, the zoom kept and the keys bound", again)
+		if again := s.Call("GET", "/api/settings", token2, nil).Body; again["hide_minimap"] != true || again["zoom"] != 0.75 || again["walk"] != true || !reflect.DeepEqual(again["keys"], keys) {
+			t.Fatalf("settings in a new session %v; want the minimap hidden, the zoom and walk mode kept and the keys bound", again)
 		}
 	})
 

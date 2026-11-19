@@ -30,6 +30,7 @@ export const defaults: KeyTable = {
   up: ['ArrowUp'],
   down: ['ArrowDown'],
   jump: ['Space'],
+  walk: ['ShiftLeft'],
   attack: ['KeyX'],
   nextTarget: ['Tab'],
   talk: ['KeyZ'],

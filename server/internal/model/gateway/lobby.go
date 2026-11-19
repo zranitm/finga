@@ -19,6 +19,7 @@ type Settings struct {
 	ChatPinned       bool
 	HideMinimap      bool
 	Zoom             float64
+	Walk             bool
 	Keys             map[string]string // the key bindings that differ from the client's defaults
 }
 

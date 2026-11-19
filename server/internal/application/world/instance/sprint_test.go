@@ -60,6 +60,36 @@ func TestWalkingBreaksIntoASprintAndAPressEndsIt(t *testing.T) {
 	})
 }
 
+// Walk mode rides each input: 50 inputs of it never sprint, its mode on the player's view for the reconcile, and one back in sprint mode while walking sprints from its second sub-step.
+func TestWalkModeNeverSprintsAndSwitchedBackSprintsAtOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data, m := worldtest.LoadData(t), arena(t, time.Hour)
+		inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := warriorAt(spawnZ)
+		s := join(t, inst, p)
+		warrior, _ := data.Class(kernel.Class("warrior"))
+		derived := instance.StatsOf(data, warrior, 1, p.Points, p.Skills, p.Worn, progression.ItemStats{}, worldtest.TickInterval).Derived
+		params := data.Movement().Faster(sim.SpeedFactor(derived.MoveSpeed))
+		east, walkEast := sim.Input{Right: true}, sim.Input{Right: true, Walk: true}
+		v, _ := s.Own(p.ID)
+		want := v.State
+		for range 50 {
+			want = stepped(want, walkEast, m.Geometry, params)
+		}
+		seq := worldtest.Walk(inst, p.ID, 0, walkEast, 50)
+		if got := viewAfter(t, s, p.ID, seq); got != want || !got.Walk || got.Sprint != 0 || got.VX != params.WalkSpeed {
+			t.Fatalf("after 2.5 s walking east in walk mode %+v; want %+v, in walk mode at the walk", got, want)
+		}
+		seq = worldtest.Walk(inst, p.ID, seq, east, 1)
+		want = stepped(want, east, m.Geometry, params)
+		if got := viewAfter(t, s, p.ID, seq); got != want || got.Walk || got.Sprint != 120 || got.VX != float64(params.WalkSpeed*1.6) {
+			t.Fatalf("an input back in sprint mode %+v; want %+v, sprinting by its last sub-step", got, want)
+		}
+	})
+}
+
 // Two attacks pressed inside one backlog each end the count, from the first input past each: the world keeps every press's end, as the client marks each.
 func TestEachPressInABacklogEndsTheSprint(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {

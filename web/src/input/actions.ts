@@ -8,6 +8,7 @@ export type Action =
   | 'up' // walks up the screen, as down, left and right walk their ways
   | 'down'
   | 'jump'
+  | 'walk' // switches between walk mode, which never sprints, and sprint mode
   | 'attack'
   | 'nextTarget' // locks the next mob or, in a match, enemy farther than the locked one
   | 'talk' // enters the portal the player stands in, else talks to the nearest NPC within reach
@@ -46,6 +47,7 @@ export const actions: readonly Action[] = [
   'up',
   'down',
   'jump',
+  'walk',
   'attack',
   'nextTarget',
   'talk',

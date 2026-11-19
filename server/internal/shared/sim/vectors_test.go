@@ -85,6 +85,7 @@ var requiredVectors = []string{
 	"leap-breaks-free", "blink-breaks-free",
 	"leap-through-mob", "leap-through-into-mob", "leap-through-touching-mobs", "leap-through-to-gap", "leap-through-into-box", "leap-through-never-clear", "leap-through-round-trunk",
 	"sprint-after-walking", "sprint-jump-keeps", "sprint-fast", "sprint-and-combat", "sprint-ends-on-press", "sprint-two-presses",
+	"walk-never-sprints", "walk-switch-while-walking", "walk-switch-standing", "walk-switch-in-combat", "walk-held-keeps-mode",
 	"region-forest-sprint", "region-wall-slide", "region-steps-on-corners",
 }
 
@@ -113,6 +114,7 @@ var (
 	east, west, north, south = sim.Input{Right: true}, sim.Input{Left: true}, sim.Input{Up: true}, sim.Input{Down: true}
 	northEast, southEast     = sim.Input{Up: true, Right: true}, sim.Input{Down: true, Right: true}
 	jumpEast, still          = sim.Input{Right: true, Jump: true}, sim.Input{}
+	walkEast, walkStill      = sim.Input{Right: true, Walk: true}, sim.Input{Walk: true} // walk mode's
 )
 
 // ground is a sizeX by sizeZ map whose terrain samples, cell apart, are h(x, z).
@@ -314,6 +316,26 @@ func sprintScenarios() []vector {
 	return vs
 }
 
+// walkScenarios are large-regions.md section 7's walk mode: it never sprints, and switched back while walking out of combat it sprints from the next sub-step, else after the usual 2 s; a hold keeps the mode.
+func walkScenarios() []vector {
+	vs := []vector{
+		{Name: "walk-never-sprints", Notes: "Sprinting east, then walk mode: back to the walk on the switch's own sub-step, and never sprinting through 2 s of it.",
+			Geometry: long(), Start: standing(2, 0, 6), Inputs: runs(east, 125, walkEast, 130)},
+		{Name: "walk-switch-while-walking", Notes: "Walking east in walk mode, then back to sprint mode while walking: the switch's sub-step walks, its count straight at 120, and the next sprints.",
+			Geometry: long(), Start: standing(2, 0, 6), Inputs: runs(walkEast, 60, east, 5)},
+		{Name: "walk-switch-standing", Notes: "Walking east in walk mode, stopping, switching back while standing, then walking on: the count starts from 0, sprinting 2 s on.",
+			Geometry: long(), Start: standing(2, 0, 6), Inputs: runs(walkEast, 30, walkStill, 2, still, 2, east, 125)},
+		{Name: "walk-switch-in-combat", Notes: "Walking east in walk mode, switched back in combat, which steps with no sprint: out of combat the count starts from 0, so a switch in a fight stores no sprint.",
+			Geometry: long(), Start: standing(2, 0, 6), Inputs: []inputRun{{Input: walkEast, Repeat: 30}, {Input: east, Repeat: 10, Fighting: true}, {Input: east, Repeat: 125}}},
+		{Name: "walk-held-keeps-mode", Notes: "Walking east in walk mode, held 10 sub-steps: the hold empties the keys but keeps the mode, so switching back as it ends, while walking, sprints from the next sub-step.",
+			Geometry: long(), Start: standing(2, 0, 6), Inputs: []inputRun{{Input: walkEast, Repeat: 30}, {Input: walkEast, Repeat: 10, Held: 10}, {Input: east, Repeat: 5}}},
+	}
+	for i := range vs {
+		vs[i].Params = sprinting
+	}
+	return vs
+}
+
 // regionScenarios walk bodies over many 8 m buckets among solids lying on and across their lines, as a region's do (large-regions.md section 5).
 func regionScenarios() []vector {
 	level := func(_, _ float64) float64 { return 0 }
@@ -437,6 +459,7 @@ func scenarios() []vector {
 		vs[i].Params = params
 	}
 	vs = append(vs, sprintScenarios()...)
+	vs = append(vs, walkScenarios()...)
 	return append(vs, regionScenarios()...)
 }
 

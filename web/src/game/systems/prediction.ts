@@ -41,6 +41,8 @@ export interface ServerState {
   readonly slow?: { readonly left: number; readonly factor: number } | undefined;
   /** Sub-steps walked toward a sprint; 0 when none. */
   readonly sprint?: number;
+  /** The mode it last stepped in: walk mode, or sprint mode when false. */
+  readonly walk?: boolean;
 }
 
 export function wireState(s: ServerState): State {
@@ -71,9 +73,10 @@ export function wireState(s: ServerState): State {
       : body;
   const held: State = s.held ? { ...moving, held: s.held } : moving;
   const sprint: State = s.sprint ? { ...held, sprint: s.sprint } : held;
+  const walk: State = s.walk ? { ...sprint, walk: true } : sprint;
   return s.slow && s.slow.left > 0
-    ? { ...sprint, slow: { left: s.slow.left, factor: s.slow.factor } }
-    : sprint;
+    ? { ...walk, slow: { left: s.slow.left, factor: s.slow.factor } }
+    : walk;
 }
 
 /** A pace from the first input past after, as the world switches a buff's move speed at its hit and back at its end; params is read as it applies, so it follows a sheet that came since. */
@@ -135,7 +138,8 @@ function same(a: State, b: State): boolean {
     a.held === b.held &&
     a.slow?.left === b.slow?.left &&
     a.slow?.factor === b.slow?.factor &&
-    a.sprint === b.sprint
+    a.sprint === b.sprint &&
+    a.walk === b.walk
   );
 }
 

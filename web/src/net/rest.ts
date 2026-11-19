@@ -40,6 +40,8 @@ export interface Settings {
   readonly hide_minimap?: boolean;
   /** How far the camera has pulled back, 0 close to 1 far; 0 when the account never set it. */
   readonly zoom?: number;
+  /** Walk mode, which never sprints; false when the account never set it: sprint mode. */
+  readonly walk?: boolean;
   /** The changes to the default keys, an action to a KeyboardEvent.code; none when the account never set any. */
   readonly keys?: Readonly<Record<string, string>>;
 }

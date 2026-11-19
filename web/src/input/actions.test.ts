@@ -10,6 +10,7 @@ const table: Readonly<Record<string, string>> = {
   up: 'ArrowUp',
   down: 'ArrowDown',
   jump: 'Space',
+  walk: 'ShiftLeft',
   attack: 'KeyX',
   nextTarget: 'Tab',
   talk: 'KeyZ',

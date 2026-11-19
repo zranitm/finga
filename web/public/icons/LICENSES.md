@@ -1,9 +1,10 @@
 # Icons
 
-Every skill and status icon here is from [game-icons.net](https://game-icons.net), under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), which asks for credit: Settings names each author used. Each file is the site's SVG with its black background square taken out, so only the glyph is left; the client draws it as a white mask on the skill's or the status's colour.
+Every skill, status and HUD icon here is from [game-icons.net](https://game-icons.net), under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), which asks for credit: Settings names each author used. Each file is the site's SVG with its black background square taken out, so only the glyph is left; the client draws it as a white mask on the skill's, the status's or the HUD tile's colour.
 
 | File                                       | Author      | Licence   | Source                                                        |
 | ------------------------------------------ | ----------- | --------- | ------------------------------------------------------------- |
+| hud/delapouite/walk.svg                    | Delapouite  | CC BY 3.0 | https://game-icons.net/1x1/delapouite/walk.html               |
 | skills/darkzaitzev/smoke-bomb.svg          | DarkZaitzev | CC BY 3.0 | https://game-icons.net/1x1/darkzaitzev/smoke-bomb.html        |
 | skills/delapouite/charging-bull.svg        | Delapouite  | CC BY 3.0 | https://game-icons.net/1x1/delapouite/charging-bull.html      |
 | skills/delapouite/eagle-head.svg           | Delapouite  | CC BY 3.0 | https://game-icons.net/1x1/delapouite/eagle-head.html         |

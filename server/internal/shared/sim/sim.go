@@ -102,13 +102,14 @@ type Geometry struct {
 	blockers  *Blockers  // its blockers bucketed, set by Blocking
 }
 
-// Input is the keys held during one sub-step: up walks north (+z), right east (+x).
+// Input is the keys held during one sub-step: up walks north (+z), right east (+x); Walk is walk mode, which never sprints (large-regions.md section 7).
 type Input struct {
 	Left  bool `json:"left,omitempty"`
 	Right bool `json:"right,omitempty"`
 	Up    bool `json:"up,omitempty"`
 	Down  bool `json:"down,omitempty"`
 	Jump  bool `json:"jump,omitempty"`
+	Walk  bool `json:"walk,omitempty"`
 }
 
 // State is a body's movement state, (X, Y, Z) at the centre of its feet, y up, facing the unit heading (HX, HZ); Step returns a new one.
@@ -126,6 +127,7 @@ type State struct {
 	Held     int     `json:"held,omitzero"` // sub-steps left of a status holding the body: no keys, no jump, no skill's move, gravity still running
 	Slow     Slow    `json:"slow,omitzero"`
 	Sprint   int     `json:"sprint,omitzero"` // sub-steps walked toward a sprint, held at SprintSteps once there: from the next, it sprints
+	Walk     bool    `json:"walk,omitzero"`   // the mode it last stepped in: walk mode, or sprint mode when false
 }
 
 // Slow is a status slowing the walk: Factor × the walk speed for Left more sub-steps; a skill's move keeps its speed.
@@ -229,8 +231,8 @@ func inMob(s State, g Geometry, p Params) bool {
 
 // Step advances s by one sub-step in web/src/sim's order; float64(...) on products stops arm64 fusing them into FMA.
 func Step(s State, in Input, g Geometry, p Params) State {
-	if s.Held > 0 { // held where it is, its heading kept, a skill's move ended
-		in, s.Move = Input{}, Move{}
+	if s.Held > 0 { // held where it is, its heading kept, a skill's move ended; the mode kept
+		in, s.Move = Input{Walk: in.Walk}, Move{}
 	}
 	x, z := keys(in.Right, in.Left), keys(in.Up, in.Down)
 	if x != 0 && z != 0 {
@@ -241,13 +243,16 @@ func Step(s State, in Input, g Geometry, p Params) State {
 	}
 	moving := s.Move.Left > 0
 	walking, sprintAt := (x != 0 || z != 0) && !moving, SprintSteps(p)
-	sprinting := walking && sprintAt > 0 && s.Sprint >= sprintAt
+	sprinting := walking && sprintAt > 0 && s.Sprint >= sprintAt && !in.Walk
 	switch {
-	case !walking || sprintAt == 0: // standing, a skill's move, a hold or a fight ends the count; a jump keeps it
+	case !walking || sprintAt == 0 || in.Walk: // standing, a skill's move, a hold, a fight or walk mode ends the count; a jump keeps it
 		s.Sprint = 0
+	case s.Walk: // back to sprint mode while walking out of combat: it sprints from the next sub-step
+		s.Sprint = sprintAt
 	case s.Sprint < sprintAt:
 		s.Sprint++
 	}
+	s.Walk = in.Walk
 	speed := p.WalkSpeed
 	if sprinting {
 		speed = float64(speed * p.Sprint.Speed)

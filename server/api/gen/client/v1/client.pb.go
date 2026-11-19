@@ -2086,7 +2086,9 @@ type Input struct {
 	Down  bool                   `protobuf:"varint,4,opt,name=down,proto3" json:"down,omitempty"`
 	Jump  bool                   `protobuf:"varint,5,opt,name=jump,proto3" json:"jump,omitempty"`
 	// The server tick of the mobs the client drew, which the world blocks this input against.
-	View          uint32 `protobuf:"varint,6,opt,name=view,proto3" json:"view,omitempty"`
+	View uint32 `protobuf:"varint,6,opt,name=view,proto3" json:"view,omitempty"`
+	// Walk mode, which never sprints, sent with every input as the sim steps it as Input.Walk (large-regions.md section 7).
+	Walk          bool `protobuf:"varint,7,opt,name=walk,proto3" json:"walk,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2161,6 +2163,13 @@ func (x *Input) GetView() uint32 {
 		return x.View
 	}
 	return 0
+}
+
+func (x *Input) GetWalk() bool {
+	if x != nil {
+		return x.Walk
+	}
+	return false
 }
 
 // Attack swings or shoots the way the character faces.
@@ -5015,7 +5024,9 @@ type PlayerView struct {
 	// A bot fighting in a match, which no one plays.
 	Bot bool `protobuf:"varint,30,opt,name=bot,proto3" json:"bot,omitempty"`
 	// Sub-steps walked toward a sprint, which the sim steps as State.Sprint, held at movement.yaml's sprint.after once there: from the next, it sprints; 0 when none.
-	Sprint        int32 `protobuf:"varint,31,opt,name=sprint,proto3" json:"sprint,omitempty"`
+	Sprint int32 `protobuf:"varint,31,opt,name=sprint,proto3" json:"sprint,omitempty"`
+	// The mode it last stepped in, State.Walk: walk mode, or sprint mode when false; the player's own reconcile replays from it.
+	Walk          bool `protobuf:"varint,32,opt,name=walk,proto3" json:"walk,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5237,6 +5248,13 @@ func (x *PlayerView) GetSprint() int32 {
 		return x.Sprint
 	}
 	return 0
+}
+
+func (x *PlayerView) GetWalk() bool {
+	if x != nil {
+		return x.Walk
+	}
+	return false
 }
 
 // SlowWalk is a status slowing a player's walk: factor × the walk speed for left more sub-steps.
@@ -8974,14 +8992,15 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x05Hello\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12)\n" +
 	"\x10protocol_version\x18\x02 \x01(\x05R\x0fprotocolVersion\x12!\n" +
-	"\fcharacter_id\x18\x03 \x01(\tR\vcharacterId\"}\n" +
+	"\fcharacter_id\x18\x03 \x01(\tR\vcharacterId\"\x91\x01\n" +
 	"\x05Input\x12\x12\n" +
 	"\x04left\x18\x01 \x01(\bR\x04left\x12\x14\n" +
 	"\x05right\x18\x02 \x01(\bR\x05right\x12\x0e\n" +
 	"\x02up\x18\x03 \x01(\bR\x02up\x12\x12\n" +
 	"\x04down\x18\x04 \x01(\bR\x04down\x12\x12\n" +
 	"\x04jump\x18\x05 \x01(\bR\x04jump\x12\x12\n" +
-	"\x04view\x18\x06 \x01(\rR\x04view\"8\n" +
+	"\x04view\x18\x06 \x01(\rR\x04view\x12\x12\n" +
+	"\x04walk\x18\a \x01(\bR\x04walk\"8\n" +
 	"\x06Attack\x12\x10\n" +
 	"\x03aim\x18\x01 \x01(\x02R\x03aim\x12\x16\n" +
 	"\x06target\x18\x03 \x01(\tR\x06targetJ\x04\b\x02\x10\x03\"\b\n" +
@@ -9205,7 +9224,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x04kind\x18\x02 \x01(\x0e2\x19.client.v1.SkillTimerKindR\x04kind\x12\x17\n" +
 	"\aleft_ms\x18\x03 \x01(\x03R\x06leftMs\x12\x16\n" +
 	"\x06points\x18\x04 \x01(\x05R\x06points\x12\x14\n" +
-	"\x05trait\x18\x05 \x01(\tR\x05trait\"\xa9\x05\n" +
+	"\x05trait\x18\x05 \x01(\tR\x05trait\"\xbd\x05\n" +
 	"\n" +
 	"PlayerView\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
@@ -9235,7 +9254,8 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\bstatuses\x18\x1b \x03(\v2\x15.client.v1.StatusViewR\bstatuses\x12\x12\n" +
 	"\x04team\x18\x1d \x01(\x05R\x04team\x12\x10\n" +
 	"\x03bot\x18\x1e \x01(\bR\x03bot\x12\x16\n" +
-	"\x06sprint\x18\x1f \x01(\x05R\x06sprintJ\x04\b\t\x10\n" +
+	"\x06sprint\x18\x1f \x01(\x05R\x06sprint\x12\x12\n" +
+	"\x04walk\x18  \x01(\bR\x04walkJ\x04\b\t\x10\n" +
 	"J\x04\b\v\x10\fJ\x04\b\x10\x10\x11J\x04\b\x1c\x10\x1dR\x06facingR\bclimbingR\acastingR\x06immune\"6\n" +
 	"\bSlowWalk\x12\x12\n" +
 	"\x04left\x18\x01 \x01(\x05R\x04left\x12\x16\n" +

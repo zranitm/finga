@@ -5,16 +5,16 @@ import type { Settings } from '@/net/rest';
 import { settings } from '@/state/settings';
 import { resetStores } from '@/testing/reset-stores';
 
-import { watchZoom } from './settings';
+import { watchPlaySettings } from './settings';
 
 function watched(answer: () => Promise<Settings> = () => Promise.resolve({})) {
   const putSettings = vi.fn<(s: Settings) => Promise<Settings>>(() => answer());
   const notice = vi.fn();
-  const stop = watchZoom({ putSettings }, notice);
+  const stop = watchPlaySettings({ putSettings }, notice);
   return { putSettings, notice, stop };
 }
 
-describe('saving the zoom', () => {
+describe('saving the zoom and walk mode', () => {
   beforeEach(() => {
     localStorage.clear();
     resetStores();
@@ -35,10 +35,25 @@ describe('saving the zoom', () => {
     stop();
   });
 
-  it('another setting, which its own screen saves, is no zoom to save', () => {
+  it('switches of walk mode save the settings once, 800 ms after the last, with the mode it ended on', () => {
+    const { putSettings, stop } = watched();
+    settings.getState().setWalk(true);
+    vi.advanceTimersByTime(300);
+    settings.getState().setWalk(false);
+    vi.advanceTimersByTime(300);
+    settings.getState().setWalk(true);
+    vi.advanceTimersByTime(799);
+    expect(putSettings).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(putSettings.mock.calls.map(([s]) => s.walk)).toEqual([true]);
+    stop();
+  });
+
+  it('another setting, which its own screen saves, is none to save', () => {
     const { putSettings, stop } = watched();
     settings.getState().setShowMinimap(false);
     settings.getState().setZoom(0);
+    settings.getState().setWalk(false);
     vi.advanceTimersByTime(1000);
     expect(putSettings).not.toHaveBeenCalled();
     stop();

@@ -398,6 +398,43 @@ describe('World', () => {
     expect(p.sent('input').some((d) => d.right === true)).toBe(true);
   });
 
+  it('Left Shift switches walk mode on its press alone, saying which; every input carries it, so the player never sprints, and switched back while walking sprints at once', async () => {
+    const p = await playing(FLAT, 4, 20);
+    const me = p.root(classLook('warrior').file)!;
+    key('ShiftLeft', true);
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ShiftLeft', repeat: true })); // held: no second switch
+    key('ShiftLeft', false);
+    expect(settings.getState().walk).toBe(true);
+    expect(toasts.getState().toasts.map((t) => [t.text, t.kind])).toEqual([['Walk', 'info']]);
+    const before = p.inputs();
+    key('ArrowRight', true);
+    p.live(50); // 2.5 s, past the sprint's 2 s
+    const walkFrom = me.position.x;
+    p.live(10);
+    const walked = me.position.x - walkFrom;
+    expect(
+      p
+        .sent('input')
+        .slice(before)
+        .every((d) => d.walk === true),
+    ).toBe(true);
+    const switched = p.inputs();
+    key('ShiftLeft', true);
+    key('ShiftLeft', false);
+    expect(toasts.getState().toasts.at(-1)?.text).toBe('Sprint');
+    p.live(1); // the switch's tick: its first sub-step walks
+    const sprintFrom = me.position.x;
+    p.live(10);
+    key('ArrowRight', false);
+    expect((me.position.x - sprintFrom) / walked).toBeCloseTo(movement.sprint.speed, 2);
+    expect(
+      p
+        .sent('input')
+        .slice(switched)
+        .some((d) => d.walk === true),
+    ).toBe(false);
+  });
+
   it('eases the camera after the player, time-based, and holds it inside the map', async () => {
     const p = await playing(FLAT, 4, 20);
     const camera = p.scene()!.activeCamera!;

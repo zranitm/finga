@@ -1,10 +1,12 @@
-// Sends an Input every tick even when nothing changed; a jump tapped within a tick still counts.
+// Sends an Input every tick even when nothing changed, with the mode; a jump tapped within a tick still counts.
 import { heldInput } from '@/input/actions';
 import type { Action } from '@/input/actions';
 import type { Input } from '@/sim/input';
 
 export interface InputSenderOptions {
   readonly send: (input: Input, tick: number, view: number) => boolean;
+  /** Whether walk mode is on, which every input carries (large-regions.md section 7). */
+  readonly walk: () => boolean;
 }
 
 export class InputSender {
@@ -33,7 +35,8 @@ export class InputSender {
 
   private sample(): Input {
     const input = heldInput(this.held);
-    return this.jumpLatched ? { ...input, jump: true } : input;
+    const jumped = this.jumpLatched ? { ...input, jump: true } : input;
+    return this.opts.walk() ? { ...jumped, walk: true } : jumped;
   }
 
   /** Sends this tick's input, with view, the tick of the mobs drawn as it's predicted. */
