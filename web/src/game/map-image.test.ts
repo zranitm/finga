@@ -23,6 +23,7 @@ function map(boxes: Box[] = []): WorldMap {
       cylinders: [{ x: 2, z: 6, radius: 1, top: 3 }],
     },
     solids: [],
+    prepWall: null,
     props: [],
     portals: [],
   };

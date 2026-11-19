@@ -5,7 +5,7 @@ import type { Mark } from './aim';
 
 const EAST = Math.PI / 2;
 const mark = (id: number, x: number, z: number): Mark => ({
-  id,
+  id: `m:${id}`,
   x,
   z,
   radius: 0.5,

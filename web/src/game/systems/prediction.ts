@@ -1,4 +1,5 @@
 // The player's own body, stepped ahead of the world on the sim it runs, and set right from each Delta's state for its last input.
+import type { maps } from '@/gamedata/maps';
 import { movement } from '@/gamedata/movement';
 import type { TickTiming } from '@/lib/fixed-step';
 import { RingBuffer } from '@/lib/ring-buffer';
@@ -104,9 +105,12 @@ interface TickEntry {
   state: State;
 }
 
-/** The movement a player predicts with: its move speed in hunting maps, and everyone's one pace in towns, as the world moves it. */
-export function movementParams(kind: 'town' | 'hunting', moveSpeed: number): Params {
-  return kind === 'hunting' ? faster(movement, speedFactor(moveSpeed)) : movement;
+/** A town, a hunting map or a match's map. */
+export type MapKind = (typeof maps)[number]['kind'];
+
+/** The movement a player predicts with: its move speed in hunting and match maps, and everyone's one pace in towns, as the world moves it. */
+export function movementParams(kind: MapKind, moveSpeed: number): Params {
+  return kind === 'town' ? movement : faster(movement, speedFactor(moveSpeed));
 }
 
 /** The same body to the bit: the sims run alike, so any difference is the world's own, a push or a blocker the client didn't see. */
@@ -160,7 +164,7 @@ export class Predictor {
 
   /** timing is the world's: its ticks, and the movement steps each holds; blockersAt is the mobs at a view, which block the player. */
   constructor(
-    private readonly g: Geometry,
+    private g: Geometry,
     timing: Pick<TickTiming, 'tickMs' | 'stepsPerTick'>,
     private p: Params,
     private readonly blockersAt: (view: number) => readonly Blocker[],
@@ -169,6 +173,11 @@ export class Predictor {
     this.stepsPerTick = timing.stepsPerTick;
     this.history = new RingBuffer<TickEntry>(Math.ceil(HISTORY_MS / timing.tickMs));
     this.state = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, on_ground: true, hx: 0, hz: 1 };
+  }
+
+  /** The solids the world walks the player against from the next step, as a match's prep wall stands or falls; what was predicted before it, the usual reconciliation corrects. */
+  setGeometry(g: Geometry): void {
+    this.g = g;
   }
 
   /** A new move speed applies from the next step; what was predicted before it, the usual reconciliation corrects. */

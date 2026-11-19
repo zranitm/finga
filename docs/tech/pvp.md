@@ -452,7 +452,7 @@ Area 55, PvP:
   - **Play:** a card for each mode, with the rating, rank or "Placing (n of 5)", the record, and Queue or Leave queue. A refusal shows the server's message.
   - **Leaderboard:** 1v1 or 3v3, the top 100, and the player's own row.
 - **The queue tag,** `features/pvp/QueueTag.tsx`, by the minimap: the mode and the time waited, counted locally from `since_ms`, with ✕ to leave.
-- **The offer card,** `features/pvp/MatchOffer.tsx`, with Accept and Decline. It counts down locally.
+- **The offer card,** `features/pvp/MatchOffer.tsx`, with Accept and Decline. It counts down locally. Accept shows "Waiting for the others…" at once, as its Response comes only when the match opens, after the MapChange; a refusal brings the buttons back.
 - **The match bar,** `features/hud/MatchBar.tsx`:
   - **Rounds:** each side's pips and the round's time.
   - **15v15:** both scores, the three points in their holders' colours, each with its ring, and the time.
@@ -477,6 +477,27 @@ Area 55, PvP:
 - **The map window:**
   - In a match, This map shows the sides, bases and points. The World chart is hidden.
   - The minimap shows the points.
+
+As built for 1v1 (build step 2):
+
+- **The lock:**
+  - Every mark is a ref. In a match, enemies drawn on screen are marked after the mobs, so the lock picks and Tab cycles both. A teammate is never marked.
+  - A remote skill's area at the lock centres on either kind. The place opens round a locked enemy as round a mob.
+  - The key-binding window calls Tab "Lock the next target".
+- **Names:** enemies `#ff6b62`, teammates `#7fe08a`. A bot's name carries a BOT tag after it.
+- **A match's map plays as a hunting map,** as the world has it: move speed counts, and the lock, attacks and skills work. Before this, the client read any kind but `hunting` as a town.
+- **The prep wall:**
+  - It's drawn as a see-through sheet of the portals' blue, `#5fb8ff` at 0.4, laid over the ground. Added light saturated to white on the ring's sand.
+  - Prediction walks against the map's solids with the wall's appended after them, from the `MatchState` that starts or ends prep or the countdown.
+  - While it stands, attacks wait, and a skill's key says "Wait for the round to start."
+- **The count into a round** shows mid-screen in big numbers.
+- **Leave match** is on the match bar. It forfeits after a second press, "Leave and lose?".
+- **The offer card and the result** draw over any open window.
+- **The result screen** stays through the trip back, until Return closes it.
+- **Party:**
+  - In a round mode the party frames give way, their place the teammates' (none in 1v1).
+  - A member on a match's map shows "In a match" on their frame and in the Party window.
+- **The Map window** shows This map alone in a match. Sides, bases and points come with 15v15.
 
 ## 14. Balance
 

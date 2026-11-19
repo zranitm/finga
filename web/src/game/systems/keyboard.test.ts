@@ -52,7 +52,7 @@ describe('bindKeyboard', () => {
   });
 
   it.each([
-    { name: 'a key no action takes', code: 'KeyV' },
+    { name: 'a key no action takes', code: 'KeyB' },
     { name: 'a digit past the potion’s', code: 'Digit2' },
   ])('$name does nothing, and keeps its default', ({ code }) => {
     const { target, key } = setup();

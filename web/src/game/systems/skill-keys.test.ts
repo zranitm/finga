@@ -13,6 +13,7 @@ function keys(
   caster: Partial<Caster> = {},
   town = false,
   slots: readonly string[] = ['strike', 'spark', 'second_wind', 'throw', '', 'heal', '', ''],
+  notStarted = false,
 ) {
   let now = 1000;
   const action = {
@@ -57,6 +58,7 @@ function keys(
       ...caster,
     }),
     inTown: () => town,
+    notStarted: () => notStarted,
     tickMs: 50,
     now: () => now,
     cooldowns: () => cooldowns,
@@ -199,7 +201,10 @@ describe('SkillKeys', () => {
     const short = keys({ energy: 1 }); // Bolt costs 2
     short.k.press(1);
     expect(short.notice).toHaveBeenCalledWith('Not enough energy.');
-    for (const r of [none, town, taunt, short]) {
+    const early = keys({}, false, undefined, true); // a match's round not yet under way
+    early.k.press(5); // a heal too
+    expect(early.notice).toHaveBeenCalledWith('Wait for the round to start.');
+    for (const r of [none, town, taunt, short, early]) {
       expect(r.use).not.toHaveBeenCalled();
       expect(r.cooldowns).toEqual({});
       expect(r.spend.spent).toEqual([]);

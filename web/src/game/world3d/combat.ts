@@ -191,11 +191,11 @@ export class Combat {
     beats: Beats,
     at: Body,
     yaw: number,
-    target = 0,
+    target?: Ref,
   ): void {
     this.acted(caster, beats, damageType(stage.damage), shotRange(skill, stage), at);
     const tier = stageAt(skill, stage.at); // an extra trait's stage is the last evolution's tier
-    const lock = target > 0 ? () => this.deps.body({ kind: 'mob', id: target }) : undefined;
+    const lock = target && (() => this.deps.body(target));
     this.look(
       caster,
       skillEffect(skill.id),

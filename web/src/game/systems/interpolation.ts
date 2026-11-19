@@ -137,6 +137,13 @@ export interface RemoteWire extends ServerState {
   readonly id: string;
   readonly name: string;
   readonly class: string;
+  readonly level: number;
+  readonly hp: number;
+  readonly maxHp: number;
+  /** Its side in a match, 1 or 2; 0 outside one, where no player is anyone's enemy. */
+  readonly team: number;
+  /** A bot fighting in a match, which no one plays. */
+  readonly bot: boolean;
   readonly statuses: readonly StatusOn[];
   readonly dodging: boolean;
   readonly shield: number;
@@ -149,13 +156,24 @@ export interface RemoteLook {
   readonly shield: number;
 }
 
+/** Who a remote player is and how they stand, as of the newest frame. */
+export interface RemoteInfo {
+  readonly name: string;
+  readonly cls: string;
+  readonly level: number;
+  readonly hp: number;
+  readonly maxHp: number;
+  readonly team: number;
+  readonly bot: boolean;
+}
+
 /** A look is on or off: it holds from its frame to the next, and isn't blended. */
 const steps: Mix<RemoteLook> = { blend: (a) => a, ahead: (s) => s };
 
 export class RemotePlayers {
   private readonly buffers = new Map<string, RemoteBuffer>();
   private readonly looks = new Map<string, FrameBuffer<RemoteLook>>();
-  private readonly info = new Map<string, { name: string; cls: string }>();
+  private readonly info = new Map<string, RemoteInfo>();
   private readonly statuses = new Map<string, readonly StatusOn[]>();
 
   constructor(
@@ -191,11 +209,15 @@ export class RemotePlayers {
       b = new RemoteBuffer(this.tickMs);
       this.buffers.set(p.id, b);
     }
-    // A promotion changes the class mid-stay.
-    const info = this.info.get(p.id);
-    if (info?.cls !== p.class || info.name !== p.name) {
-      this.info.set(p.id, { name: p.name, cls: p.class });
-    }
+    this.info.set(p.id, {
+      name: p.name,
+      cls: p.class, // a promotion changes it mid-stay
+      level: p.level,
+      hp: p.hp,
+      maxHp: p.maxHp,
+      team: p.team,
+      bot: p.bot,
+    });
     this.statuses.set(p.id, p.statuses);
     b.push(t, wireState(p));
     let l = this.looks.get(p.id);
@@ -234,6 +256,11 @@ export class RemotePlayers {
       }
     }
     return { shown, looks, gone };
+  }
+
+  /** Who a player is as of the newest frame, until they're gone. */
+  infoOf(id: string): RemoteInfo | undefined {
+    return this.info.get(id);
   }
 
   nameOf(id: string): string {

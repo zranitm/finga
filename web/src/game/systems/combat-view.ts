@@ -17,17 +17,6 @@ export function parseRef(ref: string): Ref | undefined {
   return undefined;
 }
 
-/** The lock on mob id as the server reads it, "" for none. */
-export function mobLock(id: number): string {
-  return id > 0 ? `m:${id}` : '';
-}
-
-/** The mob a lock ref names, 0 for none or a player. */
-export function lockedMob(ref: string): number {
-  const r = parseRef(ref);
-  return r?.kind === 'mob' ? r.id : 0;
-}
-
 export type NumberKind = 'hit' | 'crit' | 'miss' | 'taken' | 'healHp' | 'dot' | 'shield';
 
 /** A number on the screen: where it was asked to start and where it starts, a line or more above when it stacks, in CSS pixels. */

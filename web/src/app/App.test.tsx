@@ -248,7 +248,7 @@ describe('App', () => {
       if (path === '/api/sessions') return { status: 201, body: { token: 'tok-1' } };
       if (path === '/api/characters')
         return { status: 200, body: { characters: [sampleCharacter] } };
-      if (path === '/api/settings') return { status: 200, body: { keys: { attack: 'KeyV' } } };
+      if (path === '/api/settings') return { status: 200, body: { keys: { attack: 'KeyB' } } };
       return { status: 404, body: { code: ERR.NO_SUCH_ENDPOINT, message: 'nope' } };
     });
     render(<App />);
@@ -281,17 +281,17 @@ describe('App', () => {
       if (path === '/api/sessions') return { status: 201, body: { token: 'tok-1' } };
       if (path === '/api/characters')
         return { status: 200, body: { characters: [sampleCharacter] } };
-      if (path === '/api/settings') return { status: 200, body: { keys: { attack: 'KeyV' } } };
+      if (path === '/api/settings') return { status: 200, body: { keys: { attack: 'KeyB' } } };
       return { status: 404, body: { code: ERR.NO_SUCH_ENDPOINT, message: 'nope' } };
     });
     render(<App />);
     await logIn();
-    await waitFor(() => expect(settings.getState().keys).toEqual({ attack: 'KeyV' }));
+    await waitFor(() => expect(settings.getState().keys).toEqual({ attack: 'KeyB' }));
     await user.click(await screen.findByRole('button', { name: 'Play' }));
     await user.click(await screen.findByRole('button', { name: 'Settings' }));
     const dialog = screen.getByRole('dialog', { name: 'Settings' });
     await user.click(within(dialog).getByRole('button', { name: 'Key bindings' }));
-    expect(within(dialog).getByRole('button', { name: 'Attack: V' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Attack: B' })).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Back' }));
     await user.click(within(dialog).getByRole('button', { name: 'Done' }));
     expect(screen.queryByRole('dialog', { name: 'Settings' })).not.toBeInTheDocument();

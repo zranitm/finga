@@ -12,3 +12,13 @@ export function mobName(type: string): string {
 export function mapName(id: string): string {
   return maps.find((m) => m.id === id)?.name ?? id;
 }
+
+/** Whether the map is a match's (pvp.md section 3). */
+export function isMatchMap(id: string): boolean {
+  return maps.find((m) => m.id === id)?.kind === 'pvp';
+}
+
+/** Where a party member is, as their frame says it: a match's map is "In a match" (pvp.md section 4). */
+export function whereIs(mapId: string): string {
+  return isMatchMap(mapId) ? 'In a match' : mapName(mapId);
+}

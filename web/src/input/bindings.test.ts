@@ -29,14 +29,14 @@ describe('key names', () => {
 
 describe('the player’s keys', () => {
   it('lay the changes over the defaults', () => {
-    const table = keyTable({ attack: 'KeyV', skill1: 'ShiftLeft' });
-    expect([table.attack, table.skill1, table.skill2]).toEqual([['KeyV'], ['ShiftLeft'], ['KeyW']]);
+    const table = keyTable({ attack: 'KeyB', skill1: 'ShiftLeft' });
+    expect([table.attack, table.skill1, table.skill2]).toEqual([['KeyB'], ['ShiftLeft'], ['KeyW']]);
     expect(keyTable({})).toEqual(defaults);
   });
 
   it.each([
-    { name: 'an action this client doesn’t know', changes: { fly: 'KeyV' } },
-    { name: 'a fixed action', changes: { chat: 'KeyV', close: 'KeyG' } },
+    { name: 'an action this client doesn’t know', changes: { fly: 'KeyB' } },
+    { name: 'a fixed action', changes: { chat: 'KeyB', close: 'KeyG' } },
     { name: 'a reserved key', changes: { attack: 'F5' } },
     { name: 'a key another action keeps by default', changes: { attack: 'KeyQ' } },
   ])('ignore $name, which keeps its default', ({ changes }) => {
@@ -57,12 +57,12 @@ describe('the player’s keys', () => {
   });
 
   it('are worked out once per set of changes', () => {
-    const changes = { attack: 'KeyV' };
+    const changes = { attack: 'KeyB' };
     expect(keyTable(changes)).toBe(keyTable(changes));
   });
 
   it('rebind moves the action holding a key onto the old key, and keep only what differs from the defaults', () => {
-    expect(rebind({}, 'attack', 'KeyV')).toEqual({ changes: { attack: 'KeyV' }, moved: null });
+    expect(rebind({}, 'attack', 'KeyB')).toEqual({ changes: { attack: 'KeyB' }, moved: null });
     expect(rebind({}, 'attack', 'KeyQ')).toEqual({
       changes: { attack: 'KeyQ', skill1: 'KeyX' },
       moved: 'skill1',
@@ -71,7 +71,7 @@ describe('the player’s keys', () => {
       changes: {},
       moved: 'skill1',
     });
-    expect(rebind({ attack: 'KeyV' }, 'attack', 'KeyX')).toEqual({ changes: {}, moved: null });
+    expect(rebind({ attack: 'KeyB' }, 'attack', 'KeyX')).toEqual({ changes: {}, moved: null });
   });
 
   it('name keys as the player’s keyboard prints them, where the browser says, else by US names', () => {

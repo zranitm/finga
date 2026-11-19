@@ -1,8 +1,9 @@
-// Aim (target-lock.md section 4): an action aims at the locked mob, else along the heading; the world takes the aim as sent and doesn't check it.
+// Aim (target-lock.md section 4): an action aims at the lock, a mob or an enemy, else along the heading; the world takes the aim as sent and doesn't check it.
 
-/** A mob as drawn, which the lock may hold and an action aim at. */
+/** A mob or an enemy player as drawn, which the lock may hold and an action aim at. */
 export interface Mark {
-  readonly id: number;
+  /** Its ref as the world reads a lock: "m:<id>" for a mob, "p:<id>" for a player. */
+  readonly id: string;
   readonly x: number;
   readonly z: number;
   readonly radius: number;

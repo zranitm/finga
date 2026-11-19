@@ -1,3 +1,4 @@
+import { create } from '@bufbuild/protobuf';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GameSocket } from '@/net/socket';
@@ -7,6 +8,11 @@ import {
   ChatChannel,
   KickReason,
   LootKind,
+  MatchEndedSchema,
+  MatchOutcome,
+  MatchPhase,
+  PvpOfferGoneReason,
+  PvpUnqueueReason,
   QuestChange,
   QuestOfferState,
   QuestStatus,
@@ -22,6 +28,7 @@ import { energy } from '@/state/energy';
 import { fieldBoss } from '@/state/field-boss';
 import { inventory } from '@/state/inventory';
 import { party } from '@/state/party';
+import { pvp } from '@/state/pvp';
 import { quests } from '@/state/quests';
 import { session } from '@/state/session';
 import { settings } from '@/state/settings';
@@ -238,6 +245,62 @@ describe('wiring', () => {
     expect(teleport.getState().to).toBeNull();
   });
 
+  it('the queue, an offer, a match and its end land in the PvP store; a lapse, a party change or an offer that fell through say so; the trip back leaves the match, its outcome kept', async () => {
+    const { ws } = await connectedSocket();
+    const said = () => toasts.getState().toasts.map((t) => t.text);
+    ws.push('pvpQueued', { mode: 'duel', sinceMs: 2000 });
+    expect(pvp.getState().queued?.mode).toBe('duel');
+    ws.push('pvpOffer', { offer: 'of-1', mode: 'duel', bots: 1, untilMs: 10_000 });
+    ws.push('pvpOfferGone', { offer: 'of-1', reason: PvpOfferGoneReason.DECLINED, requeued: true });
+    ws.push('pvpOffer', { offer: 'of-2', mode: 'duel', bots: 1, untilMs: 10_000 });
+    ws.push('pvpOfferGone', { offer: 'of-2', reason: PvpOfferGoneReason.LAPSED, requeued: true });
+    expect([pvp.getState().offer, pvp.getState().queued?.mode]).toEqual([null, 'duel']);
+    expect(said()).toEqual([
+      'Someone declined the match. You’re back in the queue.',
+      'Someone didn’t answer the match offer. You’re back in the queue.',
+    ]);
+    ws.push('pvpOffer', { offer: 'of-3', mode: 'duel', bots: 1, untilMs: 10_000 });
+    ws.push('mapChange', { mapId: 'ring' });
+    ws.push('matchState', {
+      match: 'mt-1',
+      mode: 'duel',
+      phase: MatchPhase.PREP,
+      round: 1,
+      endsInMs: 10_000,
+      sides: [
+        { fighters: [{ id: 'c-ayla', name: 'Ayla' }] },
+        { fighters: [{ id: 'b-1', name: 'Ash', bot: true }] },
+      ],
+    });
+    expect([pvp.getState().queued, pvp.getState().offer, pvp.getState().match?.id]).toEqual([
+      null,
+      null,
+      'mt-1',
+    ]);
+    ws.push('matchEnded', { result: MatchOutcome.WIN, wins: [2, 1] });
+    ws.push('mapChange', { mapId: 'forest' });
+    expect([pvp.getState().match, pvp.getState().outcome?.rounds]).toEqual([null, [2, 1]]);
+    ws.push('pvpQueued', { mode: 'duel' });
+    ws.push('pvpUnqueued', { reason: PvpUnqueueReason.LEFT });
+    ws.push('pvpQueued', { mode: 'duel' });
+    ws.push('pvpUnqueued', { reason: PvpUnqueueReason.LAPSED });
+    ws.push('pvpQueued', { mode: 'duel' });
+    ws.push('pvpUnqueued', { reason: PvpUnqueueReason.PARTY_CHANGED });
+    expect(pvp.getState().queued).toBeNull();
+    expect(said().slice(2)).toEqual([
+      'You didn’t answer the match offer, so you left the queue.',
+      'Your party changed, so it left the queue.',
+    ]); // leaving is the player's own doing
+    ws.push('pvpQueued', { mode: 'duel' });
+    ws.push('welcome', welcome); // a join is out of any queue till the queue says again
+    expect(pvp.getState().queued).toBeNull();
+    pvp
+      .getState()
+      .applyMatchEnded(create(MatchEndedSchema, { result: MatchOutcome.LOSS }), 'c-ayla');
+    leaveCharacter();
+    expect(pvp.getState().outcome).toBeNull();
+  });
+
   it('a boss appearing anywhere is told as a toast and a [Notice] line in the General tab', async () => {
     const { ws } = await connectedSocket();
     ws.push('announcement', {
@@ -417,6 +480,28 @@ describe('wiring', () => {
       cooldowns: { strike: { from: 96_000, until: 103_000 } },
       buffs: [{ skill: 'war_cry', points: 10, trait: 'fury', until: 115_000 }],
     });
+  });
+
+  // pvp.md: a StatsChanged with timers, at a match's start and end and each round's reset, replaces every cooldown and buff; one without leaves them.
+  it("a StatsChanged's timers replace the skill bar's after a skill was used, and one without them leaves the bar be", async () => {
+    const { ws } = await connectedSocket();
+    vi.spyOn(performance, 'now').mockReturnValue(100_000);
+    ws.push('welcome', welcome);
+    skillBar.getState().cool('strike', { from: 100_000, until: 106_000 }); // as a press of Strike sets it
+    skillBar.getState().buff({ skill: 'haste', points: 1, trait: '', until: 130_000 });
+    ws.push('statsChanged', { hp: 100, maxHp: 100, timers: { timers: [] } }); // the round's reset
+    expect(skillBar.getState()).toMatchObject({ cooldowns: {}, buffs: [] });
+
+    ws.push('statsChanged', {
+      hp: 100,
+      maxHp: 100,
+      timers: { timers: [{ skill: 'iron_body', kind: SkillTimerKind.COOLDOWN, leftMs: 40_000n }] },
+    });
+    expect(skillBar.getState().cooldowns).toEqual({ iron_body: { from: 80_000, until: 140_000 } });
+    ws.push('statsChanged', { hp: 90, maxHp: 100 }); // a hit or regen
+    expect(skillBar.getState().cooldowns.iron_body).toBeDefined();
+    vi.advanceTimersByTime(40_000);
+    expect(skillBar.getState().cooldowns.iron_body).toBeUndefined();
   });
 
   // skill-traits.md section 4: a Damage naming the player, dealt or taken, keeps them in combat; a join or a map change starts out of it.
