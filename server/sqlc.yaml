@@ -56,6 +56,7 @@ sql:
       - internal/migration/00007_item.sql
       - internal/migration/00008_item_no_attack_speed.sql
       - internal/migration/00009_item_no_mp.sql
+      - internal/migration/00013_item_outfit.sql
     queries: internal/repository/item/queries
     gen:
       go:

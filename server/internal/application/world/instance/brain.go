@@ -26,7 +26,9 @@ func (i *Instance) addBots() {
 	for _, side := range i.match.Spec.Sides {
 		for _, f := range side {
 			if b := f.Bot; b != nil {
-				i.inbox <- &joinMsg{player: model.Player{ID: b.ID, Name: b.Name, Class: b.Class}, sink: botSink{}, done: make(chan error, 1)}
+				class, _ := i.data.Class(b.Class)
+				look := model.BotLook(i.data.Pieces(), class.Weapon, b.ID)
+				i.inbox <- &joinMsg{player: model.Player{ID: b.ID, Name: b.Name, Class: b.Class, Look: look}, sink: botSink{}, done: make(chan error, 1)}
 			}
 		}
 	}

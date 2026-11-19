@@ -83,6 +83,8 @@ func TestDTOsMatchOpenAPISchemas(t *testing.T) {
 		{"Stats", api.StatsResponse{}},
 		{"Characters", api.CharactersResponse{}},
 		{"Settings", api.SettingsResponse{}},
+		{"Wardrobe", api.WardrobeResponse{}},
+		{"Piece", api.PieceResponse{}},
 		{"SkillBar", api.SkillBarRequest{}},
 		{"SkillBar", api.SkillBarResponse{}},
 		{"Error", api.ErrorResponse{}},

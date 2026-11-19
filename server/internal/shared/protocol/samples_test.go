@@ -53,7 +53,8 @@ func samples() []wsconn.Message {
 	}
 	player := func() *clientv1.PlayerView { // walking slowed
 		return &clientv1.PlayerView{Id: charA, Name: "Ayla", Class: "warrior", Level: 2, X: 13, Y: 0.5, Vx: 3, OnGround: true, Hp: 250, MaxHp: 250, Z: 2.5, Vz: 4, Hx: 0.6, Hz: 0.8, Aim: 0.75,
-			Slow: &clientv1.SlowWalk{Left: 33, Factor: 0.6}, Statuses: []*clientv1.StatusView{{Id: "slow", Ends: 81246}}}
+			Slow: &clientv1.SlowWalk{Left: 33, Factor: 0.6}, Statuses: []*clientv1.StatusView{{Id: "slow", Ends: 81246}},
+			Look: &clientv1.Look{Outfit: "knight_plate", Weapon: "greatsword", HideHeadwear: true}} // the class's own headwear, hidden, and face
 	}
 	// A player just hit by a mob: in their hit guard, stunned and poisoned.
 	hurt := &clientv1.PlayerView{Id: charB, Name: "Robin", Class: "bowman", Level: 1, X: 16.875, Y: 0.375, Vy: -9.375, Hp: 90, MaxHp: 105, Invulnerable: true, Hx: -1,
@@ -62,7 +63,8 @@ func samples() []wsconn.Message {
 	leaping := &clientv1.PlayerView{Id: charD, Name: "Mira", Class: "thief", Level: 12, X: 20, Y: 0.25, Vy: 3.5, Hp: 300, MaxHp: 300, Z: 8, Hz: 1,
 		Move: &clientv1.SkillMove{Vx: 0, Vz: -13.333333333333334, Left: 9, Through: true, ClearX: 20, ClearZ: 8.5}, Dodging: true, Shield: 64}
 	// A bot on side 2 of a match.
-	bot := &clientv1.PlayerView{Id: "0192f6a4-7002-7c3e-8a1b-2c3d4e5f6a7b", Name: "Cedar", Class: "magician", Level: 30, X: 22, Hp: 410, MaxHp: 410, Z: 18, Hx: -1, Team: 2, Bot: true}
+	bot := &clientv1.PlayerView{Id: "0192f6a4-7002-7c3e-8a1b-2c3d4e5f6a7b", Name: "Cedar", Class: "magician", Level: 30, X: 22, Hp: 410, MaxHp: 410, Z: 18, Hx: -1, Team: 2, Bot: true,
+		Look: &clientv1.Look{Headwear: "pointed_hat", Weapon: "oak_wand"}}
 	mob := func() *clientv1.MobView { // just hit: flinching, poisoned
 		return &clientv1.MobView{Id: 7, Type: "green_slime", X: 15.625, Y: 0.5, Hp: 30, MaxHp: 30, Pose: clientv1.MobPose_MOB_POSE_FLINCH, Z: 1.25, Yaw: -1.5,
 			Statuses: []*clientv1.StatusView{{Id: "poison", Ends: 81290}}}
@@ -155,6 +157,8 @@ func samples() []wsconn.Message {
 		{Type: "PvpLeaveQueue", ReqID: "r-31", Data: &clientv1.PvpLeaveQueue{}},
 		{Type: "PvpAnswer", ReqID: "r-32", Data: &clientv1.PvpAnswer{Offer: "0192f6a4-7000-7c3e-8a1b-2c3d4e5f6a7b", Accept: true}},
 		{Type: "PvpForfeit", ReqID: "r-33", Data: &clientv1.PvpForfeit{}},
+		{Type: "AddToWardrobe", ReqID: "r-34", Data: &clientv1.AddToWardrobe{IdempotencyKey: "k-9", ItemId: item1}},
+		{Type: "SetLook", ReqID: "r-35", Data: &clientv1.SetLook{IdempotencyKey: "k-10", Look: &clientv1.Look{Outfit: "mage_robe", Headwear: "pointed_hat", Weapon: "oak_wand", Wings: "crystal_wings"}}},
 		{Type: "PvpQueued", Data: &clientv1.PvpQueued{Mode: "team", SinceMs: 4250, Members: []string{charA, charB}}},
 		{Type: "PvpUnqueued", Data: &clientv1.PvpUnqueued{Reason: clientv1.PvpUnqueueReason_PVP_UNQUEUE_REASON_PARTY_CHANGED}},
 		{Type: "PvpOffer", Data: &clientv1.PvpOffer{Offer: "0192f6a4-7000-7c3e-8a1b-2c3d4e5f6a7b", Mode: "duel", Bots: 1, UntilMs: 10000}},

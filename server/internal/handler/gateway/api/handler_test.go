@@ -23,6 +23,7 @@ import (
 	"finga/internal/application/account"
 	"finga/internal/application/character"
 	application "finga/internal/application/gateway"
+	"finga/internal/application/item"
 	handler "finga/internal/handler/gateway"
 	"finga/internal/handler/gateway/api"
 	model "finga/internal/model/gateway"
@@ -60,6 +61,7 @@ func gatewayTraces() (*tracing.Provider, *tracetest.SpanRecorder) {
 type harness struct {
 	accounts   *fakeAccounts
 	characters *fakeCharacters
+	items      *fakeItems
 	logs       *bytes.Buffer
 	handler    http.Handler
 }
@@ -69,12 +71,13 @@ func newHarness(origins ...string) *harness {
 	h := &harness{
 		accounts:   &fakeAccounts{token: goodToken, principal: principal},
 		characters: &fakeCharacters{},
+		items:      &fakeItems{},
 		logs:       &bytes.Buffer{},
 	}
 	e := handler.NewEngine()
 	log := slog.New(slog.NewJSONHandler(h.logs, nil))
 	api.Mount(api.Dependencies{
-		Lobby:  application.NewLobby(application.LobbyDeps{Accounts: adapter.NewAccounts(h.accounts), Characters: adapter.NewCharacters(h.characters), Sessions: adapter.NewGuard(h.accounts)}),
+		Lobby:  application.NewLobby(application.LobbyDeps{Accounts: adapter.NewAccounts(h.accounts), Characters: adapter.NewCharacters(h.characters), Sessions: adapter.NewGuard(h.accounts), Wardrobes: adapter.NewItems(h.items)}),
 		Logger: log, CORSOrigins: origins, Panics: panics.NewRecorder(log, nil), Traces: traces,
 	})(e)
 	h.handler = e
@@ -404,6 +407,31 @@ func TestCharacters(t *testing.T) {
 			})
 		}
 	})
+}
+
+// The wardrobe reads the caller's account's pieces, each with what gave it; none is [], never null.
+func TestWardrobe(t *testing.T) {
+	h := newHarness()
+	added, plate := time.Date(2026, 11, 19, 9, 0, 0, 0, time.UTC), kernel.NewItemID()
+	h.items.pieces = func(id kernel.AccountID) []item.Piece {
+		if id != accountID {
+			t.Fatalf("id %s", id)
+		}
+		return []item.Piece{{ID: "knight_plate", Cause: "item", Item: &plate, AddedAt: added}}
+	}
+	rec := h.do("GET", "/api/wardrobe", "", authed())
+	var body api.WardrobeResponse
+	decode(t, rec, &body)
+	if want := (api.WardrobeResponse{Pieces: []api.PieceResponse{{ID: "knight_plate", Cause: "item", ItemID: plate.String(), AddedAt: added}}}); rec.Code != http.StatusOK || !reflect.DeepEqual(body, want) {
+		t.Fatalf("status %d, body %+v", rec.Code, body)
+	}
+	h.items.pieces = func(kernel.AccountID) []item.Piece { return nil }
+	if rec := h.do("GET", "/api/wardrobe", "", authed()); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"pieces":[]`) {
+		t.Fatalf("an empty wardrobe: %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := h.do("GET", "/api/wardrobe", "", nil); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("without a session: %d", rec.Code)
+	}
 }
 
 func TestSettings(t *testing.T) {

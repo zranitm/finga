@@ -49,6 +49,11 @@ func (w *World) Equip(ctx context.Context, id kernel.CharacterID, conn, key stri
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.Equip(ctx, id, conn, key, item, equipSlot) })
 }
 
+// SetLook wears a look and returns once everyone sees it.
+func (w *World) SetLook(ctx context.Context, id kernel.CharacterID, conn, key string, look model.Look) error {
+	return w.wait(id, conn, func(i *instance.Instance) error { return i.SetLook(ctx, id, conn, key, look) })
+}
+
 // Unequip puts a worn item back in the Equip tab and returns once the stats apply.
 func (w *World) Unequip(ctx context.Context, id kernel.CharacterID, conn, key, equipSlot string, toSlot *int) error {
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.Unequip(ctx, id, conn, key, equipSlot, toSlot) })

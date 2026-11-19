@@ -48,15 +48,17 @@ func TestEveryConversionKeepsEveryField(t *testing.T) {
 	f := &fakeService{}
 	m := newModule(t, f)
 	results := map[string]func() (Result, error){
-		"Add":          func() (Result, error) { return m.Add(ctx, actor, AddRequest{Key: key, Cause: Cause{Type: CauseDrop}}) },
-		"Move":         func() (Result, error) { return m.Move(ctx, actor, MoveRequest{Key: key}) },
-		"Discard":      func() (Result, error) { return m.Discard(ctx, actor, DiscardRequest{Key: key}) },
-		"DiscardMany":  func() (Result, error) { return m.DiscardMany(ctx, actor, DiscardManyRequest{Key: key}) },
-		"Use":          func() (Result, error) { res, _, err := m.Use(ctx, actor, UseRequest{Key: key}); return res, err },
-		"GrantStarter": func() (Result, error) { return m.GrantStarter(ctx, actor) },
-		"Equip":        func() (Result, error) { return m.Equip(ctx, actor, EquipRequest{Key: key}) },
-		"Unequip":      func() (Result, error) { return m.Unequip(ctx, actor, UnequipRequest{Key: key}) },
-		"HandIn":       func() (Result, error) { return m.HandIn(ctx, actor, HandInRequest{}) },
+		"Add":           func() (Result, error) { return m.Add(ctx, actor, AddRequest{Key: key, Cause: Cause{Type: CauseDrop}}) },
+		"Move":          func() (Result, error) { return m.Move(ctx, actor, MoveRequest{Key: key}) },
+		"Discard":       func() (Result, error) { return m.Discard(ctx, actor, DiscardRequest{Key: key}) },
+		"DiscardMany":   func() (Result, error) { return m.DiscardMany(ctx, actor, DiscardManyRequest{Key: key}) },
+		"Use":           func() (Result, error) { res, _, err := m.Use(ctx, actor, UseRequest{Key: key}); return res, err },
+		"GrantStarter":  func() (Result, error) { return m.GrantStarter(ctx, actor) },
+		"Equip":         func() (Result, error) { return m.Equip(ctx, actor, EquipRequest{Key: key}) },
+		"Unequip":       func() (Result, error) { return m.Unequip(ctx, actor, UnequipRequest{Key: key}) },
+		"HandIn":        func() (Result, error) { return m.HandIn(ctx, actor, HandInRequest{}) },
+		"AddToWardrobe": func() (Result, error) { return m.AddToWardrobe(ctx, actor, WardrobeRequest{Key: key}) },
+		"SetLook":       func() (Result, error) { return m.SetLook(ctx, actor, LookRequest{Key: key}) },
 	}
 	for name, call := range results {
 		got := copytest.Diff(copytest.Match{Skip: owners("")}, func(res application.Result) Result {
@@ -140,6 +142,46 @@ func TestEveryConversionKeepsEveryField(t *testing.T) {
 				out, err := m.AddMany(ctx, actor, drops)
 				if err != nil {
 					t.Fatal(err)
+				}
+				return out
+			})
+		},
+		"AddToWardrobe's request": func() []string {
+			match := copytest.Match{Renames: map[string]string{"Req": "In"}, Skip: keys, Computed: map[string]string{"In.Key": keyCheck}}
+			return copytest.Diff(match, func(a asked[WardrobeRequest]) sent[application.WardrobeInput] {
+				a.Req.Key = key
+				if _, err := m.AddToWardrobe(ctx, a.Actor, a.Req); err != nil {
+					t.Fatal(err)
+				}
+				return sent[application.WardrobeInput]{f.actor, f.in.(application.WardrobeInput)}
+			})
+		},
+		"SetLook's request": func() []string {
+			match := copytest.Match{Renames: map[string]string{"Req": "In"}, Skip: keys, Computed: map[string]string{"In.Key": keyCheck}}
+			return copytest.Diff(match, func(a asked[LookRequest]) sent[application.LookInput] {
+				a.Req.Key = key
+				if _, err := m.SetLook(ctx, a.Actor, a.Req); err != nil {
+					t.Fatal(err)
+				}
+				return sent[application.LookInput]{f.actor, f.in.(application.LookInput)}
+			})
+		},
+		"Wardrobe's pieces": func() []string {
+			return copytest.Diff(copytest.Match{}, func(found []model.Piece) []Piece {
+				f.pieces = found
+				out, err := m.Wardrobe(ctx, actor.Account)
+				if err != nil || f.account != actor.Account {
+					t.Fatalf("asked for %v's wardrobe, err %v", f.account, err)
+				}
+				return out
+			})
+		},
+		"Look's look": func() []string {
+			return copytest.Diff(copytest.Match{}, func(look model.Look) Look {
+				f.look = look
+				out, err := m.Look(ctx, actor.Character)
+				if err != nil || f.owner != actor.Character {
+					t.Fatalf("asked for %v's look, err %v", f.owner, err)
 				}
 				return out
 			})

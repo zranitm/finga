@@ -46,7 +46,7 @@ func buildGateway(ctx context.Context, h *host.Host, cfg config.Gateway, public 
 	}
 	guard, world, social, items := adapter.NewGuard(mods.Account), adapter.NewWorld(mods.World, log, rec), adapter.NewSocial(mods.Social, log, rec), adapter.NewItems(mods.Item)
 	matches := adapter.NewPvp(mods.Pvp, log, rec)
-	lobby := application.NewLobby(application.LobbyDeps{Accounts: adapter.NewAccounts(mods.Account), Characters: adapter.NewCharacters(mods.Character), Sessions: guard})
+	lobby := application.NewLobby(application.LobbyDeps{Accounts: adapter.NewAccounts(mods.Account), Characters: adapter.NewCharacters(mods.Character), Sessions: guard, Wardrobes: items})
 	sessions := session.NewRegistry(session.Deps{World: world, Social: social, Pvp: matches, Items: items, Logger: log, Panics: rec, Traces: h.Traces, Observer: meters}, session.Options{Gateway: uuidv7.NewString(), JoinTimeout: cfg.Sessions.JoinTimeout})
 	sendFlow := send.New(send.Deps{
 		Sessions: guard,

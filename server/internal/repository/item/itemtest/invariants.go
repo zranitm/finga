@@ -4,6 +4,7 @@ package itemtest
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,6 +16,7 @@ import (
 type Content interface {
 	Item(id string) (gamedata.Item, bool)
 	EquipSlot(id string) (gamedata.EquipSlot, bool)
+	PieceIn(item string) (gamedata.Piece, bool)
 }
 
 // quantityMatchesEvents is check 5: each item's quantity equals its events' delta sum.
@@ -40,7 +42,7 @@ func quantityMatchesEvents(ctx context.Context, pool *pgxpool.Pool) ([]string, e
 	return out, rows.Err()
 }
 
-// templateTotals is check 6: per template, held equals drops, starters, quest rewards and promotion gifts, less discards and hand-ins; a join would multiply sums.
+// templateTotals is check 6: per template, held equals drops, starters, quest rewards and promotion gifts, less discards, hand-ins, uses and wardrobe adds; a join would multiply sums.
 func templateTotals(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 	rows, err := pool.Query(ctx, `
 		SELECT held.template_id, held.quantity, coalesce(ev.delta, 0)
@@ -48,7 +50,7 @@ func templateTotals(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 		LEFT JOIN (
 			SELECT i.template_id, sum(e.quantity_delta) AS delta
 			FROM item_events e JOIN items i ON i.id = e.item_id
-			WHERE (e.kind IN ('created', 'stacked') AND e.cause_type IN ('drop', 'starter', 'quest', 'promotion')) OR e.kind IN ('discarded', 'handed_in')
+			WHERE (e.kind IN ('created', 'stacked') AND e.cause_type IN ('drop', 'starter', 'quest', 'promotion')) OR e.kind IN ('discarded', 'handed_in', 'used', 'collected')
 			GROUP BY i.template_id
 		) ev USING (template_id)
 		WHERE held.quantity <> coalesce(ev.delta, 0)`)
@@ -63,7 +65,7 @@ func templateTotals(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 		if err := rows.Scan(&template, &quantity, &delta); err != nil {
 			return nil, err
 		}
-		out = append(out, fmt.Sprintf("template %s: holds %d, drops, starters, quest rewards and promotion gifts less discards and hand-ins come to %d", template, quantity, delta))
+		out = append(out, fmt.Sprintf("template %s: holds %d, drops, starters, quest rewards and promotion gifts less discards, hand-ins, uses and wardrobe adds come to %d", template, quantity, delta))
 	}
 	return out, rows.Err()
 }
@@ -221,6 +223,52 @@ func wornMatchesEvents(ctx context.Context, pool *pgxpool.Pool) ([]string, error
 	return out, rows.Err()
 }
 
+// collectedMatchesWardrobe is check 13: each item has as many collected events for the piece it holds as wardrobe entries name that item and piece, both ways.
+func collectedMatchesWardrobe(ctx context.Context, pool *pgxpool.Pool, content Content) ([]string, error) {
+	type entry struct {
+		item  uuid.UUID
+		piece string
+	}
+	counts := map[entry][2]int64{} // collected events, wardrobe entries
+	rows, err := pool.Query(ctx, `
+		SELECT e.item_id, i.template_id, 0, count(*) FROM item_events e JOIN items i ON i.id = e.item_id WHERE e.kind = 'collected' GROUP BY 1, 2
+		UNION ALL
+		SELECT item_id, piece_id, 1, count(*) FROM account_pieces WHERE item_id IS NOT NULL GROUP BY 1, 2`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var e entry
+		var side int
+		var n int64
+		if err := rows.Scan(&e.item, &e.piece, &side, &n); err != nil {
+			return nil, err
+		}
+		if side == 0 { // an event's template, to the piece it holds
+			if p, ok := content.PieceIn(e.piece); ok {
+				e.piece = p.ID
+			} else {
+				e.piece = "none, in " + e.piece
+			}
+		}
+		c := counts[e]
+		c[side] += n
+		counts[e] = c
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	var out []string
+	for e, c := range counts {
+		if c[0] != c[1] {
+			out = append(out, fmt.Sprintf("item %s, piece %s: %d collected events, %d wardrobe entries name them", e.item, e.piece, c[0], c[1]))
+		}
+	}
+	slices.Sort(out)
+	return out, nil
+}
+
 // dbOnly is a check that needs no game data.
 func dbOnly(run func(context.Context, *pgxpool.Pool) ([]string, error)) func(context.Context, *pgxpool.Pool, Content) ([]string, error) {
 	return func(ctx context.Context, pool *pgxpool.Pool, _ Content) ([]string, error) { return run(ctx, pool) }
@@ -239,6 +287,7 @@ var checks = []struct {
 	{"10 worn items fit their slots", wornFitsItsSlot},
 	{"11 equipment has its roll", equipmentHasItsRoll},
 	{"12 worn matches equip events", dbOnly(wornMatchesEvents)},
+	{"13 collected events match the wardrobe", collectedMatchesWardrobe},
 }
 
 // CheckInvariants runs every check against the game data's templates and returns all mismatches, each named by its check, in check order.

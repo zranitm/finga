@@ -106,6 +106,12 @@ var ownErrors = []struct {
 	{kernel.ErrBadBatchSize, BadItemBatch},
 	{kernel.ErrNotEnoughItems, NotEnoughItems},
 	{kernel.ErrNotUsable, NotUsable},
+	{kernel.ErrNotAPiece, NotAPiece},
+	{kernel.ErrPieceCollected, PieceCollected},
+	{kernel.ErrUnknownPiece, UnknownPiece},
+	{kernel.ErrWrongLookSlot, WrongSlot},
+	{kernel.ErrPieceNotCollected, PieceNotCollected},
+	{kernel.ErrWrongWeaponKind, WrongWeaponKind},
 	// social
 	{kernel.ErrNotPartyLeader, NotPartyLeader},
 	{kernel.ErrPartyFull, PartyFull},

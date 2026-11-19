@@ -37,4 +37,10 @@ var errorTable = facade.Errors{
 	{Model: model.ErrBadBatch, Kernel: kernel.ErrBadBatchSize},
 	{Model: model.ErrNotEnoughItems, Kernel: kernel.ErrNotEnoughItems},
 	{Model: model.ErrNotUsable, Kernel: kernel.ErrNotUsable},
+	{Model: model.ErrNotAPiece, Kernel: kernel.ErrNotAPiece},
+	{Model: model.ErrPieceCollected, Kernel: kernel.ErrPieceCollected},
+	{Model: model.ErrUnknownPiece, Kernel: kernel.ErrUnknownPiece},
+	{Model: model.ErrWrongLookSlot, Kernel: kernel.ErrWrongLookSlot},
+	{Model: model.ErrNotCollected, Kernel: kernel.ErrPieceNotCollected},
+	{Model: model.ErrWrongKind, Kernel: kernel.ErrWrongWeaponKind},
 }

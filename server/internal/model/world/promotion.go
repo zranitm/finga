@@ -54,4 +54,11 @@ type GiftCall struct {
 	Key       uuid.UUID
 	Template  string
 	Stats     *progression.ItemStats // equipment's roll
+	Promotes  kernel.Class           // the class promoted to: a weapon look it can't hold is cleared with the gift
+}
+
+// Gift is what a trainer's gift changed: the inventory, and the look as it stands after.
+type Gift struct {
+	Inventory
+	Look Look
 }

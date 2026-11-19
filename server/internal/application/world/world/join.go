@@ -52,6 +52,10 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	if err != nil {
 		return model.View{}, err
 	}
+	look, err := w.look(ctx, id)
+	if err != nil {
+		return model.View{}, err
+	}
 	class, ok := w.data.Class(c.Class)
 	if !ok {
 		return model.View{}, model.ErrClassUnavailable
@@ -71,7 +75,7 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	}
 	c = w.placed(ctx, c)
 	log := c.Quests.Clone() // the view's: from the join on, the map's tick changes the player's
-	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Points: c.Points, Skills: c.Skills, HP: c.HP, Energy: c.Energy, X: c.X, Y: c.Y, Z: c.Z, Yaw: c.Yaw, Connection: conn, Worn: worn, Quests: c.Quests, Timers: running(c.Timers, now), HandedIn: handedIn}
+	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Points: c.Points, Skills: c.Skills, HP: c.HP, Energy: c.Energy, X: c.X, Y: c.Y, Z: c.Z, Yaw: c.Yaw, Connection: conn, Worn: worn, Look: look, Quests: c.Quests, Timers: running(c.Timers, now), HandedIn: handedIn}
 	at := w.presences.place(id, presence{inst: inst, conn: conn, account: account, sink: sink})
 	answerCtx, cancel := answerOf(ctx)
 	defer cancel()
@@ -111,6 +115,12 @@ func (w *World) worn(ctx context.Context, id kernel.CharacterID) (model.Worn, er
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
 	return w.deps.Wardrobe.Worn(ctx, id)
+}
+
+func (w *World) look(ctx context.Context, id kernel.CharacterID) (model.Look, error) {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
+	return w.deps.Wardrobe.Look(ctx, id)
 }
 
 // handedIn asks the item module about the next completion of each active quest with items to take or give, so one handed in while the world missed the reply still finishes.

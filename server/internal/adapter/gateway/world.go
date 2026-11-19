@@ -28,6 +28,7 @@ type WorldModule interface {
 	Teleport(ctx context.Context, p world.Presence, mapID string, seq uint32) error
 	Say(ctx context.Context, p world.Presence, name, text string) error
 	Equip(ctx context.Context, p world.Presence, key string, item kernel.ItemID, equipSlot string) error
+	SetLook(ctx context.Context, p world.Presence, key string, look world.Look) error
 	UseItem(ctx context.Context, p world.Presence, key string, item kernel.ItemID, template string) error
 	Unequip(ctx context.Context, p world.Presence, key, equipSlot string, toSlot *int) error
 	SpendPoints(ctx context.Context, p world.Presence, expected int, points gamedata.Stats) error
@@ -127,6 +128,11 @@ func (w World) Teleport(ctx context.Context, p model.Presence, mapID string, seq
 // Equip wears an item; it answers once the world applied the new stats.
 func (w World) Equip(ctx context.Context, p model.Presence, in model.ItemEquip) error {
 	return worldErr(w.w.Equip(ctx, presence(p), in.IdempotencyKey, in.Item, in.EquipSlot))
+}
+
+// SetLook wears a look; it answers once the world applied it.
+func (w World) SetLook(ctx context.Context, p model.Presence, in model.LookSet) error {
+	return worldErr(w.w.SetLook(ctx, presence(p), in.IdempotencyKey, world.Look(in.Look)))
 }
 
 // Unequip takes a worn item off; it answers once the world applied the new stats.

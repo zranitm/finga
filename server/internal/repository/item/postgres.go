@@ -50,6 +50,7 @@ func (p *Postgres) unitOfWork(tx pgx.Tx) application.UnitOfWork {
 		notices: notices{w: outboxpg.NewWriter(tx, now)},
 		idem:    idem{tx: tx, store: idempotencypg.NewStore(tx, now)},
 		handIns: handIns{q: q, now: now},
+		closet:  closet{q: q, now: now},
 	}
 }
 
@@ -116,6 +117,7 @@ type unitOfWork struct {
 	notices notices
 	idem    idem
 	handIns handIns
+	closet  closet
 }
 
 // Items is the item repository bound to the transaction.
@@ -132,6 +134,9 @@ func (u unitOfWork) Idempotency() application.Idempotency { return u.idem }
 
 // HandIns is the hand-in record bound to the transaction.
 func (u unitOfWork) HandIns() application.HandIns { return u.handIns }
+
+// Wardrobe is the wardrobe bound to the transaction.
+func (u unitOfWork) Wardrobe() application.Wardrobe { return u.closet }
 
 // Savepoint runs fn under a savepoint, rolled back to when fn fails; only one is open at a time.
 func (u unitOfWork) Savepoint(ctx context.Context, fn func() error) error {

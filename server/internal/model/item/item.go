@@ -44,6 +44,12 @@ var (
 	ErrBadBatch       = errors.New("item: a batch holds nothing, more than one call takes, or the same item twice")
 	ErrNotEnoughItems = errors.New("item: the inventory's stacks hold less than the hand-in asks for")
 	ErrNotUsable      = errors.New("item: the item isn't the template named, or can't be used")
+	ErrNotAPiece      = errors.New("item: the item holds no wardrobe piece")
+	ErrPieceCollected = errors.New("item: the wardrobe has that piece")
+	ErrUnknownPiece   = errors.New("item: a look's pick is no piece")
+	ErrWrongLookSlot  = errors.New("item: a look's pick is a piece of another slot")
+	ErrNotCollected   = errors.New("item: a look's pick is a piece the wardrobe hasn't collected")
+	ErrWrongKind      = errors.New("item: a weapon look of a kind the class doesn't hold")
 )
 
 // TabFull is the error for tab having no free slot.
@@ -121,6 +127,7 @@ const (
 	EventUnequipped EventKind = "unequipped"
 	EventHandedIn   EventKind = "handed_in"
 	EventUsed       EventKind = "used"
+	EventCollected  EventKind = "collected" // its last one, added to the wardrobe
 )
 
 // Event is one line of an item's history.

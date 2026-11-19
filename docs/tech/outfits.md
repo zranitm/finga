@@ -103,49 +103,54 @@ feats:
 ## 4. Server: the wardrobe in the item module
 
 - **Why the item module:** adding a piece takes an item and makes a wardrobe entry. That's one transaction, as a quest hand-in already is there. Pieces are possessions, as items are.
-- **Migration `00013_outfit.sql`:**
-  - `account_pieces(account_id, piece_id, cause_type, cause_ref, item_id NULL, added_at, PRIMARY KEY (account_id, piece_id))`: the wardrobe. `cause_type` is `item`, `rank`, `quest` or `feat`. `item_id` is set exactly when it's `item`.
+- **Migration `00013_item_outfit.sql`:**
+  - `account_pieces(account_id, piece_id, cause_type, cause_ref, item_id NULL, created_at, updated_at, PRIMARY KEY (account_id, piece_id))`: the wardrobe. `cause_type` is `item`, `rank`, `quest` or `feat`. `item_id` is set exactly when it's `item`, and `cause_ref` exactly when it isn't.
+  - `item_id` names the stack added from. It isn't unique: a stack outlives one add.
   - `character_looks(character_id PRIMARY KEY, outfit, headwear, face, weapon, wings, hide_headwear, revision)`. A null pick is the class's own, and a null `wings` is none. No row means the class's own look.
 - **Item events:**
-  - A new kind, `collected`: quantity −1, the item's last, cause `player`.
-  - `templateTotals` (check 6) counts it as it counts `used`.
-  - A new invariant: every `collected` event has the `account_pieces` row naming its item, and every such row has its event.
+  - A new kind, `collected`: quantity −1, taken from the stack, cause `player`.
+  - `templateTotals` (check 6) counts it and `used`. It hadn't counted `used`, which a randomized test found once potions were used in it.
+  - A new invariant (check 13): every `collected` event has the `account_pieces` row naming its item, and every such row has its event.
 - **Adding** (`AddToWardrobe{item}`, through the gateway straight to the item module, as discarding goes):
   1. The item must be the actor's, in the inventory, and a piece's item. Otherwise `ITEM_NOT_FOUND` or `NOT_A_PIECE`.
   2. A piece already collected is `PIECE_COLLECTED`, and nothing changes.
   3. Otherwise, in one transaction: take one from the stack (`collected`) and insert the row.
-  4. It answers with the inventory change and the piece. Idempotent by key, as item actions are.
-- **Grants without items:** `GrantPieces(actor, pieces, cause)` inserts with `ON CONFLICT DO NOTHING`, so a second grant of a piece is a no-op. It returns what was new.
+  4. It answers with the inventory change. The client knows the piece from its item. Idempotent by key, as item actions are.
+- **Grants without items** (step 4, with their callers): `GrantPieces(actor, pieces, cause)` inserts with `ON CONFLICT DO NOTHING`, so a second grant of a piece is a no-op. It returns what was new.
   - **Ranks:** at a match's end, the pvp module grants the piece of each rank the new shown rating reaches. The account's row is the "first time": falling and climbing again finds it there.
   - **Quests:** a hand-in's rewards gain `pieces`, granted in the hand-in's transaction.
   - **Feats:**
     - The world checks level, boss, promotion and quest feats where those happen, against the catalogue's feats.
     - The pvp module checks `pvp_wins` at a match's end.
     - Each grants as above.
-- **Notices:** a grant or an add that made a row pushes `PiecesAdded{pieces}` to the account's live session.
+- **Notices** (step 4): a grant or an add that made a row pushes `PiecesAdded{pieces}` to the account's live session. Until then the add's answer is the only word.
 - **The look:**
-  - `SetLook{look}` goes through the world, as `Equip` does. The world refuses a dead player (`CHARACTER_DEAD`) or one in combat (C20's 5 s clock, `IN_COMBAT_LOOK`).
-  - The item module then checks each pick:
+  - `SetLook{look}` goes through the world, as `Equip` does. The world refuses a dead player (`CHARACTER_DEAD`) or one in combat (C20's 5 s clock, `IN_COMBAT`, as a trait change is).
+  - The item module then checks each pick, wings too, against the player's live class:
     - a known piece of its slot (`UNKNOWN_PIECE`, `WRONG_SLOT`);
     - collected by the account (`PIECE_NOT_COLLECTED`);
     - a weapon look of the class's kind (`WRONG_WEAPON_KIND`).
   - It stores the look with the next revision. The world applies the look and sends it in the player's view.
   - **A join** reads the look with the worn gear, through the `Wardrobe` port.
-- **Promotion:** a weapon look the new class's kind doesn't take is cleared in the promotion's transaction.
+- **Promotion:**
+  - A weapon look the new class's kind doesn't take is cleared in the trainer gift's item transaction, which returns the look. The world wears it before `Promoted`, in the same tick as the new class.
+  - A crash after that commit but before the checkpoint saves the new class leaves the old class without its weapon look. It's the same window the gift already has.
+  - A look and a promotion never overlap. Each is checked against the class the other may change, so whichever is in flight refuses the other as unavailable.
 - **Bots:**
-  - PvP bots wear a random look from boss and feat pieces, seeded by their id. They never wear rank pieces, so a rank piece always means a player earned it.
+  - PvP bots wear a random look, seeded by their id: each slot is the class's own half the time, otherwise a piece of that slot every source of which is a boss, and a weapon look of the class's kind. Feat pieces join them with feats.
+  - They never wear rank pieces, so a rank piece always means a player earned it.
   - cmd/bot's players wear what their accounts own.
-- **`GET /api/wardrobe`**: the account's pieces, each with its cause and when it was added.
+- **`GET /api/wardrobe`**: the account's pieces, oldest first, each with its cause, the item for an item, and when it was added. None is `[]`.
 
 ## 5. Protocol
 
 | Message | Way | What |
 | --- | --- | --- |
 | `Look{outfit, headwear, face, weapon, wings, hide_headwear}` | — | Piece ids; empty is the class's own, or no wings |
-| `PlayerView.look` (the next free field) | server | In a full view, and whenever it changes |
-| `SetLook{look}` | client | Wear these picks |
-| `AddToWardrobe{item}` | client | Add an item's piece; answered with the inventory change |
-| `PiecesAdded{pieces: [{id, cause}]}` | server | New wardrobe entries |
+| `PlayerView.look = 33` | server | In every view of the player |
+| `SetLook{idempotency_key, look}` | client | Wear these picks |
+| `AddToWardrobe{idempotency_key, item_id}` | client | Add an item's piece; answered with the inventory change |
+| `PiecesAdded{pieces: [{id, cause}]}` | server | New wardrobe entries, from step 4 |
 | `GET /api/wardrobe` | client | The account's pieces |
 
 **Failures,** in the item area after `BAD_ITEM_BATCH`:
@@ -158,7 +163,8 @@ feats:
 | 220030 | `WRONG_SLOT` | 400 | A piece in another slot's place |
 | 220031 | `PIECE_NOT_COLLECTED` | 409 | Wearing a piece the account hasn't collected |
 | 220032 | `WRONG_WEAPON_KIND` | 409 | A weapon look the class can't hold |
-| 220033 | `IN_COMBAT_LOOK` | 409 | Changing looks in combat |
+
+Changing looks in combat is `IN_COMBAT` (330037), the code a trait change in combat answers.
 
 ## 6. Client: drawing a look
 
@@ -286,13 +292,13 @@ feats:
 ## 10. Build
 
 1. **Server and data:**
-   - `outfits.yaml` and its loader, with a starter catalogue of a few pieces;
+   - `outfits.yaml` and its loader, with a starter catalogue of a few pieces and `boss` sources alone;
    - classes' weapon kinds;
-   - the migration, adding, grants, the look and its checks, promotion;
+   - the migration, adding, the look and its checks, promotion;
    - `PlayerView.look`, `/api/wardrobe`, the failures and the invariant.
 2. **The client's looks:** parts files, binding to the class's rig, colourways, attach and fit, wings' hinges and motion, the cape hidden under wings, others redrawn, and the swing trail.
 3. **The wardrobe window,** the character window's figure, the inventory card actions, notices and the `wardrobe` key.
-4. **Sources:** ranks from the pvp module, quest pieces and feats.
+4. **Sources:** ranks from the pvp module, quest pieces and feats, with `GrantPieces` and `PiecesAdded`.
 5. **The catalogue:**
    - the Skeletons pack added, and the face pieces and wings modelled;
    - colourways and sources designed with the user from the preview sheet;

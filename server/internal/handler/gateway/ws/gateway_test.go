@@ -2746,3 +2746,60 @@ func TestAFailedLeaveOrOfflineIsLogged(t *testing.T) {
 		again.expect("Snapshot")
 	})
 }
+
+// The wardrobe's commands: AddToWardrobe goes to the item module as the sender and answers with the slot it took from; SetLook goes to the world with every pick and answers once applied, or with the world's refusal.
+func TestTheWardrobesCommands(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		plate := item.Item{ID: kernel.NewItemID(), TemplateID: "piece.knight_plate", Tab: "etc", Slot: 4, Quantity: 2}
+		items := &fakeItems{inventory: []item.Item{plate}, revision: 4, changed: []item.Slot{{Tab: "etc", Slot: 4, Item: &item.Item{ID: plate.ID, TemplateID: plate.TemplateID, Tab: "etc", Slot: 4, Quantity: 1}}}}
+		h := newHarness(t, func(d *deps) { d.Items = items })
+		c := h.dial(t)
+		c.hello(tokenAlice, aylaID)
+		c.expect("Welcome")
+		c.expect("Snapshot")
+		part(t, "AddToWardrobe answers with the slot it took one from", func() {
+			c.send(wsconn.Message{ReqID: "w-1", Data: &clientv1.AddToWardrobe{IdempotencyKey: "k-1", ItemId: plate.ID.String()}})
+			if r := c.expect("Response"); r.ReqID != "w-1" || !r.Data.(*clientv1.Response).GetOk() {
+				t.Fatalf("response %+v", r)
+			}
+			ic := c.expect("InventoryChanged").Data.(*clientv1.InventoryChanged)
+			if len(ic.Slots) != 1 || ic.Slots[0].GetItem().GetQuantity() != 1 || ic.Revision != 4 {
+				t.Fatalf("inventory changed %+v", ic)
+			}
+			items.mu.Lock()
+			defer items.mu.Unlock()
+			if w := items.wardrobe; len(w) != 1 || w[0].req.Key != "k-1" || w[0].req.ItemID != plate.ID || w[0].actor.Character != aylaID || w[0].actor.Account != alice {
+				t.Fatalf("wardrobe calls %+v", w)
+			}
+		})
+		part(t, "a piece the wardrobe has answers PIECE_COLLECTED", func() {
+			time.Sleep(time.Second) // under the inventory limit
+			items.err = refusal(kernel.ErrPieceCollected)
+			c.send(wsconn.Message{ReqID: "w-2", Data: &clientv1.AddToWardrobe{IdempotencyKey: "k-2", ItemId: plate.ID.String()}})
+			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.PieceCollected.Code) {
+				t.Fatalf("response %+v", r)
+			}
+			items.err = nil
+		})
+		part(t, "SetLook carries every pick to the world as the sender", func() {
+			look := &clientv1.Look{Outfit: "knight_plate", Headwear: "knight_helm", Face: "round_glasses", Weapon: "greatsword", Wings: "bat_wings", HideHeadwear: true}
+			c.send(wsconn.Message{ReqID: "l-1", Data: &clientv1.SetLook{IdempotencyKey: "k-3", Look: look}})
+			if r := c.expect("Response"); r.ReqID != "l-1" || !r.Data.(*clientv1.Response).GetOk() {
+				t.Fatalf("response %+v", r)
+			}
+			want := world.Look{Outfit: "knight_plate", Headwear: "knight_helm", Face: "round_glasses", Weapon: "greatsword", Wings: "bat_wings", HideHeadwear: true}
+			if got := h.world.lookCalls(); len(got) != 1 || got[0].key != "k-3" || got[0].look != want || got[0].p.Character != aylaID || got[0].p.Conn == "" {
+				t.Fatalf("looks %+v", got)
+			}
+		})
+		part(t, "a look in combat answers IN_COMBAT", func() {
+			time.Sleep(time.Second)
+			h.world.failEquips(refusal(kernel.ErrInCombat))
+			c.send(wsconn.Message{ReqID: "l-2", Data: &clientv1.SetLook{IdempotencyKey: "k-4", Look: &clientv1.Look{}}})
+			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.InCombat.Code) {
+				t.Fatalf("response %+v", r)
+			}
+			h.world.failEquips(nil)
+		})
+	})
+}
