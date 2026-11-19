@@ -261,22 +261,27 @@ describe('wiring', () => {
     ]);
     ws.push('pvpOffer', { offer: 'of-3', mode: 'duel', bots: 1, untilMs: 10_000 });
     ws.push('mapChange', { mapId: 'ring' });
-    ws.push('matchState', {
-      match: 'mt-1',
-      mode: 'duel',
-      phase: MatchPhase.PREP,
-      round: 1,
-      endsInMs: 10_000,
-      sides: [
-        { fighters: [{ id: 'c-ayla', name: 'Ayla' }] },
-        { fighters: [{ id: 'b-1', name: 'Ash', bot: true }] },
-      ],
-    });
+    ws.push(
+      'matchState',
+      {
+        match: 'mt-1',
+        mode: 'duel',
+        phase: MatchPhase.PREP,
+        round: 1,
+        endsInMs: 10_000,
+        sides: [
+          { fighters: [{ id: 'c-ayla', name: 'Ayla' }] },
+          { fighters: [{ id: 'b-1', name: 'Ash', bot: true }] },
+        ],
+      },
+      { tick: 4120 },
+    );
     expect([pvp.getState().queued, pvp.getState().offer, pvp.getState().match?.id]).toEqual([
       null,
       null,
       'mt-1',
     ]);
+    expect(pvp.getState().match?.sent).toEqual({ tick: 4120, endsInMs: 10_000 }); // the world's tick it came at
     ws.push('matchEnded', { result: MatchOutcome.WIN, wins: [2, 1] });
     ws.push('mapChange', { mapId: 'forest' });
     expect([pvp.getState().match, pvp.getState().outcome?.rounds]).toEqual([null, [2, 1]]);

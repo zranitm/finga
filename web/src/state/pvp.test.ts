@@ -171,6 +171,7 @@ describe('pvp', () => {
     };
     expect(countdownTicks(null, 50)).toBeNull();
     expect(at(MatchPhase.PREP, 1000)).toEqual({ from: 1060, until: 1120 }); // pvp.yaml's 3 s count
+    expect(countdownTicks(pvp.getState().match, 100)).toEqual({ from: 1030, until: 1060 }); // at 100 ms ticks
     expect(at(MatchPhase.BETWEEN, 2000)).toEqual({ from: 2060, until: 2120 });
     expect(at(MatchPhase.COUNTDOWN, 2060)).toEqual({ from: 2060, until: 2120 });
     expect(at(MatchPhase.FIGHT, 2120)).toBeNull();
