@@ -226,10 +226,11 @@ func Flat(size float64) sim.Geometry {
 	return sim.Geometry{SizeX: size, SizeZ: size, Terrain: sim.NewTerrain(size, 2, 2, []float64{0, 0, 0, 0}, 0.7), Boxes: []sim.Box{}, Cylinders: []sim.Cylinder{}}
 }
 
-// Gridded is m with the walk grid of its geometry, as the loader gives every map.
+// Gridded is m with the walk grid of its geometry, as the loader gives every map, built now.
 func Gridded(t testing.TB, m *gamedata.Map) *gamedata.Map {
 	t.Helper()
-	m.Grid = nav.New(m.Geometry, LoadData(t).Movement().Step)
+	grid := nav.New(m.Geometry, LoadData(t).Movement().Step)
+	m.Grid = func() *nav.Grid { return grid }
 	return m
 }
 

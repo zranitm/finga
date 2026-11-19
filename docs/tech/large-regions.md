@@ -190,7 +190,7 @@ biomes:
 ### The bake: `cmd/regionbake`
 
 - **The server generates; the client reads the bake.**
-  - **Server:** builds each region from its plan at load, once per process. Every channel shares it, and its walk grid is built at boot, as the maps' grids are. Nothing is built on a tick.
+  - **Server:** builds each region from its plan at load, once per process. Every channel shares it, and its walk grid is built as the world starts, as the maps' grids are. Nothing is built on a tick.
   - **Client:** reads the bake, which the same generator writes.
   - **Why the ground matches:** the generator gives the same bits on every CPU. That's the guarantee today's maps have.
   - **This reverses the plan** (section 15, call 11), which had both sides read one bake. Generating on the server needs no artifact to build and ship with it, and the server can't run on a bake older than its plan. Generation is cheap, and the exactness was needed anyway, for the golden hashes to match on arm64.

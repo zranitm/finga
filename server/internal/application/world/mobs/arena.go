@@ -278,7 +278,7 @@ func (a *Arena) room(mb *mob, at nav.Point, players []Body, p Body) bool {
 			return false
 		}
 	}
-	return a.offPortals(at, mb.def.Radius) && a.m.Grid.Fits(at, mb.def.Radius)
+	return a.offPortals(at, mb.def.Radius) && a.m.Grid().Fits(at, mb.def.Radius)
 }
 
 // overlaps reports whether mb's body standing at at would be inside player p's.

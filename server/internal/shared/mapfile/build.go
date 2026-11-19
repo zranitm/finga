@@ -19,7 +19,8 @@ type Map struct {
 	File
 	Geometry sim.Geometry
 	Walled   sim.Geometry // Geometry with the prep wall standing; zero on a map with none
-	step     float64
+	params   sim.Params
+	keyed    sync.Once
 	grid     *sharedGrid
 }
 
@@ -32,9 +33,10 @@ type sharedGrid struct {
 // grids shares walk grids by geometry and params across the process's loads, so end-to-end stacks don't each build every one.
 var grids sync.Map // [sha256.Size]byte → *sharedGrid
 
-// Grid is the map's walk grid, built at the first call in the process, which the loader makes at boot.
+// Grid is the map's walk grid, built at the first call in the process for every map of its geometry and params, which the world makes as it starts.
 func (m *Map) Grid() *nav.Grid {
-	m.grid.once.Do(func() { m.grid.grid = nav.New(m.Geometry, m.step) })
+	m.keyed.Do(func() { m.grid = gridFor(m.Geometry, m.params) })
+	m.grid.once.Do(func() { m.grid.grid = nav.New(m.Geometry, m.params.Step) })
 	return m.grid.grid
 }
 
@@ -54,7 +56,7 @@ func gridFor(g sim.Geometry, p sim.Params) *sharedGrid {
 // Point is a file position as the walk grid's.
 func Point(at [2]float64) nav.Point { return nav.Point{X: at[0], Z: at[1]} }
 
-// Build checks f's shapes and builds its terrain, solids and walk grid for the sim's params p; the loader checks the rest.
+// Build checks f's shapes and builds its terrain and solids for the sim's params p, its walk grid at the first Grid; the loader checks the rest.
 func Build(id string, f File, p sim.Params) (*Map, error) {
 	if !positive(f.Size[0]) || !positive(f.Size[1]) {
 		return nil, fmt.Errorf("size %v: both sides must be positive", f.Size)
@@ -89,7 +91,7 @@ func Build(id string, f File, p sim.Params) (*Map, error) {
 		walled = sim.Indexed(walled)
 	}
 	g = sim.Indexed(g)
-	return &Map{ID: id, File: f, Geometry: g, Walled: walled, step: p.Step, grid: gridFor(g, p)}, nil
+	return &Map{ID: id, File: f, Geometry: g, Walled: walled, params: p}, nil
 }
 
 // terrain adds each hill, then each mesa, in file order at the grid points it reaches, so every build sums them alike; a point it doesn't reach would add 0.

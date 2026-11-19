@@ -19,6 +19,7 @@ func TestAPileChasingAMovingPlayerAttacksOnceItCan(t *testing.T) {
 	data := gamedatatest.Shipped(t)
 	g := sim.Geometry{SizeX: 40, SizeZ: 40, Terrain: sim.NewTerrain(40, 2, 2, []float64{0, 0, 0, 0}, 0.7), Cylinders: []sim.Cylinder{}}
 	grid := nav.New(g, data.Movement().Step)
+	walk := func() *nav.Grid { return grid }
 	pile := func(mob string, n int, r float64) gamedata.Spawn {
 		return gamedata.Spawn{Mob: mob, Max: n, Respawn: 5 * time.Second, At: gamedata.Point{X: 20, Z: 20}, Radius: r}
 	}
@@ -32,7 +33,7 @@ func TestAPileChasingAMovingPlayerAttacksOnceItCan(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			for seed := uint64(1); seed <= 20; seed++ {
-				m := &gamedata.Map{ID: "meadow", Kind: gamedata.Hunting, Geometry: g, Spawns: tt.spawns, Grid: grid}
+				m := &gamedata.Map{ID: "meadow", Kind: gamedata.Hunting, Geometry: g, Spawns: tt.spawns, Grid: walk}
 				a := NewArena(Deps{Map: m, Data: data, Roll: rand.New(rand.NewPCG(seed, 3))}, Tuning{TickInterval: 50 * time.Millisecond})
 				if tt.boss != "" {
 					def, _ := data.Mob(tt.boss)

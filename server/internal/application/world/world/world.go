@@ -93,6 +93,9 @@ func New(d Deps, t Tuning) *World {
 	w.jobsCtx, w.stopBackground = context.WithCancel(context.Background())
 	w.tuning = instance.Tuning{TickInterval: t.TickInterval, CheckpointInterval: t.CheckpointInterval, BatchMax: t.BatchMax}
 	for _, m := range data.Maps() {
+		m.Grid() // built now, a match's map's too, so no tick waits on one
+	}
+	for _, m := range data.Maps() {
 		if m.Kind == gamedata.Pvp {
 			continue // a match opens its own
 		}
