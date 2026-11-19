@@ -1988,14 +1988,12 @@ describe('World', () => {
     key('Tab', false);
     frames(p, 13, 14, pack);
     expect(marks().lock).toEqual({ x: 4, z: 20 });
-    fieldBoss
-      .getState()
-      .applyFieldBoss(
-        create(FieldBossSchema, { mobId: 1, type: 'green_slime', leavesInMs: 60000n }),
-      );
+    fieldBoss.getState().applyFieldBoss(create(FieldBossSchema, { mobId: 1, type: 'green_slime' }));
     frames(p, 15, 16, pack);
     expect(marks().boss).toEqual({ x: 13, z: 20 });
-    fieldBoss.getState().applyGone(create(FieldBossGoneSchema, { mobId: 1, beaten: true }));
+    fieldBoss
+      .getState()
+      .applyGone(create(FieldBossGoneSchema, { mobId: 1, type: 'green_slime', backInMs: 60000n }));
     frames(p, 17, 18, pack);
     expect(marks().boss).toBeNull();
   });

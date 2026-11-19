@@ -97,7 +97,7 @@ func (s Social) Promote(ctx context.Context, leader, target kernel.CharacterID) 
 	return wrap(s.s.Promote(ctx, leader, target))
 }
 
-// FollowDeliveries follows this gateway's party, chat and announcement stream until ctx ends; after a break the module sweeps the gateway's players unless it subscribes again within its grace, which re-registers them.
+// FollowDeliveries follows this gateway's party and chat stream until ctx ends; after a break the module sweeps the gateway's players unless it subscribes again within its grace, which re-registers them.
 func (s Social) FollowDeliveries(ctx context.Context, gateway string, deliver func(model.SocialEvent)) {
 	hub.Follow(ctx, func() *hub.Sub[social.Delivery] { return s.s.Subscribe(gateway) }, func(context.Context) error {
 		deliver(model.SocialSubscribed{})
@@ -112,13 +112,11 @@ func (s Social) FollowDeliveries(ctx context.Context, gateway string, deliver fu
 	}})
 }
 
-// socialEvent is one delivery as the gateway routes it: a player's, or an announcement for all of them.
+// socialEvent is one delivery as the gateway routes it, to its player.
 func socialEvent(d social.Delivery) (model.SocialEvent, bool) {
 	var to kernel.CharacterID
 	var p model.Push
 	switch d := d.(type) {
-	case social.BossAppeared:
-		return model.SocialBroadcast{Delivery: model.Delivery{Push: model.BossAppeared{Boss: d.Boss, MapID: d.MapID}}}, true
 	case social.PartyState:
 		to, p = d.To, model.PartyState{Party: partyView(d.Party)}
 	case social.Invited:

@@ -162,7 +162,7 @@ Each hunting map has a field boss: a much bigger, stronger, and tougher version 
   - Attack: about twice its map's mob's, with the same damage type, and higher defenses.
   - Attacks: its family's attack, bigger, and a slam that hits all around it after a one-second wind-up, taking turns. Their cooldowns are set so a lone melee player who never dodges needs at most 30 of their band's potions for the fight.
   - HP: enough that one on-level player beats it alone in about 3 minutes; a group does it faster.
-- **Fighting:** it blocks and attacks as other mobs do (Mobs), with its two attacks. Its family's attack shows a yellow area and can be blocked; its slam shows a red one and can't (C21). More special attacks come later.
+- **Fighting:** It fights only once someone hits it. Then it blocks and attacks as other mobs do (Mobs), with its two attacks. Its family's attack shows a yellow area and can be blocked; its slam shows a red one and can't (C21). More special attacks come later.
 - **The boss HP bar:** while it's up, everyone on the map sees a bar at the top of the screen with its name and HP.
 - **Rewards** go to the players alive on the map when it falls. Anyone dead or off the map then gets nothing, whatever they dealt.
   - **EXP:** the boss's EXP is split by each player's share of the damage dealt to it. A party's damage adds up, and its share is split among its members as for any kill (Social → Party).

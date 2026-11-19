@@ -27,6 +27,8 @@ type Player struct {
 	// seq is the last Seq sent: inputs and actions on one connection count up together, as the world drops an input no newer than the last it applied.
 	Seq         uint32
 	attackTicks uint64 // the basic attack's length in the world's ticks, from the Welcome
+	TickHz      uint32 // the world's ticks a second, from the Welcome
+	Joined      uint64 // the tick of the Snapshot it joined to, in its map's ticks
 }
 
 // NextSeq numbers the next input or action this connection sends.
@@ -54,7 +56,7 @@ func (p *Player) Hello(token string) (*clientv1.Welcome, *clientv1.Snapshot) {
 	p.Send(wsconn.Message{Data: &clientv1.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterId: p.ID}})
 	w := p.Expect("Welcome").Data.(*clientv1.Welcome)
 	p.Token = w.Token // rotated on Hello; REST calls use this one from now on
-	p.attackTicks = uint64(w.GetCharacter().GetSheet().GetAttackLengthTicks())
+	p.attackTicks, p.TickHz = uint64(w.GetCharacter().GetSheet().GetAttackLengthTicks()), w.GetTickRateHz()
 	var snap *clientv1.Snapshot
 	registered := false
 	deadline := time.Now().Add(5 * time.Second)
@@ -66,7 +68,7 @@ func (p *Player) Hello(token string) (*clientv1.Welcome, *clientv1.Snapshot) {
 		switch d := m.Data.(type) {
 		case *clientv1.Snapshot:
 			if snap == nil {
-				snap = d
+				snap, p.Joined = d, m.Tick
 				continue
 			}
 		case *clientv1.PartyState:

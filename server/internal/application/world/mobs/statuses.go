@@ -81,7 +81,7 @@ func (a *Arena) inflict(mb *mob, in model.Infliction) bool {
 	case gamedata.Knockdown:
 		mb.pose, mb.poseEnd = model.Down, st.Until
 	case gamedata.Taunt:
-		mb.provoker, mb.provokedUntil = by, st.Until
+		mb.provoker, mb.provokedUntil, mb.calm = by, st.Until, false
 		a.take(mb, by)
 	case gamedata.LoseSight:
 		if mb.target == by {
@@ -144,6 +144,7 @@ func (a *Arena) pushed(mb *mob) bool {
 func (a *Arena) Afflict(s Strike) {
 	hides := slices.ContainsFunc(s.Inflicts, func(in model.Infliction) bool { return in.Status.ID == gamedata.LoseSight })
 	for _, mb := range a.reached(s) {
+		mb.calm = mb.calm && hides // a status wakes a standing boss, unless it only hides its user
 		if !hides && mb.provokable(s.By) {
 			mb.provoker, mb.provokedUntil = s.By, a.afterBlow(a.data.MobRules().Provoke)
 		}

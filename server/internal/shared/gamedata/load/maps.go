@@ -115,7 +115,7 @@ func (l *loader) mapRules(m *mapfile.Map) error {
 		case !ok:
 			return fmt.Errorf("spawn %q: unknown mob %q", s.Name, s.Mob)
 		case mob.Boss:
-			return fmt.Errorf("spawn %q: %s is a field boss, which kills bring", s.Name, s.Mob)
+			return fmt.Errorf("spawn %q: %s is a field boss, which stands at the map's boss spot", s.Name, s.Mob)
 		case mob.Level < m.Levels[0] || mob.Level > m.Levels[1]:
 			return fmt.Errorf("spawn %q: %s is level %d, outside the map's levels %d to %d", s.Name, s.Mob, mob.Level, m.Levels[0], m.Levels[1])
 		case s.Max < 1 || s.Respawn < 0:
@@ -136,8 +136,6 @@ func (l *loader) mapRules(m *mapfile.Map) error {
 			return fmt.Errorf("boss %q is not a boss in %s", b.Mob, mobsFile)
 		case boss.Level < m.Levels[1]:
 			return fmt.Errorf("boss %s is level %d, below the map's top level %d", b.Mob, boss.Level, m.Levels[1])
-		case b.Kills < 1:
-			return fmt.Errorf("boss %s: kills must be positive", b.Mob)
 		case b.Radius < boss.Radius:
 			return fmt.Errorf("boss %s: its circle's radius %g is narrower than its body's %g", b.Mob, b.Radius, boss.Radius)
 		}
@@ -284,7 +282,7 @@ func mapOf(m *mapfile.Map) *gamedata.Map {
 		out.NPCs = append(out.NPCs, gamedata.Placement{NPC: n.ID, At: point(n.At), Yaw: radians(n.Yaw)})
 	}
 	if b := m.Boss; b != nil {
-		out.Boss = &gamedata.BossSpot{Mob: b.Mob, Kills: b.Kills, At: point(b.At), Radius: b.Radius}
+		out.Boss = &gamedata.BossSpot{Mob: b.Mob, At: point(b.At), Radius: b.Radius}
 	}
 	for s, side := range m.Sides {
 		for _, at := range side {

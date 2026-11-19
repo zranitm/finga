@@ -18,6 +18,7 @@
   - Players on the map are told when it appears: "King Slime has appeared!" Nobody else is.
   - While it's down, the map window marks its spot with when it's back, such as "back in 3:12".
 - **The fight:**
+  - It fights only once someone hits it.
   - A boss HP bar at the top of the screen shows its name and HP to everyone on the map.
   - It fights like other mobs, with its family's attack, only much harder, and a slam all around it (C12).
 - **Rewards,** for players alive on the map when it falls:

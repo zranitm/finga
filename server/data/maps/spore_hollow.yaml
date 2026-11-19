@@ -54,4 +54,4 @@ spawns:
   - {name: south_rat, at: [37.5, 9], radius: 2.5, mob: toadstool_rat, max: 1, respawn: 12s}
   - {name: glade_rat, at: [52, 16], radius: 3, mob: toadstool_rat, max: 1, respawn: 12s}
 player_spawn: {at: [4.5, 18], yaw: 90}
-boss: {at: [43, 18], radius: 7, mob: moth_empress, kills: 300}
+boss: {at: [43, 18], radius: 7, mob: moth_empress}

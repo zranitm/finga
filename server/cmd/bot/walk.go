@@ -18,7 +18,7 @@ const (
 	inTheWayCone = 0.5              // the cosine of the widest angle off the bot's way a mob in its way stands at, 60°
 	reachShare   = 0.7              // of an attack's reach a bot goes in to, so a step either way still hits
 	giveUpFor    = 30 * time.Second // a bot leaves a mob it found no way to this long
-	bossMargin   = 3.0              // metres past a field boss's sight a bot keeps its hunt and its way
+	bossClear    = 14.0             // metres from a field boss a bot keeps its prey and its hunt: past its reach to its prey, the widest area a skill covers round it, and the boss's body, so no blow of its wakes the boss
 )
 
 // clientKeys is a client's Input holding in's keys.
@@ -193,61 +193,25 @@ func (b *bot) roll(s spot) nav.Point {
 	return s.at
 }
 
-// bossAt is where the field boss up on a map stands, as far as the bot knows, and how far round it a bot keeps clear: its mob's place on the bot's map, else its circle, which it wanders. A bot waiting the boss out goes by its circle, so the boss wandering back and forth doesn't turn it back and forth.
+// bossAt is where the field boss up on a map stands, as far as the bot knows, and how far round it a bot keeps clear: its mob's place on the bot's map, else its circle, which it wanders.
 func (b *bot) bossAt(mapID string) (nav.Point, float64, bool) {
 	if !b.bossUp(mapID) {
 		return nav.Point{}, 0, false
 	}
-	clear := b.data.MobRules().Sight + bossMargin
-	if m, ok := b.mobs[b.boss]; ok && mapID == b.mapID && b.waiting != mapID {
-		return nav.Point{X: m.GetX(), Z: m.GetZ()}, clear, true
+	if m, ok := b.mobs[b.boss]; ok && mapID == b.mapID {
+		return nav.Point{X: m.GetX(), Z: m.GetZ()}, bossClear, true
 	}
 	m, ok := b.data.Map(mapID)
 	if !ok || m.Boss == nil {
 		return nav.Point{}, 0, false
 	}
-	return point(m.Boss.At), m.Boss.Radius + clear, true
+	return point(m.Boss.At), m.Boss.Radius + bossClear, true
 }
 
-// nearBoss reports whether p on a map is where its field boss could see a bot, or near it: a square, as far either way in x and z, so further clear than sight's circle.
+// nearBoss reports whether p on a map is where a bot's blows could reach its field boss, which fights only once hit: a square, as far either way in x and z, so further clear than a circle.
 func (b *bot) nearBoss(mapID string, p nav.Point) bool {
 	at, r, ok := b.bossAt(mapID)
 	return ok && max(math.Abs(p.X-at.X), math.Abs(p.Z-at.Z)) < r
-}
-
-// bossCovers reports whether a spot lies wholly where a map's field boss could see a bot, or near it; a spot partly clear is hunted in its clear part.
-func (b *bot) bossCovers(mapID string, s spot) bool {
-	at, r, ok := b.bossAt(mapID)
-	return ok && math.Abs(s.at.X-at.X)+s.radius < r && math.Abs(s.at.Z-at.Z)+s.radius < r
-}
-
-// bossBlocks is the map whose field boss keeps the bot off a goal: one near a portal on its way there or where it comes out, near the NPC it talks to, or all over the spot it hunts.
-func (b *bot) bossBlocks(g goal) (string, bool) {
-	to := b.mapOf(g)
-	for at := b.mapID; at != to; {
-		p, ok := b.world.portalTo(at, to)
-		if !ok {
-			break
-		}
-		if b.nearBoss(at, point(p.At)) {
-			return at, true
-		}
-		if out, ok := b.world.arrival(p); ok && b.nearBoss(p.TargetMap, out) {
-			return p.TargetMap, true
-		}
-		at = p.TargetMap
-	}
-	switch g.kind {
-	case talkGoal:
-		if b.nearBoss(to, point(g.npc.At)) {
-			return to, true
-		}
-	case huntGoal:
-		if b.bossCovers(to, g.spot) {
-			return to, true
-		}
-	}
-	return "", false
 }
 
 // townNPCs are the NPCs of a map in the order a visit talks to them: from the one nearest where players appear, each next the nearest left.

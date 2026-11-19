@@ -1,6 +1,6 @@
 # Loot pouches and timed bosses
 
-> **Status: approved · 2026-11-19.** The high-level design for the changes to [D1. Drops and loot](../product/features/items-and-inventory/d1-drops-and-loot.md) and [C10. Field bosses](../product/features/combat-and-progression/c10-field-bosses.md), with E3's party loot and E5's lines. It replaces auto pickup ([Auto pickup and the combat channel](./auto-pickup-and-combat-channel.md) sections 3 to 5) and the boss's kill count ([Field bosses](./field-bosses.md)).
+> **Status: approved · 2026-11-19. Step 1, timed bosses, as built.** The high-level design for the changes to [D1. Drops and loot](../product/features/items-and-inventory/d1-drops-and-loot.md) and [C10. Field bosses](../product/features/combat-and-progression/c10-field-bosses.md), with E3's party loot and E5's lines. It replaces auto pickup ([Auto pickup and the combat channel](./auto-pickup-and-combat-channel.md) sections 3 to 5) and the boss's kill count ([Field bosses](./field-bosses.md)).
 
 ## 1. What has to hold
 
@@ -88,9 +88,14 @@
   - The instance notes the tick `respawn` later, and raises the boss again at its spot then.
   - The kill count, and kills not counting while a boss is up, go.
 - **No leaving:** a boss stays until it's beaten. `life`, the leave check and `FieldBossGone{beaten: false}` go.
+- **Calm until hit** (decision 11):
+  - A standing boss sees nobody. Any blow from a player wakes it, an area hit or a miss included, and so does a status or a taunt; a skill that only hides its user doesn't.
+  - Awake, it fights as any mob: sight, chase, attacks and warning areas. It goes after whoever hit it, and others it sees as any fighting mob does.
+  - It's calm again once its reset takes it home: led past its leash, hit from beyond it, or with nobody left it sees. HP stays as it is on the way home, as for any mob. There's no calm cue.
+  - Mobs in its circle are as before.
 - **Who hears it:**
   - Each player on the map, or in the area in a region, gets a notice and a line in the General tab: "King Slime has appeared!"
-  - The instance sends these itself. Social's `Announce` for bosses goes, with its kind.
+  - The instance sends these itself, as `FieldBoss` to the map. Bosses were the only news social's `Announce` carried, so it goes whole: the `Announcement` message (field 28, reserved), social's `Announce` and the world's announce queue.
 - **The bar:** name and HP. It has no time left, since a boss doesn't leave.
 - **While it's down:**
   - The map window marks the boss's spot, greyed, with when it's back: "King Slime: back in 3:12".
@@ -144,7 +149,11 @@
 
 ## 8. cmd/bot
 
-Bots open every pouch in reach and take all, so the soak (large-regions.md section 13) counts the takes' calls.
+- **Step 1, as built:**
+  - A bot takes each map's boss as standing unless it heard it beaten there, until its `back_in_ms` runs out or it sees it back.
+  - A calm boss blocks no way, so bots no longer wait bosses out in the town.
+  - A bot keeps its prey and its hunt 14 m from a boss (`bossClear`). That's past the boss's body, the widest area a skill covers and a bot's reach, so no blow of a bot's wakes it. A test checks the margin against the data.
+- **Step 2:** bots open every pouch in reach and take all, so the soak (large-regions.md section 13) counts the takes' calls.
 
 ## 9. Testing
 
@@ -168,7 +177,9 @@ Bots open every pouch in reach and take all, so the soak (large-regions.md secti
   - back `respawn` after a kill and never before;
   - never leaving;
   - notices only on its map or area;
-  - `back_in_ms` in the snapshot of a player joining while it's down.
+  - `back_in_ms` in the snapshot of a player joining while it's down;
+  - calm: a player walking the forest past King Slime, stopping by it, is never chased; a blow wakes it, even from someone it can't see; it's calm again after a reset, by its leash or with nobody left; mobs by it still fight;
+  - rewards as before.
 - **Item invariants** hold over randomized takes. Every created item has its `drop` cause.
 - **Client:**
   - the window's list from several pouches;
@@ -200,6 +211,7 @@ The user's choices are in section 1. These calls were made in planning and logge
 8. **A boss is up when its map starts,** never leaves, and its bar shows no time. The map window shows when it's back.
 9. **Taking works in combat,** not while dead.
 10. **The reach is 2 m,** with 0.5 m of slack on the server for the client's lead.
+11. **A standing boss fights only once provoked,** so bosses on narrow maps never block paths. With bosses up for good, King Slime saw the whole forest's way from the town to the cave, and the Vampire Bat stands among the cave's bats.
 
 ## 12. Alternatives considered
 

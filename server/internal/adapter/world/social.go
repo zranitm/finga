@@ -15,10 +15,9 @@ type SocialModule interface {
 	SubscribeMemberships(world string) *hub.Sub[social.MembershipEvent]
 	Memberships(ctx context.Context, visit func(party social.PartyID, members []kernel.CharacterID)) error
 	UpdateMember(ctx context.Context, u social.MemberUpdate) error
-	Announce(ctx context.Context, a social.Announcement) error
 }
 
-// Social adapts the social module to party.Social and announce.Social.
+// Social adapts the social module to party.Social.
 type Social struct {
 	s      SocialModule
 	panics *panics.Recorder
@@ -57,15 +56,6 @@ func ids(in []kernel.CharacterID) []kernel.CharacterID {
 // UpdateMember tells the social module what a map saw of a member.
 func (s Social) UpdateMember(ctx context.Context, u model.MemberUpdate) error {
 	return s.s.UpdateMember(ctx, social.MemberUpdate{ID: u.ID, MapID: u.MapID, Class: u.Class, Level: u.Level, HP: u.HP, MaxHP: u.MaxHP})
-}
-
-// Announce sends news to every character online.
-func (s Social) Announce(ctx context.Context, a model.Announcement) error {
-	switch a := a.(type) { //nolint:gocritic // a switch, so gochecksumtype names every kind added later
-	case model.BossAppeared:
-		return s.s.Announce(ctx, social.BossAppeared{Boss: a.Boss, MapID: a.Map})
-	}
-	return nil
 }
 
 // Retryable is a failure the social module may yet get past; any other would be retried forever.

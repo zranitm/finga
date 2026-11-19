@@ -31,11 +31,12 @@ type Event interface{ worldEvent() }
 
 // Snapshot is the whole map, sent to a player on join.
 type Snapshot struct {
-	MapID     string
-	Players   []PlayerView
-	Mobs      []MobView
-	Drops     []DropView
-	FieldBoss *FieldBoss // while one is up
+	MapID         string
+	Players       []PlayerView
+	Mobs          []MobView
+	Drops         []DropView
+	FieldBoss     *FieldBoss     // while one is up
+	FieldBossGone *FieldBossGone // while the map's is beaten
 }
 
 // Frame is what changed on a map in one tick, once for every player there through the gateway; read-only.
@@ -185,17 +186,17 @@ type MobAttacked struct {
 	ToX, ToY, ToZ float64 // where its hit goes: a leap's landing or a rush's end; for other kinds, where the mob stands
 }
 
-// FieldBoss is a map's field boss, up for LeavesIn unless beaten.
+// FieldBoss is a map's field boss, up until it's beaten.
 type FieldBoss struct {
-	Mob      uint64
-	Type     string
-	LeavesIn time.Duration
+	Mob  uint64
+	Type string
 }
 
-// FieldBossGone says the field boss left, or was beaten.
+// FieldBossGone says the field boss is beaten, and how long until it's back.
 type FieldBossGone struct {
 	Mob    uint64
-	Beaten bool
+	Type   string
+	BackIn time.Duration
 }
 
 // Chat is a map chat line.
@@ -506,13 +507,16 @@ func deliveryOf(e model.Event) Delivery {
 	case model.Snapshot:
 		snap := Snapshot{MapID: ev.MapID, Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Drops: dropViews(ev.Drops)}
 		if b := ev.FieldBoss; b != nil {
-			snap.FieldBoss = &FieldBoss{Mob: b.Mob, Type: b.Type, LeavesIn: b.LeavesIn}
+			snap.FieldBoss = &FieldBoss{Mob: b.Mob, Type: b.Type}
+		}
+		if b := ev.FieldBossGone; b != nil {
+			snap.FieldBossGone = &FieldBossGone{Mob: b.Mob, Type: b.Type, BackIn: b.BackIn}
 		}
 		return Delivery{Tick: ev.Tick, Event: snap}
 	case model.FieldBoss:
-		return Delivery{Tick: ev.Tick, Event: FieldBoss{Mob: ev.Mob, Type: ev.Type, LeavesIn: ev.LeavesIn}}
+		return Delivery{Tick: ev.Tick, Event: FieldBoss{Mob: ev.Mob, Type: ev.Type}}
 	case model.FieldBossGone:
-		return Delivery{Tick: ev.Tick, Event: FieldBossGone{Mob: ev.Mob, Beaten: ev.Beaten}}
+		return Delivery{Tick: ev.Tick, Event: FieldBossGone{Mob: ev.Mob, Type: ev.Type, BackIn: ev.BackIn}}
 	case model.Teleport:
 		return Delivery{Tick: ev.Tick, Event: Teleport{MapID: ev.MapID, X: ev.X, Y: ev.Y, Z: ev.Z, Yaw: ev.Yaw}}
 	case model.Damage:

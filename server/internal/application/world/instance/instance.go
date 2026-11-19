@@ -48,7 +48,6 @@ type Services struct {
 	Potions   Potions
 	ItemCalls *itemcalls.Pool
 	Traces    trace.TracerProvider // starts each grant call's trace
-	Notices   Notices
 }
 
 // Deps are one map's: the map, where its checkpoints go and who takes its players to other maps, with the shared services; all are required.
@@ -91,8 +90,9 @@ type Instance struct {
 	ticksPer uint64               // ticks between a player's checkpoints
 	nextSlot uint64               // the sweep tick, mod ticksPer, the next player to join gets
 
-	bossKills int        // kills toward the map's field boss, counted while none is up
-	boss      *fieldBoss // the map's field boss while it is up
+	boss     *fieldBoss // the map's field boss while it is up
+	bossBack uint64     // the tick a beaten boss is back; 0 until one is beaten
+	fallen   uint64     // the beaten boss's mob, while it is down
 
 	dropped []kernel.CharacterID // removed during the last broadcast, reported next tick
 	events  []model.Event        // map-wide events of the current tick
@@ -202,6 +202,9 @@ func New(d Deps, t Tuning) *Instance {
 	if d.Match != nil {
 		i.match = newMatch(*d.Match, d.Data.Pvp(), i.ticksFor)
 		i.addBots()
+	}
+	if d.Map.Boss != nil {
+		i.raiseBoss() // up from the start, before anyone is here to hear it
 	}
 	i.ground = loot.NewGround(loot.Deps{
 		MapID: d.Map.ID, Items: d.Items, ItemCalls: d.ItemCalls, Observer: d.Batches, Traces: d.Traces, Roll: roll, Data: d.Data, Rest: i.rest, Logger: d.Logger, Settle: i.settled,

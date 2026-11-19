@@ -62,9 +62,7 @@ describe('the HUD’s panels', () => {
       );
       fieldBoss
         .getState()
-        .applyFieldBoss(
-          create(FieldBossSchema, { mobId: 9, type: 'king_slime', leavesInMs: 600000n }),
-        );
+        .applyFieldBoss(create(FieldBossSchema, { mobId: 9, type: 'king_slime' }));
       fieldBoss.getState().setHp({ hp: 3100, maxHp: 4530 });
       target.getState().show({ kind: 'mob', ref: 'm:4', type: 'green_slime', hp: 34 });
     });

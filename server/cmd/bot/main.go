@@ -173,8 +173,6 @@ type bot struct {
 	attackEvery time.Duration
 	tick        time.Duration
 	why         string               // the goal it last logged
-	waiting     string               // the map whose field boss it waits out in the town, as last logged
-	waitFrom    time.Time            // and since when
 	boss        uint32               // the field boss's mob on its map, 0 with none
 	lastTalk    map[string]time.Time // by NPC
 	townDue     time.Time            // the next trip to the town to talk to everyone, before promotion
@@ -190,7 +188,7 @@ type bot struct {
 	mobs        map[uint32]*clientv1.MobView // on its map, by ID
 	portalAt    time.Time
 	frameTick   uint64               // its map's newest frame, the view each input names
-	bosses      map[string]time.Time // the maps with a field boss up, until it leaves at the latest
+	bossBack    map[string]time.Time // when each map's beaten boss is back, as the bot heard on that map; a map's boss is up otherwise
 }
 
 // kills finds a bot's kills. A blow that empties a mob's HP removes it, so no later blow lands on it: the last landed blow on a mob removed in a tick is its kill, known once the next tick starts.
@@ -578,8 +576,11 @@ func (b *bot) observe(m wsconn.Message) {
 	case *clientv1.Snapshot:
 		b.frameTick = m.Tick
 		if fb := d.GetFieldBoss(); fb != nil {
-			b.bossUntil(b.mapID, time.Now().Add(time.Duration(fb.GetLeavesInMs())*time.Millisecond))
+			b.bossBackIn(b.mapID, 0)
 			b.boss = fb.GetMobId()
+		}
+		if gone := d.GetFieldBossGone(); gone != nil {
+			b.bossBackIn(b.mapID, time.Duration(gone.GetBackInMs())*time.Millisecond)
 		}
 		for _, v := range d.GetPlayers() {
 			if v.GetId() == b.id {
@@ -613,15 +614,11 @@ func (b *bot) observe(m wsconn.Message) {
 	case *clientv1.Damage:
 		b.killed(b.kills.blow(m.Tick, d, b.id))
 	case *clientv1.FieldBoss:
-		b.bossUntil(b.mapID, time.Now().Add(time.Duration(d.GetLeavesInMs())*time.Millisecond))
+		b.bossBackIn(b.mapID, 0)
 		b.boss = d.GetMobId()
 	case *clientv1.FieldBossGone:
-		delete(b.bosses, b.mapID)
+		b.bossBackIn(b.mapID, time.Duration(d.GetBackInMs())*time.Millisecond)
 		b.boss = 0
-	case *clientv1.Announcement:
-		if a := d.GetBossAppeared(); a != nil {
-			b.bossUntil(a.GetMapId(), time.Now().Add(b.data.FieldBoss().Life))
-		}
 	case *clientv1.MapChange:
 		b.frameTick = 0 // another map's ticks, from its Snapshot on
 		b.mapID, b.x, b.y, b.z = d.GetMapId(), d.GetX(), d.GetY(), d.GetZ()
@@ -854,22 +851,6 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 			fmt.Fprintf(os.Stderr, "%s: level %d %s, now %s\n", b.name, b.level, b.class, g.why)
 			b.why = g.why
 		}
-		if by, ok := b.bossBlocks(g); ok { // it waits in the town
-			if b.waiting != by {
-				b.waiting, b.waitFrom = by, time.Now()
-				fmt.Fprintf(os.Stderr, "%s: waiting out %s's boss, %s into the session\n", b.name, by, time.Since(b.start).Round(time.Second))
-			}
-			if b.mapID != town {
-				b.travel(town)
-			} else {
-				b.input(&clientv1.Input{})
-			}
-			return
-		}
-		if b.waiting != "" {
-			fmt.Fprintf(os.Stderr, "%s: waited out %s's boss for %s\n", b.name, b.waiting, time.Since(b.waitFrom).Round(time.Second))
-			b.waiting = ""
-		}
 		if to := b.mapOf(g); to != b.mapID {
 			b.travel(to)
 			return
@@ -907,18 +888,18 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 	}
 }
 
-// bossUntil records a field boss up on mapID until it leaves at the latest; a beaten one is forgotten when the bot hears it fall.
-func (b *bot) bossUntil(mapID string, until time.Time) {
-	if b.bosses == nil {
-		b.bosses = map[string]time.Time{}
+// bossBackIn records when mapID's beaten boss is back, as the bot heard it on that map; 0 for one up.
+func (b *bot) bossBackIn(mapID string, d time.Duration) {
+	if b.bossBack == nil {
+		b.bossBack = map[string]time.Time{}
 	}
-	b.bosses[mapID] = until
+	b.bossBack[mapID] = time.Now().Add(d)
 }
 
-// bossUp is whether a field boss is up on mapID, as far as the bot knows: announced, or seen there, and not yet gone.
+// bossUp is whether mapID's field boss is up, as far as the bot knows: a boss stands at its spot unless the bot heard it beaten there and it isn't back yet.
 func (b *bot) bossUp(mapID string) bool {
-	until, ok := b.bosses[mapID]
-	return ok && time.Now().Before(until)
+	m, ok := b.data.Map(mapID)
+	return ok && m.Boss != nil && !time.Now().Before(b.bossBack[mapID])
 }
 
 // townEvery is how often a bot not yet promoted goes back to the start town to talk to everyone, staggered by bot.

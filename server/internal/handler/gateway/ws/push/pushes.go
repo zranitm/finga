@@ -14,13 +14,14 @@ func (o *Outbox) body(p model.Push) any {
 		if p.FieldBoss != nil {
 			snap.FieldBoss = fieldBoss(*p.FieldBoss)
 		}
+		if p.FieldBossGone != nil {
+			snap.FieldBossGone = bossGone(*p.FieldBossGone)
+		}
 		return snap
 	case model.FieldBoss:
 		return fieldBoss(p)
 	case model.FieldBossGone:
-		return &clientv1.FieldBossGone{MobId: uint32(p.MobID), Beaten: p.Beaten}
-	case model.BossAppeared:
-		return &clientv1.Announcement{Kind: &clientv1.Announcement_BossAppeared{BossAppeared: &clientv1.BossAppeared{Boss: p.Boss, MapId: p.MapID}}}
+		return bossGone(p)
 	case model.Delta:
 		return wsconn.Spliced{Shared: o.frames.shared(p.Frame), Own: &clientv1.Delta{AckSeq: p.AckSeq, Energy: p.Energy}}
 	case model.MapChange:
@@ -80,5 +81,9 @@ func (o *Outbox) body(p model.Push) any {
 }
 
 func fieldBoss(b model.FieldBoss) *clientv1.FieldBoss {
-	return &clientv1.FieldBoss{MobId: uint32(b.MobID), Type: b.Type, LeavesInMs: b.LeavesInMs}
+	return &clientv1.FieldBoss{MobId: uint32(b.MobID), Type: b.Type}
+}
+
+func bossGone(b model.FieldBossGone) *clientv1.FieldBossGone {
+	return &clientv1.FieldBossGone{MobId: uint32(b.MobID), Type: b.Type, BackInMs: b.BackInMs}
 }

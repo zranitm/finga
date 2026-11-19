@@ -41,10 +41,9 @@ type Spawn struct {
 	Radius  float64
 }
 
-// BossSpot is where a hunting map's field boss appears, at its circle's centre, and how many kills on the map bring it.
+// BossSpot is where a hunting map's field boss stands, at its circle's centre.
 type BossSpot struct {
 	Mob    string
-	Kills  int
 	At     Point
 	Radius float64 // it wanders the circle
 }

@@ -26,6 +26,7 @@ func eventKeepsItsFields[E model.Event](t *testing.T) {
 		}
 		if name == "Snapshot" {
 			m.Skip["FieldBoss.Tick"] = "a snapshot's boss is as of the snapshot"
+			m.Skip["FieldBossGone.Tick"] = "a snapshot's beaten boss is as of the snapshot"
 		}
 		got := copytest.Diff(m, func(e E) Event {
 			d := deliveryOf(e)

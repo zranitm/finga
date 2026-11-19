@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 
 import { problemOf } from '@/features/shared/problem';
+import { useNow } from '@/features/shared/useNow';
+import { timeLeft } from '@/features/shared/words';
 import { WorldWindow } from '@/features/shared/WorldWindow';
 import { mapLinks } from '@/gamedata/map-links';
 import { maps } from '@/gamedata/maps';
@@ -11,7 +13,10 @@ import { clashes, stackTags, TAG_GAP } from '@/lib/tags';
 import type { TagBox } from '@/lib/tags';
 import type { GameSocket } from '@/net/socket';
 import { mobById } from '@/progression/mobs';
+import { mobName } from '@/progression/names';
 import { character } from '@/state/character';
+import { fieldBoss } from '@/state/field-boss';
+import type { BossDown } from '@/state/field-boss';
 import { mapView } from '@/state/map-view';
 import type { Spot } from '@/state/map-view';
 import { party } from '@/state/party';
@@ -44,7 +49,7 @@ const levels = (m: MapData) => `Lv ${m.min_level}–${m.max_level}`;
 
 /** A label on This map, in pixels: its text centred on x, sitting on bottom. */
 export interface MapLabel extends TagBox {
-  readonly kind: 'spawn' | 'portal' | 'npc' | 'me';
+  readonly kind: 'spawn' | 'portal' | 'npc' | 'boss' | 'me';
   readonly text: string;
 }
 
@@ -104,6 +109,7 @@ export function mapLabels(
   scale: number,
   size: readonly [number, number],
   marked: ReadonlySet<string>,
+  down: BossDown | null,
 ): MapLabel[] {
   const y = (z: number) => (size[1] - z) * scale;
   const box = (kind: MapLabel['kind'], text: string, x: number, bottom: number) => {
@@ -165,10 +171,22 @@ export function mapLabels(
       box('portal', `To ${nameOf(p.to)}`, p.x, y(p.z) - Math.max(p.radius * scale, 2 * DOT_PX) - 2),
     ),
     ...here.map((n) => box('npc', n.name, n.x, y(n.z) - DOT_PX - 2)),
+    ...(down && map.boss
+      ? [box('boss', backIn(down.type, 0), map.boss.x, y(map.boss.z) - 3 * DOT_PX - 2)]
+      : []),
     ...(me ? [box('me', 'You', me.x, y(me.z) - 3 * DOT_PX - 2)] : []),
   ];
   const bottoms = stackTags(placed, rest);
   return [...spawns, ...rest.map((l, i) => ({ ...l, bottom: bottoms[i]! }))];
+}
+
+/** A beaten boss's label: its name and the time until it's back. */
+const backIn = (type: string, ms: number) => `${mobName(type)}: back in ${timeLeft(ms)}`;
+
+/** The beaten boss's label text, counting down each second. */
+function BackIn({ down }: { readonly down: BossDown }) {
+  const now = useNow(1000);
+  return backIn(down.type, down.backAt - now);
 }
 
 /** A map's size in metres east and north, and its ground's image, which the map window is given for a map the scene hasn't drawn. */
@@ -182,6 +200,8 @@ function Plan({ map, layout }: { readonly map: MapData; readonly layout?: MapLay
   const current = mapView.use((s) => s.mapId);
   const size = mapView.use((s) => s.size);
   const me = mapView.use((s) => s.me);
+  const beaten = fieldBoss.use((s) => s.down);
+  const down = map.id === current ? beaten : null;
   const markers = useNpcMarkers(map.id);
   const [sx, sz] = layout?.size ?? size;
   const scale = Math.min(VIEW_W / sx, VIEW_H / sz);
@@ -191,6 +211,7 @@ function Plan({ map, layout }: { readonly map: MapData; readonly layout?: MapLay
     scale,
     [sx, sz],
     new Set(markers.keys()),
+    down,
   );
   return (
     <svg
@@ -211,7 +232,7 @@ function Plan({ map, layout }: { readonly map: MapData; readonly layout?: MapLay
             fontSize={LABEL_PX / scale}
             textAnchor="middle"
           >
-            {l.text}
+            {l.kind === 'boss' && down ? <BackIn down={down} /> : l.text}
           </text>
         ))}
       </MapMarks>

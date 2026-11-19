@@ -2,6 +2,7 @@
   "tick": 81236,
   "field_boss_gone": {
     "mob_id": 9,
-    "beaten": true
+    "type": "king_slime",
+    "back_in_ms": "300000"
   }
 }

@@ -191,7 +191,7 @@ attacks:
   slam: {kind: around, windup: 1000ms, spread: 1.5, recover: 600ms, cooldown: 5s, power: 1.5}
   spit: {kind: shot, windup: 600ms, range: 7.5, speed: 9.375, size: 0.375, recover: 300ms, cooldown: 2500ms, power: 1}
 field_boss:
-  life: 10m
+  respawn: 5m
   drop_share: 0.01
 mobs:
   - id: green_slime
@@ -373,7 +373,7 @@ player_spawn: {at: [3, 10], yaw: 90}
 npcs:
   - {id: hunter, at: [20, 12], yaw: 180}
   - {id: drillmaster, at: [28, 5], yaw: 180}
-boss: {at: [30, 14], radius: 4, mob: slime_lord, kills: 20}
+boss: {at: [30, 14], radius: 4, mob: slime_lord}
 `,
 	}
 }
@@ -450,7 +450,7 @@ func TestValidDataLoads(t *testing.T) {
 		}
 	})
 	t.Run("the field boss rules, and a boss marked as one, with super armor", func(t *testing.T) {
-		if got := d.FieldBoss(); got != (gamedata.FieldBossRules{Life: 10 * time.Minute, DropShare: 0.01}) {
+		if got := d.FieldBoss(); got != (gamedata.FieldBossRules{Respawn: 5 * time.Minute, DropShare: 0.01}) {
 			t.Fatalf("field boss rules %+v", got)
 		}
 		lord, _ := d.Mob("slime_lord")
@@ -681,7 +681,7 @@ func TestValidDataLoads(t *testing.T) {
 		if field.PlayerSpawn != (gamedata.Point{X: 3, Z: 10}) || field.SpawnYaw != math.Pi/2 {
 			t.Fatalf("field's player spawn %+v facing %v, want (3, 10) facing east", field.PlayerSpawn, field.SpawnYaw)
 		}
-		if field.Boss == nil || *field.Boss != (gamedata.BossSpot{Mob: "slime_lord", Kills: 20, At: gamedata.Point{X: 30, Z: 14}, Radius: 4}) || town.Boss != nil {
+		if field.Boss == nil || *field.Boss != (gamedata.BossSpot{Mob: "slime_lord", At: gamedata.Point{X: 30, Z: 14}, Radius: 4}) || town.Boss != nil {
 			t.Fatalf("field's boss %+v, town's %+v", field.Boss, town.Boss)
 		}
 		if g := field.Grid; g == nil || !g.Fits(nav.Point{X: 3, Z: 10}, 0.375) {
@@ -857,7 +857,7 @@ func TestRejections(t *testing.T) {
 		{"a spit whose range is shorter than its size", "mobs.yaml", "range: 7.5", "range: 0.25", []string{"mobs.yaml", "spit", "range"}},
 		{"a mob changing an attack's kind", "mobs.yaml", "{use: slam}", "{use: slam, kind: leap}", []string{"mobs.yaml", "kind"}},
 		{"an unblockable attack on a mob that isn't a boss", "mobs.yaml", "attacks: [{use: hop}]", "attacks: [{use: hop, unblockable: true}]", []string{"mobs.yaml", "green_slime", "hop", "only a boss's attack is unblockable"}},
-		{"field_boss without a life", "mobs.yaml", "  life: 10m\n", "", []string{"mobs.yaml", "field_boss"}},
+		{"field_boss without a respawn", "mobs.yaml", "  respawn: 5m\n", "", []string{"mobs.yaml", "field_boss"}},
 		{"a drop share above one", "mobs.yaml", "drop_share: 0.01", "drop_share: 1.5", []string{"mobs.yaml", "field_boss", "drop_share"}},
 		{"a mob both a boss and an elite", "mobs.yaml", "    boss: true\n", "    boss: true\n    elite: true\n", []string{"mobs.yaml", "slime_lord", "elite"}},
 		{"duplicate item IDs", "items.yaml", `id: slime_gel`, `id: red_potion`, []string{"items.yaml", "red_potion", "duplicate"}},

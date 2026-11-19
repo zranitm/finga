@@ -80,4 +80,4 @@ spawns:
   - {name: ring_snail, at: [36, 18.5], radius: 4, mob: mossback_snail, max: 1, respawn: 12s}
   - {name: south_snails, at: [56.5, 11], radius: 3.5, mob: mossback_snail, max: 2, respawn: 12s}
 player_spawn: {at: [4.5, 18], yaw: 90}
-boss: {at: [54, 18], radius: 4.5, mob: spore_mother, kills: 300}
+boss: {at: [54, 18], radius: 4.5, mob: spore_mother}

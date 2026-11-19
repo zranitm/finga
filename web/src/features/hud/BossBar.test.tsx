@@ -6,7 +6,7 @@ import { FieldBossGoneSchema, FieldBossSchema } from '@/protocol/messages';
 import { fieldBoss } from '@/state/field-boss';
 import { resetStores } from '@/testing/reset-stores';
 
-import { BossBar, timeLeft } from './BossBar';
+import { BossBar } from './BossBar';
 
 describe('BossBar', () => {
   beforeEach(() => {
@@ -17,14 +17,12 @@ describe('BossBar', () => {
     vi.useRealTimers();
   });
 
-  it('shows the boss while it is up and drawn: its name, its HP and the time it has left, counting down', () => {
+  it('shows the boss while it is up and drawn: its name and its HP, with no time, as it never leaves', () => {
     render(<BossBar />);
     act(() => {
       fieldBoss
         .getState()
-        .applyFieldBoss(
-          create(FieldBossSchema, { mobId: 9, type: 'king_slime', leavesInMs: 600000n }),
-        );
+        .applyFieldBoss(create(FieldBossSchema, { mobId: 9, type: 'king_slime' }));
     });
     expect(screen.queryByLabelText('Field boss')).not.toBeInTheDocument(); // not drawn yet
     act(() => {
@@ -38,23 +36,14 @@ describe('BossBar', () => {
     const hp = screen.getByRole('meter', { name: 'King Slime' });
     expect(hp).toHaveAttribute('aria-valuenow', '3100');
     expect(hp).toHaveAttribute('aria-valuemax', '4260');
-    expect(screen.getByTitle('Time left')).toHaveTextContent('10:00');
+    expect(bar.querySelector('[title="Time left"]')).toBeNull();
     act(() => {
-      vi.advanceTimersByTime(61000);
-    });
-    expect(screen.getByTitle('Time left')).toHaveTextContent('8:59');
-    act(() => {
-      fieldBoss.getState().applyGone(create(FieldBossGoneSchema, { mobId: 9, beaten: true }));
+      fieldBoss
+        .getState()
+        .applyGone(
+          create(FieldBossGoneSchema, { mobId: 9, type: 'king_slime', backInMs: 300000n }),
+        );
     });
     expect(screen.queryByLabelText('Field boss')).not.toBeInTheDocument();
-  });
-
-  it.each([
-    { ms: 600000, text: '10:00' },
-    { ms: 59001, text: '1:00' },
-    { ms: 9000, text: '0:09' },
-    { ms: -500, text: '0:00' },
-  ])('$ms ms left reads $text', ({ ms, text }) => {
-    expect(timeLeft(ms)).toBe(text);
   });
 });

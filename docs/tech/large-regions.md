@@ -64,7 +64,7 @@ features:                                     # applied in order
   - {road:    {path: [...], width: 5}}        # flattened, dirt-coloured, kept clear
 areas:
   - {id: ..., name: ..., area: [[x, z], ...], levels: [1, 4], biome: meadow, kind: hunting,
-     boss: {at: [x, z], radius: 6, mob: ..., kills: 300}}
+     boss: {at: [x, z], radius: 6, mob: ...}}
   - {id: ..., name: ..., area: [...], biome: meadow, kind: town}
 camps:
   - {area: ..., name: ..., at: [x, z], radius: 8, mob: ..., max: 5, respawn: 10s}
@@ -243,7 +243,7 @@ biomes:
 - **Coming into view:** when a player's block changes (they moved cells), or an entity crosses into a watched cell, the player gets the entity's full view. Cells no longer watched give `Unseen{ids}`. The client drops what it no longer sees.
 - **Events by place:** `Damage`, `SkillUsed`, `AttackUsed`, `MobAttacked` and status events go to the watchers of the cell where they happen.
   - The private ones stay private.
-  - Region chat, boss announcements and the boss's bar go to the whole channel.
+  - Region chat, the boss's notices and its bar go to the whole channel.
 - **The join snapshot** is the block around the player.
 - **Party:**
   - Members out of view still show on the party frames.

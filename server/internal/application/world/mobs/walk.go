@@ -131,10 +131,10 @@ func (a *Arena) giveUp(mb *mob) {
 	mb.path, mb.pathFor, mb.homing, mb.movedAt = nil, kernel.CharacterID{}, true, a.tick
 }
 
-// goHome walks a mob that gave up back into its circle, blind to players; caught on something too long, it stops and wanders.
+// goHome walks a mob that gave up back into its circle, blind to players; caught on something too long, it stops and wanders. A standing boss is calm again once its way home ends.
 func (a *Arena) goHome(mb *mob) {
 	if nav.Distance(mb.at(), mb.home) <= mb.homeR || a.tick > mb.movedAt+a.ticks(stuckFor) {
-		mb.homing, mb.path = false, nil
+		mb.homing, mb.path, mb.calm = false, nil, mb.spawn == noSpawn
 		return
 	}
 	if len(mb.path) == 0 {

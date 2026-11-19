@@ -132,9 +132,13 @@ func (i *Instance) add(j *joinMsg) {
 	for _, id := range i.order {
 		snap.Players = append(snap.Players, i.view(i.players[id]))
 	}
-	if i.boss != nil {
+	switch {
+	case i.boss != nil:
 		up := i.bossUp()
 		snap.FieldBoss = &up
+	case i.m.Boss != nil:
+		down := i.bossDown()
+		snap.FieldBossGone = &down
 	}
 	if !j.sink.Send(snap) {
 		i.remove(p.ID)

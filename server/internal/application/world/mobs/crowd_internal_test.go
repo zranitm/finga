@@ -37,6 +37,7 @@ func TestAPileChasingAMovingPlayerAttacksOnceItCan(t *testing.T) {
 				if tt.boss != "" {
 					def, _ := data.Mob(tt.boss)
 					a.SpawnBoss(def, gamedata.BossSpot{Mob: tt.boss, At: gamedata.Point{X: 20.5, Z: 20.5}, Radius: 1})
+					a.mobs[len(a.mobs)-1].calm = false // someone woke it: the pile chases with it
 				}
 				p := Body{ID: kernel.NewCharacterID()}
 				p.Radius, p.Height = 0.375, 1.75

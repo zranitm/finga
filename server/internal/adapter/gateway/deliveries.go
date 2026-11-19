@@ -39,11 +39,15 @@ func worldPush(e world.Event) (model.Push, bool) {
 			boss := fieldBoss(*ev.FieldBoss)
 			snap.FieldBoss = &boss
 		}
+		if ev.FieldBossGone != nil {
+			gone := bossGone(*ev.FieldBossGone)
+			snap.FieldBossGone = &gone
+		}
 		return snap, true
 	case world.FieldBoss:
 		return fieldBoss(ev), true
 	case world.FieldBossGone:
-		return model.FieldBossGone{MobID: ev.Mob, Beaten: ev.Beaten}, true
+		return bossGone(ev), true
 	case world.Teleport:
 		return model.MapChange{MapID: ev.MapID, X: ev.X, Y: ev.Y, Z: ev.Z, Yaw: ev.Yaw}, true
 	case world.Damage:
@@ -103,7 +107,11 @@ func worldPush(e world.Event) (model.Push, bool) {
 }
 
 func fieldBoss(b world.FieldBoss) model.FieldBoss {
-	return model.FieldBoss{MobID: b.Mob, Type: b.Type, LeavesInMs: b.LeavesIn.Milliseconds()}
+	return model.FieldBoss{MobID: b.Mob, Type: b.Type}
+}
+
+func bossGone(b world.FieldBossGone) model.FieldBossGone {
+	return model.FieldBossGone{MobID: b.Mob, Type: b.Type, BackInMs: b.BackIn.Milliseconds()}
 }
 
 // lootKinds, questChanges, questStatuses, offerStates, conditionKinds, mobPoses and teleportCancels are the world's enums as the gateway's; an unknown value is the zero one.

@@ -34,7 +34,6 @@ type socialFake struct {
 	failFor  int // the first Memberships calls fail
 	calls    int
 	updates  []social.MemberUpdate
-	news     []social.Announcement
 	err      error
 }
 
@@ -65,11 +64,6 @@ func (f *socialFake) Memberships(_ context.Context, visit func(social.PartyID, [
 
 func (f *socialFake) UpdateMember(_ context.Context, u social.MemberUpdate) error {
 	f.updates = append(f.updates, u)
-	return f.err
-}
-
-func (f *socialFake) Announce(_ context.Context, a social.Announcement) error {
-	f.news = append(f.news, a)
 	return f.err
 }
 
@@ -210,23 +204,7 @@ func TestUpdateMemberTellsTheSocialModuleWhatAMapSaw(t *testing.T) {
 	}
 }
 
-func TestAnnounceSendsABossAppearing(t *testing.T) {
-	f := newSocialFake()
-	s := adapter.NewSocial(f, nil)
-	if err := s.Announce(t.Context(), model.BossAppeared{Boss: "king_slime", Map: "forest"}); err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(f.news, []social.Announcement{social.BossAppeared{Boss: "king_slime", MapID: "forest"}}) {
-		t.Fatalf("news %+v", f.news)
-	}
-	cause := errors.New("down")
-	f.err = cause
-	if err := s.Announce(t.Context(), model.BossAppeared{}); !errors.Is(err, cause) {
-		t.Fatalf("got %v", err)
-	}
-}
-
-// What a map saw of a member, and a boss appearing, reach the social module with every field.
+// What a map saw of a member reaches the social module with every field.
 func TestEachSocialCallKeepsItsFields(t *testing.T) {
 	f := newSocialFake()
 	s := adapter.NewSocial(f, nil)
@@ -234,12 +212,8 @@ func TestEachSocialCallKeepsItsFields(t *testing.T) {
 		_ = s.UpdateMember(t.Context(), u)
 		return last(f.updates)
 	})
-	boss := copytest.Diff(copytest.Match{Renames: map[string]string{"Map": "MapID"}}, func(b model.BossAppeared) social.Announcement {
-		_ = s.Announce(t.Context(), b)
-		return last(f.news)
-	})
-	if len(update) > 0 || len(boss) > 0 {
-		t.Fatalf("update %v, boss %v", update, boss)
+	if len(update) > 0 {
+		t.Fatalf("update %v", update)
 	}
 }
 

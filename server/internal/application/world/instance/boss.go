@@ -12,43 +12,36 @@ import (
 	"finga/internal/shared/kernel"
 )
 
-// fieldBoss is the map's boss while it is up: its mob, the tick it leaves, and the HP each character took from it.
+// fieldBoss is the map's boss while it is up: its mob and the HP each character took from it.
 type fieldBoss struct {
-	id     uint64
-	def    gamedata.Mob
-	leaves uint64
-	dealt  map[kernel.CharacterID]int
+	id    uint64
+	def   gamedata.Mob
+	dealt map[kernel.CharacterID]int
 }
 
-// countTowardBoss counts a kill toward the map's boss; none count while it is up.
-func (i *Instance) countTowardBoss() {
-	if i.m.Boss != nil && i.boss == nil {
-		i.bossKills++
-	}
+// raiseBoss stands the map's boss at its spot.
+func (i *Instance) raiseBoss() {
+	def, _ := i.data.Mob(i.m.Boss.Mob)
+	i.boss = &fieldBoss{id: i.arena.SpawnBoss(def, *i.m.Boss), def: def, dealt: map[kernel.CharacterID]int{}}
 }
 
-// stepBoss ends the tick's boss business: an unbeaten boss whose time is up leaves, and a count that reached the map's number raises one, once, which every player online hears of.
+// stepBoss raises a beaten boss again once its respawn is up, which the map hears; a boss never leaves on its own.
 func (i *Instance) stepBoss() {
-	if b := i.boss; b != nil && i.tick >= b.leaves {
-		i.arena.Remove(b.id)
-		i.boss = nil
-		i.events = append(i.events, model.FieldBossGone{Tick: i.tick, Mob: b.id})
-	}
-	spot := i.m.Boss
-	if spot == nil || i.boss != nil || i.bossKills < spot.Kills {
+	if i.m.Boss == nil || i.boss != nil || i.tick < i.bossBack {
 		return
 	}
-	def, _ := i.data.Mob(spot.Mob)
-	i.boss = &fieldBoss{id: i.arena.SpawnBoss(def, *spot), def: def, leaves: i.tick + i.ticksFor(i.data.FieldBoss().Life), dealt: map[kernel.CharacterID]int{}}
-	i.bossKills = 0
+	i.raiseBoss()
 	i.events = append(i.events, i.bossUp())
-	i.deps.Notices.Announce(model.BossAppeared{Boss: def.ID, Map: i.m.ID})
 }
 
-// bossUp is the boss as the map hears of it, with the time it has left from this tick.
+// bossUp is the boss as the map hears of it.
 func (i *Instance) bossUp() model.FieldBoss {
-	b := i.boss
-	return model.FieldBoss{Tick: i.tick, Mob: b.id, Type: b.def.ID, LeavesIn: time.Duration(b.leaves-i.tick) * i.tuning.TickInterval}
+	return model.FieldBoss{Tick: i.tick, Mob: i.boss.id, Type: i.boss.def.ID}
+}
+
+// bossDown is the beaten boss as the map hears of it, with the time until it's back from this tick.
+func (i *Instance) bossDown() model.FieldBossGone {
+	return model.FieldBossGone{Tick: i.tick, Mob: i.fallen, Type: i.m.Boss.Mob, BackIn: time.Duration(i.bossBack-i.tick) * i.tuning.TickInterval}
 }
 
 // bossGroup is who a beaten boss pays together, a party's members alive on the map or a player alone, and whose tallies make their damage: the whole party's, wherever its members are.
@@ -103,5 +96,6 @@ func (i *Instance) bossFell(killer *player, k *mobs.Kill) {
 		}
 	}
 	i.countKill(killer, b.def.ID)
-	i.events = append(i.events, model.FieldBossGone{Tick: i.tick, Mob: b.id, Beaten: true})
+	i.fallen, i.bossBack = b.id, i.tick+i.ticksFor(i.data.FieldBoss().Respawn)
+	i.events = append(i.events, i.bossDown())
 }

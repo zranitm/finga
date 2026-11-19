@@ -59,4 +59,4 @@ spawns:
   - {name: hall_slime, at: [60.5, 18], radius: 4, mob: gloom_slime, max: 1, respawn: 12s}
   - {name: corner_slime, at: [74, 7], radius: 4, mob: gloom_slime, max: 1, respawn: 12s}
 player_spawn: {at: [4.5, 18], yaw: 90}
-boss: {at: [70, 18], radius: 5, mob: shade_lord, kills: 300}
+boss: {at: [70, 18], radius: 5, mob: shade_lord}

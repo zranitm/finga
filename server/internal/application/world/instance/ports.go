@@ -64,11 +64,6 @@ type Results interface {
 	Ended(r model.MatchResult)
 }
 
-// Notices takes what a map announces to every player online; Announce must not block.
-type Notices interface {
-	Announce(a model.Announcement)
-}
-
 // TickObserver sees each tick's duration against its budget.
 type TickObserver interface {
 	ObserveTick(mapID string, took, budget time.Duration)

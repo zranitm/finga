@@ -102,9 +102,7 @@ describe('TargetFrame', () => {
     act(() => {
       fieldBoss
         .getState()
-        .applyFieldBoss(
-          create(FieldBossSchema, { mobId: 9, type: 'king_slime', leavesInMs: 600000n }),
-        );
+        .applyFieldBoss(create(FieldBossSchema, { mobId: 9, type: 'king_slime' }));
       fieldBoss.getState().setHp({ hp: 3100, maxHp: 4260 });
       target.getState().show({ kind: 'mob', ref: 'm:9', type: 'king_slime', hp: 3100 });
     });
@@ -179,9 +177,7 @@ describe('TargetFrame', () => {
       act(() => {
         fieldBoss
           .getState()
-          .applyFieldBoss(
-            create(FieldBossSchema, { mobId: 9, type: 'king_slime', leavesInMs: 600000n }),
-          );
+          .applyFieldBoss(create(FieldBossSchema, { mobId: 9, type: 'king_slime' }));
         fieldBoss.getState().setHp({ hp: 3100, maxHp: 4260 });
         target.getState().show({ kind: 'mob', ref: 'm:4', type: 'green_slime', hp: 34 });
       });

@@ -490,11 +490,6 @@ body {
 .boss-bar .bar {
   flex: 1;
 }
-.boss-time {
-  font-variant-numeric: tabular-nums;
-  font-size: 13px;
-  color: var(--muted);
-}
 
 /* Combat on the HUD. */
 .exp-delta {
@@ -1417,6 +1412,10 @@ body {
 }
 .map-label-npc {
   fill: #ffe08a;
+}
+.map-label-boss {
+  fill: #b8b8b8;
+  font-variant-numeric: tabular-nums;
 }
 .map-label-me {
   fill: #fff7c2;

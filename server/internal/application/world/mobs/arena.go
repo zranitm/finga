@@ -52,6 +52,7 @@ type mob struct {
 	avoidUntil uint64
 	movedAt    uint64             // the last tick it got anywhere, or had no need to
 	homing     bool               // led past its leash: walking home, blind to players until it's back in its circle
+	calm       bool               // a standing boss nobody has hit since it was last home: it sees no one
 	waiting    bool               // at its spot by its target on its last chase, its target out of its reach
 	claimFor   kernel.CharacterID // whose contact rings it has a spot on, zero for none
 	claimRing  int
@@ -369,7 +370,7 @@ func (a *Arena) spawn(s int) {
 // SpawnBoss raises a field boss at its spot's centre, to wander its circle and never respawn, and returns its mob ID.
 func (a *Arena) SpawnBoss(def gamedata.Mob, spot gamedata.BossSpot) uint64 {
 	a.nextMob++
-	a.place(&mob{id: a.nextMob, spawn: noSpawn, def: def, hp: def.HP, home: nav.Point(spot.At), homeR: spot.Radius}, nav.Point(spot.At))
+	a.place(&mob{id: a.nextMob, spawn: noSpawn, def: def, hp: def.HP, home: nav.Point(spot.At), homeR: spot.Radius, calm: true}, nav.Point(spot.At))
 	return a.nextMob
 }
 
@@ -423,6 +424,7 @@ func (a *Arena) Strike(s Strike) []Blow {
 	hit := a.reached(s)
 	blows := make([]Blow, 0, len(hit))
 	for _, mb := range hit {
+		mb.calm = false // any blow wakes a standing boss, even from someone it can't see
 		if mb.provokable(s.By) {
 			mb.provoker, mb.provokedUntil = s.By, a.afterBlow(a.data.MobRules().Provoke) // a MISS provokes too
 		}
@@ -488,16 +490,6 @@ func (a *Arena) Controlled(id uint64, statuses []string, slack uint64) bool {
 		}
 	}
 	return false
-}
-
-// Remove takes a mob off the map without a kill, as a boss nobody beat leaves; false if it is not there.
-func (a *Arena) Remove(id uint64) bool {
-	k := slices.IndexFunc(a.mobs, func(mb *mob) bool { return mb.id == id })
-	if k < 0 {
-		return false
-	}
-	a.remove(a.mobs[k])
-	return true
 }
 
 // remove takes mb off the map with its attacks: what lands this tick, and its spits in flight.
