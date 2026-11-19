@@ -135,20 +135,48 @@ func last[T service.Delivery](n *notes, id kernel.CharacterID) (T, bool) {
 	return zero, false
 }
 
+// social is the parties as the queue sees them.
+type social struct {
+	mu      sync.Mutex
+	parties []model.Party
+}
+
+func (s *social) PartyOf(_ context.Context, id kernel.CharacterID) (model.Party, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, p := range s.parties {
+		if slices.ContainsFunc(p.Members, func(m model.Player) bool { return m.ID == id }) {
+			return p, true, nil
+		}
+	}
+	return model.Party{}, false, nil
+}
+
+// FollowParties is the module's to run; a test calls PartyChanged and Resync itself.
+func (*social) FollowParties(context.Context, func(_, _ []kernel.CharacterID), func(context.Context)) {
+}
+
 type fixture struct {
-	svc   *service.Service
-	world *world
-	store *store
-	notes *notes
-	data  *gamedata.Data
+	svc    *service.Service
+	world  *world
+	store  *store
+	notes  *notes
+	social *social
+	data   *gamedata.Data
 }
 
 func newFixture(t *testing.T) fixture {
 	t.Helper()
+	return seeded(t, 1)
+}
+
+// seeded is a fixture whose bots are drawn from seed.
+func seeded(t *testing.T, seed uint64) fixture {
+	t.Helper()
 	data := gamedatatest.Shipped(t)
-	f := fixture{world: &world{cant: map[kernel.CharacterID]error{}}, store: newStore(), notes: &notes{got: map[kernel.CharacterID][]service.Delivery{}}, data: data}
+	f := fixture{world: &world{cant: map[kernel.CharacterID]error{}}, store: newStore(), notes: &notes{got: map[kernel.CharacterID][]service.Delivery{}}, social: &social{}, data: data}
 	log := slog.New(slog.DiscardHandler)
-	f.svc = service.New(service.Deps{Data: data, World: f.world, Store: f.store, Notifier: f.notes, Logger: log, Panics: panics.NewRecorder(log, nil), Rand: rand.New(rand.NewPCG(1, 2))}) //nolint:gosec // a test's bots
+	f.svc = service.New(service.Deps{Data: data, World: f.world, Social: f.social, Store: f.store, Notifier: f.notes, Logger: log, Panics: panics.NewRecorder(log, nil), Rand: rand.New(rand.NewPCG(seed, 2))}) //nolint:gosec // a test's bots
 	return f
 }
 

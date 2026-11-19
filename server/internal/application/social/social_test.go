@@ -62,6 +62,13 @@ func (f *fakeParties) Memberships(_ context.Context, visit func(model.PartyID, [
 	return f.record()
 }
 
+func (f *fakeParties) Of(_ context.Context, id kernel.CharacterID) (model.Party, bool, error) {
+	if id != ann {
+		return model.Party{}, false, f.record(id)
+	}
+	return model.Party{ID: party, Leader: ann, Members: []model.Member{{ID: ann, Name: "Ann", Class: "mage", Online: true}, {ID: bo, Name: "Bo"}}}, true, f.record(id)
+}
+
 // fakeChat records the line it was sent and answers it back, cleaned; a party line goes to Ann and Bo.
 type fakeChat struct {
 	got []any
@@ -124,6 +131,14 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 		var got []any
 		err := m.Memberships(ctx, func(id PartyID, members []kernel.CharacterID) { got = append(got, id, members) })
 		same(t, err, got, []any{party, []kernel.CharacterID{ann, bo}})
+	})
+	t.Run("PartyOf", func(t *testing.T) {
+		got, err := m.PartyOf(ctx, ann)
+		want := &Party{Leader: ann, Members: []PartyMember{{ID: ann, Name: "Ann", Class: "mage", Online: true}, {ID: bo, Name: "Bo"}}}
+		same(t, err, []any{got}, []any{want})
+		if none, err := m.PartyOf(ctx, bo); none != nil || err != nil {
+			t.Fatalf("a character in no party got %+v, %v; want none", none, err)
+		}
 	})
 	t.Run("Chat", func(t *testing.T) {
 		msg, err := m.Chat(ctx, Line{From: ann, FromName: "Ann", Channel: ChannelParty, Text: " hi "})

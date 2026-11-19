@@ -35,7 +35,7 @@ func Build(ctx context.Context, h *host.Host, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	matches, err := buildPvp(ctx, h, data, maps)
+	matches, err := buildPvp(ctx, h, data, maps, parties)
 	if err != nil {
 		return err
 	}

@@ -30,6 +30,7 @@ type Deps struct {
 	Module *host.Module // its logs, panics, tasks, metrics and database
 	Data   *gamedata.Data
 	World  adapter.WorldModule
+	Social adapter.SocialModule
 }
 
 // New builds the module and adds its matcher and its follower of the world's outcomes; the queue lives in memory, so a restart empties it.
@@ -39,12 +40,16 @@ func New(ctx context.Context, d Deps) (*Module, error) {
 		return nil, err
 	}
 	pushes := hub.New[Push](pushQueue)
-	world := adapter.NewWorld(d.World)
+	world, social := adapter.NewWorld(d.World), adapter.NewSocial(d.Social, d.Module.Panics)
 	svc := service.New(service.Deps{
-		Data: d.Data, World: world, Store: repository.NewPostgres(pool, dbMetrics), Notifier: notifier{pushes}, Logger: d.Module.Logger, Panics: d.Module.Panics,
+		Data: d.Data, World: world, Social: social, Store: repository.NewPostgres(pool, dbMetrics), Notifier: notifier{pushes}, Logger: d.Module.Logger, Panics: d.Module.Panics,
 		Rand: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())), //nolint:gosec // bots' classes and names, not a secret
 	})
 	d.Module.Task("matcher", svc.Run, host.Restartable)
+	d.Module.Task("parties", func(ctx context.Context) error {
+		social.FollowParties(ctx, svc.PartyChanged, svc.Resync)
+		return nil
+	}, host.Restartable)
 	d.Module.Task("outcomes", func(ctx context.Context) error { return svc.Outcomes(ctx, world.FollowResults) }, host.Restartable)
 	calls, err := d.Module.Calls(errorTable)
 	if err != nil {

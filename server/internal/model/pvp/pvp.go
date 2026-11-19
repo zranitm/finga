@@ -15,12 +15,22 @@ var (
 	ErrNotQueued     = errors.New("pvp: not queued")
 	ErrOfferGone     = errors.New("pvp: the offer lapsed or was declined")
 	ErrInMatch       = errors.New("pvp: in a match, or one opening")
+	ErrNotLeader     = errors.New("pvp: only the party's leader queues it")
+	ErrPartyTooBig   = errors.New("pvp: the party is larger than the mode allows")
+	ErrPartyNotReady = errors.New("pvp: a party member can't fight now, or is queued")
 )
 
 // Player is a character as they queue: the name is theirs in a match, which no bot there takes.
 type Player struct {
-	ID   kernel.CharacterID
-	Name string
+	ID    kernel.CharacterID
+	Name  string
+	Class kernel.Class
+}
+
+// Party is a character's party as the queue sees it: its leader, and its members in join order.
+type Party struct {
+	Leader  kernel.CharacterID
+	Members []Player
 }
 
 // Rating is a character's in a rated mode, its shown number, and their record there.
@@ -54,11 +64,12 @@ type Rated struct {
 	Fighters []Fighter
 }
 
-// Spec is a match to open: its id and mode, and its two sides.
+// Spec is a match to open: its id and mode, its two sides, and the tier of a bot that takes a team mode's leaver's place.
 type Spec struct {
-	ID    kernel.MatchID
-	Mode  string
-	Sides [2][]Place
+	ID      kernel.MatchID
+	Mode    string
+	Sides   [2][]Place
+	StandIn string
 }
 
 // Place is a place on a side: a character, or a bot when Bot is set.

@@ -40,7 +40,10 @@ describe('ArenaWindow', () => {
     expect(card).toHaveTextContent('Rated');
     expect(
       within(screen.getByRole('list', { name: 'Modes' })).getAllByRole('listitem'),
-    ).toHaveLength(1);
+    ).toHaveLength(2);
+    expect(screen.getByRole('listitem', { name: '3v3' })).toHaveTextContent(
+      '3 against 3, best of 3 rounds.',
+    );
     expect(screen.getByText(/level 30/)).toBeInTheDocument();
     await user.click(within(card).getByRole('button', { name: 'Queue' }));
     expect(calls).toEqual([{ t: 'pvpQueue', d: { mode: 'duel' } }]);
@@ -54,7 +57,8 @@ describe('ArenaWindow', () => {
   it('shows the server’s refusal, and holds Queue during a match', async () => {
     const { socket } = fakeSocket([refusal(ERR.PVP_NOT_PROMOTED)]);
     render(<ArenaWindow socket={socket} onClose={vi.fn()} />);
-    await user.click(screen.getByRole('button', { name: 'Queue' }));
+    const card = screen.getByRole('listitem', { name: '1v1' });
+    await user.click(within(card).getByRole('button', { name: 'Queue' }));
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Choose a class before you fight in the Arena.',
     );
@@ -66,7 +70,9 @@ describe('ArenaWindow', () => {
           0,
         ),
     );
-    expect(screen.getByRole('button', { name: 'Queue' })).toBeDisabled();
+    for (const queue of screen.getAllByRole('button', { name: 'Queue' })) {
+      expect(queue).toBeDisabled();
+    }
     expect(screen.getByText('You’re in a match.')).toBeInTheDocument();
   });
 });

@@ -147,6 +147,10 @@ bots:
 - `i.enemies(a, b)`: in a match, players on the other side; elsewhere, never.
 - `i.allies(p)`: in a match, the player's side; elsewhere, their party, as `present` gives it today.
   - `buffed` and `hurtInReach` take it, so War Cry and heals reach teammates in a match.
+- **As built (step 5):**
+  - In a match, `allies(p)` is the live fighters on p's side, other than p. Outside one it's still their party's members alive on the map.
+  - So in a match a heal or a `reach_party` buff never reaches an enemy, even one in the caster's world party. A teammate outside that party is reached.
+  - Strikes already judge enemies by side, so an area blow never hurts a teammate.
 
 ### Targets
 
@@ -267,6 +271,16 @@ bots:
 - **A forfeit:**
   - In 1v1 the other side wins at once.
   - In 3v3 a bot of the tier the match's bots have takes over the leaver's body, as it stands: the same class, build and HP. The match goes on.
+- **As built (step 5):** in a team mode, before the outcome, a bot takes the leaver's place in the same tick they go. That covers a forfeit, logging out or dropping, and never arriving by prep's end.
+  - **The body:** it's the leaver's as it stands: position, heading, class, name, HP and energy, and down if they were down. Their statuses and buffs aren't carried.
+  - **One who never came:** stood in at their side's spot at full HP. As a name and class are only known on arrival, it takes the class their side has fewest of and a free name from the bots' list.
+  - **Tier and build:**
+    - The tier is the spec's `StandIn`, which pvp gives: the one nearest the mean `mu − σ` of all the match's players.
+    - The build is that tier's build for the class, chosen from the leaver's id. A bot plays from its build's `order`, and a player's bar has none, so the leaver's bar isn't kept.
+  - **Its place:** the bot takes the leaver's slot on their side, so rounds, resets, `MatchState.sides` and the bots' ring see the body. `MatchState` goes out again, with the slot now the bot's id and `bot` set.
+  - **The outcome:** it still lists the leaver in their slot, with `left` set and their own downs, never the bot. pvp rates the leaver as losing, and the side by the result, with the stand-in counted at the leaver's mu (section 10).
+  - **No way back:** a leaver who reconnects mid-match lands on their world map, not in the match. The place stays the bot's to the end.
+  - **When no player came at all,** the match still closes with no outcome, and no stand-ins are made.
 
 ### Points: 15v15
 
@@ -344,6 +358,9 @@ bots:
   - a random class, with no class three times on one 3v3 side;
   - its tier's build for that class;
   - a name from the list that isn't in use in the match.
+- **As built (step 5):**
+  - Each side's bots take the tier nearest that side's players' mean `mu − σ`, else the other side's.
+  - The class rule counts the side's players too: a bot's class is drawn from those its side holds fewer than two of.
 - **Cost:**
   - A decision is a few shape checks and at most one path a second.
   - `bots.most` caps the bots one node runs at once. A match that would pass it waits in the queue, and its players see "Waiting for room".
@@ -370,6 +387,27 @@ bots:
   - A decline or a lapse takes those players out of the queue (`PvpUnqueued{declined}`). Those who accepted go back with their wait kept.
   - A dead player's accept is refused with `CHARACTER_DEAD`.
 - **Leaving the queue:** `PvpLeaveQueue`, logging out, or a change to the party of a party ticket.
+- **As built (step 5):**
+  - **Tickets:**
+    - In a mode whose `party` is 1, a party member queues alone, as before.
+    - In a mode that takes parties, the queuer's party is read from the social module with its leader (`social.Module.PartyOf`). Only the leader queues it; anyone else is refused `NOT_PARTY_LEADER`. A party over `party` is `PVP_PARTY_TOO_BIG`.
+    - Each member must be neither queued nor going into a match, and the world must say they can fight. Any member's refusal is `PVP_PARTY_NOT_READY`, and the queuer's own refusal stays theirs. A refused ticket leaves nobody queued.
+    - Every member hears `PvpQueued` with the members.
+  - **Offers:**
+    - Each member hears the offer. It opens once every character, not every ticket, has accepted.
+    - One member's decline or lapse takes the whole ticket out, and the others go back as before.
+    - One member's `PvpLeaveQueue` or going offline takes the whole ticket out too.
+  - **A party change:**
+    - pvp follows the social module's membership changes under a subscriber of its own.
+    - A ticket in a mode that takes parties goes out with `PARTY_CHANGED` when a member's party is no longer the ticket's members. That's a member leaving, one joining, or a player queued alone joining a party.
+    - A change that leaves the members as they were, such as a map, HP or leader change, keeps it.
+    - After a break in the stream, each queued party is looked at again.
+    - Once its match opens, nothing is queued, so a change does nothing.
+  - **The 3v3 matcher:**
+    - For each waiting ticket, oldest first, it gathers the tickets within each other's windows, oldest first, up to six players. It skips one that would make six that no two whole sides of three can hold, such as three parties of two.
+    - Six players meet at once, at the split with the least gap between the sides' mean mu.
+    - Past `bots_after`, the players found meet with bots in the places left. Players who fit on one side fight together against bots.
+    - 15v15 isn't matched yet (step 6).
 - **State:** in memory. A restart empties the queue, and the client shows no queue after it reconnects.
 - **Results:** `MatchResult` reports:
   - the match id and mode;
@@ -620,6 +658,7 @@ As built for 1v1 (build step 2):
    - leavers replaced;
    - team focus and heals for bots;
    - enemy frames.
+   - As built, it lands as three PRs: the server's queue and match rules first, then the bots' team play, then the client.
 6. **15v15:**
    - `battlefield`, capture points, score, respawns and bases;
    - the deal into sides and the bot cap;

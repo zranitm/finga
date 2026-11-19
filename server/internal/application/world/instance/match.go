@@ -1,8 +1,11 @@
 package instance
 
 import (
+	"cmp"
 	"context"
+	"encoding/binary"
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 	"time"
@@ -43,15 +46,17 @@ type match struct {
 
 // fighter is a place in the match and how its fighter did.
 type fighter struct {
-	side    int // 0 or 1
-	slot    int // the side's spot
-	name    string
-	class   kernel.Class
-	bot     *model.Bot
-	arrived bool
-	left    bool // logged out, dropped or forfeited before the outcome
-	gone    bool // off the match's map
-	downs   int
+	side  int // 0 or 1
+	slot  int // the side's spot
+	name  string
+	class kernel.Class
+	bot   *model.Bot
+	// standsFor is the team fighter whose place a stand-in bot took when they left.
+	standsFor kernel.CharacterID
+	arrived   bool
+	left      bool // logged out, dropped or forfeited before the outcome
+	gone      bool // off the match's map
+	downs     int
 }
 
 // The messages a match's players send besides the world's.
@@ -293,9 +298,18 @@ func (i *Instance) stepMatch() []kernel.CharacterID {
 	}
 	switch mt.phase {
 	case model.PhasePrep:
-		for _, f := range mt.fighters {
-			if !f.arrived && f.bot == nil {
-				f.left, f.gone = true, true // their transfer never landed
+		var missing []kernel.CharacterID
+		for _, side := range mt.order {
+			for _, id := range side {
+				if f := mt.fighters[id]; !f.arrived && f.bot == nil {
+					f.left, f.gone = true, true // their transfer never landed
+					missing = append(missing, id)
+				}
+			}
+		}
+		if i.someoneCame() {
+			for _, id := range missing {
+				i.standIn(id, nil)
 			}
 		}
 		if i.settleLeavers() {
@@ -392,6 +406,9 @@ func (i *Instance) endMatch(winner int) {
 	for s, side := range mt.order {
 		for _, id := range side {
 			f := mt.fighters[id]
+			if left := f.standsFor; !left.IsZero() {
+				id, f = left, mt.fighters[left] // the slot is the leaver's: pvp rates them
+			}
 			fr := model.FighterResult{Left: f.left, Downs: f.downs}
 			if f.bot != nil {
 				fr.Tier = f.bot.Tier
@@ -412,17 +429,13 @@ func (i *Instance) settleLeavers() bool {
 		return false
 	}
 	gone := [2]bool{true, true}
-	came := false
 	for _, f := range mt.fighters {
 		if !f.gone {
 			gone[f.side] = false
 		}
-		if f.bot == nil && f.arrived {
-			came = true
-		}
 	}
 	switch {
-	case mt.players && !came:
+	case mt.players && !i.someoneCame():
 		i.closeMatch() // nobody to rate: no outcome
 		return true
 	case gone[0]:
@@ -433,6 +446,80 @@ func (i *Instance) settleLeavers() bool {
 		return true
 	}
 	return false
+}
+
+// someoneCame reports whether any player came to the match.
+func (i *Instance) someoneCame() bool {
+	for _, f := range i.match.fighters {
+		if f.bot == nil && f.arrived {
+			return true
+		}
+	}
+	return false
+}
+
+// standIn has a bot of the spec's stand-in tier take a team fighter's place the tick they leave before the outcome: their body as it stands, with their class, name, HP and energy, or a fresh one at their spot for one who never came; the tier's build for the class, as a bot plays from its order. Nothing outside a team mode or once decided.
+func (i *Instance) standIn(id kernel.CharacterID, body *player) {
+	mt := i.match
+	f := mt.fighters[id]
+	if mt.Mode.Team <= 1 || mt.phase == model.PhaseResult || f.bot != nil {
+		return
+	}
+	name, class := f.name, f.class
+	if !f.arrived {
+		name, class = i.freeName(), i.fewestOn(f.side)
+	}
+	builds := i.data.Pvp().Bots.Builds[class]
+	build := builds[int(binary.BigEndian.Uint32(id[12:])%uint32(len(builds)))] //nolint:gosec // a handful of builds
+	b := &model.Bot{ID: kernel.NewCharacterID(), Name: name, Class: class, Tier: i.tierOf(mt.Spec.StandIn).ID, Build: model.Build{Bar: build.Bar}}
+	mt.fighters[b.ID] = &fighter{side: f.side, slot: f.slot, bot: b, standsFor: id}
+	mt.order[f.side][f.slot] = b.ID
+	if mt.ring == nil {
+		mt.ring = bots.NewRing(i.ticksFor(gamedata.BotMemory))
+	}
+	look := model.BotLook(i.data.Pieces(), i.classOf(class).Weapon, b.ID)
+	i.add(&joinMsg{player: model.Player{ID: b.ID, Name: name, Class: class, Look: look}, sink: botSink{}, done: make(chan error, 1)})
+	p, ok := i.players[b.ID]
+	if !ok {
+		return
+	}
+	if body != nil {
+		st := body.state
+		st.VX, st.VY, st.VZ, st.Move, st.Held, st.Slow = 0, 0, 0, sim.Move{}, 0, sim.Slow{}
+		p.state, p.aim = st, body.aim
+		p.HP, p.Energy = min(body.HP, p.derived.MaxHP), body.Energy
+		if body.dead {
+			p.HP, p.dead, p.deadUntil = 0, true, math.MaxUint64
+		}
+		p.changed, p.moved = true, true
+	}
+	i.events = append(i.events, i.matchState())
+}
+
+// freeName is the first bot name no fighter in the match has.
+func (i *Instance) freeName() string {
+	names := i.data.Pvp().Bots.Names
+	for _, n := range names {
+		if !slices.ContainsFunc(slices.Collect(maps.Values(i.match.fighters)), func(f *fighter) bool { return f.name == n }) {
+			return n
+		}
+	}
+	return names[0]
+}
+
+// fewestOn is the bot class side s has the fewest of, the first in order on a tie.
+func (i *Instance) fewestOn(s int) kernel.Class {
+	classes := slices.Sorted(maps.Keys(i.data.Pvp().Bots.Builds))
+	count := func(c kernel.Class) int {
+		return len(slices.DeleteFunc(slices.Clone(i.match.order[s]), func(id kernel.CharacterID) bool { return i.match.fighters[id].class != c }))
+	}
+	return slices.MinFunc(classes, func(a, b kernel.Class) int { return cmp.Compare(count(a), count(b)) })
+}
+
+// classOf is a class by id.
+func (i *Instance) classOf(id kernel.Class) gamedata.Class {
+	c, _ := i.data.Class(id)
+	return c
 }
 
 // resetRound puts every fighter back at their spot, up, with full HP and energy, and nothing running on them: no cooldown, buff, shield, status, dodge, block or action.
@@ -512,6 +599,7 @@ func (i *Instance) forfeit(m forfeitMsg) []kernel.CharacterID {
 	}
 	if i.match.phase != model.PhaseResult {
 		i.match.fighters[p.ID].left = true
+		i.standIn(p.ID, p)
 	}
 	i.goBack(p)
 	i.settleLeavers()
@@ -519,8 +607,8 @@ func (i *Instance) forfeit(m forfeitMsg) []kernel.CharacterID {
 	return []kernel.CharacterID{m.id}
 }
 
-// leftMatch marks a fighter who left the map some other way than the outcome: logged out or dropped.
-func (i *Instance) leftMatch(id kernel.CharacterID) {
+// leftMatch marks a fighter who left the map some other way than the outcome, logged out or dropped, body as they were; in a team mode a stand-in takes it.
+func (i *Instance) leftMatch(id kernel.CharacterID, body *player) {
 	if i.match == nil {
 		return
 	}
@@ -528,9 +616,24 @@ func (i *Instance) leftMatch(id kernel.CharacterID) {
 		f.gone = true
 		if i.match.phase != model.PhaseResult {
 			f.left = true
+			i.standIn(id, body)
 		}
 		i.settleLeavers()
 	}
+}
+
+// allies are who p's heals and party buffs reach: in a match, the live fighters on p's side; elsewhere, their party's members alive on the map.
+func (i *Instance) allies(p *player) []*player {
+	if i.match == nil {
+		return i.present(p, i.deps.Parties.Party(p.ID))[1:]
+	}
+	var out []*player
+	for _, id := range i.order {
+		if a := i.players[id]; id != p.ID && !a.dead && i.side(id) == i.side(p.ID) {
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
 // fighterOf is id's place in the match; false outside one, nil-safe.

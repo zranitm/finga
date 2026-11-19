@@ -29,7 +29,7 @@ func (w World) CanFight(ctx context.Context, id kernel.CharacterID) error {
 
 // OpenMatch opens spec's match.
 func (w World) OpenMatch(ctx context.Context, spec model.Spec) error {
-	out := world.MatchSpec{ID: spec.ID, Mode: spec.Mode}
+	out := world.MatchSpec{ID: spec.ID, Mode: spec.Mode, StandIn: spec.StandIn}
 	for k, side := range spec.Sides {
 		for _, p := range side {
 			f := world.Fighter{Character: p.Character}

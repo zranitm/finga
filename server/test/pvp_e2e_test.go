@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -114,6 +115,107 @@ func TestADuelAgainstABotRunsToItsEnd(t *testing.T) {
 	}
 	if matches != 1 || wins+losses+draws != 1 {
 		t.Fatalf("rating row: %d matches, %d-%d-%d", matches, wins, losses, draws)
+	}
+}
+
+// I2: a party of two queues for 3v3 through its leader and meets four bots: both hear the ticket and the offer, accept, fight on one side with a bot beside them against three, hear the outcome and go back, and both rating rows in 3v3 have moved. Every wait is for a message, a minute its bound.
+func TestAPartyOfTwoMeetsBotsIn3v3(t *testing.T) {
+	t.Parallel()
+	s := newStackOver(t, e2etest.GameData(t,
+		e2etest.DataEdit{File: "pvp.yaml", Old: "queue: {bots_after: 15s", New: "queue: {bots_after: 1s"},
+		e2etest.DataEdit{File: "pvp.yaml", Old: "rounds: {prep: 10s, countdown: 3s, between: 5s}", New: "rounds: {prep: 1s, countdown: 1s, between: 1s}"},
+		e2etest.DataEdit{File: "pvp.yaml", Old: "result: 10s", New: "result: 1s"},
+		e2etest.DataEdit{File: "pvp.yaml", Old: "rounds: {best_of: 3, most: 5, length: 90s}", New: "rounds: {best_of: 1, most: 1, length: 8s}"},
+	))
+	ctx := context.Background()
+	var ls []*e2etest.Looter
+	var ids []string
+	for _, c := range []struct{ user, name, class string }{{"lead", "Lead", "warrior"}, {"mate", "Mate", "magician"}} {
+		token, id := s.CreateCharacter(t, c.user, c.name, c.class)
+		p, snap := s.Join(t, token, id)
+		ls, ids = append(ls, e2etest.NewLooter(p, snap)), append(ids, id)
+	}
+	lead, mate := ls[0], ls[1]
+	if r := lead.Command(t, "inv", &clientv1.PartyInvite{CharacterId: mate.ID}); !r.GetOk() {
+		t.Fatalf("invite: %+v", r)
+	}
+	inv := e2etest.Take(t, mate, "PartyInvited", &mate.Invites, 5*time.Second, nil)
+	if r := mate.Command(t, "acc", &clientv1.PartyRespond{InviteId: inv.GetInviteId(), Accept: true}); !r.GetOk() {
+		t.Fatalf("accept the invite: %+v", r)
+	}
+	lead.PartyState(t, 2)
+	mate.PartyState(t, 2)
+	hs := []*heard{{l: lead}, {l: mate}}
+	if r := mate.Command(t, "q-mate", &clientv1.PvpQueue{Mode: "team"}); r.GetOk() || r.GetCode() != code("NOT_PARTY_LEADER") {
+		t.Fatalf("the member queueing the party: %+v, want NOT_PARTY_LEADER", r)
+	}
+	lead.Send(wsconn.Message{ReqID: "q", Seq: lead.Seq, Data: &clientv1.PvpQueue{Mode: "team"}})
+	if k := hs[0].since(0, time.Minute, func(m wsconn.Message) bool { return m.Type == "Response" && m.ReqID == "q" }); k < 0 || !hs[0].got[k].Data.(*clientv1.Response).GetOk() {
+		t.Fatalf("queue: %+v", hs[0].message(k))
+	}
+	var offers []*clientv1.PvpOffer
+	for k, h := range hs {
+		q := h.since(0, time.Minute, func(m wsconn.Message) bool { return m.Type == "PvpQueued" })
+		if q < 0 || len(h.got[q].Data.(*clientv1.PvpQueued).GetMembers()) != 2 {
+			t.Fatalf("%s heard %v, want queued with both", ids[k], h.types(0))
+		}
+		o := h.since(q, time.Minute, func(m wsconn.Message) bool { return m.Type == "PvpOffer" || m.Type == "PvpUnqueued" })
+		if o < 0 || h.got[o].Type != "PvpOffer" || h.got[o].Data.(*clientv1.PvpOffer).GetBots() != 4 {
+			t.Fatalf("%s after queueing: %+v, want an offer with four bots", ids[k], h.message(o))
+		}
+		offers = append(offers, h.got[o].Data.(*clientv1.PvpOffer))
+	}
+	if offers[0].GetOffer() != offers[1].GetOffer() {
+		t.Fatalf("offers %+v, want one for both", offers)
+	}
+	into := make([]int, 2)
+	for _, h := range hs {
+		h.l.Send(wsconn.Message{ReqID: "yes", Seq: h.l.Seq, Data: &clientv1.PvpAnswer{Offer: offers[0].GetOffer(), Accept: true}})
+	}
+	for k, h := range hs {
+		into[k] = h.since(0, time.Minute, func(m wsconn.Message) bool { return m.Type == "MapChange" })
+		if into[k] < 0 || h.got[into[k]].Data.(*clientv1.MapChange).GetMapId() != "ring" {
+			t.Fatalf("%s after accepting: %v, want a map change into the ring", ids[k], h.types(0))
+		}
+	}
+	st := hs[0].since(into[0], time.Minute, func(m wsconn.Message) bool { return m.Type == "MatchState" })
+	if st < 0 {
+		t.Fatalf("no match state; heard %v", hs[0].types(into[0]))
+	}
+	state := hs[0].got[st].Data.(*clientv1.MatchState)
+	sides := state.GetSides()
+	if len(sides) != 2 || len(sides[0].GetFighters()) != 3 || len(sides[1].GetFighters()) != 3 {
+		t.Fatalf("sides %+v, want three a side", sides)
+	}
+	var ours *clientv1.MatchSide
+	for _, side := range sides {
+		for _, f := range side.GetFighters() {
+			if f.GetId() == ids[0] {
+				ours = side
+			}
+		}
+	}
+	bots := 0
+	for _, f := range ours.GetFighters() {
+		if f.GetBot() {
+			bots++
+		}
+	}
+	if ours == nil || bots != 1 || !slices.ContainsFunc(ours.GetFighters(), func(f *clientv1.MatchFighter) bool { return f.GetId() == ids[1] }) {
+		t.Fatalf("sides %+v, want Lead and Mate on one side with a bot", sides)
+	}
+	for k, h := range hs {
+		ended := h.since(into[k], time.Minute, func(m wsconn.Message) bool { return m.Type == "MatchEnded" })
+		if ended < 0 || h.got[ended].Data.(*clientv1.MatchEnded).GetRating() == nil {
+			t.Fatalf("%s: no rated outcome; heard %v", ids[k], h.types(into[k]))
+		}
+		if out := h.since(into[k]+1, time.Minute, func(m wsconn.Message) bool { return m.Type == "MapChange" }); out < 0 || h.got[out].Data.(*clientv1.MapChange).GetMapId() != "town" {
+			t.Fatalf("%s: no way back to town; heard %v", ids[k], h.types(into[k]))
+		}
+		var matches int
+		if err := s.DB.QueryRow(ctx, `SELECT matches FROM pvp_ratings WHERE character_id = $1 AND mode = 'team'`, ids[k]).Scan(&matches); err != nil || matches != 1 {
+			t.Fatalf("%s's 3v3 rating row: %d matches, %v", ids[k], matches, err)
+		}
 	}
 }
 
