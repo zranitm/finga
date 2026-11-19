@@ -28,6 +28,7 @@ import { energy } from '@/state/energy';
 import { fieldBoss } from '@/state/field-boss';
 import { inventory } from '@/state/inventory';
 import { party } from '@/state/party';
+import { pouches } from '@/state/pouches';
 import { pvp } from '@/state/pvp';
 import { quests } from '@/state/quests';
 import { session } from '@/state/session';
@@ -56,11 +57,10 @@ const ayla = {
 const potion = { itemId: 'i1', template: 'red_potion', tab: 'use', slot: 0, quantity: 5 };
 const gel = {
   mapId: 'meadow',
-  dropId: 7,
+  pouchId: 7,
   ownerId: 'c-ayla',
   ownerName: 'Ayla',
-  template: 'slime_gel',
-  quantity: 1,
+  items: [{ template: 'slime_gel', quantity: 1 }],
 };
 const welcome: ServerInit<'welcome'> = {
   token: 'tok-rotated',
@@ -391,13 +391,35 @@ describe('wiring', () => {
     const { ws } = await connectedSocket();
     ws.push('expGained', { amount: 5n, exp: 15n });
     ws.push('levelUp', { character: { ...ayla, level: 2, exp: 0n } });
-    ws.push('loot', { ...gel, kind: LootKind.WAITING });
+    ws.push('loot', { ...gel, kind: LootKind.LEFT });
     expect(combatLog.getState().lines).toMatchObject([
       { kind: 'exp', amount: 5 },
       { kind: 'level', level: 2 },
-      { kind: 'loot', loot: LootKind.WAITING, template: 'slime_gel' },
+      { kind: 'loot', loot: LootKind.LEFT, items: [{ template: 'slime_gel' }] },
     ]);
-    expect(combatLog.getState().waiting).toMatchObject([{ key: 'meadow/7' }]);
+  });
+
+  it("the player's pouches come from the Snapshot, change with each Delta, and go with the map", async () => {
+    const { ws } = await connectedSocket();
+    const sack = (id: number, quantity: number) => ({
+      id,
+      x: 1,
+      items: [{ item: 1, template: 'slime_gel', quantity }],
+      goneInMs: 60000n,
+    });
+    const ids = () => pouches.getState().pouches.map((p) => [p.id, p.items[0]?.quantity]);
+    ws.push('snapshot', { pouches: [sack(4, 1), sack(2, 1)] });
+    expect(ids()).toEqual([
+      [2, 1],
+      [4, 1],
+    ]);
+    ws.push('delta', { ackSeq: 1, pouches: [sack(4, 3), sack(5, 1)], pouchesGone: [2] });
+    expect(ids()).toEqual([
+      [4, 3],
+      [5, 1],
+    ]);
+    ws.push('mapChange', { mapId: 'forest' });
+    expect(ids()).toEqual([]);
   });
 
   it("Promoted changes the class, adds a combat line, says so in a toast and closes the trainer's dialog", async () => {
@@ -535,29 +557,33 @@ describe('wiring', () => {
 
   it.each([
     {
-      name: 'a 4★ item this player collected',
-      d: { ...gel, kind: LootKind.COLLECTED, template: 'gold_ring' },
-      text: ['You got Gold Ring ★★★★'],
+      name: 'a 4★ item this player took, beside a gel',
+      d: {
+        ...gel,
+        kind: LootKind.TAKEN,
+        items: [...gel.items, { template: 'gold_ring', quantity: 1 }],
+      },
+      text: ['Took Gold Ring ★★★★'],
     },
     {
       name: "a party member's 6★ item",
       d: {
         ...gel,
-        kind: LootKind.COLLECTED,
-        template: 'moonstone_ring',
+        kind: LootKind.TAKEN,
+        items: [{ template: 'moonstone_ring', quantity: 1 }],
         ownerId: 'c-robin',
         ownerName: 'Robin',
       },
-      text: ['Robin got Moonstone Ring ★★★★★★'],
+      text: ['Robin took Moonstone Ring ★★★★★★'],
     },
     {
       name: 'a 3★ item',
-      d: { ...gel, kind: LootKind.COLLECTED, template: 'silver_ring' },
+      d: { ...gel, kind: LootKind.TAKEN, items: [{ template: 'silver_ring', quantity: 1 }] },
       text: [],
     },
     {
-      name: 'a 4★ item waiting for room',
-      d: { ...gel, kind: LootKind.WAITING, template: 'gold_ring' },
+      name: 'a 4★ item left behind',
+      d: { ...gel, kind: LootKind.LEFT, items: [{ template: 'gold_ring', quantity: 1 }] },
       text: [],
     },
   ])('a Loot of $name toasts: $text', async ({ d, text }) => {

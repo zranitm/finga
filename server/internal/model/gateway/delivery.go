@@ -17,7 +17,7 @@ type Push interface{ push() }
 type Snapshot struct {
 	Players       []PlayerView
 	Mobs          []MobView
-	Drops         []DropView
+	Pouches       []PouchView    // the player's own
 	FieldBoss     *FieldBoss     // while one is up
 	FieldBossGone *FieldBossGone // while the map's is beaten
 }
@@ -35,21 +35,21 @@ type FieldBossGone struct {
 	BackInMs int64
 }
 
-// Delta is what changed on the player's map since the last tick, AckSeq, the player's last input the world applied, and the player's energy as of then when it changed or the player just joined.
+// Delta is what changed on the player's map since the last tick, AckSeq, the player's last input the world applied, the player's energy as of then when it changed or the player just joined, and the player's own pouches that changed, which no other player's Delta carries.
 type Delta struct {
 	*Frame
-	AckSeq uint32
-	Energy *uint32
+	AckSeq      uint32
+	Energy      *uint32
+	Pouches     []PouchView
+	PouchesGone []uint64
 }
 
 // Frame is what changed on a map in one tick; it is shared, and read-only.
 type Frame struct {
-	Players                   []PlayerView
-	Mobs                      []MobView
-	Drops                     []DropView
-	RemovedPlayers            []string
-	RemovedMobs, RemovedDrops []uint64
-	CollectedDrops            []uint64 // left the ground for their owners' inventories
+	Players        []PlayerView
+	Mobs           []MobView
+	RemovedPlayers []string
+	RemovedMobs    []uint64
 }
 
 // MapChange moves the player to another map.
@@ -193,24 +193,28 @@ type MatchFighter struct {
 	Bot             bool
 }
 
-// LootKind is what became of a drop.
+// LootKind is what became of a pouch's items.
 type LootKind int
 
-// What became of a drop.
+// What became of a pouch's items.
 const (
-	LootCollected LootKind = iota + 1
-	LootWaiting
-	LootLost
+	LootTaken LootKind = iota + 1
+	LootLeft
 )
 
-// Loot is what became of a drop: the player's own, or a party member's they saw collected.
+// Loot is what became of a pouch's items: the player's own taken or left, or a party member's taken.
 type Loot struct {
 	Kind             LootKind
 	MapID            string
-	DropID           uint64
+	Pouch            uint64
 	Owner, OwnerName string
-	Template         string
-	Quantity         int
+	Items            []LootItem
+}
+
+// LootItem is an item a Loot names.
+type LootItem struct {
+	Template string
+	Quantity int
 }
 
 // PartyState is the player's party; nil means none.

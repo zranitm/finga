@@ -110,7 +110,7 @@ When the boss falls, through the same `strike` kill path:
 1. **Who collects:** the players alive and on the map. Each is grouped with the other present members of their party, or stands alone.
 2. **A group's damage** is the sum of its whole party's tallies, members gone or dead included. A lone player's is their own.
 3. **EXP:** a group's share is the boss's EXP × the group's damage ÷ its max HP, rounded. It's split among the group's present members by the rule `shareExp` uses for any kill: equal shares and the party bonus. That rule moves into `splitExp`, which `shareExp` calls with the killer first and the boss path with the group in join order; the first takes what doesn't divide.
-4. **Drops:** each present player whose group reached `drop_share` of the boss's HP gets their own roll. A `loot.Kill` names them as killer and has no party, so `Ground.Roll` makes every drop theirs and party turns don't apply. Drops fly to their owners after `collect_delay`, as any drop does.
+4. **Drops:** each present player whose group reached `drop_share` of the boss's HP gets their own roll. A `loot.Kill` names them as killer and has no party, so `Ground.Roll` makes every drop theirs and party turns don't apply. Since pouches ([Loot pouches](./loot-pouches.md)), each such player gets a box of their own, `Ground.Box`, holding that roll, which they open with T.
 5. **Quests:** the killer's kill counts as any kill does. No quest asks for a boss yet.
 6. `FieldBossGone{beaten: true}` goes to the map, and the count starts again.
 

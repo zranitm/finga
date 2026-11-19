@@ -772,11 +772,6 @@ body {
   font-weight: 700;
   color: var(--muted);
 }
-.hud-waiting {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--danger);
-}
 .death-overlay {
   position: fixed;
   inset: 0;
@@ -1665,6 +1660,57 @@ body {
 .chat-item {
   color: var(--star, var(--text));
   font-weight: 600;
+}
+.loot-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 240px;
+  max-height: 320px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.loot-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--star, var(--panel-border));
+  border-radius: 4px;
+  background: #0a0c16;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.loot-row:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.loot-row .slot-icon {
+  width: 28px;
+  text-align: center;
+}
+.loot-name {
+  flex: 1;
+  color: var(--star, var(--text));
+  font-weight: 600;
+}
+.loot-qty {
+  color: var(--muted);
+}
+.loot-refused {
+  margin: 2px 0 0 44px;
+  font-size: 12px;
+  color: var(--danger);
+}
+.loot-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 .chat-quest {
   color: var(--accent);

@@ -207,18 +207,22 @@ var teleportCancels = map[model.TeleportCancel]clientv1.TeleportCancelReason{
 	model.TeleportDied:  clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_DIED,
 }
 
-func dropViews(ds []model.DropView) []*clientv1.DropView {
-	if len(ds) == 0 {
+func pouchViews(ps []model.PouchView) []*clientv1.PouchView {
+	if len(ps) == 0 {
 		return nil
 	}
-	out := make([]*clientv1.DropView, 0, len(ds))
-	for _, d := range ds {
-		out = append(out, &clientv1.DropView{Id: uint32(d.ID), Template: d.Template, Quantity: int32(d.Quantity), X: d.X, Y: d.Y, OwnerId: d.Owner, Z: d.Z})
+	out := make([]*clientv1.PouchView, 0, len(ps))
+	for _, p := range ps {
+		items := make([]*clientv1.PouchItem, 0, len(p.Items))
+		for _, it := range p.Items {
+			items = append(items, &clientv1.PouchItem{Item: it.ID, Template: it.Template, Quantity: int32(it.Quantity), Stats: itemStats(it.Stats)}) //nolint:gosec // a stack's size
+		}
+		out = append(out, &clientv1.PouchView{Id: uint32(p.ID), Kind: pouchKinds[p.Kind], X: p.X, Y: p.Y, Z: p.Z, Items: items, GoneInMs: p.GoneInMs}) //nolint:gosec // pouch IDs count up within one map instance
 	}
 	return out
 }
 
-// instanceIDs are mob or drop IDs, which count up within one map instance and fit the wire's 32 bits.
+// instanceIDs are mob or pouch IDs, which count up within one map instance and fit the wire's 32 bits.
 func instanceIDs(ids []uint64) []uint32 {
 	if len(ids) == 0 {
 		return nil
@@ -239,17 +243,20 @@ func itemViews(items []model.ItemView) []*clientv1.ItemView {
 }
 
 func itemView(it model.ItemView) *clientv1.ItemView {
-	v := &clientv1.ItemView{ItemId: it.ID, Template: it.Template, Tab: it.Tab, Slot: int32(it.Slot), Quantity: int32(it.Quantity)}
-	if s := it.Stats; s != nil {
-		v.Stats = &clientv1.ItemStats{
-			Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
-			PhysicalAttack: int32(s.PhysicalAttack), MagicAttack: int32(s.MagicAttack), PhysicalDefense: int32(s.PhysicalDefense), MagicDefense: int32(s.MagicDefense),
-			MaxHp: int32(s.MaxHP), Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion),
-			CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage), Penetration: int32(s.Penetration), HpRegen: int32(s.HPRegen),
-			CooldownSpeed: int32(s.CooldownSpeed), MoveSpeed: int32(s.MoveSpeed),
-		}
+	return &clientv1.ItemView{ItemId: it.ID, Template: it.Template, Tab: it.Tab, Slot: int32(it.Slot), Quantity: int32(it.Quantity), Stats: itemStats(it.Stats)}
+}
+
+func itemStats(s *model.ItemStats) *clientv1.ItemStats {
+	if s == nil {
+		return nil
 	}
-	return v
+	return &clientv1.ItemStats{
+		Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
+		PhysicalAttack: int32(s.PhysicalAttack), MagicAttack: int32(s.MagicAttack), PhysicalDefense: int32(s.PhysicalDefense), MagicDefense: int32(s.MagicDefense),
+		MaxHp: int32(s.MaxHP), Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion),
+		CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage), Penetration: int32(s.Penetration), HpRegen: int32(s.HPRegen),
+		CooldownSpeed: int32(s.CooldownSpeed), MoveSpeed: int32(s.MoveSpeed),
+	}
 }
 
 func equipment(slots []model.EquipSlot) []*clientv1.EquipSlot {
@@ -286,9 +293,13 @@ var chatChannels = map[model.ChatChannel]clientv1.ChatChannel{
 }
 
 var lootKinds = map[model.LootKind]clientv1.LootKind{
-	model.LootCollected: clientv1.LootKind_LOOT_KIND_COLLECTED,
-	model.LootWaiting:   clientv1.LootKind_LOOT_KIND_WAITING,
-	model.LootLost:      clientv1.LootKind_LOOT_KIND_LOST,
+	model.LootTaken: clientv1.LootKind_LOOT_KIND_TAKEN,
+	model.LootLeft:  clientv1.LootKind_LOOT_KIND_LEFT,
+}
+
+var pouchKinds = map[model.PouchKind]clientv1.PouchKind{
+	model.PouchSmall: clientv1.PouchKind_POUCH_KIND_POUCH,
+	model.PouchBox:   clientv1.PouchKind_POUCH_KIND_BOX,
 }
 
 func npcDialog(d model.NpcDialog) *clientv1.NpcDialog {

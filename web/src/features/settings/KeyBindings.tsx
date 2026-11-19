@@ -36,6 +36,7 @@ const names: Readonly<Record<Action, string>> = {
   skill7: 'Skill 7',
   skill8: 'Skill 8',
   talk: 'Talk, or enter a portal',
+  loot: 'Loot pouches in reach',
   inventory: 'Inventory',
   character: 'Character',
   skills: 'Skills',
@@ -67,7 +68,7 @@ const groups: readonly { readonly name: string; readonly actions: readonly Actio
       'skill8',
     ],
   },
-  { name: 'World', actions: ['talk'] },
+  { name: 'World', actions: ['talk', 'loot'] },
   {
     name: 'Windows',
     actions: [

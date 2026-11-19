@@ -582,6 +582,24 @@
     "message": "that trait opens once the skill reaches its last evolution"
   },
   {
+    "code": 330039,
+    "name": "POUCH_GONE",
+    "status": 409,
+    "message": "that pouch is gone, or the item is already taken"
+  },
+  {
+    "code": 330040,
+    "name": "POUCH_OUT_OF_REACH",
+    "status": 409,
+    "message": "that pouch is too far away"
+  },
+  {
+    "code": 330041,
+    "name": "TAKE_BUSY",
+    "status": 409,
+    "message": "you're still taking that, or your last pick"
+  },
+  {
     "code": 440001,
     "name": "NOT_PARTY_LEADER",
     "status": 409,

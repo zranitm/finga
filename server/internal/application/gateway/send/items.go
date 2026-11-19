@@ -42,6 +42,11 @@ func (g *Gateway) AddToWardrobe(ctx context.Context, s *session.Session, in mode
 	return g.deps.Items.AddToWardrobe(ctx, s.Actor(), in)
 }
 
+// TakeLoot takes picked items from the player's own pouches through the world, answering each pick: taken, or refused with why.
+func (g *Gateway) TakeLoot(ctx context.Context, s *session.Session, picks []model.LootPick) ([]model.PickAnswer, error) {
+	return g.deps.World.TakeLoot(ctx, s.Presence(), picks)
+}
+
 // SetLook wears a look through the world, which refuses a dead player or one in combat; every view carries it once applied.
 func (g *Gateway) SetLook(ctx context.Context, s *session.Session, in model.LookSet) error {
 	return g.deps.World.SetLook(ctx, s.Presence(), in)

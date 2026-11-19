@@ -2,7 +2,16 @@
 import { defineStore } from './store';
 
 export type WindowName =
-  'inventory' | 'character' | 'skills' | 'party' | 'quests' | 'map' | 'arena' | 'npc' | 'settings';
+  | 'inventory'
+  | 'character'
+  | 'skills'
+  | 'party'
+  | 'quests'
+  | 'map'
+  | 'arena'
+  | 'npc'
+  | 'loot'
+  | 'settings';
 
 export interface UiState {
   /** The open windows, the top-most last. */

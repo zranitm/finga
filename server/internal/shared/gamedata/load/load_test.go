@@ -45,9 +45,11 @@ snap: 0.5
 sprint: {after: 2, speed: 1.6}
 `,
 		"loot.yaml": `
-collect_delay: 1s
-drop_life: 60s
-room_check_every: 2s
+pouch: {normal: 0.25, elite: 0.5}
+reach: 2
+pouch_life: 60s
+box_life: 2m
+pouches_max: 30
 `,
 		"chat.yaml": `
 line_max: 120
@@ -582,8 +584,8 @@ func TestValidDataLoads(t *testing.T) {
 			t.Fatalf("energy %+v, want a max of 10, 2 an attack and 2 a block", got)
 		}
 	})
-	t.Run("the loot timings", func(t *testing.T) {
-		if got, want := d.Loot(), (gamedata.Loot{CollectDelay: time.Second, DropLife: time.Minute, RoomCheckEvery: 2 * time.Second}); got != want {
+	t.Run("the loot rules", func(t *testing.T) {
+		if got, want := d.Loot(), (gamedata.Loot{Pouch: gamedata.PouchChance{Normal: 0.25, Elite: 0.5}, Reach: 2, PouchLife: time.Minute, BoxLife: 2 * time.Minute, PouchesMax: 30}); got != want {
 			t.Fatalf("loot %+v, want %+v", got, want)
 		}
 	})
@@ -962,10 +964,14 @@ func TestRejections(t *testing.T) {
 		{"a sprint no faster than the walk", "movement.yaml", "speed: 1.6}", "speed: 1}", []string{"movement.yaml", "sprint.speed"}},
 		{"no active quest allowed", "quests.yaml", `max_active: 20`, `max_active: 0`, []string{"quests.yaml", "max_active"}},
 		{"no chat line allowed", "chat.yaml", `line_max: 120`, `line_max: 0`, []string{"chat.yaml", "line_max"}},
-		{"loot timings must be positive", "loot.yaml", `collect_delay: 1s`, `collect_delay: 0s`, []string{"loot.yaml", "collect_delay"}},
-		{"a drop must fly before it is lost", "loot.yaml", `collect_delay: 1s`, `collect_delay: 60s`, []string{"loot.yaml", "drop_life"}},
-		{"a full inventory must be asked again before the drop is lost", "loot.yaml", `room_check_every: 2s`, `room_check_every: 90s`, []string{"loot.yaml", "drop_life"}},
-		{"a loot timing that isn't a duration", "loot.yaml", `drop_life: 60s`, `drop_life: a minute`, []string{"loot.yaml"}},
+		{"a pouch's life must be positive", "loot.yaml", `pouch_life: 60s`, `pouch_life: 0s`, []string{"loot.yaml", "pouch_life"}},
+		{"a box's life must be positive", "loot.yaml", `box_life: 2m`, `box_life: -1s`, []string{"loot.yaml", "box_life"}},
+		{"a player may hold a pouch", "loot.yaml", `pouches_max: 30`, `pouches_max: 0`, []string{"loot.yaml", "pouches_max"}},
+		{"a pouch's chance must be a chance", "loot.yaml", `normal: 0.25`, `normal: 0`, []string{"loot.yaml", "pouch.normal"}},
+		{"an elite's chance above certain", "loot.yaml", `elite: 0.5`, `elite: 1.5`, []string{"loot.yaml", "pouch.elite"}},
+		{"a reach short of the talk reach", "loot.yaml", `reach: 2`, `reach: 1`, []string{"loot.yaml", "reach", "talk reach"}},
+		{"a loot life that isn't a duration", "loot.yaml", `pouch_life: 60s`, `pouch_life: a minute`, []string{"loot.yaml"}},
+		{"the old drop timings are gone", "loot.yaml", "box_life: 2m\n", "box_life: 2m\ncollect_delay: 1s\n", []string{"loot.yaml", "collect_delay"}},
 		{"an NPC placed nowhere", "npcs.yaml", "npcs:\n", "npcs:\n  - {id: ghost, name: Ghost, look: ghost}\n", []string{"ghost", "no map"}},
 		{"duplicate NPC IDs", "npcs.yaml", `id: hunter`, `id: guide`, []string{"npcs.yaml", "guide", "duplicate"}},
 		{"an NPC without a look", "npcs.yaml", "    look: hunter\n", "", []string{"npcs.yaml", "hunter", "look"}},

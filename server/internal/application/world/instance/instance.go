@@ -207,7 +207,7 @@ func New(d Deps, t Tuning) *Instance {
 		i.raiseBoss() // up from the start, before anyone is here to hear it
 	}
 	i.ground = loot.NewGround(loot.Deps{
-		MapID: d.Map.ID, Items: d.Items, ItemCalls: d.ItemCalls, Observer: d.Batches, Traces: d.Traces, Roll: roll, Data: d.Data, Rest: i.rest, Logger: d.Logger, Settle: i.settled,
+		MapID: d.Map.ID, Items: d.Items, ItemCalls: d.ItemCalls, Observer: d.Batches, Traces: d.Traces, Roll: roll, Data: d.Data, Rest: i.rest, Collects: i.collects, Logger: d.Logger, Settle: i.settled,
 	}, loot.Tuning{TickInterval: t.TickInterval, BatchMax: t.BatchMax})
 	return i
 }
@@ -342,7 +342,7 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	if n%i.ticksFor(time.Second) == 0 {
 		i.regen()
 	}
-	for _, s := range i.ground.Collect() {
+	for _, s := range i.ground.Step() {
 		i.settle(s)
 	}
 	i.tellHP()
@@ -429,6 +429,8 @@ func (i *Instance) drain() []kernel.CharacterID {
 			i.settleHandIn(m)
 		case promoteMsg:
 			i.promote(m)
+		case takeMsg:
+			i.startTake(m)
 		case lookMsg:
 			if !i.refused(m.done) {
 				i.startLook(m)
@@ -478,14 +480,14 @@ func (i *Instance) settled(ctx context.Context, r loot.Result) {
 	}
 }
 
-// settle tells a drop's owner what came of it, and the party members on the map what it collected.
+// settle tells a pouch's owner what came of its items, and the party members on the map what they took.
 func (i *Instance) settle(s loot.Settled) {
 	for _, e := range s.Inventory {
 		i.tell(s.Owner, e)
 	}
 	for _, l := range s.Loot {
 		i.tell(s.Owner, l)
-		if l.Kind != model.LootCollected {
+		if l.Kind != model.LootTaken {
 			continue
 		}
 		for _, id := range i.deps.Parties.Party(s.Owner.ID).Members {
@@ -496,7 +498,7 @@ func (i *Instance) settle(s loot.Settled) {
 	}
 }
 
-// tell sends a drop's owner an event of their own, with the tick's broadcast, or now through their sink if they left the map.
+// tell sends a pouch's owner an event of their own, with the tick's broadcast, or now through their sink if they left the map.
 func (i *Instance) tell(o loot.Owner, e model.Event) {
 	if p, ok := i.players[o.ID]; ok {
 		p.private = append(p.private, e)

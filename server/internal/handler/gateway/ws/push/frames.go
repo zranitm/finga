@@ -23,9 +23,8 @@ func (f *Frames) shared(frame *model.Frame) *wsconn.Shared {
 	defer f.mu.Unlock()
 	if f.frame != frame {
 		f.frame, f.encoded = frame, wsconn.NewShared(&clientv1.Delta{
-			Players: playerViews(frame.Players), Mobs: mobViews(frame.Mobs), Drops: dropViews(frame.Drops),
-			RemovedPlayers: frame.RemovedPlayers, RemovedMobs: instanceIDs(frame.RemovedMobs), RemovedDrops: instanceIDs(frame.RemovedDrops),
-			CollectedDrops: instanceIDs(frame.CollectedDrops),
+			Players: playerViews(frame.Players), Mobs: mobViews(frame.Mobs),
+			RemovedPlayers: frame.RemovedPlayers, RemovedMobs: instanceIDs(frame.RemovedMobs),
 		})
 	}
 	return f.encoded

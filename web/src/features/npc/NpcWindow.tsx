@@ -23,8 +23,6 @@ import type {
   QuestOffer,
 } from '@/protocol/messages';
 import { character } from '@/state/character';
-import { combatLog } from '@/state/combat-log';
-import type { Waiting } from '@/state/combat-log';
 import { inventory } from '@/state/inventory';
 import type { Slots, Tab } from '@/state/inventory';
 import { quests } from '@/state/quests';
@@ -177,7 +175,6 @@ function Promotion({
   const me = character.use((s) => s.character);
   const log = quests.use((s) => s.log);
   const slots = inventory.use((s) => s.slots);
-  const waiting = combatLog.use((s) => s.waiting);
   // The dialog's counts are from the talk; spends, level-ups and quests since update them here, and the world checks again.
   const conditions = me
     ? offer.conditions.map((c) => ({
@@ -192,7 +189,7 @@ function Promotion({
     : offer.conditions;
   const name = className(offer.class);
   const become = `Become ${article(name)} ${name}`;
-  const free = weaponRoom(slots, waiting);
+  const free = weaponRoom(slots);
   const met = conditions.every((c) => c.have >= c.need) && free === 0;
   return (
     <section className="npc-promotion" aria-label="Promotion">
@@ -305,12 +302,12 @@ function Offer({
   }
 }
 
-/** Slots to free for the trainer's weapon, 0 once it fits: the item module gives it only into a free Equip slot, which a waiting drop takes first. */
-function weaponRoom(slots: Slots, waiting: readonly Waiting[]): number {
+/** Slots to free for the trainer's weapon, 0 once it fits: the item module gives it only into a free Equip slot. */
+function weaponRoom(slots: Slots): number {
   if (fitsNow(slots, [], [trainerWeapon])) {
     return 0;
   }
-  return toFree(slots, [], [trainerWeapon], linesOf(waiting)).equip ?? 1;
+  return toFree(slots, [], [trainerWeapon]).equip ?? 1;
 }
 
 /** The weapon's room as a promotion condition, with what to free while it falls short. */
@@ -334,14 +331,10 @@ export function unmetText(u: QuestConditions | undefined): string {
   return parts.length > 0 ? parts.join(' · ') : 'Not available yet';
 }
 
-/** What to free for a reward, counting this player's drops waiting for room, which take freed slots first, and the tab a refusal named. */
+/** What to free for a reward, and the tab a refusal named. */
 function freeFor(take: readonly Line[], give: readonly Line[], what: string, full?: Tab): string {
-  const waiting = linesOf(combatLog.getState().waiting);
-  return freeText(toFree(inventory.getState().slots, take, give, waiting, full), what);
+  return freeText(toFree(inventory.getState().slots, take, give, full), what);
 }
-
-const linesOf = (waiting: readonly Waiting[]) =>
-  waiting.flatMap((w) => lineOf(w.template, w.quantity) ?? []);
 
 /** What a hand-in takes, its collect objectives, and gives, its item rewards, as the world asks the item module for them. */
 function exchanged(q: Quest): { take: Line[]; give: Line[] } {

@@ -2,12 +2,20 @@ package gamedata
 
 import "time"
 
-// Loot is how drops behave on the ground.
+// Loot is how pouches and a boss's boxes behave on the ground.
 type Loot struct {
-	CollectDelay   time.Duration // from the kill until a drop flies to its owner
-	DropLife       time.Duration // a drop still on the ground then is lost
-	RoomCheckEvery time.Duration // how often an owner's drops waiting for room are tried again
+	Pouch     PouchChance   // the chance a kill leaves a pouch
+	Reach     float64       // metres from a character's middle to a pouch or box to open it
+	PouchLife time.Duration // a pouch still holding items then is gone
+	BoxLife   time.Duration // a boss's box still holding items then is gone
+	// PouchesMax is how many pouches and boxes a player may have on a map: a new one ends the oldest's life.
+	PouchesMax int
 }
 
-// Loot is how drops behave on the ground.
+// PouchChance is the chance a kill leaves a pouch: a normal mob's, and an elite's.
+type PouchChance struct {
+	Normal, Elite float64
+}
+
+// Loot is how pouches and a boss's boxes behave on the ground.
 func (d *Data) Loot() Loot { return d.p.Loot }

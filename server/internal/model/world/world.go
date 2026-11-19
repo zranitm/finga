@@ -55,6 +55,10 @@ var (
 	ErrTraitLocked  = errors.New("world: the extra trait opens once the skill's points reach its last stage")
 	ErrInCombat     = errors.New("world: a trait or a look can't change while the player is in combat")
 
+	ErrPouchGone       = errors.New("world: the pouch is gone, empty or not the player's, or the item is taken or named twice")
+	ErrPouchOutOfReach = errors.New("world: the pouch is farther than the player's reach")
+	ErrTakeBusy        = errors.New("world: the item is being taken, or a take already waits for the player's last one")
+
 	ErrPromotionUnmet   = errors.New("world: the character doesn't meet every condition of the promotion")
 	ErrNotYourNextClass = errors.New("world: the NPC doesn't train that class, or its parent isn't the character's class")
 
@@ -253,30 +257,27 @@ type Snapshot struct {
 	MapID         string
 	Players       []PlayerView
 	Mobs          []MobView
-	Drops         []DropView
+	Pouches       []PouchView    // the joiner's own
 	FieldBoss     *FieldBoss     // while one is up
 	FieldBossGone *FieldBossGone // while the map's is beaten
 }
 
 // Frame is what changed on a map in one tick, shared by every player there and read-only once sent.
 type Frame struct {
-	Tick         uint64
-	Players      []PlayerView
-	Mobs         []MobView
-	Drops        []DropView // new on the ground
-	Removed      []kernel.CharacterID
-	RemovedMobs  []uint64
-	RemovedDrops []uint64 // gone without an owner taking them: expired or lost
-	// CollectedDrops left the ground for their owners' inventories.
-	CollectedDrops []uint64
+	Tick        uint64
+	Players     []PlayerView
+	Mobs        []MobView
+	Removed     []kernel.CharacterID
+	RemovedMobs []uint64
 }
 
-// Recipient is a player a frame goes to, with AckSeq, the latest input applied for it, and its energy as of then when it changed or the player just joined.
+// Recipient is a player a frame goes to, with AckSeq, the latest input applied for it, its energy as of then when it changed or the player just joined, and its own pouches that changed, which nobody else's frame carries.
 type Recipient struct {
 	Character  kernel.CharacterID
 	Connection string
 	AckSeq     uint32
 	Energy     *int
+	Pouches    Pouches
 }
 
 // Teleport moves the player to another map, whose instance sends the Snapshot.
@@ -438,15 +439,6 @@ type Checkpoint struct {
 	Skills  Skills // a copy of the player's
 	Quests  Quests // the whole log, a copy of the player's
 	Timers  SkillTimers
-}
-
-// DropView is an item on the ground as everyone sees it, with the player it will fly to.
-type DropView struct {
-	ID       uint64
-	Template string
-	Quantity int
-	X, Y, Z  float64
-	Owner    kernel.CharacterID
 }
 
 // InventoryChanged tells the player which slots and equip slots a committed change touched, as they stood at the inventory's Revision.

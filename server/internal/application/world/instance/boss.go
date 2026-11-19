@@ -5,7 +5,6 @@ import (
 	"slices"
 	"time"
 
-	"finga/internal/application/world/loot"
 	"finga/internal/application/world/mobs"
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
@@ -92,7 +91,7 @@ func (i *Instance) bossFell(killer *player, k *mobs.Kill) {
 			continue
 		}
 		for _, m := range g.present {
-			i.ground.Roll(loot.Kill{Mob: b.def, X: k.X, Y: k.Y, Z: k.Z, Killer: ownerOf(m)})
+			i.ground.Box(b.def, k.X, k.Y, k.Z, ownerOf(m))
 		}
 	}
 	i.countKill(killer, b.def.ID)

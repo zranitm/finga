@@ -16,11 +16,13 @@ import (
 	"finga/pkg/hub"
 )
 
-// worldModule records the last call: the presence and the rest of its arguments; Join answers with view.
+// worldModule records the last call: the presence and the rest of its arguments; Join answers with view, and TakeLoot with picks and err.
 type worldModule struct {
-	p    world.Presence
-	args any
-	view world.View
+	p     world.Presence
+	args  any
+	view  world.View
+	picks []world.PickAnswer
+	err   error
 }
 
 // The arguments of each world call after its presence.
@@ -51,6 +53,7 @@ type (
 		Key  string
 		Look world.Look
 	}
+	takeArgs    struct{ Picks []world.Pick }
 	unequipArgs struct {
 		Key       string
 		EquipSlot string
@@ -124,6 +127,11 @@ func (w *worldModule) Equip(_ context.Context, p world.Presence, key string, ite
 
 func (w *worldModule) SetLook(_ context.Context, p world.Presence, key string, look world.Look) error {
 	return w.record(p, lookArgs{key, look})
+}
+
+func (w *worldModule) TakeLoot(_ context.Context, p world.Presence, picks []world.Pick) ([]world.PickAnswer, error) {
+	_ = w.record(p, takeArgs{picks})
+	return w.picks, w.err
 }
 
 func (w *worldModule) UseItem(_ context.Context, p world.Presence, key string, item kernel.ItemID, template string) error {
@@ -205,6 +213,20 @@ func worldCall[In, Args any](w *worldModule, renames map[string]string, call fun
 	})
 }
 
+// A take's picks come back in their order, each refusal as its public failure; a take refused whole is the call's failure.
+func TestATakesPicksComeBackWithTheirRefusals(t *testing.T) {
+	w := &worldModule{picks: []world.PickAnswer{{Pouch: 3, Item: 1}, {Pouch: 3, Item: 2, Err: kernel.ErrUseTabFull}}}
+	a := NewWorld(w, slog.New(slog.DiscardHandler), nil)
+	got, err := a.TakeLoot(t.Context(), model.Presence{}, []model.LootPick{{Pouch: 3, Item: 1}, {Pouch: 3, Item: 2}})
+	if err != nil || len(got) != 2 || got[0].LootPick != (model.LootPick{Pouch: 3, Item: 1}) || got[0].Err != nil || model.PublicOf(got[1].Err) != model.UseTabFull {
+		t.Fatalf("answers %+v (%v); want the first taken and the second refused for its tab", got, err)
+	}
+	w.picks, w.err = nil, kernel.ErrCharacterDead
+	if _, err := a.TakeLoot(t.Context(), model.Presence{}, nil); model.PublicOf(err) != model.CharacterDead {
+		t.Fatalf("a dead player's take failed with %v, want CHARACTER_DEAD", err)
+	}
+}
+
 // Each world call reaches the module with the player's presence and every field of its request.
 func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 	w := &worldModule{}
@@ -262,6 +284,13 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 		},
 		"SetLook": func() []string {
 			return worldCall[model.LookSet, lookArgs](w, key, func(p model.Presence, in model.LookSet) error { return a.SetLook(ctx, p, in) })
+		},
+		"TakeLoot": func() []string {
+			type take struct{ Picks []model.LootPick }
+			return worldCall[take, takeArgs](w, nil, func(p model.Presence, in take) error {
+				_, err := a.TakeLoot(ctx, p, in.Picks)
+				return err
+			})
 		},
 		"Unequip": func() []string {
 			return worldCall[model.ItemUnequip, unequipArgs](w, key, func(p model.Presence, in model.ItemUnequip) error { return a.Unequip(ctx, p, in) })

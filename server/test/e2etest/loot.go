@@ -3,12 +3,11 @@ package e2etest
 import (
 	"bytes"
 	"context"
-	"maps"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"testing"
 	"time"
 
@@ -26,20 +25,23 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// Looter is a player tracking its position and the drops on the ground from every message.
+// Looter is a player tracking its position and its own pouches from every message.
 type Looter struct {
 	*Player
 	X, Y, Z   float64
 	HP        int32
 	heading   *clientv1.Input // the walk chase last sent
 	Mobs      map[uint32]*clientv1.MobView
-	Drops     map[uint32]*clientv1.DropView
-	Inventory int                           // InventoryChanged messages seen
-	Seen      map[uint32]*clientv1.DropView // every drop seen on this map, gone or not
-	Collected map[uint32]bool               // drops seen leave for an inventory
-	Removed   map[uint32]bool               // drops seen leave without an owner taking them
+	Pouches   map[uint32]*clientv1.PouchView // its own on the map now
+	Inventory int                            // InventoryChanged messages seen
+	Seen      map[uint32]*clientv1.PouchView // every pouch of its own seen on this map, gone or not, as last seen
+	Gone      map[uint32]bool                // pouches seen go: emptied, or their life ended
+	FellAt    map[uint32]uint64              // the tick of the frame that first carried each pouch Seen
 	Loots     []*clientv1.Loot
 	Failures  []*clientv1.Response
+	taking    string    // the request ID of the TakeLoot Farm waits on
+	nextTake  time.Time // Farm takes no sooner, as a player's presses come
+	takes     int       // TakeLoot requests sent, for their IDs
 	// The player's own view in the last frame, and the newest input the world says it applied.
 	onGround   bool
 	vx, vy, vz float64
@@ -68,17 +70,23 @@ type Ticked[T any] struct {
 
 // NewLooter follows p from the Snapshot it joined to.
 func NewLooter(p *Player, snap *clientv1.Snapshot) *Looter {
-	l := &Looter{Player: p, Mobs: map[uint32]*clientv1.MobView{}, Drops: map[uint32]*clientv1.DropView{}, Seen: map[uint32]*clientv1.DropView{}, Collected: map[uint32]bool{}, Removed: map[uint32]bool{}}
+	l := &Looter{Player: p}
+	l.enter(snap)
+	return l
+}
+
+// enter takes a map's Snapshot: its mobs and the player's own pouches, whose IDs and ticks are the map's own.
+func (l *Looter) enter(snap *clientv1.Snapshot) {
+	l.Mobs, l.Pouches, l.Seen, l.Gone, l.FellAt = map[uint32]*clientv1.MobView{}, map[uint32]*clientv1.PouchView{}, map[uint32]*clientv1.PouchView{}, map[uint32]bool{}, map[uint32]uint64{}
 	for _, mv := range snap.Mobs {
 		l.Mobs[mv.GetId()] = mv
 	}
-	for _, d := range snap.Drops {
-		l.Drops[d.GetId()], l.Seen[d.GetId()] = d, d
+	for _, p := range snap.Pouches {
+		l.Pouches[p.GetId()], l.Seen[p.GetId()], l.FellAt[p.GetId()] = p, p, l.tick
 	}
 	for _, v := range snap.Players {
 		l.see(v)
 	}
-	return l
 }
 
 // see takes the player's own view; others' are left alone.
@@ -89,7 +97,7 @@ func (l *Looter) see(v *clientv1.PlayerView) {
 	}
 }
 
-// Observe takes in one message: the frames' mobs and drops, and every inventory, reply, party, chat, exp, loot, dialog and quest message, kept in order.
+// Observe takes in one message: the frames' mobs and pouches, and every inventory, reply, party, chat, exp, loot, dialog and quest message, kept in order.
 func (l *Looter) Observe(m wsconn.Message) {
 	switch d := m.Data.(type) {
 	case *clientv1.Delta:
@@ -103,34 +111,27 @@ func (l *Looter) Observe(m wsconn.Message) {
 		for _, id := range d.RemovedMobs {
 			delete(l.Mobs, id)
 		}
-		for _, dv := range d.Drops {
-			l.Drops[dv.GetId()], l.Seen[dv.GetId()] = dv, dv
+		for _, p := range d.Pouches {
+			if _, ok := l.Seen[p.GetId()]; !ok {
+				l.FellAt[p.GetId()] = m.Tick
+			}
+			l.Pouches[p.GetId()], l.Seen[p.GetId()] = p, p
 		}
-		for _, id := range d.RemovedDrops {
-			l.Removed[id] = true
-			delete(l.Drops, id)
-		}
-		for _, id := range d.CollectedDrops {
-			l.Collected[id] = true
-			delete(l.Drops, id)
+		for _, id := range d.PouchesGone {
+			l.Gone[id] = true
+			delete(l.Pouches, id)
 		}
 	case *clientv1.Snapshot:
-		// Another map, whose mob and drop IDs and ticks are its own.
-		l.Mobs, l.Drops, l.Seen, l.tick = map[uint32]*clientv1.MobView{}, map[uint32]*clientv1.DropView{}, map[uint32]*clientv1.DropView{}, m.Tick
-		for _, mv := range d.Mobs {
-			l.Mobs[mv.GetId()] = mv
-		}
-		for _, dv := range d.Drops {
-			l.Drops[dv.GetId()], l.Seen[dv.GetId()] = dv, dv
-		}
-		for _, v := range d.Players {
-			l.see(v)
-		}
+		l.tick = m.Tick
+		l.enter(d)
 	case *clientv1.InventoryChanged:
 		l.Inventory++
 	case *clientv1.Response:
 		if !d.GetOk() {
 			l.Failures = append(l.Failures, d)
+		}
+		if m.ReqID != "" && m.ReqID == l.taking {
+			l.taking = ""
 		}
 		l.Responses = append(l.Responses, Reply{m.ReqID, d})
 	case *clientv1.PartyState:
@@ -153,6 +154,9 @@ func (l *Looter) Observe(m wsconn.Message) {
 		l.BossesGone = append(l.BossesGone, Ticked[*clientv1.FieldBossGone]{m.Tick, d})
 	}
 }
+
+// Tick is the newest frame's tick, in its map's ticks.
+func (l *Looter) Tick() uint64 { return l.tick }
 
 // Reply is a Response with the request id it answers.
 type Reply struct {
@@ -237,23 +241,33 @@ func (l *Looter) AimAt(m *clientv1.MobView) float32 {
 	return yawTo(l.X, l.Z, m.GetX(), m.GetZ())
 }
 
-// nearestDrop is the closest drop of the template ("" for any).
-func (l *Looter) nearestDrop(template string) (*clientv1.DropView, bool) {
-	var best *clientv1.DropView
-	bestDist := math.Inf(1)
-	for _, d := range l.Drops {
-		if template != "" && d.Template != template {
-			continue
-		}
-		if dist := math.Hypot(d.X-l.X, d.Z-l.Z); dist < bestDist {
-			best, bestDist = d, dist
+// Holds reports whether the pouch holds an item of the template ("" for any).
+func Holds(p *clientv1.PouchView, template string) bool {
+	for _, it := range p.GetItems() {
+		if template == "" || it.GetTemplate() == template {
+			return true
 		}
 	}
-	return best, bestDist < math.Inf(1)
+	return false
 }
 
-// Hunt swings every 850 ms until a drop of the template appears.
-func (l *Looter) Hunt(d time.Duration, template string) (*clientv1.DropView, bool) {
+// nearestPouch is the closest of the looter's pouches holding the template ("" for any); nil with none.
+func (l *Looter) nearestPouch(template string) *clientv1.PouchView {
+	var best *clientv1.PouchView
+	bestDist := math.Inf(1)
+	for _, p := range l.Pouches {
+		if !Holds(p, template) {
+			continue
+		}
+		if dist := math.Hypot(p.GetX()-l.X, p.GetZ()-l.Z); dist < bestDist {
+			best, bestDist = p, dist
+		}
+	}
+	return best
+}
+
+// Hunt swings every 850 ms until a pouch of its own holding the template appears.
+func (l *Looter) Hunt(d time.Duration, template string) (*clientv1.PouchView, bool) {
 	deadline := time.Now().Add(d)
 	next := time.Now()
 	for time.Now().Before(deadline) {
@@ -264,11 +278,61 @@ func (l *Looter) Hunt(d time.Duration, template string) (*clientv1.DropView, boo
 			next = time.Now().Add(850 * time.Millisecond)
 		}
 		l.Pump(100*time.Millisecond, nil)
-		if drop, ok := l.nearestDrop(template); ok {
-			return drop, true
+		if p := l.nearestPouch(template); p != nil {
+			return p, true
 		}
 	}
 	return nil, false
+}
+
+// HuntPouches swings every 850 ms until n pouches of its own have been seen on the map, or d passes.
+func (l *Looter) HuntPouches(d time.Duration, n int) bool {
+	deadline := time.Now().Add(d)
+	next := time.Now()
+	for time.Now().Before(deadline) && len(l.Seen) < n {
+		if !time.Now().Before(next) {
+			if err := l.Swing(); err != nil {
+				return false
+			}
+			next = time.Now().Add(850 * time.Millisecond)
+		}
+		l.Pump(100*time.Millisecond, nil)
+	}
+	return len(l.Seen) >= n
+}
+
+// All are the picks of every item in the pouch.
+func All(p *clientv1.PouchView) []*clientv1.LootPick {
+	var out []*clientv1.LootPick
+	for _, it := range p.GetItems() {
+		out = append(out, &clientv1.LootPick{Pouch: p.GetId(), Item: it.GetItem()})
+	}
+	return out
+}
+
+// Take sends a TakeLoot of the picks and waits for its Response, which answers each.
+func (l *Looter) Take(t *testing.T, picks ...*clientv1.LootPick) *clientv1.Response {
+	t.Helper()
+	l.takes++
+	return l.Command(t, fmt.Sprintf("take-%d", l.takes), &clientv1.TakeLoot{Picks: picks})
+}
+
+// Codes are a take's answers' codes, in its order: 0 for taken.
+func Codes(r *clientv1.Response) []int32 {
+	var out []int32
+	for _, a := range r.GetPicks() {
+		out = append(out, a.GetCode())
+	}
+	return out
+}
+
+// GoTake walks to the pouch and takes all it holds.
+func (l *Looter) GoTake(t *testing.T, p *clientv1.PouchView) *clientv1.Response {
+	t.Helper()
+	if !l.WalkTo(gamedata.Point{X: p.GetX(), Z: p.GetZ()}, 20*time.Second) {
+		t.Fatalf("%s could not reach pouch %d at (%.2f, %.2f) from (%.2f, %.2f)", l.ID, p.GetId(), p.GetX(), p.GetZ(), l.X, l.Z)
+	}
+	return l.Take(t, All(p)...)
 }
 
 // WalkTo walks to within 0.375 m of to and stands there, still on the ground, re-aiming after knockback and jumping when stuck.
@@ -304,12 +368,37 @@ func (l *Looter) WalkTo(to gamedata.Point, d time.Duration) bool {
 	return false
 }
 
-// Farm swings every 850 ms for d, its drops flying to it on their own; it returns the InventoryChanged seen.
+// Farm hunts for d: it swings every 850 ms, and walks to each pouch of its own and takes all it holds, one take at a time without waiting on it; it returns the InventoryChanged seen.
 func (l *Looter) Farm(d time.Duration) int {
 	deadline := time.Now().Add(d)
 	nextAttack := time.Now()
+	walking := false
 	for time.Now().Before(deadline) {
-		if !time.Now().Before(nextAttack) {
+		switch p := l.nearestPouch(""); {
+		case p != nil && l.taking == "" && math.Hypot(p.GetX()-l.X, p.GetZ()-l.Z) <= 1:
+			if walking {
+				_ = l.Input(&clientv1.Input{})
+				walking = false
+			}
+			if time.Now().Before(l.nextTake) {
+				break
+			}
+			l.nextTake = time.Now().Add(500 * time.Millisecond)
+			l.takes++
+			l.taking = fmt.Sprintf("farm-%d", l.takes)
+			if l.trySend(wsconn.Message{ReqID: l.taking, Data: &clientv1.TakeLoot{Picks: All(p)}}) != nil {
+				return l.Inventory
+			}
+		case p != nil && l.taking == "":
+			if l.Input(Toward(p.GetX()-l.X, p.GetZ()-l.Z)) != nil {
+				return l.Inventory
+			}
+			walking = true
+		case !time.Now().Before(nextAttack):
+			if walking {
+				_ = l.Input(&clientv1.Input{})
+				walking = false
+			}
 			if l.Swing() != nil {
 				return l.Inventory
 			}
@@ -319,56 +408,79 @@ func (l *Looter) Farm(d time.Duration) int {
 			return l.Inventory
 		}
 	}
+	if walking {
+		_ = l.Input(&clientv1.Input{})
+	}
 	return l.Inventory
 }
 
-// Settle waits until the looter's kills have nothing left to drop or grant and their pushes are read; a drop waiting for room holds it off.
-func (l *Looter) Settle(d time.Duration) bool {
+// Clear waits until the looter's kills have nothing left to leave, then walks to and takes every pouch of its own, until none is left and the last take's pushes are read.
+func (l *Looter) Clear(d time.Duration) bool {
 	marker := l.NextSeq() // once the world applies it, every attack sent before it is queued or done
 	if err := l.trySend(wsconn.Message{Seq: marker, Data: &clientv1.Input{}}); err != nil {
 		return false
 	}
-	var by, emptyAt uint64 // the tick by which a queued attack has struck, and the first from then with none of the looter's drops down
-	return l.Until(d, func() bool {
+	var by uint64 // the tick by which a queued attack has struck
+	if !l.Until(d, func() bool {
 		if by == 0 && l.ack >= marker {
 			by = l.tick + 2*l.attackTicks // one length to start behind the action before it, one more to strike
 		}
-		switch {
-		case by == 0 || l.tick < by:
-			return false
-		case slices.ContainsFunc(slices.Collect(maps.Values(l.Drops)), func(dv *clientv1.DropView) bool { return dv.GetOwnerId() == l.ID }):
-			emptyAt = 0
-			return false
-		case emptyAt == 0:
-			emptyAt = l.tick
-		}
-		return l.tick > emptyAt // a tick's frame goes before its pushes, so the next frame brings the last drop's InventoryChanged and Loot
-	})
-}
-
-// HuntDrops swings every 850 ms until n drops have been seen on the map, or d passes.
-func (l *Looter) HuntDrops(d time.Duration, n int) bool {
-	deadline := time.Now().Add(d)
-	next := time.Now()
-	for time.Now().Before(deadline) && len(l.Seen) < n {
-		if !time.Now().Before(next) {
-			if err := l.Swing(); err != nil {
-				return false
-			}
-			next = time.Now().Add(850 * time.Millisecond)
-		}
-		l.Pump(100*time.Millisecond, nil)
+		return by != 0 && l.tick > by
+	}) {
+		return false
 	}
-	return len(l.Seen) >= n
+	deadline := time.Now().Add(d)
+	for time.Now().Before(deadline) {
+		p := l.nearestPouch("")
+		if p == nil && l.taking == "" {
+			return l.Until(time.Second, func() bool { return l.tick > by+2 }) // a take's InventoryChanged and Loot follow its frame
+		}
+		if p == nil {
+			l.Pump(50*time.Millisecond, nil)
+			continue
+		}
+		if !l.WalkTo(gamedata.Point{X: p.GetX(), Z: p.GetZ()}, time.Until(deadline)) {
+			return false
+		}
+		l.takes++
+		req := fmt.Sprintf("clear-%d", l.takes)
+		if l.trySend(wsconn.Message{ReqID: req, Data: &clientv1.TakeLoot{Picks: All(p)}}) != nil {
+			return false
+		}
+		if !l.Until(time.Until(deadline), func() bool { _, gone := l.Pouches[p.GetId()]; return !gone || l.answered(req) }) {
+			return false
+		}
+		by = l.tick
+	}
+	return false
 }
 
-// LootOf is what this looter heard became of a drop, of kind.
-func (l *Looter) LootOf(drop uint32, kind clientv1.LootKind) []*clientv1.Loot {
+// answered reports whether a Response to req came.
+func (l *Looter) answered(req string) bool {
+	for _, r := range l.Responses {
+		if r.Req == req {
+			return true
+		}
+	}
+	return false
+}
+
+// LootOf is what this looter heard became of a pouch's items, of kind.
+func (l *Looter) LootOf(pouch uint32, kind clientv1.LootKind) []*clientv1.Loot {
 	var out []*clientv1.Loot
 	for _, lt := range l.Loots {
-		if lt.GetDropId() == drop && lt.GetKind() == kind {
+		if lt.GetPouchId() == pouch && lt.GetKind() == kind {
 			out = append(out, lt)
 		}
+	}
+	return out
+}
+
+// Templates are the templates a Loot names, in order.
+func Templates(lt *clientv1.Loot) []string {
+	var out []string
+	for _, it := range lt.GetItems() {
+		out = append(out, it.GetTemplate())
 	}
 	return out
 }
@@ -407,6 +519,11 @@ func GameData(t *testing.T, edits ...DataEdit) string {
 		}
 	}
 	return dir
+}
+
+// LootRules rewrites loot.yaml: a kill's pouch chance, normal and elite alike, and a pouch's life; reach and a box's life stay.
+func LootRules(chance float64, pouchLife string) DataEdit {
+	return DataEdit{File: "loot.yaml", New: fmt.Sprintf("pouch: {normal: %v, elite: %v}\nreach: 2\npouch_life: %s\nbox_life: 2m\npouches_max: 30\n", chance, chance, pouchLife)}
 }
 
 // QuickSlimes has the forest's ground slimes die to one hit and come back a second later, so a hunt takes a shot or two.

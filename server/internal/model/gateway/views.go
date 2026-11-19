@@ -80,13 +80,42 @@ const (
 	Rising
 )
 
-// DropView is an item on the ground; its ID counts up within one map instance.
-type DropView struct {
+// PouchView is a pouch or a boss's box of the player's own; its ID counts up within one map instance.
+type PouchView struct {
 	ID       uint64
+	Kind     PouchKind
+	X, Y, Z  float64
+	Items    []PouchItem
+	GoneInMs int64
+}
+
+// PouchKind is what a pouch is.
+type PouchKind int
+
+// The pouch kinds.
+const (
+	PouchSmall PouchKind = iota + 1 // a kill's
+	PouchBox                        // a boss's
+)
+
+// PouchItem is an item in a pouch; ID is its own within the pouch.
+type PouchItem struct {
+	ID       uint32
 	Template string
 	Quantity int
-	X, Y, Z  float64
-	Owner    string // the character it flies to
+	Stats    *ItemStats // equipment's roll; nil for anything else
+}
+
+// LootPick is one item a take asks for.
+type LootPick struct {
+	Pouch uint64
+	Item  uint32
+}
+
+// PickAnswer is what a pick came to: taken when Err is nil, else refused with why.
+type PickAnswer struct {
+	LootPick
+	Err error
 }
 
 // CharacterView is the player's own character.

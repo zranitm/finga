@@ -21,6 +21,12 @@ var ErrHelloRejected = errors.New("gateway: hello rejected")
 // ErrBadAim is an attack or a skill aimed along a yaw that isn't a finite number.
 var ErrBadAim = errors.New("gateway: aim is not a finite yaw")
 
+// ErrTooManyPicks is a TakeLoot of more picks than MaxPicks.
+var ErrTooManyPicks = errors.New("gateway: a take of more picks than any reach holds")
+
+// MaxPicks is the most items one TakeLoot may name.
+const MaxPicks = 64
+
 // The kinds of module failure the gateway acts on itself.
 var (
 	ErrUnavailable   = errors.New("gateway: module unavailable")
@@ -51,6 +57,7 @@ var ownErrors = []struct {
 }{
 	{ErrHelloRejected, Unauthenticated},
 	{ErrBadAim, MalformedBody},
+	{ErrTooManyPicks, MalformedBody},
 	{kernel.ErrBadID, BadID},
 	{kernel.ErrUnknownClass, UnknownClass},
 	{kernel.ErrInternal, Internal}, // a module's own failure, as anything unexpected reads
@@ -171,6 +178,9 @@ var ownErrors = []struct {
 	{kernel.ErrTraitUnknown, TraitUnknown},
 	{kernel.ErrInCombat, InCombat},
 	{kernel.ErrTraitLocked, TraitLocked},
+	{kernel.ErrPouchGone, PouchGone},
+	{kernel.ErrPouchOutOfReach, PouchOutOfReach},
+	{kernel.ErrTakeBusy, TakeBusy},
 	{kernel.ErrNpcOutOfReach, NpcOutOfReach},
 	{kernel.ErrQuestUnavailable, QuestUnavailable},
 	{kernel.ErrQuestConditionsUnmet, QuestConditionsUnmet},

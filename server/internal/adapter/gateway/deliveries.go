@@ -19,7 +19,7 @@ func delivered(d world.Delivery, deliver func(model.WorldEvent)) {
 				e := uint32(*r.Energy) //nolint:gosec // energy is 0 to the data's max
 				energy = &e
 			}
-			deliver(model.WorldDelivery{Connection: r.Connection, Character: r.Character, Delivery: model.Delivery{Tick: d.Tick, Push: model.Delta{Frame: frame, AckSeq: r.AckSeq, Energy: energy}}})
+			deliver(model.WorldDelivery{Connection: r.Connection, Character: r.Character, Delivery: model.Delivery{Tick: d.Tick, Push: model.Delta{Frame: frame, AckSeq: r.AckSeq, Energy: energy, Pouches: pouchViews(r.Pouches.Changed), PouchesGone: r.Pouches.Gone}}})
 		}
 	case world.Detached:
 		deliver(model.Detached{Connection: d.Conn, Character: d.Character})
@@ -34,7 +34,7 @@ func delivered(d world.Delivery, deliver func(model.WorldEvent)) {
 func worldPush(e world.Event) (model.Push, bool) {
 	switch ev := e.(type) {
 	case world.Snapshot:
-		snap := model.Snapshot{Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Drops: dropViews(ev.Drops)}
+		snap := model.Snapshot{Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Pouches: pouchViews(ev.Pouches)}
 		if ev.FieldBoss != nil {
 			boss := fieldBoss(*ev.FieldBoss)
 			snap.FieldBoss = &boss
@@ -93,10 +93,11 @@ func worldPush(e world.Event) (model.Push, bool) {
 		}
 		return st, true
 	case world.Loot:
-		return model.Loot{
-			Kind: lootKinds[ev.Kind], MapID: ev.MapID, DropID: ev.DropID, Owner: ev.Owner.String(), OwnerName: ev.OwnerName,
-			Template: ev.Template, Quantity: ev.Quantity,
-		}, true
+		items := make([]model.LootItem, len(ev.Items))
+		for i, it := range ev.Items {
+			items[i] = model.LootItem(it)
+		}
+		return model.Loot{Kind: lootKinds[ev.Kind], MapID: ev.MapID, Pouch: ev.Pouch, Owner: ev.Owner.String(), OwnerName: ev.OwnerName, Items: items}, true
 	case world.NpcDialog:
 		return npcDialog(ev), true
 	case world.QuestChanged:
@@ -114,12 +115,15 @@ func bossGone(b world.FieldBossGone) model.FieldBossGone {
 	return model.FieldBossGone{MobID: b.Mob, Type: b.Type, BackInMs: b.BackIn.Milliseconds()}
 }
 
-// lootKinds, questChanges, questStatuses, offerStates, conditionKinds, mobPoses and teleportCancels are the world's enums as the gateway's; an unknown value is the zero one.
+// lootKinds, pouchKinds, questChanges, questStatuses, offerStates, conditionKinds, mobPoses and teleportCancels are the world's enums as the gateway's; an unknown value is the zero one.
 var (
 	lootKinds = map[world.LootKind]model.LootKind{
-		world.LootCollected: model.LootCollected,
-		world.LootWaiting:   model.LootWaiting,
-		world.LootLost:      model.LootLost,
+		world.LootTaken: model.LootTaken,
+		world.LootLeft:  model.LootLeft,
+	}
+	pouchKinds = map[world.PouchKind]model.PouchKind{
+		world.PouchSmall: model.PouchSmall,
+		world.PouchBox:   model.PouchBox,
 	}
 	questChanges = map[world.QuestChange]model.QuestChange{
 		world.QuestProgressed: model.QuestProgressed,
@@ -240,8 +244,7 @@ func derived(d progression.Derived) model.DerivedStats {
 // frameOf is a Frame as every recipient shares it, read-only as the facade's is.
 func frameOf(f world.Frame) *model.Frame {
 	out := &model.Frame{
-		Players: playerViews(f.Players), Mobs: mobViews(f.Mobs), Drops: dropViews(f.Drops),
-		RemovedMobs: f.RemovedMobs, RemovedDrops: f.RemovedDrops, CollectedDrops: f.CollectedDrops,
+		Players: playerViews(f.Players), Mobs: mobViews(f.Mobs), RemovedMobs: f.RemovedMobs,
 	}
 	for _, id := range f.Removed {
 		out.RemovedPlayers = append(out.RemovedPlayers, id.String())
@@ -301,13 +304,17 @@ func mobViews(ms []world.MobView) []model.MobView {
 	return out
 }
 
-func dropViews(ds []world.DropView) []model.DropView {
-	if len(ds) == 0 {
+func pouchViews(ps []world.PouchView) []model.PouchView {
+	if len(ps) == 0 {
 		return nil
 	}
-	out := make([]model.DropView, 0, len(ds))
-	for _, d := range ds {
-		out = append(out, model.DropView{ID: d.ID, Template: d.Template, Quantity: d.Quantity, X: d.X, Y: d.Y, Owner: d.Owner.String(), Z: d.Z})
+	out := make([]model.PouchView, 0, len(ps))
+	for _, p := range ps {
+		items := make([]model.PouchItem, 0, len(p.Items))
+		for _, it := range p.Items {
+			items = append(items, model.PouchItem{ID: it.ID, Template: it.Template, Quantity: it.Quantity, Stats: rollOf(it.Stats)})
+		}
+		out = append(out, model.PouchView{ID: p.ID, Kind: pouchKinds[p.Kind], X: p.X, Y: p.Y, Z: p.Z, Items: items, GoneInMs: p.GoneIn.Milliseconds()})
 	}
 	return out
 }

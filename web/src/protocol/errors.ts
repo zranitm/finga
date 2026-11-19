@@ -109,6 +109,9 @@ const texts: Record<ErrorCode, string> = {
   [ERR.TRAIT_UNKNOWN]: 'That skill has no such trait.',
   [ERR.IN_COMBAT]: 'You can’t change traits or looks in combat.',
   [ERR.TRAIT_LOCKED]: 'That trait opens once the skill reaches its last evolution.',
+  [ERR.POUCH_GONE]: 'That’s gone already.',
+  [ERR.POUCH_OUT_OF_REACH]: 'Too far away.',
+  [ERR.TAKE_BUSY]: 'Still taking that.',
 
   [ERR.NOT_PARTY_LEADER]: 'Only the party leader can do that.',
   [ERR.PARTY_FULL]: 'The party is full.',

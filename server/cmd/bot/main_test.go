@@ -10,6 +10,7 @@ import (
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/shared/gamedata/gamedatatest"
+	"finga/pkg/wsconn"
 )
 
 func TestKillsAreTheBotsOwnKillingBlows(t *testing.T) {
@@ -115,6 +116,34 @@ func TestTheBotHandsInWhatIsReadyAndTakesWhatIsOpen(t *testing.T) {
 	town, _ := data.Map("town")
 	if got := townNPCs(data, town); len(got) != 3 || got[0].ID != "town_guide" || got[1].ID != "magician_trainer" || got[2].ID != "warrior_trainer" {
 		t.Fatalf("a town visit talks to %v; want each next the nearest, from where players appear", got)
+	}
+}
+
+// A bot keeps its own pouches from the frames, takes all in reach, and leaves a pouch whose take was refused.
+func TestABotTakesItsPouchesInReachAndLeavesOnesRefused(t *testing.T) {
+	b := &bot{data: gamedatatest.Shipped(t), id: "c-bot", x: 10, z: 10, kills: newKills()}
+	pouch := func(id uint32, x float64, items ...uint32) *clientv1.PouchView {
+		p := &clientv1.PouchView{Id: id, X: x, Z: 10}
+		for _, it := range items {
+			p.Items = append(p.Items, &clientv1.PouchItem{Item: it, Template: "slime_gel", Quantity: 1})
+		}
+		return p
+	}
+	b.observe(wsconn.Message{Data: &clientv1.Snapshot{Pouches: []*clientv1.PouchView{pouch(1, 10.5, 1, 2)}}})
+	b.observe(wsconn.Message{Data: &clientv1.Delta{Pouches: []*clientv1.PouchView{pouch(2, 10, 1), pouch(3, 14, 1), pouch(4, 9.5, 1)}, PouchesGone: []uint32{4}}})
+	want := &clientv1.TakeLoot{Picks: []*clientv1.LootPick{{Pouch: 1, Item: 1}, {Pouch: 1, Item: 2}, {Pouch: 2, Item: 1}}}
+	if got := b.takeInReach(); !proto.Equal(got, want) {
+		t.Fatalf("took %v, want the two pouches in reach, not the far one or the gone one", got)
+	}
+	b.taking = true
+	b.observe(wsconn.Message{ReqID: takeReq, Data: &clientv1.Response{Ok: true, Picks: []*clientv1.PickAnswer{{Pick: &clientv1.LootPick{Pouch: 1, Item: 1}}, {Pick: &clientv1.LootPick{Pouch: 2, Item: 1}, Code: 220007}}}})
+	b.observe(wsconn.Message{Data: &clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_TAKEN, OwnerId: "c-bot", Items: []*clientv1.LootItem{{Template: "slime_gel", Quantity: 1}, {Template: "red_potion", Quantity: 1}}}})
+	b.observe(wsconn.Message{Data: &clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_TAKEN, OwnerId: "c-mate", Items: []*clientv1.LootItem{{Template: "slime_gel", Quantity: 1}}}})
+	if b.taking || !b.leftPouches[2] || b.leftPouches[1] || b.snapshot().items != 2 || b.snapshot().refused != 1 {
+		t.Fatalf("taking %v, left %v, %d items, %d refused; want the answer heard, the pouch with no room left, its own two items counted", b.taking, b.leftPouches, b.snapshot().items, b.snapshot().refused)
+	}
+	if got := b.takeInReach(); !proto.Equal(got, &clientv1.TakeLoot{Picks: []*clientv1.LootPick{{Pouch: 1, Item: 1}, {Pouch: 1, Item: 2}}}) {
+		t.Fatalf("took %v, want only the pouch not left", got)
 	}
 }
 

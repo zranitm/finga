@@ -26,6 +26,7 @@ import { energy } from '@/state/energy';
 import { fieldBoss } from '@/state/field-boss';
 import { inventory } from '@/state/inventory';
 import { party } from '@/state/party';
+import { pouches } from '@/state/pouches';
 import { pvp } from '@/state/pvp';
 import { outdates, questPlayer, quests } from '@/state/quests';
 import { session } from '@/state/session';
@@ -129,9 +130,11 @@ export function wireSocket(socket: GameSocket): () => void {
     socket.on('snapshot', (m) => {
       fieldBoss.getState().applySnapshot(m.d.fieldBoss, m.d.fieldBossGone);
       energy.getState().joined();
+      pouches.getState().applySnapshot(m.d.pouches);
     }),
     socket.on('delta', (m) => {
       energy.getState().delta(m.d.ackSeq, m.d.energy);
+      pouches.getState().applyDelta(m.d.pouches, m.d.pouchesGone);
     }),
     socket.on('fieldBoss', (m) => {
       fieldBoss.getState().applyFieldBoss(m.d);
@@ -197,6 +200,7 @@ export function wireSocket(socket: GameSocket): () => void {
     socket.on('mapChange', (m) => {
       teleport.getState().end(); // the bar and the glow end with the old map
       combat.getState().clear();
+      pouches.getState().clear(); // the new map's Snapshot brings its own
       if (!isMatchMap(m.d.mapId)) {
         pvp.getState().leftMatch();
       }
@@ -332,13 +336,16 @@ function autoAssignPoints(socket: GameSocket, d: Data<'levelUp'>): void {
 
 const RARE_STARS = 4;
 
-/** A collected item of 4★ and up, this player's or a party member's, also shows as a toast. */
+/** An item of 4★ and up taken, by this player or a party member, also shows as a toast. */
 function toastRareFind(d: Data<'loot'>): void {
-  if (d.kind !== LootKind.COLLECTED || starsOf(d.template) < RARE_STARS) {
+  if (d.kind !== LootKind.TAKEN) {
     return;
   }
-  const who = d.ownerId === character.getState().character?.id ? 'You' : d.ownerName;
-  toasts.getState().push(`${who} got ${itemName(d.template)} ${starMarks(d.template)}`, 'info');
+  const mine = d.ownerId === character.getState().character?.id;
+  for (const { template } of d.items.filter((it) => starsOf(it.template) >= RARE_STARS)) {
+    const what = `${itemName(template)} ${starMarks(template)}`;
+    toasts.getState().push(mine ? `Took ${what}` : `${d.ownerName} took ${what}`, 'info');
+  }
 }
 
 /** Back to the character list: what this character showed, its chat and Combat tab too, goes with it. */
@@ -350,6 +357,7 @@ export function leaveCharacter(): void {
   quests.getState().clear();
   chat.getState().clear();
   combatLog.getState().clear();
+  pouches.getState().clear();
   fieldBoss.getState().clear();
   teleport.getState().end();
   pvp.getState().clear();

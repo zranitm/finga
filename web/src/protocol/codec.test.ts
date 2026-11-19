@@ -152,7 +152,7 @@ describe('proto3 defaults', () => {
       tick: 5,
       body: {
         case: 'delta',
-        value: { ackSeq: 3, players: [], removedPlayers: [], removedMobs: [], removedDrops: [] },
+        value: { ackSeq: 3, players: [], removedPlayers: [], removedMobs: [], pouchesGone: [] },
       },
     });
   });

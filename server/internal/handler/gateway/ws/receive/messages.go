@@ -91,8 +91,29 @@ func aimOf(yaw float32) (float32, error) {
 	return yaw, nil
 }
 
-// ignore answers a retired PickUp an older client still sends with nothing: drops fly to their owners by themselves.
-func (h *Handler) ignore(*msgContext, *clientv1.PickUp) (any, error) { return nil, nil }
+// takeLoot answers each pick once the item module did: taken with code 0, or refused with the code of why.
+func (h *Handler) takeLoot(c *msgContext, in *clientv1.TakeLoot) (any, error) {
+	if len(in.GetPicks()) > model.MaxPicks {
+		return nil, model.ErrTooManyPicks
+	}
+	picks := make([]model.LootPick, 0, len(in.GetPicks()))
+	for _, p := range in.GetPicks() {
+		picks = append(picks, model.LootPick{Pouch: uint64(p.GetPouch()), Item: p.GetItem()})
+	}
+	answers, err := h.gw.TakeLoot(c.Ctx, c.Session.session, picks)
+	if err != nil {
+		return nil, err
+	}
+	out := &clientv1.Response{Ok: true, Picks: make([]*clientv1.PickAnswer, 0, len(answers))}
+	for _, a := range answers {
+		answer := &clientv1.PickAnswer{Pick: &clientv1.LootPick{Pouch: uint32(a.Pouch), Item: a.Item}} //nolint:gosec // pouch IDs count up within one map instance
+		if a.Err != nil {
+			answer.Code = int32(model.PublicOf(a.Err).Code) //nolint:gosec // six-digit codes
+		}
+		out.Picks = append(out.Picks, answer)
+	}
+	return out, nil
+}
 
 func (h *Handler) enterPortal(c *msgContext, _ *clientv1.EnterPortal) (any, error) {
 	return nil, h.gw.EnterPortal(c.Ctx, c.Session.session)

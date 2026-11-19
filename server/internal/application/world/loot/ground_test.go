@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"math"
+	"maps"
 	"math/rand/v2"
 	"slices"
 	"strings"
@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
@@ -27,16 +26,18 @@ import (
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"
+	"finga/pkg/transient"
 )
 
 const tick = 50 * time.Millisecond
 
-// A slime that always drops two gels; a trio that always drops three things.
+// A slime that always drops two gels; a trio that always drops three things; an elite slime.
 var (
 	slime = gamedata.Mob{ID: "green_slime", Drops: []gamedata.Drop{{Item: "slime_gel", Chance: 1, Min: 2, Max: 2}}}
 	trio  = gamedata.Mob{ID: "trio", Drops: []gamedata.Drop{
 		{Item: "slime_gel", Chance: 1, Min: 1, Max: 1}, {Item: "red_potion", Chance: 1, Min: 1, Max: 1}, {Item: "mushroom_cap", Chance: 1, Min: 1, Max: 1},
 	}}
+	eliteSlime = gamedata.Mob{ID: "elite_slime", Elite: true, Drops: slime.Drops}
 	// A boar that always drops an iron sword, whose attack rolls in 16 to 20 and nothing else.
 	boar = gamedata.Mob{ID: "boar", Drops: []gamedata.Drop{{Item: "iron_sword", Chance: 1, Min: 1, Max: 1}}}
 )
@@ -46,7 +47,7 @@ var errDown = errors.New("item module down")
 // answer is how the item module answers one call.
 type answer func(n int, c model.GrantCall) (model.Granted, error)
 
-// every answers each drop of a call the same way; added ones each fill a slot of their own, at the call's number as the revision.
+// every answers each item of a call the same way; added ones each fill a slot of their own, at the call's number as the revision.
 func every(kind model.GrantKind) answer {
 	return func(n int, c model.GrantCall) (model.Granted, error) {
 		kinds := make([]model.GrantKind, len(c.Drops))
@@ -57,7 +58,7 @@ func every(kind model.GrantKind) answer {
 	}
 }
 
-// outcomes answers each drop of a call in turn.
+// outcomes answers each item of a call in turn.
 func outcomes(kinds ...model.GrantKind) answer {
 	return func(n int, c model.GrantCall) (model.Granted, error) {
 		out := model.Granted{Added: model.Inventory{Revision: uint64(n)}}
@@ -113,12 +114,6 @@ func (f *grants) spanOf(k int) trace.SpanContext {
 	return f.spans[k]
 }
 
-func (f *grants) set(change func(f *grants)) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	change(f)
-}
-
 // batches records each call's size.
 type batches struct {
 	mu    sync.Mutex
@@ -154,15 +149,16 @@ type jobs struct{}
 func (jobs) CallQueued() {}
 func (jobs) CallDone()   {}
 
-// options shape a scene: the map's random source, the drops per call, and whether the workers start.
+// options shape a scene: the map's random source, the items per call, whether the workers start, the ground, and the quests' items.
 type options struct {
 	roll     model.Roll
 	batchMax int
 	idle     bool
 	rest     func(x, z, y float64) (float64, bool) // the ground; flat and open everywhere by default
+	collects func(owner kernel.CharacterID, item string) bool
 }
 
-// scene is a map's ground on its own: each step is a tick that settles the answers back, then collects, and lets the workers answer.
+// scene is a map's ground on its own: each step is a tick that settles the answers back, then steps the ground, and lets the workers answer.
 type scene struct {
 	t       *testing.T
 	g       *loot.Ground
@@ -174,8 +170,9 @@ type scene struct {
 	logs    *syncWriter
 	spans   *tracetest.SpanRecorder
 	tick    uint64
-	// The loot timings in ticks.
-	delay, life, roomCheck uint64
+	data    *gamedata.Data
+	// The lives and the retry in ticks.
+	pouchLife, boxLife, retry uint64
 }
 
 func newScene(t *testing.T, items *grants) *scene {
@@ -194,12 +191,15 @@ func sceneWith(t *testing.T, items *grants, o options) *scene {
 	if o.rest == nil {
 		o.rest = func(_, _, _ float64) (float64, bool) { return 0, true }
 	}
+	if o.collects == nil {
+		o.collects = func(kernel.CharacterID, string) bool { return false }
+	}
 	data := worldtest.LoadData(t)
 	ticks := func(d time.Duration) uint64 { return model.TicksIn(d, tick) }
 	s := &scene{
-		t: t, items: items, results: make(chan loot.Result, 64), batches: &batches{}, logs: &syncWriter{}, spans: tracetest.NewSpanRecorder(),
-		workers: itemcalls.NewPool(itemcalls.Deps{Observer: jobs{}, Panics: worldtest.DiscardPanics()}, itemcalls.Options{Workers: 2}),
-		delay:   ticks(data.Loot().CollectDelay), life: ticks(data.Loot().DropLife), roomCheck: ticks(data.Loot().RoomCheckEvery),
+		t: t, items: items, results: make(chan loot.Result, 64), batches: &batches{}, logs: &syncWriter{}, spans: tracetest.NewSpanRecorder(), data: data,
+		workers:   itemcalls.NewPool(itemcalls.Deps{Observer: jobs{}, Panics: worldtest.DiscardPanics()}, itemcalls.Options{Workers: 2}),
+		pouchLife: ticks(data.Loot().PouchLife), boxLife: ticks(data.Loot().BoxLife), retry: ticks(2 * time.Second),
 	}
 	var once sync.Once
 	s.run = func() {
@@ -215,14 +215,14 @@ func sceneWith(t *testing.T, items *grants, o options) *scene {
 	}
 	traces := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(s.spans))
 	s.g = loot.NewGround(loot.Deps{
-		MapID: "forest", Items: items, ItemCalls: s.workers, Observer: s.batches, Traces: traces, Roll: o.roll, Data: data, Rest: o.rest,
+		MapID: "forest", Items: items, ItemCalls: s.workers, Observer: s.batches, Traces: traces, Roll: o.roll, Data: data, Rest: o.rest, Collects: o.collects,
 		Logger: slog.New(slog.NewTextHandler(s.logs, nil)), Settle: func(_ context.Context, r loot.Result) { s.results <- r },
 	}, loot.Tuning{TickInterval: tick, BatchMax: o.batchMax})
 	s.g.Begin(0)
 	return s
 }
 
-// step runs one tick: the answers back settle, then due drops go; the workers answer before it returns.
+// step runs one tick: the answers back settle, then the ground steps; the workers answer before it returns.
 func (s *scene) step() []loot.Settled {
 	s.tick++
 	s.g.Begin(s.tick)
@@ -236,7 +236,7 @@ func (s *scene) step() []loot.Settled {
 		}
 		break
 	}
-	out = append(out, s.g.Collect()...)
+	out = append(out, s.g.Step()...)
 	synctest.Wait()
 	return out
 }
@@ -246,6 +246,64 @@ func (s *scene) until(n uint64) []loot.Settled {
 	var out []loot.Settled
 	for s.tick < n {
 		out = append(out, s.step()...)
+	}
+	return out
+}
+
+// here is a character's middle standing at the kill, 0.9 m over the ground.
+var here = loot.Point{X: killX, Y: 0.9, Z: killZ}
+
+// answered is what a take heard, once it did.
+type answered struct {
+	got  []model.PickAnswer
+	done bool
+}
+
+// takeFrom asks for picks from at; the workers have the call before it returns.
+func (s *scene) takeFrom(o loot.Owner, at loot.Point, picks ...model.Pick) *answered {
+	a := &answered{}
+	s.g.Take(o, at, picks, func(got []model.PickAnswer) { a.got, a.done = got, true })
+	synctest.Wait()
+	return a
+}
+
+func (s *scene) take(o loot.Owner, picks ...model.Pick) *answered {
+	return s.takeFrom(o, here, picks...)
+}
+
+// errs are the take's answers' errors, in its order.
+func (a *answered) errs() []error {
+	out := make([]error, len(a.got))
+	for k, p := range a.got {
+		out[k] = p.Err
+	}
+	return out
+}
+
+// all are the picks of every item in the pouch.
+func all(p model.PouchView) []model.Pick {
+	var out []model.Pick
+	for _, it := range p.Items {
+		out = append(out, model.Pick{Pouch: p.ID, Item: it.ID})
+	}
+	return out
+}
+
+// only is o's one pouch on the ground.
+func (s *scene) only(o loot.Owner) model.PouchView {
+	s.t.Helper()
+	ps := s.g.Views(o.ID)
+	if len(ps) != 1 {
+		s.t.Fatalf("%s has %d pouches, want one", o.Name, len(ps))
+	}
+	return ps[0]
+}
+
+// templates are the pouch's items' templates, in order.
+func templates(p model.PouchView) []string {
+	var out []string
+	for _, it := range p.Items {
+		out = append(out, it.Template)
 	}
 	return out
 }
@@ -275,16 +333,22 @@ func partyOf(id string, members ...loot.Owner) model.Party {
 	return p
 }
 
-// owners are the owners of the drops on the ground, oldest first.
-func owners(g *loot.Ground) []kernel.CharacterID {
+// owners are the owners of the pouches on the ground among those given, oldest pouch first.
+func owners(g *loot.Ground, of ...loot.Owner) []kernel.CharacterID {
+	by := map[uint64]kernel.CharacterID{}
+	for _, o := range of {
+		for _, p := range g.Views(o.ID) {
+			by[p.ID] = o.ID
+		}
+	}
 	var out []kernel.CharacterID
-	for _, d := range g.Views() {
-		out = append(out, d.Owner)
+	for _, id := range slices.Sorted(maps.Keys(by)) {
+		out = append(out, by[id])
 	}
 	return out
 }
 
-// loot is every Loot in what settled, in order.
+// lootIn is every Loot in what settled, in order.
 func lootIn(settled []loot.Settled) []model.Loot {
 	var out []model.Loot
 	for _, s := range settled {
@@ -301,94 +365,100 @@ func kinds(ls []model.Loot) []model.LootKind {
 	return out
 }
 
-// Equipment rolls its stats as it drops, from the map's random source, and its grant carries the roll; anything else has none.
-func TestEquipmentRollsItsStatsAsItDrops(t *testing.T) {
+func names(items []model.LootItem) []string {
+	var out []string
+	for _, it := range items {
+		out = append(out, it.Template)
+	}
+	return out
+}
+
+func TestAKillLeavesAPouchByItsChance(t *testing.T) {
+	chance := worldtest.LoadData(t).Loot().Pouch
 	for _, tt := range []struct {
-		name   string
-		roll   float64
-		attack int
+		name          string
+		roll          float64
+		normal, elite bool
 	}{
-		{"a roll of 0 takes the bottom of each range", 0, 16},
-		{"a roll of a half, the middle", 0.5, 18},
-		{"a roll just under 1, the top", 0.999, 20},
+		{"a roll under the normal chance leaves both a pouch", chance.Normal - 0.01, true, true},
+		{"a roll between the two, the elite alone", (chance.Normal + chance.Elite) / 2, false, true},
+		{"a roll at the elite chance, neither", chance.Elite, false, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				s := sceneWith(t, &grants{answers: []answer{every(model.GrantAdded)}}, options{roll: worldtest.FixedRoll{V: tt.roll}})
-				s.g.Roll(solo(boar, owner("Ayla")))
-				s.until(s.delay)
-				if got := s.items.made(); len(got) != 1 || got[0].Drops[0].Stats == nil || *got[0].Drops[0].Stats != (progression.ItemStats{PhysicalAttack: tt.attack}) {
-					t.Fatalf("granted %+v, want a sword of attack %d", got, tt.attack)
+				ayla, bo := owner("Ayla"), owner("Bo")
+				s.g.Roll(solo(slime, ayla))
+				s.g.Roll(solo(eliteSlime, bo))
+				if got := []bool{len(s.g.Views(ayla.ID)) == 1, len(s.g.Views(bo.ID)) == 1}; !slices.Equal(got, []bool{tt.normal, tt.elite}) {
+					t.Fatalf("a pouch for the normal kill and the elite's: %v, want %v", got, []bool{tt.normal, tt.elite})
 				}
 			})
 		})
 	}
-	t.Run("a gel has no roll", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			s := newScene(t, &grants{answers: []answer{every(model.GrantAdded)}})
-			s.g.Roll(solo(slime, owner("Ayla")))
-			s.until(s.delay)
-			if got := s.items.made(); len(got) != 1 || got[0].Drops[0].Stats != nil {
-				t.Fatalf("granted %+v, want no roll", got)
-			}
-		})
-	})
 }
 
-// Rolls come from the map's seeded source, so a recorded fight replays the same loot.
-func TestTheSameSeedRollsTheSameStats(t *testing.T) {
-	const drops = 5
-	rolled := func(t *testing.T) []progression.ItemStats {
-		t.Helper()
-		var out []progression.ItemStats
-		synctest.Test(t, func(t *testing.T) {
-			s := sceneWith(t, &grants{answers: []answer{every(model.GrantAdded)}}, options{roll: rand.New(rand.NewPCG(1, 2))})
-			ayla := owner("Ayla")
-			for range drops {
-				s.g.Roll(solo(boar, ayla))
-			}
-			s.until(s.delay)
-			for _, d := range s.items.made()[0].Drops {
-				out = append(out, *d.Stats)
-			}
-		})
-		return out
-	}
-	first, second := rolled(t), rolled(t)
-	if len(first) != drops || !slices.Equal(first, second) {
-		t.Fatalf("rolled %v, then %v from the same seed", first, second)
-	}
-	sword, _ := worldtest.LoadData(t).Item("iron_sword")
-	for _, s := range first {
-		if !s.Fits(sword.Rolls) {
-			t.Fatalf("rolled %+v, outside the sword's ranges", s)
-		}
-	}
-}
-
-func TestADropIsTheKillersWithoutAParty(t *testing.T) {
+// A kill whose pouch chance fails still rolls what an active quest of its owner's collects, so a quest takes no more kills; with nothing of that, no pouch falls, and the party's turn stays.
+func TestAnActiveQuestsItemComesOutsideTheChance(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		s := newScene(t, &grants{answers: []answer{every(model.GrantAdded)}})
 		ayla, bo := owner("Ayla"), owner("Bo")
-		s.g.Roll(solo(trio, ayla))
-		s.g.Roll(partyKill(slime, ayla, partyOf("p1", ayla, bo), ayla)) // her party, with nobody else eligible
-		s.g.Roll(partyKill(slime, ayla, partyOf("p1", ayla, bo)))       // nobody eligible at all
-		if got := owners(s.g); len(got) != 5 || slices.ContainsFunc(got, func(id kernel.CharacterID) bool { return id != ayla.ID }) {
-			t.Fatalf("owners %v, want all five Ayla's", got)
+		collects := func(o kernel.CharacterID, item string) bool { return o == bo.ID && item == "red_potion" }
+		s := sceneWith(t, &grants{answers: []answer{every(model.GrantAdded)}}, options{roll: worldtest.FixedRoll{V: 0.99}, collects: collects})
+		party := partyOf("p1", ayla, bo)
+		s.g.Roll(partyKill(trio, ayla, party, ayla, bo))
+		s.g.Roll(partyKill(trio, ayla, party, ayla, bo))
+		if got := owners(s.g, ayla, bo); len(got) != 0 {
+			t.Fatalf("owners %v; want no pouch, the turn staying on Ayla, who collects nothing", got)
+		}
+		s.g.Roll(solo(trio, bo))
+		if got := templates(s.only(bo)); !slices.Equal(got, []string{"red_potion"}) {
+			t.Fatalf("Bo's pouch holds %v, want only the potion his quest collects", got)
 		}
 	})
 }
 
-func TestAPartyTakesItsDropsInTurn(t *testing.T) {
+// One pouch falls where the mob died, on the ground there, holding the whole roll; its items are numbered within it.
+func TestAKillLeavesOnePouchHoldingItsWholeRoll(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		rest  func(x, z, y float64) (float64, bool)
+		wantY float64
+	}{
+		{"on the ground under the kill", func(_, _, _ float64) (float64, bool) { return 1.5, true }, 1.5},
+		{"where the mob died, with no ground found", func(_, _, _ float64) (float64, bool) { return 0, false }, 3},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				s := sceneWith(t, &grants{answers: []answer{every(model.GrantAdded)}}, options{rest: tt.rest})
+				ayla := owner("Ayla")
+				k := solo(trio, ayla)
+				k.Y = 3
+				s.g.Roll(k)
+				p := s.only(ayla)
+				if p.Kind != model.PouchSmall || p.X != killX || p.Y != tt.wantY || p.Z != killZ || p.GoneIn != s.data.Loot().PouchLife {
+					t.Fatalf("pouch %+v; want a small pouch at (%v, %v, %v) for its whole life", p, killX, tt.wantY, killZ)
+				}
+				if !slices.Equal(templates(p), []string{"slime_gel", "red_potion", "mushroom_cap"}) || p.Items[0].ID != 1 || p.Items[2].ID != 3 {
+					t.Fatalf("items %+v; want the trio's three, numbered 1 to 3", p.Items)
+				}
+			})
+		})
+	}
+}
+
+func TestAPartyTakesItsPouchesInTurn(t *testing.T) {
 	ann, bo, cy, dee := owner("Ann"), owner("Bo"), owner("Cy"), owner("Dee")
+	everyone := []loot.Owner{ann, bo, cy, dee}
 	all := partyOf("p1", ann, bo, cy)
 	tests := []struct {
 		name  string
 		kills func(s *scene)
 		want  []loot.Owner
 	}{
-		{"one kill's drops go one to each member, from the first in join order", func(s *scene) {
-			s.g.Roll(partyKill(trio, bo, all, ann, bo, cy))
+		{"each kill's pouch goes to the next member, from the first in join order, the whole roll in it", func(s *scene) {
+			for range 3 {
+				s.g.Roll(partyKill(trio, bo, all, ann, bo, cy))
+			}
 		}, []loot.Owner{ann, bo, cy}},
 		{"the turn carries over from kill to kill, and wraps", func(s *scene) {
 			for _, killer := range []loot.Owner{cy, cy, ann, bo} {
@@ -396,7 +466,9 @@ func TestAPartyTakesItsDropsInTurn(t *testing.T) {
 			}
 		}, []loot.Owner{ann, bo, cy, ann}},
 		{"a member not eligible, dead or on another map, is skipped", func(s *scene) {
-			s.g.Roll(partyKill(trio, ann, all, ann, cy))
+			for range 3 {
+				s.g.Roll(partyKill(trio, ann, all, ann, cy))
+			}
 		}, []loot.Owner{ann, cy, ann}},
 		{"a member who leaves doesn't reset the turn: it goes on from the order before", func(s *scene) {
 			s.g.Roll(partyKill(slime, ann, all, ann, bo, cy))
@@ -415,7 +487,9 @@ func TestAPartyTakesItsDropsInTurn(t *testing.T) {
 			s.g.Roll(partyKill(slime, cy, partyOf("p1", cy, dee), cy, dee))
 		}, []loot.Owner{ann, cy}},
 		{"a member who joins comes after the others", func(s *scene) {
-			s.g.Roll(partyKill(trio, ann, all, ann, bo, cy))
+			for range 3 {
+				s.g.Roll(partyKill(slime, ann, all, ann, bo, cy))
+			}
 			grown := partyOf("p1", ann, bo, cy, dee)
 			s.g.Roll(partyKill(slime, ann, grown, ann, bo, cy, dee))
 		}, []loot.Owner{ann, bo, cy, dee}},
@@ -425,13 +499,18 @@ func TestAPartyTakesItsDropsInTurn(t *testing.T) {
 			s.g.Roll(partyKill(slime, dee, other, dee, cy))
 			s.g.Roll(partyKill(slime, ann, partyOf("p1", ann, bo), ann, bo))
 		}, []loot.Owner{ann, dee, bo}},
-		{"a turn unused for ten minutes starts again from the first member", func(s *scene) {
+		{"a turn unused for ten minutes starts again from the first member, the first pouch's life over by then", func(s *scene) {
 			s.g.Roll(partyKill(slime, ann, all, ann, bo, cy))
 			s.tick += uint64(10*time.Minute/tick) + 1
 			s.g.Begin(s.tick)
-			s.g.Collect()
+			s.g.Step()
 			s.g.Roll(partyKill(slime, ann, all, ann, bo, cy))
-		}, []loot.Owner{ann, ann}},
+		}, []loot.Owner{ann}},
+		{"without a party, or with nobody eligible, it's the killer's", func(s *scene) {
+			s.g.Roll(solo(slime, ann))
+			s.g.Roll(partyKill(slime, ann, partyOf("p1", ann, bo), ann))
+			s.g.Roll(partyKill(slime, ann, partyOf("p1", ann, bo)))
+		}, []loot.Owner{ann, ann, ann}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -442,7 +521,7 @@ func TestAPartyTakesItsDropsInTurn(t *testing.T) {
 				for _, o := range tt.want {
 					want = append(want, o.ID)
 				}
-				if got := owners(s.g); !slices.Equal(got, want) {
+				if got := owners(s.g, everyone...); !slices.Equal(got, want) {
 					t.Fatalf("owners %v, want %v", got, want)
 				}
 			})
@@ -450,291 +529,287 @@ func TestAPartyTakesItsDropsInTurn(t *testing.T) {
 	}
 }
 
-func TestADropFliesToItsOwnerAfterItsDelay(t *testing.T) {
+// A boss leaves each player it's given a box of their own: its whole roll, never gated, for a box's life.
+func TestABossLeavesABoxForEachPlayerItsGiven(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		s := newScene(t, &grants{answers: []answer{every(model.GrantAdded)}})
-		ayla := owner("Ayla")
-		s.g.Roll(solo(slime, ayla))
-		gel := s.g.Views()[0]
-		if gel.Owner != ayla.ID {
-			t.Fatalf("the drop shows owner %v, want Ayla", gel.Owner)
+		s := sceneWith(t, &grants{answers: []answer{every(model.GrantAdded)}}, options{roll: worldtest.FixedRoll{V: 0.99}})
+		ann, bo, cy := owner("Ann"), owner("Bo"), owner("Cy")
+		s.g.Box(trio, killX, 0, killZ, ann)
+		s.g.Box(trio, killX, 0, killZ, bo)
+		for _, o := range []loot.Owner{ann, bo} {
+			p := s.only(o)
+			if p.Kind != model.PouchBox || len(p.Items) != 3 || p.GoneIn != s.data.Loot().BoxLife {
+				t.Fatalf("%s's box %+v; want a box of the trio's three, for a box's life", o.Name, p)
+			}
 		}
-		if s.until(s.delay - 1); len(s.items.made()) != 0 {
-			t.Fatal("a drop went before its delay")
-		}
-		s.step()
-		calls := s.items.made()
-		if len(calls) != 1 || calls[0].Account != ayla.Account || calls[0].Character != ayla.ID || len(calls[0].Drops) != 1 || calls[0].Drops[0].Template != "slime_gel" || calls[0].Drops[0].Quantity != 2 {
-			t.Fatalf("calls %+v, want Ayla's gel at its delay, alone", calls)
-		}
-		if len(s.g.Views()) != 1 {
-			t.Fatal("the drop left before its grant was answered")
-		}
-		settled := s.step()
-		if len(settled) != 1 || settled[0].Owner != ayla {
-			t.Fatalf("settled %+v, want Ayla's", settled)
-		}
-		want := model.Loot{Tick: s.delay + 1, Kind: model.LootCollected, MapID: "forest", DropID: gel.ID, Owner: ayla.ID, OwnerName: "Ayla", Template: "slime_gel", Quantity: 2}
-		if l := settled[0].Loot; len(l) != 1 || l[0] != want {
-			t.Fatalf("loot %+v, want %+v", l, want)
-		}
-		if inv := settled[0].Inventory; len(inv) != 1 || inv[0].Revision != 1 || len(inv[0].Slots) != 1 || inv[0].Slots[0].Item.Template != "slime_gel" || inv[0].Tick != s.delay+1 {
-			t.Fatalf("inventory changes %+v, want the gel's slot at the call's revision", inv)
-		}
-		added, removed, collected := s.g.Changes()
-		if len(s.g.Views()) != 0 || len(added) != 0 || len(removed) != 0 || !slices.Equal(collected, []uint64{gel.ID}) {
-			t.Fatalf("views %v, removed %v, collected %v; want the gel collected", s.g.Views(), removed, collected)
-		}
-		if s.batches.sizes[0] != 1 {
-			t.Fatalf("batch sizes %v", s.batches.sizes)
+		if got := s.g.Views(cy.ID); len(got) != 0 {
+			t.Fatalf("Cy sees %v; a box is only its owner's", got)
 		}
 	})
 }
 
-// With the pool's queue full a due drop waits, and goes on a later tick; nobody is told.
-func TestADueDropWaitsForTheQueue(t *testing.T) {
+// A pouch is told to its owner alone, in the tick it fell, and each later change in the tick it happens.
+func TestAPouchIsToldOnlyToItsOwner(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		s := sceneWith(t, &grants{answers: []answer{every(model.GrantAdded)}}, options{idle: true})
-		for s.workers.Submit(func(context.Context) {}) {
+		s := newScene(t, &grants{answers: []answer{outcomes(model.GrantAdded)}})
+		ayla, bo := owner("Ayla"), owner("Bo")
+		s.g.Roll(solo(trio, ayla))
+		p := s.only(ayla)
+		if c := s.g.Changes(ayla.ID); len(c.Changed) != 1 || c.Changed[0].ID != p.ID || len(c.Changed[0].Items) != 3 {
+			t.Fatalf("Ayla's changes %+v, want her new pouch", c)
 		}
-		s.g.Roll(solo(slime, owner("Ayla")))
-		if settled := s.until(s.delay + 3); len(lootIn(settled)) != 0 || len(s.batches.sizes) != 0 {
-			t.Fatalf("settled %+v, batches %v; want nothing while the queue is full", settled, s.batches.sizes)
+		if c := s.g.Changes(bo.ID); len(c.Changed) != 0 || len(c.Gone) != 0 {
+			t.Fatalf("Bo's changes %+v, want none", c)
 		}
-		s.run()
-		synctest.Wait()
 		s.step()
-		if got := kinds(lootIn(s.step())); !slices.Equal(got, []model.LootKind{model.LootCollected}) {
-			t.Fatalf("loot %v, want the gel collected once the queue had room", got)
+		if c := s.g.Changes(ayla.ID); len(c.Changed) != 0 {
+			t.Fatalf("changes %+v on the next tick, want none", c)
+		}
+		s.take(ayla, model.Pick{Pouch: p.ID, Item: 1})
+		s.step()
+		if c := s.g.Changes(ayla.ID); len(c.Changed) != 1 || !slices.Equal(templates(c.Changed[0]), []string{"red_potion", "mushroom_cap"}) {
+			t.Fatalf("changes %+v once the gel was taken, want the pouch with the other two", c)
+		}
+		if c := s.g.Changes(bo.ID); len(c.Changed) != 0 {
+			t.Fatalf("Bo's changes %+v, want none", c)
+		}
+		s.g.Roll(solo(slime, bo))
+		if va, vb := s.g.Views(ayla.ID), s.g.Views(bo.ID); len(va) != 1 || va[0].ID != p.ID || len(vb) != 1 || vb[0].ID == p.ID {
+			t.Fatalf("views %+v and %+v; want each their own pouch alone, as a join shows it", va, vb)
 		}
 	})
 }
 
-// A full inventory keeps the drops on the ground, owned: their owner hears once, and one call every room check tries them all.
-func TestAFullInventoryKeepsTheDropsWaiting(t *testing.T) {
+func TestATakeGrantsThePicksAndAnEmptiedPouchGoes(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		items := &grants{answers: []answer{every(model.GrantNoRoom)}}
+		items := &grants{answers: []answer{every(model.GrantAdded)}}
 		s := newScene(t, items)
 		ayla := owner("Ayla")
 		s.g.Roll(solo(trio, ayla))
-		settled := s.until(s.delay + 1)
-		if got := kinds(lootIn(settled)); !slices.Equal(got, []model.LootKind{model.LootWaiting, model.LootWaiting, model.LootWaiting}) || len(s.g.Views()) != 3 {
-			t.Fatalf("loot %v with %d drops left; want all three waiting, on the ground", got, len(s.g.Views()))
-		}
-		var at []uint64 // the ticks a call went
-		for range 5 * s.roomCheck {
-			n := len(items.made())
-			if lootIn(s.step()) != nil {
-				t.Fatal("a waiting drop was told again")
-			}
-			if len(items.made()) > n {
-				at = append(at, s.tick)
-			}
-		}
-		for k := 1; k < len(at); k++ {
-			if gap := at[k] - at[k-1]; gap < s.roomCheck || gap > s.roomCheck+1 {
-				t.Fatalf("calls at ticks %v; want one per room check", at)
-			}
-		}
-		for _, c := range items.made() {
-			if len(c.Drops) != 3 {
-				t.Fatalf("a call carried %d drops, want the three waiting together", len(c.Drops))
-			}
-		}
-		items.set(func(f *grants) { f.answers = []answer{every(model.GrantAdded)} })
-		settled = s.until(s.tick + s.roomCheck + 2)
-		if got := kinds(lootIn(settled)); !slices.Equal(got, []model.LootKind{model.LootCollected, model.LootCollected, model.LootCollected}) || len(s.g.Views()) != 0 {
-			t.Fatalf("loot %v, want the three collected within a room check of room", got)
-		}
-	})
-}
-
-// A drop still waiting for room at the end of its life is lost, and tried no more.
-func TestADropWaitingAtTheEndOfItsLifeIsLost(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		items := &grants{answers: []answer{every(model.GrantNoRoom)}}
-		s := newScene(t, items)
-		ayla := owner("Ayla")
-		s.g.Roll(solo(slime, ayla))
-		gel := s.g.Views()[0]
-		s.until(s.life - 1)
-		if len(s.g.Views()) != 1 {
-			t.Fatal("the drop left before its life ended")
-		}
-		var settled []loot.Settled
-		for lootIn(settled) == nil && s.tick <= s.life+1 {
-			settled = s.step() // lost at the end of its life, or at the answer of a call then in flight
-		}
-		want := model.Loot{Tick: s.tick, Kind: model.LootLost, MapID: "forest", DropID: gel.ID, Owner: ayla.ID, OwnerName: "Ayla", Template: "slime_gel", Quantity: 2}
-		if l := lootIn(settled); len(l) != 1 || l[0] != want || settled[0].Owner != ayla {
-			t.Fatalf("settled %+v, want the gel lost, told to Ayla", settled)
-		}
-		if _, removed, collected := s.g.Changes(); !slices.Equal(removed, []uint64{gel.ID}) || len(collected) != 0 {
-			t.Fatalf("removed %v, collected %v", removed, collected)
-		}
-		calls := len(items.made())
-		s.until(s.tick + 3*s.roomCheck)
-		if len(items.made()) != calls {
-			t.Fatal("a lost drop was tried again")
-		}
-	})
-}
-
-// A call the item module never answers may have committed: its drops wait, and go again under the same keys.
-func TestAnUnansweredCallIsTriedAgainUnderTheSameKeys(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		items := &grants{answers: []answer{down, down, every(model.GrantAdded)}}
-		s := newScene(t, items)
-		s.g.Roll(solo(slime, owner("Ayla")))
-		if settled := s.until(s.delay + 1); lootIn(settled) != nil || len(items.made()) != 2 || len(s.g.Views()) != 1 {
-			t.Fatalf("loot %v after %d calls; want a quick retry on the worker, then nothing told", lootIn(settled), len(items.made()))
-		}
-		ended := s.spans.Ended()
-		if len(ended) != 1 || ended[0].Status().Code != codes.Error || !strings.Contains(s.logs.String(), "a grant call failed") {
-			t.Fatalf("%d spans, logs %q; want the failed call's span and a warning", len(ended), s.logs.String())
-		}
-		if s.until(s.tick + s.roomCheck - 1); len(items.made()) != 2 {
-			t.Fatal("tried again before the room check")
-		}
-		settled := s.until(s.tick + 2)
+		p := s.only(ayla)
+		a := s.take(ayla, all(p)...)
 		calls := items.made()
-		if got := kinds(lootIn(settled)); len(calls) != 3 || calls[2].Drops[0].Key != calls[0].Drops[0].Key || !slices.Equal(got, []model.LootKind{model.LootCollected}) {
-			t.Fatalf("calls %+v, loot %v; want the gel granted under its first key", calls, got)
+		if len(calls) != 1 || len(calls[0].Drops) != 3 || calls[0].Character != ayla.ID || calls[0].Account != ayla.Account {
+			t.Fatalf("calls %+v; want one of the three for Ayla", calls)
+		}
+		settled := s.step()
+		if !a.done || slices.ContainsFunc(a.errs(), func(err error) bool { return err != nil }) {
+			t.Fatalf("answers %+v; want all three taken", a)
+		}
+		ls := lootIn(settled)
+		if len(ls) != 1 || ls[0].Kind != model.LootTaken || ls[0].Pouch != p.ID || ls[0].Owner != ayla.ID || ls[0].OwnerName != "Ayla" || ls[0].MapID != "forest" ||
+			!slices.Equal(names(ls[0].Items), []string{"slime_gel", "red_potion", "mushroom_cap"}) {
+			t.Fatalf("loot %+v; want one line of the three taken", ls)
+		}
+		if len(settled[0].Inventory) != 1 || settled[0].Owner.ID != ayla.ID {
+			t.Fatalf("settled %+v; want Ayla's inventory change", settled)
+		}
+		if c := s.g.Changes(ayla.ID); !slices.Equal(c.Gone, []uint64{p.ID}) || len(c.Changed) != 0 || len(s.g.Views(ayla.ID)) != 0 {
+			t.Fatalf("changes %+v; want the emptied pouch gone at once", c)
 		}
 	})
 }
 
-// A drop whose call is answered after its life ended: no room loses it; no answer gives it one last try under its key.
-func TestAnAnswerAfterTheDropsLifeEnded(t *testing.T) {
-	tests := []struct {
-		name    string
-		answers []answer
-		calls   int
-		want    model.LootKind
+// Every way a pick is refused, each pick on its own: the rest of the take goes on.
+func TestEachRefusedPick(t *testing.T) {
+	reach := worldtest.LoadData(t).Loot().Reach
+	for _, tt := range []struct {
+		name string
+		take func(s *scene, ayla, bo loot.Owner, p model.PouchView) *answered
+		want []error
 	}{
-		{"no room: lost", []answer{every(model.GrantNoRoom)}, 1, model.LootLost},
-		{"no answer, then the last try grants it", []answer{down, down, every(model.GrantAdded)}, 3, model.LootCollected},
-		{"no answer, nor to the last try: lost", []answer{down}, 4, model.LootLost},
-	}
-	for _, tt := range tests {
+		{"a pouch that never was", func(s *scene, ayla, _ loot.Owner, p model.PouchView) *answered {
+			return s.take(ayla, model.Pick{Pouch: p.ID + 9, Item: 1}, model.Pick{Pouch: p.ID, Item: 1})
+		}, []error{model.ErrPouchGone, nil}},
+		{"another player's pouch", func(s *scene, _, bo loot.Owner, p model.PouchView) *answered {
+			return s.take(bo, model.Pick{Pouch: p.ID, Item: 1})
+		}, []error{model.ErrPouchGone}},
+		{"an item the pouch doesn't hold", func(s *scene, ayla, _ loot.Owner, p model.PouchView) *answered {
+			return s.take(ayla, model.Pick{Pouch: p.ID, Item: 7}, model.Pick{Pouch: p.ID, Item: 2})
+		}, []error{model.ErrPouchGone, nil}},
+		{"the same item twice in one take", func(s *scene, ayla, _ loot.Owner, p model.PouchView) *answered {
+			return s.take(ayla, model.Pick{Pouch: p.ID, Item: 1}, model.Pick{Pouch: p.ID, Item: 1})
+		}, []error{nil, model.ErrPouchGone}},
+		{"an item refused, named again in the take", func(s *scene, ayla, _ loot.Owner, p model.PouchView) *answered {
+			return s.takeFrom(ayla, loot.Point{X: killX, Y: reach + 0.6, Z: killZ}, model.Pick{Pouch: p.ID, Item: 1}, model.Pick{Pouch: p.ID, Item: 1})
+		}, []error{model.ErrPouchOutOfReach, model.ErrPouchGone}},
+		{"an item already taken", func(s *scene, ayla, _ loot.Owner, p model.PouchView) *answered {
+			s.take(ayla, model.Pick{Pouch: p.ID, Item: 1})
+			s.step()
+			return s.take(ayla, model.Pick{Pouch: p.ID, Item: 1})
+		}, []error{model.ErrPouchGone}},
+		{"a pouch whose life ended", func(s *scene, ayla, _ loot.Owner, p model.PouchView) *answered {
+			s.until(s.pouchLife)
+			return s.take(ayla, model.Pick{Pouch: p.ID, Item: 1})
+		}, []error{model.ErrPouchGone}},
+		{"a pouch past reach and its half-metre slack, from the character's middle", func(s *scene, ayla, _ loot.Owner, p model.PouchView) *answered {
+			return s.takeFrom(ayla, loot.Point{X: killX, Y: reach + 0.6, Z: killZ}, model.Pick{Pouch: p.ID, Item: 1})
+		}, []error{model.ErrPouchOutOfReach}},
+		{"a pouch within the slack", func(s *scene, ayla, _ loot.Owner, p model.PouchView) *answered {
+			return s.takeFrom(ayla, loot.Point{X: killX + reach + 0.4, Y: 0, Z: killZ}, model.Pick{Pouch: p.ID, Item: 1})
+		}, []error{nil}},
+	} {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				items := &grants{answers: tt.answers, gate: make(chan struct{})}
-				s := newScene(t, items)
-				s.g.Roll(solo(slime, owner("Ayla")))
-				s.until(s.life + 1)
-				if len(s.g.Views()) != 1 {
-					t.Fatal("a drop left with its call in flight")
+				s := newScene(t, &grants{answers: []answer{every(model.GrantAdded)}})
+				ayla, bo := owner("Ayla"), owner("Bo")
+				s.g.Roll(solo(trio, ayla))
+				s.g.Roll(solo(slime, bo))
+				a := tt.take(s, ayla, bo, s.g.Views(ayla.ID)[0])
+				s.step()
+				if !a.done || len(a.got) != len(tt.want) {
+					t.Fatalf("answers %+v, want %d", a, len(tt.want))
 				}
-				close(items.gate)
-				synctest.Wait()
-				settled := s.until(s.tick + 3)
-				if got := kinds(lootIn(settled)); !slices.Equal(got, []model.LootKind{tt.want}) || len(items.made()) != tt.calls || len(s.g.Views()) != 0 {
-					t.Fatalf("loot %v after %d calls, want %v after %d", got, len(items.made()), tt.want, tt.calls)
+				for k, err := range a.errs() {
+					if (err == nil) != (tt.want[k] == nil) || tt.want[k] != nil && !errors.Is(err, tt.want[k]) {
+						t.Fatalf("pick %d answered %v, want %v", k, err, tt.want[k])
+					}
 				}
 			})
 		})
 	}
 }
 
-// A drop never sent, the pool full until its life ended, still has its one try once a worker is free.
-func TestADropNeverSentHasATryPastItsLife(t *testing.T) {
+// An item whose tab is full stays in its pouch, answered with that tab; the rest of the take is taken, and the item can be taken once there's room.
+func TestAFullTabLeavesTheItemInItsPouch(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		s := sceneWith(t, &grants{answers: []answer{every(model.GrantAdded)}}, options{idle: true})
-		for s.workers.Submit(func(context.Context) {}) {
+		items := &grants{answers: []answer{outcomes(model.GrantAdded, model.GrantNoRoom, model.GrantAdded), every(model.GrantAdded)}}
+		s := newScene(t, items)
+		ayla := owner("Ayla")
+		s.g.Roll(solo(trio, ayla))
+		p := s.only(ayla)
+		a := s.take(ayla, all(p)...)
+		settled := s.step()
+		if errs := a.errs(); errs[0] != nil || !errors.Is(errs[1], kernel.ErrUseTabFull) || errs[2] != nil {
+			t.Fatalf("answers %v; want the potion refused for its Use tab, the rest taken", errs)
 		}
-		s.g.Roll(solo(slime, owner("Ayla")))
-		s.until(s.life + 2)
-		if len(s.g.Views()) != 1 {
-			t.Fatal("the drop left with no worker free for its try")
+		if ls := lootIn(settled); len(ls) != 1 || !slices.Equal(names(ls[0].Items), []string{"slime_gel", "mushroom_cap"}) {
+			t.Fatalf("loot %+v; want the gel and cap taken", ls)
 		}
-		s.run()
-		synctest.Wait()
-		if got := kinds(lootIn(s.until(s.tick + 2))); !slices.Equal(got, []model.LootKind{model.LootCollected}) {
-			t.Fatalf("loot %v, want the gel collected", got)
+		if got := templates(s.only(ayla)); !slices.Equal(got, []string{"red_potion"}) {
+			t.Fatalf("the pouch holds %v, want the potion left in it", got)
+		}
+		a = s.take(ayla, model.Pick{Pouch: p.ID, Item: 2})
+		s.step()
+		if !a.done || a.got[0].Err != nil || len(s.g.Views(ayla.ID)) != 0 {
+			t.Fatalf("answer %+v; want the potion taken once there was room, and the pouch gone", a.got)
 		}
 	})
 }
 
-// A drop refused by another rule never passes on a retry: it is lost at once, and the log says why.
-func TestADropRefusedByAnotherRuleIsLost(t *testing.T) {
+// A call with no answer leaves its items taken, asked again under the same keys until one comes; nothing is given twice.
+func TestAnUnansweredCallIsAskedAgainUnderTheSameKeys(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		s := newScene(t, &grants{answers: []answer{every(model.GrantRefused)}})
-		s.g.Roll(solo(slime, owner("Ayla")))
-		settled := s.until(s.delay + 1)
-		if got := kinds(lootIn(settled)); !slices.Equal(got, []model.LootKind{model.LootLost}) || len(s.g.Views()) != 0 {
-			t.Fatalf("loot %v, want the gel lost", got)
+		items := &grants{answers: []answer{down, down, every(model.GrantAdded)}}
+		s := newScene(t, items)
+		ayla := owner("Ayla")
+		s.g.Roll(solo(slime, ayla))
+		p := s.only(ayla)
+		a := s.take(ayla, all(p)...)
+		if settled := s.step(); lootIn(settled) != nil || !a.done || !errors.Is(a.got[0].Err, transient.ErrUnavailable) {
+			t.Fatalf("loot %v, answer %+v; want nothing taken and the pick answered as unavailable", lootIn(settled), a.got)
 		}
-		if logs := s.logs.String(); !strings.Contains(logs, "refused by a rule") || !strings.Contains(logs, "REASON_BAD_ROLL") {
-			t.Fatalf("logs %q; want the refusal and its reason", logs)
+		if again := s.take(ayla, all(p)...); !again.done || !errors.Is(again.got[0].Err, model.ErrTakeBusy) {
+			t.Fatalf("a take of the item asked again answered %+v; want it refused as being taken", again.got)
+		}
+		settled := s.until(s.tick + s.retry + 1)
+		calls := items.made()
+		if len(calls) != 3 || calls[0].Drops[0].Key != calls[2].Drops[0].Key {
+			t.Fatalf("calls %+v; want the gel asked again under its key", calls)
+		}
+		if got := kinds(lootIn(settled)); !slices.Equal(got, []model.LootKind{model.LootTaken}) || len(s.g.Views(ayla.ID)) != 0 {
+			t.Fatalf("loot %v; want the gel taken once, and the pouch gone", got)
 		}
 	})
 }
 
-// Each drop of a call settles from its own answer, and the owner gets the slots the call's grants changed once.
-func TestEachDropOfACallSettlesOnItsOwn(t *testing.T) {
+// An item still unanswered when its pouch's life ends has one more try; with no answer then, it's given up and logged.
+func TestAnItemUnansweredPastItsPouchsLifeIsGivenUp(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		s := newScene(t, &grants{answers: []answer{outcomes(model.GrantAdded, model.GrantNoRoom, model.GrantRefused)}})
-		s.g.Roll(solo(trio, owner("Ayla")))
-		drops := s.g.Views()
-		settled := s.until(s.delay + 1)
-		if got := kinds(lootIn(settled)); !slices.Equal(got, []model.LootKind{model.LootCollected, model.LootWaiting, model.LootLost}) {
-			t.Fatalf("loot %v", got)
+		items := &grants{answers: []answer{down}}
+		s := newScene(t, items)
+		ayla := owner("Ayla")
+		s.g.Roll(solo(slime, ayla))
+		s.take(ayla, all(s.only(ayla))...)
+		settled := s.until(s.pouchLife + 1)
+		if lootIn(settled) != nil || len(s.g.Views(ayla.ID)) != 0 {
+			t.Fatalf("loot %v; want the pouch gone from view, nothing said left of the item in a call", lootIn(settled))
 		}
-		if inv := settled[0].Inventory; len(inv) != 1 || len(inv[0].Slots) != 1 || inv[0].Slots[0].Item.Template != "slime_gel" {
-			t.Fatalf("inventory changes %+v, want the one the gel's grant made", inv)
+		calls := len(items.made())
+		s.until(s.tick + s.retry + 1)
+		if got := len(items.made()); got != calls+2 || !strings.Contains(s.logs.String(), "given up") {
+			t.Fatalf("%d calls, then %d; logs %q; want one more try past its life, then the item given up", calls, got, s.logs.String())
 		}
-		if _, removed, collected := s.g.Changes(); !slices.Equal(collected, []uint64{drops[0].ID}) || !slices.Equal(removed, []uint64{drops[2].ID}) || len(s.g.Views()) != 1 || s.g.Views()[0].ID != drops[1].ID {
-			t.Fatalf("collected %v, removed %v, left %v", collected, removed, s.g.Views())
+		s.until(s.tick + 3*s.retry)
+		if got := len(items.made()); got != calls+2 {
+			t.Fatalf("%d calls after giving up, want no more", got)
 		}
 	})
 }
 
-// A drop granted by an earlier call answers that call's stored reply, sent before this call's own; one granted under another fingerprint has none to send.
-func TestADropGrantedBeforeAnswersItsStoredReply(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		potion := model.Slot{Tab: gamedata.Use, Slot: 3, Item: &model.SlotItem{Template: "red_potion", Quantity: 1}}
-		replayed := func(n int, c model.GrantCall) (model.Granted, error) {
-			out, _ := outcomes(model.GrantAdded, model.GrantReplayed, model.GrantReplayed)(n, c)
-			out.Outcomes[1].Replayed = model.Inventory{Revision: 4, Slots: []model.Slot{potion}}
-			out.Added.Revision = 9
-			return out, nil
-		}
-		s := newScene(t, &grants{answers: []answer{replayed}})
-		s.g.Roll(solo(trio, owner("Ayla")))
-		settled := s.until(s.delay + 1)
-		if got := kinds(lootIn(settled)); !slices.Equal(got, []model.LootKind{model.LootCollected, model.LootCollected, model.LootCollected}) {
-			t.Fatalf("loot %v, want all three collected", got)
-		}
-		inv := settled[0].Inventory
-		if len(inv) != 2 || inv[0].Revision != 4 || inv[0].Slots[0] != potion || inv[1].Revision != 9 {
-			t.Fatalf("inventory changes %+v; want the stored reply at 4, then the call's at 9", inv)
-		}
-	})
-}
-
-// An owner never has two calls in flight: drops due meanwhile go together in the next, oldest first.
-func TestAnOwnerHasOneCallInFlight(t *testing.T) {
+// An owner has one call in flight and one take waiting: a third take is busy, unless it only picks from the waiting take's pouches, which it joins.
+func TestAnOwnerHasOneCallInFlightAndOneTakeWaiting(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		items := &grants{answers: []answer{every(model.GrantAdded)}, gate: make(chan struct{})}
 		s := newScene(t, items)
 		ayla := owner("Ayla")
-		s.g.Roll(solo(slime, ayla))
-		s.until(s.delay)
 		s.g.Roll(solo(trio, ayla))
-		s.until(2*s.delay + 3)
-		if n := len(items.made()); n != 1 {
-			t.Fatalf("%d calls with the first in flight, want 1", n)
+		s.g.Roll(solo(slime, ayla))
+		first, second := s.g.Views(ayla.ID)[0], s.g.Views(ayla.ID)[1]
+		inFlight := s.take(ayla, model.Pick{Pouch: first.ID, Item: 1})
+		waiting := s.take(ayla, model.Pick{Pouch: first.ID, Item: 2})
+		busy := s.take(ayla, model.Pick{Pouch: second.ID, Item: 1})
+		joins := s.take(ayla, model.Pick{Pouch: first.ID, Item: 3})
+		taken := s.take(ayla, model.Pick{Pouch: first.ID, Item: 2})
+		if !busy.done || !errors.Is(busy.got[0].Err, model.ErrTakeBusy) || !taken.done || !errors.Is(taken.got[0].Err, model.ErrTakeBusy) {
+			t.Fatalf("a take of another pouch answered %+v, one of an item waiting %+v; want both busy", busy.got, taken.got)
+		}
+		if inFlight.done || waiting.done || joins.done || len(items.made()) != 1 {
+			t.Fatalf("%d calls; want the first in flight, the rest waiting for it", len(items.made()))
 		}
 		close(items.gate)
 		synctest.Wait()
 		s.step()
-		calls := items.made()
-		if len(calls) != 2 || len(calls[1].Drops) != 3 || calls[1].Drops[0].Template != "slime_gel" || calls[1].Drops[2].Template != "mushroom_cap" {
-			t.Fatalf("calls %+v; want the trio's three together once the first was answered", calls)
+		if !inFlight.done || waiting.done || joins.done {
+			t.Fatal("want the first take answered once its call settled, the waiting ones sent next")
 		}
-		if !slices.Equal(s.batches.sizes, []int{1, 3}) {
-			t.Fatalf("batch sizes %v", s.batches.sizes)
+		s.step()
+		calls := items.made()
+		if !waiting.done || !joins.done || waiting.got[0].Err != nil || joins.got[0].Err != nil || len(calls) != 2 ||
+			calls[1].Drops[0].Template != "red_potion" || calls[1].Drops[1].Template != "mushroom_cap" || !slices.Equal(s.batches.sizes, []int{1, 2}) {
+			t.Fatalf("calls %+v, batches %v; want the waiting take and the one that joined it in one call, both taken", calls, s.batches.sizes)
+		}
+	})
+}
+
+// Takes pressed over and over grant each item once: every take of an item being taken is refused as busy.
+func TestSpammedTakesGrantEachItemOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		items := &grants{answers: []answer{every(model.GrantAdded)}, gate: make(chan struct{})}
+		s := newScene(t, items)
+		ayla := owner("Ayla")
+		s.g.Roll(solo(trio, ayla))
+		picks := all(s.only(ayla))
+		var spam []*answered
+		for range 20 {
+			spam = append(spam, s.take(ayla, picks...))
+		}
+		close(items.gate)
+		synctest.Wait()
+		settled := s.until(s.tick + 3)
+		granted := 0
+		for _, c := range items.made() {
+			granted += len(c.Drops)
+		}
+		if granted != 3 || len(lootIn(settled)) != 1 {
+			t.Fatalf("%d items granted, loot %v; want each of the three once", granted, lootIn(settled))
+		}
+		for _, a := range spam[1:] {
+			for _, err := range a.errs() {
+				if !errors.Is(err, model.ErrTakeBusy) {
+					t.Fatalf("a repeated take answered %v, want busy", a.errs())
+				}
+			}
 		}
 	})
 }
@@ -745,119 +820,298 @@ func TestACallCarriesAtMostTheBatchMax(t *testing.T) {
 		s := sceneWith(t, items, options{batchMax: 2})
 		ayla := owner("Ayla")
 		s.g.Roll(solo(trio, ayla))
-		s.g.Roll(solo(slime, ayla))
-		s.until(s.delay + 2)
-		calls := items.made()
-		if len(calls) != 2 || len(calls[0].Drops) != 2 || len(calls[1].Drops) != 2 {
-			t.Fatalf("calls %+v; want two of two", calls)
+		a := s.take(ayla, all(s.only(ayla))...)
+		s.step()
+		if calls := items.made(); len(calls) != 1 || len(calls[0].Drops) != 2 {
+			t.Fatalf("calls %+v; want one of two", calls)
 		}
-		var templates []string
-		for _, c := range calls {
-			for _, d := range c.Drops {
-				templates = append(templates, d.Template)
+		if errs := a.errs(); errs[0] != nil || errs[1] != nil || !errors.Is(errs[2], model.ErrTakeBusy) {
+			t.Fatalf("answers %v; want the first two taken and the third left for the next take", errs)
+		}
+	})
+}
+
+// A player has at most the most pouches and boxes on a map: a new one ends the oldest's life at once, with what was left in it; another player's count apart.
+func TestANewPouchPastTheMostEndsTheOldest(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newScene(t, &grants{answers: []answer{every(model.GrantAdded)}})
+		ayla, bo := owner("Ayla"), owner("Bo")
+		most := s.data.Loot().PouchesMax
+		for range most {
+			s.g.Roll(solo(slime, ayla))
+		}
+		s.g.Roll(solo(slime, bo))
+		if settled := s.step(); lootIn(settled) != nil || len(s.g.Views(ayla.ID)) != most {
+			t.Fatalf("loot %v, %d pouches; want all %d kept", lootIn(settled), len(s.g.Views(ayla.ID)), most)
+		}
+		oldest := s.g.Views(ayla.ID)[0]
+		s.g.Box(trio, killX, 0, killZ, ayla)
+		settled := s.step()
+		left := lootIn(settled)
+		if len(left) != 1 || left[0].Kind != model.LootLeft || left[0].Pouch != oldest.ID || !slices.Equal(names(left[0].Items), []string{"slime_gel"}) {
+			t.Fatalf("loot %+v; want the oldest pouch left with its gels", left)
+		}
+		views := s.g.Views(ayla.ID)
+		if len(views) != most || views[0].ID == oldest.ID || views[len(views)-1].Kind != model.PouchBox || len(s.g.Views(bo.ID)) != 1 {
+			t.Fatalf("%d pouches, first %d, last %+v; Bo's %d; want the most, the oldest gone for the box, and Bo's kept", len(views), views[0].ID, views[len(views)-1], len(s.g.Views(bo.ID)))
+		}
+	})
+}
+
+// A pouch's life ends with what it still holds, which its owner hears was left; a box lasts longer.
+func TestALifeEndsWithWhatWasLeft(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newScene(t, &grants{answers: []answer{every(model.GrantAdded)}})
+		ayla := owner("Ayla")
+		s.g.Roll(solo(trio, ayla))
+		s.g.Box(slime, killX, 0, killZ, ayla)
+		pouch := s.g.Views(ayla.ID)[0]
+		if settled := s.until(s.pouchLife - 1); lootIn(settled) != nil {
+			t.Fatalf("loot %v before the pouch's life ended", lootIn(settled))
+		}
+		settled := s.step()
+		ls := lootIn(settled)
+		if len(ls) != 1 || ls[0].Kind != model.LootLeft || ls[0].Pouch != pouch.ID || settled[0].Owner.ID != ayla.ID ||
+			!slices.Equal(names(ls[0].Items), []string{"slime_gel", "red_potion", "mushroom_cap"}) {
+			t.Fatalf("loot %+v; want the pouch's three said left", ls)
+		}
+		if c := s.g.Changes(ayla.ID); !slices.Equal(c.Gone, []uint64{pouch.ID}) {
+			t.Fatalf("changes %+v, want the pouch gone", c)
+		}
+		if ps := s.g.Views(ayla.ID); len(ps) != 1 || ps[0].Kind != model.PouchBox {
+			t.Fatalf("pouches %+v, want the box still there", ps)
+		}
+		if ls := lootIn(s.until(s.boxLife)); len(ls) != 1 || ls[0].Kind != model.LootLeft || len(s.g.Views(ayla.ID)) != 0 {
+			t.Fatalf("loot %+v; want the box's gel left at its life's end", ls)
+		}
+	})
+}
+
+// An item in a call when its pouch's life ends isn't left: it's taken once its answer comes.
+func TestAnItemBeingTakenOutlivesItsPouch(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		items := &grants{answers: []answer{every(model.GrantAdded)}, gate: make(chan struct{})}
+		s := newScene(t, items)
+		ayla := owner("Ayla")
+		s.g.Roll(solo(trio, ayla))
+		a := s.take(ayla, model.Pick{Pouch: s.only(ayla).ID, Item: 1})
+		ls := lootIn(s.until(s.pouchLife))
+		if len(ls) != 1 || ls[0].Kind != model.LootLeft || !slices.Equal(names(ls[0].Items), []string{"red_potion", "mushroom_cap"}) {
+			t.Fatalf("loot %+v; want the two not being taken said left", ls)
+		}
+		close(items.gate)
+		synctest.Wait()
+		ls = lootIn(s.step())
+		if !a.done || a.got[0].Err != nil || len(ls) != 1 || ls[0].Kind != model.LootTaken || !slices.Equal(names(ls[0].Items), []string{"slime_gel"}) {
+			t.Fatalf("answer %+v, loot %+v; want the gel taken", a.got, ls)
+		}
+	})
+}
+
+func TestARefusedItemIsGivenUp(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newScene(t, &grants{answers: []answer{outcomes(model.GrantRefused)}})
+		ayla := owner("Ayla")
+		s.g.Roll(solo(slime, ayla))
+		a := s.take(ayla, all(s.only(ayla))...)
+		settled := s.step()
+		if !a.done || !errors.Is(a.got[0].Err, model.ErrPouchGone) || lootIn(settled) != nil || len(s.g.Views(ayla.ID)) != 0 || !strings.Contains(s.logs.String(), "REASON_BAD_ROLL") {
+			t.Fatalf("answer %+v, loot %v, logs %q; want the gel given up and logged, its pouch gone", a.got, lootIn(settled), s.logs.String())
+		}
+	})
+}
+
+func TestAnItemGrantedBeforeAnswersItsStoredReply(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		potion := model.Slot{Tab: gamedata.Use, Slot: 3, Item: &model.SlotItem{Template: "red_potion", Quantity: 1}}
+		replayed := func(n int, c model.GrantCall) (model.Granted, error) {
+			out, _ := outcomes(model.GrantAdded, model.GrantReplayed, model.GrantReplayed)(n, c)
+			out.Outcomes[1].Replayed = model.Inventory{Revision: 4, Slots: []model.Slot{potion}}
+			out.Added.Revision = 9
+			return out, nil
+		}
+		s := newScene(t, &grants{answers: []answer{replayed}})
+		ayla := owner("Ayla")
+		s.g.Roll(solo(trio, ayla))
+		s.take(ayla, all(s.only(ayla))...)
+		settled := s.step()
+		if ls := lootIn(settled); len(ls) != 1 || len(ls[0].Items) != 3 {
+			t.Fatalf("loot %+v, want all three taken", ls)
+		}
+		inv := settled[0].Inventory
+		if len(inv) != 2 || inv[0].Revision != 4 || inv[0].Slots[0] != potion || inv[1].Revision != 9 {
+			t.Fatalf("inventory changes %+v; want the stored reply at 4, then the call's at 9", inv)
+		}
+	})
+}
+
+// A retry of items whose call got no answer that finds every worker's queue full waits the interval again, not a tick.
+func TestARetryWithTheQueueFullWaitsTheIntervalAgain(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		items := &grants{answers: []answer{down, down, every(model.GrantAdded)}}
+		s := newScene(t, items)
+		ayla := owner("Ayla")
+		s.g.Roll(solo(slime, ayla))
+		s.take(ayla, all(s.only(ayla))...)
+		s.step()
+		failed := s.tick
+		release := make(chan struct{})
+		block := func(ctx context.Context) {
+			select {
+			case <-release:
+			case <-ctx.Done():
 			}
 		}
-		if !slices.Equal(templates, []string{"slime_gel", "red_potion", "mushroom_cap", "slime_gel"}) {
-			t.Fatalf("granted %v; want the oldest first", templates)
+		for range 2 { // the workers each hold a job, then the queue fills
+			for s.workers.Submit(block) {
+			}
+			synctest.Wait()
+		}
+		s.until(failed + s.retry)
+		close(release)
+		synctest.Wait()
+		s.until(failed + 2*s.retry - 1)
+		if got := len(items.made()); got != 2 {
+			t.Fatalf("%d calls before a second interval, want only the failed call's 2", got)
+		}
+		s.step()
+		if got := len(items.made()); got != 3 {
+			t.Fatalf("%d calls once it passed, want the gels asked again", got)
 		}
 	})
 }
 
-func TestEachOwnerHasTheirOwnCall(t *testing.T) {
+// With every worker's queue full, a take is answered at once to try again, and its items stay to take.
+func TestATakeWithTheQueueFullIsAnsweredToTryAgain(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		items := &grants{answers: []answer{every(model.GrantAdded)}}
-		s := newScene(t, items)
-		ayla, bo := owner("Ayla"), owner("Bo")
-		s.g.Roll(partyKill(trio, ayla, partyOf("p1", ayla, bo), ayla, bo))
-		s.until(s.delay)
-		calls := items.made()
-		if len(calls) != 2 {
-			t.Fatalf("%d calls, want one per owner", len(calls))
+		s := sceneWith(t, &grants{answers: []answer{every(model.GrantAdded)}}, options{idle: true})
+		for s.workers.Submit(func(context.Context) {}) {
 		}
-		by := map[kernel.CharacterID]int{}
-		for _, c := range calls {
-			by[c.Character] = len(c.Drops)
+		ayla := owner("Ayla")
+		s.g.Roll(solo(slime, ayla))
+		picks := all(s.only(ayla))
+		if a := s.take(ayla, picks...); !a.done || !errors.Is(a.got[0].Err, transient.ErrUnavailable) || len(s.batches.sizes) != 0 {
+			t.Fatalf("answer %+v, batches %v; want it answered to try again, nothing sent", a.got, s.batches.sizes)
 		}
-		if by[ayla.ID] != 2 || by[bo.ID] != 1 {
-			t.Fatalf("drops per owner %v", by)
+		s.run()
+		synctest.Wait()
+		a := s.take(ayla, picks...)
+		if s.step(); !a.done || a.got[0].Err != nil {
+			t.Fatalf("answer %+v, want the gel taken once the queue had room", a.got)
 		}
 	})
 }
 
-// A grant call is its own trace: a root, a consumer of the job the tick handed over, naming the owner and its drops, with the item call inside it.
+// A grant call is its own trace: a root, a consumer of the job the tick handed over, naming the owner and its items, with the item call inside it.
 func TestAGrantCallKeepsItsTrace(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		items := &grants{answers: []answer{every(model.GrantAdded)}}
 		s := newScene(t, items)
 		ayla := owner("Ayla")
 		s.g.Roll(solo(trio, ayla))
-		s.until(s.delay)
+		s.take(ayla, all(s.only(ayla))...)
 		ended := s.spans.Ended()
-		if len(ended) != 1 || ended[0].Name() != "world.collect" || ended[0].Parent().IsValid() || ended[0].SpanKind() != trace.SpanKindConsumer {
-			t.Fatalf("%d spans; want one world.collect root, a consumer", len(ended))
+		if len(ended) != 1 || ended[0].Name() != "world.take" || ended[0].Parent().IsValid() || ended[0].SpanKind() != trace.SpanKindConsumer {
+			t.Fatalf("%d spans; want one world.take root, a consumer", len(ended))
 		}
 		attrs := attribute.NewSet(ended[0].Attributes()...)
 		character, _ := attrs.Value("character_id")
-		drops, _ := attrs.Value("drops")
-		if character.AsString() != ayla.ID.String() || drops.AsInt64() != 3 {
-			t.Fatalf("the root names character %q and %d drops", character.AsString(), drops.AsInt64())
+		n, _ := attrs.Value("items")
+		if character.AsString() != ayla.ID.String() || n.AsInt64() != 3 {
+			t.Fatalf("the root names character %q and %d items", character.AsString(), n.AsInt64())
 		}
 		if items.spanOf(0).SpanID() != ended[0].SpanContext().SpanID() {
 			t.Fatal("the item call ran outside the grant's span")
 		}
-		if !loot.EntryPoint("world.collect") || loot.EntryPoint("world.tick") {
+		if !loot.EntryPoint("world.take") || loot.EntryPoint("world.tick") {
 			t.Fatal("the grant's span does not start a kept trace")
 		}
 	})
 }
 
-// An answer that misses some of its drops is a failed call: they all go again under their keys.
-func TestAnAnswerMissingDropsFailsTheCall(t *testing.T) {
+// An answer that misses some of its items is a failed call: they all go again under their keys.
+func TestAnAnswerMissingItemsFailsTheCall(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		short := func(int, model.GrantCall) (model.Granted, error) { return model.Granted{}, nil }
-		items := &grants{answers: []answer{short, every(model.GrantAdded)}}
-		s := newScene(t, items)
-		s.g.Roll(solo(slime, owner("Ayla")))
-		if settled := s.until(s.delay + 1); lootIn(settled) != nil || len(s.g.Views()) != 1 || !strings.Contains(s.logs.String(), "answered 0 of 1 drops") {
-			t.Fatalf("loot %v, logs %q; want the drop kept and the short answer logged", lootIn(settled), s.logs.String())
+		s := newScene(t, &grants{answers: []answer{short, every(model.GrantAdded)}})
+		ayla := owner("Ayla")
+		s.g.Roll(solo(slime, ayla))
+		s.take(ayla, all(s.only(ayla))...)
+		if settled := s.step(); lootIn(settled) != nil || len(s.g.Views(ayla.ID)) != 1 || !strings.Contains(s.logs.String(), "answered 0 of 1 items") {
+			t.Fatalf("loot %v, logs %q; want the item kept and the short answer logged", lootIn(settled), s.logs.String())
 		}
-		if got := kinds(lootIn(s.until(s.tick + s.roomCheck + 1))); !slices.Equal(got, []model.LootKind{model.LootCollected}) {
-			t.Fatalf("loot %v, want the gel collected on the next try", got)
+		if got := kinds(lootIn(s.until(s.tick + s.retry + 1))); !slices.Equal(got, []model.LootKind{model.LootTaken}) {
+			t.Fatalf("loot %v, want the gel taken on the next try", got)
 		}
 	})
 }
 
-// Drops fall round a ring 0.75 m from where the mob died, each 0.6 m along it from the last, on the ground there; a spot off the ground is skipped, and with none they fall where it died.
-func TestDropsFallRoundWhereTheMobDied(t *testing.T) {
-	three := gamedata.Mob{ID: "green_slime", Drops: []gamedata.Drop{{Item: "slime_gel", Chance: 1, Min: 1, Max: 1}, {Item: "red_potion", Chance: 1, Min: 1, Max: 1}, {Item: "slime_gel", Chance: 1, Min: 1, Max: 1}}}
-	spot := func(k int) [3]float64 { // the roll of 0 starts the ring due north
-		sin, cos := math.Sincos(float64(k) * 0.6 / 0.75)
-		return [3]float64{killX + 0.75*sin, 0.5, killZ + 0.75*cos}
-	}
-	near := func(x, z float64, at [3]float64) bool { return math.Hypot(x-at[0], z-at[2]) < 0.01 }
+// Equipment rolls its stats as it falls, from the map's random source; the pouch shows the roll and its grant carries it; anything else has none.
+func TestEquipmentRollsItsStatsAsItFalls(t *testing.T) {
 	for _, tt := range []struct {
-		name string
-		rest func(x, z, y float64) (float64, bool)
-		want [][3]float64
+		name   string
+		roll   float64
+		attack int
 	}{
-		{"on open ground half a metre up", func(_, _, _ float64) (float64, bool) { return 0.5, true }, [][3]float64{spot(0), spot(1), spot(2)}},
-		{"the second spot in a solid", func(x, z, _ float64) (float64, bool) { return 0.5, !near(x, z, spot(1)) }, [][3]float64{spot(0), spot(2), spot(3)}},
-		{"no spot round it clear", func(_, _, _ float64) (float64, bool) { return 0, false }, [][3]float64{{killX, 0, killZ}, {killX, 0, killZ}, {killX, 0, killZ}}},
+		{"a roll of 0 takes the bottom of each range", 0, 16},
+		{"a roll of a half, the middle", 0.5, 18},
+		{"a roll just under 1, the top", 0.999, 20},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				s := sceneWith(t, &grants{answers: []answer{every(model.GrantAdded)}}, options{rest: tt.rest})
-				s.g.Roll(solo(three, owner("Ayla")))
-				views := s.g.Views()
-				if len(views) != len(tt.want) {
-					t.Fatalf("%d drops, want %d", len(views), len(tt.want))
+				s := sceneWith(t, &grants{answers: []answer{every(model.GrantAdded)}}, options{roll: worldtest.FixedRoll{V: tt.roll}})
+				ayla := owner("Ayla")
+				s.g.Box(boar, killX, 0, killZ, ayla)
+				want := progression.ItemStats{PhysicalAttack: tt.attack}
+				if st := s.only(ayla).Items[0].Stats; st == nil || *st != want {
+					t.Fatalf("the box shows %+v, want a sword of attack %d", st, tt.attack)
 				}
-				for i, v := range views {
-					if w := tt.want[i]; math.Abs(v.X-w[0]) > 1e-9 || v.Y != w[1] || math.Abs(v.Z-w[2]) > 1e-9 {
-						t.Fatalf("drop %d at (%v, %v, %v), want %v", i, v.X, v.Y, v.Z, w)
-					}
+				s.take(ayla, all(s.only(ayla))...)
+				if got := s.items.made(); len(got) != 1 || got[0].Drops[0].Stats == nil || *got[0].Drops[0].Stats != want {
+					t.Fatalf("granted %+v, want a sword of attack %d", got, tt.attack)
 				}
 			})
 		})
+	}
+	t.Run("a gel has no roll", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			s := newScene(t, &grants{answers: []answer{every(model.GrantAdded)}})
+			ayla := owner("Ayla")
+			s.g.Roll(solo(slime, ayla))
+			s.take(ayla, all(s.only(ayla))...)
+			if got := s.items.made(); len(got) != 1 || got[0].Drops[0].Stats != nil {
+				t.Fatalf("granted %+v, want no roll", got)
+			}
+		})
+	})
+}
+
+// Rolls come from the map's seeded source, so a recorded fight replays the same loot.
+func TestTheSameSeedRollsTheSameStats(t *testing.T) {
+	const boxes = 5
+	rolled := func(t *testing.T) []progression.ItemStats {
+		t.Helper()
+		var out []progression.ItemStats
+		synctest.Test(t, func(t *testing.T) {
+			s := sceneWith(t, &grants{answers: []answer{every(model.GrantAdded)}}, options{roll: rand.New(rand.NewPCG(1, 2))})
+			ayla := owner("Ayla")
+			for range boxes {
+				s.g.Box(boar, killX, 0, killZ, ayla)
+			}
+			for _, p := range s.g.Views(ayla.ID) {
+				out = append(out, *p.Items[0].Stats)
+			}
+		})
+		return out
+	}
+	first, second := rolled(t), rolled(t)
+	if len(first) != boxes || !slices.Equal(first, second) {
+		t.Fatalf("rolled %v, then %v from the same seed", first, second)
+	}
+	sword, _ := worldtest.LoadData(t).Item("iron_sword")
+	for _, s := range first {
+		if !s.Fits(sword.Rolls) {
+			t.Fatalf("rolled %+v, outside the sword's ranges", s)
+		}
 	}
 }

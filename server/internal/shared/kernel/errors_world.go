@@ -44,4 +44,7 @@ var (
 	ErrTraitUnknown             = NewRule("trait_unknown")
 	ErrTraitLocked              = NewRule("trait_locked")
 	ErrInCombat                 = NewRule("in_combat")
+	ErrPouchGone                = NewRule("pouch_gone")
+	ErrPouchOutOfReach          = NewRule("pouch_out_of_reach")
+	ErrTakeBusy                 = NewRule("take_busy")
 )

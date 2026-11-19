@@ -89,13 +89,13 @@ func (f *flakyItems) build(ctx context.Context, h *host.Host, cfg config.Config)
 	return buildGateway(ctx, h, cfg.Gateway, cfg.HTTP, gatewayModules{Account: accounts, Character: characters, Item: f.Module, World: game, Social: parties})
 }
 
-// The world's grants meet an item module that fails some of them, before and after they commit: the batches retry each under its keys, and every drop lands once.
+// The world's grants meet an item module that fails some of them, before and after they commit: each take's items are asked again under their keys, and every item lands once.
 func TestGrantsTheItemModuleFailsLandOnceEach(t *testing.T) {
 	t.Parallel()
 	flaky := &flakyItems{}
 	flaky.before.Store(3)
 	flaky.after.Store(3)
-	s := e2etest.NewStackBuilt(t, e2etest.GameData(t, e2etest.QuickSlimes()...), flaky.build)
+	s := e2etest.NewStackBuilt(t, e2etest.GameData(t, append(e2etest.QuickSlimes(), e2etest.LootRules(1, "60s"))...), flaky.build) // every kill a pouch, for the takes to meet the failures soon
 	token, id := s.CreateCharacter(t, "ola", "Ola", "warrior")
 	s.Place(t, id, "forest", e2etest.SlimeField, 144, 0)
 	ola := e2etest.NewLooter(s.Join(t, token, id))
@@ -106,17 +106,17 @@ func TestGrantsTheItemModuleFailsLandOnceEach(t *testing.T) {
 	if flaky.after.Load() >= 0 {
 		t.Fatal("the item module still had failures to give after 30 s of farming")
 	}
-	if !ola.Settle(15 * time.Second) { // the last kills' drops may still be falling, or waiting for their batch
-		t.Fatalf("Ola's drops still down after 15 s: %v", ola.Drops)
+	if !ola.Clear(15 * time.Second) { // the last kills' pouches are taken, any item still being asked again
+		t.Fatalf("Ola's pouches still down after 15 s: %v", ola.Pouches)
 	}
-	// Each drop the world offered lands once, retried until it does, and its owner hears of it once: the database and the pushes agree.
+	// Each item the world asked for lands once, asked again until it does, and its owner hears of it once: the database and the pushes agree.
 	var landed, events, drops, collected int
 	converged := ola.Until(15*time.Second, func() bool {
 		keys := flaky.keys()
 		collected = 0
 		for _, l := range ola.Loots {
-			if l.GetKind() == clientv1.LootKind_LOOT_KIND_COLLECTED && l.GetOwnerId() == id {
-				collected++
+			if l.GetKind() == clientv1.LootKind_LOOT_KIND_TAKEN && l.GetOwnerId() == id {
+				collected += len(l.GetItems())
 			}
 		}
 		if err := s.DB.QueryRow(context.Background(), `

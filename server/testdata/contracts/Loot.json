@@ -1,12 +1,20 @@
 {
   "tick": 81236,
   "loot": {
-    "kind": "LOOT_KIND_COLLECTED",
+    "kind": "LOOT_KIND_TAKEN",
     "map_id": "forest",
-    "drop_id": 10,
+    "pouch_id": 10,
     "owner_id": "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7c",
     "owner_name": "Robin",
-    "template": "slime_gel",
-    "quantity": 2
+    "items": [
+      {
+        "template": "slime_gel",
+        "quantity": 2
+      },
+      {
+        "template": "red_potion",
+        "quantity": 1
+      }
+    ]
   }
 }

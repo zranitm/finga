@@ -34,6 +34,7 @@ type World interface {
 	SpendSkillPoints(ctx context.Context, p model.Presence, in model.SkillPointsSpend) error
 	ChooseTrait(ctx context.Context, p model.Presence, in model.TraitChoice) error
 	SetLook(ctx context.Context, p model.Presence, in model.LookSet) error
+	TakeLoot(ctx context.Context, p model.Presence, picks []model.LootPick) ([]model.PickAnswer, error)
 	UseSkill(ctx context.Context, p model.Presence, in model.SkillUse, seq uint32) error
 	Talk(ctx context.Context, p model.Presence, npc string) error
 	AcceptQuest(ctx context.Context, p model.Presence, in model.QuestAsk) error

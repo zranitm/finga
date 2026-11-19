@@ -2,6 +2,7 @@ package main
 
 import (
 	"cmp"
+	"maps"
 	"math"
 	"slices"
 	"time"
@@ -178,6 +179,48 @@ func (b *bot) hunt(s spot, prey []string) *clientv1.MobView {
 		b.roam = b.roll(s)
 	}
 	return nil
+}
+
+// lootFrom is how far a bot goes for a pouch of its own; one farther is left to run out.
+const lootFrom = 20.0
+
+// loot walks to the bot's nearest pouch within lootFrom and takes all it holds, as Take all does, and every other pouch in reach with it; false with none to go to.
+func (b *bot) loot() bool {
+	var near *clientv1.PouchView
+	for id, p := range b.pouches {
+		d := nav.Distance(b.at(), nav.Point{X: p.GetX(), Z: p.GetZ()})
+		if !b.leftPouches[id] && d <= lootFrom && (near == nil || d < nav.Distance(b.at(), nav.Point{X: near.GetX(), Z: near.GetZ()})) {
+			near = p
+		}
+	}
+	if near == nil {
+		return false
+	}
+	if !b.walkTo(nav.Point{X: near.GetX(), Z: near.GetZ()}, b.data.Loot().Reach/2) {
+		if b.walk.Lost() {
+			b.leftPouches[near.GetId()] = true
+		}
+		return true
+	}
+	if !b.taking {
+		b.taking = true
+		b.command(b.takeInReach())
+	}
+	return true
+}
+
+// takeInReach takes every item of every pouch it doesn't leave within half the reach, as Take all does.
+func (b *bot) takeInReach() *clientv1.TakeLoot {
+	take := &clientv1.TakeLoot{}
+	for _, id := range slices.Sorted(maps.Keys(b.pouches)) {
+		p := b.pouches[id]
+		if !b.leftPouches[id] && nav.Distance(b.at(), nav.Point{X: p.GetX(), Z: p.GetZ()}) <= b.data.Loot().Reach/2 {
+			for _, it := range p.GetItems() {
+				take.Picks = append(take.Picks, &clientv1.LootPick{Pouch: id, Item: it.GetItem()})
+			}
+		}
+	}
+	return take
 }
 
 // roll is a point in a spot's circle the bot fits at, clear of a field boss, the circle's centre if a few tries find none.

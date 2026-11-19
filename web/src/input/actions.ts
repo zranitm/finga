@@ -12,6 +12,7 @@ export type Action =
   | 'attack'
   | 'nextTarget' // locks the next mob or, in a match, enemy farther than the locked one
   | 'talk' // enters the portal the player stands in, else talks to the nearest NPC within reach
+  | 'loot' // opens the loot window on the player's pouches within reach; open, takes them all
   | 'hpPotion' // the potion that best fills the HP missing
   | SkillKey // the skill on the skill bar's key
   | 'inventory'
@@ -51,6 +52,7 @@ export const actions: readonly Action[] = [
   'attack',
   'nextTarget',
   'talk',
+  'loot',
   'hpPotion',
   ...skillKeys,
   'inventory',

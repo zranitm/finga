@@ -1,6 +1,6 @@
 # Loot pouches and timed bosses
 
-> **Status: approved · 2026-11-19. Step 1, timed bosses, as built.** The high-level design for the changes to [D1. Drops and loot](../product/features/items-and-inventory/d1-drops-and-loot.md) and [C10. Field bosses](../product/features/combat-and-progression/c10-field-bosses.md), with E3's party loot and E5's lines. It replaces auto pickup ([Auto pickup and the combat channel](./auto-pickup-and-combat-channel.md) sections 3 to 5) and the boss's kill count ([Field bosses](./field-bosses.md)).
+> **Status: approved · 2026-11-19. Steps 1 and 2, timed bosses and pouches, as built.** The high-level design for the changes to [D1. Drops and loot](../product/features/items-and-inventory/d1-drops-and-loot.md) and [C10. Field bosses](../product/features/combat-and-progression/c10-field-bosses.md), with E3's party loot and E5's lines. It replaces auto pickup ([Auto pickup and the combat channel](./auto-pickup-and-combat-channel.md) sections 3 to 5) and the boss's kill count ([Field bosses](./field-bosses.md)).
 
 ## 1. What has to hold
 
@@ -40,6 +40,7 @@
   reach: 2            # metres from the character's middle to a pouch or box to open it
   pouch_life: 60s     # a pouch still holding items then is gone
   box_life: 2m        # a boss's box still holding items then is gone
+  pouches_max: 30     # a player's pouches and boxes on a map at most: a new one ends the oldest's life (added as built)
   ```
 
   `collect_delay` and `room_check_every` go.
@@ -51,6 +52,7 @@
   - `pouch` chances must be in (0, 1].
   - `reach` must be at least the talk reach (1.875 m), so a pouch at a player's feet is always in reach.
   - Both lives must be positive, and `respawn` too.
+  - `pouches_max` must be at least 1.
 
 ## 4. Pouches in the world
 
@@ -79,6 +81,30 @@
   - waiting for room and its retries;
   - `DropView.owner_id`, `collected_drops` and the unused `PickUp`.
 - **A world restart** loses pouches on the ground, as it loses drops today.
+- **As built (step 2):**
+  - `loot.Ground` holds a map's pouches (`loot/ground.go`) and their takes (`loot/take.go`). A pouch lies on the ground under where the mob died. Its items are numbered from 1 within it, each with its own key from the roll.
+  - **The turn moves only when a pouch falls.** A kill that leaves nothing keeps the party's turn where it was.
+  - **"Still needs" is "an active quest of the owner's collects it".** The world holds each player's quest log but not their bag. So a kill whose chance failed rolls a quest's item until the quest is handed in, even once the player holds enough. That costs a few extra pouches, never a missing item.
+  - **A box** is never gated: `Ground.Box` rolls the boss's whole list for each player given one.
+  - **Each pick is checked on its own,** and the rest of the take goes on:
+    - `POUCH_GONE`: a pouch that's gone, empty or not the taker's; an item not in it, or already taken; or the same item twice in one take.
+    - `TAKE_BUSY`: an item already being taken, by a call in flight or a take waiting.
+    - `POUCH_OUT_OF_REACH`: a pouch farther than reach plus 0.5 m from the character's middle, in 3D.
+  - **One call in flight per owner, and one take waiting:**
+    - A take while a call is in flight waits for it.
+    - A further take while one waits is `TAKE_BUSY` (330041), unless every pick is from the waiting take's pouches. Then it joins it, so pressing T again never queues up calls.
+    - A call carries at most `batch_max` (32) items. Picks past that are `TAKE_BUSY`, left for the next take.
+    - A `TakeLoot` names at most 64 picks, or it's refused whole as malformed.
+  - **Each pick is answered once its call settles:** taken, or the code of why not.
+    - A full tab answers with its tab: `EQUIP_TAB_FULL`, `USE_TAB_FULL` or `ETC_TAB_FULL`.
+    - **No answer from the item module:** the pick is answered `UNAVAILABLE`. Its items stay marked as being taken, and are asked for again every 2 s under the same keys until an answer comes. The owner then hears `InventoryChanged` and `Loot{taken}`, as from any take. Only owners with such items are looked at for a retry.
+    - **Every item-call worker's queue full:** the take is answered `UNAVAILABLE` at once, and its items stay to take. A retry that finds the queue full waits another 2 s.
+    - **An item refused by another rule** is given up and logged, answered `POUCH_GONE`.
+  - **Lives:** at a pouch's end, the items not being taken are listed in `Loot{left}`. An item still being asked for then gets one more try; with no answer it's given up and logged.
+    - **A given-up item's outcome is unknown:** its grant may have committed before the answer was lost. It's answered `POUCH_GONE` either way. Its key keeps it from ever being granted twice, so the player has it at most once: in their bag when they next load it, or not at all.
+    - **An owner off the map hears the left notice through the connection they last joined it by.** One who has since logged out or reconnected misses it. That's cosmetic: the pouch was theirs alone, and nothing was granted.
+  - **At most `pouches_max` (30) pouches and boxes per owner on a map.** A new one past that ends the oldest's life in the same tick, as its life ending would: what's left in it is `Loot{left}`, and an item in a call still settles. This bounds a party left farming, or a pile of boxes. Pouches are held per owner and by id, so a take, a join's `Snapshot` and a retry look only at that owner's own.
+  - **Private frames:** each recipient of a frame carries its own pouches that changed (`model.Recipient.Pouches`), as it carries its ack and energy. The gateway splices them into that player's `Delta` beside the shared part, which stays encoded once. A joiner's `Snapshot` lists their own pouches.
 
 ## 5. Timed bosses
 
@@ -124,8 +150,20 @@
 
   | Code | Name | HTTP | When |
   | --- | --- | --- | --- |
-  | 330039 | `POUCH_GONE` | 409 | A pouch that's gone, empty, or not the player's, or an item already taken |
+  | 330039 | `POUCH_GONE` | 409 | A pouch that's gone, empty, or not the player's; an item already taken, or named twice in one take |
   | 330040 | `POUCH_OUT_OF_REACH` | 409 | A pouch farther than reach |
+  | 330041 | `TAKE_BUSY` | 409 | Added as built: an item already being taken, by a call in flight, a waiting take, or a retry after no answer, since it's still in the pouch; or a take while another already waits (section 4) |
+- **As built (step 2):**
+  - `TakeLoot{picks: [{pouch, item}]}` is answered in its `Response`: `ok`, with `picks: [{pick, code}]`, code 0 for taken. A take refused whole, such as a dead player's, is a failed `Response` with its code.
+  - `Snapshot.pouches` (6), `Delta.pouches` (10) and `Delta.pouches_gone` (11) carry the player's own. `PouchView.kind` is `POUCH_KIND_POUCH` or `POUCH_KIND_BOX`, and each `PouchItem` carries equipment's `stats`.
+  - `Loot{kind, map_id, pouch_id, owner_id, owner_name, items: [{template, quantity}]}`, with `LOOT_KIND_TAKEN` = 1 and `LOOT_KIND_LEFT` = 3. 2, the old waiting, is reserved.
+  - **Gone, their numbers and names reserved:**
+    - `ClientMessage.pick_up` (5) and `Snapshot.drops` (3);
+    - `Delta.drops`, `removed_drops` and `collected_drops` (4, 7, 8);
+    - `Loot`'s `drop_id`, `template` and `quantity` (3, 6, 7).
+
+    `DropView` and `PickUp` are deleted.
+  - **One more failure:** 330041 `TAKE_BUSY`, in the table above. An item being taken is busy, not gone, because it's still in its pouch.
 
 ## 7. Client
 
@@ -147,6 +185,27 @@
   - A 4★ or better taken still shows a toast.
 - **Gone:** drops' gems and their flight.
 - **The map window's** boss mark while it's down (section 5).
+- **As built (step 2):**
+  - **Models:**
+    - The sack is 0.43 m across and the chests 0.85 m. Each is turned its own way by its id.
+    - Textures are shrunk to 128 px for the sack and 256 px for the chests, every colour within 1/255.
+    - The gold chest is KayKit's chest with its grey metal made gold in the source file. Its gold coins sit under a lid that stays shut, so they don't show from the game's camera. `npm run models` reproduces the output.
+    - A box shows gold if it held a 4★ item when it first appeared, and stays gold after that item is taken.
+  - **Reach and the hint:**
+    - Reach is measured in 3D from the character's middle (feet + 0.875 m), at most `loot.reach`, with no slack on the client.
+    - The "T Loot" hint sits 0.9 m over the nearest pouch in reach. It shows only while the player is free to act and the window is shut.
+  - **The `loot` key** opens the window when it's shut, and takes everything when it's open. It does nothing while the player isn't free, or with nothing in reach.
+  - **The window** (`features/loot/LootWindow.tsx`, state in `state/pouches.ts`):
+    - It lists every pouch in reach in pouch order, and counts down to the first one's end ("Gone in 35 s").
+    - A row being taken is dimmed and can't be clicked again until its item leaves the pouch.
+    - A refused row stays, with its reason, until it's asked for again or its item goes. A request with no answer refuses each of its picks with that error.
+    - Nothing is ever sent again on its own.
+    - It closes once nothing is in reach: walked away, emptied, gone, or dead. The store clears on a map change.
+  - **The words:** 330039 "That's gone already.", 330040 "Too far away.", 330041 "Still taking that."
+  - **Gone:**
+    - the drop gems and their flight;
+    - the combat log's waiting list and the HUD's waiting notice;
+    - the NPC window counting waiting drops into a reward's room.
 
 ## 8. cmd/bot
 
@@ -155,6 +214,10 @@
   - A calm boss blocks no way, so bots no longer wait bosses out in the town.
   - A bot keeps its prey and its hunt 15 m from a boss (`bossClear`). That's past the boss's body plus either the widest area a skill covers with a bot's reach, or the longest shot that goes on past its first mob, so no blow of a bot's wakes it. A test checks the margin against the data.
 - **Step 2:** bots open every pouch in reach and take all, so the soak (large-regions.md section 13) counts the takes' calls.
+- **Step 2, as built:**
+  - A bot walks to its nearest pouch within 20 m. There it takes everything in that pouch, and in any other within half the reach, one take at a time.
+  - It leaves a pouch it finds no way to, or one holding an item its bag has no room for.
+  - Its stats count the items taken.
 
 ## 9. Testing
 
@@ -206,13 +269,14 @@ The user's choices are in section 1. These calls were made in planning and logge
 2. **One window for every pouch in reach,** and T again takes all, so a kill streak is one press to open and one to take.
 3. **Nothing follows its owner anymore.** A pouch waits where it fell: 60 s for a pouch, 2 min for a boss's box.
 4. **A pouch on 1 kill in 4, and 1 in 2 for an elite.** A boss always leaves each eligible player a box.
-5. **Items an active quest still needs are rolled at their own chance,** outside the pouch's gate, so quests take no more kills. They still come in a pouch.
+5. **Items an active quest still needs are rolled at their own chance,** outside the pouch's gate, so quests take no more kills. They still come in a pouch. As built, "still needs" is "an active quest collects it", since the world doesn't hold the bag (section 4).
 6. **Party turns move per pouch,** not per item.
 7. **A full tab refuses that item only;** it stays in the pouch until its life ends.
 8. **A boss is up when its map starts,** never leaves, and its bar shows no time. The map window shows when it's back.
 9. **Taking works in combat,** not while dead.
 10. **The reach is 2 m,** with 0.5 m of slack on the server for the client's lead.
 11. **A standing boss fights only once provoked,** so bosses on narrow maps never block paths. With bosses up for good, King Slime saw the whole forest's way from the town to the cave, and the Vampire Bat stands among the cave's bats.
+12. **A take waits behind its owner's call in flight, and only one waits.** A further take is busy, unless it picks from the same pouches, which it joins. Pressing T over and over never piles up calls.
 
 ## 12. Alternatives considered
 

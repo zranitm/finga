@@ -44,6 +44,8 @@ import {
   WelcomeSchema,
   MatchPhase,
   MatchStateSchema,
+  PouchKind,
+  PouchViewSchema,
 } from '@/protocol/messages';
 import { dash, endSprint, step } from '@/sim/step';
 import type { State } from '@/sim/step';
@@ -55,6 +57,7 @@ import { fieldBoss } from '@/state/field-boss';
 import { mapView } from '@/state/map-view';
 import { nearby } from '@/state/nearby';
 import { party } from '@/state/party';
+import { pouches } from '@/state/pouches';
 import { pvp } from '@/state/pvp';
 import { quests } from '@/state/quests';
 import { settings } from '@/state/settings';
@@ -684,9 +687,9 @@ describe('World', () => {
     const near = await playing('town', 16, 14.5, 'thief');
     near.frames(1);
     expect(near.label('prompt')).toBe('Z Talk');
-    settings.getState().setKeys({ talk: 'KeyT' });
+    settings.getState().setKeys({ talk: 'KeyG' });
     near.frames(1);
-    expect(near.label('prompt')).toBe('T Talk');
+    expect(near.label('prompt')).toBe('G Talk');
     quests.getState().applyNpcDialog(create(NpcDialogSchema, { npcId: 'town_guide' }));
     ui.getState().openWindow('npc');
     near.frames(1);
@@ -1722,7 +1725,7 @@ describe('World', () => {
     });
   });
 
-  it('readies a fight’s shaders as the map starts, out of sight: every look played off the map and gone again, each gem’s, and the outline’s before any lock', async () => {
+  it('readies a fight’s shaders as the map starts, out of sight: every look played off the map and gone again, and the outline’s before any lock', async () => {
     const p = await playing(FLAT, 4, 20);
     const offMap = () => p.scene()!.meshes.filter((m) => m.isEnabled() && !onMap(m)).length;
     expect(offMap()).toBeGreaterThan(0);
@@ -1731,26 +1734,103 @@ describe('World', () => {
     }
     expect([
       offMap(),
-      p.scene()!.meshes.filter((m) => m.name === 'kept gem').length,
       builtShaders(p.scene()!.getEngine()).some((k) => k.startsWith('glowMapGeneration')),
-    ]).toEqual([0, 1, true]);
+    ]).toEqual([0, true]);
   });
 
-  it('draws a drop where it fell and flies it into the player who collects it', async () => {
+  /** A pouch of the player's at (x, 0, 20) holding one of each template. */
+  const pouch = (id: number, kind: PouchKind, x: number, ...templates: string[]) =>
+    create(PouchViewSchema, {
+      id,
+      kind,
+      x,
+      z: 20,
+      items: templates.map((template, i) => ({ item: i + 1, template, quantity: 1 })),
+      goneInMs: 60000n,
+    });
+
+  it('draws the player’s pouches where they fell, a kill’s as the sack and a box as the chest, gold for a 4★ item, and takes each away once gone', async () => {
     const p = await playing(FLAT, 4, 20);
-    const drops = () => p.scene()!.meshes.filter((m) => m.name === 'drop').length;
-    p.push(
-      'delta',
-      { drops: [{ id: 3, template: 'slime_gel', quantity: 1, x: 5, y: 0, z: 20, ownerId: ME }] },
-      { tick: 2 },
-    );
+    pouches
+      .getState()
+      .applyDelta(
+        [
+          pouch(3, PouchKind.POUCH, 10, 'slime_gel'),
+          pouch(4, PouchKind.BOX, 14, 'slime_gel'),
+          pouch(5, PouchKind.BOX, 18, 'slime_gel', 'gold_ring'),
+        ],
+        [],
+      );
+    const drawn = (id: number) => {
+      const root = p.scene()!.transformNodes.find((n) => n.name === `pouch ${id}`);
+      return (
+        root && {
+          at: root.position.asArray(),
+          meshes: root.getChildMeshes(false).map((m) => m.name),
+        }
+      );
+    };
+    await vi.waitFor(() => expect(drawn(5)?.meshes.length).toBeGreaterThan(0), WAIT);
+    expect(drawn(3)?.at).toEqual([10, 0, 20]);
+    expect(drawn(3)?.meshes).toContain('pouch 3 sack');
+    expect(drawn(4)?.meshes).toContain('pouch 4 chest_lid');
+    expect(drawn(5)?.meshes).toContain('pouch 5 chest_gold_lid');
+    pouches.getState().applyDelta([], [3, 5]);
+    expect([drawn(3), drawn(4)?.at, drawn(5)]).toEqual([undefined, [14, 0, 20], undefined]);
+  });
+
+  it('prompts the loot key, as bound, over the nearest pouch in reach of the player’s middle while the loot window is shut', async () => {
+    const p = await playing(FLAT, 4, 20);
+    pouches.getState().applyDelta([pouch(3, PouchKind.POUCH, 10, 'slime_gel')], []);
     p.frames(1);
-    expect(drops()).toBe(1);
-    p.push('delta', { collectedDrops: [3] }, { tick: 3 });
-    p.frames(3);
-    expect(drops()).toBe(1); // on its way
-    p.frames(5);
-    expect(drops()).toBe(0);
+    expect([pouches.getState().inReach, p.label('loot-prompt')]).toEqual([[], '']);
+    pouches.getState().applyDelta([pouch(4, PouchKind.POUCH, 5.5, 'slime_gel')], []); // 1.5 m away, its middle 0.875 m up: 1.74 m in all
+    p.frames(1);
+    expect([pouches.getState().inReach, p.label('loot-prompt')]).toEqual([[4], 'T Loot']);
+    settings.getState().setKeys({ loot: 'KeyG' });
+    p.frames(1);
+    expect(p.label('loot-prompt')).toBe('G Loot');
+    ui.getState().openWindow('loot');
+    p.frames(1);
+    expect(p.label('loot-prompt')).toBe('');
+  });
+
+  it('the loot key opens the window on the pouches in reach, pressed again takes all they hold in one TakeLoot, and walking out of reach closes it', async () => {
+    const p = await playing(FLAT, 4, 20);
+    const press = () => {
+      key('KeyT', true);
+      key('KeyT', false);
+    };
+    press();
+    expect(ui.getState().windows).toEqual([]); // nothing in reach
+    pouches
+      .getState()
+      .applyDelta(
+        [
+          pouch(4, PouchKind.POUCH, 5, 'slime_gel', 'red_potion'),
+          pouch(5, PouchKind.BOX, 3, 'gold_ring'),
+          pouch(6, PouchKind.POUCH, 30, 'slime_gel'),
+        ],
+        [],
+      );
+    p.frames(1);
+    press();
+    expect([ui.getState().windows, p.sent('takeLoot')]).toEqual([['loot'], []]);
+    press();
+    expect(p.sent('takeLoot')).toMatchObject([
+      {
+        picks: [
+          { pouch: 4, item: 1 },
+          { pouch: 4, item: 2 },
+          { pouch: 5, item: 1 },
+        ],
+      },
+    ]);
+    press(); // each pick in flight already: nothing asked twice
+    expect(p.sent('takeLoot')).toHaveLength(1);
+    pouches.getState().applyDelta([], [4, 5]);
+    p.frames(1);
+    expect(ui.getState().windows).toEqual([]);
   });
 
   it('plays on the keys the player bound, read at each press', async () => {

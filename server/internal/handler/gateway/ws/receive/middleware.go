@@ -106,6 +106,10 @@ func (h *Handler) respond(c *msgContext) {
 		c.Session.out.Reply(c.Message.ReqID, push.ErrorResponse(h.publicError(c)))
 		return
 	}
+	if r, ok := c.Result.(*clientv1.Response); ok { // a command whose answer is more than ok, as a TakeLoot's
+		c.Session.out.Reply(c.Message.ReqID, r)
+		return
+	}
 	c.Session.out.Reply(c.Message.ReqID, &clientv1.Response{Ok: true})
 	if result, ok := c.Result.(proto.Message); ok {
 		c.Session.out.Reply("", result)

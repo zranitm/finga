@@ -117,6 +117,9 @@ var (
 	TraitUnknown         = Public{330036, "TRAIT_UNKNOWN", "that skill has no such trait"}
 	InCombat             = Public{330037, "IN_COMBAT", "you can't change traits or looks in combat"}
 	TraitLocked          = Public{330038, "TRAIT_LOCKED", "that trait opens once the skill reaches its last evolution"}
+	PouchGone            = Public{330039, "POUCH_GONE", "that pouch is gone, or the item is already taken"}
+	PouchOutOfReach      = Public{330040, "POUCH_OUT_OF_REACH", "that pouch is too far away"}
+	TakeBusy             = Public{330041, "TAKE_BUSY", "you're still taking that, or your last pick"}
 )
 
 // 44: parties and chat.

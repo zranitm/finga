@@ -10,9 +10,14 @@ import (
 const lootFile = "loot.yaml"
 
 type lootYAML struct {
-	CollectDelay   time.Duration `yaml:"collect_delay"`
-	DropLife       time.Duration `yaml:"drop_life"`
-	RoomCheckEvery time.Duration `yaml:"room_check_every"`
+	Pouch struct {
+		Normal float64 `yaml:"normal"`
+		Elite  float64 `yaml:"elite"`
+	} `yaml:"pouch"`
+	Reach      float64       `yaml:"reach"`
+	PouchLife  time.Duration `yaml:"pouch_life"`
+	BoxLife    time.Duration `yaml:"box_life"`
+	PouchesMax int           `yaml:"pouches_max"`
 }
 
 func (l *loader) loadLoot(dir string) error {
@@ -20,18 +25,33 @@ func (l *loader) loadLoot(dir string) error {
 	if err := readYAML(dir, lootFile, &y); err != nil {
 		return err
 	}
+	for _, c := range []struct {
+		name   string
+		chance float64
+	}{{"pouch.normal", y.Pouch.Normal}, {"pouch.elite", y.Pouch.Elite}} {
+		if !(c.chance > 0 && c.chance <= 1) {
+			return fmt.Errorf("%s: %s must be in (0, 1]", lootFile, c.name)
+		}
+	}
 	for _, v := range []struct {
 		name  string
 		value time.Duration
-	}{{"collect_delay", y.CollectDelay}, {"drop_life", y.DropLife}, {"room_check_every", y.RoomCheckEvery}} {
+	}{{"pouch_life", y.PouchLife}, {"box_life", y.BoxLife}} {
 		if v.value <= 0 {
 			return fmt.Errorf("%s: %s must be positive", lootFile, v.name)
 		}
 	}
-	// A drop must have time to fly, and to be asked about again, before it is lost.
-	if y.CollectDelay >= y.DropLife || y.RoomCheckEvery >= y.DropLife {
-		return fmt.Errorf("%s: collect_delay and room_check_every must be shorter than drop_life", lootFile)
+	if y.PouchesMax < 1 {
+		return fmt.Errorf("%s: pouches_max must be at least 1", lootFile)
 	}
-	l.loot = gamedata.Loot(y)
+	l.loot = gamedata.Loot{Pouch: gamedata.PouchChance{Normal: y.Pouch.Normal, Elite: y.Pouch.Elite}, Reach: y.Reach, PouchLife: y.PouchLife, BoxLife: y.BoxLife, PouchesMax: y.PouchesMax}
+	return nil
+}
+
+// checkLootReach refuses a reach short of the talk reach, so a pouch at a character's feet is always in reach.
+func (l *loader) checkLootReach(string) error {
+	if !(l.loot.Reach >= l.talkReach) {
+		return fmt.Errorf("%s: reach %v must be at least the talk reach, %v", lootFile, l.loot.Reach, l.talkReach)
+	}
 	return nil
 }
