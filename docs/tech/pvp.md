@@ -581,6 +581,16 @@ As built for 1v1 (build step 2):
   - A member on a match's map shows "In a match" on their frame and in the Party window.
 - **The Map window** shows This map alone in a match. Sides, bases and points come with 15v15.
 
+As built for 3v3 (build step 5, the client):
+
+- **Frames:**
+  - The world scene tells a store, `state/fighters.ts`, each other fighter's level, HP and statuses as of the newest frame, and whether they're down. A fighter unchanged keeps its object, so its frame doesn't render again.
+  - A fighter shows once the world has drawn them.
+  - **Teammates** take the party frames' place in a round mode, in the same corner, with their BOT tags. A teammate who is down is dimmed, with "Down".
+  - **Enemies** show in a team mode under the match bar: one row of compact frames, wrapping before it reaches the corner's frames. The bar then leaves their names to the frames; in 1v1 it still names the enemy.
+  - A mode the client doesn't know has no rounds, so the party frames stay the party, as they will in 15v15.
+- **Party members:** the queue tag and the offer card say who is queued with the player ("with Robin and Jade"), from `PvpQueued`'s members, named as their party names them.
+
 ## 14. Balance
 
 - **The harness,** `pvp_balance_test.go`, sits beside the rotation harness in `model/world`, on its helpers, against a player's kit, whom no blow MISSes. Its targets:

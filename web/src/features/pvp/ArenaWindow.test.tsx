@@ -3,7 +3,16 @@ import { act, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ERR } from '@/protocol/errors';
-import { MatchPhase, MatchStateSchema, PvpQueuedSchema } from '@/protocol/messages';
+import {
+  MatchPhase,
+  MatchStateSchema,
+  PartyStateSchema,
+  PartyViewSchema,
+  PvpQueuedSchema,
+  WelcomeSchema,
+} from '@/protocol/messages';
+import { character } from '@/state/character';
+import { party } from '@/state/party';
 import { pvp } from '@/state/pvp';
 import { settings } from '@/state/settings';
 import { toasts } from '@/state/toasts';
@@ -102,6 +111,41 @@ describe('QueueTag', () => {
     expect(tag).toHaveClass('low');
     act(() => within(tag).getByRole('button', { name: 'Leave the queue' }).click());
     expect(calls).toEqual([{ t: 'pvpLeaveQueue', d: {} }]);
+  });
+
+  it('names the party members queued with the player, and none for one queued alone', () => {
+    render(<QueueTag socket={fakeSocket().socket} />);
+    act(() => {
+      character
+        .getState()
+        .applyWelcome(
+          create(WelcomeSchema, { character: { id: 'c-ayla', name: 'Ayla', class: 'warrior' } }),
+        );
+      party.getState().applyPartyState(
+        create(PartyStateSchema, {
+          party: create(PartyViewSchema, {
+            leader: 'c-ayla',
+            members: [
+              { characterId: 'c-ayla', name: 'Ayla' },
+              { characterId: 'c-robin', name: 'Robin' },
+              { characterId: 'c-jade', name: 'Jade' },
+            ],
+          }),
+        }),
+      );
+      pvp
+        .getState()
+        .applyQueued(
+          create(PvpQueuedSchema, { mode: 'team', members: ['c-ayla', 'c-robin', 'c-jade'] }),
+        );
+    });
+    expect(screen.getByRole('status', { name: 'In the 3v3 queue' })).toHaveTextContent(
+      '3v3 queuewith Robin and Jade0:00',
+    );
+    act(() =>
+      pvp.getState().applyQueued(create(PvpQueuedSchema, { mode: 'team', members: ['c-ayla'] })),
+    );
+    expect(screen.getByRole('status')).not.toHaveTextContent('with');
   });
 
   it('keeps no clock running till the player queues, and lets go of it when they leave', () => {

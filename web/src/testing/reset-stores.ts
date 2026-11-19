@@ -5,6 +5,7 @@ import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
 import { energy } from '@/state/energy';
 import { fieldBoss } from '@/state/field-boss';
+import { fighters } from '@/state/fighters';
 import { inventory } from '@/state/inventory';
 import { keyboardLayout } from '@/state/keyboard-layout';
 import { mapView } from '@/state/map-view';
@@ -46,6 +47,7 @@ export function resetStores(): void {
     mapView,
     teleport,
     pvp,
+    fighters,
     pouches,
   ]) {
     store.reset();
