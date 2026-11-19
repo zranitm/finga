@@ -61,6 +61,8 @@ export interface PvpState {
   readonly queued: Queued | null;
   readonly offer: Offer | null;
   readonly match: Match | null;
+  /** The match the player was moved out of, kept for its MatchEnded, which a forfeit's MapChange comes before. */
+  readonly left: Match | null;
   /** The last match's outcome, shown till the player closes it. */
   readonly outcome: Outcome | null;
   applyQueued(d: Data<'pvpQueued'>): void;
@@ -87,6 +89,7 @@ export const pvp = defineStore<PvpState>((set, get) => ({
   queued: null,
   offer: null,
   match: null,
+  left: null,
   outcome: null,
   applyQueued: (d) => {
     set({ queued: { mode: d.mode, since: performance.now() - d.sinceMs } });
@@ -126,11 +129,12 @@ export const pvp = defineStore<PvpState>((set, get) => ({
           s.fighters.map((f) => ({ id: f.id, name: f.name, cls: f.class, bot: f.bot })),
         ),
       },
+      left: null,
       ...(was?.id !== d.match && { outcome: null }),
     });
   },
   applyMatchEnded: (d, me) => {
-    const m = get().match;
+    const m = get().match ?? get().left;
     const side = sideOf(m, me);
     const [one = 0, two = 0] = d.wins;
     const r = d.rating;
@@ -149,16 +153,17 @@ export const pvp = defineStore<PvpState>((set, get) => ({
             }
           : null,
       },
+      left: null,
     });
   },
   leftMatch: () => {
-    set({ match: null });
+    set({ match: null, left: get().match ?? get().left });
   },
   dismissOutcome: () => {
-    set({ outcome: null });
+    set({ outcome: null, left: null });
   },
   clear: () => {
-    set({ queued: null, offer: null, match: null, outcome: null });
+    set({ queued: null, offer: null, match: null, left: null, outcome: null });
   },
 }));
 

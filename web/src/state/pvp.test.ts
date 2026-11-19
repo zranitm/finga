@@ -145,6 +145,24 @@ describe('pvp', () => {
     expect(pvp.getState().outcome).toMatchObject({ mode: '', rounds: [2, 0], rating: null });
   });
 
+  it('a forfeit’s outcome, whose MapChange comes before its MatchEnded, keeps the match’s mode and counts rounds from the player’s side, side 2 here', () => {
+    pvp.getState().applyMatchState(duel(MatchPhase.FIGHT, [1, 0]));
+    pvp.getState().leftMatch(); // the forfeiter's MapChange
+    expect(pvp.getState().match).toBeNull();
+    pvp
+      .getState()
+      .applyMatchEnded(
+        create(MatchEndedSchema, { result: MatchOutcome.LOSS, wins: [1, 0] }),
+        'c-ayla',
+      );
+    expect(pvp.getState().outcome).toMatchObject({ mode: 'duel', rounds: [0, 1] });
+    expect(pvp.getState().left).toBeNull();
+    pvp.getState().applyMatchState(duel(MatchPhase.FIGHT, [0, 0], 'mt-2'));
+    pvp.getState().leftMatch();
+    pvp.getState().dismissOutcome(); // the card closed: no MatchEnded is waited for
+    expect(pvp.getState().left).toBeNull();
+  });
+
   it('the wall stands and everyone holds through prep and the count into a round only', () => {
     expect(
       [
