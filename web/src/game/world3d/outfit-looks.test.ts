@@ -7,7 +7,13 @@ import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 
-import { changedSwatches, recolour, shrink, skinSwatches } from '../../../scripts/atlas.ts';
+import {
+  changedSwatches,
+  colourway,
+  recolour,
+  shrink,
+  skinSwatches,
+} from '../../../scripts/atlas.ts';
 import type { Raw } from '../../../scripts/atlas.ts';
 
 import { MODELS } from './model-looks';
@@ -111,6 +117,23 @@ describe('a KayKit atlas', () => {
     );
     rows[2]![7] = cell(40, 40, 60); // a mage's hands
     expect([...skinSwatches(atlasOf(rows))].sort()).toEqual(['0,0', '7,2']);
+  });
+
+  it('makes a colourway of any swatch but skin, refusing the face’s and one sharing its colours', () => {
+    const rows = Array.from({ length: 4 }, (_, y) =>
+      Array.from({ length: 8 }, (_, x) => cell(10 * x + 40, 10 * y + 40, 60)),
+    );
+    rows[2]![7] = cell(40, 40, 60); // a mage's hands
+    const atlas = atlasOf(rows);
+    expect(colourway(atlas, 'red', { '3,1': 0xff0000 })).toEqual(
+      recolour(atlas, { '3,1': 0xff0000 }),
+    );
+    expect(() => colourway(atlas, 'pale', { '0,0': 0xffffff })).toThrow(
+      'colourway pale changes skin, 0,0',
+    );
+    expect(() => colourway(atlas, 'gloves', { '3,1': 0xff0000, '7,2': 0 })).toThrow(
+      'colourway gloves changes skin, 7,2',
+    );
   });
 
   it('recolours a swatch to its new colour, scaled by each pixel’s lightness against the swatch’s mean', () => {

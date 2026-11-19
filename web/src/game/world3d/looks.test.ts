@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { classes } from '@/gamedata/classes';
 import { mobs } from '@/gamedata/mobs';
@@ -32,9 +32,22 @@ describe('looks', () => {
     expect(playerLook('thief', { ...none, hideHeadwear: true })).toEqual(
       classLook('thief', { looks: [], bareHead: true }),
     );
-    expect(() => playerLook('thief', { ...none, face: 'golden_mask' })).toThrow(
-      'no piece golden_mask',
+  });
+
+  it('draw the class’s own for a piece this client’s data lacks, as an older client sees a newer one, and say so once', () => {
+    const said = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const none = { outfit: '', headwear: '', face: '', weapon: '', wings: '', hideHeadwear: false };
+    const newer = { ...none, outfit: 'mage_robe', face: 'golden_mask' };
+    expect(playerLook('thief', newer)).toEqual(
+      classLook('thief', { looks: ['mage_body'], bareHead: false }),
     );
+    expect(playerLook('bowman', newer)).toEqual(
+      classLook('bowman', { looks: ['mage_body'], bareHead: false }),
+    );
+    expect(said.mock.calls).toEqual([
+      ["finga: no piece golden_mask in this client's data; drawn as the class's own"],
+    ]);
+    said.mockRestore();
   });
 
   it('name a body by its class and what its look shows, so either changing redraws it', () => {

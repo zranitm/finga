@@ -689,17 +689,22 @@ describe('World', () => {
     const real = unspied();
     let release!: () => void;
     const held = new Promise<void>((r) => (release = r));
+    let bowmanBuilt: Promise<unknown> = Promise.resolve();
     const make = vi.spyOn(Figures.prototype, 'make').mockImplementation(function (
       this: Figures,
       look,
     ) {
       const made = real.call(this, look);
+      if (look.file === bowman) {
+        bowmanBuilt = made;
+      }
       return look.file === bowman ? held.then(() => made) : made;
     });
     p.push('delta', { players: [standing(8, 20, 'c-robin', 'bowman')] }, { tick: 7 });
     p.frames(3);
-    await new Promise((r) => setTimeout(r, 50));
-    expect(p.root(thief!)).toBeDefined(); // the bowman still loading
+    await bowmanBuilt;
+    await new Promise((r) => setImmediate(r));
+    expect(p.root(thief!)).toBeDefined(); // the bowman built but held back
     expect(make).toHaveBeenCalledTimes(1);
     p.push('delta', { players: [standing(8, 20, 'c-robin', 'magician')] }, { tick: 8 });
     p.frames(1);
@@ -738,6 +743,30 @@ describe('World', () => {
     expect(shown('2H_Axe worn')).toBe(true);
     expect(shown('Mage_Body worn')).toBe(false);
     expect(shown('Knight_Body')).toBe(true); // the player's own knight, as their class draws them
+  });
+
+  it('draws a player wearing a piece this client’s data lacks in their class’s own for it, and keeps drawing the world', async () => {
+    const said = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const p = await playing(FLAT, 4, 20);
+    const shown = (name: string) =>
+      !!p.scene()?.meshes.some((m) => m.name === name && m.isEnabled());
+    for (let tick = 2; tick <= 6; tick++) {
+      const look = create(LookSchema, { outfit: 'mage_robe', headwear: 'crown_of_tomorrow' });
+      p.push(
+        'delta',
+        tick === 2 ? { players: [{ ...standing(8, 20, 'c-robin', 'thief'), look }] } : {},
+        {
+          tick,
+        },
+      );
+      p.frames(1);
+    }
+    await vi.waitFor(() => expect(shown('Mage_Body worn')).toBe(true), WAIT);
+    const before = p.inputs();
+    p.live(5);
+    expect(p.inputs() - before).toBe(5); // still stepping
+    expect(said).toHaveBeenCalledWith(expect.stringContaining('no piece crown_of_tomorrow'));
+    said.mockRestore();
   });
 
   it('dresses the player in what their own frame says they wear, and keeps the figure through a look that wears nothing', async () => {

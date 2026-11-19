@@ -18,7 +18,7 @@ import {
   partsFile,
 } from '../src/game/world3d/outfit-looks.ts';
 
-import { recolour, shrink, skinSwatches } from './atlas.ts';
+import { colourway, shrink } from './atlas.ts';
 import type { Raw } from './atlas.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -205,12 +205,7 @@ for (const [file, meshes] of byParts) {
 }
 for (const [key, c] of Object.entries(COLOURWAYS)) {
   const atlas = await atlasOf(await io.read(join(srcDir, c.file)), c.file);
-  const skin = skinSwatches(atlas);
-  const onSkin = Object.keys(c.swatches).filter((s) => skin.has(s));
-  if (onSkin.length > 0) {
-    throw new Error(`models: colourway ${key} changes skin, ${onSkin.join(' ')}`);
-  }
-  const out = shrink(recolour(atlas, c.swatches), COLOURWAY_PX);
+  const out = shrink(colourway(atlas, key, c.swatches), COLOURWAY_PX);
   const png = await sharp(out.data, {
     raw: { width: out.width, height: out.height, channels: out.channels as 3 | 4 },
   })

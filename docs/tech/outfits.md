@@ -214,7 +214,7 @@ Changing looks in combat is `IN_COMBAT` (330037), the code a trait change in com
 - **As built (step 2):**
   - `npm run gen` writes each piece's id, slot and look key to `gamedata/outfits.ts`. A test checks each has a look of its slot. A piece the data lacks throws rather than draw something else.
   - A body is named by its class and each slot's piece, so a promotion or a look change redraws it, and a look wearing nothing keeps the class's own figure. The player is dressed by their own first frame, others by theirs. The old figure stays until the new one is in.
-  - Dressing comes after `stand()`, so no piece or bare head changes the body's size. A bare head hides headwear only.
+  - Dressing comes after `stand()`, so no piece or bare head changes the body's size. A bare head hides headwear only. The hooded Rogue's hood is part of its head, so it stays, and headwear sits over it.
   - Rigged class files and parts files keep raw positions. Quantizing folds each file's grid into its skins' inverse bind matrices, so files' rigs differed; a test holds one rig across them.
   - A skin swatch is the face's atlas cell and any cell sharing its colours, such as the Mage's hands.
   - A crowd of 40 dressed players drew within noise of 40 in their class's own looks.

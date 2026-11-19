@@ -376,7 +376,7 @@ describe('wings worn', () => {
         seen.push(openOf(left, 1));
         expect(openOf(right, -1)).toBeCloseTo(openOf(left, 1), 9); // mirrored
       }
-      expect(Math.max(...seen), state).toBeCloseTo(flap.open + flap.swing, 0);
+      expect(Math.max(...seen), state).toBeCloseTo(Math.min(90, flap.open + flap.swing), 0); // never past spread flat
       expect(Math.min(...seen), state).toBeCloseTo(flap.open - flap.swing, 0);
     }
     b.dispose();
@@ -404,6 +404,33 @@ describe('wings worn', () => {
     for (const name of ['Test_Wing_L', 'Test_Wing_R']) {
       expect(tip(b, name).z, name).toBeLessThan(chest.getAbsolutePosition().z - 0.3 * SPAN); // folded straight back
     }
+    b.dispose();
+  });
+
+  it('fold through a block, a flinch, a knockdown and the rise from it, and open again after each', async () => {
+    const b = await make({ ...classLook('warrior'), wear: [TEST_WINGS] });
+    const { left } = hinges(b);
+    let now = run(b, 0, 500, STILL);
+    const open = () => openOf(left, 1) > FLAPS.standing.open - FLAPS.standing.swing - 0.01;
+    const block = beatsAt(now, now + 1000);
+    b.act('block', block);
+    now = run(b, now, WING_EASE_MS + FRAME_MS, STILL);
+    expect(openOf(left, 1), 'block').toBeCloseTo(FLAPS.folded.open, 9);
+    now = run(b, block.readyAt, WING_EASE_MS + FRAME_MS, STILL);
+    expect(open(), 'after the block').toBe(true);
+    b.pose('flinch', now);
+    now = run(b, now, WING_EASE_MS + FRAME_MS, STILL);
+    expect(openOf(left, 1), 'flinch').toBeCloseTo(FLAPS.folded.open, 9);
+    now = run(b, now, 2000, STILL);
+    expect(open(), 'after the flinch').toBe(true);
+    b.pose('down', now);
+    now = run(b, now, 2000, STILL);
+    expect(openOf(left, 1), 'down').toBeCloseTo(FLAPS.folded.open, 9);
+    b.pose('rising', now);
+    now = run(b, now, FRAME_MS, STILL);
+    expect(openOf(left, 1), 'rising').toBeCloseTo(FLAPS.folded.open, 9);
+    now = run(b, now, 2000, STILL);
+    expect(open(), 'risen').toBe(true);
     b.dispose();
   });
 

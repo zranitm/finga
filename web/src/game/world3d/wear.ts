@@ -163,9 +163,9 @@ function hinged(source: Mesh, chest: TransformNode, hinges: Hinge[]): Mesh {
 
 /** How a pair of wings moves: a beat's length, the swing either side, and how far open, in degrees from folded straight back to 90, spread flat. */
 interface Flap {
-  readonly beatMs: number;
-  readonly swing: number;
-  readonly open: number;
+  beatMs: number;
+  swing: number;
+  open: number;
 }
 
 /** Each state's flap (outfits.md section 6); folded keeps its beat, with no swing. */
@@ -200,8 +200,8 @@ export function wingState(gait: Gait, acting: boolean): WingState {
 /** Turns a pair's hinges each frame: open and swinging by the state's flap, eased over WING_EASE_MS from wherever a change of state found them. */
 export class Wings {
   private state: WingState = 'standing';
-  private from: Flap = FLAPS.standing;
-  private now: Flap = FLAPS.standing;
+  private readonly from: Flap = { ...FLAPS.standing };
+  private readonly now: Flap = { ...FLAPS.standing };
   private changedAt = -Infinity;
   private phase = 0; // of the beat, in beats
 
@@ -212,24 +212,23 @@ export class Wings {
   update(now: number, dtMs: number, state: WingState): void {
     if (state !== this.state) {
       this.state = state;
-      this.from = this.now;
+      Object.assign(this.from, this.now);
       this.changedAt = now;
     }
     const to = FLAPS[state];
     const k = Math.min(1, Math.max(0, (now - this.changedAt) / WING_EASE_MS));
     const toBeat = 'beatMs' in to ? to.beatMs : this.from.beatMs;
-    this.now = {
-      beatMs: this.from.beatMs + (toBeat - this.from.beatMs) * k,
-      swing: this.from.swing + (to.swing - this.from.swing) * k,
-      open: this.from.open + (to.open - this.from.open) * k,
-    };
+    this.now.beatMs = this.from.beatMs + (toBeat - this.from.beatMs) * k;
+    this.now.swing = this.from.swing + (to.swing - this.from.swing) * k;
+    this.now.open = this.from.open + (to.open - this.from.open) * k;
     this.phase = (this.phase + dtMs / this.now.beatMs) % 1;
     this.turn();
   }
 
-  /** Turns each half back from spread flat by its open angle less 90, about the chest's up axis. */
+  /** Turns each half back from spread flat by its open angle less 90, about the chest's up axis; a swing never takes it past either. */
   private turn(): void {
-    const open = this.now.open + this.now.swing * Math.sin(2 * Math.PI * this.phase);
+    const swung = this.now.open + this.now.swing * Math.sin(2 * Math.PI * this.phase);
+    const open = Math.min(90, Math.max(0, swung));
     for (const h of this.hinges) {
       h.node.rotation.y = h.side * (90 - open) * RAD;
     }

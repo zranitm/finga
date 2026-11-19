@@ -79,7 +79,7 @@ import type { DropChanges, Point } from '../systems/drops';
 import { FeedWatch } from '../systems/feed-watch';
 import { InputSender } from '../systems/input-sender';
 import { RemotePlayers, RenderClock } from '../systems/interpolation';
-import type { RemoteLook } from '../systems/interpolation';
+import type { LookWire, RemoteLook } from '../systems/interpolation';
 import { bindKeyboard } from '../systems/keyboard';
 import { Lock } from '../systems/lock';
 import { initialTransition, transition } from '../systems/map-transition';
@@ -178,6 +178,7 @@ class Drawn {
   private latest = 0; // the redraw whose figure it waits for; an older one that comes after is dropped
   private last: { x: number; y: number; z: number } | null = null;
   private posed: { p: Pose; at: number } = { p: 'up', at: 0 };
+  private keyed: { cls: string; look: LookWire | undefined } | null = null;
 
   /** as: what it's drawn as, which a redraw changes. */
   constructor(
@@ -187,6 +188,18 @@ class Drawn {
   ) {
     this.yaw = yaw;
     this.redraw(made, as);
+  }
+
+  /** Redraws a player when their class or what their look shows has changed; a frame's look is weighed only when it's a new one. */
+  dress(cls: string, look: LookWire | undefined, made: (look: ModelLook) => Promise<Figure>): void {
+    if (this.keyed?.cls === cls && this.keyed.look === look) {
+      return;
+    }
+    this.keyed = { cls, look };
+    const as = drawnAs(cls, look);
+    if (as !== this.as) {
+      this.redraw(made(playerLook(cls, look)), as); // a promotion or a wardrobe change
+    }
   }
 
   /** Draws it as made from now on, once made is in, which a later redraw overtakes; till then it shows what it did. */
@@ -1034,14 +1047,12 @@ export class World {
       let v = this.remoteViews.get(id);
       const cls = remotes.classOf(id);
       const look = remotes.lookOf(id);
-      const as = drawnAs(cls, look);
       if (!v) {
-        v = this.drawn(playerLook(cls, look), yawOf(s.hx, s.hz), as);
+        v = this.drawn(playerLook(cls, look), yawOf(s.hx, s.hz), drawnAs(cls, look));
         this.remoteViews.set(id, v);
         changed = true;
-      } else if (v.as !== as) {
-        v.redraw(this.made(playerLook(cls, look)), as); // a promotion or a wardrobe change
       }
+      v.dress(cls, look, this.dressing);
       const aim = this.remoteAims.get(id);
       v.draw(
         s.x,
@@ -1327,12 +1338,10 @@ export class World {
 
   /** Redraws the player when their class or what their newest frame says they wear has changed. */
   private dressMe(): void {
-    const look = this.latestMe?.look;
-    const as = drawnAs(this.meCls, look);
-    if (this.me && this.me.as !== as) {
-      this.me.redraw(this.made(playerLook(this.meCls, look)), as);
-    }
+    this.me?.dress(this.meCls, this.latestMe?.look, this.dressing);
   }
+
+  private readonly dressing = (look: ModelLook) => this.made(look);
 
   /** A figure for look, drawn as as, made in the background. */
   private drawn(look: ModelLook, yaw: number, as = look.file): Drawn {

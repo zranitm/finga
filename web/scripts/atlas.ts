@@ -47,6 +47,16 @@ export function skinSwatches(raw: Raw): Set<string> {
   return skin;
 }
 
+/** Colourway key of raw: its swatches recoloured; one that's skin is refused, as skin never changes. */
+export function colourway(raw: Raw, key: string, swatches: Readonly<Record<string, number>>): Raw {
+  const skin = skinSwatches(raw);
+  const onSkin = Object.keys(swatches).filter((s) => skin.has(s));
+  if (onSkin.length > 0) {
+    throw new Error(`colourway ${key} changes skin, ${onSkin.join(' ')}`);
+  }
+  return recolour(raw, swatches);
+}
+
 /** A copy with each named swatch in its new colour: each pixel the colour scaled by its lightness against the swatch's mean, so the gradient stays. */
 export function recolour(raw: Raw, swatches: Readonly<Record<string, number>>): Raw {
   const sum = new Map<string, { total: number; n: number }>();

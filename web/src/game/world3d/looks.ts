@@ -48,6 +48,21 @@ export function drawnAs(cls: string, look: LookWire | undefined): string {
   return shown.every((s) => s === '') ? cls : `${cls} ${shown.join('|')}`;
 }
 
+const unknownPieces = new Set<string>();
+
+/** Piece id's look key, or none for a piece this client's data lacks, as a client older than the server's has: said once, and the class's own drawn for that slot. */
+function pieceLook(id: string): string[] {
+  const piece = outfits.pieces.find((p) => p.id === id);
+  if (piece) {
+    return [piece.look];
+  }
+  if (!unknownPieces.has(id)) {
+    unknownPieces.add(id);
+    console.info(`finga: no piece ${id} in this client's data; drawn as the class's own`);
+  }
+  return [];
+}
+
 /** A player's model: their class's, in what their look wears. */
 export function playerLook(cls: string, look: LookWire | undefined): ModelLook {
   if (!look || drawnAs(cls, look) === cls) {
@@ -55,13 +70,7 @@ export function playerLook(cls: string, look: LookWire | undefined): ModelLook {
   }
   const looks = slotsOf(look)
     .filter((id) => id !== '')
-    .map((id) => {
-      const piece = outfits.pieces.find((p) => p.id === id);
-      if (!piece) {
-        throw new Error(`no piece ${id}`); // the server wears only pieces its data has, which this was built from
-      }
-      return piece.look;
-    });
+    .flatMap(pieceLook);
   return classLook(cls, { looks, bareHead: look.hideHeadwear });
 }
 
@@ -91,7 +100,7 @@ export function classLook(cls: string, wearing?: Wearing): ModelLook {
   const wear = wearing.looks.map((k) => {
     const piece = PIECE_LOOKS[k];
     if (!piece) {
-      throw new Error(`no piece look ${k}`); // the data names a look the client hasn't mapped
+      throw new Error(`no piece look ${k}`); // the generated data names a look the client hasn't mapped, which looks.test refuses
     }
     return piece;
   });
