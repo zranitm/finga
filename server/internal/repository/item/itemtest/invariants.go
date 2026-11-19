@@ -4,6 +4,7 @@ package itemtest
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,6 +16,7 @@ import (
 type Content interface {
 	Item(id string) (gamedata.Item, bool)
 	EquipSlot(id string) (gamedata.EquipSlot, bool)
+	PieceIn(item string) (gamedata.Piece, bool)
 }
 
 // quantityMatchesEvents is check 5: each item's quantity equals its events' delta sum.
@@ -221,28 +223,50 @@ func wornMatchesEvents(ctx context.Context, pool *pgxpool.Pool) ([]string, error
 	return out, rows.Err()
 }
 
-// collectedMatchesWardrobe is check 13: each item has as many collected events as wardrobe entries name it, both ways.
-func collectedMatchesWardrobe(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
+// collectedMatchesWardrobe is check 13: each item has as many collected events for the piece it holds as wardrobe entries name that item and piece, both ways.
+func collectedMatchesWardrobe(ctx context.Context, pool *pgxpool.Pool, content Content) ([]string, error) {
+	type entry struct {
+		item  uuid.UUID
+		piece string
+	}
+	counts := map[entry][2]int64{} // collected events, wardrobe entries
 	rows, err := pool.Query(ctx, `
-		SELECT item_id, coalesce(e.n, 0), coalesce(p.n, 0)
-		FROM (SELECT item_id, count(*) AS n FROM item_events WHERE kind = 'collected' GROUP BY item_id) e
-		FULL JOIN (SELECT item_id, count(*) AS n FROM account_pieces WHERE item_id IS NOT NULL GROUP BY item_id) p USING (item_id)
-		WHERE coalesce(e.n, 0) <> coalesce(p.n, 0)
-		ORDER BY item_id`)
+		SELECT e.item_id, i.template_id, 0, count(*) FROM item_events e JOIN items i ON i.id = e.item_id WHERE e.kind = 'collected' GROUP BY 1, 2
+		UNION ALL
+		SELECT item_id, piece_id, 1, count(*) FROM account_pieces WHERE item_id IS NOT NULL GROUP BY 1, 2`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []string
 	for rows.Next() {
-		var id uuid.UUID
-		var events, pieces int64
-		if err := rows.Scan(&id, &events, &pieces); err != nil {
+		var e entry
+		var side int
+		var n int64
+		if err := rows.Scan(&e.item, &e.piece, &side, &n); err != nil {
 			return nil, err
 		}
-		out = append(out, fmt.Sprintf("item %s: %d collected events, %d wardrobe entries name it", id, events, pieces))
+		if side == 0 { // an event's template, to the piece it holds
+			if p, ok := content.PieceIn(e.piece); ok {
+				e.piece = p.ID
+			} else {
+				e.piece = "none, in " + e.piece
+			}
+		}
+		c := counts[e]
+		c[side] += n
+		counts[e] = c
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	var out []string
+	for e, c := range counts {
+		if c[0] != c[1] {
+			out = append(out, fmt.Sprintf("item %s, piece %s: %d collected events, %d wardrobe entries name them", e.item, e.piece, c[0], c[1]))
+		}
+	}
+	slices.Sort(out)
+	return out, nil
 }
 
 // dbOnly is a check that needs no game data.
@@ -263,7 +287,7 @@ var checks = []struct {
 	{"10 worn items fit their slots", wornFitsItsSlot},
 	{"11 equipment has its roll", equipmentHasItsRoll},
 	{"12 worn matches equip events", dbOnly(wornMatchesEvents)},
-	{"13 collected events match the wardrobe", dbOnly(collectedMatchesWardrobe)},
+	{"13 collected events match the wardrobe", collectedMatchesWardrobe},
 }
 
 // CheckInvariants runs every check against the game data's templates and returns all mismatches, each named by its check, in check order.

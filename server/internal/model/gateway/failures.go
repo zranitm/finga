@@ -115,7 +115,7 @@ var (
 	SkillChainNotReady   = Public{330034, "SKILL_CHAIN_NOT_READY", "that follow-up isn't offered now: its key's root doesn't chain to it, or its condition didn't hold"}
 	NotControlled        = Public{330035, "NOT_CONTROLLED", "a break-free skill goes only while you're held: stunned, frozen, asleep, knocked down or pinned"}
 	TraitUnknown         = Public{330036, "TRAIT_UNKNOWN", "that skill has no such trait"}
-	InCombat             = Public{330037, "IN_COMBAT", "you can't change traits in combat"}
+	InCombat             = Public{330037, "IN_COMBAT", "you can't change traits or looks in combat"}
 	TraitLocked          = Public{330038, "TRAIT_LOCKED", "that trait opens once the skill reaches its last evolution"}
 )
 

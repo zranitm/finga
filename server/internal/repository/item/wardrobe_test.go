@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 
@@ -251,6 +252,7 @@ func TestCheckThirteenCatchesAWardrobeOutOfStep(t *testing.T) {
 	ctx := context.Background()
 	for _, c := range []struct{ name, corrupt string }{
 		{"an entry lost", `DELETE FROM account_pieces`},
+		{"an entry naming another piece than its item holds", `UPDATE account_pieces SET piece_id = 'mage_robe'`},
 		{"an entry naming an item with no collected event", `INSERT INTO account_pieces (account_id, piece_id, cause_type, item_id, created_at, updated_at) SELECT account_id, 'mage_robe', 'item', gen_random_uuid(), now(), now() FROM account_pieces`},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -264,8 +266,8 @@ func TestCheckThirteenCatchesAWardrobeOutOfStep(t *testing.T) {
 				t.Fatal(err)
 			}
 			got, err := itemtest.CheckInvariants(ctx, h.pool, h.data)
-			if err != nil || len(got) != 1 || !strings.HasPrefix(got[0], "13 ") {
-				t.Fatalf("found %v, %v; want check 13's mismatch alone", got, err)
+			if err != nil || len(got) == 0 || slices.ContainsFunc(got, func(m string) bool { return !strings.HasPrefix(m, "13 ") }) {
+				t.Fatalf("found %v, %v; want check 13's mismatches alone", got, err)
 			}
 		})
 	}

@@ -573,7 +573,7 @@
     "code": 330037,
     "name": "IN_COMBAT",
     "status": 409,
-    "message": "you can't change traits in combat"
+    "message": "you can't change traits or looks in combat"
   },
   {
     "code": 330038,

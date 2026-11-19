@@ -270,7 +270,7 @@ func (m *Module) AddToWardrobe(ctx context.Context, actor Actor, r WardrobeReque
 	return resultOf(res), err
 }
 
-// SetLook wears four picks, each checked against the catalogue, the account's wardrobe and the class's weapon kind.
+// SetLook wears five picks, each checked against the catalogue, the account's wardrobe and the class's weapon kind.
 func (m *Module) SetLook(ctx context.Context, actor Actor, r LookRequest) (_ Result, err error) {
 	ctx, call := m.calls.Start(ctx, "SetLook")
 	defer call.End(&err)
