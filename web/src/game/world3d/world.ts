@@ -961,18 +961,16 @@ export class World {
     if (d.boss) {
       this.bossSent = d.boss;
     }
+    const leaving = new Set(removedPlayers);
     for (const p of d.players) {
       if (p.id === this.deps.player.characterId) {
         continue;
       }
       if (p.dead) {
         this.deadRemotes.add(p.id);
-      } else {
-        this.deadRemotes.delete(p.id);
+      } else if (!leaving.has(p.id)) {
+        this.deadRemotes.delete(p.id); // one leaving keeps its last pose till its figure goes, drawn behind the frame
       }
-    }
-    for (const id of removedPlayers) {
-      this.deadRemotes.delete(id);
     }
     const me = d.players.find((p) => p.id === this.deps.player.characterId);
     if (!me || !this.predictor) {
@@ -1085,6 +1083,7 @@ export class World {
       }
       this.remoteViews.get(id)?.dispose();
       this.remoteViews.delete(id);
+      this.deadRemotes.delete(id);
       this.labels.delete(`p:${id}`);
       this.remoteAims.delete(id);
       this.combat?.forget(id);
