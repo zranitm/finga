@@ -86,7 +86,7 @@ func (i *Instance) wear(p *player, look model.Look) {
 	}
 }
 
-// botLook is a bot's look, the same for one id: each slot either its class's own or a boss or feat piece, never a rank's, so a rank piece always means a player earned it, and a weapon look of its class's kind.
+// botLook is a bot's look, the same for one id: each slot its class's own or a catalogue piece, a weapon look of its class's kind. Every piece comes from a boss until step 4 adds rank sources, which bots must never wear.
 func botLook(data *gamedata.Data, id kernel.CharacterID, class kernel.Class) model.Look {
 	c, _ := data.Class(class)
 	seed := [16]byte(id)
