@@ -2,6 +2,8 @@
 
 > **Status: approved · 2026-11-18.** The high-level design for [C22. Buffs and hidden cooldowns on the frame](../product/features/combat-and-progression/c22-frame-icons.md). It extends the status icons of [Abnormal statuses](./statuses.md) section 6 on the player's frame, and reads the chains of [Skill chains](./skill-chains.md).
 
+> **Changed by [Large regions](./large-regions.md) section 7:** while walk mode is on, a walk icon comes first in the player's own row, before the buffs.
+
 ## 1. What has to hold
 
 - **The user's words** (2026-11-18): "the cooldown of chained skills (hidden after normal circumstance) should show as buff/debuff so that player can monitor the cd of them".

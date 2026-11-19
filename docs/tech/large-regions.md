@@ -14,6 +14,9 @@
   - A camera that zooms out to about 40 m and still faces north.
   - Rolled out region by region.
   - Regions generated from a plan.
+- **After the live test of sprint** (2026-11-19): "should have a key to trigger the sprint or walk, for e.g if i want to walk during without combat".
+  - Their choices: a key that switches between walk and sprint mode, which sprints at once when switched back while moving; Left Shift by default.
+  - They asked first for Ctrl+Shift. It was left out because on Windows Ctrl+Shift switches the keyboard layout, and it's the default switch of Vietnamese typing tools such as Unikey, which then take some letter presses. Chrome also keeps Ctrl+Shift with W, T and N.
 - **The client computes, the server validates:**
   - The client draws the land from baked files and predicts sprint.
   - The server decides every move, hit and channel, and only sends what a player can see.
@@ -346,6 +349,24 @@ Built with step 1, which says who watches a cell.
 - **The wire:** `PlayerView.sprint` (31) carries the count, as `held` and `slow` carry theirs, so the player's own reconcile replays from it. Others sprint at a count of 120, whatever their speed.
 - **The look:** the run clip at 1.3× with an 8° forward lean from the feet.
 
+### Walk mode
+
+- **The key:** the `walk` action, Left Shift by default (key-bindings.md), switches between sprint mode, the default, and walk mode. A held key's repeats don't switch it again.
+- **The rule, in the shared sim:**
+  - `sim.Input` gains `Walk`, the mode, and `State` gains `Walk`, the mode last stepped.
+  - In walk mode the count stays 0, so the body never sprints, and others see it walk.
+  - Back to sprint mode (`State.Walk` set, `Input.Walk` not) while walking out of combat, the count goes straight to `SprintSteps`, so it sprints from the next sub-step.
+  - Switched back while standing, or in combat, the count starts as usual, so the 2 s wait applies.
+  - A hold empties the keys but keeps the mode.
+- **The wire:**
+  - `Input.walk` (7) carries the mode with every input, so both sides step a switch at the same sub-step, with no marking as a press needs.
+  - `PlayerView.walk` (32) carries `State.Walk`, so the player's own reconcile replays from it. Others need only the count.
+- **No check:** walk only slows a player. The sprint at once is what any player gets from two presses out of combat.
+- **Kept** with the account's settings as `walk`, as the zoom is. A rejoin starts in the saved mode. Bots never walk.
+- **Shown:**
+  - Each switch gives a notice, "Walk" or "Sprint".
+  - While walk mode is on, a walk icon from game-icons.net (credited as C16's are) comes first in the player's own frame row (frame-icons.md). Its hover reads "Walk mode: no sprint. <key> to switch."
+
 ## 8. Waypoints and teleport
 
 - **Data:** waypoints come from the plan. A waypoint is a set piece, a tall stone with a glow, with a 12 m finding circle.
@@ -452,7 +473,12 @@ Built with step 1, which says who watches a cell.
   - **Sleep:** a far camp stays full, and its mobs wake as a player comes.
   - **Channels:** filling, a party kept together, a new channel opening, and a spare one closing.
   - **Areas:** the area's boss, a town's refusals, and respawn at the nearest point.
-  - **Sprint** in the shared vectors.
+  - **Sprint** in the shared vectors, walk mode too:
+    - walk mode never sprints;
+    - switching back while walking sprints from the next sub-step;
+    - switching back while standing or in combat waits the 2 s;
+    - a hold keeps the mode;
+    - a reconcile mid-switch replays with no correction.
   - **Waypoints:** finding, storage, and teleport rules.
 - **Client:**
   - chunks loading and unloading round a moving target;
@@ -472,7 +498,7 @@ Built with step 1, which says who watches a cell.
    - 2a: sim buckets (both sides, with vectors), and packed nav with its binned build;
    - 2b-1: blocker buckets in the Go sim, which mob moves, kept frames and knockbacks read;
    - 2b-2: body buckets in the arena, for sight, targeting, reach, `spread` and the rest.
-3. **Sprint and zoom:** the sim rule, `PlayerView.sprint`, the look, the camera, the zoom actions, and saved zoom.
+3. **Sprint and zoom:** the sim rule, `PlayerView.sprint`, the look, the camera, the zoom actions, and saved zoom. Then **walk mode** (section 7), its own PR: the sim rule and vectors, `Input.walk` and `PlayerView.walk`, the `walk` action and setting, the notice and the icon.
 4. **The pipeline,** in two PRs:
    - 4a: `regiongen`, the kit and the bake, and the preview;
    - 4b: the `region` kind and its loader rules, region channels, areas, towns, area bosses and respawn, and a test region.
@@ -496,7 +522,7 @@ The user's choices are in section 1. These calls were made in planning and logge
 1. **Terrain at 1 m,** not 0.5 m. Big rolling land needs no finer grid; towns and set pieces get their detail from solids.
 2. **Seen within about 100 m:** the interest block is 96 m. The land shows to the region's edge.
 3. **Channels of 150,** to be confirmed by the soak, filled least-full-first, with parties kept together.
-4. **Sprint needs no key:** 2 s of walking out of combat, ×1.6. Jumping keeps it.
+4. **Sprint needs no key held:** 2 s of walking out of combat, ×1.6. Jumping keeps it. Walk mode (section 1) turns it off.
 5. **Waypoints about every 150 m along roads,** found within 12 m. Each region's main town can always be teleported to.
 6. **Death returns to the nearest waypoint or town,** found or not.
 7. **The zoom runs from 16 m at 50° to 40 m at 35°,** with = and − as keys besides the wheel.
@@ -505,6 +531,8 @@ The user's choices are in section 1. These calls were made in planning and logge
 10. **A mob sleeps when no one watches its cell,** while its camp keeps filling.
 11. **The server generates each region; the client reads a bake the same generator writes.** Planned as one bake both sides read, and reversed in step 4a: the generator gives the same bits on every CPU, which the golden hashes needed anyway. So the server needs no artifact and can't run on one older than its plan (section 3).
 12. **The old maps stay behind a gate** until the region that covers their levels replaces them.
+13. **Walk mode shows** as a notice at each switch and a walk icon first on the player's own frame row, since the mode is kept between logins and a player who logs in walking should see why.
+14. **Only a switch made while moving sprints at once.** Switched back while standing or in combat, the 2 s wait applies, so a switch in a fight doesn't store a sprint for after it.
 
 ## 16. Alternatives considered
 

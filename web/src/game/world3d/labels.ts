@@ -1,4 +1,4 @@
-// Names, NPC markers, portal labels and the talk key's prompt (3d-world.md section 10, key-bindings.md section 6): DOM text over the canvas, each at its world point projected to the screen every frame, players' names lifted clear of the rest.
+// Names, NPC markers, portal labels and the talk key's prompt (3d-world.md section 10, key-bindings.md section 6): DOM text over the canvas, each at its world point projected to the screen every frame, players' names lifted clear of the rest; in a match enemies' names red and teammates' green, a bot's with a BOT tag (pvp.md section 13).
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 
 import { stackTags } from '@/lib/tags';
@@ -6,11 +6,14 @@ import type { TagBox } from '@/lib/tags';
 
 import type { Overlay, ScreenPoint } from './overlay';
 
-export type LabelKind = 'self' | 'player' | 'npc' | 'marker' | 'portal' | 'prompt';
+export type LabelKind =
+  'self' | 'player' | 'foe' | 'friend' | 'npc' | 'marker' | 'portal' | 'prompt';
 
 const STYLE: Readonly<Record<LabelKind, string>> = {
   self: 'color:#fff7c2;font:600 13px sans-serif',
   player: 'color:#f4f4f8;font:600 13px sans-serif',
+  foe: 'color:#ff6b62;font:600 13px sans-serif',
+  friend: 'color:#7fe08a;font:600 13px sans-serif',
   npc: 'color:#ffe08a;font:600 13px sans-serif',
   marker: 'color:#ffd23f;font:800 22px sans-serif',
   portal: 'color:#cfe8ff;font:600 12px sans-serif',
@@ -18,10 +21,16 @@ const STYLE: Readonly<Record<LabelKind, string>> = {
     'color:#f4f4f8;font:600 12px sans-serif;background:rgba(10,12,22,0.72);border:1px solid rgba(207,232,255,0.5);border-radius:4px;padding:1px 6px',
 };
 
-/** A label at a world point: its text, the pixels it rises over the point, and its size once laid out. */
+/** A tag after a label's text, as a bot's BOT. */
+const TAG_STYLE =
+  'margin-left:4px;padding:0 3px;border:1px solid currentColor;border-radius:3px;font:700 10px sans-serif;vertical-align:1px';
+
+/** A label at a world point: its text and tag, the pixels it rises over the point, and its size once laid out. */
 interface Label {
   readonly el: HTMLDivElement;
-  readonly kind: LabelKind;
+  readonly name: Text;
+  readonly tag: HTMLSpanElement;
+  kind: LabelKind;
   readonly at: Vector3;
   lift: number;
   w: number;
@@ -35,7 +44,11 @@ interface Placed {
   bottom: number;
 }
 
-const stacks = (k: LabelKind): boolean => k === 'self' || k === 'player';
+const stacks = (k: LabelKind): boolean =>
+  k === 'self' || k === 'player' || k === 'foe' || k === 'friend';
+
+const styleOf = (k: LabelKind): string =>
+  `position:absolute;left:0;top:0;white-space:nowrap;text-shadow:0 0 3px #0a0c16,0 0 2px #0a0c16;${STYLE[k]}`;
 
 export class Labels {
   private readonly labels = new Map<string, Label>();
@@ -43,19 +56,39 @@ export class Labels {
 
   constructor(private readonly overlay: Overlay) {}
 
-  /** Shows text for key at a world point lift pixels up, or changes it; an empty text hides it. */
-  set(key: string, kind: LabelKind, text: string, x: number, y: number, z: number, lift = 0): void {
+  /** Shows text for key at a world point lift pixels up, with a tag after it, or changes them; an empty text hides it. */
+  set(
+    key: string,
+    kind: LabelKind,
+    text: string,
+    x: number,
+    y: number,
+    z: number,
+    lift = 0,
+    tag = '',
+  ): void {
     let l = this.labels.get(key);
     if (!l) {
       const el = document.createElement('div');
-      el.style.cssText = `position:absolute;left:0;top:0;white-space:nowrap;text-shadow:0 0 3px #0a0c16,0 0 2px #0a0c16;${STYLE[kind]}`;
+      el.style.cssText = styleOf(kind);
       el.dataset.label = key;
+      const name = document.createTextNode('');
+      const t = document.createElement('span');
+      t.style.cssText = TAG_STYLE;
+      t.hidden = true;
+      el.append(name, t);
       this.overlay.layer.appendChild(el);
-      l = { el, kind, at: new Vector3(), lift, w: 0, h: 0 };
+      l = { el, name, tag: t, kind, at: new Vector3(), lift, w: 0, h: 0 };
       this.labels.set(key, l);
     }
-    if (l.el.textContent !== text) {
-      l.el.textContent = text;
+    if (l.kind !== kind) {
+      l.el.style.cssText = styleOf(kind); // a player who enters a match is an enemy or a teammate there
+      l.kind = kind;
+    }
+    if (l.name.data !== text || l.tag.textContent !== tag) {
+      l.name.data = text;
+      l.tag.textContent = tag;
+      l.tag.hidden = tag === '';
       l.w = 0; // measured again as it's next shown
     }
     l.at.set(x, y, z);
@@ -79,7 +112,7 @@ export class Labels {
     const p = this.screen;
     const shown: Placed[] = [];
     for (const l of this.labels.values()) {
-      const on = l.el.textContent !== '' && this.overlay.project(l.at.x, l.at.y, l.at.z, p);
+      const on = l.name.data !== '' && this.overlay.project(l.at.x, l.at.y, l.at.z, p);
       l.el.style.display = on ? '' : 'none';
       if (on) {
         shown.push({ l, x: p.x, bottom: p.y - l.lift });

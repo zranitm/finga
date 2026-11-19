@@ -2,8 +2,9 @@ import { create } from '@bufbuild/protobuf';
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ExpGainedSchema, WelcomeSchema } from '@/protocol/messages';
+import { ExpGainedSchema, MatchPhase, MatchStateSchema, WelcomeSchema } from '@/protocol/messages';
 import { character } from '@/state/character';
+import { pvp } from '@/state/pvp';
 import { resetStores } from '@/testing/reset-stores';
 
 import { DeathOverlay } from './DeathOverlay';
@@ -34,6 +35,22 @@ describe('DeathOverlay', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('You died.');
     act(() => character.getState().setDead(false));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('in a match says the player is down until the round ends, under a grey tint', () => {
+    render(<DeathOverlay />);
+    act(() => {
+      pvp
+        .getState()
+        .applyMatchState(
+          create(MatchStateSchema, { match: 'mt-1', mode: 'duel', phase: MatchPhase.FIGHT }),
+        );
+      character.getState().setDead(true);
+    });
+    const down = screen.getByRole('alert');
+    expect(down).toHaveTextContent('Down until the round ends');
+    expect(down).not.toHaveTextContent('Respawning');
+    expect(down).toHaveClass('down-overlay');
   });
 });
 

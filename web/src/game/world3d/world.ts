@@ -48,12 +48,14 @@ import { mapView } from '@/state/map-view';
 import type { Spot as MapSpot } from '@/state/map-view';
 import { nearby } from '@/state/nearby';
 import { party } from '@/state/party';
+import { pvp, walled } from '@/state/pvp';
 import { questPlayer, quests } from '@/state/quests';
 import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
 import type { ShownStatus } from '@/state/statuses';
 import { statuses as shownStatuses } from '@/state/statuses';
 import { target } from '@/state/target';
+import type { Target } from '@/state/target';
 import { teleport } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
@@ -70,7 +72,7 @@ import { Arrival } from '../systems/arrival';
 import type { Held, Spot } from '../systems/arrival';
 import { ChainMemory, liveSkill } from '../systems/chains';
 import type { ChainNow } from '../systems/chains';
-import { InvulnFlash, lockedMob, mobLock, parseRef } from '../systems/combat-view';
+import { InvulnFlash, parseRef } from '../systems/combat-view';
 import type { Ref } from '../systems/combat-view';
 import { departure, DropTracker } from '../systems/drops';
 import type { DropChanges, Point } from '../systems/drops';
@@ -85,9 +87,10 @@ import type { TransitionAction, TransitionMsg, TransitionState } from '../system
 import { MobTracker } from '../systems/mobs';
 import { PotionKeys } from '../systems/potion-keys';
 import { Predictor, movementParams, wireState } from '../systems/prediction';
-import type { Mark as MoveMark, Pace } from '../systems/prediction';
+import type { MapKind, Mark as MoveMark, Pace } from '../systems/prediction';
 import { healReach, SkillKeys } from '../systems/skill-keys';
 import { moveStart, wayFor } from '../systems/skill-way';
+import { relationOf } from '../systems/teams';
 
 import { Bars } from './bars';
 import { beatsOf } from './beats';
@@ -112,6 +115,7 @@ import { Outline } from './outline';
 import { Overlay } from './overlay';
 import { buildPlace, fade, fogFor } from './place';
 import type { Place } from './place';
+import { PrepWall } from './prep-wall';
 import { ShieldBubbles } from './shield-bubbles';
 import { teleportGlow } from './teleport-glow';
 import { Palette } from './toon';
@@ -311,9 +315,11 @@ export class World {
   private outline: Outline | null = null;
   private ring: LockRing | null = null;
   private bubbles: ShieldBubbles | null = null;
+  private prepWall: PrepWall | null = null;
+  private walledUp = false; // a match's prep wall stands, and attacks and skills wait for the round
   private remoteLooks: ReadonlyMap<string, RemoteLook> = new Map(); // as drawn this frame
-  private lockedAt: MapSpot | null = null; // the locked mob as drawn, for the map views
-  private lockedId: number | null = null; // and its id, which the place opens round
+  private lockedAt: MapSpot | null = null; // the lock as drawn, for the map views
+  private lockedId: string | null = null; // and its ref, which the place opens round
   private readonly statusTimes = new Map<string, ShownStatus & { ends: number }>(); // by unit ref and status, as the HUD times them
   private marksDue = 0;
   private readonly overlay: Overlay;
@@ -343,6 +349,7 @@ export class World {
   private stalled = false;
   private placed = false; // set by the first frame that names the local player
   private latestMe: Wire | null = null; // the newest frame of the local player, which places them after a respawn here
+  private myTeam = 0; // the player's side in a match as their last frame gave it, kept while they're down
   private transitionState: TransitionState = initialTransition;
 
   private predictor: Predictor | null = null;
@@ -358,12 +365,12 @@ export class World {
   private attackHeld = false; // as the keys are: held through a map change
   private readonly flash = new InvulnFlash();
   private myDodge: { readonly from: number; readonly until: number } | null = null; // the own skill's dodge, from its start as predicted
-  private myAim: { readonly yaw: number; readonly until: number; readonly target: number } | null =
-    null; // the yaw the player's action turns them to, till its strike ends, and the mob locked as it began
+  private myAim: { readonly yaw: number; readonly until: number; readonly target: string } | null =
+    null; // the yaw the player's action turns them to, till its strike ends, and the lock's ref as it began
   private myWay: Way | null = null; // the way the player's moving skill goes, as its begin worked it out for its use to send
   private heldNow: Input | null = null; // the keys of the tick under way, which a skill's way along the keys reads
   private readonly remoteAims = new Map<string, { readonly yaw: number; readonly until: number }>();
-  private readonly marks: LiveMark[] = []; // the living mobs drawn this frame, which the lock holds, kept from frame to frame
+  private readonly marks: LiveMark[] = []; // the mobs and, in a match, the enemies drawn this frame, which the lock holds, kept from frame to frame
   private readonly lock = new Lock();
   private readonly chainMemory = new ChainMemory(); // the player's latest hits and dodge on this map, as the world keeps them for chains
   private ackSeq = 0; // the input the newest frame acked
@@ -423,6 +430,18 @@ export class World {
     return this.resets0 + (this.predictor?.resets ?? 0);
   }
 
+  /** A match's prep wall up through prep and the count into a round, as the match's state says: drawn, and walked against from the next step. */
+  private raiseWall(predictor: Predictor): void {
+    const wall = this.map?.prepWall;
+    const up = !!wall && walled(pvp.getState().match?.phase);
+    if (!wall || up === this.walledUp) {
+      return;
+    }
+    this.walledUp = up;
+    this.prepWall?.show(up);
+    predictor.setGeometry(up ? wall.walled : this.map!.geometry);
+  }
+
   /** One frame of dtMs: the player stepped and sent at the world's tick, every body drawn, the camera eased after the player, then rendered. */
   frame(dtMs: number): void {
     const scene = this.scene;
@@ -434,6 +453,7 @@ export class World {
     const dt = Math.min(dtMs, MAX_FRAME_MS);
     const now = this.deps.now();
     this.setStalled(this.feed.stalled(now));
+    this.raiseWall(predictor);
     if (this.placed) {
       if (this.attackHeld) {
         this.attack(false);
@@ -557,6 +577,7 @@ export class World {
     this.outline = new Outline(scene);
     this.ring = new LockRing(scene, map, lighting.palette);
     this.bubbles = new ShieldBubbles(scene);
+    this.prepWall = map.prepWall && new PrepWall(scene, map.prepWall.boxes, map.geometry.terrain);
     fx.warm(); // every look's shaders built before a fight needs them
     warmGems(scene, lighting.palette);
     mapView
@@ -738,6 +759,7 @@ export class World {
       case 'party':
       case 'quests':
       case 'map':
+      case 'arena':
         ui.getState().toggleWindow(action);
         return;
       case 'zoomIn':
@@ -818,6 +840,7 @@ export class World {
     const me = players.find((p) => p.id === this.deps.player.characterId);
     if (me) {
       this.latestMe = me;
+      this.myTeam = me.team;
       this.placeAt(me);
       this.flash.set(me.invulnerable, now);
     }
@@ -850,6 +873,7 @@ export class World {
     }
     const acting = !this.restrained().act;
     this.latestMe = me;
+    this.myTeam = me.team;
     if (acting && this.restrained().act) {
       this.stopAction(now);
     }
@@ -1002,13 +1026,17 @@ export class World {
       );
       v.pose(this.deadRemotes.has(id) ? 'dead' : 'up', now);
       v.fade(looks.get(id)?.dodging ?? false);
+      const info = remotes.infoOf(id);
+      const side = relationOf(this.myTeam, info?.team ?? 0);
       this.labels.set(
         `p:${id}`,
-        'player',
+        side === 'none' ? 'player' : side,
         remotes.nameOf(id),
         s.x,
         s.y + movement.height + NAME_LIFT_M,
         s.z,
+        0,
+        info?.bot ? 'BOT' : '',
       );
     }
     if (changed) {
@@ -1059,16 +1087,8 @@ export class World {
       const m = mobById(wire.type);
       const c = carried?.get(id);
       const s = c ? { ...wire, ...c } : wire; // drawn, and aimed at, where its hop or charge carries it
-      const mark = (this.marks[marked++] ??= {
-        id,
-        x: 0,
-        z: 0,
-        radius: 0,
-        hp: 0,
-        inView: false,
-        inFrame: false,
-      });
-      mark.id = id;
+      const mark = this.markAt(marked++);
+      mark.id = `m:${id}`;
       mark.x = s.x;
       mark.z = s.z;
       mark.radius = m?.radius ?? 0;
@@ -1090,10 +1110,50 @@ export class World {
       v.draw(s.x, s.y, s.z, s.yaw, now, dtMs);
       v.pose(poseOf(s.pose), now - s.poseMs);
     }
-    this.marks.length = marked;
+    this.marks.length = this.markFoes(marked);
     const boss = fieldBoss.getState().boss;
     const drawn = boss && shown.get(boss.mobId);
     fieldBoss.getState().setHp(drawn ? { hp: drawn.hp, maxHp: drawn.maxHp } : null); // the boss bar shows what is drawn
+  }
+
+  /** The mark kept at i, made the first time. */
+  private markAt(i: number): LiveMark {
+    return (this.marks[i] ??= {
+      id: '',
+      x: 0,
+      z: 0,
+      radius: 0,
+      hp: 0,
+      inView: false,
+      inFrame: false,
+    });
+  }
+
+  /** In a match, the enemies drawn this frame marked after the mobs, from i on, for the lock to hold too: the count of marks after them. */
+  private markFoes(i: number): number {
+    const remotes = this.remotes;
+    const mine = this.myTeam;
+    if (!remotes || mine === 0) {
+      return i;
+    }
+    let marked = i;
+    for (const [id, v] of this.remoteViews) {
+      const p = remotes.infoOf(id);
+      const at = v.at;
+      if (!p || !at || relationOf(mine, p.team) !== 'foe') {
+        continue;
+      }
+      const mark = this.markAt(marked++);
+      mark.id = `p:${id}`;
+      mark.x = at.x;
+      mark.z = at.z;
+      mark.radius = movement.radius;
+      mark.hp = this.deadRemotes.has(id) ? 0 : p.hp;
+      const middle = at.y + movement.height / 2;
+      mark.inView = this.overlay.within(at.x, middle, at.z, LOCK_INSET);
+      mark.inFrame = this.overlay.within(at.x, middle, at.z, 0);
+    }
+    return marked;
   }
 
   private drawNpcs(now: number, dtMs: number): void {
@@ -1155,7 +1215,10 @@ export class World {
       at.x,
       at.z,
       this.lockedId,
-      (id) => this.combat?.attacking(id) ?? false,
+      (ref) => {
+        const r = parseRef(ref);
+        return r?.kind === 'mob' && (this.combat?.attacking(r.id) ?? false);
+      },
       this.marks,
     );
     this.lighting?.palette.cutAround(
@@ -1163,22 +1226,24 @@ export class World {
       at.y + CHEST_M,
       at.z,
       opened.flatMap((m) => {
-        const feet = this.mobViews.get(m.id)?.at;
-        const type = mobById(this.mobTypes.get(m.id));
-        return feet && type ? [{ ...feet, radius: type.radius, height: type.height }] : [];
+        const r = parseRef(m.id);
+        const body = r && this.bodyOf(r);
+        return body ? [body] : [];
       }),
     );
+  }
+
+  /** The unit a ref names as drawn: a mob, the player or another player. */
+  private drawnOf(r: Ref): Drawn | null | undefined {
+    if (r.kind === 'mob') {
+      return this.mobViews.get(r.id);
+    }
+    return r.id === this.deps.player.characterId ? this.me : this.remoteViews.get(r.id);
   }
 
   /** The fight drawn on this map, reading who's drawn where from the views. */
   private newCombat(fx: Fx): Combat {
     const me = this.deps.player.characterId;
-    const viewOf = (r: Ref): Drawn | null | undefined =>
-      r.kind === 'mob'
-        ? this.mobViews.get(r.id)
-        : r.id === me
-          ? this.me
-          : this.remoteViews.get(r.id);
     return new Combat(
       {
         me,
@@ -1189,7 +1254,7 @@ export class World {
           const p = this.predictor?.tickEnd();
           return this.placed && p ? playerBody(p.x, p.y, p.z) : undefined;
         },
-        figure: (r) => viewOf(r)?.figure ?? null,
+        figure: (r) => this.drawnOf(r)?.figure ?? null,
         mobType: (id) => this.mobTypes.get(id),
         mobAt: (id, tick) => this.mobs.placeAt(id, tick),
         mobPoses: (id) => this.mobs.posesOf(id),
@@ -1251,8 +1316,8 @@ export class World {
     return character.getState().character?.class ?? this.deps.player.cls;
   }
 
-  private kind(): 'town' | 'hunting' {
-    return maps.find((m) => m.id === this.mapId)?.kind === 'hunting' ? 'hunting' : 'town';
+  private kind(): MapKind {
+    return maps.find((m) => m.id === this.mapId)?.kind ?? 'town';
   }
 
   private moveSpeed(): number {
@@ -1266,18 +1331,18 @@ export class World {
     }
   }
 
-  /** The yaw an action aims along: to the locked mob, in or out of its reach, else the player's heading, as a heal, aiming at no one, always does; and the locked mob's id for the world to hit first, 0 for none. */
-  private aimFor(heals: boolean): { readonly yaw: number; readonly target: number } {
+  /** The yaw an action aims along: to the lock, in or out of its reach, else the player's heading, as a heal, aiming at no one, always does; and the lock's ref for the world to hit first, "" for none. */
+  private aimFor(heals: boolean): { readonly yaw: number; readonly target: string } {
     const s = this.predictor?.state;
     if (!s) {
-      return { yaw: 0, target: 0 };
+      return { yaw: 0, target: '' };
     }
     const heading = yawOf(s.hx, s.hz);
     if (heals) {
-      return { yaw: heading, target: 0 };
+      return { yaw: heading, target: '' };
     }
     const locked = this.lock.update(s.x, s.z, this.marks);
-    return { yaw: aimYaw(s.x, s.z, heading, locked), target: locked?.id ?? 0 };
+    return { yaw: aimYaw(s.x, s.z, heading, locked), target: locked?.id ?? '' };
   }
 
   /** Each unit drawn with its statuses as the newest frames list them, each until its end tick: their marks on them, and the HUD's icons for the player, the lock and party members here. */
@@ -1332,7 +1397,7 @@ export class World {
     }
     shownStatuses.getState().show({
       me: timed(`p:${me}`),
-      target: this.lockedId === null ? [] : timed(`m:${this.lockedId}`),
+      target: this.lockedId === null ? [] : timed(this.lockedId),
       party: here,
     });
     for (const key of this.statusTimes.keys()) {
@@ -1342,19 +1407,49 @@ export class World {
     }
   }
 
-  /** Keeps the lock on the mobs drawn this frame and marks its mob with the outline and the ring, on a map with combat while the player may act; meanwhile the lock waits. */
+  /** Keeps the lock on the units drawn this frame and marks it with the outline and the ring, on a map with combat while the player may act; meanwhile the lock waits. */
   private showLock(now: number): void {
     const s = this.predictor?.state;
     const locked =
       s && this.kind() !== 'town' && this.free() ? this.lock.update(s.x, s.z, this.marks) : null;
-    const view = locked ? this.mobViews.get(locked.id) : undefined;
+    const ref = locked ? parseRef(locked.id) : undefined;
+    const view = ref && this.drawnOf(ref);
     const at = view?.at;
     this.outline?.mark(view?.figure ?? null);
     this.ring?.show(locked && at ? { ...at, radius: locked.radius } : null, now);
     this.lockedAt = locked && at ? { x: at.x, z: at.z } : null;
     this.lockedId = locked?.id ?? null;
-    const type = locked && this.mobTypes.get(locked.id);
-    target.getState().show(locked && type ? { mobId: locked.id, type, hp: locked.hp } : null);
+    target.getState().show(locked && ref ? this.targetOf(ref, locked) : null);
+  }
+
+  /** The target window's lock: a mob's kind and its HP as drawn, a player's name, class, level and HP as of the newest frame. */
+  private targetOf(ref: Ref, m: Mark): Target | null {
+    if (ref.kind === 'mob') {
+      const type = this.mobTypes.get(ref.id);
+      return type ? { kind: 'mob', ref: m.id, type, hp: m.hp } : null;
+    }
+    const p = this.remotes?.infoOf(ref.id);
+    return p
+      ? {
+          kind: 'player',
+          ref: m.id,
+          name: p.name,
+          cls: p.cls,
+          level: p.level,
+          hp: m.hp,
+          maxHp: p.maxHp,
+          bot: p.bot,
+        }
+      : null;
+  }
+
+  /** A unit's statuses as of the newest frame, by its ref. */
+  private statusesAt(ref: string): readonly StatusOn[] {
+    const r = parseRef(ref);
+    if (r?.kind === 'mob') {
+      return this.mobs.statusesOf(r.id);
+    }
+    return r ? (this.remotes?.statusesOf(r.id) ?? []) : [];
   }
 
   /** What each key offers now, for the skill bar: its root, or the follow-up its chain gives now, judged on the lock as drawn. */
@@ -1385,7 +1480,7 @@ export class World {
       cantAct: this.restrained().act,
       lock: locked && {
         far: Math.hypot(locked.x - s.x, locked.z - s.z),
-        statuses: this.mobs.statusesOf(locked.id),
+        statuses: this.statusesAt(locked.id),
         tick: this.lastTick,
       },
     };
@@ -1426,7 +1521,7 @@ export class World {
     });
   }
 
-  /** Tab: locks the next mob farther than the locked one, on a map with combat while the player may act. */
+  /** Tab: locks the next mob or enemy farther than the locked one, on a map with combat while the player may act. */
   private nextTarget(): void {
     const s = this.predictor?.state;
     if (s && this.kind() !== 'town' && this.free()) {
@@ -1437,8 +1532,14 @@ export class World {
   /** A fresh press or a held key attacks as soon as an attack may start: at a cancelable skill's cancel point, or as the running action ends; a held key never goes ahead of a press waiting for its moment. */
   private attack(fresh: boolean): void {
     const clock = this.actions;
-    if (this.kind() === 'town' || !this.free() || !clock || this.restrained().act) {
-      return; // the server runs no combat on town maps, and drops an attack a status stops
+    if (
+      this.kind() === 'town' ||
+      this.walledUp ||
+      !this.free() ||
+      !clock ||
+      this.restrained().act
+    ) {
+      return; // the server runs no combat on town maps or before a round, and drops an attack a status stops
     }
     if (fresh) {
       if (!clock.press('attack', () => this.attack(true))) {
@@ -1452,7 +1553,7 @@ export class World {
     }
     const { yaw: aim, target } = this.aimFor(false);
     const seq = this.deps.socket.sequence;
-    if (!this.deps.socket.sendAction('attack', { aim, target: mobLock(target) })) {
+    if (!this.deps.socket.sendAction('attack', { aim, target })) {
       return;
     }
     this.predictor?.mark(seq, endSprint); // the world ends the sprint's count from the input after the press
@@ -1538,7 +1639,7 @@ export class World {
           beats,
           playerBody(at.x, at.y, at.z),
           d.aim,
-          lockedMob(d.target),
+          parseRef(d.target),
         );
       }
       return;
@@ -1586,7 +1687,7 @@ export class World {
   }
 
   /** A moving skill's way, kept for its use to send, and its move marked to start from the input after the press, as the world starts it, a break-free ending the hold first; null for a skill that neither moves nor breaks free. */
-  private startMove(skill: Skill, stage: SkillStage, target: number): MoveMark | null {
+  private startMove(skill: Skill, stage: SkillStage, target: string): MoveMark | null {
     const s = this.predictor?.state;
     const move = stage.move;
     const lock = this.marks.find((m) => m.id === target) ?? null;
@@ -1627,7 +1728,7 @@ export class World {
         beats,
         playerBody(p.x, p.y, p.z),
         aim.yaw,
-        aim.target,
+        parseRef(aim.target),
       );
     }
     return () => {
@@ -1671,6 +1772,7 @@ export class World {
           : null;
       },
       inTown: () => this.kind() === 'town',
+      notStarted: () => this.walledUp,
       tickMs: this.timing.tickMs,
       now: this.deps.now,
       cooldowns: () => skillBar.getState().cooldowns,
@@ -1696,7 +1798,7 @@ export class World {
             skill,
             chainRoot: root,
             aim: this.myAim?.yaw ?? 0,
-            target: mobLock(this.myAim?.target ?? 0),
+            target: this.myAim?.target ?? '',
             ...(this.myWay && { way: this.myWay }),
           },
           socket.sequence,
@@ -1941,6 +2043,8 @@ export class World {
         ui.getState().closeWindow('npc');
         return;
       case 'respawn-here':
+        this.myDodge = null;
+        this.actions?.reset(); // a round's reset gets up the one still standing too, mid-swing or mid-dodge (pvp.md section 7)
         this.lock.clear();
         character.getState().setHp(a.hp);
         character.getState().setDead(false);
@@ -2059,6 +2163,9 @@ export class World {
     this.ring = null;
     this.bubbles?.dispose();
     this.bubbles = null;
+    this.prepWall?.dispose();
+    this.prepWall = null;
+    this.walledUp = false;
     this.remoteLooks = new Map();
     target.getState().show(null);
     mapView.getState().clear();

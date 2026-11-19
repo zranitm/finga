@@ -73,11 +73,11 @@ describe('SkillBar', () => {
   });
 
   it('labels each key with the key the player bound, as their keyboard prints it', () => {
-    settings.getState().setKeys({ skill1: 'KeyV' });
+    settings.getState().setKeys({ skill1: 'KeyB' });
     keyboardLayout.getState().setPrinted(new Map([['KeyW', 'z']]));
     skillBar.getState().load(['strike']);
     render(<SkillBar />);
-    expect(screen.getByRole('listitem', { name: /^Key V: Strike/ })).toBeInTheDocument();
+    expect(screen.getByRole('listitem', { name: /^Key B: Strike/ })).toBeInTheDocument();
     expect(screen.getByRole('listitem', { name: /^Key Z: empty/ })).toBeInTheDocument();
     act(() => {
       settings.getState().setKeys({});

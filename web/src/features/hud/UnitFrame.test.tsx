@@ -2,8 +2,14 @@ import { create } from '@bufbuild/protobuf';
 import { act, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { PartyStateSchema, PartyViewSchema } from '@/protocol/messages';
+import {
+  MatchPhase,
+  MatchStateSchema,
+  PartyStateSchema,
+  PartyViewSchema,
+} from '@/protocol/messages';
 import { party } from '@/state/party';
+import { pvp } from '@/state/pvp';
 import { statuses } from '@/state/statuses';
 import { resetStores } from '@/testing/reset-stores';
 
@@ -68,6 +74,37 @@ describe('UnitFrame', () => {
 describe('PartyPanel', () => {
   beforeEach(() => {
     resetStores();
+  });
+
+  it('says a member in a match is in one, and gives way in a 1v1 of the player’s own, its teammates’ place', () => {
+    render(<PartyPanel />);
+    act(() =>
+      party.getState().applyPartyState(
+        create(PartyStateSchema, {
+          party: create(PartyViewSchema, {
+            leader: 'c-robin',
+            members: [
+              { characterId: 'c-robin', name: 'Robin', mapId: 'ring', online: true },
+              { characterId: 'c-jade', name: 'Jade', mapId: 'forest', online: true },
+            ],
+          }),
+        }),
+      ),
+    );
+    expect(screen.getByRole('group', { name: 'Party member Robin' })).toHaveTextContent(
+      'In a match',
+    );
+    expect(screen.getByRole('group', { name: 'Party member Jade' })).not.toHaveTextContent(
+      'In a match',
+    );
+    act(() =>
+      pvp
+        .getState()
+        .applyMatchState(
+          create(MatchStateSchema, { match: 'mt-1', mode: 'duel', phase: MatchPhase.PREP }),
+        ),
+    );
+    expect(screen.queryByRole('group', { name: 'Party' })).not.toBeInTheDocument();
   });
 
   it('shows a member’s statuses under their HP, as the world tells them for members on the map', () => {

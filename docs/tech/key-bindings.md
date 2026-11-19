@@ -19,6 +19,7 @@
 | --- | --- |
 | `up`, `down`, `left`, `right` | `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight` |
 | `jump` | `Space` |
+| `walk` | `ShiftLeft` |
 | `attack` | `KeyX` |
 | `nextTarget` | `Tab` |
 | `talk` | `KeyZ` |
@@ -55,7 +56,7 @@
 
 - **Where:** a Key bindings button in Settings opens `features/settings/KeyBindings.tsx`, a window over whatever is behind it, the game included.
 - **The list,** in groups:
-  - Movement: up, down, left, right, jump;
+  - Movement: up, down, left, right, jump, walk or sprint;
   - Combat: attack, next target, HP potion, skills 1 to 8;
   - World: talk or enter a portal;
   - Windows: inventory, character, skills, party, quests, map, arena, zoom in, zoom out;

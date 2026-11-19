@@ -4,12 +4,18 @@ import { article } from '@/features/shared/words';
 import { RequestError } from '@/net/socket';
 import type { GameSocket, StatusEvent } from '@/net/socket';
 import { className } from '@/progression/classes';
-import { mapName, mobName } from '@/progression/names';
+import { isMatchMap, mapName, mobName } from '@/progression/names';
 import { readyQuests } from '@/progression/quests';
 import { blockOf, skillById, skillCooldownTicks, specAt } from '@/progression/skills';
 import { autoAssign, hasSplit } from '@/progression/stats';
 import { ERR, errorText, refusalCode } from '@/protocol/errors';
-import { LootKind, SkillTimerKind, TeleportCancelReason } from '@/protocol/messages';
+import {
+  LootKind,
+  PvpOfferGoneReason,
+  PvpUnqueueReason,
+  SkillTimerKind,
+  TeleportCancelReason,
+} from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { chat } from '@/state/chat';
@@ -20,6 +26,7 @@ import { energy } from '@/state/energy';
 import { fieldBoss } from '@/state/field-boss';
 import { inventory } from '@/state/inventory';
 import { party } from '@/state/party';
+import { pvp } from '@/state/pvp';
 import { outdates, questPlayer, quests } from '@/state/quests';
 import { session } from '@/state/session';
 import { settings } from '@/state/settings';
@@ -34,6 +41,18 @@ const CANCELLED: Partial<Record<TeleportCancelReason, string>> = {
   [TeleportCancelReason.MOVED]: 'you moved',
   [TeleportCancelReason.ACTED]: 'you attacked',
   [TeleportCancelReason.HIT]: 'you were hit',
+};
+
+/** Why the queue let the player go, as its notice says it; leaving or declining is their own doing, and says nothing. */
+const UNQUEUED: Partial<Record<PvpUnqueueReason, string>> = {
+  [PvpUnqueueReason.LAPSED]: 'You didn’t answer the match offer, so you left the queue.',
+  [PvpUnqueueReason.PARTY_CHANGED]: 'Your party changed, so it left the queue.',
+};
+
+/** Why a match offer the player accepted fell through. */
+const FELL_THROUGH: Partial<Record<PvpOfferGoneReason, string>> = {
+  [PvpOfferGoneReason.DECLINED]: 'Someone declined the match.',
+  [PvpOfferGoneReason.LAPSED]: 'Someone didn’t answer the match offer.',
 };
 
 /** A promotion gives the key holding another class's block, as the Beginner's Guard, the class's own (blocking.md section 3), saved as any change to the bar is. */
@@ -66,7 +85,14 @@ export function wireSocket(socket: GameSocket): () => void {
       inventory.getState().applyWelcome(m.d);
       quests.getState().applyWelcome(m.d);
       ui.getState().closeWindow('npc');
-      restoreSkillTimers(m.d, performance.now()); // a Welcome is a fresh join, which counts on the world's from its last checkpoint
+      pvp.getState().applyUnqueued(); // a join is out of any match; the queue sends its ticket again
+      pvp.getState().leftMatch();
+      restoreSkillTimers(
+        m.d.skillTimers,
+        m.d.character?.sheet,
+        1000 / (m.d.tickRateHz || 20),
+        performance.now(),
+      ); // a Welcome is a fresh join, which counts on the world's from its last checkpoint
       if (m.d.token === '') {
         // A rejoin the server made, with no token: play went on, so a quest ready since gets its line, and the party stays until the PartyState right behind.
         announceReady();
@@ -138,6 +164,15 @@ export function wireSocket(socket: GameSocket): () => void {
     socket.on('statsChanged', (m) => {
       const before = character.getState().character?.sheet?.skills?.invested;
       character.getState().applyStatsChanged(m.d);
+      if (m.d.timers) {
+        // into a match and out, and each round's reset: the world's timers replace every one
+        restoreSkillTimers(
+          m.d.timers.timers,
+          character.getState().character?.sheet,
+          skillBar.getState().tickMs,
+          performance.now(),
+        );
+      }
       const after = m.d.sheet?.skills?.invested;
       if (before && after) {
         combatLog.getState().applySkillPoints(before, after);
@@ -162,9 +197,38 @@ export function wireSocket(socket: GameSocket): () => void {
         toasts.getState().push(`Teleport cancelled: ${why}.`, 'info');
       }
     }),
-    socket.on('mapChange', () => {
+    socket.on('mapChange', (m) => {
       teleport.getState().end(); // the bar and the glow end with the old map
       combat.getState().clear();
+      if (!isMatchMap(m.d.mapId)) {
+        pvp.getState().leftMatch();
+      }
+    }),
+    socket.on('pvpQueued', (m) => {
+      pvp.getState().applyQueued(m.d);
+    }),
+    socket.on('pvpUnqueued', (m) => {
+      pvp.getState().applyUnqueued();
+      const why = UNQUEUED[m.d.reason];
+      if (why) {
+        toasts.getState().push(why, 'info');
+      }
+    }),
+    socket.on('pvpOffer', (m) => {
+      pvp.getState().applyOffer(m.d);
+    }),
+    socket.on('pvpOfferGone', (m) => {
+      pvp.getState().applyOfferGone(m.d);
+      const why = FELL_THROUGH[m.d.reason];
+      if (m.d.requeued && why) {
+        toasts.getState().push(`${why} You’re back in the queue.`, 'info');
+      }
+    }),
+    socket.on('matchState', (m) => {
+      pvp.getState().applyMatchState(m.d);
+    }),
+    socket.on('matchEnded', (m) => {
+      pvp.getState().applyMatchEnded(m.d, character.getState().character?.id ?? '');
     }),
     socket.on('damage', (m) => {
       const me = `p:${character.getState().character?.id ?? ''}`;
@@ -215,13 +279,16 @@ export function applyStatus(e: StatusEvent): void {
   }
 }
 
-/** The Welcome's skill timers as the skill bar times them: each cooldown drains from its full length, with the trait chosen now, at the character's cooldown speed, and ends at its time, as a press's does. */
-function restoreSkillTimers(d: Data<'welcome'>, now: number): void {
-  const sheet = d.character?.sheet;
-  const tickMs = 1000 / (d.tickRateHz || 20);
+/** The world's skill timers as the skill bar times them, in place of every one it held: each cooldown drains from its full length, with the trait chosen now, at the character's cooldown speed, and ends at its time, as a press's does. */
+function restoreSkillTimers(
+  timers: Data<'welcome'>['skillTimers'],
+  sheet: Data<'statsChanged'>['sheet'],
+  tickMs: number,
+  now: number,
+): void {
   const cooldowns: Record<string, Cooldown> = {};
   const buffs: ActiveBuff[] = [];
-  for (const t of d.skillTimers) {
+  for (const t of timers) {
     const until = now + Number(t.leftMs);
     if (t.kind === SkillTimerKind.COOLDOWN) {
       const skill = skillById(t.skill);
@@ -303,6 +370,7 @@ export function leaveCharacter(): void {
   combatLog.getState().clear();
   fieldBoss.getState().clear();
   teleport.getState().end();
+  pvp.getState().clear();
 }
 
 /** Logged out or ended: the character and the session go. */

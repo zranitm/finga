@@ -15,6 +15,7 @@ import { character } from '@/state/character';
 import { mapView } from '@/state/map-view';
 import type { Spot } from '@/state/map-view';
 import { party } from '@/state/party';
+import { pvp } from '@/state/pvp';
 import { teleport } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
 
@@ -449,12 +450,14 @@ function World(props: WorldProps) {
 
 /** layoutOf gives a map's layout for the World tab to draw when it's picked, and a teleport there goes by socket. */
 export function MapWindow({ socket, layoutOf, onClose }: WorldProps) {
-  const [tab, setTab] = useState<Tab>('here');
+  const [chosen, setTab] = useState<Tab>('here');
+  const inMatch = pvp.use((s) => s.match !== null);
+  const tab = inMatch ? 'here' : chosen; // a match's map isn't on the world chart (pvp.md section 13)
   return (
     <WorldWindow name="map" title="Map" onClose={onClose} initialX={360} initialY={80}>
       <div className="map-window">
         <div className="inventory-tabs" role="tablist">
-          {(['here', 'world'] as const).map((t) => (
+          {(inMatch ? (['here'] as const) : (['here', 'world'] as const)).map((t) => (
             <button
               key={t}
               type="button"
