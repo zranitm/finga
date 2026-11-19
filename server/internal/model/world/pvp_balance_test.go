@@ -106,13 +106,13 @@ type blow struct {
 	when  goes
 }
 
-// goes is when a blow can go in a burst.
+// goes is when a blow can go in a burst, where its target is always held.
 type goes int
 
 const (
 	anyTime   goes = iota // from its own key, or within a time of its root's hit as the rotation has it
-	whileHeld             // a follow-up waiting on a control
-	opening               // a follow-up waiting on a far lock or a dodge: only as the burst's first blow
+	whileHeld             // a follow-up waiting on a control: never a burst's first blow
+	opening               // a follow-up waiting on a far lock or a dodge: only a burst's first blow
 )
 
 // blowsOf are a's damage skills it can key or follow up into, on b, with traits, the strongest first.
@@ -169,7 +169,7 @@ func burst(x blow, blows []blow, basic act, e gamedata.Energy) float64 {
 			energy = min(energy+e.PerAttack, e.Max)
 			for _, b := range blows {
 				from := max(start+cur.cancelAt, ready[b.id])
-				if b.when != opening && (b.when != whileHeld || from < held) && b.cost <= energy && ready[b.id] <= start+cur.length && b.open(from, hits) {
+				if b.when != opening && b.cost <= energy && ready[b.id] <= start+cur.length && b.open(from, hits) {
 					next, at = b, from
 					break
 				}
@@ -210,7 +210,7 @@ func TestPvpBurst(t *testing.T) {
 					traits := map[string]string{id: trait}
 					blows := blowsOf(d, a, b, traits)
 					k := slices.IndexFunc(blows, func(bl blow) bool { return bl.id == id })
-					if k < 0 || blows[k].holds == 0 {
+					if k < 0 || blows[k].holds == 0 || blows[k].when == whileHeld {
 						continue
 					}
 					share := burst(blows[k], blows, basic, d.Energy()) * a.damage / b.hp
@@ -236,11 +236,11 @@ func traitIDs(s gamedata.Skill) []string {
 	return out
 }
 
-// The burst models made-up actions, so its rules are pinned apart from the data: attacks of 20 ticks cut at 6, a stun of 20 holding for 30, and a slam of 50 that waits on a control and knocks down for 20 more.
+// The burst models made-up actions, so its rules are pinned apart from the data: attacks of 20 ticks cut at 6, a stun of 20 holding for 30, and a slam of 10 that knocks down for 20 more.
 func TestBurstRules(t *testing.T) {
 	basic := act{damage: 10, length: 20, cancelAt: 6, cancelable: true}
 	stun := blow{act: act{id: "stun", damage: 20, length: 20, cancelAt: 6, cooldown: 100}, holds: 30}
-	slam := blow{act: act{id: "slam", damage: 50, length: 20, cancelAt: 6, cooldown: 100}, holds: 20, when: whileHeld}
+	slam := blow{act: act{id: "slam", damage: 50, length: 10, cancelAt: 6, cooldown: 100}, holds: 20, when: whileHeld}
 	sleep := stun
 	sleep.wakes, sleep.holds = true, 80
 	rush := blow{act: act{id: "rush", damage: 40, length: 20, cancelAt: 6, cooldown: 100}, when: opening}
@@ -252,8 +252,8 @@ func TestBurstRules(t *testing.T) {
 		want  float64
 	}{
 		{"the stun, and the attack at its end, inside its 30 ticks", stun, nil, 30},
-		{"the stun, an attack, and the slam at the attack's cancel point, which holds to tick 46", stun, []blow{slam}, 80},
-		{"a slam waiting on a control can't open a burst's chain once it's over", stun, []blow{slam, rush}, 80},
+		{"the stun, an attack, the slam at its cancel point, holding to tick 46, and an attack at 36", stun, []blow{slam}, 90},
+		{"a rush that waits on a far lock or a dodge only opens a burst", stun, []blow{slam, rush}, 90},
 		{"a sleep ends at the first blow after it", sleep, []blow{slam}, 30},
 	} {
 		if got := burst(c.x, c.blows, basic, energy); got != c.want {
