@@ -130,7 +130,7 @@ func TestFightAndGrow(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.CreateCharacter(t, "joan", "Joan", "warrior")
-		s.Place(t, id, "forest", e2etest.SlimeField, 1, 10) // one hit from death; level 1 with 10 EXP
+		s.Place(t, id, "forest", e2etest.AmongSlimes, 1, 10) // one hit from death; level 1 with 10 EXP
 		p, _ := s.Hello(t, token, id)
 		p.DieAmongSlimes(t)
 		r := p.Expect("Respawned").Data.(*clientv1.Respawned)

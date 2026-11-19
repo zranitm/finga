@@ -144,6 +144,9 @@ func TestEquipment(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.CreateCharacter(t, "vic", "Vic", "warrior")
+		if _, err := s.DB.Exec(context.Background(), `UPDATE characters SET pos_x = $2, pos_z = $3 WHERE id = $1`, id, e2etest.TownPortal.X-2, e2etest.TownPortal.Z); err != nil { // by the portal: the walk there isn't what's tested
+			t.Fatal(err)
+		}
 		leatherCap := s.Give(t, id, "leather_cap", &progression.ItemStats{PhysicalDefense: 4})
 		l, _ := s.Hello(t, token, id)
 		l.Send(wsconn.Message{ReqID: "e-1", Data: &clientv1.Equip{IdempotencyKey: e2etest.Key(), ItemId: leatherCap}})
@@ -179,7 +182,7 @@ func TestEquipment(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.CreateCharacter(t, "wes", "Wes", "warrior")
-		s.Place(t, id, "forest", e2etest.SlimeField, 1, 0)
+		s.Place(t, id, "forest", e2etest.AmongSlimes, 1, 0)
 		l, w := s.Hello(t, token, id)
 		sword := w.Equipment[0].GetItem().GetItemId()
 		l.DieAmongSlimes(t)

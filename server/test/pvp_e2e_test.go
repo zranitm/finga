@@ -16,9 +16,9 @@ func TestADuelAgainstABotRunsToItsEnd(t *testing.T) {
 	t.Parallel()
 	s := newStackOver(t, e2etest.GameData(t,
 		e2etest.DataEdit{File: "pvp.yaml", Old: "queue: {bots_after: 15s", New: "queue: {bots_after: 1s"},
-		e2etest.DataEdit{File: "pvp.yaml", Old: "rounds: {prep: 10s, countdown: 3s, between: 5s}", New: "rounds: {prep: 1s, countdown: 1s, between: 1s}"},
-		e2etest.DataEdit{File: "pvp.yaml", Old: "result: 10s", New: "result: 1s"},
-		e2etest.DataEdit{File: "pvp.yaml", Old: "rounds: {best_of: 3, most: 5, length: 60s}", New: "rounds: {best_of: 1, most: 1, length: 8s}"},
+		e2etest.DataEdit{File: "pvp.yaml", Old: "rounds: {prep: 10s, countdown: 3s, between: 5s}", New: "rounds: {prep: 500ms, countdown: 500ms, between: 500ms}"},
+		e2etest.DataEdit{File: "pvp.yaml", Old: "result: 10s", New: "result: 500ms"},
+		e2etest.DataEdit{File: "pvp.yaml", Old: "rounds: {best_of: 3, most: 5, length: 60s}", New: "rounds: {best_of: 1, most: 1, length: 2s}"},
 	))
 	token, id := s.CreateCharacter(t, "duelist", "Duelist", "warrior")
 	ctx := context.Background()
@@ -123,9 +123,9 @@ func TestAPartyOfTwoMeetsBotsIn3v3(t *testing.T) {
 	t.Parallel()
 	s := newStackOver(t, e2etest.GameData(t,
 		e2etest.DataEdit{File: "pvp.yaml", Old: "queue: {bots_after: 15s", New: "queue: {bots_after: 1s"},
-		e2etest.DataEdit{File: "pvp.yaml", Old: "rounds: {prep: 10s, countdown: 3s, between: 5s}", New: "rounds: {prep: 1s, countdown: 1s, between: 1s}"},
-		e2etest.DataEdit{File: "pvp.yaml", Old: "result: 10s", New: "result: 1s"},
-		e2etest.DataEdit{File: "pvp.yaml", Old: "rounds: {best_of: 3, most: 5, length: 90s}", New: "rounds: {best_of: 1, most: 1, length: 8s}"},
+		e2etest.DataEdit{File: "pvp.yaml", Old: "rounds: {prep: 10s, countdown: 3s, between: 5s}", New: "rounds: {prep: 500ms, countdown: 500ms, between: 500ms}"},
+		e2etest.DataEdit{File: "pvp.yaml", Old: "result: 10s", New: "result: 500ms"},
+		e2etest.DataEdit{File: "pvp.yaml", Old: "rounds: {best_of: 3, most: 5, length: 90s}", New: "rounds: {best_of: 1, most: 1, length: 2s}"},
 	))
 	ctx := context.Background()
 	var ls []*e2etest.Looter
