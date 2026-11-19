@@ -49,6 +49,8 @@ type Brain struct {
 	reaction, breakAfter uint64 // ticks
 	breakFree, breakRoot string // its class's break-free and the root it's pressed from
 	defences             []string
+	healing              []string // its heals
+	hold                 uint64   // ticks a side holds its focus
 	walk                 steer.Walker
 	stuck                steer.Stall
 	held                 sim.Input
@@ -69,7 +71,7 @@ type startedKey struct {
 // New is a bot's brain.
 func New(s Setup) *Brain {
 	b := &Brain{s: s, rand: rand.New(rand.NewPCG(s.Seed[0], s.Seed[1])), defending: map[startedKey]bool{}, following: map[[2]string]bool{}} //nolint:gosec // a bot's choices, not a secret
-	b.reaction, b.breakAfter = model.TicksIn(s.Tier.Reaction, s.Tick), model.TicksIn(s.Tier.BreakFree, s.Tick)
+	b.reaction, b.breakAfter, b.hold = model.TicksIn(s.Tier.Reaction, s.Tick), model.TicksIn(s.Tier.BreakFree, s.Tick), model.TicksIn(focusHold, s.Tick)
 	for _, ch := range s.Class.Chains {
 		for _, f := range ch.Follow {
 			if sk, ok := s.Skills[f.Skill]; ok && sk.BreaksControl && f.When.ControlledSelf && slices.Contains(s.Bar, ch.Root) {
@@ -80,6 +82,9 @@ func New(s Setup) *Brain {
 	for _, id := range s.Bar {
 		if sk, ok := s.Skills[id]; ok && (sk.Spec.Dodge > 0 || sk.Spec.Block > 0) {
 			b.defences = append(b.defences, id)
+		}
+		if sk, ok := s.Skills[id]; ok && sk.Effect == gamedata.HealEffect {
+			b.healing = append(b.healing, id)
 		}
 	}
 	return b
@@ -95,6 +100,9 @@ func (b *Brain) Decide(v View) Decision {
 
 func (b *Brain) decide(v View, held sim.Input) Decision {
 	me := v.Self
+	if !v.Fighting && v.Team != nil {
+		*v.Team = Team{} // between fights the side lets its focus go
+	}
 	if me.Down || !v.Fighting {
 		return Decision{}
 	}
@@ -105,7 +113,7 @@ func (b *Brain) decide(v View, held sim.Input) Decision {
 	b.hard = false
 	var d Decision
 	d.Skill = b.defend(v, others, started)
-	t := b.target(me, others)
+	t := b.target(v, others)
 	if t == nil {
 		return d
 	}
@@ -117,7 +125,11 @@ func (b *Brain) decide(v View, held sim.Input) Decision {
 	if d.Skill == nil {
 		d.Skill = b.followUp(v, lock, yaw, way, dist)
 	}
-	if d.Skill == nil && me.SkillFrom <= v.Tick {
+	var mate *nav.Point // a teammate to heal, out of reach
+	if d.Skill == nil && me.SkillFrom <= v.Tick && v.Team != nil {
+		d.Skill, mate = b.mend(v, others, yaw, lock)
+	}
+	if d.Skill == nil && me.SkillFrom <= v.Tick && mate == nil { // a heal walked to keeps its energy
 		for _, id := range b.s.Order {
 			if b.ready(me, id, v.Tick, dist) {
 				d.Skill = &model.SkillUse{Skill: id, Root: id, Aim: yaw, Target: lock, Way: way}
@@ -128,7 +140,11 @@ func (b *Brain) decide(v View, held sim.Input) Decision {
 	if dist <= reachOf(b.s.Class.Attack.Shape) && !me.Attacking && !me.CantAct {
 		d.Attack = &Attack{Aim: yaw, Lock: lock}
 	}
-	d.Keys = b.keep(v, held, at, to, dist)
+	if mate != nil {
+		d.Keys = b.walk.Keys(b.s.Map, b.s.Radius, at, *mate, time.Duration(v.Tick)*b.s.Tick, b.stuck.Stalled(at, me.State.OnGround, held))
+	} else {
+		d.Keys = b.keep(v, held, at, to, dist)
+	}
 	return d
 }
 
@@ -143,7 +159,7 @@ func (b *Brain) breakOut(v View, others []Seen) Decision {
 	b.breaking = false
 	at := point(v.Self.State)
 	use := &model.SkillUse{Skill: b.breakFree, Root: b.breakRoot, Aim: model.YawOf(v.Self.State.HX, v.Self.State.HZ), Way: sim.Way{X: v.Self.State.HX, Z: v.Self.State.HZ}}
-	if t := b.target(v.Self, others); t != nil {
+	if t := nearest(v.Self, others); t != nil {
 		use.Aim, use.Target, use.Way = steer.YawTo(at, nav.Point{X: t.Body.X, Z: t.Body.Z}), model.EntityRef{Player: t.ID}, away(at, t.Body)
 	}
 	if mv := b.s.Skills[b.breakFree].Spec.Move; mv.Distance > 0 {
@@ -291,8 +307,19 @@ func (b *Brain) keep(v View, held sim.Input, at, to nav.Point, dist float64) sim
 	return sim.Input{}
 }
 
-// target is the enemy the bot fights: the nearest still up.
-func (b *Brain) target(me Self, others []Seen) *Seen {
+// target is the enemy the bot fights: its side's focus in a team mode, else the nearest still up.
+func (b *Brain) target(v View, others []Seen) *Seen {
+	me := v.Self
+	if v.Team != nil {
+		if f := v.Team.focusOf(v.Tick, b.hold, me, others); f != nil {
+			return f
+		}
+	}
+	return nearest(me, others)
+}
+
+// nearest is the enemy up nearest the bot, the one it breaks free away from.
+func nearest(me Self, others []Seen) *Seen {
 	var best *Seen
 	bestD := math.Inf(1)
 	for k := range others {

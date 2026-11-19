@@ -14,6 +14,7 @@ type View struct {
 	Fighting bool // a round's fight runs
 	Self     Self
 	Ring     *Ring
+	Team     *Team // its side's, in a team mode; nil in 1v1
 	// Holds is whether a follow-up's condition holds for the bot now, with lock its lock, as the world judges a press.
 	Holds func(root, skill string, lock model.EntityRef) bool
 }
@@ -23,6 +24,7 @@ type Self struct {
 	ID        kernel.CharacterID
 	Side      int
 	State     sim.State
+	HP, MaxHP int
 	Energy    int
 	Down      bool
 	Hard      bool // a hard status holds it
