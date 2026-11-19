@@ -30,6 +30,8 @@ import type { Joint } from './rig';
 import { Swing } from './swing';
 import { linearOf, warm } from './toon';
 import type { Palette, ToonBase } from './toon';
+import { dress, Wings, wingState } from './wear';
+import type { Part, Worn } from './wear';
 
 const MOVING = 'moving';
 const SPRINT_PLAY = 1.3; // a sprint plays the run this much faster (large-regions.md section 7)
@@ -120,6 +122,7 @@ export class Body implements Figure {
   private readonly moving = new Fades();
   private readonly split: boolean;
   private readonly swing: Swing | null;
+  private readonly wings: Wings | null;
   private readonly skeletons: readonly Skeleton[];
   private readonly posed = new Map<string, Share>(); // by clip, while it has weight
   private current: { readonly clip: string; readonly readyAt: number } | null = null;
@@ -145,11 +148,13 @@ export class Body implements Figure {
       })
     | null = null;
 
+  /** worn: the look's pieces, their parts files loaded. */
   constructor(
     scene: Scene,
     private readonly container: AssetContainer,
     private readonly look: ModelLook,
     lighting: Lighting,
+    private readonly worn: readonly Worn[] = [],
   ) {
     const made = container.instantiateModelsToScene((n) => n, false, { doNotInstantiate: true });
     this.skeletons = made.skeletons;
@@ -162,10 +167,13 @@ export class Body implements Figure {
     this.lean = new TransformNode(`${look.file} lean`, scene);
     this.lean.parent = this.root;
     model.parent = this.lean;
-    const meshes = stand(model, this.root, look);
+    const own = stand(model, this.root, look); // its size from the class's own look, which no piece changes
+    const dressed = dress(model, made.skeletons[0], look, worn);
+    const parts = new Map(dressed.parts.map((p) => [p.mesh, p]));
+    const meshes = [...own.filter((m) => m.isEnabled()), ...parts.keys()];
     for (const m of meshes) {
       if (m.material) {
-        const base = baseOf(m.material, m.name, look);
+        const base = baseOf(m.material, m.name, look, parts.get(m));
         m.material = lighting.palette.toon(base);
         const faded = lighting.palette.toon(base, FADED);
         faded.needDepthPrePass = true; // its front alone, not the parts behind it
@@ -177,8 +185,11 @@ export class Body implements Figure {
     }
     unstretched(model);
     warm(this.shades.map((s) => [s.faded, s.mesh] as const));
-    const weapon = look.weapon ? meshes.find((m) => m.name === look.weapon) : undefined;
+    const weapon = look.weapon
+      ? (dressed.weapon ?? meshes.find((m) => m.name === look.weapon))
+      : undefined;
     this.swing = weapon ? new Swing(scene, weapon) : null;
+    this.wings = dressed.hinges.length > 0 ? new Wings(dressed.hinges) : null;
 
     const upper = look.spine ? upperBody(jointsOf(model), look.spine) : new Set<string>();
     this.split = upper.size > 0;
@@ -388,6 +399,7 @@ export class Body implements Figure {
       this.each(clip, (g) => g.goToFrame(g.from + (g.to - g.from) * share(at), true));
     }
     this.swing?.update(heldTime(this.held, now));
+    this.wings?.update(now, dtMs, wingState(gait, this.current !== null || this.waiting !== null));
   }
 
   dispose(): void {
@@ -419,6 +431,7 @@ export class Body implements Figure {
         n.setEnabled(false);
       }
     }
+    dress(model, made.skeletons[0], this.look, this.worn);
     const meshes = model
       .getChildMeshes(false)
       .filter((m) => m.isEnabled() && m.getTotalVertices() > 0);
@@ -515,6 +528,7 @@ function stand(model: TransformNode, root: TransformNode, look: ModelLook): Abst
     ...look.hide,
     ...(look.tint ? [look.tint.part] : []),
     ...(look.weapon ? [look.weapon] : []),
+    ...(look.own ? [...look.own.outfit, ...look.own.headwear, ...look.own.weapon] : []),
   ];
   const missing = parts.filter((p) => !named.has(p));
   if (missing.length > 0) {
@@ -549,15 +563,16 @@ function unstretched(model: TransformNode): void {
   }
 }
 
-/** The toon base for a mesh's glTF material: its texture and colour in the look's light, the look's tint in place of the colour on the part it names, a material or a mesh. */
-function baseOf(source: Material, mesh: string, look: ModelLook): ToonBase {
+/** The toon base for a mesh's glTF material: its texture, or a worn part's colourway, and colour in the look's light, the look's tint in place of the colour on the part it names, a material or a mesh, which a worn part's name never is; a worn part glows if its piece does. */
+function baseOf(source: Material, mesh: string, look: ModelLook, part?: Part): ToonBase {
   const pbr = source as Partial<Pick<PBRMaterial, 'albedoTexture' | 'albedoColor'>>;
   const tinted = look.tint && (look.tint.part === source.name || look.tint.part === mesh);
   const color =
     look.tint && tinted
       ? linearOf(look.tint.color)
       : (pbr.albedoColor ?? Color3.White()).scale(look.exposure);
-  return { texture: pbr.albedoTexture instanceof Texture ? pbr.albedoTexture : null, color };
+  const texture = part?.atlas ?? (pbr.albedoTexture instanceof Texture ? pbr.albedoTexture : null);
+  return { texture, color, ...(part?.glow && { glow: true }) };
 }
 
 function jointsOf(model: Node): Joint[] {

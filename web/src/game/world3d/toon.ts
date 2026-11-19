@@ -84,8 +84,12 @@ export interface Opening {
 export interface ToonBase {
   readonly texture: Texture | null;
   readonly color: Color3; // linear, as glTF writes it
+  readonly glow?: boolean; // drawn in the lit band only, with a rim, as prestige wings are
   readonly vertexColors?: boolean; // times each vertex's colour, linear, as a region's ground is
 }
+
+const RIM_FROM = 0.45; // how far a surface turns from the camera before a glow's rim starts
+const RIM = 0.7; // and how much white the rim adds where the surface is edge-on
 
 /** The vertex half both materials share: a skinned position and normal in the world, a thin instance's matrix under the mesh's, out to clip space. */
 class Skinned {
@@ -443,11 +447,53 @@ function toonMaterial(
   return built(
     new NodeMaterial(name, scene, { emitComments: false }),
     s,
-    shaded.output,
+    base.glow ? rimmed(s, albedo.output, lit.output) : shaded.output,
     alpha,
     cut,
     place,
   );
+}
+
+/** A glow's colour: albedo in the lit band whatever the light, with white added toward the edges the camera sees side-on. */
+function rimmed(
+  s: Skinned,
+  albedo: NodeMaterialConnectionPoint,
+  white: NodeMaterialConnectionPoint,
+): NodeMaterialConnectionPoint {
+  const toCamera = new SubtractBlock('toCamera');
+  s.system('cameraPosition', NodeMaterialSystemValues.CameraPosition).output.connectTo(
+    toCamera.left,
+  );
+  s.worldPos.xyz.connectTo(toCamera.right);
+  const view = new NormalizeBlock('view');
+  toCamera.output.connectTo(view.input);
+  const facing = new NormalizeBlock('facing');
+  s.worldNormal.xyz.connectTo(facing.input);
+  const dot = new DotBlock('facingDot');
+  view.output.connectTo(dot.left);
+  facing.output.connectTo(dot.right);
+  const edge = new OneMinusBlock('edge');
+  dot.output.connectTo(edge.input);
+  const from = new InputBlock('rimFrom');
+  from.value = RIM_FROM;
+  const to = new InputBlock('rimTo');
+  to.value = 1;
+  const soft = new SmoothStepBlock('rim');
+  edge.output.connectTo(soft.value);
+  from.output.connectTo(soft.edge0);
+  to.output.connectTo(soft.edge1);
+  const strength = new InputBlock('rimStrength');
+  strength.value = RIM;
+  const amount = new MultiplyBlock('rimAmount');
+  soft.output.connectTo(amount.left);
+  strength.output.connectTo(amount.right);
+  const light = new ScaleBlock('rimLight');
+  white.connectTo(light.input);
+  amount.output.connectTo(light.factor);
+  const out = new AddBlock('glowed');
+  albedo.connectTo(out.left);
+  light.output.connectTo(out.right);
+  return out.output;
 }
 
 /** The ink: back faces only, pushed out along their normals by OUTLINE_M in the world, so every model's line is the same width. */
@@ -536,7 +582,7 @@ export class Palette {
   /** The toon material for base, drawn at alpha: 1, or less for a solid faded out of the camera's way; cut for the place, which opens round the player. */
   toon(base: ToonBase, alpha = 1, cut = false): NodeMaterial {
     const color = base.color.clampToRef(0, 1, new Color3());
-    const key = `${base.texture?.uniqueId ?? '-'} ${color.toHexString()}${base.vertexColors ? ' vertex' : ''}${cut ? ' cut' : ''}${alpha < 1 ? ` ${alpha}` : ''}`;
+    const key = `${base.texture?.uniqueId ?? '-'} ${color.toHexString()}${base.glow ? ' glow' : ''}${base.vertexColors ? ' vertex' : ''}${cut ? ' cut' : ''}${alpha < 1 ? ` ${alpha}` : ''}`;
     let m = this.made.get(key);
     if (!m) {
       m = toonMaterial(`toon ${key}`, this.scene, { ...base, color }, alpha, cut ? this.cut : null);

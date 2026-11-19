@@ -39,6 +39,7 @@ import {
   PartyViewSchema,
   StatusViewSchema,
   NpcDialogSchema,
+  LookSchema,
   WelcomeSchema,
   MatchPhase,
   MatchStateSchema,
@@ -74,16 +75,19 @@ import { Fx } from '../effects/fx';
 import type { Body as Unit } from '../effects/types';
 import { attackIn, attackTiming, skillTiming } from '../systems/actions';
 import { Arrival } from '../systems/arrival';
+import type { LookWire } from '../systems/interpolation';
 import { MobAttacks } from '../systems/mob-attacks';
 import { Predictor } from '../systems/prediction';
 
 import { beatsOf } from './beats';
 import { BLEND_MS } from './blend';
 import { Body, FADED } from './body';
+import type { Figure } from './body';
 import { buildChunk } from './chunk-build';
 import { Figures } from './figures';
 import { CHEST_M } from './follow';
 import { classLook, mobLook } from './looks';
+import type { ModelLook } from './looks';
 import { loadMap } from './map';
 import { Palette } from './toon';
 import { World } from './world';
@@ -364,6 +368,14 @@ function frames(p: Playing, from: number, to: number, mobs: MobWire[]): void {
     p.push('delta', { mobs }, { tick });
     p.frames(1);
   }
+}
+
+/** Figures' own make, to call through from a spy on it. */
+function unspied(): (this: Figures, look: ModelLook) => Promise<Figure> {
+  return Object.getOwnPropertyDescriptor(Figures.prototype, 'make')!.value as (
+    this: Figures,
+    look: ModelLook,
+  ) => Promise<Figure>;
 }
 
 /** A colour as a style reads it back. */
@@ -710,6 +722,154 @@ describe('World', () => {
     }
     expect(p.root(classLook('thief').file)).toBeUndefined();
     expect(nearby.getState().players).toEqual([]);
+  });
+
+  it('redraws a player whose class changes, keeping the old figure till the new one is in, and the newest change winning', async () => {
+    const p = await playing(FLAT, 4, 20);
+    const [thief, bowman, mage] = ['thief', 'bowman', 'magician'].map((c) => classLook(c).file);
+    for (let tick = 2; tick <= 6; tick++) {
+      p.push('delta', tick === 2 ? { players: [standing(8, 20, 'c-robin', 'thief')] } : {}, {
+        tick,
+      });
+      p.frames(1);
+    }
+    await vi.waitFor(() => expect(p.root(thief!)).toBeDefined(), WAIT);
+    const real = unspied();
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    let bowmanBuilt: Promise<unknown> = Promise.resolve();
+    const make = vi.spyOn(Figures.prototype, 'make').mockImplementation(function (
+      this: Figures,
+      look,
+    ) {
+      const made = real.call(this, look);
+      if (look.file === bowman) {
+        bowmanBuilt = made;
+      }
+      return look.file === bowman ? held.then(() => made) : made;
+    });
+    p.push('delta', { players: [standing(8, 20, 'c-robin', 'bowman')] }, { tick: 7 });
+    p.frames(3);
+    await bowmanBuilt;
+    await new Promise((r) => setImmediate(r));
+    expect(p.root(thief!)).toBeDefined(); // the bowman built but held back
+    expect(make).toHaveBeenCalledTimes(1);
+    p.push('delta', { players: [standing(8, 20, 'c-robin', 'magician')] }, { tick: 8 });
+    p.frames(1);
+    await vi.waitFor(() => expect(p.root(mage!)).toBeDefined(), WAIT);
+    expect(p.root(thief!)).toBeUndefined();
+    release();
+    await Promise.allSettled(make.mock.results.map((r) => r.value as Promise<unknown>));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(p.root(bowman!)).toBeUndefined(); // come after the magician, so dropped
+    expect(p.root(mage!)).toBeDefined();
+    p.frames(1);
+    expect(p.root(mage!)!.position.x).toBeCloseTo(8);
+  });
+
+  it('dresses another player in what their look wears, and redraws them when it changes', async () => {
+    const p = await playing(FLAT, 4, 20);
+    const shown = (name: string) =>
+      !!p.scene()?.meshes.some((m) => m.name === name && m.isEnabled());
+    const robin = (look: Partial<LookWire>) => ({
+      ...standing(8, 20, 'c-robin', 'thief'),
+      look: create(LookSchema, look),
+    });
+    for (let tick = 2; tick <= 6; tick++) {
+      p.push('delta', tick === 2 ? { players: [robin({ outfit: 'mage_robe' })] } : {}, { tick });
+      p.frames(1);
+    }
+    await vi.waitFor(() => expect(shown('Mage_Body worn')).toBe(true), WAIT);
+    expect(shown('Rogue_Body')).toBe(false);
+    p.push(
+      'delta',
+      { players: [robin({ outfit: 'knight_plate', weapon: 'greataxe' })] },
+      { tick: 7 },
+    );
+    p.frames(1);
+    await vi.waitFor(() => expect(shown('Knight_Body worn')).toBe(true), WAIT);
+    expect(shown('2H_Axe worn')).toBe(true);
+    expect(shown('Mage_Body worn')).toBe(false);
+    expect(shown('Knight_Body')).toBe(true); // the player's own knight, as their class draws them
+  });
+
+  it('draws a player wearing a piece this client’s data lacks in their class’s own for it, and keeps drawing the world', async () => {
+    const said = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const p = await playing(FLAT, 4, 20);
+    const shown = (name: string) =>
+      !!p.scene()?.meshes.some((m) => m.name === name && m.isEnabled());
+    for (let tick = 2; tick <= 6; tick++) {
+      const look = create(LookSchema, { outfit: 'mage_robe', headwear: 'crown_of_tomorrow' });
+      p.push(
+        'delta',
+        tick === 2 ? { players: [{ ...standing(8, 20, 'c-robin', 'thief'), look }] } : {},
+        {
+          tick,
+        },
+      );
+      p.frames(1);
+    }
+    await vi.waitFor(() => expect(shown('Mage_Body worn')).toBe(true), WAIT);
+    const before = p.inputs();
+    p.live(5);
+    expect(p.inputs() - before).toBe(5); // still stepping
+    expect(said).toHaveBeenCalledWith(expect.stringContaining('no piece crown_of_tomorrow'));
+    said.mockRestore();
+  });
+
+  it('dresses the player in what their own frame says they wear, and keeps the figure through a look that wears nothing', async () => {
+    const make = vi.spyOn(Figures.prototype, 'make');
+    const p = await playing(FLAT, 4, 20);
+    const shown = (name: string) =>
+      !!p.scene()?.meshes.some((m) => m.name === name && m.isEnabled());
+    const made = make.mock.calls.length;
+    p.push('delta', { players: [{ ...standing(4, 20), look: create(LookSchema) }] }, { tick: 2 });
+    p.frames(2);
+    expect(make.mock.calls.length).toBe(made);
+    p.push(
+      'delta',
+      { players: [{ ...standing(4, 20), look: create(LookSchema, { headwear: 'pointed_hat' }) }] },
+      { tick: 3 },
+    );
+    p.frames(1);
+    await vi.waitFor(() => expect(shown('Mage_Hat worn')).toBe(true), WAIT);
+    expect(shown('Knight_Helmet')).toBe(false);
+    expect(make.mock.calls.length).toBe(made + 1);
+  });
+
+  it('dresses the player from a Snapshot too, as one rejoining in a look gets', async () => {
+    const p = await playing(FLAT, 4, 20);
+    const shown = (name: string) =>
+      !!p.scene()?.meshes.some((m) => m.name === name && m.isEnabled());
+    p.push(
+      'snapshot',
+      { players: [{ ...standing(4, 20), look: create(LookSchema, { weapon: 'greataxe' }) }] },
+      { tick: 2 },
+    );
+    p.frames(1);
+    await vi.waitFor(() => expect(shown('2H_Axe worn')).toBe(true), WAIT);
+  });
+
+  it('redraws the player on a promotion, keeping the old figure till the new one is in', async () => {
+    const p = await playing(FLAT, 4, 20);
+    const real = unspied();
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    vi.spyOn(Figures.prototype, 'make').mockImplementation(function (this: Figures, look) {
+      return held.then(() => real.call(this, look));
+    });
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: { id: ME, name: 'Ayla', class: 'thief', level: 30, hp: 50, maxHp: 50 },
+      }),
+    );
+    p.frames(2);
+    expect(p.root(classLook('warrior').file)).toBeDefined();
+    release();
+    await vi.waitFor(() => expect(p.root(classLook('thief').file)).toBeDefined(), WAIT);
+    expect(p.root(classLook('warrior').file)).toBeUndefined();
   });
 
   it('in a match names enemies red and teammates green, tags a bot, and locks and attacks an enemy as a mob, never a teammate', async () => {

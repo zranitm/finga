@@ -157,6 +157,22 @@ describe('RemotePlayers', () => {
     expect(r.render(1050).shown.get('a')?.x).toBe(11);
   });
 
+  it('keeps what each player wears as the newest frame gives it', () => {
+    const r = new RemotePlayers('me', TICK_MS);
+    const robe = {
+      outfit: 'mage_robe',
+      headwear: '',
+      face: '',
+      weapon: '',
+      wings: '',
+      hideHeadwear: false,
+    };
+    r.applySnapshot(1000, [wire('a', 10), { ...wire('b', 20), look: robe }]);
+    expect([r.lookOf('a'), r.lookOf('b')]).toEqual([undefined, robe]);
+    r.applyDelta(1050, [{ ...wire('a', 11), look: { ...robe, hideHeadwear: true } }], []);
+    expect(r.lookOf('a')).toEqual({ ...robe, hideHeadwear: true });
+  });
+
   it('a Snapshot starts over, so a restarted map’s earlier ticks draw', () => {
     const r = new RemotePlayers('me', TICK_MS);
     r.applySnapshot(5000, [wire('a', 10)]);

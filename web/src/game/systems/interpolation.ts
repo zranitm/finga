@@ -133,6 +133,16 @@ export class RemoteBuffer extends FrameBuffer<State> {
   }
 }
 
+/** A player's look as their view carries it: each slot's piece id, empty for the class's own or no wings, and whether the head is bare. */
+export interface LookWire {
+  readonly outfit: string;
+  readonly headwear: string;
+  readonly face: string;
+  readonly weapon: string;
+  readonly wings: string;
+  readonly hideHeadwear: boolean;
+}
+
 export interface RemoteWire extends ServerState {
   readonly id: string;
   readonly name: string;
@@ -147,6 +157,8 @@ export interface RemoteWire extends ServerState {
   readonly statuses: readonly StatusOn[];
   readonly dodging: boolean;
   readonly shield: number;
+  /** What it wears over its class's look; none, as proto3 sends an empty one, is the class's own. */
+  readonly look?: LookWire | undefined;
 }
 
 /** What a remote player shows besides where it stands, as of a frame. */
@@ -165,6 +177,7 @@ export interface RemoteInfo {
   readonly maxHp: number;
   readonly team: number;
   readonly bot: boolean;
+  readonly look: LookWire | undefined;
 }
 
 /** A look is on or off: it holds from its frame to the next, and isn't blended. */
@@ -217,6 +230,7 @@ export class RemotePlayers {
       maxHp: p.maxHp,
       team: p.team,
       bot: p.bot,
+      look: p.look, // a wardrobe change mid-stay
     });
     this.statuses.set(p.id, p.statuses);
     b.push(t, wireState(p));
@@ -269,6 +283,11 @@ export class RemotePlayers {
 
   classOf(id: string): string {
     return this.info.get(id)?.cls ?? classes[0].id;
+  }
+
+  /** What a player wears, as of the newest frame. */
+  lookOf(id: string): LookWire | undefined {
+    return this.info.get(id)?.look;
   }
 
   /** A player's statuses as of the newest frame, as the world judges them. */

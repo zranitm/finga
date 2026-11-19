@@ -1,6 +1,7 @@
-// The glTF files the world draws, loaded into a scene once per file.
+// The glTF files the world draws, loaded into a scene once per file, and the colourways' atlases they're drawn in.
 import type { AssetContainer } from '@babylonjs/core/assetContainer';
 import { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';
+import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import type { Scene } from '@babylonjs/core/scene';
 import { registerBuiltInLoaders } from '@babylonjs/loaders/dynamic';
 import type { IGLTFLoaderData } from '@babylonjs/loaders/glTF/glTFFileLoader';
@@ -13,6 +14,7 @@ let loadersRegistered = false;
 /** Loads files into scene from source, each once however often it's asked for. */
 export class Models {
   private readonly containers = new Map<string, Promise<AssetContainer>>();
+  private readonly atlases = new Map<string, Texture>();
 
   constructor(
     private readonly scene: Scene,
@@ -42,6 +44,26 @@ export class Models {
       c.catch(() => this.containers.delete(file));
     }
     return c;
+  }
+
+  /** A colourway's atlas from file, made once and sampled as like, the atlas the glTF loader made for the file it recolours, is. */
+  atlas(file: string, like: Texture): Texture {
+    let t = this.atlases.get(file);
+    if (!t) {
+      const source = this.source(file);
+      t = new Texture(typeof source === 'string' ? source : `data:${file}`, this.scene, {
+        noMipmap: like.noMipmap,
+        invertY: like.invertY,
+        samplingMode: like.samplingMode,
+        useSRGBBuffer: like._useSRGBBuffer === true,
+        mimeType: 'image/png',
+        ...(typeof source !== 'string' && { buffer: source }),
+      });
+      t.wrapU = like.wrapU;
+      t.wrapV = like.wrapV;
+      this.atlases.set(file, t);
+    }
+    return t;
   }
 }
 

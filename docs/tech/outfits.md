@@ -189,17 +189,19 @@ Changing looks in combat is `IN_COMBAT` (330037), the code a trait change in com
   - Where a piece made for one head sits wrong on another, it gives a `fit` for that body: an offset and a scale, tuned in the preview.
   - A test checks every piece in the generated data has a look whose meshes exist.
 - **Wings:**
-  - Each pair is two halves, each on a hinge node at the back of `chest`.
-  - The client turns each hinge every frame from the figure's state, so no clips are needed:
+  - Each pair is two halves, each on a hinge node at the back of `chest`. Each half is modelled spread flat across the back from its root, where its hinge goes.
+  - The client turns each hinge every frame from the figure's state, so no clips are needed. Open is degrees from folded straight back, 0, to spread flat, 90; the swing beats either side of it:
 
     | State | Beat | Swing | Open |
     | --- | --- | --- | --- |
-    | Standing | 2.4 s | ±6° | 20° |
-    | Walking or running | 1.2 s | ±10° | 25° |
-    | Sprinting | 0.6 s | ±16° | 30° |
-    | In the air | 1.6 s | ±12° | 45° |
-    | Attacking, using a skill, dead | — | folded | 5° |
+    | Standing | 2.4 s | ±6° | 55° |
+    | Walking or running | 1.2 s | ±10° | 60° |
+    | Sprinting | 0.6 s | ±16° | 45°, swept back |
+    | In the air | 1.6 s | ±12° | 80° |
+    | Acting, or not up (below) | — | folded | 10° |
 
+    - These are a start: the camera sits behind and above, where the first angles, 20° to 45°, read as thin slivers. The final values are tuned with the user on step 5's preview sheet, at close and far zoom.
+    - As built, wings fold whenever the body plays a clip over its legs: an attack, a skill or a block, a flinch, a knockdown and rising, and death. So they never hide an action's pose, and don't cut into the ground under a body that's down.
   - It eases between states over 150 ms. A remote figure uses the gait and action it already draws.
   - A pair marked `glow` in the look table draws in the toon material's lit band only, with a soft rim, so prestige wings read from afar.
   - The afterimage copies their pose, and the wardrobe's figure flutters.
@@ -209,6 +211,13 @@ Changing looks in combat is `IN_COMBAT` (330037), the code a trait change in com
   - A figure draws the same number of meshes as today: six to nine skinned parts, gear, and each one's ink. Wings add two meshes and two hinge turns a frame, in place of the cape's one mesh.
   - Colourways add materials, not draw calls, since each figure already draws on its own.
   - Measured with the regions soak's crowded town (large-regions.md section 13).
+- **As built (step 2):**
+  - `npm run gen` writes each piece's id, slot and look key to `gamedata/outfits.ts`. A test checks each has a look of its slot. A piece the data lacks throws rather than draw something else.
+  - A body is named by its class and each slot's piece, so a promotion or a look change redraws it, and a look wearing nothing keeps the class's own figure. The player is dressed by their own first frame, others by theirs. The old figure stays until the new one is in.
+  - Dressing comes after `stand()`, so no piece or bare head changes the body's size. A bare head hides headwear only. The hooded Rogue's hood is part of its head, so it stays, and headwear sits over it.
+  - Rigged class files and parts files keep raw positions. Quantizing folds each file's grid into its skins' inverse bind matrices, so files' rigs differed; a test holds one rig across them.
+  - A skin swatch is the face's atlas cell and any cell sharing its colours, such as the Mage's hands.
+  - A crowd of 40 dressed players drew within noise of 40 in their class's own looks.
 
 ## 7. Client: the wardrobe and the character window
 
