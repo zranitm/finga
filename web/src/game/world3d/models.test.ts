@@ -8,10 +8,6 @@ import { Logger } from '@babylonjs/core/Misc/logger';
 import { Scene } from '@babylonjs/core/scene';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { classes } from '@/gamedata/classes';
-import { mobs } from '@/gamedata/mobs';
-
-import { classLook, mobLook } from './looks';
 import { Models } from './models';
 
 const MODELS = path.resolve(process.cwd(), 'public/models');
@@ -44,7 +40,7 @@ describe('Models', () => {
     expect(asked).toEqual(['quaternius/Mushnub.glb']);
   });
 
-  it('loads every model without a warning', async () => {
+  it('loads every model without a warning, none with a clip started', async () => {
     const warned = vi.spyOn(Logger, 'Warn');
     const models = new Models(
       scene,
@@ -53,36 +49,31 @@ describe('Models', () => {
     const files = readdirSync(MODELS, { recursive: true, encoding: 'utf8' }).filter((f) =>
       f.endsWith('.glb'),
     );
-    await Promise.all(files.map((f) => models.load(f)));
+    const loaded = await Promise.all(files.map((f) => models.load(f)));
     expect(warned.mock.calls.map((c) => String(c[0]))).toEqual([]);
+    expect(
+      loaded.flatMap((c) => c.animationGroups.filter((g) => g.isPlaying).map((g) => g.name)),
+    ).toEqual([]);
   });
 
-  it('holds each file at rest: no clip of it plays, so a body cloned from it stands as tall whenever it’s made', async () => {
+  it('holds a file at rest, so a body cloned from it stands as tall whenever it’s made', async () => {
     scene.useConstantAnimationDeltaTime = true; // each animate() a 16 ms step
     const models = new Models(
       scene,
       (file) => new Uint8Array(readFileSync(path.join(MODELS, file))),
     );
-    const files = [
-      ...new Set([
-        ...classes.map((c) => classLook(c.id).file),
-        ...mobs.map((m) => mobLook(m.id).file),
-      ]),
-    ];
+    // the files whose first clips moved them most: a chop, a block, and a death that lays a mob down
+    const files = ['kaykit/Barbarian.glb', 'kaykit/Mage.glb', 'quaternius/Big_Bunny.glb'];
     const loaded = await Promise.all(files.map((f) => models.load(f)));
-    const heights = (): number[] => loaded.map(heightOfClone);
-    const first = heights();
-    for (let i = 0; i < 6; i++) {
+    const first = loaded.map(heightOfClone);
+    for (let i = 1; i <= 6; i++) {
       for (let k = 0; k < 11; k++) {
         scene.animate();
       }
-      heights().forEach((h, k) =>
-        expect(h, `${files[k]} at ${(i + 1) * 176} ms`).toBeCloseTo(first[k]!, 6),
+      loaded.forEach((c, k) =>
+        expect(heightOfClone(c), `${files[k]} at ${i * 176} ms`).toBeCloseTo(first[k]!, 6),
       );
     }
-    expect(
-      loaded.flatMap((c) => c.animationGroups.filter((g) => g.isPlaying).map((g) => g.name)),
-    ).toEqual([]);
   });
 
   it('forgets a load that failed, so the next asks again', async () => {
