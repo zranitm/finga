@@ -14,6 +14,7 @@ import (
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 	"finga/pkg/transient"
 )
 
@@ -147,9 +148,10 @@ func (g *Ground) send(o *owner, t *take) {
 	in := model.GrantCall{Account: o.Account, Character: o.ID, Drops: make([]model.Grant, 0, len(t.items))}
 	for _, it := range t.items {
 		e := it.entry
-		in.Drops = append(in.Drops, model.Grant{Key: e.key, Template: e.template, Quantity: e.quantity, Stats: e.stats})
+		in.Drops = append(in.Drops, model.Grant{Key: e.key, Template: e.template, Quantity: e.quantity, Stats: copied(e.stats)})
 	}
-	if !g.deps.ItemCalls.Submit(func(ctx context.Context) { g.deps.Settle(ctx, g.grant(ctx, o.ID, t.items, in)) }) {
+	id, items := o.ID, t.items // the worker reads only copies: the tick goes on rewriting the owner as their pouches fall
+	if !g.deps.ItemCalls.Submit(func(ctx context.Context) { g.deps.Settle(ctx, g.grant(ctx, id, items, in)) }) {
 		busy := fmt.Errorf("%w: every item-call worker is busy", transient.ErrUnavailable)
 		o.retryAt = g.tick + g.retry
 		for _, it := range t.items {
@@ -168,6 +170,15 @@ func (g *Ground) send(o *owner, t *take) {
 	g.deps.Observer.ObserveBatch(len(t.items))
 	mark(t.items, true)
 	o.busy, o.asking = true, t.asks
+}
+
+// copied is a roll of its own for a worker's call, which shares no memory with the ground.
+func copied(s *progression.ItemStats) *progression.ItemStats {
+	if s == nil {
+		return nil
+	}
+	c := *s
+	return &c
 }
 
 // grant asks the item module for the call's items, on a worker, retrying a transient failure once, both tries within callFor; its span is a consumer's, of the job a tick handed over.
