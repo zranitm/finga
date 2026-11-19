@@ -135,8 +135,9 @@ feats:
 - **Promotion:**
   - A weapon look the new class's kind doesn't take is cleared in the trainer gift's item transaction, which returns the look. The world wears it before `Promoted`, in the same tick as the new class.
   - A crash after that commit but before the checkpoint saves the new class leaves the old class without its weapon look. It's the same window the gift already has.
+  - A look and a promotion never overlap. Each is checked against the class the other may change, so whichever is in flight refuses the other as unavailable.
 - **Bots:**
-  - PvP bots wear a random look, seeded by their id: each slot is the class's own half the time, otherwise a boss piece of that slot, and a weapon look of the class's kind. Feat pieces join them with feats.
+  - PvP bots wear a random look, seeded by their id: each slot is the class's own half the time, otherwise a piece of that slot every source of which is a boss, and a weapon look of the class's kind. Feat pieces join them with feats.
   - They never wear rank pieces, so a rank piece always means a player earned it.
   - cmd/bot's players wear what their accounts own.
 - **`GET /api/wardrobe`**: the account's pieces, oldest first, each with its cause, the item for an item, and when it was added. None is `[]`.

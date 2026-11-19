@@ -2,6 +2,7 @@ package world_test
 
 import (
 	"encoding/binary"
+	"slices"
 	"testing"
 
 	model "finga/internal/model/world"
@@ -67,10 +68,10 @@ func TestABotWearsBossPiecesOfItsClass(t *testing.T) {
 // A piece with any source but a boss never shows on a bot, as rank, quest and feat pieces will have, so a rank piece always means a player earned it.
 func TestABotWearsNoPieceFromElsewhere(t *testing.T) {
 	d := gamedatatest.Shipped(t)
-	pieces := append(d.Pieces()[:len(d.Pieces()):len(d.Pieces())],
-		gamedata.Piece{ID: "ranked_plate", Slot: gamedata.OutfitSlot, From: []gamedata.PieceSource{{Boss: "king_slime", Chance: 0.05}, {}}},
-		gamedata.Piece{ID: "sourceless_hat", Slot: gamedata.HeadwearSlot},
-	)
+	pieces := slices.Concat(d.Pieces(), []gamedata.Piece{
+		{ID: "ranked_plate", Slot: gamedata.OutfitSlot, From: []gamedata.PieceSource{{Boss: "king_slime", Chance: 0.05}, {}}},
+		{ID: "sourceless_hat", Slot: gamedata.HeadwearSlot},
+	})
 	for n := range sweep {
 		look := model.BotLook(pieces, gamedata.OneHanded, botID(n))
 		if look.Outfit == "ranked_plate" || look.Headwear == "sourceless_hat" {
