@@ -104,7 +104,8 @@ import { Figures } from './figures';
 import { CHEST_M, cameraAt, easeShare, heldView, yawOf } from './follow';
 import { Labels } from './labels';
 import { LockRing } from './lock-ring';
-import { classLook, mobLook, npcLook } from './looks';
+import { drawnAs, mobLook, npcLook, playerLook } from './looks';
+import type { ModelLook } from './looks';
 import { groundUnder, loadMap, standsIn } from './map';
 import type { WorldMap } from './map';
 import type { ActionPose } from './model-looks';
@@ -174,23 +175,37 @@ class Drawn {
   figure: Figure | null = null;
   yaw: number;
   private gone = false;
+  private latest = 0; // the redraw whose figure it waits for; an older one that comes after is dropped
   private last: { x: number; y: number; z: number } | null = null;
   private posed: { p: Pose; at: number } = { p: 'up', at: 0 };
 
-  constructor(made: Promise<Figure>, yaw: number) {
+  /** as: what it's drawn as, which a redraw changes. */
+  constructor(
+    made: Promise<Figure>,
+    yaw: number,
+    public as: string,
+  ) {
     this.yaw = yaw;
+    this.redraw(made, as);
+  }
+
+  /** Draws it as made from now on, once made is in, which a later redraw overtakes; till then it shows what it did. */
+  redraw(made: Promise<Figure>, as: string): void {
+    this.as = as;
+    const mine = ++this.latest;
     made.then(
       (f) => {
-        if (this.gone) {
+        if (this.gone || mine !== this.latest) {
           f.dispose();
           return;
         }
+        this.figure?.dispose();
         this.figure = f;
         if (this.posed.p !== 'up') {
           f.pose(this.posed.p, this.posed.at); // taken while it loaded
         }
       },
-      () => undefined, // nothing to draw; drawn() says why
+      () => undefined, // nothing new to draw; made() says why
     );
   }
 
@@ -611,7 +626,7 @@ export class World {
     );
     const at = arriving.at;
     this.meCls = this.cls;
-    this.me = this.drawn(classLook(this.meCls), at?.yaw ?? 0);
+    this.me = this.drawn(playerLook(this.meCls, undefined), at?.yaw ?? 0, this.meCls); // dressed by its first frame
     if (at) {
       this.follow.set(at.x, at.y + CHEST_M, at.z);
     }
@@ -646,9 +661,7 @@ export class World {
         }
         if (now.character && now.character.class !== this.meCls) {
           this.meCls = now.character.class;
-          const yaw = this.me?.yaw ?? 0;
-          this.me?.dispose();
-          this.me = this.drawn(classLook(this.meCls), yaw);
+          this.dressMe();
         }
         if (now.character?.sheet !== before.character?.sheet) {
           this.predictor?.setParams(movementParams(this.kind(), this.moveSpeed()));
@@ -848,6 +861,7 @@ export class World {
     const me = players.find((p) => p.id === this.deps.player.characterId);
     if (me) {
       this.latestMe = me;
+      this.dressMe();
       this.myTeam = me.team;
       this.placeAt(me);
       this.flash.set(me.invulnerable, now);
@@ -881,6 +895,7 @@ export class World {
     }
     const acting = !this.restrained().act;
     this.latestMe = me;
+    this.dressMe();
     this.myTeam = me.team;
     if (acting && this.restrained().act) {
       this.stopAction(now);
@@ -1017,10 +1032,15 @@ export class World {
     }
     for (const [id, s] of shown) {
       let v = this.remoteViews.get(id);
+      const cls = remotes.classOf(id);
+      const look = remotes.lookOf(id);
+      const as = drawnAs(cls, look);
       if (!v) {
-        v = this.drawn(classLook(remotes.classOf(id)), yawOf(s.hx, s.hz));
+        v = this.drawn(playerLook(cls, look), yawOf(s.hx, s.hz), as);
         this.remoteViews.set(id, v);
         changed = true;
+      } else if (v.as !== as) {
+        v.redraw(this.made(playerLook(cls, look)), as); // a promotion or a wardrobe change
       }
       const aim = this.remoteAims.get(id);
       v.draw(
@@ -1305,8 +1325,22 @@ export class World {
     return at && playerBody(at.x, at.y, at.z);
   }
 
-  /** A figure for look, made in the background; a model that fails to load, but for its map going first, says why once. */
-  private drawn(look: Parameters<Figures['make']>[0], yaw: number): Drawn {
+  /** Redraws the player when their class or what their newest frame says they wear has changed. */
+  private dressMe(): void {
+    const look = this.latestMe?.look;
+    const as = drawnAs(this.meCls, look);
+    if (this.me && this.me.as !== as) {
+      this.me.redraw(this.made(playerLook(this.meCls, look)), as);
+    }
+  }
+
+  /** A figure for look, drawn as as, made in the background. */
+  private drawn(look: ModelLook, yaw: number, as = look.file): Drawn {
+    return new Drawn(this.made(look), yaw, as);
+  }
+
+  /** A figure for look; a model that fails to load, but for its map going first, says why once. */
+  private made(look: ModelLook): Promise<Figure> {
     const { figures, scene } = this;
     const made = figures ? figures.make(look) : Promise.reject(new Error('no scene'));
     made.catch((err: unknown) => {
@@ -1316,7 +1350,7 @@ export class World {
         );
       }
     });
-    return new Drawn(made, yaw);
+    return made;
   }
 
   /** The player's class: the store's, which a promotion changes, else the one the world was entered with. */
