@@ -2,6 +2,7 @@ package instance_test
 
 import (
 	"context"
+	"errors"
 	"math"
 	"reflect"
 	"testing"
@@ -84,10 +85,17 @@ func TestABotGuardsAPlayersAttacksAndSkillsThroughTheRing(t *testing.T) {
 			from = used[len(used)-1].Tick
 		}
 		for k := range 5 { // Strikes alone now, as the energy pays for, which the ring keeps from the skill's start
-			me, _ := sink.Own(ayla.ID)
-			it, _ := sink.Own(bot.ID)
-			aim := float32(math.Atan2(it.State.X-me.State.X, it.State.Z-me.State.Z))
-			if err := inst.UseSkill(context.Background(), ayla.ID, ayla.Connection, model.SkillUse{Skill: "strike", Root: "strike", Aim: aim, Target: model.EntityRef{Player: bot.ID}}, uint32(1000+k)); err != nil { //nolint:gosec // a few presses
+			var err error
+			for range 40 { // the bot's stun or knockdown may hold Ayla: she presses once it's over
+				me, _ := sink.Own(ayla.ID)
+				it, _ := sink.Own(bot.ID)
+				aim := float32(math.Atan2(it.State.X-me.State.X, it.State.Z-me.State.Z))
+				if err = inst.UseSkill(context.Background(), ayla.ID, ayla.Connection, model.SkillUse{Skill: "strike", Root: "strike", Aim: aim, Target: model.EntityRef{Player: bot.ID}}, uint32(1000+k)); !errors.Is(err, model.ErrCantAct) { //nolint:gosec // a few presses
+					break
+				}
+				sleep(worldtest.TickInterval)
+			}
+			if err != nil {
 				t.Fatalf("Strike %d: %v", k+1, err)
 			}
 			sleep(4600 * time.Millisecond)
