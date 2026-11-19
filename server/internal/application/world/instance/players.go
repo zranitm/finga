@@ -81,6 +81,7 @@ type player struct {
 	questChanges map[string]model.QuestChange // this tick's, told at its end
 	toldHP       int                          // the HP and max HP the party last heard
 	toldMaxHP    int
+	toldSpots    bool              // the party spots last told held someone
 	hpCarry      int               // regen's fractions, in thousandths of a point
 	toldEnergy   int               // the energy the client last heard, as of its ack; -1 until the first frame
 	spentAhead   []energySpend     // spends for presses past lastSeq, which the client still takes off itself
@@ -202,12 +203,13 @@ func (i *Instance) remove(id kernel.CharacterID) {
 
 // detach drops a player without a checkpoint; the caller has saved one. A skill use still waiting for its turn hears it won't go.
 func (i *Instance) detach(id kernel.CharacterID) {
-	if m := i.players[id].waitingCast; m != nil {
+	p := i.players[id]
+	if m := p.waitingCast; m != nil {
 		m.done <- fmt.Errorf("%w: the character left the map before its skill's turn", transient.ErrUnavailable)
 	}
 	delete(i.players, id)
 	i.order = slices.DeleteFunc(i.order, func(x kernel.CharacterID) bool { return x == id })
-	i.interest.leave(id)
+	i.interest.leave(id, !p.joined)
 	i.arena.DropBy(id) // their damage over time ends with them
 }
 

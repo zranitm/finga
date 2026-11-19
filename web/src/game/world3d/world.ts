@@ -7,6 +7,7 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Scene } from '@babylonjs/core/scene';
 
 import { actions as actionData } from '@/gamedata/actions';
+import { interest } from '@/gamedata/interest';
 import { limits } from '@/gamedata/limits';
 import { loot as lootData } from '@/gamedata/loot';
 import { maps } from '@/gamedata/maps';
@@ -163,6 +164,7 @@ const MAX_FRAME_MS = 100; // a frame after a stall moves no further than this
 const GLOW_SLACK_MS = 500; // the channel's glow lasts this past its length, for the MapChange to come
 const MOVES: ReadonlySet<Action> = new Set(['left', 'right', 'up', 'down', 'jump']);
 const MARKS_MS = 100; // how often the map views' marks move
+const EDGE_FADE_M = 8; // a body fades over this much before the side edge of what every frame brings
 const LOCK_INSET = 0.08; // the share of the canvas's width and height in from each edge a mob must be for the lock to pick it
 const CORRECTION_MS = 100; // a reset's jump is drawn as a shove over this
 const RUN_SPEED = 3; // m/s: from here a body runs rather than walks
@@ -332,6 +334,14 @@ const GAITS = {
 } as const satisfies Record<Gait['pace'], readonly [Gait, Gait]>;
 
 /** Moves the zoom setting by d, held between close and far. */
+/** How far to each side every frame brings bodies on a map sizeX by sizeZ: the block's side columns, from anywhere in the player's cell; null on a map one block holds from every cell, which the server sends whole (large-regions.md section 5). */
+function sideEdge(sizeX: number, sizeZ: number): number | null {
+  const nx = Math.max(1, Math.ceil(sizeX / interest.cell));
+  const nz = Math.max(1, Math.ceil(sizeZ / interest.cell));
+  const whole = nx - 1 <= interest.side && nz - 1 <= Math.min(interest.behind, interest.ahead);
+  return whole ? null : interest.side * interest.cell;
+}
+
 function zoomBy(d: number): void {
   const s = settings.getState();
   s.setZoom(Math.min(1, Math.max(0, s.zoom + d)));
@@ -383,6 +393,9 @@ export class World {
   private lockedId: string | null = null; // and its ref, which the place opens round
   private readonly statusTimes = new Map<string, ShownStatus & { ends: number }>(); // by unit ref and status, as the HUD times them
   private marksDue = 0;
+  private sideM: number | null = null; // how far to each side every frame brings bodies, on a map cut by cells; null on one sent whole
+  private readonly edgeHidden = new Set<string>(); // the refs of bodies past it this frame, drawn nowhere
+  private readonly mateSpots = new Map<string, MapSpot>(); // each party member here where last drawn, or where the server last said of one out of sight
   private readonly overlay: Overlay;
   private readonly labels: Labels;
   private readonly bars: Bars;
@@ -664,6 +677,7 @@ export class World {
     const socket = this.deps.socket;
     const { characterId } = this.deps.player;
     this.mapId = map.id;
+    this.sideM = sideEdge(map.geometry.size_x, map.geometry.size_z);
     this.tickRateHz = arriving.tickRateHz;
     this.timing = tickTiming(this.tickRateHz, movement.dt);
     this.combat = this.newCombat(fx);
@@ -710,6 +724,13 @@ export class World {
       pouches.subscribe((now, before) => {
         if (now.pouches !== before.pouches) {
           this.pouchMarks?.show(now.pouches);
+        }
+      }),
+      party.subscribe((now, before) => {
+        if (now.spots !== before.spots) {
+          for (const [id, at] of Object.entries(now.spots)) {
+            this.mateSpots.set(id, at);
+          }
         }
       }),
       quests.subscribe((now, before) => {
@@ -1053,6 +1074,7 @@ export class World {
   }
 
   private drawRemotes(now: number, dtMs: number): void {
+    this.edgeHidden.clear(); // drawing the remotes and the mobs fills it again
     const remotes = this.remotes;
     const renderTime = this.renderClock.renderTime(now);
     if (!remotes || renderTime === null) {
@@ -1090,8 +1112,14 @@ export class World {
         gaitAt(Math.hypot(s.vx, s.vz), s.on_ground, s.sprint),
       );
       v.pose(this.deadRemotes.has(id) ? 'dead' : 'up', now);
-      v.fade(looks.get(id)?.dodging ?? false);
+      const edge = this.edgeOf(`p:${id}`, s.x);
+      v.show(edge !== 'hidden');
+      v.fade(edge === 'faded' || (looks.get(id)?.dodging ?? false));
       v.castAt(Math.hypot(s.x - this.follow.x, s.z - this.follow.z));
+      if (edge === 'hidden') {
+        this.labels.delete(`p:${id}`);
+        continue;
+      }
       const info = remotes.infoOf(id);
       const side = relationOf(this.myTeam, info?.team ?? 0);
       this.labels.set(
@@ -1110,6 +1138,21 @@ export class World {
         .getState()
         .setNearby([...this.remoteViews.keys()].map((id) => ({ id, name: remotes.nameOf(id) })));
     }
+  }
+
+  /** How body ref at x is drawn across from the player: whole within the distance every frame brings, faded over its last EDGE_FADE_M, and not at all past it, where it comes and goes with the player's cell (large-regions.md section 5). */
+  private edgeOf(ref: string, x: number): 'whole' | 'faded' | 'hidden' {
+    const across = Math.abs(x - this.follow.x);
+    const edge =
+      this.sideM === null || across < this.sideM - EDGE_FADE_M
+        ? 'whole'
+        : across <= this.sideM
+          ? 'faded'
+          : 'hidden';
+    if (edge === 'hidden') {
+      this.edgeHidden.add(ref);
+    }
+    return edge;
   }
 
   /** The server's time the drawn player stands at, which a mob's strike at them is drawn on; the render time before an ack, or once it passes a player held still by death or a stall. */
@@ -1160,9 +1203,10 @@ export class World {
       mark.radius = m?.radius ?? 0;
       mark.hp = s.hp;
       const middle = s.y + (m?.height ?? 0) / 2; // seen through last frame's camera
-      mark.inView = this.overlay.within(s.x, middle, s.z, LOCK_INSET);
-      mark.inFrame = this.overlay.within(s.x, middle, s.z, 0);
-      if (m && !m.boss && s.hp > 0) {
+      const edge = this.edgeOf(mark.id, s.x);
+      mark.inView = edge !== 'hidden' && this.overlay.within(s.x, middle, s.z, LOCK_INSET);
+      mark.inFrame = edge !== 'hidden' && this.overlay.within(s.x, middle, s.z, 0);
+      if (m && !m.boss && s.hp > 0 && edge !== 'hidden') {
         this.bars.set(id, s.x, s.y + m.height, s.z, s.hp, s.maxHp, m.elite);
       } else {
         this.bars.delete(id); // a boss's is the bar at the top; a killed one's is gone
@@ -1176,6 +1220,8 @@ export class World {
       v.pinned = this.lockedId === mark.id;
       v.draw(s.x, s.y, s.z, s.yaw, now, dtMs);
       v.pose(poseOf(s.pose), now - s.poseMs);
+      v.show(edge !== 'hidden');
+      v.fade(edge === 'faded');
     }
     this.marks.length = this.markFoes(marked);
     const boss = fieldBoss.getState().boss;
@@ -1343,7 +1389,11 @@ export class World {
       on.set('me', mine.root.position);
     }
     for (const [id, v] of this.remoteViews) {
-      if (v.figure && (this.remoteLooks.get(id)?.shield ?? 0) > 0) {
+      if (
+        v.figure &&
+        (this.remoteLooks.get(id)?.shield ?? 0) > 0 &&
+        !this.edgeHidden.has(`p:${id}`)
+      ) {
         on.set(`p:${id}`, v.figure.root.position);
       }
     }
@@ -1445,7 +1495,11 @@ export class World {
     for (const id of this.mobViews.keys()) {
       put(`m:${id}`, this.mobs.statusesOf(id));
     }
-    this.combat?.statuses(units);
+    this.combat?.statuses(
+      this.edgeHidden.size === 0
+        ? units
+        : new Map([...units].filter(([ref]) => !this.edgeHidden.has(ref))),
+    );
     this.publishStatuses(units, now);
   }
 
@@ -1469,10 +1523,12 @@ export class World {
         return { id: t.id, from: t.from, until: t.until };
       });
     const me = this.deps.player.characterId;
-    const here: Record<string, ShownStatus[]> = {};
+    const here: Record<string, ShownStatus[] | null> = {};
     for (const m of party.getState().party?.members ?? []) {
       if (m.characterId !== me && m.mapId === this.mapId) {
-        here[m.characterId] = timed(`p:${m.characterId}`);
+        here[m.characterId] = this.remoteViews.has(m.characterId)
+          ? timed(`p:${m.characterId}`)
+          : null; // not drawn here, so out of sight: the frames don't bring theirs
       }
     }
     shownStatuses.getState().show({
@@ -1614,7 +1670,12 @@ export class World {
     mapView.getState().mark({
       me: me && s ? { x: me.x, z: me.z, yaw: yawOf(s.hx, s.hz) } : null,
       party: members.flatMap((m) => {
-        const at = this.remoteViews.get(m.characterId)?.at; // drawn here, so on this map
+        const drawn = this.remoteViews.get(m.characterId)?.at; // drawn here, so on this map
+        if (drawn) {
+          this.mateSpots.set(m.characterId, { x: drawn.x, z: drawn.z });
+        }
+        const at =
+          drawn ?? (m.mapId === this.mapId ? this.mateSpots.get(m.characterId) : undefined);
         return at ? [{ id: m.characterId, name: m.name, x: at.x, z: at.z }] : [];
       }),
       lock: this.lockedAt,
@@ -2268,6 +2329,7 @@ export class World {
     this.remoteViews.clear();
     this.remoteAims.clear();
     this.deadRemotes.clear();
+    this.mateSpots.clear();
     nearby.getState().clear();
     for (const v of this.mobViews.values()) {
       v.dispose();

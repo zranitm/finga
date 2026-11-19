@@ -43,3 +43,23 @@ func BenchmarkAMapsFrameToThePlayers(b *testing.B) {
 		})
 	}
 }
+
+// Two maps' frames going out at once through one gateway, their players' messages interleaved as the maps' streams are: each frame's parts are still encoded once.
+func BenchmarkTwoMapsFramesToTheirPlayers(b *testing.B) {
+	codec := protocol.ServerCodec(wsconn.Binary)
+	for _, n := range []int{10, 50} {
+		b.Run(fmt.Sprintf("players=%d", n), func(b *testing.B) {
+			o := &Outbox{frames: NewFrames()}
+			b.ReportAllocs()
+			for b.Loop() {
+				maps, parts := []*model.Frame{busyFrame(n), busyFrame(n)}, []int{0}
+				for i := range 2 * n {
+					body := o.body(model.Delta{Frame: maps[i%2], Parts: parts, AckSeq: uint32(i)}) //nolint:gosec // a benchmark's index
+					if _, err := codec.Encode(wsconn.Message{Tick: 9, Data: body}); err != nil {
+						b.Fatal(err)
+					}
+				}
+			}
+		})
+	}
+}

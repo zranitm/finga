@@ -28,6 +28,12 @@ func (o *Outbox) body(p model.Push) any {
 		return &clientv1.MapChange{MapId: p.MapID, X: p.X, Y: p.Y, Z: p.Z, Yaw: p.Yaw}
 	case model.TeleportCancelled:
 		return &clientv1.TeleportCancelled{Reason: teleportCancels[p.Reason]}
+	case model.PartySpots:
+		spots := make([]*clientv1.PartySpot, len(p.Spots))
+		for k, s := range p.Spots {
+			spots[k] = &clientv1.PartySpot{CharacterId: s.CharacterID, X: float32(s.X), Z: float32(s.Z)}
+		}
+		return &clientv1.PartySpots{Spots: spots}
 	case model.Damage:
 		return &clientv1.Damage{Source: entityRef(p.Source), Target: entityRef(p.Target), Amount: int32(p.Amount), Crit: p.Crit, Miss: p.Miss, Dodge: p.Dodge, Block: p.Block, StatusId: p.Status, Shielded: int32(p.Shielded)}
 	case model.SkillUsed:

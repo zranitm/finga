@@ -11,8 +11,7 @@ import (
 	"finga/internal/shared/kernel"
 )
 
-// interest is which of a map's cells each player is sent (large-regions.md section 5): each body's cell as the last frame left it, each cell's bodies, and what each player has seen.
-// A map one block holds from every cell, as today's maps and the arenas are, is sent whole, as one part, with none of this kept.
+// interest is which of a map's cells each player is sent (large-regions.md section 5); a map one block holds from every cell is sent whole, with none of it kept.
 type interest struct {
 	in      gamedata.Interest
 	nx, nz  int
@@ -171,8 +170,7 @@ func (n *interest) changesIn(f *model.Frame, c int) *model.Part {
 	return &f.Parts[n.changes[c]]
 }
 
-// cut files the tick's changes in the cells they happened in, a part each, and the field boss in the map's part, which every player is sent.
-// A body leaving the map goes in the cell the last frame left it in, which every player who saw it is sent; one that came and went this tick, with its view where it stood.
+// cut files the tick's changes in the cells they happened in, a part each, a body leaving the map in the cell the last frame left it in, and the field boss in the map's part, which every player is sent.
 func (i *Instance) cut(players []model.PlayerView, mobs []model.MobView, removedMobs []uint64) *model.Frame {
 	n := i.interest
 	removed := n.departed(i)
@@ -405,10 +403,12 @@ func (n *interest) refile(i *Instance) {
 	}
 }
 
-// leave ends p's watch as they leave the map, and has the next cut take them off it.
-func (n *interest) leave(id kernel.CharacterID) {
+// leave ends p's watch as they leave the map, and has the next cut take them off it if a frame ever brought them.
+func (n *interest) leave(id kernel.CharacterID, framed bool) {
 	delete(n.watches, id)
-	n.leavers = append(n.leavers, id)
+	if framed {
+		n.leavers = append(n.leavers, id)
+	}
 }
 
 // departed are the players who left since the last cut and aren't back, each once: a rejoin in one tick is an update, and the client applies removals last.

@@ -15,23 +15,27 @@ export function PartyPanel() {
   }
   return (
     <div role="group" className="party-panel" aria-label="Party">
-      {current.members.map((m) => (
-        <UnitFrame
-          key={m.characterId}
-          side="ally"
-          name={`${m.characterId === current.leader ? '★ ' : ''}${m.name}`}
-          level={m.level}
-          hp={m.hp}
-          maxHp={m.maxHp}
-          label={`Party member ${m.name}`}
-          hpName={`${m.name} HP`}
-          size="compact"
-          dimmed={!m.online}
-          {...(on[m.characterId] && { statuses: on[m.characterId] })}
-        >
-          {isMatchMap(m.mapId) && <p className="unit-frame-note">In a match</p>}
-        </UnitFrame>
-      ))}
+      {current.members.map((m) => {
+        const shown = on[m.characterId];
+        return (
+          <UnitFrame
+            key={m.characterId}
+            side="ally"
+            name={`${m.characterId === current.leader ? '★ ' : ''}${m.name}`}
+            level={m.level}
+            hp={m.hp}
+            maxHp={m.maxHp}
+            label={`Party member ${m.name}`}
+            hpName={`${m.name} HP`}
+            size="compact"
+            dimmed={!m.online}
+            {...(shown && { statuses: shown })}
+          >
+            {shown === null && <p className="unit-frame-note">Out of sight</p>}
+            {isMatchMap(m.mapId) && <p className="unit-frame-note">In a match</p>}
+          </UnitFrame>
+        );
+      })}
     </div>
   );
 }

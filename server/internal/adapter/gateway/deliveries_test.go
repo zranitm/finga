@@ -111,6 +111,11 @@ func TestEveryWorldEventKeepsItsValues(t *testing.T) {
 		},
 		"Teleport":          func() []string { return eventDiff[world.Teleport](t, model.MapChange{}, match()) },
 		"TeleportCancelled": func() []string { return eventDiff[world.TeleportCancelled](t, model.TeleportCancelled{}, match()) },
+		"PartySpots": func() []string {
+			m := match()
+			m.Renames["Event.Spots.ID"] = "Delivery.Push.Spots.CharacterID"
+			return eventDiff[world.PartySpots](t, model.PartySpots{}, m)
+		},
 		"Detached": func() []string {
 			m := match()
 			m.Skip["Tick"] = "a detached character is on no map"

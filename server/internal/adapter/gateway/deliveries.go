@@ -68,6 +68,12 @@ func worldPush(e world.Event) (model.Push, bool) {
 		return model.ExpGained{Amount: ev.Amount, Exp: ev.Exp}, true
 	case world.TeleportCancelled:
 		return model.TeleportCancelled{Reason: teleportCancels[ev.Reason]}, true
+	case world.PartySpots:
+		spots := make([]model.PartySpot, len(ev.Spots))
+		for k, s := range ev.Spots {
+			spots[k] = model.PartySpot{CharacterID: s.ID.String(), X: s.X, Z: s.Z}
+		}
+		return model.PartySpots{Spots: spots}, true
 	case world.LevelUp:
 		return model.LevelUp{Character: leveledView(ev)}, true
 	case world.Promoted:

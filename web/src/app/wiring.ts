@@ -152,6 +152,9 @@ export function wireSocket(socket: GameSocket): () => void {
     socket.on('partyInvited', (m) => {
       party.getState().applyPartyInvited(m.d);
     }),
+    socket.on('partySpots', (m) => {
+      party.getState().applyPartySpots(m.d);
+    }),
     socket.on('chatMessage', (m) => {
       chat.getState().applyChatMessage(m.d);
     }),
@@ -159,6 +162,7 @@ export function wireSocket(socket: GameSocket): () => void {
       fieldBoss.getState().applySnapshot(m.d.fieldBoss, m.d.fieldBossGone);
       energy.getState().joined();
       pouches.getState().applySnapshot(m.d.pouches);
+      party.getState().clearSpots();
     }),
     socket.on('delta', (m) => {
       energy.getState().delta(m.d.ackSeq, m.d.energy);

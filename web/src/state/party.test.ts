@@ -1,7 +1,12 @@
 import { create } from '@bufbuild/protobuf';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { PartyInvitedSchema, PartyStateSchema, PartyViewSchema } from '@/protocol/messages';
+import {
+  PartyInvitedSchema,
+  PartySpotsSchema,
+  PartyStateSchema,
+  PartyViewSchema,
+} from '@/protocol/messages';
 import { resetStores } from '@/testing/reset-stores';
 
 import { isMember, party } from './party';
@@ -30,6 +35,27 @@ const invited = (inviteId: string, fromName: string) =>
 describe('party store', () => {
   beforeEach(() => {
     resetStores();
+  });
+
+  it('keeps the spots of the members out of sight as the latest word lists them, till a snapshot, a login or leaving drops them', () => {
+    const spots = (...list: [string, number, number][]) =>
+      create(PartySpotsSchema, {
+        spots: list.map(([characterId, x, z]) => ({ characterId, x, z })),
+      });
+    party.getState().applyPartySpots(spots(['c-robin', 140, 812], ['c-jade', 3, 4]));
+    party.getState().applyPartySpots(spots(['c-robin', 150, 800]));
+    expect(party.getState().spots).toEqual({ 'c-robin': { x: 150, z: 800 } });
+    party.getState().applyPartySpots(spots());
+    expect(party.getState().spots).toEqual({});
+    for (const drop of [
+      () => party.getState().clearSpots(),
+      () => party.getState().applyWelcome(),
+      () => party.getState().clear(),
+    ]) {
+      party.getState().applyPartySpots(spots(['c-robin', 1, 2]));
+      drop();
+      expect(party.getState().spots).toEqual({});
+    }
   });
 
   it('leader and member order follow the payload', () => {

@@ -1,46 +1,69 @@
 package push
 
 import (
+	"runtime"
 	"slices"
 	"sync"
+	"weak"
 
 	clientv1 "finga/api/gen/client/v1"
 	model "finga/internal/model/gateway"
 	"finga/pkg/wsconn"
 )
 
-// Frames shares each frame part's encoding among the players sent it; it keeps only the latest frame's, as a frame goes to all in turn.
+// Frames shares each frame part's encoding among the players sent it, each frame's for as long as it lives, as several maps' frames interleave on a gateway's outboxes.
 type Frames struct {
-	mu      sync.Mutex
-	frame   *model.Frame
-	encoded []*wsconn.Shared // by part, each made on its first use
-	parts   []int            // the last player's, whose list next ones sent the same share
-	last    []*wsconn.Shared
+	mu     sync.Mutex
+	frames map[weak.Pointer[model.Frame]]*encoding
+	frame  *model.Frame // the last one asked for, whose players come in a run
+	last   *encoding
+}
+
+// encoding is a frame's parts as encoded, each made on its first use, and the last player's list of them, which the next sent the same share.
+type encoding struct {
+	parts []*wsconn.Shared
+	last  []int
+	out   []*wsconn.Shared
 }
 
 // NewFrames makes the cache a gateway's outboxes share.
-func NewFrames() *Frames { return &Frames{} }
+func NewFrames() *Frames { return &Frames{frames: map[weak.Pointer[model.Frame]]*encoding{}} }
 
 func (f *Frames) shared(frame *model.Frame, parts []int) []*wsconn.Shared {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if f.frame != frame {
-		f.frame, f.encoded, f.parts = frame, make([]*wsconn.Shared, len(frame.Parts)), nil
+	if frame != f.frame {
+		key := weak.Make(frame)
+		e, ok := f.frames[key]
+		if !ok {
+			e = &encoding{parts: make([]*wsconn.Shared, len(frame.Parts))}
+			f.frames[key] = e
+			runtime.AddCleanup(frame, f.forget, key)
+		}
+		f.frame, f.last = frame, e
 	}
-	if f.parts != nil && slices.Equal(parts, f.parts) {
-		return f.last
+	e := f.last
+	if e.last != nil && slices.Equal(parts, e.last) {
+		return e.out
 	}
 	out := make([]*wsconn.Shared, len(parts))
 	for i, k := range parts {
-		if f.encoded[k] == nil {
+		if e.parts[k] == nil {
 			p := frame.Parts[k]
-			f.encoded[k] = wsconn.NewShared(&clientv1.Delta{
+			e.parts[k] = wsconn.NewShared(&clientv1.Delta{
 				Players: playerViews(p.Players), Mobs: mobViews(p.Mobs),
 				RemovedPlayers: p.RemovedPlayers, RemovedMobs: instanceIDs(p.RemovedMobs), Boss: mobView(p.Boss),
 			})
 		}
-		out[i] = f.encoded[k]
+		out[i] = e.parts[k]
 	}
-	f.parts, f.last = parts, out
+	e.last, e.out = parts, out
 	return out
+}
+
+// forget drops a collected frame's encodings.
+func (f *Frames) forget(key weak.Pointer[model.Frame]) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.frames, key)
 }

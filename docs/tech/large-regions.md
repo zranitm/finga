@@ -261,7 +261,7 @@ biomes:
   - **A full part** (every body in the cell) is made the first time in a tick that a player's block reaches a cell. A player gets a cell's changes part only if their block already held it.
   - **Each player keeps what they've seen.** A body that leaves their block, or whose cell their block leaves, comes in `Delta.unseen`. The client drops it with no death: a mob goes as it stands, a player as one who left.
   - **The field boss** also goes in the map's own part, which every player is sent: `Delta.boss`, and `Snapshot.boss` on a join. The client feeds the boss bar from it and never draws from it, so the boss is drawn once its cell is in the block.
-  - **The gateway** encodes each part once and keeps the latest frame's parts. A player's message is their parts' bytes and then their own fields: ack, energy, `unseen` and their pouches. JSON merges the parts instead.
+  - **The gateway** encodes each part once, and keeps a frame's parts while the frame lives (step 1b). A player's message is their parts' bytes and then their own fields: ack, energy, `unseen` and their pouches. JSON merges the parts instead.
   - **Events** go to the watchers of either end: the source's cell or the target's. A mob attack's target is where it lands. A shot into a block shows its hit there, and a shot out of it the shooter's swing. Deaths, respawns, chat, the boss's notices and matches go to the whole map.
   - **A map nobody is on** isn't cut. The first player to come files every mob again, as some may have come or gone, and nobody is told of those who left before.
   - **The client** keeps drawing a body that comes back before its removal is drawn past, as at a cell line a player steps back and forth over.
@@ -276,7 +276,19 @@ biomes:
     At 20 frames a second, 7×5 sends each client about 22 kB/s, under the soak's 40 kB/s; the whole map would send 600 kB/s.
 
   - **Today's maps** cost what they did before step 1a, in runs alternating with main on one machine: a 50-player town's tick takes 49.8 µs against 50.9 µs; a frame's encoding for 10, 50 and 200 players is within 4% either way, with 4 more allocations a frame; and the world's copy of it for the gateway is within 2%.
-  - **Waiting for 1b:** party spots once a second, and the fade at the block's side edges. **For 1c:** sleep.
+  - **For 1c:** sleep.
+- **As built (step 1b):**
+  - **Party spots** come from the instance, not through `tellParty`, so the social module's party store isn't rewritten every second.
+    - Once a second, on a map cut by cells, each player is told a private `PartySpots`: their party members on the map whom they don't see, and where they stand.
+    - An empty one goes once, after the last of them is back in sight. A map sent whole tells nothing.
+  - **The client** marks a member here who isn't drawn on the minimap and the world map: where the server last said, and until it says, where last drawn. A member who leaves the map drops off, and a map change forgets the spots.
+  - **Their party frame** says "Out of sight" in place of their statuses, which the frames don't bring; never an empty row.
+  - **The side edge:** on a map cut by cells, the client draws a body faded from 88 m to the side, and not at all past 96 m (`side × cell`, which the block holds from anywhere in the player's cell).
+    - A body past it has no name, bar, shield or status marks, so nothing pops in and out at the block's sides as the player crosses a cell line.
+    - Only a wide screen at the far zoom sees that far: the top corners are 76 m to the side at 16:9, and 100 m at 21:9.
+    - A hidden mob's attack still shows its warning area, as the attacks are drawn on their own clock.
+  - **The gateway** keeps each frame's encoded parts while the frame lives, by a weak pointer that a cleanup drops, and the last frame's at hand for its run of players. So the frames of several maps can interleave: two maps of 50 players each take 0.18 ms, against 1.97 ms with one frame kept.
+  - **A player whose join failed** never reached a frame, so nobody is told they left.
 
 ### Spatial indexes
 
@@ -558,6 +570,12 @@ Built with step 1, which says who watches a cell.
       - six players wandering a crowded map and fighting: each client then holds what a join on its spot holds, on three seeds;
       - through the whole stack, on the forest cut in 6 m cells: a player crossing into another's block comes whole to each, a swing three cells off is heard inside the block and not from outside it, and leaving it sends each the other as unseen;
       - the loader refusing a sight, shot, leap, class attack or skill past the rows behind.
+    - As built (step 1b):
+      - a party member out of sight told once a second where they stand, and an empty list once after they're back; nothing on a map sent whole;
+      - a join that failed told to nobody, on both paths;
+      - a frame's encodings kept across another map's frame, dropped with it, and a live frame's kept as others go;
+      - on the client: an out-of-sight member on the map views where last drawn and then where told, "Out of sight" on their frame, and both gone when they leave or the map changes;
+      - bodies fading toward 96 m to the side and none past it on a map cut by cells, and every body whole on a 128 m map sent whole.
   - **Indexes:** each check equals a full scan on randomized cases. `rapid` (pgregory.net/rapid) is already a dependency.
   - **Sleep:** a far camp stays full, and its mobs wake as a player comes.
   - **Channels:** filling, a party kept together, a new channel opening, and a spare one closing.

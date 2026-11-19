@@ -347,6 +347,7 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.stepBoss()
 	if n%i.ticksFor(time.Second) == 0 {
 		i.regen()
+		i.tellSpots()
 	}
 	for _, s := range i.ground.Step() {
 		i.settle(s)

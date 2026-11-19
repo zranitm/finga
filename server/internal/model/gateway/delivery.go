@@ -79,6 +79,17 @@ type TeleportCancelled struct {
 	Reason TeleportCancel
 }
 
+// PartySpots is where the player's party members on their map stand that the frames don't bring; empty once all are in sight again.
+type PartySpots struct {
+	Spots []PartySpot
+}
+
+// PartySpot is a party member where they stand.
+type PartySpot struct {
+	CharacterID string
+	X, Z        float64
+}
+
 // TeleportCancel is what ended a teleport channel.
 type TeleportCancel int
 
@@ -247,6 +258,7 @@ func (Snapshot) push()          {}
 func (Delta) push()             {}
 func (MapChange) push()         {}
 func (TeleportCancelled) push() {}
+func (PartySpots) push()        {}
 func (Damage) push()            {}
 func (Died) push()              {}
 func (SkillUsed) push()         {}

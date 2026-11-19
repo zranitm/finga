@@ -138,6 +138,12 @@ describe('wiring', () => {
       check: () => expect(party.getState().party).toBeNull(),
     },
     {
+      name: 'PartySpots',
+      push: (ws: FakeWebSocket) =>
+        ws.push('partySpots', { spots: [{ characterId: 'c-robin', x: 140, z: 812 }] }),
+      check: () => expect(party.getState().spots).toEqual({ 'c-robin': { x: 140, z: 812 } }),
+    },
+    {
       name: 'PartyInvited',
       push: (ws: FakeWebSocket) =>
         ws.push('partyInvited', { inviteId: 'inv-1', from: 'c-robin', fromName: 'Robin' }),
@@ -489,6 +495,13 @@ describe('wiring', () => {
       { kind: 'level', level: 2 },
       { kind: 'loot', loot: LootKind.LEFT, items: [{ template: 'slime_gel' }] },
     ]);
+  });
+
+  it("a map's Snapshot drops the last map's party spots", async () => {
+    const { ws } = await connectedSocket();
+    ws.push('partySpots', { spots: [{ characterId: 'c-robin', x: 140, z: 812 }] });
+    ws.push('snapshot', {});
+    expect(party.getState().spots).toEqual({});
   });
 
   it("the player's pouches come from the Snapshot, change with each Delta, and go with the map", async () => {

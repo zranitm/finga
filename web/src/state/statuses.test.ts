@@ -34,6 +34,13 @@ describe('statuses', () => {
     ]);
   });
 
+  it('keeps a member out of sight as one whose statuses nobody knows, and takes theirs again once in sight', () => {
+    statuses.getState().show({ me: [], target: [], party: { 'c-robin': null } });
+    expect(statuses.getState().party).toEqual({ 'c-robin': null });
+    statuses.getState().show({ me: [], target: [], party: { 'c-robin': [slow] } });
+    expect(statuses.getState().party).toEqual({ 'c-robin': [slow] });
+  });
+
   it('takes a restarted status, and a member who left the map', () => {
     statuses.getState().show({ me: [stun], target: [], party: { 'c-robin': [slow] } });
     statuses.getState().show({ me: [{ ...stun, from: 600, until: 1600 }], target: [], party: {} });
