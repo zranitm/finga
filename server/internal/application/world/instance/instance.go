@@ -318,7 +318,7 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.events = append(i.events[:0], i.later...)
 	i.later = i.later[:0]
 	i.ground.Begin(n)
-	removed := slices.Concat(i.dropped, i.drain(), i.stepMatch(), i.pendingMatches())
+	removed := slices.Concat(i.dropped, i.drain(), i.stepMatch(), i.pendingMatches(), i.pendingPortals())
 	i.thinkBots()
 	changed := i.simulate()
 	if len(i.order) == 0 {

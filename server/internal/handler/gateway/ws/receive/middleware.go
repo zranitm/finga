@@ -52,6 +52,7 @@ func (h *Handler) queued(c *msgContext) { enqueue(c, c.Session.queue) }
 // acted hands the rest of an action's chain to the action goroutine, apart from the commands; a full queue refuses with rate_limited.
 func (h *Handler) acted(c *msgContext) { enqueue(c, c.Session.actions) }
 
+// enqueue puts the rest of c's chain on q, to run on the session's ctx; a full q refuses with rate_limited.
 func enqueue(c *msgContext, q chan<- func()) {
 	rest := c.Later()
 	select {

@@ -91,6 +91,7 @@ type player struct {
 	statuses     model.Statuses
 	combatUntil  uint64      // in combat before this tick: combat's length after the latest Damage naming the player
 	toMatch      *toMatchMsg // a hand-off to a match waiting for the item calls in flight
+	portalPress  bool        // a portal press waiting for the item calls in flight
 	bot          *bot        // a match's bot's, which presses its keys; nil for a player
 }
 

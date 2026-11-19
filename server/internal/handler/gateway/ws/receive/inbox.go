@@ -51,7 +51,7 @@ func New(gw *send.Gateway, opts Options) *Handler {
 	return h
 }
 
-// Inbox is one connection's receiving side: Hello first, the rate limits, and two queues, each run in order on its own goroutine. Commands run one at a time; actions (moves, attacks, skills, portals and teleports) run apart from them, so a command waiting on another module never holds the player still. An action never waits on a module, and keeps its order with the other actions: the world counts a press from the input after it.
+// Inbox is one connection's receiving side: Hello first, the rate limits, and two queues, each run in order on its own goroutine: commands, and actions, which a command waiting on a module never holds.
 type Inbox struct {
 	out        *push.Outbox
 	session    *session.Session

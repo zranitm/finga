@@ -7,13 +7,19 @@ import (
 
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
 	"finga/internal/shared/nav"
 	"finga/internal/shared/sim"
 )
 
-// enterPortal reports whether the player left through a portal; an item call in flight settles here first.
+// enterPortal reports whether the player left through a portal. A press during an item call waits for it to settle, as the hand-off must carry its result; the client sends a press once.
 func (i *Instance) enterPortal(p *player) bool {
-	if p.dead || p.itemCalls > 0 {
+	if p.itemCalls > 0 {
+		p.portalPress = true
+		return false
+	}
+	p.portalPress = false
+	if p.dead {
 		return false
 	}
 	for _, portal := range i.m.Portals {
@@ -33,6 +39,17 @@ func (i *Instance) enterPortal(p *player) bool {
 		return true
 	}
 	return false
+}
+
+// pendingPortals tries each portal press that waited for an item call, once it settles: the player leaves if still alive and in a portal.
+func (i *Instance) pendingPortals() []kernel.CharacterID {
+	var left []kernel.CharacterID
+	for _, id := range slices.Clone(i.order) {
+		if p := i.players[id]; p.portalPress && p.itemCalls == 0 && i.match == nil && i.enterPortal(p) {
+			left = append(left, id)
+		}
+	}
+	return left
 }
 
 // standsIn reports whether s has its feet centre in the portal's circle, edge included, within portalHeight of the ground at its centre.

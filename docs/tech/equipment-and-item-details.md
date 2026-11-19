@@ -167,6 +167,8 @@ sequenceDiagram
   - **As built (the pouches playtest's fix):**
     - Actions (`Input`, `Attack`, `UseSkill`, `EnterPortal` and `Teleport`) run on a queue of their own beside the commands, in their own order. So a command waiting on the item module never holds the player still.
     - Actions keep their order with each other, as the world counts a press from the input after it. They wait for `Hello`'s answer.
+    - So an attack sent right after an equip, without waiting for its answer, uses the old weapon until the equip settles. A client that waits for the answer first isn't affected.
+    - A portal press during an item call waits for it to settle, then enters if the player is still alive and in the portal. The client sends a press once.
 - **Gateway routes:** `Equip` and `Unequip` join `InventoryMove` and `InventoryDiscard` under the shared 5-per-second limit, with `respond`, so the client gets a Response carrying its request ID.
 
 ### Join, rejoin, and moves between maps
