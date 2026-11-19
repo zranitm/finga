@@ -122,13 +122,19 @@ describe('reading the settings', () => {
     stop();
   });
 
-  it('a read waits for a save under way, and gives way to a change made while it waited or was out', async () => {
+  /** A server whose PUT and GET each answer when the test says. */
+  function slow() {
     let land!: () => void;
     let answer!: (s: Settings) => void;
     const rest = {
       putSettings: vi.fn(() => new Promise<Settings>((r) => (land = () => r({})))),
       getSettings: vi.fn(() => new Promise<Settings>((r) => (answer = r))),
     };
+    return { rest, land: () => land(), answer: (s: Settings) => answer(s) };
+  }
+
+  it('a read waits for a save under way, and a change made while it waits stands over what it reads', async () => {
+    const { rest, land, answer } = slow();
     settings.getState().setChatPinned(true);
     const saving = saveSettings(rest);
     const reading = loadSettings(rest);
@@ -138,13 +144,21 @@ describe('reading the settings', () => {
     land();
     await saving;
     await vi.waitFor(() => expect(rest.getSettings).toHaveBeenCalledOnce());
-    settings.getState().setZoom(0.5); // while the read is out
-    answer({ chat_pinned: true, zoom: 0 });
+    answer({ chat_pinned: true });
     await reading;
-    expect([
-      settings.getState().chatPinned,
-      settings.getState().showMinimap,
-      settings.getState().zoom,
-    ]).toEqual([true, false, 0.5]);
+    expect([settings.getState().chatPinned, settings.getState().showMinimap]).toEqual([
+      true,
+      false,
+    ]);
+  });
+
+  it('a change made while a read is out stands over what it reads', async () => {
+    const { rest, answer } = slow();
+    const reading = loadSettings(rest);
+    await vi.waitFor(() => expect(rest.getSettings).toHaveBeenCalledOnce());
+    settings.getState().setZoom(0.5);
+    answer({ zoom: 0, chat_pinned: true });
+    await reading;
+    expect([settings.getState().zoom, settings.getState().chatPinned]).toEqual([0.5, false]);
   });
 });
