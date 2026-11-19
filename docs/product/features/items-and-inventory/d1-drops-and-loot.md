@@ -5,22 +5,31 @@
 - **Priority:** P0
 - **Status:** Draft
 
-**Story:** As a player, I get the items and currency that defeated mobs drop, without stopping the fight to collect them.
+**Story:** As a player, I get what defeated mobs and bosses drop: a pouch, or a boss's treasure box, that I walk up to and open with T, taking what I want.
 
 ## Acceptance
 
-- Defeated mobs drop items based on their drop list, and currency once F1 exists.
-- Each item drop belongs to one player from the moment it falls: the killer when hunting alone, or in a party the living member whose turn it is (E3). A currency drop in a party is split evenly instead (F1).
-- Everyone on the map sees the drop fall. After a short delay (1 second to start, tunable) it flies to its owner and goes into their inventory. There is no pickup key.
-- The owner gets it wherever they are on the map, and also if in the meantime they died, left the map, or logged out.
-- No other player can take a drop that isn't theirs.
-- With a full inventory, the drop stays on the ground, reserved for its owner, and is collected within a few seconds of a slot freeing up. The owner sees what is waiting. A drop still waiting when its life ends (60 seconds) disappears.
-- Every drop collected shows in the owner's combat channel (E5). A rare find (4★ and up) also shows a toast (proposal).
+- **Pouches:**
+  - A defeated mob drops a pouch about 1 time in 4, and an elite about 1 time in 2. A pouch holds what that kill rolled from its drop list, and currency once F1 exists.
+  - An item one of the owner's active quests still needs is rolled at its own chance even when no pouch falls, and comes in a pouch.
+- **A field boss's treasure box:** each player who earned a share of its rewards (C10) gets their own box where it fell, holding their own roll.
+- **Owners:** a pouch belongs to one player from the moment it falls: the killer when hunting alone, or in a party the living member whose turn it is, one pouch each (E3).
+- **Only the owner sees it.** Nobody else can see or open it.
+- **Opening:**
+  - Within about 2 metres of a pouch or box, its key (T, rebindable in B6) shows over it.
+  - Pressing T opens one list of everything in the player's pouches and boxes within reach.
+  - Clicking an item takes it. Take all, or T again, takes everything.
+  - Hovering shows an item's card, with its stats and how it compares (D7).
+  - Walking away or Esc closes the list.
+- **Taking** works in combat, but not while dead. A taken item goes to the inventory and shows in the combat channel (E5).
+- **A full tab:** an item whose tab is full stays in the pouch, with the reason shown.
+- **Lasting:** a pouch is gone 60 seconds after it falls, and a boss's box after 2 minutes, with whatever is left in it. The combat channel says what was left behind.
+- **Nothing follows the player:** a pouch waits where it fell.
 
 ## Not in this feature
 
-- Choosing which drops to collect (a loot filter): later.
-- Bidding on party loot: later (E3).
+- A loot filter.
+- Bidding on party loot (E3).
 
 ## Rules
 

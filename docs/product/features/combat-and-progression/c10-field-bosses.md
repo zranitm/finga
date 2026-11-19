@@ -9,23 +9,23 @@
 
 ## Acceptance
 
-- **In a large region (B10) there's one boss per hunting area:** kills in the area count, and its bar and rewards go to the area's players. Wherever this page says map, read area for a region.
+- **In a large region (B10) there's one boss per hunting area,** at its spot in the area, and its bar, notices and rewards go to the area's players. Wherever this page says map, read area for a region.
 - **One boss per hunting map:** each is a much bigger, stronger, and tougher version of its map's mob, with its own name and a look a glance tells from its mob's, such as the King Slime's crown. Towns have none.
 - **Appearing:**
-  - Each map counts the mobs killed on it, by anyone. When the count reaches the map's number, the boss appears at its spot.
-  - Players don't see the count.
-  - Every player in the game is told: "King Slime has appeared in the Forest!"
-- **One at a time:** while a boss is up, kills don't count. After it's beaten or leaves, the count starts again from 0.
-- **Leaving:** a boss nobody beats leaves after 10 minutes and drops nothing. Players on the map are told.
+  - Each boss stands at its own spot on its map. It's up when the map opens.
+  - Once beaten, it comes back to its spot 5 minutes later.
+  - It stays until it's beaten. It never leaves on its own.
+  - Players on the map are told when it appears: "King Slime has appeared!" Nobody else is.
+  - While it's down, the map window marks its spot with when it's back, such as "back in 3:12".
 - **The fight:**
-  - A boss HP bar at the top of the screen shows its name, its HP, and the time it has left, to everyone on the map.
+  - A boss HP bar at the top of the screen shows its name and HP to everyone on the map.
   - It fights like other mobs, with its family's attack, only much harder, and a slam all around it (C12).
 - **Rewards,** for players alive on the map when it falls:
   - **EXP** is split by the damage each player dealt. A party's damage adds up, and its share is split among its members as for any kill.
-  - **Drops are personal:** each player whose damage, or whose party's, reached 1% of its HP gets their own roll on its drop list. Nobody can take another's.
+  - **Drops are personal:** each player whose damage, or whose party's, reached 1% of its HP gets their own treasure box where it fell, holding their own roll on its drop list. Only they see it, and they open it with T (D1).
   - **Outfit pieces:** a boss's drop list holds one or two rare pieces themed to it (D9).
   - A player who is dead, or off the map, when it falls gets nothing, even if they hit it.
-- **Fairness:** every player on the map sees the same boss, and the server decides every count, hit, and reward.
+- **Fairness:** every player on the map sees the same boss, and the server decides when it returns, every hit, and every reward.
 
 ## Not in this feature
 

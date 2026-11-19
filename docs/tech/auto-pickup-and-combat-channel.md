@@ -1,5 +1,7 @@
 # Auto pickup and the combat channel
 
+> **Changed by [Loot pouches and timed bosses](./loot-pouches.md):** drops no longer fly to their owner. A kill drops one pouch, on 1 kill in 4 (1 in 2 for an elite), seen only by its owner, who opens it within 2 m with T and takes what they choose. Sections 3 to 5's ownership turns move per pouch, and the batching rule stays for takes. Waiting for room, the collect delay and `DropView` go. The combat channel's lines become taken and left behind.
+
 > **Status: approved · 2026-11-10,** with the defaults in section 12. The high-level design for the new [D1. Drops and loot](../product/features/items-and-inventory/d1-drops-and-loot.md), round-robin party loot ([E3](../product/features/social/e3-party-up-to-4.md), [Systems → Social](../product/systems/social.md)), and [E5. Combat channel](../product/features/social/e5-combat-channel.md). It builds on the equipment work ([Equipment, rolled stats, and item details](./equipment-and-item-details.md), PR #2, merged on 2026-11-08).
 
 > **As built in 3D (2026-11-16).** The rules below hold. A mob's drops now scatter round where it died: each lands on a ring 0.75 m out, the first at a random point and each next 0.6 m further round, on the ground there. A spot off the map or in a solid is skipped, and with none clear the drop lands where the mob died (`loot/ground.go`). On the client a drop is a small gem in its tab's colour, which flies to its owner's figure when collected.
