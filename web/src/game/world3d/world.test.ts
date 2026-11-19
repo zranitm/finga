@@ -745,6 +745,66 @@ describe('World', () => {
     expect(nearby.getState().players).toEqual([]);
   });
 
+  it.each([
+    [
+      'dies, then is removed',
+      [
+        { tick: 9, dead: true },
+        { tick: 12, removed: true },
+      ],
+    ],
+    ['dies and is removed in one frame', [{ tick: 9, dead: true, removed: true }]],
+    [
+      'dies, then rises in the frame that removes it',
+      [
+        { tick: 9, dead: true },
+        { tick: 12, dead: false, removed: true },
+      ],
+    ],
+  ] as const)(
+    'keeps a player who %s down until its figure goes, never standing it up first',
+    async (_, steps: readonly { tick: number; dead?: boolean; removed?: boolean }[]) => {
+      const p = await playing(FLAT, 4, 20);
+      for (let tick = 2; tick <= 8; tick++) {
+        p.push('delta', tick === 2 ? { players: [standing(8, 20, 'c-robin', 'thief')] } : {}, {
+          tick,
+        });
+        p.frames(1);
+      }
+      await vi.waitFor(() => expect(p.root(classLook('thief').file)).toBeDefined(), WAIT);
+      const posed = vi.spyOn(Body.prototype, 'pose');
+      try {
+        for (let tick = 9; tick <= 18; tick++) {
+          const step = steps.find((s) => s.tick === tick);
+          const robin =
+            step?.dead === undefined
+              ? []
+              : [
+                  {
+                    ...standing(8, 20, 'c-robin', 'thief'),
+                    hp: step.dead ? 0 : 50,
+                    dead: step.dead,
+                  },
+                ];
+          p.push(
+            'delta',
+            { players: robin, ...(step?.removed && { removedPlayers: ['c-robin'] }) },
+            { tick },
+          );
+          p.frames(1);
+        }
+        const robins = posed.mock.calls
+          .filter((_, i) => (posed.mock.contexts[i] as Body).root.name === classLook('thief').file)
+          .map(([pose]) => pose);
+        expect(p.root(classLook('thief').file)).toBeUndefined();
+        expect(robins).toContain('dead');
+        expect(robins.slice(robins.indexOf('dead'))).not.toContain('up');
+      } finally {
+        posed.mockRestore();
+      }
+    },
+  );
+
   it('takes away a player gone out of sight as one who left', async () => {
     const p = await playing(FLAT, 4, 20);
     for (let tick = 2; tick <= 8; tick++) {
