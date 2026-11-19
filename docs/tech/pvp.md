@@ -1,5 +1,7 @@
 # PvP
 
+> **Changed by [Outfits](./outfits.md):** the first time a character's shown rating reaches a rank above Bronze, the pvp module grants that rank's outfit piece, and it checks `pvp_wins` feats at a match's end (section 4 there). Ranks still give no items, EXP, currency or stats. PvP bots wear random boss and feat pieces.
+
 > **Status: approved · 2026-11-18.** The high-level design for [I1. PvP matches](../product/features/pvp/i1-pvp-matches.md), [I2. Arena: 1v1 and 3v3](../product/features/pvp/i2-arena.md), [I3. Battlefield: 15v15](../product/features/pvp/i3-battlefield.md) and [I4. PvP rating and ranks](../product/features/pvp/i4-pvp-rating.md).
 
 ## 1. What has to hold

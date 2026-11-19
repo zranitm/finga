@@ -23,6 +23,7 @@
 - **Rewards,** for players alive on the map when it falls:
   - **EXP** is split by the damage each player dealt. A party's damage adds up, and its share is split among its members as for any kill.
   - **Drops are personal:** each player whose damage, or whose party's, reached 1% of its HP gets their own roll on its drop list. Nobody can take another's.
+  - **Outfit pieces:** a boss's drop list holds one or two rare pieces themed to it (D9).
   - A player who is dead, or off the map, when it falls gets nothing, even if they hit it.
 - **Fairness:** every player on the map sees the same boss, and the server decides every count, hit, and reward.
 

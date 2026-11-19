@@ -30,6 +30,7 @@
 
 - Fixed prices.
 - An NPC always buys for less than it sells, so shops can't be used to make money.
+- A town outfit vendor sells some outfit pieces as items (D9), once shops exist.
 
 ## Later
 

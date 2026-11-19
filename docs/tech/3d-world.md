@@ -1,5 +1,7 @@
 # 3D world
 
+> **Changed by [Outfits](./outfits.md) sections 6 and 7:** a figure binds its outfit's body parts to its class's rig, with headwear and face pieces on `head` and a weapon look in `handslot.r`. Colourways are recoloured atlases. Remote figures redraw when their class or look changes.
+>
 > **Changed by [Large regions](./large-regions.md):** regions replace the small maps one at a time. Its sections 4, 5 and 10 change how terrain, props, shadows and the camera work at region scale.
 
 > **Status: approved · 2026-11-14.** The high-level design for [B7. 3D world](../product/features/world-and-movement/b7-3d-world.md). It describes the code as it stands on `main`, a 2D side-scroller drawn with Phaser, and the change it plans: a 3D world drawn with Babylon.js, built on a `3d` branch until a playable slice is complete, which then replaces `main` at once (section 13). As of 2026-11-16 the slice is complete on `3d`: "today" in the plan below means the 2D game, and the "As built" notes record where the build went differently.
