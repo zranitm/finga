@@ -239,11 +239,11 @@ func traitIDs(s gamedata.Skill) []string {
 // The burst models made-up actions, so its rules are pinned apart from the data: attacks of 20 ticks cut at 6, a stun of 20 holding for 30, and a slam of 10 that knocks down for 20 more.
 func TestBurstRules(t *testing.T) {
 	basic := act{damage: 10, length: 20, cancelAt: 6, cancelable: true}
-	stun := blow{act: act{id: "stun", damage: 20, length: 20, cancelAt: 6, cooldown: 100}, holds: 30}
-	slam := blow{act: act{id: "slam", damage: 50, length: 10, cancelAt: 6, cooldown: 100}, holds: 20, when: whileHeld}
+	stun := blow{id: "stun", damage: 20, length: 20, cancelAt: 6, cooldown: 100, holds: 30}
+	slam := blow{id: "slam", damage: 50, length: 10, cancelAt: 6, cooldown: 100, holds: 20, when: whileHeld}
 	sleep := stun
 	sleep.wakes, sleep.holds = true, 80
-	rush := blow{act: act{id: "rush", damage: 40, length: 20, cancelAt: 6, cooldown: 100}, when: opening}
+	rush := blow{id: "rush", damage: 40, length: 20, cancelAt: 6, cooldown: 100, when: opening}
 	energy := gamedata.Energy{Max: 10, PerAttack: 2}
 	for _, c := range []struct {
 		name  string
