@@ -484,7 +484,7 @@ describe('kit models', () => {
     const crag = place.looks.find(
       (l) => l.min.x < 40 && 40 < l.max.x && l.min.z < 1.5 && 1.5 < l.max.z && l.min.y > 2,
     )!; // the crag on the bank top at (40, 1.5)
-    const { camera, head } = viewFrom(map, 40, 6); // the player behind it, as finga-player’s frame has them
+    const { camera, head } = viewFrom(map, 40, 6); // the player behind it, as the live test’s frame has them
     fade(camera, head, [crag], SETTLED);
     const faded = copies('sandstone_crag');
     expect(faded).toHaveLength(templates('sandstone_crag').length);
