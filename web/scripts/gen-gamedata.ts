@@ -606,6 +606,18 @@ const quests = must(questsFile.quests, isArray, 'quests.yaml quests').map((raw) 
   };
 });
 
+// kit.yaml: each ground's colour as 0xrrggbb, which the 3D ground and the map image paint with; the region bakes carry the same palette.
+const kitFile = must(load('kit.yaml'), isRecord, 'kit.yaml');
+const grounds = Object.fromEntries(
+  Object.entries(must(kitFile.grounds, isRecord, 'kit.yaml grounds')).map(([name, rgb]) => {
+    const hex = must(rgb, isString, `kit.yaml ground ${name}`);
+    if (!/^#[0-9a-f]{6}$/.test(hex)) {
+      throw new Error(`gamedata: kit.yaml ground ${name} isn't #rrggbb`);
+    }
+    return [name, Number.parseInt(hex.slice(1), 16)];
+  }),
+);
+
 mkdirSync(outDir, { recursive: true });
 // pvp.yaml: each mode the queue takes, with its name, side size, whether it's rated and the rounds a match is best of, none for a battle; and the kit's level. The queue's, rating's and bots' constants stay with the server (pvp.md section 3).
 const pvpFile = must(load('pvp.yaml'), isRecord, 'pvp.yaml');
@@ -669,6 +681,7 @@ const files: Record<string, unknown> = {
   'limits.ts': limits,
   'pvp.ts': pvp,
   'error-codes.ts': errorCodes,
+  'grounds.ts': grounds,
 };
 for (const [name, value] of Object.entries(files)) {
   const exportName = name.replace('.ts', '').replace(/-(\w)/g, (_, c: string) => c.toUpperCase());

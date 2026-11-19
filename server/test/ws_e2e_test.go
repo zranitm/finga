@@ -57,7 +57,7 @@ func TestWalkTogether(t *testing.T) {
 	t.Run("faster-inputs-do-not-move-faster", func(t *testing.T) {
 		ayla.Drain(400 * time.Millisecond)
 		robin.Drain(400 * time.Millisecond)
-		// For 20 ticks Ayla sends one input a tick and Robin ten; neither moves more than a walk's step a tick it ran.
+		// For 20 ticks Ayla sends one input a tick and Robin ten; neither moves more than a sprint's step a tick it ran, the fastest a 2 s walk legally goes.
 		type seen struct {
 			x    float64
 			tick uint64
@@ -93,7 +93,7 @@ func TestWalkTogether(t *testing.T) {
 		for v, ok := at(ayla, robin.ID, 500*time.Millisecond); ok; v, ok = at(ayla, robin.ID, 500*time.Millisecond) {
 			endR = v
 		}
-		step := walk / float64(s.Cfg.World.TickRateHz)
+		step := float64(walk*data.Movement().Sprint.Speed) / float64(s.Cfg.World.TickRateHz)
 		for _, w := range []struct {
 			name     string
 			from, to seen
@@ -103,7 +103,7 @@ func TestWalkTogether(t *testing.T) {
 				t.Fatalf("%s walked too little: %.2f m", w.name, d)
 			}
 			if d > float64(ticks+1)*step { // a step's margin
-				t.Fatalf("%s moved %.2f m in %d ticks, more than a walk's %.2f m a tick", w.name, d, ticks, step)
+				t.Fatalf("%s moved %.2f m in %d ticks, more than a sprint's %.2f m a tick", w.name, d, ticks, step)
 			}
 		}
 	})

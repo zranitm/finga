@@ -10,6 +10,7 @@ import (
 
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
+	"finga/internal/shared/nav"
 	"finga/internal/shared/progression"
 )
 
@@ -100,6 +101,9 @@ func (l *loader) loadPvp(dir string) error {
 	var err error
 	if p.Modes, err = l.pvpModes(y.Modes); err != nil {
 		return fmt.Errorf("%s: %w", pvpFile, err)
+	}
+	if err := nav.CheckRadius(l.movement.Radius + gamedata.BotPathMargin); err != nil {
+		return fmt.Errorf("%s: a bot's path radius, %s's radius and its margin: %w", pvpFile, movementFile, err)
 	}
 	q, r := y.Queue, y.Rounds
 	switch w := q.Window; {
@@ -280,9 +284,9 @@ func (l *loader) botRules(y pvpYAML) (gamedata.BotRules, error) {
 	return out, nil
 }
 
-// botBuild checks a bot's build is an arena build of c, and that it uses only skills on its keys, each pressable on its own.
+// botBuild checks a bot's build is a pvp build of c, and that it uses only skills on its keys, each pressable on its own.
 func (l *loader) botBuild(c gamedata.Class, b buildYAML) error {
-	if err := gamedata.ArenaBuildFault(c, l.skills.get, b.Bar, b.Traits); err != nil {
+	if err := gamedata.PvpBuildFault(c, l.skills.get, b.Bar, b.Traits); err != nil {
 		return err
 	}
 	if len(b.Order) == 0 {

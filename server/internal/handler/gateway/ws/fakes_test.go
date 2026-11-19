@@ -876,8 +876,8 @@ func (f *fakePvp) record(call string) error {
 	return f.err
 }
 
-func (f *fakePvp) Queue(_ context.Context, who kernel.CharacterID, mode string) error {
-	return f.record("Queue " + who.String() + " " + mode)
+func (f *fakePvp) Queue(_ context.Context, who pvp.Player, mode string) error {
+	return f.record("Queue " + who.ID.String() + " " + who.Name + " " + mode)
 }
 
 func (f *fakePvp) LeaveQueue(_ context.Context, who kernel.CharacterID) error {

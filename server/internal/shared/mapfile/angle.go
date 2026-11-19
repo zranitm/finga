@@ -31,6 +31,12 @@ func sincos(deg float64) (sin, cos float64) {
 	return unsigned(sin), unsigned(cos)
 }
 
+// Axis is the direction a box turned yaw degrees from north toward east lies across: its width's.
+func Axis(yaw float64) (ux, uz float64) {
+	sin, cos := sincos(yaw)
+	return cos, unsigned(-sin)
+}
+
 // Taylor coefficients after the leading 1, by power of x²: sin x = x(1 − x²/3! + x⁴/5! …), cos x = 1 − x²/2! + x⁴/4! …
 var (
 	sinTerms = [...]float64{-1.0 / 6, 1.0 / 120, -1.0 / 5040, 1.0 / 362880, -1.0 / 39916800, 1.0 / 6227020800, -1.0 / 1307674368000}

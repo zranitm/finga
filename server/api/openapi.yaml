@@ -234,6 +234,7 @@ components:
         auto_assign_points: { type: boolean, default: false, description: "The client spends each level's points by the class's split; left out of a PUT, false" }
         chat_pinned: { type: boolean, default: false, description: "The chat stays open while the player isn't typing; left out of a PUT, false" }
         hide_minimap: { type: boolean, default: false, description: "The minimap is hidden; left out of a PUT, false, so the minimap shows" }
+        zoom: { type: number, minimum: 0, maximum: 1, default: 0, description: "How far the camera has pulled back, 0 close to 1 far; left out of a PUT, 0. Anything else is BAD_ZOOM." }
         keys:
           type: object
           description: The key bindings that differ from the client's defaults, an action to a KeyboardEvent.code; always present in a read, {} for the defaults, and left out of a PUT, the defaults. The server checks the shape, not the actions. Anything else is BAD_KEY_BINDINGS.

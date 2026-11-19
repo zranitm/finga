@@ -24,7 +24,7 @@ type Fighter struct {
 	Bot       *Bot
 }
 
-// Bot is a made-up fighter: its id, name, class, tier and arena build.
+// Bot is a made-up fighter: its id, name, class, tier and pvp build.
 type Bot struct {
 	ID    kernel.CharacterID
 	Name  string

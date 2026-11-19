@@ -160,7 +160,7 @@ func TestABotWalksToEveryPortalNPCAndHuntOnItsMaps(t *testing.T) {
 				t.Run(fmt.Sprintf("%s from %s to %s", id, from.name, to.name), func(t *testing.T) {
 					var finder nav.Finder
 					leash := math.Hypot(m.Geometry.SizeX, m.Geometry.SizeZ)
-					if len(finder.Path(m.Grid(), from.at, to.at, mv.Radius, from.at, leash)) == 0 {
+					if len(finder.Path(m.Grid, from.at, to.at, mv.Radius, from.at, leash)) == 0 {
 						if to.roam {
 							t.Skipf("no way to %+v: the hunt rolls again", to.at)
 						}

@@ -531,6 +531,17 @@ linters:
         - pattern: ^uuid\.New
           pkg: ^github\.com/google/uuid$
           msg: mint UUIDs with finga/pkg/uuidv7, so every ID is a UUIDv7
+        # regiongen builds the same region on every CPU (large-regions.md section 3): these differ between assembly and pure Go, or between versions; the exclusions below keep them to it.
+        # The lists name what's denied, so on each Go bump re-read the exports of math and math/rand/v2 for new ones.
+        - pattern: ^math\.(Sin|Cos|Tan|Sincos|Asin|Acos|Atan|Atan2|Sinh|Cosh|Tanh|Asinh|Acosh|Atanh|Exp|Exp2|Expm1|Log|Log2|Log10|Log1p|Logb|Ilogb|Pow|Pow10|Hypot|Cbrt|Gamma|Lgamma|Erf|Erfc|Erfinv|Erfcinv|J0|J1|Jn|Y0|Y1|Yn|FMA|Ldexp|Frexp|Mod|Modf|Remainder)$
+          pkg: ^math$
+          msg: "regiongen: exactly rounded math only (+ − × ÷, Sqrt, Floor, Ceil, Trunc, Abs, Min, Max), so every CPU builds the same region"
+        - pattern: ^rand\.
+          pkg: ^math/rand$
+          msg: "regiongen: randomness only from a seeded math/rand/v2 PCG's Uint64"
+        - pattern: ^rand\.(New|NewChaCha8|NewZipf|Int|Int32|Int64|IntN|Int32N|Int64N|N|Uint|Uint32|Uint64|UintN|Uint32N|Uint64N|Float32|Float64|ExpFloat64|NormFloat64|Perm|Shuffle)$
+          pkg: ^math/rand/v2$
+          msg: "regiongen: randomness only from a seeded math/rand/v2 PCG's Uint64"
     sloglint:
       static-msg: true
       kv-only: true
@@ -551,6 +562,9 @@ linters:
         linters: [unparam]
       - path: pkg/uuidv7/
         linters: [forbidigo]
+      - path-except: internal/shared/regiongen/
+        linters: [forbidigo]
+        text: "regiongen: "
 
 formatters:
   enable:

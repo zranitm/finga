@@ -17,7 +17,6 @@ const (
 	thinkEvery  = 100 * time.Millisecond
 	repathEvery = time.Second
 	repathMoved = 1.0
-	pathMargin  = 0.1
 	meleeShare  = 0.7 // of its attack's reach, where a warrior or a thief stands
 	rangedKeep  = 7.5 // metres a bowman or a magician keeps from its target
 	tooClose    = 3.0 // inside which it steps away
@@ -167,7 +166,7 @@ func (b *brain) ready(i *Instance, p *player, id string, d float64) bool {
 func (b *brain) walk(i *Instance, from, to nav.Point) sim.Input {
 	if len(b.path) == 0 || nav.Distance(b.to, to) > repathMoved || i.tick-b.found >= i.ticksFor(repathEvery) {
 		leash := math.Hypot(i.m.Geometry.SizeX, i.m.Geometry.SizeZ)
-		b.path, b.to, b.found = b.finder.Path(i.m.Grid(), from, to, i.params.Radius+pathMargin, from, leash), to, i.tick
+		b.path, b.to, b.found = b.finder.Path(i.m.Grid, from, to, i.params.Radius+gamedata.BotPathMargin, from, leash), to, i.tick
 	}
 	for len(b.path) > 0 && nav.Distance(from, b.path[0]) < reached {
 		b.path = b.path[1:]

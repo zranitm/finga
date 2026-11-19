@@ -347,7 +347,6 @@ func (r *Registry) online(ctx context.Context, s *Session) error {
 	return r.deps.Social.Online(ctx, r.opts.Gateway, s.connID, s.joinSeq.Load(), s.Player(), s.mapID())
 }
 
-// offline tells the social module the player's connection closed, after any registration of it still on its way.
 // unqueue takes a player who left out of the pvp queue; a failure only logs, as the offer they'd miss lapses.
 func (r *Registry) unqueue(ctx context.Context, s *Session) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), offlineTimeout)
@@ -357,6 +356,7 @@ func (r *Registry) unqueue(ctx context.Context, s *Session) {
 	}
 }
 
+// offline tells the social module the player's connection closed, after any registration of it still on its way.
 func (r *Registry) offline(ctx context.Context, s *Session) {
 	_ = s.social.Acquire(ctx, 1) // a registration holds it no longer than its own deadline
 	defer s.social.Release(1)

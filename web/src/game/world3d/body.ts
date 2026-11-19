@@ -32,6 +32,9 @@ import { linearOf, warm } from './toon';
 import type { Palette, ToonBase } from './toon';
 
 const MOVING = 'moving';
+const SPRINT_PLAY = 1.3; // a sprint plays the run this much faster (large-regions.md section 7)
+const LEAN = (8 * Math.PI) / 180; // and leans forward this far, from the feet
+const LEAN_MS = 60; // a lean eases most of the way in this, as a turn does
 
 /** A clip's whole-body group, or its lower body's when it has an upper one. */
 interface Layer {
@@ -84,7 +87,7 @@ export interface Figure {
 
 /** How a body moves, which picks its legs' clip and whether an action takes its upper body alone. */
 export interface Gait {
-  readonly pace: 'still' | 'walk' | 'run';
+  readonly pace: 'still' | 'walk' | 'run' | 'sprint';
   readonly onGround: boolean;
 }
 
@@ -129,6 +132,8 @@ export class Body implements Figure {
   } | null = null; // an action whose clip hasn't started, till which the body keeps its stance
   private held: Hold | null = null;
   private readonly model: TransformNode;
+  private readonly lean: TransformNode; // between the root and the model, tipping the body forward as it sprints
+  private sprinting = false;
   private readonly shades: { mesh: AbstractMesh; whole: Material; faded: Material }[] = [];
   private readonly inks: AbstractMesh[] = [];
   private faded = false;
@@ -154,7 +159,9 @@ export class Body implements Figure {
       throw new Error(`${look.file} has no root node`);
     }
     this.model = model;
-    model.parent = this.root;
+    this.lean = new TransformNode(`${look.file} lean`, scene);
+    this.lean.parent = this.root;
+    model.parent = this.lean;
     const meshes = stand(model, this.root, look);
     for (const m of meshes) {
       if (m.material) {
@@ -346,10 +353,19 @@ export class Body implements Figure {
         ? clips.fall
         : gait.pace === 'still'
           ? clips.idle
-          : gait.pace === 'run'
-            ? clips.run
-            : clips.walk,
+          : gait.pace === 'walk'
+            ? clips.walk
+            : clips.run,
     );
+    const sprinting = gait.pace === 'sprint';
+    if (sprinting !== this.sprinting) {
+      this.sprinting = sprinting;
+      this.each(clips.run, (g) => {
+        g.speedRatio = sprinting ? SPRINT_PLAY : 1;
+      });
+    }
+    this.lean.rotation.x +=
+      ((sprinting ? LEAN : 0) - this.lean.rotation.x) * Math.min(1, dtMs / LEAN_MS);
     this.moving.aim(MOVING, gait.pace !== 'still' || !gait.onGround ? 1 : 0);
     this.actions.step(dtMs);
     this.locomotion.step(dtMs);

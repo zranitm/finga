@@ -79,6 +79,13 @@ describe('sample', () => {
     expect(blend(buffer[0]!.state, buffer[2]!.state, 0)).toEqual(buffer[0]!.state);
     expect(blend(buffer[0]!.state, buffer[2]!.state, 1)).toEqual(buffer[2]!.state);
   });
+
+  it('blend takes the sprint’s count from the nearer state, as the ground flag and heading', () => {
+    const walked = { ...buffer[0]!.state, sprint: 117 };
+    const sprinting = { ...buffer[2]!.state, sprint: 120 };
+    expect([0.4, 0.6].map((f) => blend(walked, sprinting, f).sprint)).toEqual([117, 120]);
+    expect(blend(buffer[0]!.state, sprinting, 0.4)).not.toHaveProperty('sprint'); // none on the nearer
+  });
 });
 
 describe('RemoteBuffer', () => {

@@ -29,6 +29,8 @@ const table: Readonly<Record<string, string>> = {
   quests: 'KeyJ',
   map: 'KeyM',
   arena: 'KeyV',
+  zoomIn: 'Equal',
+  zoomOut: 'Minus',
   chat: 'Enter',
   close: 'Escape',
 };

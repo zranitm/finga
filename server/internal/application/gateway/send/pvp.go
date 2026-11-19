@@ -8,7 +8,7 @@ import (
 
 // QueuePvp puts the player in a mode's queue.
 func (g *Gateway) QueuePvp(ctx context.Context, s *session.Session, mode string) error {
-	return g.deps.Pvp.Queue(ctx, s.Character(), mode)
+	return g.deps.Pvp.Queue(ctx, s.Player(), mode)
 }
 
 // LeavePvpQueue takes the player out of the queue.

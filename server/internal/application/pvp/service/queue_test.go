@@ -3,6 +3,7 @@ package service_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"maps"
 	"math/rand/v2"
@@ -17,13 +18,16 @@ import (
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/gamedata/gamedatatest"
 	"finga/internal/shared/kernel"
+	"finga/pkg/panics"
+	"finga/pkg/transient"
 )
 
-// world is the world as the matcher sees it: who can't fight, and the matches it opened.
+// world is the world as the matcher sees it: who can't fight, and the matches it opened; while hold is open, an open waits for it.
 type world struct {
 	mu     sync.Mutex
 	cant   map[kernel.CharacterID]error
 	opened []model.Spec
+	hold   chan struct{}
 }
 
 func (w *world) CanFight(_ context.Context, id kernel.CharacterID) error {
@@ -34,20 +38,28 @@ func (w *world) CanFight(_ context.Context, id kernel.CharacterID) error {
 
 func (w *world) OpenMatch(_ context.Context, spec model.Spec) error {
 	w.mu.Lock()
+	hold := w.hold
+	w.mu.Unlock()
+	if hold != nil {
+		<-hold
+	}
+	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.opened = append(w.opened, spec)
 	return nil
 }
 
-// store keeps ratings and matches in memory, as the Postgres store does.
+// store keeps ratings and matches in memory, as the Postgres store does: the next lost Records store, then fail as a commit whose answer was lost; a match in hold waits for it to close.
 type store struct {
 	mu      sync.Mutex
 	ratings map[kernel.CharacterID]model.Rating
 	matches map[kernel.MatchID]model.Rated
+	lost    int
+	hold    map[kernel.MatchID]chan struct{}
 }
 
 func newStore() *store {
-	return &store{ratings: map[kernel.CharacterID]model.Rating{}, matches: map[kernel.MatchID]model.Rated{}}
+	return &store{ratings: map[kernel.CharacterID]model.Rating{}, matches: map[kernel.MatchID]model.Rated{}, hold: map[kernel.MatchID]chan struct{}{}}
 }
 
 func (s *store) Rating(_ context.Context, id kernel.CharacterID, _ string) (model.Rating, bool, error) {
@@ -57,11 +69,26 @@ func (s *store) Rating(_ context.Context, id kernel.CharacterID, _ string) (mode
 	return r, ok, nil
 }
 
-func (s *store) Record(_ context.Context, m model.Match, characters []kernel.CharacterID, rate func(map[kernel.CharacterID]model.Rating) model.Rated) (bool, error) {
+func (s *store) Record(_ context.Context, m model.Match, characters []kernel.CharacterID, rate func(map[kernel.CharacterID]model.Rating) model.Rated) ([]model.Fighter, error) {
+	s.mu.Lock()
+	hold := s.hold[m.ID]
+	s.mu.Unlock()
+	if hold != nil {
+		<-hold
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.matches[m.ID]; ok {
-		return false, nil
+	if done, ok := s.matches[m.ID]; ok {
+		var out []model.Fighter
+		for _, f := range done.Fighters {
+			if !f.Character.IsZero() {
+				r := s.ratings[f.Character]
+				f.After = model.Rating{Mu: f.After.Mu, Sigma: f.After.Sigma, Matches: r.Matches, Wins: r.Wins, Losses: r.Losses, Draws: r.Draws}
+				f.Before = model.Rating{Mu: f.Before.Mu, Sigma: f.Before.Sigma}
+				out = append(out, f)
+			}
+		}
+		return out, nil
 	}
 	had := map[kernel.CharacterID]model.Rating{}
 	for _, c := range characters {
@@ -72,7 +99,11 @@ func (s *store) Record(_ context.Context, m model.Match, characters []kernel.Cha
 	rated := rate(had)
 	s.matches[m.ID] = rated
 	maps.Copy(s.ratings, rated.After)
-	return true, nil
+	if s.lost > 0 {
+		s.lost--
+		return nil, fmt.Errorf("%w: the commit's answer was lost", transient.ErrUnavailable)
+	}
+	return rated.Fighters, nil
 }
 
 // notes records what each player is told.
@@ -116,7 +147,8 @@ func newFixture(t *testing.T) fixture {
 	t.Helper()
 	data := gamedatatest.Shipped(t)
 	f := fixture{world: &world{cant: map[kernel.CharacterID]error{}}, store: newStore(), notes: &notes{got: map[kernel.CharacterID][]service.Delivery{}}, data: data}
-	f.svc = service.New(service.Deps{Data: data, World: f.world, Store: f.store, Notifier: f.notes, Logger: slog.New(slog.DiscardHandler), Rand: rand.New(rand.NewPCG(1, 2))}) //nolint:gosec // a test's bots
+	log := slog.New(slog.DiscardHandler)
+	f.svc = service.New(service.Deps{Data: data, World: f.world, Store: f.store, Notifier: f.notes, Logger: log, Panics: panics.NewRecorder(log, nil), Rand: rand.New(rand.NewPCG(1, 2))}) //nolint:gosec // a test's bots
 	return f
 }
 
@@ -141,7 +173,7 @@ func TestTwoPlayersNearInRatingMeet(t *testing.T) {
 		ctx := context.Background()
 		ayla, robin := kernel.NewCharacterID(), kernel.NewCharacterID()
 		for _, id := range []kernel.CharacterID{ayla, robin} {
-			if err := f.svc.Queue(ctx, id, "duel"); err != nil {
+			if err := f.svc.Queue(ctx, model.Player{ID: id}, "duel"); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -180,7 +212,7 @@ func TestAWindowWidensUntilTheyMeet(t *testing.T) {
 		f.store.ratings[robin] = model.Rating{Mu: 27.5, Sigma: 3} // 2.5 apart: the window reaches it after 2.5 s
 		f.run(t)
 		for _, id := range []kernel.CharacterID{ayla, robin} {
-			if err := f.svc.Queue(context.Background(), id, "duel"); err != nil {
+			if err := f.svc.Queue(context.Background(), model.Player{ID: id}, "duel"); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -201,7 +233,7 @@ func TestAPlayerAloneMeetsABot(t *testing.T) {
 		f := newFixture(t)
 		f.run(t)
 		ayla := kernel.NewCharacterID()
-		if err := f.svc.Queue(context.Background(), ayla, "duel"); err != nil {
+		if err := f.svc.Queue(context.Background(), model.Player{ID: ayla}, "duel"); err != nil {
 			t.Fatal(err)
 		}
 		bots := f.data.Pvp().Queue.BotsAfter
@@ -233,7 +265,7 @@ func TestADeclineSendsOneOutAndTheOtherBack(t *testing.T) {
 		ctx := context.Background()
 		ayla, robin := kernel.NewCharacterID(), kernel.NewCharacterID()
 		for _, id := range []kernel.CharacterID{ayla, robin} {
-			if err := f.svc.Queue(ctx, id, "duel"); err != nil {
+			if err := f.svc.Queue(ctx, model.Player{ID: id}, "duel"); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -269,7 +301,7 @@ func TestAnOfferLapses(t *testing.T) {
 		ctx := context.Background()
 		ayla, robin := kernel.NewCharacterID(), kernel.NewCharacterID()
 		for _, id := range []kernel.CharacterID{ayla, robin} {
-			if err := f.svc.Queue(ctx, id, "duel"); err != nil {
+			if err := f.svc.Queue(ctx, model.Player{ID: id}, "duel"); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -297,18 +329,18 @@ func TestQueueRefusals(t *testing.T) {
 		f := newFixture(t)
 		ctx := context.Background()
 		ayla, bruno := kernel.NewCharacterID(), kernel.NewCharacterID()
-		if err := f.svc.Queue(ctx, ayla, "battle"); !errors.Is(err, model.ErrUnknownMode) {
+		if err := f.svc.Queue(ctx, model.Player{ID: ayla}, "battle"); !errors.Is(err, model.ErrUnknownMode) {
 			t.Fatalf("an unknown mode: %v", err)
 		}
-		if err := f.svc.Queue(ctx, ayla, "duel"); err != nil {
+		if err := f.svc.Queue(ctx, model.Player{ID: ayla}, "duel"); err != nil {
 			t.Fatal(err)
 		}
-		if err := f.svc.Queue(ctx, ayla, "duel"); !errors.Is(err, model.ErrAlreadyQueued) {
+		if err := f.svc.Queue(ctx, model.Player{ID: ayla}, "duel"); !errors.Is(err, model.ErrAlreadyQueued) {
 			t.Fatalf("queueing twice: %v", err)
 		}
 		inMatch := errors.New("in a match")
 		f.world.cant[bruno] = inMatch
-		if err := f.svc.Queue(ctx, bruno, "duel"); !errors.Is(err, inMatch) {
+		if err := f.svc.Queue(ctx, model.Player{ID: bruno}, "duel"); !errors.Is(err, inMatch) {
 			t.Fatalf("the world's no: %v", err)
 		}
 		if err := f.svc.Leave(ctx, bruno); !errors.Is(err, model.ErrNotQueued) {
@@ -348,10 +380,134 @@ func TestAnOutcomeRatesItsPlayersOnce(t *testing.T) {
 		if len(rows) != 2 || rows[1].Tier != "novice" || rows[1].Before != rows[1].After || rows[1].Before.Sigma != 1 {
 			t.Fatalf("fighters %+v, want the bot at its tier, unchanged", rows)
 		}
-		n := len(f.notes.of(ayla))
 		f.svc.Record(context.Background(), r)
-		if len(f.notes.of(ayla)) != n || f.store.ratings[ayla] != rt {
-			t.Fatal("a repeated outcome moved the rating again")
+		again, _ := last[service.Ended](f.notes, ayla)
+		if f.store.ratings[ayla] != rt || again.Rating == nil || *again.Rating != *e.Rating {
+			t.Fatalf("a repeat moved the rating to %+v, or told %+v; want it kept and told as before, %+v", f.store.ratings[ayla], again.Rating, *e.Rating)
+		}
+	})
+}
+
+// A store whose commit landed but whose answer was lost is tried again, finds the match stored, and tells each player the rating as stored: one MatchEnded, rated.
+func TestALostCommitStillTellsTheRating(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newFixture(t)
+		f.store.lost = 1
+		ayla := kernel.NewCharacterID()
+		f.svc.Record(context.Background(), model.Result{Match: kernel.NewMatchID(), Mode: "duel", Winner: 2, Sides: [2][]model.Outcome{{{Character: ayla}}, {{Tier: "novice"}}}})
+		var ended []service.Ended
+		for _, d := range f.notes.of(ayla) {
+			if e, ok := d.(service.Ended); ok {
+				ended = append(ended, e)
+			}
+		}
+		if len(ended) != 1 || ended[0].Outcome != service.Loss || ended[0].Rating == nil || ended[0].Rating.After >= ended[0].Rating.Before || ended[0].Rating.PlacementLeft != f.data.Pvp().Rating.Placement-1 {
+			t.Fatalf("Ayla heard %+v, want one loss with its rating", ended)
+		}
+	})
+}
+
+// Each outcome is stored on its own: one whose store hangs holds up no other match's MatchEnded, and Outcomes waits for it before returning.
+func TestASlowStoreHoldsUpNoOtherOutcome(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newFixture(t)
+		ayla, robin := kernel.NewCharacterID(), kernel.NewCharacterID()
+		slow, quick := kernel.NewMatchID(), kernel.NewMatchID()
+		f.store.hold[slow] = make(chan struct{})
+		ctx, cancel := context.WithCancel(context.Background())
+		results := make(chan model.Result, 2)
+		results <- model.Result{Match: slow, Mode: "duel", Winner: 1, Sides: [2][]model.Outcome{{{Character: ayla}}, {{Tier: "novice"}}}}
+		results <- model.Result{Match: quick, Mode: "duel", Winner: 1, Sides: [2][]model.Outcome{{{Character: robin}}, {{Tier: "novice"}}}}
+		done := make(chan error, 1)
+		go func() {
+			done <- f.svc.Outcomes(ctx, func(ctx context.Context, record func(model.Result)) error {
+				for {
+					select {
+					case r := <-results:
+						record(r)
+					case <-ctx.Done():
+						return nil
+					}
+				}
+			})
+		}()
+		synctest.Wait()
+		if _, ok := last[service.Ended](f.notes, robin); !ok {
+			t.Fatal("Robin's outcome waited for Ayla's store")
+		}
+		if _, ok := last[service.Ended](f.notes, ayla); ok {
+			t.Fatal("Ayla heard before her match was stored")
+		}
+		cancel()
+		synctest.Wait()
+		select {
+		case err := <-done:
+			t.Fatalf("Outcomes returned with a store under way: %v", err)
+		default:
+		}
+		close(f.store.hold[slow])
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		if e, ok := last[service.Ended](f.notes, ayla); !ok || e.Rating == nil {
+			t.Fatalf("Ayla heard %+v, want her rated win", f.notes.of(ayla))
+		}
+	})
+}
+
+// The bot takes no name of a player in the match: each name bots use, given to the player, is never the bot's.
+func TestABotIsNamedUnlikeItsOpponent(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newFixture(t)
+		f.run(t)
+		ctx := context.Background()
+		for k, name := range f.data.Pvp().Bots.Names {
+			id := kernel.NewCharacterID()
+			if err := f.svc.Queue(ctx, model.Player{ID: id, Name: name}, "duel"); err != nil {
+				t.Fatal(err)
+			}
+			wait(f.data.Pvp().Queue.BotsAfter)
+			offer, ok := last[service.Offered](f.notes, id)
+			if !ok {
+				t.Fatalf("%s got no offer", name)
+			}
+			if err := f.svc.Answer(ctx, id, offer.Offer, true); err != nil {
+				t.Fatal(err)
+			}
+			if bot := f.world.opened[k].Sides[1][0].Bot; bot.Name == name {
+				t.Fatalf("the bot against %s took their name", name)
+			}
+		}
+	})
+}
+
+// From the last accept until the world has opened the match, its players can't queue again: the world doesn't know they're in it yet.
+func TestNoQueueingWhileAMatchOpens(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newFixture(t)
+		f.run(t)
+		ctx := context.Background()
+		ayla := kernel.NewCharacterID()
+		if err := f.svc.Queue(ctx, model.Player{ID: ayla}, "duel"); err != nil {
+			t.Fatal(err)
+		}
+		wait(f.data.Pvp().Queue.BotsAfter)
+		offer, _ := last[service.Offered](f.notes, ayla)
+		f.world.mu.Lock()
+		f.world.hold = make(chan struct{})
+		f.world.mu.Unlock()
+		accepted := make(chan error, 1)
+		go func() { accepted <- f.svc.Answer(ctx, ayla, offer.Offer, true) }()
+		synctest.Wait()
+		if err := f.svc.Queue(ctx, model.Player{ID: ayla}, "duel"); !errors.Is(err, model.ErrInMatch) {
+			t.Fatalf("queueing while the match opens: %v, want ErrInMatch", err)
+		}
+		close(f.world.hold)
+		if err := <-accepted; err != nil {
+			t.Fatal(err)
+		}
+		if err := f.svc.Queue(ctx, model.Player{ID: ayla}, "duel"); err != nil {
+			t.Fatalf("queueing once it's open, as the world allows: %v", err)
 		}
 	})
 }

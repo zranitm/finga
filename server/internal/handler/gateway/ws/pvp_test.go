@@ -33,7 +33,7 @@ func TestPvpCommandsAndPushes(t *testing.T) {
 			msg  any
 			want string
 		}{
-			{&clientv1.PvpQueue{Mode: "duel"}, "Queue " + aylaID.String() + " duel"},
+			{&clientv1.PvpQueue{Mode: "duel"}, "Queue " + aylaID.String() + " Ayla duel"},
 			{&clientv1.PvpAnswer{Offer: "o-1", Accept: true}, "Answer " + aylaID.String() + " o-1 true"},
 			{&clientv1.PvpLeaveQueue{}, "LeaveQueue " + aylaID.String()},
 		} {

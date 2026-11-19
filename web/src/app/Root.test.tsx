@@ -4,9 +4,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { resetStores } from '@/testing/reset-stores';
 
 import { watchKeyboardLayout } from './keyboard-layout';
-import { Root } from './Root';
+import type { Root as RootOf } from './Root';
 
 vi.mock('./keyboard-layout', () => ({ watchKeyboardLayout: vi.fn(() => () => undefined) }));
+
+/** Root imported afresh: a worker keeps its modules across files, so an App another file imported first would still call the real watcher, not this mock. */
+async function freshRoot(): Promise<typeof RootOf> {
+  vi.resetModules();
+  return (await import('./Root')).Root;
+}
 
 describe('Root', () => {
   afterEach(() => {
@@ -14,13 +20,15 @@ describe('Root', () => {
     resetStores();
   });
 
-  it('renders the app', () => {
+  it('renders the app', async () => {
+    const Root = await freshRoot();
     render(<Root />);
     expect(screen.getByRole('form', { name: 'Log in' })).toBeInTheDocument();
   });
 
   // render() runs the mount effects and the boundary's fallback inside act, so both are there as it returns: no wait, which a loaded runner's clock could run out.
-  it('an error thrown while the app mounts shows a reload screen, not a blank page, and reports it to the console', () => {
+  it('an error thrown while the app mounts shows a reload screen, not a blank page, and reports it to the console', async () => {
+    const Root = await freshRoot();
     const crash = new Error('keyboard.addEventListener is not a function');
     vi.mocked(watchKeyboardLayout).mockImplementationOnce(() => {
       throw crash;

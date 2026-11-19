@@ -22,3 +22,10 @@ ON CONFLICT (character_id, mode) DO UPDATE SET
 -- name: RecordFighter :exec
 INSERT INTO pvp_match_fighters (match_id, side, slot, character_id, bot_tier, left_match, downs, mu_before, sigma_before, mu_after, sigma_after, created_at, updated_at)
 VALUES (sqlc.arg(match_id), sqlc.arg(side), sqlc.arg(slot), sqlc.narg(character_id), sqlc.narg(bot_tier), sqlc.arg(left_match), sqlc.arg(downs), sqlc.arg(mu_before), sqlc.arg(sigma_before), sqlc.arg(mu_after), sqlc.arg(sigma_after), sqlc.arg(now), sqlc.arg(now));
+
+-- name: StoredFighters :many
+SELECT f.side, f.slot, f.character_id, f.mu_before, f.sigma_before, f.mu_after, f.sigma_after, r.matches, r.wins, r.losses, r.draws
+FROM pvp_match_fighters f
+JOIN pvp_ratings r ON r.character_id = f.character_id AND r.mode = sqlc.arg(mode)
+WHERE f.match_id = sqlc.arg(match_id)
+ORDER BY f.side, f.slot;

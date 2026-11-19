@@ -554,6 +554,8 @@ message PlayerView {
   int32 team = 29;
   // A bot fighting in a match, which no one plays.
   bool bot = 30;
+  // Sub-steps walked toward a sprint, which the sim steps as State.Sprint, held at movement.yaml's sprint.after once there: from the next, it sprints; 0 when none.
+  int32 sprint = 31;
 }
 
 // SlowWalk is a status slowing a player's walk: factor × the walk speed for left more sub-steps.

@@ -123,9 +123,9 @@ async function castShadows(want: readonly AbstractMesh[]): Promise<void> {
 function viewFrom(map: WorldMap, x: number, z: number): { camera: Vector3; head: Vector3 } {
   const y = groundUnder(map, x, z);
   const g = map.geometry;
-  const look = heldView({ x, y: y + CHEST_M, z }, g.size_x, g.size_z, 1280 / 800, new Vector3());
+  const look = heldView({ x, y: y + CHEST_M, z }, g.size_x, g.size_z, 1280 / 800, 0, new Vector3());
   return {
-    camera: cameraAt(look.x, look.y, look.z, new Vector3()),
+    camera: cameraAt(look.x, look.y, look.z, 0, new Vector3()),
     head: new Vector3(x, y + movement.height, z),
   };
 }

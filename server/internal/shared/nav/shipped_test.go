@@ -6,10 +6,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -164,16 +162,17 @@ var awkward = flat(14, 14,
 	},
 	[]sim.Cylinder{{X: 10.7, Z: 3.1, Radius: 0.9, Top: 4}, {X: 2.9, Z: 11.3, Radius: 0.6, Top: 0.25}})
 
-// Every grid's ground and clearance are the same bits on every CPU, as the loader's spot verdicts must be; amd64 and arm64 CI check.
+// Every grid's clearances and flags, and so its walks, are the same bits on every CPU, as the loader's spot verdicts must be; amd64 and arm64 CI check.
 func TestShippedGridBits(t *testing.T) {
 	const golden = "../../../testdata/nav/grid.sha256"
 	d := shipped(t)
 	hash := func(id string, n *nav.Grid) string {
-		ground, clear := n.Cells()
+		clear, flags := n.Cells()
 		var b []byte
-		for _, v := range slices.Concat(ground, clear) {
-			b = binary.LittleEndian.AppendUint64(b, math.Float64bits(v))
+		for _, v := range clear {
+			b = binary.LittleEndian.AppendUint16(b, v)
 		}
+		b = append(b, flags...)
 		return fmt.Sprintf("%s %x", id, sha256.Sum256(b))
 	}
 	lines := []string{hash("awkward", nav.New(awkward, d.params.Step))}

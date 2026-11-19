@@ -74,6 +74,8 @@ describe('KeyBindings', () => {
       'Quest log: J',
       'Map: M',
       'Arena: V',
+      'Zoom in: =',
+      'Zoom out: -',
     ]);
     expect(group('Fixed')).toEqual(['Chat: Enter or Num Enter', 'Close the top window: Esc']);
     expect(chip('Chat: Enter or Num Enter')).toBeDisabled();
@@ -218,6 +220,7 @@ describe('KeyBindings', () => {
           auto_assign_points: false,
           chat_pinned: false,
           hide_minimap: false,
+          zoom: 0,
           keys: { attack: 'KeyB', jump: 'KeyG' },
         },
       ],

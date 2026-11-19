@@ -151,6 +151,28 @@ describe('App', () => {
     ).toEqual(['GET', 'PUT', 'GET']);
   });
 
+  it('a zoom changed in the world is saved as the account’s, at the latest as the player leaves', async () => {
+    const ff = fetching(({ path }) => {
+      if (path === '/api/sessions') return { status: 201, body: { token: 'tok-1' } };
+      if (path === '/api/settings') return { status: 200, body: {} };
+      return { status: 200, body: { characters: [sampleCharacter] } };
+    });
+    render(<App />);
+    await logIn();
+    await user.click(await screen.findByRole('button', { name: 'Play' }));
+    const ws = FakeWebSocket.latest();
+    ws.open();
+    ws.push('welcome', welcome);
+    expect(await screen.findByLabelText('Status')).toHaveTextContent('Ayla');
+    act(() => settings.getState().setZoom(0.75));
+    await user.click(screen.getByRole('button', { name: 'Back to characters' })); // well inside the save's delay
+    await waitFor(() =>
+      expect(ff.of('PUT', '/api/settings').map((c) => (c.body as { zoom?: number }).zoom)).toEqual([
+        0.75,
+      ]),
+    );
+  });
+
   it('a kick while in the world leaves it', async () => {
     fetching(({ path }) => {
       if (path === '/api/sessions') return { status: 201, body: { token: 'tok-1' } };

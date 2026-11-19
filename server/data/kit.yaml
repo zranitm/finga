@@ -1,0 +1,51 @@
+# The art kit as regions use it (large-regions.md section 3).
+# grounds: the colours a region's ground is painted with, by name; the client's ground table is generated from them (npm run gen).
+# models: each model's solid, which a scattered or set piece stands with: a cylinder or a box, its height above the ground at its centre; {} is looks only.
+grounds:
+  brick: '#9c5d4b'
+  dirt: '#a88b62'
+  grass: '#8cc265'
+  sand: '#e2cf9a'
+  snow: '#eef2f6'
+  stone: '#6f6a63'
+  water: '#5b8fc7'
+models:
+  boulder: {cylinder: {radius: 2.52, height: 2.31}}
+  bush_round: {}
+  cactus_flowering: {}
+  cactus_flowers: {}
+  cactus_round: {}
+  cactus_small: {}
+  cactus_tall: {}
+  crag: {}
+  crate: {box: {width: 0.64, depth: 0.64, height: 0.64}}
+  dead_shrub: {}
+  dead_tree: {}
+  dry_tree: {}
+  flowers: {}
+  fountain_flowers: {}
+  giant_mushroom: {cylinder: {radius: 4.06, height: 3.57}}
+  grass_tuft: {}
+  house_large: {box: {width: 11, depth: 14.95, height: 14}}
+  house_small: {box: {width: 6.1, depth: 7.4, height: 13.6}}
+  palm: {}
+  palm_short: {}
+  pebbles: {}
+  pillar: {cylinder: {radius: 1.6, height: 4.5}}
+  ring_mushroom: {cylinder: {radius: 2.79, height: 2.45}}
+  rock_large: {cylinder: {radius: 1.33, height: 3}}
+  rock_small: {cylinder: {radius: 0.7, height: 1.13}}
+  rock_wall: {cylinder: {radius: 2.33, height: 3.52}}
+  sand_pebbles: {}
+  sandstone_boulder: {cylinder: {radius: 2.52, height: 2.31}}
+  sandstone_crag: {}
+  sandstone_pillar: {cylinder: {radius: 1.6, height: 4.5}}
+  sandstone_small: {cylinder: {radius: 0.7, height: 1.13}}
+  sandstone_wall: {cylinder: {radius: 2.33, height: 3.52}}
+  shop: {box: {width: 2.4, depth: 4.8, height: 4.2}}
+  small_mushrooms: {}
+  stump: {cylinder: {radius: 0.5, height: 0.6}}
+  tiny_mushrooms: {}
+  tree_oak: {cylinder: {radius: 0.34, height: 6.5}}
+  tree_pine: {cylinder: {radius: 0.34, height: 6.5}}
+  well: {cylinder: {radius: 1.35, height: 0.6}}

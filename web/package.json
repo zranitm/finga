@@ -8,7 +8,7 @@
   },
   "scripts": {
     "gen": "node scripts/gen-gamedata.ts && buf generate",
-    "maps": "cd ../server && go run ./cmd/mapjson -data data -out ../web/public/maps",
+    "maps": "cd ../server && go run ./cmd/mapjson -data data -out ../web/public/maps && go run ./cmd/regionbake -data data -out ../web/public/regions",
     "models": "node scripts/models.ts",
     "predev": "npm run gen && npm run maps",
     "dev": "vite",
@@ -53,6 +53,7 @@
     "eslint-import-resolver-typescript": "4.4.5",
     "eslint-plugin-import-x": "4.17.1",
     "eslint-plugin-react-hooks": "7.1.1",
+    "fast-check": "4.10.2",
     "globals": "17.13.0",
     "jsdom": "30.1.3",
     "prettier": "3.9.10",

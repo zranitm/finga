@@ -103,7 +103,7 @@ func TestAMobWedgedInACornerGetsFree(t *testing.T) {
 	g.Cylinders = []sim.Cylinder{{X: 23.71, Z: 20.61, Radius: 0.6, Top: 4}}
 	wedged := nav.Point{X: 22.3, Z: 22 - 0.875} // touching the wall's south face and the tree
 	m := meadow(t, g, spawn("wild_boar", 1, wedged.X, wedged.Z, 0.01))
-	if m.Grid().Fits(wedged, 0.875) {
+	if m.Grid.Fits(wedged, 0.875) {
 		t.Fatal("the boar's cell fits it; want one too tight at its centre")
 	}
 	a := newArena(t, m, worldtest.FixedRoll{V: 0.5})

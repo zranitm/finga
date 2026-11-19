@@ -10,7 +10,7 @@ import (
 	"finga/test/e2etest"
 )
 
-// I1/I2: a player queues for 1v1, meets a bot, accepts, fights its one round to the end, hears the outcome with their rating, and goes back to where they queued with the cooldown they had; their rating row has moved. Rounds are short here, and every wait is for a message, not a time.
+// I1/I2: a player queues for 1v1, meets a bot, accepts, fights its one round to the end, hears the outcome with their rating, and goes back to where they queued with the cooldown they had; their rating row has moved. Rounds are short here; every wait is for a message, a minute its bound, and finds one that came early.
 func TestADuelAgainstABotRunsToItsEnd(t *testing.T) {
 	t.Parallel()
 	s := newStackOver(t, e2etest.GameData(t,
@@ -25,43 +25,49 @@ func TestADuelAgainstABotRunsToItsEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	p, snap := s.Join(t, token, id)
-	l := e2etest.NewLooter(p, snap)
-	var home *clientv1.PlayerView
-	if !l.Pump(5*time.Second, func(m wsconn.Message) bool {
-		if v := ownView(m, id); v != nil {
-			home = v
-		}
-		return home != nil
-	}) {
+	h := &heard{l: e2etest.NewLooter(p, snap)}
+	k := h.since(0, 5*time.Second, func(m wsconn.Message) bool { return ownView(m, id) != nil })
+	if k < 0 {
 		t.Fatal("no view of the player before queueing")
 	}
+	home := ownView(h.got[k], id)
 
-	ask := func(req string, msg any) {
+	// Each wait reads on from its request, the replies in any order, so one that comes early isn't missed.
+	ask := func(req string, msg any) int {
 		t.Helper()
-		l.Send(wsconn.Message{ReqID: req, Seq: l.Seq, Data: msg})
-		var r *clientv1.Response
-		if !l.Pump(5*time.Second, func(m wsconn.Message) bool {
-			r, _ = m.Data.(*clientv1.Response)
-			return r != nil && m.ReqID == req
-		}) || !r.GetOk() {
-			t.Fatalf("%s: %+v", req, r)
+		from := len(h.got)
+		h.l.Send(wsconn.Message{ReqID: req, Seq: h.l.Seq, Data: msg})
+		k := h.since(from, time.Minute, func(m wsconn.Message) bool { return m.Type == "Response" && m.ReqID == req })
+		if k < 0 || !h.got[k].Data.(*clientv1.Response).GetOk() {
+			t.Fatalf("%s: no ok Response", req)
 		}
+		return from
 	}
-	ask("queue", &clientv1.PvpQueue{Mode: "duel"})
-	var offer *clientv1.PvpOffer
-	if !l.Pump(10*time.Second, func(m wsconn.Message) bool { offer, _ = m.Data.(*clientv1.PvpOffer); return offer != nil }) || offer.GetBots() != 1 {
-		t.Fatalf("offer %+v, want one with a bot", offer)
+	from := ask("queue", &clientv1.PvpQueue{Mode: "duel"})
+	k = h.since(from, time.Minute, func(m wsconn.Message) bool { return m.Type == "PvpOffer" || m.Type == "PvpUnqueued" })
+	if k < 0 || h.got[k].Type != "PvpOffer" || h.got[k].Data.(*clientv1.PvpOffer).GetBots() != 1 {
+		t.Fatalf("after queueing: %+v, want an offer with a bot", h.message(k))
 	}
-	ask("accept", &clientv1.PvpAnswer{Offer: offer.GetOffer(), Accept: true})
+	offer := h.got[k].Data.(*clientv1.PvpOffer)
 
-	var into *clientv1.MapChange
-	if !l.Pump(10*time.Second, func(m wsconn.Message) bool { into, _ = m.Data.(*clientv1.MapChange); return into != nil }) || into.GetMapId() != "ring" {
-		t.Fatalf("map change %+v, want into the ring", into)
+	sent := time.Now()
+	from = ask("accept", &clientv1.PvpAnswer{Offer: offer.GetOffer(), Accept: true})
+	answered := time.Since(sent)
+	into := h.since(from, time.Minute, func(m wsconn.Message) bool {
+		return m.Type == "MapChange" || m.Type == "PvpOfferCancelled" || m.Type == "PvpUnqueued"
+	})
+	if into < 0 || h.got[into].Type != "MapChange" || h.got[into].Data.(*clientv1.MapChange).GetMapId() != "ring" {
+		t.Fatalf("after accepting: %+v, want a map change into the ring", h.message(into))
+	}
+	t.Logf("accepted: the Response after %v, the map change after %v, %s", answered, time.Since(sent), h.order(from, into, "accept"))
+
+	ended := h.since(into, time.Minute, func(m wsconn.Message) bool { return m.Type == "MatchEnded" })
+	if ended < 0 {
+		t.Fatalf("no outcome; heard %v", h.types(into))
 	}
 	var phases []clientv1.MatchPhase
-	var ended *clientv1.MatchEnded
 	var kit *clientv1.StatsChanged
-	if !l.Pump(60*time.Second, func(m wsconn.Message) bool {
+	for _, m := range h.got[into:ended] {
 		switch d := m.Data.(type) {
 		case *clientv1.MatchState:
 			phases = append(phases, d.GetPhase())
@@ -69,43 +75,37 @@ func TestADuelAgainstABotRunsToItsEnd(t *testing.T) {
 			if kit == nil && d.GetTimers() != nil {
 				kit = d
 			}
-		case *clientv1.MatchEnded:
-			ended = d
 		}
-		return ended != nil
-	}) {
-		t.Fatalf("no outcome; phases %v", phases)
 	}
-	t.Logf("phases %v, outcome %v", phases, ended.GetResult())
+	result := h.got[ended].Data.(*clientv1.MatchEnded)
+	t.Logf("phases %v, outcome %v", phases, result.GetResult())
 	if kit == nil || len(kit.GetTimers().GetTimers()) != 0 || kit.GetSheet() == nil {
 		t.Fatalf("the sheet in the match %+v, want the kit's with no timers", kit)
 	}
 	if len(phases) < 3 || phases[0] != clientv1.MatchPhase_MATCH_PHASE_PREP || phases[len(phases)-1] != clientv1.MatchPhase_MATCH_PHASE_RESULT {
 		t.Fatalf("phases %v, want prep through to the result", phases)
 	}
-	if r := ended.GetRating(); r == nil || r.GetBefore() != 1000 || r.GetAfter() == r.GetBefore() || r.GetPlacementLeft() != 4 {
-		t.Fatalf("rating change %+v", ended.GetRating())
+	if r := result.GetRating(); r == nil || r.GetBefore() != 1000 || r.GetAfter() == r.GetBefore() || r.GetPlacementLeft() != 4 {
+		t.Fatalf("rating change %+v", result.GetRating())
 	}
 
-	var back *clientv1.MapChange
-	var world *clientv1.StatsChanged
-	if !l.Pump(15*time.Second, func(m wsconn.Message) bool {
-		switch d := m.Data.(type) {
-		case *clientv1.MapChange:
-			back = d
-		case *clientv1.StatsChanged:
-			if back != nil && d.GetTimers() != nil {
-				world = d
-			}
-		}
-		return world != nil
-	}) {
-		t.Fatalf("no way back: map change %+v", back)
+	// The way back and the outcome race: the map's result phase against the store.
+	out := h.since(into+1, time.Minute, func(m wsconn.Message) bool { return m.Type == "MapChange" })
+	if out < 0 {
+		t.Fatalf("no way back; heard %v", h.types(into))
 	}
+	back := h.got[out].Data.(*clientv1.MapChange)
 	if back.GetMapId() != "town" || back.GetX() != home.GetX() || back.GetZ() != home.GetZ() {
 		t.Fatalf("back at %+v, want town at (%v, %v)", back, home.GetX(), home.GetZ())
 	}
-	if ts := world.GetTimers().GetTimers(); len(ts) != 1 || ts[0].GetSkill() != "war_cry" || ts[0].GetLeftMs() < 59*60*1000 {
+	k = h.since(out, time.Minute, func(m wsconn.Message) bool {
+		sc, ok := m.Data.(*clientv1.StatsChanged)
+		return ok && sc.GetTimers() != nil
+	})
+	if k < 0 {
+		t.Fatal("no timers back home")
+	}
+	if ts := h.got[k].Data.(*clientv1.StatsChanged).GetTimers().GetTimers(); len(ts) != 1 || ts[0].GetSkill() != "war_cry" || ts[0].GetLeftMs() < 59*60*1000 {
 		t.Fatalf("timers back home %+v, want war_cry's cooldown running on", ts)
 	}
 	var matches, wins, losses, draws int
@@ -115,6 +115,60 @@ func TestADuelAgainstABotRunsToItsEnd(t *testing.T) {
 	if matches != 1 || wins+losses+draws != 1 {
 		t.Fatalf("rating row: %d matches, %d-%d-%d", matches, wins, losses, draws)
 	}
+}
+
+// heard keeps every message the player hears, so a wait finds one that came while the test waited for another.
+type heard struct {
+	l   *e2etest.Looter
+	got []wsconn.Message
+}
+
+// since is the index of the first message from index from on that match takes, reading on for up to d; -1 for none.
+func (h *heard) since(from int, d time.Duration, match func(wsconn.Message) bool) int {
+	for k := from; k < len(h.got); k++ {
+		if match(h.got[k]) {
+			return k
+		}
+	}
+	for deadline := time.Now().Add(d); time.Now().Before(deadline); {
+		m, ok := h.l.Read(time.Until(deadline))
+		if !ok {
+			return -1
+		}
+		h.l.Observe(m)
+		h.got = append(h.got, m)
+		if match(m) {
+			return len(h.got) - 1
+		}
+	}
+	return -1
+}
+
+// message is the k-th message heard, nil for -1.
+func (h *heard) message(k int) any {
+	if k < 0 {
+		return nil
+	}
+	return h.got[k]
+}
+
+// types are the kinds of message heard from index from on.
+func (h *heard) types(from int) []string {
+	var out []string
+	for _, m := range h.got[from:] {
+		out = append(out, m.Type)
+	}
+	return out
+}
+
+// order says whether the message at k came before or after req's Response.
+func (h *heard) order(from, k int, req string) string {
+	for j := from; j < k; j++ {
+		if h.got[j].Type == "Response" && h.got[j].ReqID == req {
+			return "after the Response"
+		}
+	}
+	return "before the Response"
 }
 
 // ownView is the player's own view in a Snapshot or a Delta, nil when it has none.

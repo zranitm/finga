@@ -115,8 +115,9 @@ func TestAChargeEndsOnTheFirstPlayerItMeetsOrAWallOrAMob(t *testing.T) {
 		}
 	})
 	// charge runs the mushroom's charge at a player at (20, 16) beside a slime that starts at (slimeX, 16.875), and returns its windup, its views after, and whether it hit.
-	charge := func(t *testing.T, slimeX float64) (model.MobAttacked, []model.MobView, bool) {
-		a := newArena(t, meadow(t, open(), spawn("orange_mushroom", 1, 20, 20, 0.01), spawn("green_slime", 1, slimeX, 16.875, 0.01)), worldtest.FixedRoll{V: 0.5})
+	charge := func(t *testing.T, data *gamedata.Data, slimeX float64) (model.MobAttacked, []model.MobView, bool) {
+		m := meadow(t, open(), spawn("orange_mushroom", 1, 20, 20, 0.01), spawn("green_slime", 1, slimeX, 16.875, 0.01))
+		a := mobs.NewArena(mobs.Deps{Map: m, Data: data, Roll: worldtest.FixedRoll{V: 0.5}}, mobs.Tuning{TickInterval: tick})
 		p := []mobs.Body{player(20, 16)}
 		var at model.MobAttacked
 		hit := false
@@ -136,18 +137,20 @@ func TestAChargeEndsOnTheFirstPlayerItMeetsOrAWallOrAMob(t *testing.T) {
 		}
 		return at, a.Views(), hit
 	}
-	t.Run("a mob waiting beside the player in its lane", func(t *testing.T) {
-		at, v, hit := charge(t, 20) // the slime touches the player, between them and the mushroom
-		touching := 16.875 + 0.5 + 0.5625
-		if math.Abs(at.ToZ-touching) > 1e-9 {
-			t.Fatalf("windup %+v; want its end, which the telegraph's lane runs to, touching the slime at z %v", at, touching)
-		}
-		if hit || math.Abs(v[0].Z-touching) > 1e-6 {
-			t.Fatalf("the mushroom ended at z %v, hitting %v; want it stopped touching the slime, short of the player", v[0].Z, hit)
-		}
-	})
+	for _, cell := range []string{"32", "1"} { // in 1 m cells, the slime's cell is far from the mushroom's
+		t.Run("a mob waiting beside the player in its lane, cells of "+cell+" m", func(t *testing.T) {
+			at, v, hit := charge(t, withCell(t, cell), 20) // the slime touches the player, between them and the mushroom
+			touching := 16.875 + 0.5 + 0.5625
+			if math.Abs(at.ToZ-touching) > 1e-9 {
+				t.Fatalf("windup %+v; want its end, which the telegraph's lane runs to, touching the slime at z %v", at, touching)
+			}
+			if hit || math.Abs(v[0].Z-touching) > 1e-6 {
+				t.Fatalf("the mushroom ended at z %v, hitting %v; want it stopped touching the slime, short of the player", v[0].Z, hit)
+			}
+		})
+	}
 	t.Run("a mob that steps into its lane after the windup", func(t *testing.T) {
-		at, v, hit := charge(t, 21.2) // off the lane at the windup, the slime hops to the player's side, into it
+		at, v, hit := charge(t, worldtest.LoadData(t), 21.2) // off the lane at the windup, the slime hops to the player's side, into it
 		if at.ToZ > 16.5 {
 			t.Fatalf("windup %+v; want it run to the player, the slime off its lane then", at)
 		}
@@ -516,8 +519,18 @@ func TestAMobAttacksWhoItCanReachOnlyWhenStuck(t *testing.T) {
 			t.Fatalf("windups %+v, boar %+v; want it walking on to its target, no bite at the player beside it", got.started, a.Views()[0])
 		}
 	})
-	t.Run("a player in its way", func(t *testing.T) {
-		a := alone(t, "wild_boar")
+	for _, cell := range []string{"32", "1"} { // in 1 m cells, the player beside the boar is in another cell
+		boar := func(t *testing.T, g sim.Geometry) *mobs.Arena {
+			return mobs.NewArena(mobs.Deps{Map: meadow(t, g, spawn("wild_boar", 1, 20, 20, 0.01)), Data: withCell(t, cell), Roll: worldtest.FixedRoll{V: 0.5}}, mobs.Tuning{TickInterval: tick})
+		}
+		stuck(t, cell, boar)
+	}
+}
+
+// stuck runs a boar that boar makes, at (20, 20) on ground g, stuck against a player in its way, and waiting under its target, in cells of cell metres.
+func stuck(t *testing.T, cell string, boar func(t *testing.T, g sim.Geometry) *mobs.Arena) {
+	t.Run("a player in its way, cells of "+cell+" m", func(t *testing.T) {
+		a := boar(t, open())
 		far := player(20, 27)
 		a.Step(1, []mobs.Body{far})
 		v := a.Views()[0]
@@ -530,9 +543,9 @@ func TestAMobAttacksWhoItCanReachOnlyWhenStuck(t *testing.T) {
 			t.Fatalf("windup %+v; want it turned to the player in its way", w)
 		}
 	})
-	t.Run("waiting under its target", func(t *testing.T) {
+	t.Run("waiting under its target, cells of "+cell+" m", func(t *testing.T) {
 		g := open(sim.Box{X: 20, Z: 26, HalfW: 1.5, HalfD: 1.5, UX: 1, Top: 2})
-		a := boarAt(t, g, 20, 20)
+		a := boar(t, g)
 		far := up(player(20, 26), 2) // on a block 2 m tall: seen, out of reach, no spot at their side the boar fits
 		stepThrough(a, 1, 60, far)
 		v := a.Views()[0]

@@ -117,14 +117,14 @@ func (i *Instance) creditDots() {
 	}
 }
 
-// restrain sets p's movement from their statuses for the input stepped this tick: held while one keeps them from moving, slowed while one slows them, each over its sub-steps.
-func (i *Instance) restrain(p *player) {
-	p.state.Held = int(p.statuses.Held(i.tick)) * i.subSteps //nolint:gosec // a status lasts seconds
-	if mt := i.match; mt != nil && mt.phase == model.PhaseCountdown {
-		p.state.Held = max(p.state.Held, int(mt.ends-i.tick)*i.subSteps) //nolint:gosec // a countdown lasts seconds
+// restrain sets p's movement from their statuses for the input stepped at tick: held while one keeps them from moving, or a match's countdown runs, slowed while one slows them, each over its sub-steps.
+func (i *Instance) restrain(p *player, tick uint64) {
+	p.state.Held = int(p.statuses.Held(tick)) * i.subSteps //nolint:gosec // a status lasts seconds
+	if mt := i.match; mt != nil && mt.phase == model.PhaseCountdown && mt.ends > tick {
+		p.state.Held = max(p.state.Held, int(mt.ends-tick)*i.subSteps) //nolint:gosec // a countdown lasts seconds
 	}
 	p.state.Slow = sim.Slow{}
-	if left, factor := p.statuses.Slowed(i.tick); left > 0 {
+	if left, factor := p.statuses.Slowed(tick); left > 0 {
 		p.state.Slow = sim.Slow{Left: int(left) * i.subSteps, Factor: factor} //nolint:gosec // a status lasts seconds
 	}
 }
@@ -143,17 +143,20 @@ func (i *Instance) inflict(p *player, in model.Infliction) {
 	}
 }
 
-// runStatuses runs each living player's statuses for the tick: damage over time deals its steady damage, from the mob that put it on, a shield taking it first but the hit guard not stopping it; it wakes a sleeper and stops a teleport as a hit does, a death following. Then those run out end.
+// runStatuses runs each living player's statuses for the tick: damage over time deals its steady damage, from the mob or the match's enemy that put it on, scaled as their hits are, a shield taking it first but the hit guard not stopping it; it wakes a sleeper and stops a teleport as a hit does, a death following. Then those run out end.
 func (i *Instance) runStatuses() {
 	for _, id := range i.order {
 		p := i.players[id]
-		if p.dead {
+		if p.dead || p.HP <= 0 {
 			continue
 		}
 		dots, ended := p.statuses.Tick(i.tick, p.state.X, p.state.Z)
 		p.changed = p.changed || ended
 		for _, d := range dots {
 			amount := model.Steady(d.Power, p.statuses.Defending(model.PlayerDefender(p.derived)))
+			if i.match != nil {
+				amount = i.scaled(float64(amount))
+			}
 			past := p.shielded(amount)
 			i.events = append(i.events, model.Damage{Tick: i.tick, Source: d.By, Target: model.EntityRef{Player: p.ID}, Amount: amount, Status: d.Status.ID, Shielded: amount - past})
 			p.HP -= past

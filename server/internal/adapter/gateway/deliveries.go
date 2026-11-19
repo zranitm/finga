@@ -256,6 +256,7 @@ func playerViews(ps []world.PlayerView) []model.PlayerView {
 			Dodging:  p.Dodging,
 			Shield:   p.Shield,
 			Held:     p.State.Held,
+			Sprint:   p.State.Sprint,
 			Slow:     model.PlayerSlow{Left: p.State.Slow.Left, Factor: p.State.Slow.Factor},
 			Statuses: statusViews(p.Statuses),
 			Team:     p.Team,

@@ -1,5 +1,7 @@
 // Mirrors server/internal/shared/sim/sim.go op for op, so testdata/movement replays on both: metres, x east, y up, z north, no trigonometry.
 import type { Input } from './input';
+import { near } from './solids';
+import type { Solids } from './solids';
 import { height, steep, top } from './terrain';
 import type { Terrain } from './terrain';
 
@@ -17,6 +19,31 @@ export interface Params {
   readonly step: number; // a solid's top up to this far above the feet is stepped onto
   readonly max_slope: number; // a rise per metre; a cell rising more is steep
   readonly snap: number; // the most the ground may fall away under a walking body before it falls
+  /** How walking out of combat breaks into a sprint; absent never sprints, as in combat. */
+  readonly sprint?: Sprint;
+}
+
+/** After after seconds of walking out of combat, the walk runs speed times as fast (large-regions.md section 7). */
+export interface Sprint {
+  readonly after: number; // s
+  readonly speed: number; // × the walk speed
+}
+
+/** p as a body in combat moves, as Go's Params.Fighting: it never sprints. */
+export function fighting(p: Params): Params {
+  const { sprint, ...rest } = p;
+  return sprint ? rest : p;
+}
+
+/** How many sub-steps of walking break into a sprint, 0 for none, as Go's SprintSteps. */
+export function sprintSteps(p: Params): number {
+  return p.sprint && p.sprint.after > 0 ? Math.round(p.sprint.after / p.dt) : 0;
+}
+
+/** s with its sprint's count ended, as an attack or a skill pressed ends it. */
+export function endSprint(s: State): State {
+  const { sprint, ...rest } = s;
+  return sprint ? rest : s;
 }
 
 /** 1 plus a move speed, rounded to thousandths as Go's SpeedFactor rounds it, so both multiply by the same number. */
@@ -74,6 +101,8 @@ export interface Geometry {
   readonly boxes: readonly Box[];
   readonly cylinders: readonly Cylinder[];
   readonly blockers?: readonly Blocker[];
+  /** Its boxes and cylinders bucketed, set by indexed; without them every query scans every one. */
+  readonly buckets?: Solids;
 }
 
 /** A body's movement state, (x, y, z) at the centre of its feet, y up, facing the unit heading (hx, hz). */
@@ -93,6 +122,8 @@ export interface State {
   readonly held?: number;
   /** A status slowing the walk; absent when none. */
   readonly slow?: Slow;
+  /** Sub-steps walked toward a sprint, held at sprintSteps once there: from the next, it sprints; absent when none. */
+  readonly sprint?: number;
 }
 
 /** A status slowing the walk: factor × the walk speed for left more sub-steps; a skill's move keeps its speed. */
@@ -210,7 +241,16 @@ export function step(s: State, pressed: Input, g: Geometry, p: Params): State {
     hz = z;
   }
   const moving = !held && (s.move?.left ?? 0) > 0;
-  const speed = (s.slow?.left ?? 0) > 0 ? p.walk_speed * s.slow!.factor : p.walk_speed;
+  const walks = (x !== 0 || z !== 0) && !moving;
+  const sprintAt = sprintSteps(p);
+  const { sprint: walked = 0, ...uncounted } = s;
+  const sprinting = walks && sprintAt > 0 && walked >= sprintAt;
+  // standing, a skill's move, a hold or a fight ends the count; a jump keeps it
+  const count = !walks || sprintAt === 0 ? 0 : walked < sprintAt ? walked + 1 : walked;
+  let speed = sprinting ? p.walk_speed * p.sprint!.speed : p.walk_speed;
+  if ((s.slow?.left ?? 0) > 0) {
+    speed = speed * s.slow!.factor;
+  }
   // a skill's move replaces the walk
   const vx = moving ? s.move!.vx : x * speed;
   const vz = moving ? s.move!.vz : z * speed;
@@ -225,7 +265,7 @@ export function step(s: State, pressed: Input, g: Geometry, p: Params): State {
     vy = -p.max_fall_speed;
   }
 
-  let at = { ...s, vx, vy, vz, on_ground: onGround, hx, hz };
+  let at: State = { ...uncounted, vx, vy, vz, on_ground: onGround, hx, hz };
   let intoSteep = false; // moved into a cell steep along the way it moved
   let cut = true; // every key's move was cut short
   let cylinder = -1; // the cylinder that cut one
@@ -282,7 +322,7 @@ export function step(s: State, pressed: Input, g: Geometry, p: Params): State {
     onGround = false;
   }
   const { move, held: heldFor, slow, ...body } = at;
-  let next: State = { ...body, y, vy, on_ground: onGround };
+  let next: State = { ...body, y, vy, on_ground: onGround, ...(count > 0 && { sprint: count }) };
   if (moving && move) {
     const inside = move.through === true && inMob(next, g, p);
     const kept = move.through && !inside ? { ...move, clear_x: next.x, clear_z: next.z } : move;
@@ -315,7 +355,10 @@ function keys(plus: boolean, minus: boolean): number {
   return 0;
 }
 
-/** s, stopped at the rim of c, moved round it by the share of (dx, dz) along its tangent, at its distance from c's centre; x and z each go as far as a step lets them, the one leaving c first. Also whether into a steep cell. */
+/** How far past touching a body rounding onto a rim's point straight north, south, east or west of a cylinder stands, so rounding error can't leave it a sliver inside, stopping its next move. */
+const RIM_CLEAR = 1e-6;
+
+/** s, stopped at the rim of c, moved round it by the share of (dx, dz) along its tangent, at its distance from c's centre, and no farther than the rim's next point straight north, south, east or west of c; x and z each go as far as a step lets them, the one leaving c first. Also whether into a steep cell. */
 function round(
   s: State,
   c: Cylinder,
@@ -341,6 +384,15 @@ function round(
   const k = r / Math.sqrt(ox * ox + oz * oz);
   ox = ox * k;
   oz = oz * k;
+  // a step past the rim's point straight north, south, east or west of c stops on it, just clear: its legs, x then z or z then x, would cut into c
+  const out = Math.max(r, c.radius + p.radius) + RIM_CLEAR;
+  if ((nx < 0 && ox > 0) || (nx > 0 && ox < 0)) {
+    ox = 0;
+    oz = nz < 0 ? -out : out;
+  } else if ((nz < 0 && oz > 0) || (nz > 0 && oz < 0)) {
+    ox = nx < 0 ? -out : out;
+    oz = 0;
+  }
   const mx = c.x + ox - s.x;
   const mz = c.z + oz - s.z;
   const xFirst = Math.abs(ox) >= Math.abs(nx);
@@ -370,7 +422,13 @@ function slide(
   const size = alongZ ? g.size_z : g.size_x;
   d = limit(d, -Infinity, p.radius - at);
   d = limit(d, size - p.radius - at, Infinity);
-  for (const b of g.boxes) {
+  // the swept body's bounds: a solid outside them can't cut the move
+  const x0 = s.x - p.radius + (!alongZ && d < 0 ? d : 0);
+  const x1 = s.x + p.radius + (!alongZ && d > 0 ? d : 0);
+  const z0 = s.z - p.radius + (alongZ && d < 0 ? d : 0);
+  const z1 = s.z + p.radius + (alongZ && d > 0 ? d : 0);
+  for (const i of near(g, false, x0, z0, x1, z1)) {
+    const b = g.boxes[i]!;
     if (b.top > s.y + p.step) {
       const span = boxSpan(b, s.x, s.z, alongZ, p.radius);
       if (span) {
@@ -380,7 +438,8 @@ function slide(
   }
   let by = -1;
   let mob = false;
-  g.cylinders.forEach((c, i) => {
+  for (const i of near(g, true, x0, z0, x1, z1)) {
+    const c = g.cylinders[i]!;
     if (c.top > s.y + p.step) {
       const span = circleSpan(c.x, c.z, c.radius + p.radius, s.x, s.z, alongZ);
       if (span) {
@@ -391,7 +450,7 @@ function slide(
         }
       }
     }
-  });
+  }
   for (const b of g.blockers ?? []) {
     if (s.y < b.top && s.y + p.height > b.bottom) {
       const span = circleSpan(b.x, b.z, b.radius + p.radius, s.x, s.z, alongZ);
@@ -558,7 +617,8 @@ function discSpan(
 /** The ground under (x, z): the terrain, or the top of a solid holding the point that is no higher than below. */
 export function ground(x: number, z: number, below: number, g: Geometry): number {
   let top = height(g.terrain, x, z);
-  for (const b of g.boxes) {
+  for (const i of near(g, false, x, z, x, z)) {
+    const b = g.boxes[i]!;
     if (b.top > top && b.top <= below) {
       const dx = x - b.x;
       const dz = z - b.z;
@@ -569,7 +629,8 @@ export function ground(x: number, z: number, below: number, g: Geometry): number
       }
     }
   }
-  for (const c of g.cylinders) {
+  for (const i of near(g, true, x, z, x, z)) {
+    const c = g.cylinders[i]!;
     if (c.top > top && c.top <= below) {
       const dx = x - c.x;
       const dz = z - c.z;

@@ -13,7 +13,7 @@ import (
 
 // PvpModule is the pvp module as the gateway calls it.
 type PvpModule interface {
-	Queue(ctx context.Context, who kernel.CharacterID, mode string) error
+	Queue(ctx context.Context, p pvp.Player, mode string) error
 	LeaveQueue(ctx context.Context, who kernel.CharacterID) error
 	Answer(ctx context.Context, who kernel.CharacterID, offer string, accept bool) error
 	Offline(ctx context.Context, who kernel.CharacterID) error
@@ -33,8 +33,8 @@ func NewPvp(p PvpModule, log *slog.Logger, rec *panics.Recorder) Pvp {
 }
 
 // Queue puts the player in a mode's queue.
-func (p Pvp) Queue(ctx context.Context, who kernel.CharacterID, mode string) error {
-	return wrap(p.p.Queue(ctx, who, mode))
+func (p Pvp) Queue(ctx context.Context, who model.Player, mode string) error {
+	return wrap(p.p.Queue(ctx, pvp.Player{ID: who.ID, Name: who.Name}, mode))
 }
 
 // LeaveQueue takes the player out of the queue.

@@ -81,7 +81,7 @@ boss: {at: [58, 20], radius: 9, mob: king_slime, kills: 300}
 As built in spike 3, and renamed in slice PRs 4 and 5:
 - The maps live in `server/data/maps/`, and the sim's constants in metres in `server/data/movement.yaml`. The format and its build are `server/internal/shared/mapfile`. Spike 3 kept them in `maps3d` and `movement3d.yaml` beside the 2D ones; the `.tmj` files and `pkg/tiled` went in slice PR 4.
   - `load.Dir` builds and checks them at startup, so a broken one stops the game.
-  - A map's walk grid is built at its first use (`Map.Grid`), not at load. The grid is the heaviest part of a map, and the tests load the data hundreds of times.
+  - A map's walk grid is built at load (`gamedata.Map.Grid`, since large-regions step 2a), so no tick waits on it. It's built once per process for every map of the same geometry and params, so the tests' hundreds of loads share it.
 - A box is `[x, z, width, depth]` about its centre. Its width runs across its yaw and its depth along it. An area is `[x, z, width, depth]` from its south-west corner.
 - A solid's `height` is above the terrain at its centre.
 - Each map starts with a `# Designed in 3D:` line saying what it is. As built, the converted placeholders started with `# Converted from` until their designs replaced them.
@@ -423,7 +423,7 @@ As built in spike 3:
 - Distances are the same bits on every CPU (`nav.Distance`, each product rounded), so the loader's spot checks give the same verdict on the amd64 CI and an arm64 server.
 - The reach check's flood, which also jumps, lives in nav's tests (section 4). A* and the mobs only walk.
 - **For the world step (slice PR 5):** the data doesn't change once loaded, so each map's grid is built once per process and shared, or when its instance first starts.
-  - `Map.Grid` already builds on first use.
+  - `Map.Grid` built on first use then. Since large-regions step 2a the loader builds it, still shared per process.
   - Clearance is checked at cell centres only. Beside a tree there's a band a few centimetres wide where nav allows a step the sim blocks, so mob AI must handle a blocked step, by sliding or a new path.
   - A box standing on steep terrain skips the steep rule in `walk`, which returns early for a solid's top. Fixed in slice PR 5, below.
   - `Path` with a leash that isn't finite isn't handled yet. Fixed in slice PR 5, below.

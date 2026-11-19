@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -31,15 +32,17 @@ type vector struct {
 	Expected    []sim.State  `json:"expected"`
 }
 
-// inputRun holds one input for Repeat sub-steps; Blockers, when set, are the mobs from this run on, Held and Slow, when set, a status the world sets before its first sub-step, Breaks a break-free ending the hold after them, and Move, when set, starts last.
+// inputRun holds one input for Repeat sub-steps; Blockers, when set, are the mobs from this run on, Held and Slow, when set, a status the world sets before its first sub-step, Breaks a break-free ending the hold after them, EndsSprint an attack or skill pressed, and Move, when set, starts last; Fighting steps them as a body in combat.
 type inputRun struct {
-	Input    sim.Input     `json:"input"`
-	Repeat   int           `json:"repeat"`
-	Blockers []sim.Blocker `json:"blockers,omitempty"`
-	Held     int           `json:"held,omitempty"`
-	Slow     *sim.Slow     `json:"slow,omitempty"`
-	Breaks   bool          `json:"breaks,omitempty"`
-	Move     *moveStart    `json:"move,omitempty"`
+	Input      sim.Input     `json:"input"`
+	Repeat     int           `json:"repeat"`
+	Blockers   []sim.Blocker `json:"blockers,omitempty"`
+	Held       int           `json:"held,omitempty"`
+	Slow       *sim.Slow     `json:"slow,omitempty"`
+	Breaks     bool          `json:"breaks,omitempty"`
+	EndsSprint bool          `json:"ends_sprint,omitempty"`
+	Move       *moveStart    `json:"move,omitempty"`
+	Fighting   bool          `json:"fighting,omitempty"`
 }
 
 // moveStart is a skill's move as the world starts it at an input after its press: a dash or leap over Steps sub-steps, or a blink.
@@ -68,7 +71,7 @@ func (m moveStart) mobs() sim.Mobs {
 var requiredVectors = []string{
 	"walk-north", "walk-north-east", "walk-east", "walk-south-east", "walk-south", "walk-south-west", "walk-west", "walk-north-west",
 	"walk-opposite-keys", "walk-fast",
-	"slide-box", "box-corner", "slide-box-rotated", "box-corner-rotated", "slide-cylinder", "round-cylinder", "round-cylinder-east", "cylinder-middle",
+	"slide-box", "box-corner", "slide-box-rotated", "box-corner-rotated", "slide-cylinder", "round-cylinder", "round-cylinder-east", "round-cylinder-top", "round-cylinder-top-north", "round-cylinder-top-west", "round-cylinder-top-south", "round-cylinder-top-sliver", "round-cylinder-top-inside", "cylinder-middle",
 	"ramp-up-axis", "ramp-up-diagonal", "cliff-stop-axis", "cliff-stop-diagonal", "cliff-straddles-cells",
 	"jump-onto-cliff", "jump-short-of-cliff", "step-off-cliff", "land-on-steep-cell", "walk-down-slope",
 	"jump", "jump-onto-box", "jump-short-of-box", "jump-onto-stump", "jump-across-step", "step-onto-box",
@@ -81,6 +84,8 @@ var requiredVectors = []string{
 	"held-keys", "held-mid-air", "held-mid-dash", "slow-walk", "slow-walk-fast", "slow-dash", "held-and-slow-run-out",
 	"leap-breaks-free", "blink-breaks-free",
 	"leap-through-mob", "leap-through-into-mob", "leap-through-touching-mobs", "leap-through-to-gap", "leap-through-into-box", "leap-through-never-clear", "leap-through-round-trunk",
+	"sprint-after-walking", "sprint-jump-keeps", "sprint-fast", "sprint-and-combat", "sprint-ends-on-press", "sprint-two-presses",
+	"region-forest-sprint", "region-wall-slide", "region-steps-on-corners",
 }
 
 // params are §3's starting values in metres.
@@ -96,6 +101,13 @@ var params = sim.Params{
 	MaxSlope:     0.7,
 	Snap:         0.5,
 }
+
+// sprinting is params with movement.yaml's sprint (large-regions.md section 7): 2 s of walking out of combat, then 1.6 times as fast.
+var sprinting = func() sim.Params {
+	p := params
+	p.Sprint = sim.Sprint{After: 2, Speed: 1.6}
+	return p
+}()
 
 var (
 	east, west, north, south = sim.Input{Right: true}, sim.Input{Left: true}, sim.Input{Up: true}, sim.Input{Down: true}
@@ -121,6 +133,9 @@ func ground(sizeX, sizeZ, cell float64, h func(x, z float64) float64) sim.Geomet
 }
 
 func flat() sim.Geometry { return ground(12, 12, 12, func(_, _ float64) float64 { return 0 }) }
+
+// long is flat ground 80 m east to west, room for a sprint.
+func long() sim.Geometry { return ground(80, 12, 4, func(_, _ float64) float64 { return 0 }) }
 
 // rising is ground 12 by 6 that is low west of from, rises to top at to, and stays there.
 func rising(from, to, top float64) sim.Geometry {
@@ -277,6 +292,53 @@ func statusScenarios() []vector {
 	}
 }
 
+// sprintScenarios are large-regions.md section 7's: walking breaks into a sprint after 2 s, a jump keeps it, move speed counts under it, and a fight or a press ends it.
+func sprintScenarios() []vector {
+	vs := []vector{
+		{Name: "sprint-after-walking", Notes: "Walking east out of combat: 120 sub-steps, 2 s, at the walk, then 1.6 times as fast; letting go ends it, and walking on counts again from 0.",
+			Geometry: long(), Start: standing(2, 0, 6), Inputs: runs(east, 130, still, 2, east, 5)},
+		{Name: "sprint-jump-keeps", Notes: "A jump 110 sub-steps into a walk east: the count runs on through the air, the sprint starting at 121 before it lands.",
+			Geometry: long(), Start: standing(2, 0, 6), Inputs: runs(east, 110, jumpEast, 1, east, 40)},
+		{Name: "sprint-fast", Notes: "Walking east at a move speed factor of 1.3: the sprint multiplies it, after the same 2 s.", SpeedFactor: 1.3,
+			Geometry: long(), Start: standing(2, 0, 6), Inputs: runs(east, 125)},
+		{Name: "sprint-and-combat", Notes: "Sprinting east, then 10 sub-steps in combat, which the world steps with no sprint: back to the walk at once, and out of combat the count starts again from 0.",
+			Geometry: long(), Start: standing(2, 0, 6), Inputs: []inputRun{{Input: east, Repeat: 125}, {Input: east, Repeat: 10, Fighting: true}, {Input: east, Repeat: 125}}},
+		{Name: "sprint-ends-on-press", Notes: "Sprinting east, an attack or skill pressed: from the input after the press, back to the walk, sprinting again 2 s on.",
+			Geometry: long(), Start: standing(2, 0, 6), Inputs: []inputRun{{Input: east, Repeat: 125}, {Input: east, Repeat: 125, EndsSprint: true}}},
+		{Name: "sprint-two-presses", Notes: "Sprinting east, two presses two inputs apart: each ends the count from the input after it, so the sprint comes back 2 s after the second.",
+			Geometry: long(), Start: standing(2, 0, 6), Inputs: []inputRun{{Input: east, Repeat: 125}, {Input: east, Repeat: 6, EndsSprint: true}, {Input: east, Repeat: 125, EndsSprint: true}}},
+	}
+	for i := range vs {
+		vs[i].Params = sprinting
+	}
+	return vs
+}
+
+// regionScenarios walk bodies over many 8 m buckets among solids lying on and across their lines, as a region's do (large-regions.md section 5).
+func regionScenarios() []vector {
+	level := func(_, _ float64) float64 { return 0 }
+	forest := ground(120, 120, 40, level) // trees in rows 7 m apart, so they fall on and across the bucket lines
+	for ix := 1; ix < 17; ix++ {
+		for iz := 1; iz < 17; iz++ {
+			forest.Cylinders = append(forest.Cylinders, sim.Cylinder{X: float64(ix)*7 + 0.3*float64(iz%3), Z: float64(iz)*7 - 0.2*float64(ix%4), Radius: 0.5 + 0.1*float64((ix+iz)%4), Top: 4})
+		}
+	}
+	wall := ground(120, 120, 40, level) // 80 m long, turned 20°, over a dozen buckets
+	wall.Boxes = []sim.Box{{X: 60, Z: 60, HalfW: 40, HalfD: 0.4, UX: math.Cos(20 * math.Pi / 180), UZ: math.Sin(20 * math.Pi / 180), Top: 3}}
+	steps := ground(64, 32, 4, level) // low steps centred on bucket corners, each over four buckets
+	for k := 1; k < 7; k++ {
+		steps.Boxes = append(steps.Boxes, sim.Box{X: 8 * float64(k), Z: 16, HalfW: 1, HalfD: 1, UX: 1, Top: 0.2 + 0.04*float64(k%3)})
+	}
+	return []vector{
+		{Name: "region-forest-sprint", Notes: "Walking east 10 s along the north side of a row of trees on and across the bucket lines: into a sprint after 2 s, sliding round each tree it grazes.",
+			Params: sprinting, Geometry: forest, Start: standing(1, 0, 7.3), Inputs: runs(east, 600)},
+		{Name: "region-wall-slide", Notes: "Walking north into a wall turned 20° and 80 m long, then north-east, sliding along it over three buckets.",
+			Params: params, Geometry: wall, Start: standing(40, 0, 45), Inputs: runs(north, 120, northEast, 360)},
+		{Name: "region-steps-on-corners", Notes: "Walking east over low steps centred on bucket corners, then a jump and on: each step is read from all four of its buckets.",
+			Params: params, Geometry: steps, Start: standing(2, 0, 16), Inputs: runs(east, 240, jumpEast, 1, east, 120)},
+	}
+}
+
 func scenarios() []vector {
 	walk := func(name, way string, in sim.Input) vector {
 		return vector{Name: name, Notes: "Walking " + way + " from the middle of flat ground, then letting go: the heading stays.", Geometry: flat(), Start: standing(6, 0, 6), Inputs: runs(in, 30, still, 5)}
@@ -312,6 +374,22 @@ func scenarios() []vector {
 			Geometry: trunk(), Start: standing(5, 0, 3.4), Inputs: runs(northEast, 120)},
 		{Name: "round-cylinder-east", Notes: "Walking east at a trunk 0.3 m north of its middle: x stops at its rim, and the body slides north round it, slowly at first, then on east.",
 			Geometry: trunk(), Start: standing(5, 0, 6.3), Inputs: runs(east, 95)},
+		{Name: "round-cylinder-top", Notes: "Walking east 0.9 m north of a trunk's middle: the body slides round it to the rim's northmost point, stops there for the step that would pass it, then walks on east; it once stuck there, its x leg cutting into the trunk.",
+			Geometry: trunk(), Start: standing(5, 0, 6.9), Inputs: runs(east, 90)},
+		{Name: "round-cylinder-top-north", Notes: "The same walking north 0.9 m east of the trunk's middle, past the rim's eastmost point.",
+			Geometry: trunk(), Start: standing(8.9, 0, 2), Inputs: runs(north, 90)},
+		{Name: "round-cylinder-top-west", Notes: "The same walking west 0.9 m south of the trunk's middle, past the rim's southmost point.",
+			Geometry: trunk(), Start: standing(11, 0, 5.1), Inputs: runs(west, 90)},
+		{Name: "round-cylinder-top-south", Notes: "The same walking south 0.9 m west of the trunk's middle, past the rim's westmost point.",
+			Geometry: trunk(), Start: standing(7.1, 0, 10), Inputs: runs(south, 90)},
+		{Name: "round-cylinder-top-sliver", Notes: "Walking east along z 7.975, 0.975 m north of a 0.6 m trunk's middle as near as a float gets, which leaves the body 1 ulp inside touching: x stops at a 50 nm sliver of it, rounding stands the body on the rim's northmost point 1 µm clear, and it walks on; it once stuck there.",
+			Geometry: func() sim.Geometry {
+				g := flat()
+				g.Cylinders = []sim.Cylinder{{X: 8.3, Z: 7, Radius: 0.6, Top: 4}}
+				return g
+			}(), Start: standing(5, 0, 7.975), Inputs: runs(east, 60)},
+		{Name: "round-cylinder-top-inside", Notes: "Walking east from 1.4 cm inside a trunk's rim, just west of its northmost point: rounding over that point stands the body clear of the trunk, 1 µm past touching, and it walks on; at its own depth it would stay inside and stick.",
+			Geometry: trunk(), Start: standing(7.95, 0, 7.36), Inputs: runs(east, 40)},
 		{Name: "cylinder-middle", Notes: "Walking east straight at a trunk's middle: nothing of the move runs along its tangent, so the body stays at its rim.",
 			Geometry: trunk(), Start: standing(5, 0, 6), Inputs: runs(east, 60)},
 		{Name: "ramp-up-axis", Notes: "Walking east up a 0.5 rise per metre, under max_slope, onto the flat top 2 m up.", Geometry: rising(4, 8, 2), Start: standing(2, 0, 3), Inputs: runs(east, 110)},
@@ -358,7 +436,8 @@ func scenarios() []vector {
 	for i := range vs {
 		vs[i].Params = params
 	}
-	return vs
+	vs = append(vs, sprintScenarios()...)
+	return append(vs, regionScenarios()...)
 }
 
 func TestVectors(t *testing.T) {
@@ -432,11 +511,16 @@ func replay(v vector) []sim.State {
 	}
 	g := v.Geometry
 	g.Terrain = sim.NewTerrain(g.Terrain.Cell, g.Terrain.NX, g.Terrain.NZ, g.Terrain.Heights, p.MaxSlope)
+	g = sim.Indexed(g)        // as every map is; the TS replay reads them the same way
+	var blocking sim.Blockers // bucketed as the world buckets its mobs
+	blocking.Set(g.Blockers, g.SizeX, g.SizeZ)
+	g = g.Blocking(&blocking)
 	s := v.Start
 	var out []sim.State
 	for _, run := range v.Inputs {
 		if run.Blockers != nil {
-			g.Blockers = run.Blockers
+			blocking.Set(run.Blockers, g.SizeX, g.SizeZ)
+			g = g.Blocking(&blocking)
 		}
 		if run.Held != 0 {
 			s.Held = run.Held
@@ -447,6 +531,9 @@ func replay(v vector) []sim.State {
 		if run.Breaks {
 			s.Held = 0
 		}
+		if run.EndsSprint {
+			s = sim.EndSprint(s)
+		}
 		if m := run.Move; m != nil {
 			if m.Kind == "blink" {
 				s = sim.Blink(s, sim.Way{X: m.UX, Z: m.UZ, Length: m.Length}, g, p)
@@ -454,8 +541,12 @@ func replay(v vector) []sim.State {
 				s = sim.Dash(s, sim.Way{X: m.UX, Z: m.UZ, Length: m.Length}, m.Steps, m.mobs(), m.Kind == "leap", p)
 			}
 		}
+		stepping := p
+		if run.Fighting {
+			stepping = p.Fighting()
+		}
 		for range run.Repeat {
-			s = sim.Step(s, run.Input, g, p)
+			s = sim.Step(s, run.Input, g, stepping)
 			out = append(out, s)
 		}
 	}

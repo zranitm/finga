@@ -52,12 +52,16 @@ func (i *Instance) stats(p *player) Stats {
 	return s
 }
 
-// movement is the player's movement constants: sped up by their move speed in a hunting map, as they are in a town.
+// movement is the player's movement constants: sped up by their move speed outside a town, with no sprint in combat.
 func (i *Instance) movement(p *player) sim.Params {
-	if i.m.Kind == gamedata.Town {
-		return i.params
+	moves := i.params
+	if i.m.Kind != gamedata.Town {
+		moves = moves.Faster(sim.SpeedFactor(p.derived.MoveSpeed))
 	}
-	return i.params.Faster(sim.SpeedFactor(p.derived.MoveSpeed))
+	if i.inCombat(p) {
+		return moves.Fighting()
+	}
+	return moves
 }
 
 // restat re-derives the player's stats after their points or gear changed, lowers HP to any new maximum, and tells the player.

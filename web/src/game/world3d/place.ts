@@ -31,7 +31,7 @@ import type { Models } from './models';
 import { linearOf, warm } from './toon';
 import type { Palette } from './toon';
 
-/** A sky's colour, sRGB, and its fog from start to end, metres from the camera: the player stands about 16 m off. */
+/** A sky's colour, sRGB, and its fog from start to end, metres from the camera: the player stands about 16 m off, close up. */
 interface Sky {
   readonly color: number;
   readonly fog: readonly [number, number];
@@ -46,6 +46,7 @@ const SKIES: Readonly<Record<string, Sky>> = {
   shroom: { color: 0x8c7fb8, fog: [26, 80] },
   cave: { color: 0x18161f, fog: [17, 42] },
 };
+const FOG_OUT = 3.6; // zoomed right out, the fog starts and ends this many times as far: a day sky's from about 160 m to 500 m (large-regions.md section 9)
 
 /** A solid's stand-in: its collision shape in color, a tree's canopy or a house's roof above it in top. */
 interface StandIn {
@@ -88,7 +89,7 @@ const STEPS = [1, 0.65, 0.3, 0.15, 0] as const; // the alphas a look steps throu
 const STEP_MS = 50; // between two steps, so whole to gone takes 0.15 s after the first
 const LOW_PROP = movement.height / 2; // a prop no taller hides at most a player's legs, so it never fades
 const SINK = 0.5; // a solid reaches this far under the ground at its centre, so a slope never shows its foot
-const APRON = 40; // flat ground past the map's edges, which the camera sees from near one
+const APRON = 500; // flat ground past the map's edges, out to where the fog hides it with the camera zoomed right out
 const DEG = Math.PI / 180;
 
 /** One mesh of a stand-in solid, with its material at each of STEPS. */
@@ -149,6 +150,14 @@ interface Placed {
   readonly props: { readonly i: number; readonly at: Matrix }[];
 }
 
+/** Sets scene's fog for a sky seen at zoom, 0 close to 1 far: it draws back as the camera does. */
+export function fogFor(scene: Scene, sky: string, zoom: number): void {
+  const [start, end] = (SKIES[sky] ?? SKIES.day!).fog;
+  const far = 1 + (FOG_OUT - 1) * zoom;
+  scene.fogStart = start * far;
+  scene.fogEnd = end * far;
+}
+
 /** Draws map in scene: its sky, ground, solids, props and portals; a model key with a kit model draws it, any other a stand-in. */
 export async function buildPlace(
   scene: Scene,
@@ -161,7 +170,7 @@ export async function buildPlace(
   scene.clearColor = Color4.FromColor3(Color3.FromHexString(hex(sky.color)), 1);
   scene.fogMode = Scene.FOGMODE_LINEAR;
   scene.fogColor = linearOf(sky.color); // the toon materials fog in linear light, then go to gamma
-  [scene.fogStart, scene.fogEnd] = sky.fog;
+  fogFor(scene, map.sky, 0);
 
   const { palette } = lighting;
   const g = map.geometry;

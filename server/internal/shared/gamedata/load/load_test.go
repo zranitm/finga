@@ -17,6 +17,7 @@ import (
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/gamedata/load"
 	"finga/internal/shared/kernel"
+	"finga/internal/shared/nav"
 	"finga/internal/shared/sim"
 )
 
@@ -24,6 +25,7 @@ import (
 var wantMovement = sim.Params{
 	Dt: 1.0 / 60, WalkSpeed: 5, JumpVelocity: 12.34, Gravity: 38, MaxFallSpeed: 22.5,
 	Radius: 0.375, Height: 1.75, Step: 0.3, MaxSlope: 0.7, Snap: 0.5,
+	Sprint: sim.Sprint{After: 2, Speed: 1.6},
 }
 
 // fixture is a minimal valid data folder; each rejection row breaks one thing in it.
@@ -40,6 +42,7 @@ height: 1.75
 step: 0.3
 max_slope: 0.7
 snap: 0.5
+sprint: {after: 2, speed: 1.6}
 `,
 		"loot.yaml": `
 collect_delay: 1s
@@ -285,6 +288,8 @@ places:
   field: [60, 50]
 teleport:
   channel: 2500ms
+interest:
+  cell: 32
 `,
 		"maps/pit.yaml": `
 name: Pit
@@ -385,8 +390,8 @@ func TestValidDataLoads(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Run("the most active quests and the longest chat line", func(t *testing.T) {
-		if d.MaxActiveQuests() != 20 || d.ChatLineMax() != 120 || d.TeleportChannel() != 2500*time.Millisecond {
-			t.Fatalf("max active %d, chat line %d, teleport channel %v", d.MaxActiveQuests(), d.ChatLineMax(), d.TeleportChannel())
+		if d.MaxActiveQuests() != 20 || d.ChatLineMax() != 120 || d.TeleportChannel() != 2500*time.Millisecond || d.InterestCell() != 32 {
+			t.Fatalf("max active %d, chat line %d, teleport channel %v, interest cell %v", d.MaxActiveQuests(), d.ChatLineMax(), d.TeleportChannel(), d.InterestCell())
 		}
 	})
 	t.Run("a mob's attacks from the table, with its own changes, and the rules they share", func(t *testing.T) {
@@ -641,8 +646,8 @@ func TestValidDataLoads(t *testing.T) {
 		if field.Boss == nil || *field.Boss != (gamedata.BossSpot{Mob: "slime_lord", Kills: 20, At: gamedata.Point{X: 30, Z: 14}, Radius: 4}) || town.Boss != nil {
 			t.Fatalf("field's boss %+v, town's %+v", field.Boss, town.Boss)
 		}
-		if g := field.Grid(); g != field.Grid() {
-			t.Fatal("a map's walk grid is built again at each call")
+		if g := field.Grid; g == nil || !g.Fits(nav.Point{X: 3, Z: 10}, 0.375) {
+			t.Fatal("the field's walk grid isn't built at load, with the player's spawn standing room")
 		}
 		if len(d.Maps()) != 3 {
 			t.Fatalf("%d maps", len(d.Maps()))
@@ -757,8 +762,13 @@ func TestRejections(t *testing.T) {
 		{"a drop share that isn't a number", "mobs.yaml", "drop_share: 0.01", "drop_share: .nan", []string{"mobs.yaml", "field_boss", "drop_share"}},
 		{"a drop chance that isn't a number", "mobs.yaml", "chance: 0.6", "chance: .nan", []string{"mobs.yaml", "green_slime", "chance"}},
 		{"an endless mob width", "mobs.yaml", "    radius: 1.5\n", "    radius: .inf\n", []string{"mobs.yaml", "slime_lord"}},
+		{"a mob width off the walk grid's steps", "mobs.yaml", "    radius: 1.5\n", "    radius: 1.33\n", []string{"mobs.yaml", "slime_lord", "radius 1.33", "2⁻¹³ m steps"}},
+		{"a mob wider than the walk grid's clearance", "mobs.yaml", "    radius: 1.5\n", "    radius: 8\n", []string{"mobs.yaml", "slime_lord", "radius 8", "walk grid"}},
+		{"a player width off the walk grid's steps", "movement.yaml", "radius: 0.375", "radius: 0.38", []string{"movement.yaml", "radius 0.38", "2⁻¹³ m steps"}},
 		{"a cancel point that isn't a number", "actions.yaml", "cancel: 0.85", "cancel: .nan", []string{"actions.yaml", "cancel"}},
 		{"an endless gravity", "movement.yaml", "gravity: 38", "gravity: .inf", []string{"movement.yaml", "gravity"}},
+		{"world.yaml without an interest cell", "world.yaml", "interest:\n  cell: 32\n", "", []string{"world.yaml", "interest.cell"}},
+		{"an interest cell that isn't a number", "world.yaml", "  cell: 32\n", "  cell: .nan\n", []string{"world.yaml", "interest.cell"}},
 		{"a talk reach that isn't a number", "npcs.yaml", "talk_reach: 1.875", "talk_reach: .nan", []string{"npcs.yaml", "talk_reach"}},
 		{"an endless melee attack", "classes.yaml", "radius: 2.375, angle: 120, height: 1.75, length: 600ms", "radius: .inf, angle: 120, height: 1.75, length: 600ms", []string{"classes.yaml", "warrior", "radius"}},
 		{"a ranged attack's range that isn't a number", "classes.yaml", "range: 13.125", "range: .nan", []string{"classes.yaml", "bowman", "range"}},
@@ -897,6 +907,8 @@ func TestRejections(t *testing.T) {
 		{"an unknown key is rejected", "items.yaml", `tab: etc`, `tab: etc, colour: green`, []string{"items.yaml", "colour"}},
 		{"movement constants must be positive", "movement.yaml", `gravity: 38`, `gravity: 0`, []string{"movement.yaml", "gravity"}},
 		{"a casting_speed, gone since a skill leaves movement alone", "movement.yaml", "snap: 0.5\n", "snap: 0.5\ncasting_speed: 0.5\n", []string{"movement.yaml", "casting_speed"}},
+		{"a sprint with no walk before it", "movement.yaml", "after: 2,", "after: 0,", []string{"movement.yaml", "sprint.after"}},
+		{"a sprint no faster than the walk", "movement.yaml", "speed: 1.6}", "speed: 1}", []string{"movement.yaml", "sprint.speed"}},
 		{"no active quest allowed", "quests.yaml", `max_active: 20`, `max_active: 0`, []string{"quests.yaml", "max_active"}},
 		{"no chat line allowed", "chat.yaml", `line_max: 120`, `line_max: 0`, []string{"chat.yaml", "line_max"}},
 		{"loot timings must be positive", "loot.yaml", `collect_delay: 1s`, `collect_delay: 0s`, []string{"loot.yaml", "collect_delay"}},
@@ -1569,4 +1581,18 @@ func TestRealDataLoads(t *testing.T) {
 			}
 		}
 	})
+}
+
+// Movement reads movement.yaml as Dir does: the shipped rules, and the same refusal for a bad one.
+func TestMovementReadsTheSimsRulesAlone(t *testing.T) {
+	p, err := load.Movement("../../../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d, err := load.Dir("../../../../data"); err != nil || p != d.Movement() {
+		t.Errorf("Movement %+v; want Dir's %+v (%v)", p, d.Movement(), err)
+	}
+	if _, err := load.Movement(t.TempDir()); err == nil || !strings.Contains(err.Error(), "movement.yaml") {
+		t.Errorf("error %v; want one naming movement.yaml", err)
+	}
 }

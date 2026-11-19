@@ -4,7 +4,8 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import type { Input } from './input';
-import { blink, dash, faster, step } from './step';
+import { indexed } from './solids';
+import { blink, dash, endSprint, faster, fighting, step } from './step';
 import type { Blocker, Geometry, Mobs, Params, Slow, State } from './step';
 import { terrain } from './terrain';
 import type { Terrain } from './terrain';
@@ -18,7 +19,7 @@ interface Vector {
     readonly terrain: Pick<Terrain, 'cell' | 'nx' | 'nz' | 'heights'>;
   };
   readonly start: State;
-  /** blockers, when set, are the mobs from that run on; held and slow, when set, a status the world sets before its first sub-step; breaks, a break-free ending the hold after them; move, when set, starts last. */
+  /** blockers, when set, are the mobs from that run on; held and slow, when set, a status the world sets before its first sub-step; breaks, a break-free ending the hold after them; ends_sprint, an attack or skill pressed; move, when set, starts last; fighting steps them as a body in combat. */
   readonly inputs: readonly {
     readonly input: Partial<Input>;
     readonly repeat: number;
@@ -26,6 +27,8 @@ interface Vector {
     readonly held?: number;
     readonly slow?: Slow;
     readonly breaks?: boolean;
+    readonly ends_sprint?: boolean;
+    readonly fighting?: boolean;
     readonly move?: {
       readonly kind: 'dash' | 'leap' | 'blink';
       readonly ux: number;
@@ -71,6 +74,12 @@ const required = [
   'slide-cylinder',
   'round-cylinder',
   'round-cylinder-east',
+  'round-cylinder-top',
+  'round-cylinder-top-north',
+  'round-cylinder-top-west',
+  'round-cylinder-top-south',
+  'round-cylinder-top-sliver',
+  'round-cylinder-top-inside',
   'cylinder-middle',
   'ramp-up-axis',
   'ramp-up-diagonal',
@@ -134,6 +143,15 @@ const required = [
   'leap-through-into-box',
   'leap-through-never-clear',
   'leap-through-round-trunk',
+  'sprint-after-walking',
+  'sprint-jump-keeps',
+  'sprint-fast',
+  'sprint-and-combat',
+  'sprint-ends-on-press',
+  'sprint-two-presses',
+  'region-forest-sprint',
+  'region-wall-slide',
+  'region-steps-on-corners',
 ];
 
 const noKeys: Input = { left: false, right: false, up: false, down: false, jump: false };
@@ -141,7 +159,10 @@ const noKeys: Input = { left: false, right: false, up: false, down: false, jump:
 function replay(v: Vector): State[] {
   const p = v.speed_factor ? faster(v.params, v.speed_factor) : v.params;
   const t = v.geometry.terrain;
-  let g: Geometry = { ...v.geometry, terrain: terrain(t.cell, t.nx, t.nz, t.heights, p.max_slope) };
+  let g: Geometry = indexed({
+    ...v.geometry,
+    terrain: terrain(t.cell, t.nx, t.nz, t.heights, p.max_slope),
+  }); // as a map is, and as Go replays
   let s = v.start;
   const out: State[] = [];
   for (const run of v.inputs) {
@@ -157,6 +178,9 @@ function replay(v: Vector): State[] {
     if (run.breaks) {
       s = { ...s, held: 0 };
     }
+    if (run.ends_sprint) {
+      s = endSprint(s);
+    }
     const m = run.move;
     if (m) {
       const way = { x: m.ux, z: m.uz, length: m.length };
@@ -165,8 +189,9 @@ function replay(v: Vector): State[] {
           ? blink(s, way, g, p)
           : dash(s, way, m.steps ?? 0, mobsOf(m), m.kind === 'leap', p);
     }
+    const stepping = run.fighting ? fighting(p) : p;
     for (let i = 0; i < run.repeat; i++) {
-      s = step(s, { ...noKeys, ...run.input }, g, p);
+      s = step(s, { ...noKeys, ...run.input }, g, stepping);
       out.push(s);
     }
   }

@@ -48,14 +48,18 @@ func (p *Postgres) Rating(ctx context.Context, id kernel.CharacterID, mode strin
 	return out, found, failures.Classify(err)
 }
 
-// Record stores match once, in one transaction: the match row, whose id makes a repeat do nothing, the characters' ratings locked and rated, and each fighter's row.
-func (p *Postgres) Record(ctx context.Context, match model.Match, characters []kernel.CharacterID, rate func(before map[kernel.CharacterID]model.Rating) model.Rated) (bool, error) {
-	stored := false
+// Record stores match once, in one transaction: the match row, whose id makes a repeat do nothing, the characters' ratings locked and rated, and each fighter's row. It gives back each fighter's rating before and after; a repeat gives the characters' as the first stored them.
+func (p *Postgres) Record(ctx context.Context, match model.Match, characters []kernel.CharacterID, rate func(before map[kernel.CharacterID]model.Rating) model.Rated) ([]model.Fighter, error) {
+	var fighters []model.Fighter
 	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
 		q, now := db.New(tx), dbx.Now()
-		stored = false
+		fighters = nil
 		n, err := q.RecordMatch(ctx, db.RecordMatchParams{ID: uuid.UUID(match.ID), Mode: match.Mode, StartedAt: match.Started, EndedAt: match.Ended, Winner: int16(match.Winner), Now: now}) //nolint:gosec // 0 to 2
-		if err != nil || n == 0 {
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			fighters, err = stored(ctx, q, match)
 			return err
 		}
 		ids := make([]uuid.UUID, 0, len(characters))
@@ -94,8 +98,25 @@ func (p *Postgres) Record(ctx context.Context, match model.Match, characters []k
 				return err
 			}
 		}
-		stored = true
+		fighters = rated.Fighters
 		return nil
 	}, dbx.Observed(p.obs))
-	return stored, failures.Classify(err)
+	return fighters, failures.Classify(err)
+}
+
+// stored is match's characters as it stored them: their ratings before and after, with their record as it is now.
+func stored(ctx context.Context, q *db.Queries, match model.Match) ([]model.Fighter, error) {
+	rows, err := q.StoredFighters(ctx, db.StoredFightersParams{MatchID: uuid.UUID(match.ID), Mode: match.Mode})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.Fighter, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, model.Fighter{
+			Side: int(r.Side), Slot: int(r.Slot), Character: kernel.CharacterID(*r.CharacterID),
+			Before: model.Rating{Mu: r.MuBefore, Sigma: r.SigmaBefore},
+			After:  model.Rating{Mu: r.MuAfter, Sigma: r.SigmaAfter, Matches: int(r.Matches), Wins: int(r.Wins), Losses: int(r.Losses), Draws: int(r.Draws)},
+		})
+	}
+	return out, nil
 }

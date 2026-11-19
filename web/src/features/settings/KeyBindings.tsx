@@ -42,6 +42,8 @@ const names: Readonly<Record<Action, string>> = {
   quests: 'Quest log',
   map: 'Map',
   arena: 'Arena',
+  zoomIn: 'Zoom in',
+  zoomOut: 'Zoom out',
   chat: 'Chat',
   close: 'Close the top window',
 };
@@ -67,7 +69,17 @@ const groups: readonly { readonly name: string; readonly actions: readonly Actio
   { name: 'World', actions: ['talk'] },
   {
     name: 'Windows',
-    actions: ['inventory', 'character', 'skills', 'party', 'quests', 'map', 'arena'],
+    actions: [
+      'inventory',
+      'character',
+      'skills',
+      'party',
+      'quests',
+      'map',
+      'arena',
+      'zoomIn',
+      'zoomOut',
+    ],
   },
   { name: 'Fixed', actions: ['chat', 'close'] },
 ];

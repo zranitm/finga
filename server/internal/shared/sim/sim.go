@@ -18,6 +18,33 @@ type Params struct {
 	Step         float64 `json:"step"`      // a solid's top up to this far above the feet is stepped onto
 	MaxSlope     float64 `json:"max_slope"` // a rise per metre; a cell rising more is steep
 	Snap         float64 `json:"snap"`      // the most the ground may fall away under a walking body before it falls
+	Sprint       Sprint  `json:"sprint,omitzero"`
+}
+
+// Sprint is how walking out of combat breaks into a sprint (large-regions.md section 7): after After seconds of it, the walk runs Speed times as fast; the zero Sprint never sprints, as in combat.
+type Sprint struct {
+	After float64 `json:"after"` // s
+	Speed float64 `json:"speed"` // × the walk speed
+}
+
+// Fighting is p as a body in combat moves: it never sprints.
+func (p Params) Fighting() Params {
+	p.Sprint = Sprint{}
+	return p
+}
+
+// SprintSteps is how many sub-steps of walking break into a sprint, 0 for none.
+func SprintSteps(p Params) int {
+	if p.Sprint.After <= 0 {
+		return 0
+	}
+	return int(math.Round(p.Sprint.After / p.Dt))
+}
+
+// EndSprint is s with its sprint's count ended, as an attack or a skill pressed ends it.
+func EndSprint(s State) State {
+	s.Sprint = 0
+	return s
 }
 
 // SpeedFactor is 1 plus a move speed, rounded to thousandths so Go and TypeScript multiply by the same number.
@@ -71,6 +98,8 @@ type Geometry struct {
 	Boxes     []Box      `json:"boxes"`
 	Cylinders []Cylinder `json:"cylinders"`
 	Blockers  []Blocker  `json:"blockers,omitempty"`
+	solids    *solids    // its boxes and cylinders bucketed, set by Indexed; nil scans every one
+	blockers  *Blockers  // its blockers bucketed, set by Blocking
 }
 
 // Input is the keys held during one sub-step: up walks north (+z), right east (+x).
@@ -96,6 +125,7 @@ type State struct {
 	Move     Move    `json:"move,omitzero"`
 	Held     int     `json:"held,omitzero"` // sub-steps left of a status holding the body: no keys, no jump, no skill's move, gravity still running
 	Slow     Slow    `json:"slow,omitzero"`
+	Sprint   int     `json:"sprint,omitzero"` // sub-steps walked toward a sprint, held at SprintSteps once there: from the next, it sprints
 }
 
 // Slow is a status slowing the walk: Factor × the walk speed for Left more sub-steps; a skill's move keeps its speed.
@@ -185,8 +215,9 @@ func Blink(s State, w Way, g Geometry, p Params) State {
 
 // inMob is whether a mob's body holds s's.
 func inMob(s State, g Geometry, p Params) bool {
-	for _, b := range g.Blockers {
-		if s.Y < b.Top && s.Y+p.Height > b.Bottom {
+	blockers := g.nearBlockers(s.X-p.Radius, s.Z-p.Radius, s.X+p.Radius, s.Z+p.Radius)
+	for i, ok := blockers.next(); ok; i, ok = blockers.next() {
+		if b := g.Blockers[i]; s.Y < b.Top && s.Y+p.Height > b.Bottom {
 			dx, dz, r := s.X-b.X, s.Z-b.Z, b.Radius+p.Radius
 			if float64(dx*dx)+float64(dz*dz) < float64(r*r) {
 				return true
@@ -208,12 +239,23 @@ func Step(s State, in Input, g Geometry, p Params) State {
 	if x != 0 || z != 0 {
 		s.HX, s.HZ = x, z
 	}
+	moving := s.Move.Left > 0
+	walking, sprintAt := (x != 0 || z != 0) && !moving, SprintSteps(p)
+	sprinting := walking && sprintAt > 0 && s.Sprint >= sprintAt
+	switch {
+	case !walking || sprintAt == 0: // standing, a skill's move, a hold or a fight ends the count; a jump keeps it
+		s.Sprint = 0
+	case s.Sprint < sprintAt:
+		s.Sprint++
+	}
 	speed := p.WalkSpeed
+	if sprinting {
+		speed = float64(speed * p.Sprint.Speed)
+	}
 	if s.Slow.Left > 0 {
 		speed = float64(speed * s.Slow.Factor)
 	}
 	s.VX, s.VZ = float64(x*speed), float64(z*speed)
-	moving := s.Move.Left > 0
 	if moving { // a skill's move replaces the walk
 		s.VX, s.VZ = s.Move.VX, s.Move.VZ
 	}
@@ -317,7 +359,10 @@ func Push(s State, dx, dz float64, g Geometry, p Params) State {
 	return s
 }
 
-// round is s, stopped at the rim of c, moved round it by the share of (dx, dz) along its tangent, at its distance from c's centre; x and z each go as far as a step lets them, the one leaving c first. It returns whether into a steep cell.
+// rimClear is how far past touching a body rounding onto a rim's point straight north, south, east or west of a cylinder stands, so rounding error can't leave it a sliver inside, stopping its next move.
+const rimClear = 1e-6
+
+// round is s, stopped at the rim of c, moved round it by the share of (dx, dz) along its tangent, at its distance from c's centre, and no farther than the rim's next point straight north, south, east or west of c; x and z each go as far as a step lets them, the one leaving c first. It returns whether into a steep cell.
 func round(s State, c Cylinder, dx, dz float64, g Geometry, p Params) (State, bool) {
 	nx, nz := s.X-c.X, s.Z-c.Z
 	r := math.Sqrt(float64(nx*nx) + float64(nz*nz))
@@ -332,6 +377,19 @@ func round(s State, c Cylinder, dx, dz float64, g Geometry, p Params) (State, bo
 	ox, oz := nx+float64(along*tx), nz+float64(along*tz)
 	k := r / math.Sqrt(float64(ox*ox)+float64(oz*oz))
 	ox, oz = float64(ox*k), float64(oz*k)
+	out := max(r, c.Radius+p.Radius) + rimClear
+	switch { // a step past the rim's point straight north, south, east or west of c stops on it, just clear: its legs, x then z or z then x, would cut into c
+	case nx < 0 && ox > 0 || nx > 0 && ox < 0:
+		ox, oz = 0, out
+		if nz < 0 {
+			oz = -out
+		}
+	case nz < 0 && oz > 0 || nz > 0 && oz < 0:
+		ox, oz = out, 0
+		if nx < 0 {
+			ox = -out
+		}
+	}
 	mx, mz := c.X+ox-s.X, c.Z+oz-s.Z
 	steep := false
 	move := func(alongZ bool) {
@@ -375,16 +433,29 @@ func slide(s State, d float64, alongZ bool, g Geometry, p Params) (float64, bool
 	}
 	d = limit(d, math.Inf(-1), p.Radius-at)
 	d = limit(d, size-p.Radius-at, math.Inf(1))
-	for _, b := range g.Boxes {
-		if b.Top > s.Y+p.Step {
+	x0, z0, x1, z1 := s.X-p.Radius, s.Z-p.Radius, s.X+p.Radius, s.Z+p.Radius // the swept body's bounds
+	switch {
+	case alongZ && d < 0:
+		z0 += d
+	case alongZ:
+		z1 += d
+	case d < 0:
+		x0 += d
+	default:
+		x1 += d
+	}
+	boxes := g.near(false, x0, z0, x1, z1)
+	for i, ok := boxes.next(); ok; i, ok = boxes.next() {
+		if b := g.Boxes[i]; b.Top > s.Y+p.Step {
 			if lo, hi, ok := boxSpan(b, s.X, s.Z, alongZ, p.Radius); ok {
 				d = limit(d, lo, hi)
 			}
 		}
 	}
 	by, mob := -1, false
-	for i, c := range g.Cylinders {
-		if c.Top > s.Y+p.Step {
+	cylinders := g.near(true, x0, z0, x1, z1)
+	for i, ok := cylinders.next(); ok; i, ok = cylinders.next() {
+		if c := g.Cylinders[i]; c.Top > s.Y+p.Step {
 			if lo, hi, ok := circleSpan(c.X, c.Z, c.Radius+p.Radius, s.X, s.Z, alongZ); ok {
 				if cut := limit(d, lo, hi); cut != d {
 					d, by = cut, i
@@ -392,8 +463,9 @@ func slide(s State, d float64, alongZ bool, g Geometry, p Params) (float64, bool
 			}
 		}
 	}
-	for _, b := range g.Blockers {
-		if s.Y < b.Top && s.Y+p.Height > b.Bottom {
+	blockers := g.nearBlockers(x0, z0, x1, z1)
+	for i, ok := blockers.next(); ok; i, ok = blockers.next() {
+		if b := g.Blockers[i]; s.Y < b.Top && s.Y+p.Height > b.Bottom {
 			if lo, hi, ok := circleSpan(b.X, b.Z, b.Radius+p.Radius, s.X, s.Z, alongZ); ok {
 				if cut := limit(d, lo, hi); cut != d {
 					d, by, mob = cut, -1, true
@@ -535,17 +607,36 @@ func discSpan(pu, pv, du, dv, r float64) (lo, hi float64, ok bool) {
 // Ground is the ground under (x, z): the terrain, or the top of a solid holding the point that is no higher than below.
 func Ground(x, z, below float64, g Geometry) float64 {
 	ground := g.Terrain.Height(x, z)
-	for _, b := range g.Boxes {
-		if b.Top > ground && b.Top <= below && b.Holds(x, z) {
+	boxes := g.near(false, x, z, x, z)
+	for i, ok := boxes.next(); ok; i, ok = boxes.next() {
+		if b := g.Boxes[i]; b.Top > ground && b.Top <= below && b.Holds(x, z) {
 			ground = b.Top
 		}
 	}
-	for _, c := range g.Cylinders {
-		if c.Top > ground && c.Top <= below && c.Holds(x, z) {
+	cylinders := g.near(true, x, z, x, z)
+	for i, ok := cylinders.next(); ok; i, ok = cylinders.next() {
+		if c := g.Cylinders[i]; c.Top > ground && c.Top <= below && c.Holds(x, z) {
 			ground = c.Top
 		}
 	}
 	return ground
+}
+
+// SolidOver reports whether a solid whose top is over y holds (x, z).
+func (g Geometry) SolidOver(x, z, y float64) bool {
+	boxes := g.near(false, x, z, x, z)
+	for i, ok := boxes.next(); ok; i, ok = boxes.next() {
+		if b := g.Boxes[i]; b.Top > y && b.Holds(x, z) {
+			return true
+		}
+	}
+	cylinders := g.near(true, x, z, x, z)
+	for i, ok := cylinders.next(); ok; i, ok = cylinders.next() {
+		if c := g.Cylinders[i]; c.Top > y && c.Holds(x, z) {
+			return true
+		}
+	}
+	return false
 }
 
 // Holds reports whether the box's footprint holds (x, z), its edges included.

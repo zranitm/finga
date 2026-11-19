@@ -134,7 +134,7 @@ func (a *Arena) pushed(mb *mob) bool {
 		return false
 	}
 	p.left--
-	if a.move(mb, p.ux*p.step, p.uz*p.step, a.blockers) < p.step-1e-9 {
+	if a.move(mb, p.ux*p.step, p.uz*p.step, &a.blocking) < p.step-1e-9 {
 		p.left = 0
 	}
 	return true
