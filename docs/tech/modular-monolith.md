@@ -162,7 +162,7 @@ Today a panicked map stops `World.Run` and only the world process restarts; a fa
 
 - **A call** (a facade method): recovered and returned as `kernel.ErrInternal` (section 4).
 - **A connection or a request:**
-  - the gateway's per-player command goroutine closes that player's socket, so they reconnect;
+  - the gateway's per-player command or action goroutine closes that player's socket, so they reconnect;
   - an HTTP handler answers 500.
   - The game goes on for everyone else.
 - **A restartable task,** a loop that keeps no live game state of its own:
@@ -294,7 +294,7 @@ Seven PRs, each green on `make test`, `make lint`, `make cover`, `make breaking`
      - `saves` retries a failed save until the maps have stopped. Then it retries each checkpoint left until it lands, within `flush_timeout`, which follows `shutdown_grace` as before.
      - A vital task's failure drains the process as SIGTERM does. So when `item calls` fails, the maps keep ticking through the drain window, until the tasks are stopped.
      - Social's sweeps run on timers, not as a task, each under the module's recorder.
-   - The rule test covers every way to start a goroutine (section 2), called or taken as a function value, in a function or a package-level initialiser. The reviewed sites recover on their own goroutine: the wsconn reader, writer, pinger and last flush close the socket with 1011, and the gateway's command goroutine closes its player's socket.
+   - The rule test covers every way to start a goroutine (section 2), called or taken as a function value, in a function or a package-level initialiser. The reviewed sites recover on their own goroutine: the wsconn reader, writer, pinger and last flush close the socket with 1011, and the gateway's command and action goroutines close their player's socket.
 2. **Facades for account, item, social and character,** with the call helper (span, metrics and panic recovery). Each gRPC handler becomes a thin layer over its facade.
 
    As built:

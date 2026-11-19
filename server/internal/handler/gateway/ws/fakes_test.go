@@ -224,8 +224,8 @@ type fakeWorld struct {
 	hold       chan struct{}          // set: the first Subscribe returns only during the first join
 	joinGate   chan struct{}          // set: a join reports on joining, then waits for the gate to close
 	joining    chan struct{}
-	block      chan struct{} // when set, Attack waits for it (or its context)
-	blocked    chan error    // Attack reports here that it is waiting, then why it stopped
+	block      chan struct{} // when set, Attack and TakeLoot wait for it (or their context)
+	blocked    chan error    // they report here that they're waiting, then why they stopped
 	tick       uint64
 	tickRate   int          // what Join reports; 30 when unset
 	leaveErr   error        // every Leave fails with it, as a module refusing for good
@@ -560,11 +560,25 @@ func (f *fakeWorld) SetLook(_ context.Context, p world.Presence, key string, loo
 
 func (f *fakeWorld) lookCalls() []lookCall { return copied(&f.mu, &f.looks) }
 
-func (f *fakeWorld) TakeLoot(_ context.Context, _ world.Presence, picks []world.Pick) ([]world.PickAnswer, error) {
+func (f *fakeWorld) TakeLoot(ctx context.Context, _ world.Presence, picks []world.Pick) ([]world.PickAnswer, error) {
 	f.ops.Add(1)
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.takes = append(f.takes, picks)
+	f.calls = append(f.calls, "take")
+	block, blocked := f.block, f.blocked
+	f.mu.Unlock()
+	if block != nil {
+		blocked <- nil
+		select {
+		case <-block:
+			blocked <- nil
+		case <-ctx.Done():
+			blocked <- ctx.Err()
+			return nil, ctx.Err()
+		}
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.taken, f.equipErr
 }
 
@@ -807,6 +821,7 @@ type fakeItems struct {
 	revision    uint64 // every answer's
 	err         error
 	gate        chan struct{} // when set, Inventory waits for it to close
+	hang        bool          // a command never answers: it waits out its context
 	ops         atomic.Int64  // every call the gateway made
 }
 
@@ -832,42 +847,49 @@ func (f *fakeItems) Inventory(ctx context.Context, _ kernel.CharacterID) (_ item
 	return item.Inventory{Items: slices.Clone(f.inventory), Revision: f.revision}, nil
 }
 
-func (f *fakeItems) Move(_ context.Context, a item.Actor, r item.MoveRequest) (item.Result, error) {
+func (f *fakeItems) Move(ctx context.Context, a item.Actor, r item.MoveRequest) (item.Result, error) {
 	f.ops.Add(1)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.moves = append(f.moves, itemCall[item.MoveRequest]{a, r})
-	return f.result()
+	return f.result(ctx)
 }
 
-func (f *fakeItems) Discard(_ context.Context, a item.Actor, r item.DiscardRequest) (item.Result, error) {
+func (f *fakeItems) Discard(ctx context.Context, a item.Actor, r item.DiscardRequest) (item.Result, error) {
 	f.ops.Add(1)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.discards = append(f.discards, itemCall[item.DiscardRequest]{a, r})
-	return f.result()
+	return f.result(ctx)
 }
 
-func (f *fakeItems) AddToWardrobe(_ context.Context, a item.Actor, r item.WardrobeRequest) (item.Result, error) {
+func (f *fakeItems) AddToWardrobe(ctx context.Context, a item.Actor, r item.WardrobeRequest) (item.Result, error) {
 	f.ops.Add(1)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.wardrobe = append(f.wardrobe, itemCall[item.WardrobeRequest]{a, r})
-	return f.result()
+	return f.result(ctx)
 }
 
 func (*fakeItems) Wardrobe(context.Context, kernel.AccountID) ([]item.Piece, error) { return nil, nil }
 
-func (f *fakeItems) DiscardMany(_ context.Context, a item.Actor, r item.DiscardManyRequest) (item.Result, error) {
+func (f *fakeItems) DiscardMany(ctx context.Context, a item.Actor, r item.DiscardManyRequest) (item.Result, error) {
 	f.ops.Add(1)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.discardMany = append(f.discardMany, itemCall[item.DiscardManyRequest]{a, r})
-	return f.result()
+	return f.result(ctx)
 }
 
 // result is every command's answer; called with mu held.
-func (f *fakeItems) result() (item.Result, error) {
+// result is a command's answer, the caller holding mu; a hung module lets go of it to wait.
+func (f *fakeItems) result(ctx context.Context) (item.Result, error) {
+	if f.hang {
+		f.mu.Unlock()
+		<-ctx.Done()
+		f.mu.Lock()
+		return item.Result{}, ctx.Err()
+	}
 	if f.err != nil {
 		return item.Result{}, f.err
 	}

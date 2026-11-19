@@ -18,6 +18,7 @@ import (
 // hello checks the protocol version and character ID, then joins; a rejected Hello is kicked.
 func (h *Handler) hello(c *msgContext, in *clientv1.Hello) (any, error) {
 	inbox := c.Session
+	defer close(inbox.hello) // the actions wait for it
 	if in.GetProtocolVersion() != protocol.Version {
 		inbox.out.Kick(clientv1.KickReason_KICK_REASON_OUTDATED_PROTOCOL)
 		return nil, nil

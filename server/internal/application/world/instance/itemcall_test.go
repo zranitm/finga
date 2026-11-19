@@ -1,0 +1,63 @@
+package instance_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"testing/synctest"
+	"time"
+
+	"finga/internal/application/world/instance"
+	"finga/internal/application/world/worldtest"
+	model "finga/internal/model/world"
+	"finga/internal/shared/kernel"
+	"finga/pkg/transient"
+)
+
+// A command's item-module call that gets no answer is unavailable 3.5 s in, every try included, inside the 5 s the gateway waits: the command hears the module isn't there, never the gateway's own deadline, which it would count a fault.
+func TestAnUnansweredItemCallIsUnavailableInsideTheGatewaysWait(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		opts func() worldtest.Options // an item module that never answers
+		ask  func(inst *instance.Instance, id kernel.CharacterID) <-chan error
+	}{
+		{"an equip", func() worldtest.Options {
+			return worldtest.Options{Equipment: &fakeEquipment{gate: make(chan struct{})}}
+		},
+			func(inst *instance.Instance, id kernel.CharacterID) <-chan error { return equipAsync(inst, id, "c1") }},
+		{"an unequip", func() worldtest.Options {
+			return worldtest.Options{Equipment: &fakeEquipment{gate: make(chan struct{})}}
+		},
+			func(inst *instance.Instance, id kernel.CharacterID) <-chan error {
+				done := make(chan error, 1)
+				go func() { done <- inst.Unequip(context.Background(), id, "c1", "k-1", "weapon", nil) }()
+				return done
+			}},
+		{"a look", func() worldtest.Options { return worldtest.Options{Looks: &fakeLooks{gate: make(chan struct{})}} },
+			func(inst *instance.Instance, id kernel.CharacterID) <-chan error {
+				return setLookAsync(inst, id, "k-1", model.Look{Outfit: "knight_plate"})
+			}},
+		{"a potion", func() worldtest.Options { return worldtest.Options{Potions: &fakePotions{gate: make(chan struct{})}} },
+			func(inst *instance.Instance, id kernel.CharacterID) <-chan error {
+				return useAsync(inst, id, "red_potion")
+			}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				data := worldtest.LoadData(t)
+				opts := tt.opts()
+				opts.ItemCalls = runningPool(t)
+				inst, stop := worldtest.Run(t, data, nil, opts)
+				defer stop()
+				p := atSpawn(data, "Ayla")
+				p.HP, p.Connection = 10, "c1"
+				join(t, inst, p)
+				began := time.Now()
+				err := <-tt.ask(inst, p.ID)
+				if took := time.Since(began); !errors.Is(err, transient.ErrUnavailable) || errors.Is(err, context.DeadlineExceeded) || took < 3500*time.Millisecond || took >= 4*time.Second {
+					t.Fatalf("%v after %v; want unavailable at 3.5 s, inside the gateway's 5", err, took)
+				}
+			})
+		})
+	}
+}

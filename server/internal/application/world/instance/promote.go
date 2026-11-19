@@ -119,9 +119,9 @@ func (i *Instance) giftOf(p *player, class gamedata.Class) model.GiftCall {
 	return call
 }
 
-// callGift tries the gift until the item module answers or refuses, or handInFor passes, as a hand-in does.
+// callGift tries the gift until the item module answers or refuses, or callFor passes, as a hand-in does.
 func (i *Instance) callGift(ctx context.Context, call model.GiftCall) (model.Gift, error) {
-	ctx, cancel := context.WithTimeoutCause(ctx, handInFor, fmt.Errorf("%w: the item module didn't answer the trainer's gift in time", transient.ErrUnavailable))
+	ctx, cancel := context.WithTimeoutCause(ctx, callFor, fmt.Errorf("%w: the item module didn't answer the trainer's gift in time", transient.ErrUnavailable))
 	defer cancel()
 	who := []any{"character_id", call.Character, "template_id", call.Template}
 	tries := 0

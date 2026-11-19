@@ -51,9 +51,7 @@ func (i *Instance) startLook(m lookMsg) {
 	c := m.call
 	c.Account, c.Character, c.Class = p.Account, p.ID, p.Class
 	submitted := i.deps.ItemCalls.Submit(func(ctx context.Context) {
-		callCtx, cancel := context.WithTimeout(ctx, equipTimeout)
-		look, err := i.deps.Looks.SetLook(callCtx, c)
-		cancel()
+		look, err := itemCall(ctx, "the look", func(ctx context.Context) (model.Look, error) { return i.deps.Looks.SetLook(ctx, c) })
 		select {
 		case i.inbox <- lookedMsg{id: m.id, caller: p, look: look, err: err, done: m.done}:
 		case <-ctx.Done(): // the map stopped first; its inbox may never drain

@@ -18,9 +18,8 @@ import (
 )
 
 // A hand-in's call to the item module is tried again after a timeout or an outage, as a completion is handed in once whatever the tries; a refusal is final.
-// Every try fits in handInFor, inside the 5 s the gateway and the client give a command, so the outcome reaches the request.
+// Every try fits in callFor, so the outcome reaches the request.
 const (
-	handInFor        = 3500 * time.Millisecond
 	handInTimeout    = 1500 * time.Millisecond // one try
 	handInRetryFirst = 200 * time.Millisecond
 	handInRetryMax   = time.Second
@@ -188,9 +187,9 @@ func (i *Instance) handIn(p *player, npc gamedata.NPC, m questMsg) error {
 	return nil
 }
 
-// callHandIn tries the hand-in until the item module answers or refuses, or handInFor passes; the log hears each try that failed and a hand-in given up.
+// callHandIn tries the hand-in until the item module answers or refuses, or callFor passes; the log hears each try that failed and a hand-in given up.
 func (i *Instance) callHandIn(ctx context.Context, call model.HandInCall) (model.Inventory, error) {
-	ctx, cancel := context.WithTimeoutCause(ctx, handInFor, fmt.Errorf("%w: the item module didn't answer the hand-in in time", transient.ErrUnavailable))
+	ctx, cancel := context.WithTimeoutCause(ctx, callFor, fmt.Errorf("%w: the item module didn't answer the hand-in in time", transient.ErrUnavailable))
 	defer cancel()
 	who := []any{"character_id", call.Character, "quest_id", call.Quest, "completion", call.Completion}
 	tries := 0

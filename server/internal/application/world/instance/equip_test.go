@@ -289,9 +289,18 @@ func TestAnEquipInFlightHoldsThePlayerOnItsMap(t *testing.T) {
 			p := warriorAt(nextToSlime)
 			p.HP, p.Connection = 1, "c1"
 			s := join(t, inst, p)
+			// The equip goes out just before the slime's hop lands: in flight past the 3 s respawn, inside its own 3.5 s.
+			for k := 0; len(eventsOf[model.MobAttacked](s)) == 0; k++ {
+				if k == 100 {
+					t.Fatal("the slime never hopped")
+				}
+				tick(1)
+			}
+			slime, _ := data.Mob("green_slime")
+			time.Sleep(slime.Attacks[0].Windup + slime.Attacks[0].Travel - 200*time.Millisecond)
 			done := equipAsync(inst, p.ID, "c1")
-			untilDead(t, s, p.ID)               // to the slime's hop, with the equip in flight
-			time.Sleep(3500 * time.Millisecond) // past the 3 s respawn, short of the equip's 5 s timeout
+			untilDead(t, s, p.ID)
+			time.Sleep(3*time.Second + 2*worldtest.TickInterval) // past the respawn
 			synctest.Wait()
 			if moved(tr) != 0 {
 				t.Fatal("respawned off the map with an equip in flight")

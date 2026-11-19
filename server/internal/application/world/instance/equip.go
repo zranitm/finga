@@ -3,16 +3,12 @@ package instance
 import (
 	"context"
 	"fmt"
-	"time"
 
 	model "finga/internal/model/world"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"
 	"finga/pkg/transient"
 )
-
-// equipTimeout bounds one equip or unequip call to the item module.
-const equipTimeout = 5 * time.Second
 
 // Equip wears an inventory item, checked against the player's live level and class, and returns once the new stats apply, or ctx ends.
 func (i *Instance) Equip(ctx context.Context, id kernel.CharacterID, conn, key string, item kernel.ItemID, equipSlot string) error {
@@ -66,9 +62,7 @@ func (i *Instance) startEquip(m equipMsg) {
 		call = func(ctx context.Context) (model.Equipped, error) { return i.deps.Equipment.Equip(ctx, c) }
 	}
 	submitted := i.deps.ItemCalls.Submit(func(ctx context.Context) {
-		callCtx, cancel := context.WithTimeout(ctx, equipTimeout)
-		result, err := call(callCtx)
-		cancel()
+		result, err := itemCall(ctx, "the equip", call)
 		select {
 		case i.inbox <- equippedMsg{id: m.id, caller: p, result: result, err: err, done: m.done}:
 		case <-ctx.Done(): // the map stopped first; its inbox may never drain

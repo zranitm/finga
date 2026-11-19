@@ -27,7 +27,7 @@ const (
 // Options tune the receiving side; Logger, Panics and Traces are required.
 type Options struct {
 	HelloTimeout time.Duration // a connection that sends no Hello in this long is closed
-	CommandQueue int           // commands waiting their turn; one more answers rate_limited
+	CommandQueue int           // commands waiting their turn, and as many actions; one more answers rate_limited
 	Logger       *slog.Logger
 	// Panics records a panic in a message's chain.
 	Panics *panics.Recorder
@@ -51,7 +51,7 @@ func New(gw *send.Gateway, opts Options) *Handler {
 	return h
 }
 
-// Inbox is one connection's receiving side: Hello first, the rate limits and the command queue.
+// Inbox is one connection's receiving side: Hello first, the rate limits, and two queues, each run in order on its own goroutine. Commands run one at a time; actions (moves, attacks, skills, portals and teleports) run apart from them, so a command waiting on another module never holds the player still. An action never waits on a module, and keeps its order with the other actions: the world counts a press from the input after it.
 type Inbox struct {
 	out        *push.Outbox
 	session    *session.Session
@@ -61,22 +61,27 @@ type Inbox struct {
 	helloSeen bool
 	limiters  map[string]*rate.Limiter
 
-	// One goroutine runs queued chains in order; Stop cancels ctx and waits for drained.
+	// One goroutine runs queued commands in order, another the actions once Hello is answered; Stop cancels ctx and waits for both.
 	queue   chan func()
+	actions chan func()
 	ctx     context.Context
 	cancel  context.CancelFunc
-	drained chan struct{}
-	joined  bool // owned by the command goroutine
+	drained chan struct{} // the command goroutine ended
+	acted   chan struct{} // the action goroutine ended
+	hello   chan struct{} // closed once Hello is answered, joined or not
+	joined  bool          // set by Hello before hello closes; read after it
 }
 
 // Open starts a connection's receiving side for s: its Hello deadline and its command goroutine.
 func (h *Handler) Open(out *push.Outbox, s *session.Session) *Inbox {
-	in := &Inbox{out: out, session: s, limiters: map[string]*rate.Limiter{}, queue: make(chan func(), h.opts.CommandQueue), drained: make(chan struct{})}
+	in := &Inbox{out: out, session: s, limiters: map[string]*rate.Limiter{}, queue: make(chan func(), h.opts.CommandQueue), actions: make(chan func(), h.opts.CommandQueue),
+		drained: make(chan struct{}), acted: make(chan struct{}), hello: make(chan struct{})}
 	in.ctx, in.cancel = context.WithCancel(context.Background())
 	in.helloTimer = time.AfterFunc(h.opts.HelloTimeout, func() {
 		h.opts.Panics.Do(in.ctx, panics.FlowWS, func() { out.Close(wsconn.CloseKicked, "no hello") }, "conn", out.ID())
 	})
 	h.opts.Panics.Go(in.ctx, panics.FlowWS, in.commands, "conn", out.ID())
+	h.opts.Panics.Go(in.ctx, panics.FlowWS, in.runActions, "conn", out.ID())
 	return in
 }
 
@@ -85,16 +90,33 @@ func (h *Handler) Dispatch(in *Inbox, m wsconn.Message) {
 	h.router.Dispatch(in, wsrouter.Message{Type: m.Type, ReqID: m.ReqID, Seq: m.Seq, Data: m.Data})
 }
 
-// Stop ends the Hello deadline, cancels the connection's commands and waits until none runs.
+// Stop ends the Hello deadline, cancels the connection's commands and actions and waits until none runs.
 func (in *Inbox) Stop() {
 	in.helloTimer.Stop()
 	in.cancel()
 	<-in.drained
+	<-in.acted
 }
 
-// commands runs the queued chains in order until Stop; a panic outside a chain closes the socket, so the player reconnects.
+// commands runs the queued commands in order until Stop.
 func (in *Inbox) commands() {
 	defer close(in.drained)
+	in.run(in.queue)
+}
+
+// runActions runs the queued actions in order once Hello is answered, as they once queued behind it, until Stop.
+func (in *Inbox) runActions() {
+	defer close(in.acted)
+	select {
+	case <-in.ctx.Done():
+		return
+	case <-in.hello:
+	}
+	in.run(in.actions)
+}
+
+// run runs q's chains in order until Stop; a panic outside a chain closes the socket, so the player reconnects.
+func (in *Inbox) run(q <-chan func()) {
 	stopped := false
 	defer func() {
 		if !stopped {
@@ -106,7 +128,7 @@ func (in *Inbox) commands() {
 		case <-in.ctx.Done():
 			stopped = true
 			return
-		case rest := <-in.queue:
+		case rest := <-q:
 			if in.ctx.Err() != nil {
 				stopped = true
 				return

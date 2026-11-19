@@ -18,9 +18,9 @@ import (
 )
 
 const (
-	callTimeout = 5 * time.Second
-	reachSlack  = 0.5             // metres past reach a take may come from, for the client's lead
-	retryEvery  = 2 * time.Second // items whose call got no answer are asked again this often
+	callFor    = 3500 * time.Millisecond // a grant call, its retry included: inside the 5 s the gateway gives a take, so each pick is answered
+	reachSlack = 0.5                     // metres past reach a take may come from, for the client's lead
+	retryEvery = 2 * time.Second         // items whose call got no answer are asked again this often
 )
 
 const tracerName = "finga/internal/application/world/loot"
@@ -170,14 +170,16 @@ func (g *Ground) send(o *owner, t *take) {
 	o.busy, o.asking = true, t.asks
 }
 
-// grant asks the item module for the call's items, on a worker, retrying a transient failure once; its span is a consumer's, of the job a tick handed over.
+// grant asks the item module for the call's items, on a worker, retrying a transient failure once, both tries within callFor; its span is a consumer's, of the job a tick handed over.
 func (g *Ground) grant(ctx context.Context, owner kernel.CharacterID, items []picked, in model.GrantCall) Result {
 	ctx, span := g.tracer.Start(ctx, takeSpan, trace.WithNewRoot(), trace.WithSpanKind(trace.SpanKindConsumer), trace.WithAttributes(
 		attribute.String("character_id", in.Character.String()), attribute.Int("items", len(in.Drops))))
 	defer span.End()
-	got, err := g.addMany(ctx, in)
-	if err != nil && g.deps.Items.Retryable(err) {
-		got, err = g.addMany(ctx, in) // each item's key makes a retry harmless
+	ctx, cancel := context.WithTimeout(ctx, callFor)
+	defer cancel()
+	got, err := g.deps.Items.AddMany(ctx, in)
+	if err != nil && ctx.Err() == nil && g.deps.Items.Retryable(err) {
+		got, err = g.deps.Items.AddMany(ctx, in) // each item's key makes a retry harmless
 	}
 	if err == nil && len(got.Outcomes) != len(in.Drops) {
 		err = fmt.Errorf("the item module answered %d of %d items", len(got.Outcomes), len(in.Drops))
@@ -187,12 +189,6 @@ func (g *Ground) grant(ctx context.Context, owner kernel.CharacterID, items []pi
 		g.deps.Logger.WarnContext(ctx, "a grant call failed; its items are asked again under their keys", "character_id", in.Character, "items", len(in.Drops), "err", err)
 	}
 	return Result{owner: owner, items: items, granted: got, err: err}
-}
-
-func (g *Ground) addMany(ctx context.Context, in model.GrantCall) (model.Granted, error) {
-	ctx, cancel := context.WithTimeout(ctx, callTimeout)
-	defer cancel()
-	return g.deps.Items.AddMany(ctx, in)
 }
 
 // Settle applies a grant call's answer on the tick: granted items leave their pouch for the owner's inventory, one refused for room stays, and those of a call that got no answer stay taken, asked again under their keys. Its takes hear each pick, an emptied pouch is gone at once, and a take waiting goes next.
