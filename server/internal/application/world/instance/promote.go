@@ -53,6 +53,9 @@ func (i *Instance) promote(m promoteMsg) {
 	if err == nil && p.promoting {
 		err = fmt.Errorf("%w: a promotion is in flight", transient.ErrUnavailable)
 	}
+	if err == nil && p.looking > 0 {
+		err = fmt.Errorf("%w: a look is in flight, checked against the class the promotion would change", transient.ErrUnavailable)
+	}
 	if err != nil {
 		m.done <- err
 		return

@@ -13,17 +13,26 @@ import (
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
+	"finga/pkg/transient"
 )
 
-// fakeLooks records each look asked for and answers with answer, or err.
+// fakeLooks records each look asked for and answers with answer, or err; with a gate, once it closes.
 type fakeLooks struct {
 	mu     sync.Mutex
 	calls  []model.LookCall
 	answer model.Look
 	err    error
+	gate   chan struct{}
 }
 
-func (f *fakeLooks) SetLook(_ context.Context, c model.LookCall) (model.Look, error) {
+func (f *fakeLooks) SetLook(ctx context.Context, c model.LookCall) (model.Look, error) {
+	if f.gate != nil {
+		select {
+		case <-f.gate:
+		case <-ctx.Done():
+			return model.Look{}, ctx.Err()
+		}
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, c)
@@ -36,10 +45,15 @@ func (f *fakeLooks) called() []model.LookCall {
 	return append([]model.LookCall(nil), f.calls...)
 }
 
-// setLook asks for look on the next tick and returns its answer once the tick after applies it.
-func setLook(inst *instance.Instance, id kernel.CharacterID, key string, look model.Look) error {
+func setLookAsync(inst *instance.Instance, id kernel.CharacterID, key string, look model.Look) <-chan error {
 	done := make(chan error, 1)
 	go func() { done <- inst.SetLook(context.Background(), id, "c1", key, look) }()
+	return done
+}
+
+// setLook asks for look on the next tick and returns its answer once the tick after applies it.
+func setLook(inst *instance.Instance, id kernel.CharacterID, key string, look model.Look) error {
+	done := setLookAsync(inst, id, key, look)
 	tick(2)
 	return <-done
 }
@@ -150,6 +164,48 @@ func TestAPromotionWearsTheLookItsGiftLeft(t *testing.T) {
 			t.Fatalf("after the promotion %+v in %+v", v.Class, v.Look)
 		}
 	})
+}
+
+// A look and a promotion never overlap, as each is checked against the class the other may change: whichever is in flight refuses the other before it reaches the item module, and the other goes once it settles.
+func TestALookAndAPromotionWaitForEachOther(t *testing.T) {
+	for _, first := range []string{"a look", "a promotion"} {
+		t.Run(first+" first", func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				p := trainee(t)
+				gifts, looks := &fakeGifts{gate: make(chan struct{})}, &fakeLooks{gate: make(chan struct{})}
+				inst, stop := worldtest.Run(t, worldtest.LoadData(t), &worldtest.Checkpoints{}, worldtest.Options{Gifts: gifts, Looks: looks, CheckpointInterval: time.Hour, ItemCalls: runningPool(t)})
+				defer stop()
+				join(t, inst, p)
+				look := func() <-chan error { return setLookAsync(inst, p.ID, "k1", model.Look{Weapon: "oak_wand"}) }
+				promote := func() <-chan error { return promoteAsync(inst, p.ID, "warrior_trainer", "warrior") }
+				held, other := look, promote
+				if first == "a promotion" {
+					held, other = promote, look
+				}
+				answer := held()
+				tick(1)
+				refused := other()
+				tick(1)
+				if err := <-refused; !errors.Is(err, transient.ErrUnavailable) {
+					t.Fatalf("the other while %s is in flight: %v, want unavailable", first, err)
+				}
+				close(gifts.gate)
+				close(looks.gate)
+				tick(2)
+				if err := <-answer; err != nil {
+					t.Fatal(err)
+				}
+				if g, l := len(gifts.called()), len(looks.called()); g+l != 1 {
+					t.Fatalf("%d gifts and %d looks reached the item module, want %s's alone", g, l, first)
+				}
+				again := other()
+				tick(2)
+				if err := <-again; err != nil {
+					t.Fatalf("the other once %s settled: %v", first, err)
+				}
+			})
+		})
+	}
 }
 
 // botLookOf is the look bot shows in a duel with Ayla.

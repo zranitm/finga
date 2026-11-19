@@ -38,9 +38,12 @@ func (i *Instance) SetLook(ctx context.Context, id kernel.CharacterID, conn, key
 	return i.ask(ctx, m, m.done)
 }
 
-// startLook refuses a dead player or one in combat, then hands the call to a worker with the player's live class.
+// startLook refuses a dead player, one being promoted or one in combat, then hands the call to a worker with the player's live class.
 func (i *Instance) startLook(m lookMsg) {
 	p, err := i.alive(m.id, m.conn)
+	if err == nil && p.promoting {
+		err = fmt.Errorf("%w: a promotion is in flight", transient.ErrUnavailable)
+	}
 	if err == nil && i.inCombat(p) {
 		err = model.ErrInCombat
 	}
@@ -64,6 +67,7 @@ func (i *Instance) startLook(m lookMsg) {
 		return
 	}
 	p.itemCalls++
+	p.looking++
 }
 
 // settleLook wears a look newer than the player's, then answers the caller.
@@ -71,6 +75,7 @@ func (i *Instance) settleLook(m lookedMsg) {
 	p, ok := i.players[m.id]
 	if ok && p == m.caller {
 		p.itemCalls--
+		p.looking--
 	}
 	if ok && m.err == nil {
 		i.wear(p, m.look)
