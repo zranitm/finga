@@ -56,4 +56,4 @@ spawns:
 player_spawn: {at: [4.5, 16], yaw: 90}
 npcs:
   - {id: thief_trainer, at: [31, 9], yaw: 180}
-boss: {at: [45.5, 17], radius: 5, mob: vampire_bat, kills: 300}
+boss: {at: [45.5, 17], radius: 5, mob: vampire_bat}

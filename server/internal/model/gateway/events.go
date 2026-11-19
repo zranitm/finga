@@ -51,11 +51,6 @@ type SocialDelivery struct {
 	Delivery  Delivery
 }
 
-// SocialBroadcast is a push for every player the gateway has in the world.
-type SocialBroadcast struct {
-	Delivery Delivery
-}
-
 // PvpDelivery is a pvp push for one player, which the gateway hands on if it has them.
 type PvpDelivery struct {
 	Character kernel.CharacterID
@@ -64,7 +59,6 @@ type PvpDelivery struct {
 
 func (SocialSubscribed) socialEvent() {}
 func (SocialDelivery) socialEvent()   {}
-func (SocialBroadcast) socialEvent()  {}
 
 // SessionEnd is what the account module's session stream brings.
 //

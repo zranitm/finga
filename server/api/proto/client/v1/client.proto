@@ -56,6 +56,9 @@ message ServerMessage {
   // 5 was Correction, which the server never sent: a Delta's state and ack_seq correct the client.
   reserved 5;
   reserved "correction";
+  // 28 was Announcement, news of a boss for every player online; a boss's map hears FieldBoss alone now.
+  reserved 28;
+  reserved "announcement";
 
   // The req of the command a Response answers.
   string req = 1;
@@ -86,7 +89,6 @@ message ServerMessage {
     Promoted promoted = 25;
     FieldBoss field_boss = 26;
     FieldBossGone field_boss_gone = 27;
-    Announcement announcement = 28;
     AttackUsed attack_used = 29;
     MobAttacked mob_attacked = 30;
     TeleportCancelled teleport_cancelled = 31;
@@ -664,36 +666,33 @@ message Snapshot {
   repeated DropView drops = 3;
   // The map's field boss, while one is up.
   FieldBoss field_boss = 4;
+  // The map's field boss while it's beaten, with when it's back.
+  FieldBossGone field_boss_gone = 5;
 }
 
-// FieldBoss says the map's field boss is up: as it appears, and in the Snapshot of a player joining while it is. The client counts its time down.
+// FieldBoss says the map's field boss is up: as it appears, which its map's players hear of, and in the Snapshot of a player joining while it is. It stays until it's beaten.
 message FieldBoss {
   // Its mob, which deltas carry as any other.
   uint32 mob_id = 1;
   // Its mob type in game data, which names it.
   string type = 2;
-  // How long until it leaves unbeaten, from the message's tick.
-  int64 leaves_in_ms = 3;
+  // 3 was how long until it left unbeaten; a boss stays until it's beaten.
+  reserved 3;
+  reserved "leaves_in_ms";
 }
 
-// FieldBossGone says the map's field boss fell, or left unbeaten.
+// FieldBossGone says the map's field boss is beaten: as it falls, and in the Snapshot of a player joining while it's down. The client counts down to its return.
 message FieldBossGone {
+  // 2 said whether it was beaten; it only ever is now.
+  reserved 2;
+  reserved "beaten";
+
+  // The mob it was.
   uint32 mob_id = 1;
-  bool beaten = 2;
-}
-
-// Announcement is news for every player online, which the client puts into words from game data.
-message Announcement {
-  oneof kind {
-    BossAppeared boss_appeared = 1;
-  }
-}
-
-// BossAppeared says a field boss appeared on a map.
-message BossAppeared {
-  // The boss's mob type in game data.
-  string boss = 1;
-  string map_id = 2;
+  // Its mob type in game data, which names it.
+  string type = 3;
+  // How long until it's back at its spot, from the message's tick.
+  int64 back_in_ms = 4;
 }
 
 // Delta is what changed this tick: new or changed entities, and the IDs that left.

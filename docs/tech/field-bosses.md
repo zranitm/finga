@@ -1,6 +1,6 @@
 # Field bosses
 
-> **Changed by [Loot pouches and timed bosses](./loot-pouches.md):** a boss is up at its spot when its map starts, comes back `respawn` (5 min) after it's beaten, and never leaves. The kill count, `kills`, `life` and social's boss announcement go, and only the map's players are told. Each eligible player's roll comes in their own treasure box, opened with T.
+> **Changed by [Loot pouches and timed bosses](./loot-pouches.md):** a boss is up at its spot when its map starts, comes back `respawn` (5 min) after it's beaten, and never leaves. It fights only once someone hits it, and is calm again once its reset takes it home. The kill count, `kills`, `life` and social's boss announcement go, with the whole `Announcement` pipeline (sections 5 and 6), and only the map's players are told. `FieldBoss` has no time left and `FieldBossGone` carries `back_in_ms`, so the bar has no timer and the map window counts down to the boss's return. The client's copy of each map carries the boss's circle for that. Each eligible player's roll comes in their own treasure box, opened with T.
 
 > **Changed by [Outfits](./outfits.md):** a boss's drop list gains the items of the outfit pieces `outfits.yaml` gives it, added by the loader and rolled on each player's own roll as the rest.
 

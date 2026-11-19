@@ -15,29 +15,24 @@ type Push interface{ push() }
 
 // Snapshot is everything on the player's map; a join waits for it.
 type Snapshot struct {
-	Players   []PlayerView
-	Mobs      []MobView
-	Drops     []DropView
-	FieldBoss *FieldBoss // while one is up
+	Players       []PlayerView
+	Mobs          []MobView
+	Drops         []DropView
+	FieldBoss     *FieldBoss     // while one is up
+	FieldBossGone *FieldBossGone // while the map's is beaten
 }
 
-// FieldBoss is the map's field boss: its mob, its type, and how long until it leaves.
+// FieldBoss is the map's field boss: its mob and its type. It stays until it's beaten.
 type FieldBoss struct {
-	MobID      uint64
-	Type       string
-	LeavesInMs int64
+	MobID uint64
+	Type  string
 }
 
-// FieldBossGone is the map's field boss beaten, or gone unbeaten.
+// FieldBossGone is the map's field boss beaten: the mob it was, its type, and how long until it's back.
 type FieldBossGone struct {
-	MobID  uint64
-	Beaten bool
-}
-
-// BossAppeared is the news, for every player online, of a field boss appearing on a map.
-type BossAppeared struct {
-	Boss  string
-	MapID string
+	MobID    uint64
+	Type     string
+	BackInMs int64
 }
 
 // Delta is what changed on the player's map since the last tick, AckSeq, the player's last input the world applied, and the player's energy as of then when it changed or the player just joined.
@@ -325,4 +320,3 @@ func (PartyState) push()        {}
 func (PartyInvited) push()      {}
 func (FieldBoss) push()         {}
 func (FieldBossGone) push()     {}
-func (BossAppeared) push()      {}

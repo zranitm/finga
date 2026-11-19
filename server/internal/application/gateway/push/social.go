@@ -17,7 +17,7 @@ const (
 	onlineAtOnce  = 16
 )
 
-// socialDelivered forwards a delivery to its player, or a broadcast to every player in the world; each subscription registers the players again, as the module may drop them.
+// socialDelivered forwards a delivery to its player; each subscription registers the players again, as the module may drop them.
 func (g *Gateway) socialDelivered(ev model.SocialEvent) {
 	switch ev := ev.(type) {
 	case model.SocialSubscribed:
@@ -25,12 +25,6 @@ func (g *Gateway) socialDelivered(ev model.SocialEvent) {
 	case model.SocialDelivery:
 		if s := g.sessions.ByCharacter(ev.Character); s != nil {
 			s.DeliverSocial(ev.Delivery)
-		}
-	case model.SocialBroadcast:
-		for _, s := range g.sessions.Playing() {
-			if s.Active() {
-				s.DeliverSocial(ev.Delivery)
-			}
 		}
 	}
 }

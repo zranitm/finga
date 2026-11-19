@@ -145,9 +145,7 @@ describe('App', () => {
       target.getState().show({ kind: 'mob', ref: 'm:7', type: 'green_slime', hp: 20 });
       fieldBoss
         .getState()
-        .applyFieldBoss(
-          create(FieldBossSchema, { mobId: 9, type: 'king_slime', leavesInMs: 600000n }),
-        );
+        .applyFieldBoss(create(FieldBossSchema, { mobId: 9, type: 'king_slime' }));
       fieldBoss.getState().setHp({ hp: 3100, maxHp: 4260 });
       teleport.getState().start('forest');
       character.getState().setDead(true);

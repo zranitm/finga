@@ -4,7 +4,7 @@ import { article } from '@/features/shared/words';
 import { RequestError } from '@/net/socket';
 import type { GameSocket, StatusEvent } from '@/net/socket';
 import { className } from '@/progression/classes';
-import { isMatchMap, mapName, mobName } from '@/progression/names';
+import { isMatchMap, mobName } from '@/progression/names';
 import { readyQuests } from '@/progression/quests';
 import { blockOf, skillById, skillCooldownTicks, specAt } from '@/progression/skills';
 import { autoAssign, hasSplit } from '@/progression/stats';
@@ -127,7 +127,7 @@ export function wireSocket(socket: GameSocket): () => void {
       chat.getState().applyChatMessage(m.d);
     }),
     socket.on('snapshot', (m) => {
-      fieldBoss.getState().applyFieldBoss(m.d.fieldBoss);
+      fieldBoss.getState().applySnapshot(m.d.fieldBoss, m.d.fieldBossGone);
       energy.getState().joined();
     }),
     socket.on('delta', (m) => {
@@ -135,15 +135,12 @@ export function wireSocket(socket: GameSocket): () => void {
     }),
     socket.on('fieldBoss', (m) => {
       fieldBoss.getState().applyFieldBoss(m.d);
+      const text = `${mobName(m.d.type)} has appeared!`; // only its map hears it
+      toasts.getState().push(text, 'info');
+      chat.getState().notice(text);
     }),
     socket.on('fieldBossGone', (m) => {
-      const gone = fieldBoss.getState().applyGone(m.d);
-      if (gone && !m.d.beaten) {
-        toasts.getState().push(`${mobName(gone.type)} has left.`, 'info');
-      }
-    }),
-    socket.on('announcement', (m) => {
-      announce(m.d);
+      fieldBoss.getState().applyGone(m.d);
     }),
     socket.on('levelUp', (m) => {
       character.getState().applyLevelUp(m.d);
@@ -331,21 +328,6 @@ function autoAssignPoints(socket: GameSocket, d: Data<'levelUp'>): void {
         toasts.getState().push(`Could not auto-assign your points: ${err.message}`);
       }
     });
-}
-
-/** News for everyone online shows as a toast and a [Notice] line in the General tab. */
-function announce(d: Data<'announcement'>): void {
-  switch (d.kind.case) {
-    case 'bossAppeared': {
-      const { boss, mapId } = d.kind.value;
-      const text = `${mobName(boss)} has appeared in the ${mapName(mapId)}!`;
-      toasts.getState().push(text, 'info');
-      chat.getState().notice(text);
-      return;
-    }
-    case undefined:
-      return; // a kind from a newer server
-  }
 }
 
 const RARE_STARS = 4;

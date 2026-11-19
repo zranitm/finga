@@ -66,4 +66,4 @@ spawns:
   - {name: south_wisp, at: [52, 8], radius: 4, mob: ruin_wisp, max: 1, respawn: 12s}
   - {name: court_wisp, at: [60, 25.5], radius: 5, mob: ruin_wisp, max: 1, respawn: 12s}
 player_spawn: {at: [4.5, 18], yaw: 90}
-boss: {at: [66, 18], radius: 5, mob: crypt_warden, kills: 300}
+boss: {at: [66, 18], radius: 5, mob: crypt_warden}

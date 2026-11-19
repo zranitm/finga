@@ -391,7 +391,7 @@ func king(t *testing.T) (gamedata.Mob, gamedata.BossSpot) {
 	if !ok || !def.Boss {
 		t.Fatal("no boss king_slime in the game data")
 	}
-	return def, gamedata.BossSpot{Mob: def.ID, Kills: 10, At: gamedata.Point{X: 30, Z: 30}, Radius: 3}
+	return def, gamedata.BossSpot{Mob: def.ID, At: gamedata.Point{X: 30, Z: 30}, Radius: 3}
 }
 
 // A boss stands at its spot's centre, wanders the spot's circle, and once killed stays gone while the slimes come back.
@@ -428,23 +428,6 @@ func TestABossSpawnsAtItsSpotsCentreAndNeverRespawns(t *testing.T) {
 	}
 	if views := a.Views(); len(views) != 2 || views[0].Type != "green_slime" || views[1].Type != "green_slime" {
 		t.Fatalf("a minute on: %+v; want the two slimes and no king", views)
-	}
-}
-
-// Remove takes a mob away without a kill, reported as gone once; a mob that isn't there is refused.
-func TestRemoveTakesABossAwayWithoutAKill(t *testing.T) {
-	a := slimes(t, 0.5)
-	def, spot := king(t)
-	id := a.SpawnBoss(def, spot)
-	_, _ = a.Changes()
-	if !a.Remove(id) {
-		t.Fatal("the king was not removed")
-	}
-	if _, removed := a.Changes(); len(removed) != 1 || removed[0] != id {
-		t.Fatalf("removed %v; want the king", removed)
-	}
-	if a.Remove(id) || len(a.Views()) != 2 {
-		t.Fatalf("removed the king twice, or the slimes went with it: %+v", a.Views())
 	}
 }
 

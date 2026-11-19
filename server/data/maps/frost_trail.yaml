@@ -75,4 +75,4 @@ spawns:
   - {name: ramp_weasel, at: [42, 9.5], radius: 3.5, mob: snow_weasel, max: 1, respawn: 12s}
   - {name: gate_weasel, at: [66, 9.5], radius: 3, mob: snow_weasel, max: 1, respawn: 12s}
 player_spawn: {at: [4.5, 18], yaw: 90}
-boss: {at: [61, 18], radius: 5, mob: avalanche_slime, kills: 300}
+boss: {at: [61, 18], radius: 5, mob: avalanche_slime}

@@ -12,7 +12,6 @@ import (
 
 	"finga/config"
 	adapter "finga/internal/adapter/world"
-	"finga/internal/application/world/announce"
 	"finga/internal/application/world/instance"
 	"finga/internal/application/world/itemcalls"
 	"finga/internal/application/world/loot"
@@ -80,10 +79,7 @@ type Deps struct {
 
 // ports are the other modules as the world's application calls them.
 type ports struct {
-	social interface {
-		party.Social
-		announce.Social
-	}
+	social    party.Social
 	equipment interface {
 		instance.Equipment
 		instance.HandIns
@@ -130,7 +126,6 @@ func New(_ context.Context, d Deps) (*Module, error) {
 		return nil, err
 	}
 	parties := party.NewCopy(party.Deps{Social: others.social, Logger: log}, party.Options{World: d.ID})
-	notices := announce.New(announce.Deps{Social: others.social, Logger: log})
 	equipment := others.equipment
 	outcomes := newResults(func(r model.MatchResult) {
 		log.ErrorContext(context.Background(), "a match's outcome found no room to wait; it goes unrated", "match_id", r.Match)
@@ -151,7 +146,6 @@ func New(_ context.Context, d Deps) (*Module, error) {
 		Wardrobe:     equipment,
 		ItemCalls:    itemCalls,
 		Parties:      parties,
-		Notices:      notices,
 		Traces:       m.Traces(),
 		Saver:        others.saver,
 		Characters:   others.characters,
@@ -162,7 +156,6 @@ func New(_ context.Context, d Deps) (*Module, error) {
 		Results:      outcomes,
 	}, game.Tuning{TickInterval: cfg.TickInterval(), CheckpointInterval: cfg.CheckpointInterval, FlushTimeout: cfg.FlushTimeout, BatchMax: cfg.ItemCalls.BatchMax})
 	m.Task("parties", parties.Run, host.Restartable)
-	m.Task("announcements", notices.Run, host.Restartable)
 	m.Task("world", maps.Run, host.Vital)
 	m.Task("saves", maps.Save, host.Vital)
 	m.Task("item calls", itemCalls.Run, host.Vital)

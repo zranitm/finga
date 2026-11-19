@@ -203,21 +203,22 @@ describe('wiring', () => {
     check();
   });
 
-  it('a field boss comes from its message or a Snapshot, and one that leaves unbeaten is told; a beaten one is not', async () => {
+  it('a field boss comes from a Snapshot quietly, and back from its message with a toast and a [Notice] line; beaten, it counts down', async () => {
     const { ws } = await connectedSocket();
-    ws.push('snapshot', { fieldBoss: { mobId: 9, type: 'king_slime', leavesInMs: 420000n } });
+    ws.push('snapshot', { fieldBoss: { mobId: 9, type: 'king_slime' } });
     expect(fieldBoss.getState().boss).toMatchObject({ mobId: 9, type: 'king_slime' });
-    ws.push('fieldBossGone', { mobId: 9, beaten: true });
-    expect(fieldBoss.getState().boss).toBeNull();
-    expect(toasts.getState().toasts).toEqual([]);
-    ws.push('fieldBoss', { mobId: 12, type: 'king_slime', leavesInMs: 600000n });
-    expect(fieldBoss.getState().boss?.mobId).toBe(12);
-    ws.push('fieldBossGone', { mobId: 12, beaten: false });
-    expect(toasts.getState().toasts).toMatchObject([
-      { text: 'King Slime has left.', kind: 'info' },
-    ]);
+    ws.push('fieldBossGone', { mobId: 9, type: 'king_slime', backInMs: 300000n });
+    expect(fieldBoss.getState()).toMatchObject({ boss: null, down: { type: 'king_slime' } });
+    ws.push('fieldBoss', { mobId: 12, type: 'king_slime' });
+    expect(fieldBoss.getState()).toMatchObject({ boss: { mobId: 12 }, down: null });
+    const text = 'King Slime has appeared!';
+    expect(toasts.getState().toasts).toMatchObject([{ text, kind: 'info' }]);
+    expect(chat.getState().lines).toMatchObject([{ kind: 'notice', text }]);
+    ws.push('snapshot', { fieldBossGone: { mobId: 12, type: 'king_slime', backInMs: 60000n } });
+    expect(fieldBoss.getState()).toMatchObject({ boss: null, down: { type: 'king_slime' } });
     ws.push('snapshot', {});
-    expect(fieldBoss.getState().boss).toBeNull();
+    expect(fieldBoss.getState()).toMatchObject({ boss: null, down: null });
+    expect(toasts.getState().toasts).toHaveLength(1);
   });
 
   it.each([
@@ -304,18 +305,6 @@ describe('wiring', () => {
       .applyMatchEnded(create(MatchEndedSchema, { result: MatchOutcome.LOSS }), 'c-ayla');
     leaveCharacter();
     expect(pvp.getState().outcome).toBeNull();
-  });
-
-  it('a boss appearing anywhere is told as a toast and a [Notice] line in the General tab', async () => {
-    const { ws } = await connectedSocket();
-    ws.push('announcement', {
-      kind: { case: 'bossAppeared', value: { boss: 'king_slime', mapId: 'forest' } },
-    });
-    const text = 'King Slime has appeared in the Forest!';
-    expect(toasts.getState().toasts).toMatchObject([{ text, kind: 'info' }]);
-    expect(chat.getState().lines).toMatchObject([{ kind: 'notice', text }]);
-    ws.push('announcement', {}); // a kind from a newer server
-    expect(chat.getState().lines).toHaveLength(1);
   });
 
   it('a Kicked frame sets the connection to kicked and returns to the login screen', async () => {

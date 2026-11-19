@@ -71,4 +71,4 @@ spawns:
   - {name: slope_slime, at: [47, 9], radius: 4, mob: sun_slime, max: 1, respawn: 12s}
   - {name: east_slime, at: [58, 18], radius: 3.5, mob: sun_slime, max: 1, respawn: 12s}
 player_spawn: {at: [4.5, 18], yaw: 90}
-boss: {at: [40, 18], radius: 5, mob: cliff_reaper, kills: 300}
+boss: {at: [40, 18], radius: 5, mob: cliff_reaper}

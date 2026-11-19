@@ -6,7 +6,8 @@ import { resetStores } from '@/testing/reset-stores';
 
 import { fieldBoss } from './field-boss';
 
-const king = { mobId: 9, type: 'king_slime', leavesInMs: 600000n };
+const king = { mobId: 9, type: 'king_slime' };
+const beaten = { mobId: 9, type: 'king_slime', backInMs: 180000n };
 
 describe('field boss store', () => {
   beforeEach(() => {
@@ -17,41 +18,41 @@ describe('field boss store', () => {
     vi.useRealTimers();
   });
 
-  it('counts the time left from when the boss came, and a Snapshot with none clears it', () => {
+  it('takes a Snapshot’s boss up, or beaten with its time back counted from when it came, or neither', () => {
+    fieldBoss.getState().applySnapshot(create(FieldBossSchema, king), undefined);
+    expect(fieldBoss.getState()).toMatchObject({ boss: king, down: null });
     vi.advanceTimersByTime(1000);
     const came = performance.now();
-    fieldBoss.getState().applyFieldBoss(create(FieldBossSchema, king));
-    expect(fieldBoss.getState().boss).toEqual({
-      mobId: 9,
-      type: 'king_slime',
-      leavesAt: came + 600000,
+    fieldBoss.getState().applySnapshot(undefined, create(FieldBossGoneSchema, beaten));
+    expect(fieldBoss.getState()).toMatchObject({
+      boss: null,
+      down: { type: 'king_slime', backAt: came + 180000 },
     });
-    fieldBoss.getState().setHp({ hp: 3000, maxHp: 4260 });
-    fieldBoss.getState().applyFieldBoss(undefined);
-    expect(fieldBoss.getState()).toMatchObject({ boss: null, hp: null });
+    fieldBoss.getState().applySnapshot(undefined, undefined);
+    expect(fieldBoss.getState()).toMatchObject({ boss: null, down: null, hp: null });
   });
 
   it('keeps the HP the scene drew for the same boss, and forgets it for a new one', () => {
-    fieldBoss.getState().applyFieldBoss(create(FieldBossSchema, king));
+    fieldBoss.getState().applySnapshot(create(FieldBossSchema, king), undefined);
     fieldBoss.getState().setHp({ hp: 3000, maxHp: 4260 });
-    vi.advanceTimersByTime(300000);
-    fieldBoss.getState().applyFieldBoss(create(FieldBossSchema, { ...king, leavesInMs: 300000n })); // the same boss, as a rejoin's Snapshot tells it
+    fieldBoss.getState().applySnapshot(create(FieldBossSchema, king), undefined); // the same boss, as a rejoin's Snapshot tells it
     expect(fieldBoss.getState().hp).toEqual({ hp: 3000, maxHp: 4260 });
     fieldBoss.getState().applyFieldBoss(create(FieldBossSchema, { ...king, mobId: 10 }));
     expect(fieldBoss.getState().hp).toBeNull();
   });
 
-  it('a boss gone is the one it names, if it is this map’s', () => {
+  it('a boss beaten counts down to when it’s back, and its return clears that', () => {
     fieldBoss.getState().applyFieldBoss(create(FieldBossSchema, king));
-    expect(
-      fieldBoss.getState().applyGone(create(FieldBossGoneSchema, { mobId: 8, beaten: false })),
-    ).toBeNull();
-    expect(fieldBoss.getState().boss?.mobId).toBe(9);
-    expect(
-      fieldBoss.getState().applyGone(create(FieldBossGoneSchema, { mobId: 9, beaten: false }))
-        ?.type,
-    ).toBe('king_slime');
-    expect(fieldBoss.getState().boss).toBeNull();
+    fieldBoss.getState().setHp({ hp: 3000, maxHp: 4260 });
+    const fell = performance.now();
+    fieldBoss.getState().applyGone(create(FieldBossGoneSchema, beaten));
+    expect(fieldBoss.getState()).toMatchObject({
+      boss: null,
+      hp: null,
+      down: { type: 'king_slime', backAt: fell + 180000 },
+    });
+    fieldBoss.getState().applyFieldBoss(create(FieldBossSchema, { ...king, mobId: 10 }));
+    expect(fieldBoss.getState()).toMatchObject({ boss: { mobId: 10 }, down: null });
   });
 
   it('sets the HP only when it changes, so the bar redraws only then', () => {

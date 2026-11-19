@@ -272,24 +272,28 @@ func TestABotFightsTheMobInItsWay(t *testing.T) {
 	}
 }
 
-// C12: a bot keeps off a map while a field boss is up there, from the announcement or from seeing it, until it falls or its life runs out.
+// C12: a map's boss stands for a bot until it hears it beaten there, from the fall or a Snapshot, and again once it's back or the bot sees it appear; a map without one has none.
 func TestABotKeepsOffAMapWhileItsBossIsUp(t *testing.T) {
 	data := gamedatatest.Shipped(t)
 	b := &bot{data: data, mapID: "forest"}
-	b.observe(wsconn.Message{Data: &clientv1.Announcement{Kind: &clientv1.Announcement_BossAppeared{BossAppeared: &clientv1.BossAppeared{Boss: "vampire_bat", MapId: "cave"}}}})
-	if !b.bossUp("cave") || b.bossUp("forest") {
-		t.Fatalf("after the cave's announcement: cave %v, forest %v", b.bossUp("cave"), b.bossUp("forest"))
+	if !b.bossUp("cave") || !b.bossUp("forest") || b.bossUp("town") {
+		t.Fatalf("hearing nothing: cave %v, forest %v, town %v; want the bosses up, the town none", b.bossUp("cave"), b.bossUp("forest"), b.bossUp("town"))
 	}
-	b.observe(wsconn.Message{Data: &clientv1.FieldBoss{MobId: 7, Type: "king_slime", LeavesInMs: 60_000}})
-	if !b.bossUp("forest") || b.boss != 7 {
-		t.Fatalf("a boss seen on its own map: up %v, its mob %d", b.bossUp("forest"), b.boss)
-	}
-	b.observe(wsconn.Message{Data: &clientv1.FieldBossGone{MobId: 7, Beaten: true}})
+	b.observe(wsconn.Message{Data: &clientv1.FieldBoss{MobId: 7, Type: "king_slime"}})
+	b.observe(wsconn.Message{Data: &clientv1.FieldBossGone{MobId: 7, Type: "king_slime", BackInMs: 60_000}})
 	if b.bossUp("forest") || !b.bossUp("cave") || b.boss != 0 {
-		t.Fatalf("after the forest's boss fell: forest %v, cave %v", b.bossUp("forest"), b.bossUp("cave"))
+		t.Fatalf("after the forest's boss fell: forest %v, cave %v, its mob %d", b.bossUp("forest"), b.bossUp("cave"), b.boss)
 	}
-	b.observe(wsconn.Message{Data: &clientv1.FieldBoss{MobId: 8, Type: "king_slime", LeavesInMs: 0}})
+	b.observe(wsconn.Message{Data: &clientv1.FieldBoss{MobId: 8, Type: "king_slime"}})
+	if !b.bossUp("forest") || b.boss != 8 {
+		t.Fatalf("a boss seen back: up %v, its mob %d", b.bossUp("forest"), b.boss)
+	}
+	b.observe(wsconn.Message{Data: &clientv1.Snapshot{FieldBossGone: &clientv1.FieldBossGone{MobId: 8, Type: "king_slime", BackInMs: 60_000}}})
 	if b.bossUp("forest") {
-		t.Fatal("a boss whose life ran out is still up")
+		t.Fatal("a Snapshot of the boss down left it up")
+	}
+	b.observe(wsconn.Message{Data: &clientv1.FieldBossGone{MobId: 8, Type: "king_slime"}})
+	if !b.bossUp("forest") {
+		t.Fatal("a boss whose time back has come is still down")
 	}
 }

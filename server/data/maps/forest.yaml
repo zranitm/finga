@@ -37,4 +37,4 @@ spawns:
 player_spawn: {at: [4, 20], yaw: 90}
 npcs:
   - {id: bowman_trainer, at: [33, 24], yaw: 180}
-boss: {at: [53, 20], radius: 5.5, mob: king_slime, kills: 300}
+boss: {at: [53, 20], radius: 5.5, mob: king_slime}

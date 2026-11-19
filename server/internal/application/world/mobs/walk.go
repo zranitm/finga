@@ -131,10 +131,15 @@ func (a *Arena) giveUp(mb *mob) {
 	mb.path, mb.pathFor, mb.homing, mb.movedAt = nil, kernel.CharacterID{}, true, a.tick
 }
 
-// goHome walks a mob that gave up back into its circle, blind to players; caught on something too long, it stops and wanders.
+// goHome walks a mob that gave up back into its circle, blind to players; caught on something too long, it stops and wanders. A standing boss caught is put back at its spot, and is calm there unless a blow on the way still provokes it.
 func (a *Arena) goHome(mb *mob) {
-	if nav.Distance(mb.at(), mb.home) <= mb.homeR || a.tick > mb.movedAt+a.ticks(stuckFor) {
+	home := nav.Distance(mb.at(), mb.home) <= mb.homeR
+	if home || a.tick > mb.movedAt+a.ticks(stuckFor) {
+		if mb.spawn == noSpawn && !home {
+			a.snapHome(mb)
+		}
 		mb.homing, mb.path = false, nil
+		mb.calm = mb.spawn == noSpawn && mb.provokedUntil <= a.tick
 		return
 	}
 	if len(mb.path) == 0 {
@@ -150,6 +155,13 @@ func (a *Arena) goHome(mb *mob) {
 	if mb.stalled {
 		mb.pauseUntil = a.tick + a.ticks(repathEvery)
 	}
+}
+
+// snapHome stands mb at its circle's centre, as a boss that couldn't walk there would never be calm anywhere else.
+func (a *Arena) snapHome(mb *mob) {
+	mb.x, mb.z, mb.changed = mb.home.X, mb.home.Z, true
+	mb.y = a.groundAt(mb.x, mb.z, math.Inf(-1), mb.params.Step)
+	a.bodies.moved(mb)
 }
 
 // chase walks a mob to its spot beside p, looking for a new way in its turn as p moves or its walk stalls; it gives up when p is past its leash or it gets nowhere.

@@ -7,9 +7,11 @@ import { npcs } from '@/gamedata/npcs';
 import { mobById } from '@/progression/mobs';
 import { MARKER_TEXT, markerFor } from '@/progression/quests';
 import type { Marker } from '@/progression/quests';
+import { fieldBoss } from '@/state/field-boss';
 import { mapView } from '@/state/map-view';
 
 const SPAWN_DEFAULT = 0x9a9a9a; // an untinted mob's circle
+const CROWN = '-1,0.6 -1,-0.6 -0.5,0 0,-0.9 0.5,0 1,-0.6 1,0.6'; // a boss's mark, a unit round its middle
 
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
@@ -31,7 +33,7 @@ export interface OtherMap {
   readonly image: string;
 }
 
-/** The map's ground and marks at `unit` metres a pixel: the scene's map, or `other`; children, such as labels, go over the fixed marks and under the moving ones, which show only on the player's own map. */
+/** The map's ground and marks at `unit` metres a pixel: the scene's map, or `other`; children, such as labels, go over the fixed marks and under the moving ones, which show only on the player's own map, as does a beaten boss's grey mark at its spot. */
 export function MapMarks({
   unit,
   other,
@@ -50,6 +52,7 @@ export function MapMarks({
     lock: mapView.use((s) => s.lock),
     boss: mapView.use((s) => s.boss),
   };
+  const down = fieldBoss.use((s) => s.down);
   const mapId = other?.id ?? current;
   const markers = useNpcMarkers(mapId);
   const map = maps.find((m) => m.id === mapId);
@@ -62,6 +65,7 @@ export function MapMarks({
     mapId === current ? marks : { me: null, party: [], lock: null, boss: null }; // the client tracks positions only here
   const y = (z: number) => sz - z;
   const dot = 3 * unit; // a dot's radius: 3 pixels
+  const beaten = mapId === current && down ? map.boss : null;
   return (
     <>
       {image && (
@@ -119,6 +123,15 @@ export function MapMarks({
             </g>
           );
         })}
+      {beaten && (
+        <polygon
+          className="map-boss map-boss-down"
+          data-mob={beaten.mob}
+          points={CROWN}
+          transform={`translate(${beaten.x} ${y(beaten.z)}) scale(${2 * dot})`}
+          fill="#8a8a8a"
+        />
+      )}
       {children}
       {party.map((p) => (
         <circle
@@ -147,7 +160,7 @@ export function MapMarks({
       {boss && (
         <polygon
           className="map-boss"
-          points="-1,0.6 -1,-0.6 -0.5,0 0,-0.9 0.5,0 1,-0.6 1,0.6"
+          points={CROWN}
           transform={`translate(${boss.x} ${y(boss.z)}) scale(${2 * dot})`}
           fill="#e04040"
         />

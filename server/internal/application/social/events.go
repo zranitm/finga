@@ -1,7 +1,6 @@
 package social
 
 import (
-	"context"
 	"sync"
 
 	application "finga/internal/application/social/service"
@@ -16,7 +15,7 @@ const (
 	membershipsQueue = 4096
 )
 
-// Delivery is what a gateway hears: a PartyState, an Invited or a ChatLine for one of its players, or a BossAppeared for all of them.
+// Delivery is what a gateway hears: a PartyState, an Invited or a ChatLine for one of its players.
 //
 //sumtype:decl
 type Delivery interface{ delivery() }
@@ -55,23 +54,9 @@ type ChatLine struct {
 	Text       string
 }
 
-// Announcement is news for every player online, which each gateway hears once.
-type Announcement interface {
-	Delivery
-	announcement()
-}
-
-// BossAppeared says a field boss appeared on a map.
-type BossAppeared struct {
-	Boss  string // its mob type
-	MapID string
-}
-
-func (PartyState) delivery()       {}
-func (Invited) delivery()          {}
-func (ChatLine) delivery()         {}
-func (BossAppeared) delivery()     {}
-func (BossAppeared) announcement() {}
+func (PartyState) delivery() {}
+func (Invited) delivery()    {}
+func (ChatLine) delivery()   {}
 
 // MembershipEvent is what a world hears: a Membership.
 //
@@ -95,14 +80,6 @@ func (m *Module) Subscribe(gateway string) *hub.Sub[Delivery] {
 // SubscribeMemberships opens a world's membership changes from now on, to follow a snapshot from Memberships taken after it.
 func (m *Module) SubscribeMemberships(world string) *hub.Sub[MembershipEvent] {
 	return m.notes.memberships.Subscribe(world)
-}
-
-// Announce sends news once to each gateway anyone is online through, which hands it to every player it has: a burst that grows with gateways, not players.
-func (m *Module) Announce(ctx context.Context, a Announcement) (err error) {
-	_, call := m.calls.Start(ctx, "Announce")
-	defer call.End(&err)
-	m.notes.announce(a)
-	return nil
 }
 
 // notifier hands the party module's notes to the subscribed gateways and worlds, each player's to the gateway they are online through; it never blocks.
@@ -164,21 +141,6 @@ func (n *notifier) Unreachable(id kernel.CharacterID, conn string) {
 	defer n.mu.Unlock()
 	if n.presence[id].conn == conn {
 		delete(n.presence, id)
-	}
-}
-
-// announce sends a once to each gateway anyone is online through, so it never fills one's queue.
-func (n *notifier) announce(a Announcement) {
-	n.mu.Lock()
-	gateways := map[string]bool{}
-	for _, p := range n.presence {
-		gateways[p.gateway] = true
-	}
-	n.mu.Unlock()
-	for gateway := range gateways {
-		if sub, ok := n.deliveries.Get(gateway); ok {
-			sub.Send(a)
-		}
 	}
 }
 

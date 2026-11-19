@@ -719,12 +719,12 @@ func TestCombatEventsReachTheClient(t *testing.T) {
 		if m := c.expect("TeleportCancelled"); m.Data.(*clientv1.TeleportCancelled).GetReason() != clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_HIT || m.Tick != 8 {
 			t.Fatalf("teleport cancelled %+v, want HIT on tick 8", m)
 		}
-		h.world.push(aylaID, 7, world.FieldBoss{Mob: 9, Type: "king_slime", LeavesIn: 10 * time.Minute})
-		if b := c.expect("FieldBoss").Data.(*clientv1.FieldBoss); b.GetMobId() != 9 || b.GetType() != "king_slime" || b.GetLeavesInMs() != 600000 {
+		h.world.push(aylaID, 7, world.FieldBoss{Mob: 9, Type: "king_slime"})
+		if b := c.expect("FieldBoss").Data.(*clientv1.FieldBoss); b.GetMobId() != 9 || b.GetType() != "king_slime" {
 			t.Fatalf("field boss %+v", b)
 		}
-		h.world.push(aylaID, 7, world.FieldBossGone{Mob: 9})
-		if g := c.expect("FieldBossGone").Data.(*clientv1.FieldBossGone); g.GetMobId() != 9 || g.GetBeaten() {
+		h.world.push(aylaID, 7, world.FieldBossGone{Mob: 9, Type: "king_slime", BackIn: 5 * time.Minute})
+		if g := c.expect("FieldBossGone").Data.(*clientv1.FieldBossGone); g.GetMobId() != 9 || g.GetType() != "king_slime" || g.GetBackInMs() != 300000 {
 			t.Fatalf("field boss gone %+v", g)
 		}
 		h.world.push(aylaID, 7, world.Died{ID: aylaID, X: 1, Y: 2})
@@ -1612,25 +1612,6 @@ func TestASocialDeliveryDuringHelloFollowsWelcome(t *testing.T) {
 			t.Fatalf("first %s, want Welcome", m.Type)
 		}
 		c.expect("PartyInvited")
-	})
-}
-
-// An announcement comes once for the whole gateway, which hands it to every player it has in the world.
-func TestAnAnnouncementReachesEveryPlayerInTheWorld(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		fs := newFakeSocial()
-		h := socialHarness(t, fs)
-		ayla, bruno := h.dial(t), h.dial(t)
-		ayla.hello(tokenAlice, aylaID)
-		ayla.expect("Snapshot")
-		bruno.hello(tokenBob, brunoID)
-		bruno.expect("Snapshot")
-		fs.deliveries.send(social.BossAppeared{Boss: "king_slime", MapID: "forest"})
-		for _, c := range []*client{ayla, bruno} {
-			if b := c.expect("Announcement").Data.(*clientv1.Announcement).GetBossAppeared(); b.GetBoss() != "king_slime" || b.GetMapId() != "forest" {
-				t.Fatalf("announced %+v", b)
-			}
-		}
 	})
 }
 

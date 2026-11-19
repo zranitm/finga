@@ -249,7 +249,7 @@ func socialEventOf[D social.Delivery](t *testing.T) func(D) model.SocialEvent {
 	}
 }
 
-// Each social delivery reaches the gateway with every field, the player's to that player and an announcement to every player.
+// Each social delivery reaches the gateway with every field, to the player it names.
 func TestEachSocialDeliveryKeepsItsFields(t *testing.T) {
 	tick := map[string]string{"Delivery.Tick": "social pushes carry no map tick"}
 	party := copytest.Match{
@@ -275,13 +275,6 @@ func TestEachSocialDeliveryKeepsItsFields(t *testing.T) {
 	}
 	if e, _ := socialEvent(social.ChatLine{}); e.(model.SocialDelivery).Delivery.Push.(model.ChatMessage).Channel != model.ChatParty {
 		t.Errorf("a party line became %+v", e)
-	}
-	boss := copytest.Match{Renames: map[string]string{"Boss": "Delivery.Push.Boss", "MapID": "Delivery.Push.MapID"}, Computed: tick}
-	if got := copytest.Diff(boss, socialEventOf[social.BossAppeared](t)); len(got) > 0 {
-		t.Errorf("BossAppeared: %v", got)
-	}
-	if e, _ := socialEvent(social.BossAppeared{}); reflect.TypeOf(e) != reflect.TypeFor[model.SocialBroadcast]() {
-		t.Errorf("an announcement became %T", e)
 	}
 	if e, _ := socialEvent(social.PartyState{}); e.(model.SocialDelivery).Delivery.Push.(model.PartyState).Party != nil {
 		t.Errorf("no party became %+v", e)

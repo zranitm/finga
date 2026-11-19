@@ -100,6 +100,10 @@ func (a *Arena) turn(mb *mob, players []Body) {
 		return
 	}
 	target, ok := a.targetOf(mb, players)
+	if !ok && mb.spawn == noSpawn && !mb.calm {
+		a.giveUp(mb) // a standing boss with nobody left to fight walks home, and calms there
+		return
+	}
 	if !ok {
 		mb.near, mb.waiting, mb.claimFor = false, false, kernel.CharacterID{}
 		if !held {
@@ -204,9 +208,9 @@ func (a *Arena) take(mb *mob, id kernel.CharacterID) {
 	}
 }
 
-// sees is whether p is within the mob's sight in x and z, their feet from sightBelow under its own to sightAbove over, and they haven't made it lose sight of them; solids hide nobody.
+// sees is whether p is within the mob's sight in x and z, which a calm standing boss has none of, their feet from sightBelow under its own to sightAbove over, and they haven't made it lose sight of them; solids hide nobody.
 func (a *Arena) sees(mb *mob, p Body) bool {
-	return nav.Distance(p.at(), mb.at()) <= a.data.MobRules().Sight && p.Y >= mb.y-sightBelow && p.Y <= mb.y+sightAbove && !mb.lost(p.ID)
+	return !mb.calm && nav.Distance(p.at(), mb.at()) <= a.data.MobRules().Sight && p.Y >= mb.y-sightBelow && p.Y <= mb.y+sightAbove && !mb.lost(p.ID)
 }
 
 // afterBlow is the tick a span d that a blow starts runs out: blows land after the tick's turns, so it counts from the next.

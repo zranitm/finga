@@ -2,33 +2,20 @@ package world
 
 import "time"
 
-// FieldBoss says the map's field boss is up, to the map as it appears and in the Snapshot of anyone joining while it is: its mob, its type, and how long until it leaves.
+// FieldBoss says the map's field boss is up, to the map as it appears and in the Snapshot of anyone joining while it is: its mob and its type. It stays until it's beaten.
 type FieldBoss struct {
-	Tick     uint64
-	Mob      uint64
-	Type     string
-	LeavesIn time.Duration
+	Tick uint64
+	Mob  uint64
+	Type string
 }
 
-// FieldBossGone says the map's field boss fell or, unbeaten, left.
+// FieldBossGone says the map's field boss is beaten, to the map as it falls and in the Snapshot of anyone joining while it's down: the mob it was, its type, and how long until it's back at its spot.
 type FieldBossGone struct {
 	Tick   uint64
 	Mob    uint64
-	Beaten bool
+	Type   string
+	BackIn time.Duration
 }
 
 func (FieldBoss) event()     {}
 func (FieldBossGone) event() {}
-
-// Announcement is news a map sends every player online, through the social module.
-//
-//sumtype:decl
-type Announcement interface{ announcement() }
-
-// BossAppeared says a map's field boss appeared.
-type BossAppeared struct {
-	Boss string // its mob type
-	Map  string
-}
-
-func (BossAppeared) announcement() {}

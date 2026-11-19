@@ -101,7 +101,7 @@ func TestEveryWorldEventKeepsItsValues(t *testing.T) {
 		"Snapshot": func() []string {
 			m := match()
 			with(m.Renames, map[string]string{
-				"Event.Players.State": "Delivery.Push.Players", "Event.FieldBoss.Mob": "Delivery.Push.FieldBoss.MobID", "Event.FieldBoss.LeavesIn": "Delivery.Push.FieldBoss.LeavesInMs",
+				"Event.Players.State": "Delivery.Push.Players", "Event.FieldBoss.Mob": "Delivery.Push.FieldBoss.MobID", "Event.FieldBossGone.Mob": "Delivery.Push.FieldBossGone.MobID", "Event.FieldBossGone.BackIn": "Delivery.Push.FieldBossGone.BackInMs",
 			})
 			with(m.Skip, map[string]string{"Event.MapID": "the join or the teleport names the map"})
 			return eventDiff[world.Snapshot](t, model.Snapshot{}, m)
@@ -161,12 +161,12 @@ func TestEveryWorldEventKeepsItsValues(t *testing.T) {
 		},
 		"FieldBoss": func() []string {
 			m := match()
-			with(m.Renames, map[string]string{"Event.Mob": "Delivery.Push.MobID", "Event.LeavesIn": "Delivery.Push.LeavesInMs"})
+			with(m.Renames, map[string]string{"Event.Mob": "Delivery.Push.MobID"})
 			return eventDiff[world.FieldBoss](t, model.FieldBoss{}, m)
 		},
 		"FieldBossGone": func() []string {
 			m := match()
-			m.Renames["Event.Mob"] = "Delivery.Push.MobID"
+			with(m.Renames, map[string]string{"Event.Mob": "Delivery.Push.MobID", "Event.BackIn": "Delivery.Push.BackInMs"})
 			return eventDiff[world.FieldBossGone](t, model.FieldBossGone{}, m)
 		},
 		"Chat": func() []string {
@@ -363,14 +363,18 @@ func TestATeleportCancelCarriesItsReason(t *testing.T) {
 	}
 }
 
-// A Snapshot carries the map's field boss while one is up, and none otherwise.
-func TestASnapshotCarriesTheFieldBossWhileOneIsUp(t *testing.T) {
-	push, ok := worldPush(world.Snapshot{FieldBoss: &world.FieldBoss{Mob: 9, Type: "king_slime", LeavesIn: 7 * time.Minute}})
-	if s, is := push.(model.Snapshot); !ok || !is || s.FieldBoss == nil || *s.FieldBoss != (model.FieldBoss{MobID: 9, Type: "king_slime", LeavesInMs: 420000}) {
-		t.Fatalf("got %+v, want the king leaving in 7 minutes", push)
+// A Snapshot carries the map's field boss while one is up, the beaten one with its time back while it's down, and neither on a map without one.
+func TestASnapshotCarriesTheFieldBossUpOrDown(t *testing.T) {
+	push, ok := worldPush(world.Snapshot{FieldBoss: &world.FieldBoss{Mob: 9, Type: "king_slime"}})
+	if s, is := push.(model.Snapshot); !ok || !is || s.FieldBoss == nil || *s.FieldBoss != (model.FieldBoss{MobID: 9, Type: "king_slime"}) || s.FieldBossGone != nil {
+		t.Fatalf("got %+v, want the king up", push)
 	}
-	push, ok = worldPush(world.Snapshot{MapID: "forest"})
-	if s, is := push.(model.Snapshot); !ok || !is || s.FieldBoss != nil {
+	push, ok = worldPush(world.Snapshot{FieldBossGone: &world.FieldBossGone{Mob: 9, Type: "king_slime", BackIn: 3 * time.Minute}})
+	if s, is := push.(model.Snapshot); !ok || !is || s.FieldBoss != nil || s.FieldBossGone == nil || *s.FieldBossGone != (model.FieldBossGone{MobID: 9, Type: "king_slime", BackInMs: 180000}) {
+		t.Fatalf("got %+v, want the king back in 3 minutes", push)
+	}
+	push, ok = worldPush(world.Snapshot{MapID: "town"})
+	if s, is := push.(model.Snapshot); !ok || !is || s.FieldBoss != nil || s.FieldBossGone != nil {
 		t.Fatalf("got %+v, want no boss", push)
 	}
 }

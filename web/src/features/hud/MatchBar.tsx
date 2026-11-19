@@ -5,13 +5,12 @@ import { Button } from '@/components/Button';
 import { roundsToWin } from '@/features/pvp/modes';
 import { problemOf } from '@/features/shared/problem';
 import { useNow } from '@/features/shared/useNow';
+import { timeLeft } from '@/features/shared/words';
 import type { GameSocket } from '@/net/socket';
 import { MatchPhase } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { pvp, sideOf } from '@/state/pvp';
 import type { Fighter, Match } from '@/state/pvp';
-
-import { timeLeft } from './BossBar';
 
 export interface MatchBarProps {
   readonly socket: Pick<GameSocket, 'request'>;

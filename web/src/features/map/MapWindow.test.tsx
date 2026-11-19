@@ -11,12 +11,15 @@ import { npcs } from '@/gamedata/npcs';
 import { mobById } from '@/progression/mobs';
 import { ERR } from '@/protocol/errors';
 import {
+  FieldBossGoneSchema,
+  FieldBossSchema,
   MatchPhase,
   MatchStateSchema,
   PartyStateSchema,
   PartyViewSchema,
 } from '@/protocol/messages';
 import { character } from '@/state/character';
+import { fieldBoss } from '@/state/field-boss';
 import { mapView } from '@/state/map-view';
 import { party } from '@/state/party';
 import { pvp } from '@/state/pvp';
@@ -83,7 +86,7 @@ describe('MapWindow', () => {
       Math.abs(a.x - b.x) * 2 < a.w + b.w && a.bottom > b.bottom - b.h && b.bottom > a.bottom - a.h;
     for (const m of maps) {
       const marked = new Set(npcs.npcs.filter((n) => n.map === m.id).map((n) => n.id));
-      const labels = mapLabels(m, { x: 20, z: 20 }, 6, [72, 40], marked);
+      const labels = mapLabels(m, { x: 20, z: 20 }, 6, [72, 40], marked, null);
       for (const [i, a] of labels.entries()) {
         for (const b of labels.slice(i + 1)) {
           expect([m.id, a.text, b.text, overlap(a, b)]).toEqual([m.id, a.text, b.text, false]);
@@ -100,7 +103,7 @@ describe('MapWindow', () => {
       JSON.parse(raw) as { geometry: { size_x: number; size_z: number } }
     ).geometry;
     const scale = Math.min(480 / sx, 320 / sz);
-    return mapLabels(m, null, scale, [sx, sz], new Set())
+    return mapLabels(m, null, scale, [sx, sz], new Set(), null)
       .filter((l) => l.kind === 'spawn')
       .map((l) => {
         const mob = m.spawns.find((s) => l.text.startsWith(`${mobById(s.mob)!.name} Lv`))!.mob;
@@ -178,7 +181,7 @@ describe('MapWindow', () => {
 
   it('lifts the player’s label above an NPC’s name when the player stands at the NPC', () => {
     const guide = npcs.npcs.find((n) => n.id === 'town_guide')!;
-    const labels = mapLabels(map('town'), { x: guide.x, z: guide.z }, 6, [48, 32], new Set());
+    const labels = mapLabels(map('town'), { x: guide.x, z: guide.z }, 6, [48, 32], new Set(), null);
     const you = labels.find((l) => l.kind === 'me')!;
     const name = labels.find((l) => l.text === guide.name)!;
     expect(you.bottom).toBeLessThanOrEqual(name.bottom - name.h - 2);
@@ -317,6 +320,42 @@ describe('MapWindow', () => {
     await user.click(screen.getByRole('button', { name: 'Cave' }));
     const other = await screen.findByRole('img', { name: 'Cave' });
     expect(other.querySelectorAll(live)).toHaveLength(0);
+  });
+
+  it('a beaten boss shows grey at its spot on its own map, the time until it’s back counting down, till it’s back', () => {
+    vi.useFakeTimers();
+    try {
+      onMap('forest', 30, 10);
+      act(() => {
+        fieldBoss
+          .getState()
+          .applyGone(
+            create(FieldBossGoneSchema, { mobId: 9, type: 'king_slime', backInMs: 192000n }),
+          );
+      });
+      render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
+      const here = screen.getByRole('img', { name: 'Forest' });
+      const [spotX, spotZ] = [map('forest').boss!.x, map('forest').boss!.z];
+      expect(here.querySelector('.map-boss-down')?.getAttribute('transform')).toMatch(
+        new RegExp(`^translate\\(${spotX} ${40 - spotZ}\\)`),
+      );
+      expect(texts(here, '.map-label-boss')).toEqual(['King Slime: back in 3:12']);
+      act(() => {
+        vi.advanceTimersByTime(61000);
+      });
+      expect(texts(here, '.map-label-boss')).toEqual(['King Slime: back in 2:11']);
+      act(() => {
+        fieldBoss
+          .getState()
+          .applyFieldBoss(create(FieldBossSchema, { mobId: 10, type: 'king_slime' }));
+      });
+      expect([here.querySelector('.map-boss-down'), texts(here, '.map-label-boss')]).toEqual([
+        null,
+        [],
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('a picked map names the party members online on it under its header', async () => {

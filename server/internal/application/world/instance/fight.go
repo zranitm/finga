@@ -102,7 +102,6 @@ func (i *Instance) credit(p *player, blows []mobs.Blow) {
 			i.ground.Roll(i.claim(p, k.Mob, k.X, k.Y, k.Z))
 			i.shareExp(p, k.Mob.Exp)
 			i.countKill(p, k.Mob.ID)
-			i.countTowardBoss()
 		}
 	}
 }

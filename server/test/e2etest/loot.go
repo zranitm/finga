@@ -56,9 +56,14 @@ type Looter struct {
 	Quests      []*clientv1.QuestChanged
 
 	// Recorded for the field boss rows.
-	FieldBosses   []*clientv1.FieldBoss
-	BossesGone    []*clientv1.FieldBossGone
-	Announcements []*clientv1.Announcement
+	FieldBosses []Ticked[*clientv1.FieldBoss]
+	BossesGone  []Ticked[*clientv1.FieldBossGone]
+}
+
+// Ticked is a message with the tick it came on, in its map's ticks.
+type Ticked[T any] struct {
+	Tick uint64
+	Msg  T
 }
 
 // NewLooter follows p from the Snapshot it joined to.
@@ -143,11 +148,9 @@ func (l *Looter) Observe(m wsconn.Message) {
 	case *clientv1.QuestChanged:
 		l.Quests = append(l.Quests, d)
 	case *clientv1.FieldBoss:
-		l.FieldBosses = append(l.FieldBosses, d)
+		l.FieldBosses = append(l.FieldBosses, Ticked[*clientv1.FieldBoss]{m.Tick, d})
 	case *clientv1.FieldBossGone:
-		l.BossesGone = append(l.BossesGone, d)
-	case *clientv1.Announcement:
-		l.Announcements = append(l.Announcements, d)
+		l.BossesGone = append(l.BossesGone, Ticked[*clientv1.FieldBossGone]{m.Tick, d})
 	}
 }
 

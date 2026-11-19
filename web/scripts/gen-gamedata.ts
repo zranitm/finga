@@ -495,7 +495,7 @@ function pair(raw: unknown, what: string): [number, number] {
   return [must(p[0], isNumber, what), must(p[1], isNumber, what)];
 }
 
-// maps/*.yaml: each map's banner, kind, town, levels, art keys, spawns, portals and chart place, none for a match's map; its geometry comes from Go (npm run maps). The boss's area stays out, as the boss shows only while it's up.
+// maps/*.yaml: each map's banner, kind, town, levels, art keys, spawns, portals, boss spot and chart place, none for a match's map; its geometry comes from Go (npm run maps).
 const maps = [];
 const links = new Map<string, readonly [string, string]>(); // each pair of maps a portal joins, once
 for (const file of readdirSync(join(dataDir, 'maps'))
@@ -552,6 +552,19 @@ for (const file of readdirSync(join(dataDir, 'maps'))
         };
       },
     ),
+    boss: (() => {
+      if (m.boss === undefined) {
+        return null;
+      }
+      const b = must(m.boss, isRecord, `${file} boss`);
+      const [x, z] = pair(b.at, `${file} boss at`);
+      return {
+        mob: must(b.mob, isString, `${file} boss mob`),
+        x,
+        z,
+        radius: must(b.radius, isNumber, `${file} boss radius`),
+      };
+    })(),
     place: pvp ? null : pair(places[id], `world.yaml place of ${id}`),
   });
   for (const raw of m.npcs === undefined ? [] : must(m.npcs, isArray, `${file} npcs`)) {

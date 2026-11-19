@@ -357,7 +357,7 @@ func TestALeapStopsAtABlock(t *testing.T) {
 	}
 }
 
-// A boss keeps out of portals too: with its target on one, it stands at the portal's edge, facing them, and its attacks reach across.
+// A boss keeps out of portals too: with its target on one, who woke it with a blow, it stands at the portal's edge, facing them, and its attacks reach across.
 func TestABossHoldsAtAPortalsEdge(t *testing.T) {
 	m := meadow(t, open())
 	m.Portals = []gamedata.Portal{{Name: "out", At: gamedata.Point{X: 30, Z: 36}, Radius: 1, TargetMap: "town", TargetPortal: "to_meadow"}}
@@ -365,6 +365,7 @@ func TestABossHoldsAtAPortalsEdge(t *testing.T) {
 	def, spot := king(t)
 	a.SpawnBoss(def, spot)
 	p := player(30, 36)
+	a.Strike(mobs.Strike{By: p.ID, Shape: gamedata.Shape{Kind: gamedata.AreaShape, Radius: 30}, Most: 1, Power: model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 1}, Aim: model.Aim{X: 30, Z: 36}})
 	hit := false
 	for n := range uint64(300) {
 		a.Step(n+1, []mobs.Body{p})

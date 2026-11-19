@@ -77,7 +77,7 @@ type patrolYAML struct {
 }
 
 type fieldBossYAML struct {
-	Life      time.Duration `yaml:"life"`
+	Respawn   time.Duration `yaml:"respawn"`
 	DropShare float64       `yaml:"drop_share"`
 }
 
@@ -149,8 +149,8 @@ func (l *loader) loadMobs(dir string) error {
 			return fmt.Errorf("%s: %w", mobsFile, err)
 		}
 	}
-	if fb := file.FieldBoss; fb.Life <= 0 || !(fb.DropShare >= 0 && fb.DropShare <= 1) {
-		return fmt.Errorf("%s: field_boss needs a positive life and a drop_share from 0 to 1", mobsFile)
+	if fb := file.FieldBoss; fb.Respawn <= 0 || !(fb.DropShare >= 0 && fb.DropShare <= 1) {
+		return fmt.Errorf("%s: field_boss needs a positive respawn and a drop_share from 0 to 1", mobsFile)
 	}
 	l.fieldBoss = gamedata.FieldBossRules(file.FieldBoss)
 	for _, raw := range file.Mobs {

@@ -77,4 +77,4 @@ spawns:
   - {name: step_snail, at: [56, 18], radius: 3, mob: glacier_snail, max: 1, respawn: 12s}
   - {name: shelf_snail, at: [28, 18], radius: 3, mob: glacier_snail, max: 1, respawn: 12s}
 player_spawn: {at: [3.5, 18], yaw: 90}
-boss: {at: [38.5, 18], radius: 5, mob: blizzard_wing, kills: 300}
+boss: {at: [38.5, 18], radius: 5, mob: blizzard_wing}

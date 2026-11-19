@@ -24,7 +24,7 @@ func TestMapRejections(t *testing.T) {
 		{"a town with a spawn", town, "npcs:", "spawns:\n  - {name: s, at: [20, 6], radius: 2, mob: green_slime, max: 1, respawn: 1s}\nnpcs:", []string{town, "spawn"}},
 		{"a hunting map without a town", field, "town: town\n", "", []string{field, "town"}},
 		{"levels out of order", field, "levels: [1, 5]", "levels: [5, 1]", []string{field, "levels"}},
-		{"a hunting map without a boss", field, "boss: {at: [30, 14], radius: 4, mob: slime_lord, kills: 20}\n", "", []string{field, "boss"}},
+		{"a hunting map without a boss", field, "boss: {at: [30, 14], radius: 4, mob: slime_lord}\n", "", []string{field, "boss"}},
 		{"duplicate portal names", town, "portals:\n", "portals:\n  - {name: to_field, at: [20, 6], radius: 1.2, to: {map: field, portal: from_town}}\n", []string{town, "duplicate", "to_field"}},
 		{"a spawn of an unknown mob", field, "mob: green_slime", "mob: dragon", []string{field, "slimes", "dragon"}},
 		{"a spawn of a boss", field, "mob: green_slime", "mob: slime_lord", []string{field, "slimes", "slime_lord", "boss"}},
@@ -32,7 +32,6 @@ func TestMapRejections(t *testing.T) {
 		{"a spawn of none", field, "max: 4", "max: 0", []string{field, "slimes", "max"}},
 		{"a boss that isn't one", field, "mob: slime_lord", "mob: green_slime", []string{field, "green_slime", "boss"}},
 		{"a boss below the map's top level", field, "levels: [1, 5]", "levels: [1, 6]", []string{field, "slime_lord", "level"}},
-		{"a boss brought by no kills", field, "kills: 20", "kills: 0", []string{field, "slime_lord", "kills"}},
 		{"a boss circle narrower than its body", field, "radius: 4, mob: slime_lord", "radius: 1, mob: slime_lord", []string{field, "slime_lord", "narrower"}},
 
 		// A match's map: its sides and prep wall, and none of the world's.

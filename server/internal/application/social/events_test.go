@@ -96,25 +96,3 @@ func TestAPartyLineReachesEachMember(t *testing.T) {
 		}
 	}
 }
-
-// An announcement goes once to each gateway anyone is online through, however many are on it, and to none with nobody online.
-func TestAnAnnouncementGoesOnceToEachGatewayWithPlayers(t *testing.T) {
-	m := newModule(t, &fakeParties{}, &fakeChat{})
-	gwA, gwB, gwC := m.Subscribe("gw-a"), m.Subscribe("gw-b"), m.Subscribe("gw-c")
-	m.notes.Reachable(ann, "gw-a", "conn-ann")
-	m.notes.Reachable(kernel.NewCharacterID(), "gw-a", "conn-cy")
-	m.notes.Reachable(bo, "gw-b", "conn-bo")
-	m.notes.Reachable(kernel.NewCharacterID(), "gw-d", "conn-di") // a gateway with no subscription
-	news := BossAppeared{Boss: "king_slime", MapID: "forest"}
-	if err := m.Announce(t.Context(), news); err != nil {
-		t.Fatal(err)
-	}
-	for name, sub := range map[string]*hub.Sub[Delivery]{"gw-a": gwA, "gw-b": gwB} {
-		if got := drain(sub); !reflect.DeepEqual(got, []Delivery{news}) {
-			t.Fatalf("%s heard %+v; want the notice once", name, got)
-		}
-	}
-	if got := drain(gwC); len(got) != 0 {
-		t.Fatalf("gw-c, with nobody online, heard %+v", got)
-	}
-}

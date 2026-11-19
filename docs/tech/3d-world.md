@@ -77,7 +77,7 @@ spawns:
 player_spawn: {at: [4, 20], yaw: 90}
 npcs:
   - {id: bowman_trainer, at: [30, 24], yaw: 180}
-boss: {at: [58, 20], radius: 9, mob: king_slime, kills: 300}
+boss: {at: [58, 20], radius: 9, mob: king_slime}
 ```
 
 As built in spike 3, and renamed in slice PRs 4 and 5:

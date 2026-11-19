@@ -108,7 +108,7 @@ func (d *Data) MobRules() MobRules { return d.p.MobRules }
 
 // FieldBossRules are what every field boss shares.
 type FieldBossRules struct {
-	Life      time.Duration // how long one nobody beats stays
+	Respawn   time.Duration // how long after it's beaten a boss is back at its spot
 	DropShare float64       // the share of its HP a player's damage, or their party's, must reach for a drop roll
 }
 
