@@ -61,7 +61,7 @@ it('warms a figure’s afterimage for both of its passes and every pose, so no c
   const frame = () => {
     now += FRAME_MS;
     fx.update(now);
-    figure.update(now, FRAME_MS, STILL);
+    figure.update(now, FRAME_MS, STILL, true);
     scene.render();
   };
   for (let i = 0; i < 30; i++) {

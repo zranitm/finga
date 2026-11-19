@@ -83,7 +83,10 @@ export interface Figure {
   afterimage(material: Material): Still | null;
   /** Draws it faded with its ink hidden, as a dodge shows it, or whole again. */
   fade(on: boolean): void;
-  update(now: number, dtMs: number, gait: Gait): void;
+  /** Casts its shadow, as it does from the start, or none, which spares the shadow map its draws. */
+  cast(on: boolean): void;
+  /** Steps its clocks and blends by dtMs to now; its bones are posed only when posed, so a far or unseen one skips frames and its clips run on meanwhile, and always on its first, so it's never drawn in its rig's rest pose. */
+  update(now: number, dtMs: number, gait: Gait, posed: boolean): void;
   dispose(): void;
 }
 
@@ -125,6 +128,7 @@ export class Body implements Figure {
   private readonly wings: Wings | null;
   private readonly skeletons: readonly Skeleton[];
   private readonly posed = new Map<string, Share>(); // by clip, while it has weight
+  private readonly loops = new Map<string, { phase: number; lengthMs: number }>(); // each locomotion clip's place in its loop, on the body's own clock
   private current: { readonly clip: string; readonly readyAt: number } | null = null;
   private timed: Timed | null = null; // the action act laid out, which restrike may move
   private waiting: {
@@ -136,8 +140,11 @@ export class Body implements Figure {
   private held: Hold | null = null;
   private readonly model: TransformNode;
   private readonly lean: TransformNode; // between the root and the model, tipping the body forward as it sprints
-  private sprinting = false;
   private readonly shades: { mesh: AbstractMesh; whole: Material; faded: Material }[] = [];
+  private readonly casters: AbstractMesh[] = [];
+  private casting = true;
+  private fresh = true; // not yet posed
+  private readonly shadows: ShadowGenerator;
   private readonly inks: AbstractMesh[] = [];
   private faded = false;
   private still:
@@ -158,6 +165,7 @@ export class Body implements Figure {
   ) {
     const made = container.instantiateModelsToScene((n) => n, false, { doNotInstantiate: true });
     this.skeletons = made.skeletons;
+    this.shadows = lighting.shadows;
     this.root = new TransformNode(look.file, scene);
     const model = made.rootNodes[0];
     if (!(model instanceof TransformNode)) {
@@ -182,6 +190,7 @@ export class Body implements Figure {
       lighting.palette.outline(m);
       this.inks.push(...m.getChildMeshes(true).filter((c) => c.name === `${m.name} ink`));
       lighting.shadows.addShadowCaster(m, false);
+      this.casters.push(m);
     }
     unstretched(model);
     warm(this.shades.map((s) => [s.faded, s.mesh] as const));
@@ -196,7 +205,11 @@ export class Body implements Figure {
     this.layerClips(made.animationGroups, upper);
     const { idle, walk, run, fall } = look.clips;
     for (const clip of new Set([idle, walk, run, fall])) {
-      this.each(clip, (g) => g.start(true));
+      this.each(clip, (g) => {
+        g.start(true);
+        g.pause(); // posed by update, not Babylon's clock
+      });
+      this.loops.set(clip, { phase: 0, lengthMs: this.lengthMs(clip) });
     }
   }
 
@@ -349,7 +362,9 @@ export class Body implements Figure {
   }
 
   /** Steps the blends by dtMs to now: locomotion by gait, an action fading out to be gone at its ready point, the mask switching as the body starts or stops moving. */
-  update(now: number, dtMs: number, gait: Gait): void {
+  update(now: number, dtMs: number, gait: Gait, asked: boolean): void {
+    const posed = asked || this.fresh;
+    this.fresh = false;
     if (this.waiting && now >= this.waiting.start) {
       const w = this.waiting;
       this.play(w.clip, w.share, w.start, w.readyAt);
@@ -369,11 +384,9 @@ export class Body implements Figure {
             : clips.run,
     );
     const sprinting = gait.pace === 'sprint';
-    if (sprinting !== this.sprinting) {
-      this.sprinting = sprinting;
-      this.each(clips.run, (g) => {
-        g.speedRatio = sprinting ? SPRINT_PLAY : 1;
-      });
+    for (const [clip, loop] of this.loops) {
+      const rate = sprinting && clip === clips.run ? SPRINT_PLAY : 1;
+      loop.phase = (loop.phase + (dtMs * rate) / loop.lengthMs) % 1;
     }
     this.lean.rotation.x +=
       ((sprinting ? LEAN : 0) - this.lean.rotation.x) * Math.min(1, dtMs / LEAN_MS);
@@ -384,9 +397,9 @@ export class Body implements Figure {
     const moving = this.split ? this.moving.get(MOVING) : 0;
     for (const [clip, w] of layered(this.actions.entries(), this.locomotion.entries(), moving)) {
       const l = this.layer(clip);
-      l.lower.weight = w.lower;
+      l.lower.weight = alone(w.lower);
       if (l.upper) {
-        l.upper.weight = w.upper;
+        l.upper.weight = alone(w.upper);
       }
     }
     for (const [clip, share] of this.posed) {
@@ -395,11 +408,36 @@ export class Body implements Figure {
         this.posed.delete(clip);
         continue;
       }
-      const at = heldTime(this.held, now);
-      this.each(clip, (g) => g.goToFrame(g.from + (g.to - g.from) * share(at), true));
+      if (posed) {
+        const at = heldTime(this.held, now);
+        this.each(clip, (g) => g.goToFrame(g.from + (g.to - g.from) * share(at), true));
+      }
+    }
+    if (posed) {
+      for (const [clip, loop] of this.loops) {
+        this.each(clip, (g) => {
+          if (g.weight !== 0) {
+            g.goToFrame(g.from + (g.to - g.from) * loop.phase, true);
+          }
+        });
+      }
     }
     this.swing?.update(heldTime(this.held, now));
     this.wings?.update(now, dtMs, wingState(gait, this.current !== null || this.waiting !== null));
+  }
+
+  cast(on: boolean): void {
+    if (on === this.casting) {
+      return;
+    }
+    this.casting = on;
+    for (const m of this.casters) {
+      if (on) {
+        this.shadows.addShadowCaster(m, false);
+      } else {
+        this.shadows.removeShadowCaster(m, false);
+      }
+    }
   }
 
   dispose(): void {
@@ -513,6 +551,11 @@ export class Body implements Figure {
       f(l.upper);
     }
   }
+}
+
+/** A group's weight as Babylon takes it: one with all the weight is drawn unweighted, -1, which skips its weighted blend for the same pose. */
+function alone(w: number): number {
+  return w === 1 ? -1 : w;
 }
 
 /** Hides model's other gear and stands it on root's origin, scaled to the look's height, or less where it would be wider than the look allows; returns the meshes it draws. */
