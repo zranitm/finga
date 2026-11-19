@@ -12,10 +12,16 @@ import (
 
 // itemModule records the last call and answers with inv or res.
 type itemModule struct {
-	actor item.Actor
-	req   any
-	inv   item.Inventory
-	res   item.Result
+	actor  item.Actor
+	req    any
+	inv    item.Inventory
+	res    item.Result
+	pieces []item.Piece
+}
+
+func (m *itemModule) Wardrobe(_ context.Context, account kernel.AccountID) ([]item.Piece, error) {
+	m.req = account
+	return m.pieces, nil
 }
 
 func (m *itemModule) Inventory(_ context.Context, owner kernel.CharacterID) (item.Inventory, error) {
@@ -141,6 +147,24 @@ func TestEachItemResultKeepsItsFields(t *testing.T) {
 		if len(got) > 0 {
 			t.Errorf("%s: %v", name, got)
 		}
+	}
+}
+
+// A wardrobe reaches the REST API with every field of every piece.
+func TestAWardrobeKeepsItsFields(t *testing.T) {
+	m := &itemModule{}
+	items := NewItems(m)
+	account := kernel.NewAccountID()
+	got := copytest.Diff(copytest.Match{}, func(pieces []item.Piece) []model.Piece {
+		m.pieces = pieces
+		out, _ := items.Pieces(t.Context(), account)
+		if m.req != account {
+			t.Errorf("asked for %v's wardrobe, not %v's", m.req, account)
+		}
+		return out
+	})
+	if len(got) > 0 {
+		t.Error(got)
 	}
 }
 

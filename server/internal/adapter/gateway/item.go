@@ -17,6 +17,7 @@ type ItemModule interface {
 	Discard(ctx context.Context, actor item.Actor, r item.DiscardRequest) (item.Result, error)
 	DiscardMany(ctx context.Context, actor item.Actor, r item.DiscardManyRequest) (item.Result, error)
 	AddToWardrobe(ctx context.Context, actor item.Actor, r item.WardrobeRequest) (item.Result, error)
+	Wardrobe(ctx context.Context, account kernel.AccountID) ([]item.Piece, error)
 }
 
 // Items is the application's Items over the item module.
@@ -110,4 +111,17 @@ func (i Items) AddToWardrobe(ctx context.Context, a model.Actor, in model.Wardro
 		return model.InventoryChanged{}, wrap(err)
 	}
 	return changed(res), nil
+}
+
+// Pieces lists the account's wardrobe, oldest first.
+func (i Items) Pieces(ctx context.Context, account kernel.AccountID) ([]model.Piece, error) {
+	found, err := i.items.Wardrobe(ctx, account)
+	if err != nil {
+		return nil, wrap(err)
+	}
+	out := make([]model.Piece, 0, len(found))
+	for _, p := range found {
+		out = append(out, model.Piece(p))
+	}
+	return out, nil
 }

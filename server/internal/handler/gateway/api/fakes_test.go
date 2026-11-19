@@ -2,10 +2,12 @@ package api_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"finga/internal/application/account"
 	"finga/internal/application/character"
+	"finga/internal/application/item"
 	"finga/internal/shared/kernel"
 	"finga/pkg/hub"
 )
@@ -109,4 +111,33 @@ func (f *fakeCharacters) List(ctx context.Context, owner kernel.AccountID) ([]ch
 		panic("unexpected List")
 	}
 	return f.list(ctx, owner)
+}
+
+// fakeItems is the item module, of which the REST API reads the wardrobe alone.
+type fakeItems struct {
+	pieces func(account kernel.AccountID) []item.Piece
+}
+
+func (f *fakeItems) Wardrobe(_ context.Context, account kernel.AccountID) ([]item.Piece, error) {
+	return f.pieces(account), nil
+}
+
+func (*fakeItems) Inventory(context.Context, kernel.CharacterID) (item.Inventory, error) {
+	return item.Inventory{}, errors.New("not the REST API's")
+}
+
+func (*fakeItems) Move(context.Context, item.Actor, item.MoveRequest) (item.Result, error) {
+	return item.Result{}, errors.New("not the REST API's")
+}
+
+func (*fakeItems) Discard(context.Context, item.Actor, item.DiscardRequest) (item.Result, error) {
+	return item.Result{}, errors.New("not the REST API's")
+}
+
+func (*fakeItems) DiscardMany(context.Context, item.Actor, item.DiscardManyRequest) (item.Result, error) {
+	return item.Result{}, errors.New("not the REST API's")
+}
+
+func (*fakeItems) AddToWardrobe(context.Context, item.Actor, item.WardrobeRequest) (item.Result, error) {
+	return item.Result{}, errors.New("not the REST API's")
 }

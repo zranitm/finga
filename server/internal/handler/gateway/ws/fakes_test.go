@@ -833,6 +833,8 @@ func (f *fakeItems) AddToWardrobe(_ context.Context, a item.Actor, r item.Wardro
 	return f.result()
 }
 
+func (*fakeItems) Wardrobe(context.Context, kernel.AccountID) ([]item.Piece, error) { return nil, nil }
+
 func (f *fakeItems) DiscardMany(_ context.Context, a item.Actor, r item.DiscardManyRequest) (item.Result, error) {
 	f.ops.Add(1)
 	f.mu.Lock()
