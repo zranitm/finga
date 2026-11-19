@@ -76,12 +76,13 @@ type Result struct {
 	Look      *Look  // a look worn, or the one a trainer's gift left
 }
 
-// Look is a character's four picks, each a piece id, "" keeping the class's own, at the count of its changes.
+// Look is a character's five picks, each a piece id, "" keeping the class's own, at the count of its changes.
 type Look struct {
 	Outfit       string
 	Headwear     string
 	Face         string
 	Weapon       string
+	Wings        string
 	HideHeadwear bool
 	Revision     uint64 // 0 for a character that never set one; a request's is ignored
 }
@@ -100,7 +101,7 @@ type WardrobeRequest struct {
 	ItemID kernel.ItemID
 }
 
-// LookRequest wears four picks, each a piece the account has collected or "" for the class's own.
+// LookRequest wears five picks, each a piece the account has collected or "" for the class's own.
 type LookRequest struct {
 	Key   string
 	Look  Look

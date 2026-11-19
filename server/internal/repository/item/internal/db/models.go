@@ -26,6 +26,7 @@ type CharacterLook struct {
 	Headwear     *string
 	Face         *string
 	Weapon       *string
+	Wings        *string
 	HideHeadwear bool
 	Revision     int64
 	CreatedAt    dbx.Stamp

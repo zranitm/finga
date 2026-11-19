@@ -21,6 +21,7 @@ CREATE TABLE character_looks (
   headwear      text,
   face          text,
   weapon        text,
+  wings         text,                          -- null: none, the class's own
   hide_headwear boolean NOT NULL,
   revision      bigint NOT NULL CHECK (revision > 0), -- each change one more, so the world applies only a newer look
   created_at    timestamptz NOT NULL,

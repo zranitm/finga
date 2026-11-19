@@ -160,6 +160,7 @@ func TestALookWearsCollectedPiecesOfTheirSlotAndKind(t *testing.T) {
 	}{
 		{"a pick that's no piece", model.Look{Outfit: "golden_robe"}, "warrior", model.ErrUnknownPiece},
 		{"a piece in another slot's place", model.Look{Headwear: "knight_plate"}, "warrior", model.ErrWrongLookSlot},
+		{"an outfit for wings", model.Look{Wings: "knight_plate"}, "warrior", model.ErrWrongLookSlot},
 		{"a piece not collected", model.Look{Outfit: "mage_robe"}, "warrior", model.ErrNotCollected},
 		{"a weapon look of another kind", model.Look{Weapon: "oak_wand"}, "warrior", model.ErrWrongKind},
 	} {
@@ -172,6 +173,28 @@ func TestALookWearsCollectedPiecesOfTheirSlotAndKind(t *testing.T) {
 	}
 	if res, err := set("l2", model.Look{Weapon: "oak_wand"}, "magician"); err != nil || *res.Look != (model.Look{Weapon: "oak_wand", Revision: 2}) {
 		t.Fatalf("back to the class's own but a wand: %+v, %v", res.Look, err)
+	}
+}
+
+// The store keeps all five picks, wings among them, and the hidden headwear, each change one revision on.
+func TestTheStoreKeepsEveryPick(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	h := newHarness(t)
+	look := model.Look{Outfit: "a", Headwear: "b", Face: "c", Weapon: "d", Wings: "e", HideHeadwear: true}
+	for want := uint64(1); want <= 2; want++ {
+		var got model.Look
+		if err := h.store.InTx(ctx, func(uow application.UnitOfWork) error {
+			var err error
+			got, err = uow.Wardrobe().SetLook(ctx, h.actor.Character, look)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		look.Revision = want
+		if read, err := h.store.Look(ctx, h.actor.Character); err != nil || got != look || read != look {
+			t.Fatalf("set %+v, read %+v, %v; want %+v", got, read, err, look)
+		}
 	}
 }
 

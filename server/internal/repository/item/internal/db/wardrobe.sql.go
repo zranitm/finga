@@ -76,7 +76,7 @@ func (q *Queries) CollectedPieces(ctx context.Context, arg CollectedPiecesParams
 }
 
 const findLook = `-- name: FindLook :one
-SELECT outfit, headwear, face, weapon, hide_headwear, revision FROM character_looks
+SELECT outfit, headwear, face, weapon, wings, hide_headwear, revision FROM character_looks
 WHERE character_id = $1
 `
 
@@ -85,6 +85,7 @@ type FindLookRow struct {
 	Headwear     *string
 	Face         *string
 	Weapon       *string
+	Wings        *string
 	HideHeadwear bool
 	Revision     int64
 }
@@ -97,6 +98,7 @@ func (q *Queries) FindLook(ctx context.Context, characterID uuid.UUID) (FindLook
 		&i.Headwear,
 		&i.Face,
 		&i.Weapon,
+		&i.Wings,
 		&i.HideHeadwear,
 		&i.Revision,
 	)
@@ -144,7 +146,7 @@ func (q *Queries) ListPieces(ctx context.Context, accountID uuid.UUID) ([]ListPi
 }
 
 const lockLook = `-- name: LockLook :one
-SELECT outfit, headwear, face, weapon, hide_headwear, revision FROM character_looks
+SELECT outfit, headwear, face, weapon, wings, hide_headwear, revision FROM character_looks
 WHERE character_id = $1
 FOR UPDATE
 `
@@ -154,6 +156,7 @@ type LockLookRow struct {
 	Headwear     *string
 	Face         *string
 	Weapon       *string
+	Wings        *string
 	HideHeadwear bool
 	Revision     int64
 }
@@ -166,6 +169,7 @@ func (q *Queries) LockLook(ctx context.Context, characterID uuid.UUID) (LockLook
 		&i.Headwear,
 		&i.Face,
 		&i.Weapon,
+		&i.Wings,
 		&i.HideHeadwear,
 		&i.Revision,
 	)
@@ -173,10 +177,10 @@ func (q *Queries) LockLook(ctx context.Context, characterID uuid.UUID) (LockLook
 }
 
 const setLook = `-- name: SetLook :one
-INSERT INTO character_looks (character_id, outfit, headwear, face, weapon, hide_headwear, revision, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, 1, $7, $7)
+INSERT INTO character_looks (character_id, outfit, headwear, face, weapon, wings, hide_headwear, revision, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, 1, $8, $8)
 ON CONFLICT (character_id) DO UPDATE SET
-  outfit = EXCLUDED.outfit, headwear = EXCLUDED.headwear, face = EXCLUDED.face, weapon = EXCLUDED.weapon,
+  outfit = EXCLUDED.outfit, headwear = EXCLUDED.headwear, face = EXCLUDED.face, weapon = EXCLUDED.weapon, wings = EXCLUDED.wings,
   hide_headwear = EXCLUDED.hide_headwear, revision = character_looks.revision + 1, updated_at = EXCLUDED.updated_at
 RETURNING revision
 `
@@ -187,6 +191,7 @@ type SetLookParams struct {
 	Headwear     *string
 	Face         *string
 	Weapon       *string
+	Wings        *string
 	HideHeadwear bool
 	Now          dbx.Stamp
 }
@@ -199,6 +204,7 @@ func (q *Queries) SetLook(ctx context.Context, arg SetLookParams) (int64, error)
 		arg.Headwear,
 		arg.Face,
 		arg.Weapon,
+		arg.Wings,
 		arg.HideHeadwear,
 		arg.Now,
 	)

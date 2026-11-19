@@ -311,6 +311,7 @@ prep_wall:
 pieces:
   - {id: lord_robe, slot: outfit, name: Lord's Robe, stars: 3, look: mage_body, from: [{boss: slime_lord, chance: 0.05}]}
   - {id: lord_bow, slot: weapon, kind: crossbow, name: Lord's Bow, stars: 4, look: crossbow_1h, from: [{boss: slime_lord, chance: 0.02}]}
+  - {id: lord_wings, slot: wings, name: Lord's Wings, stars: 6, look: bat_wings, from: [{boss: slime_lord, chance: 0.01}]}
 `,
 		"pvp.yaml": `
 modes:
@@ -406,6 +407,7 @@ func TestValidDataLoads(t *testing.T) {
 		want := []gamedata.Piece{
 			{ID: "lord_robe", Slot: gamedata.OutfitSlot, Name: "Lord's Robe", Stars: 3, Look: "mage_body", Item: "piece.lord_robe", From: []gamedata.PieceSource{{Boss: "slime_lord", Chance: 0.05}}},
 			{ID: "lord_bow", Slot: gamedata.WeaponSlot, Kind: gamedata.Crossbow, Name: "Lord's Bow", Stars: 4, Look: "crossbow_1h", Item: "piece.lord_bow", From: []gamedata.PieceSource{{Boss: "slime_lord", Chance: 0.02}}},
+			{ID: "lord_wings", Slot: gamedata.WingsSlot, Name: "Lord's Wings", Stars: 6, Look: "bat_wings", Item: "piece.lord_wings", From: []gamedata.PieceSource{{Boss: "slime_lord", Chance: 0.01}}},
 		}
 		if got := d.Pieces(); !reflect.DeepEqual(got, want) {
 			t.Fatalf("pieces %+v, want %+v", got, want)
@@ -421,8 +423,8 @@ func TestValidDataLoads(t *testing.T) {
 			t.Fatalf("the robe's item %+v, want %+v", it, wantItem)
 		}
 		lord, _ := d.Mob("slime_lord")
-		if got := lord.Drops[len(lord.Drops)-2:]; !reflect.DeepEqual(got, []gamedata.Drop{{Item: "piece.lord_robe", Chance: 0.05, Min: 1, Max: 1}, {Item: "piece.lord_bow", Chance: 0.02, Min: 1, Max: 1}}) {
-			t.Fatalf("the lord's last drops %+v, want its two pieces", got)
+		if got := lord.Drops[len(lord.Drops)-3:]; !reflect.DeepEqual(got, []gamedata.Drop{{Item: "piece.lord_robe", Chance: 0.05, Min: 1, Max: 1}, {Item: "piece.lord_bow", Chance: 0.02, Min: 1, Max: 1}, {Item: "piece.lord_wings", Chance: 0.01, Min: 1, Max: 1}}) {
+			t.Fatalf("the lord's last drops %+v, want its three pieces", got)
 		}
 	})
 	t.Run("the most active quests and the longest chat line", func(t *testing.T) {

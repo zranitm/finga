@@ -12,7 +12,7 @@ const outfitsFile = "outfits.yaml"
 // weaponKinds are the kinds a class can hold, and so a weapon look can be.
 var weaponKinds = []gamedata.WeaponKind{gamedata.OneHanded, gamedata.Knife, gamedata.Crossbow, gamedata.Staff}
 
-var lookSlots = []gamedata.LookSlot{gamedata.OutfitSlot, gamedata.HeadwearSlot, gamedata.FaceSlot, gamedata.WeaponSlot}
+var lookSlots = []gamedata.LookSlot{gamedata.OutfitSlot, gamedata.HeadwearSlot, gamedata.FaceSlot, gamedata.WeaponSlot, gamedata.WingsSlot}
 
 type outfitsYAML struct {
 	Pieces []pieceYAML `yaml:"pieces"`

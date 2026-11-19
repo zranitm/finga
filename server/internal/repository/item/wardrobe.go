@@ -76,7 +76,7 @@ func (c closet) LockLook(ctx context.Context, character kernel.CharacterID) (mod
 // SetLook stores the character's look one revision on.
 func (c closet) SetLook(ctx context.Context, character kernel.CharacterID, look model.Look) (model.Look, error) {
 	revision, err := c.q.SetLook(ctx, db.SetLookParams{
-		CharacterID: uuid.UUID(character), Outfit: pick(look.Outfit), Headwear: pick(look.Headwear), Face: pick(look.Face), Weapon: pick(look.Weapon),
+		CharacterID: uuid.UUID(character), Outfit: pick(look.Outfit), Headwear: pick(look.Headwear), Face: pick(look.Face), Weapon: pick(look.Weapon), Wings: pick(look.Wings),
 		HideHeadwear: look.HideHeadwear, Now: c.now,
 	})
 	look.Revision = uint64(revision) //nolint:gosec // a revision is never negative
@@ -98,5 +98,5 @@ func lookOf(r db.LockLookRow) model.Look {
 		}
 		return *p
 	}
-	return model.Look{Outfit: of(r.Outfit), Headwear: of(r.Headwear), Face: of(r.Face), Weapon: of(r.Weapon), HideHeadwear: r.HideHeadwear, Revision: uint64(r.Revision)} //nolint:gosec // a revision is never negative
+	return model.Look{Outfit: of(r.Outfit), Headwear: of(r.Headwear), Face: of(r.Face), Weapon: of(r.Weapon), Wings: of(r.Wings), HideHeadwear: r.HideHeadwear, Revision: uint64(r.Revision)} //nolint:gosec // a revision is never negative
 }

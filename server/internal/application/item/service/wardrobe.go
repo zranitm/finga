@@ -16,7 +16,7 @@ type WardrobeInput struct {
 	ItemID kernel.ItemID
 }
 
-// LookInput wears four picks, each a piece the account has collected or "" for the class's own.
+// LookInput wears five picks, each a piece the account has collected or "" for the class's own.
 type LookInput struct {
 	Key   string
 	Look  model.Look
@@ -33,7 +33,7 @@ func (in LookInput) fingerprint(c kernel.CharacterID) []byte {
 	if in.Look.HideHeadwear {
 		hide = "hidden"
 	}
-	return idempotency.Fingerprint("item.look/1", c.String(), in.Look.Outfit, in.Look.Headwear, in.Look.Face, in.Look.Weapon, hide)
+	return idempotency.Fingerprint("item.look/1", c.String(), in.Look.Outfit, in.Look.Headwear, in.Look.Face, in.Look.Weapon, in.Look.Wings, hide)
 }
 
 // Pieces lists the account's wardrobe, oldest first.
@@ -133,7 +133,7 @@ func (s *Service) picks(look model.Look, class kernel.Class) ([]string, error) {
 	for _, pick := range []struct {
 		slot gamedata.LookSlot
 		id   string
-	}{{gamedata.OutfitSlot, look.Outfit}, {gamedata.HeadwearSlot, look.Headwear}, {gamedata.FaceSlot, look.Face}, {gamedata.WeaponSlot, look.Weapon}} {
+	}{{gamedata.OutfitSlot, look.Outfit}, {gamedata.HeadwearSlot, look.Headwear}, {gamedata.FaceSlot, look.Face}, {gamedata.WeaponSlot, look.Weapon}, {gamedata.WingsSlot, look.Wings}} {
 		if pick.id == "" {
 			continue
 		}

@@ -10,7 +10,7 @@ const (
 	Staff     WeaponKind = "staff"
 )
 
-// LookSlot is one of the four picks a look makes.
+// LookSlot is one of the five picks a look makes.
 type LookSlot string
 
 const (
@@ -18,6 +18,7 @@ const (
 	HeadwearSlot LookSlot = "headwear"
 	FaceSlot     LookSlot = "face"
 	WeaponSlot   LookSlot = "weapon"
+	WingsSlot    LookSlot = "wings" // none is the class's own
 )
 
 // Piece is a wardrobe entry: a look for one slot, never stats (outfits.md section 3).

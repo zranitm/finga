@@ -20,12 +20,13 @@ type Piece struct {
 	AddedAt time.Time
 }
 
-// Look is a character's four picks, each a piece id, "" keeping the class's own, at the count of its changes.
+// Look is a character's five picks, each a piece id, "" keeping the class's own, at the count of its changes.
 type Look struct {
 	Outfit       string
 	Headwear     string
 	Face         string
 	Weapon       string
+	Wings        string
 	HideHeadwear bool
 	Revision     uint64 // 0 for a character that never set one
 }
