@@ -18,7 +18,7 @@
   - A region has a main town and smaller ones along its roads.
   - Inside a town no mob attacks and no one fights. A mob chasing a player gives up at the town's edge.
 - **Camps:** mobs live in camps across each area: a few of one kind, or a normal mob with its elite. They come back after they're beaten, as today.
-- **Field bosses** (C10) belong to an area: kills in the area count toward its boss, and the area's players see its bar and share its rewards.
+- **Field bosses** (C10) belong to an area: each stands at its spot there and comes back 5 minutes after it's beaten, and the area's players hear of it, see its bar and share its rewards.
 - **Getting around:**
   - Roads link towns and areas. Rivers have bridges and fords, and mountains are crossed by passes.
   - Waypoints along the way are found by walking past them (B11).

@@ -1,0 +1,210 @@
+# Loot pouches and timed bosses
+
+> **Status: approved · 2026-11-19.** The high-level design for the changes to [D1. Drops and loot](../product/features/items-and-inventory/d1-drops-and-loot.md) and [C10. Field bosses](../product/features/combat-and-progression/c10-field-bosses.md), with E3's party loot and E5's lines. It replaces auto pickup ([Auto pickup and the combat channel](./auto-pickup-and-combat-channel.md) sections 3 to 5) and the boss's kill count ([Field bosses](./field-bosses.md)).
+
+## 1. What has to hold
+
+- **The user's words** (2026-11-19):
+  - "change the boss appear condition to a certain place every map, respawn every 5 mins";
+  - "boss should drops a treasure box, player chooses what to pick, player goes near the box, press T to pick";
+  - "same as mobs, it drops a pouch, decrease the drop rate so that players dont have to pick too many times".
+- **Their choices:**
+  - A boss stands at its spot until it's beaten, and comes back 5 minutes later. It never leaves on its own.
+  - Only players on the boss's map, or in its area of a region, hear that it appeared.
+  - Less loot overall: fewer kills drop a pouch, and a pouch holds what one kill drops.
+  - Items that quests collect come in pouches like the rest.
+- **The client computes, the server validates:**
+  - The client knows its pouches and their contents, works out which are in reach, and draws the window.
+  - The server decides every roll and owner, checks reach and ownership on each take, and grants.
+- **Nothing is lost by mistake:** an item is created only when taken, under its own idempotency key, as drops are today.
+
+## 2. Today
+
+- **Drops:**
+  - Each kill scatters its drops round the body, each owned by the killer or the next party member in turn.
+  - After `collect_delay` (1 s) each flies to its owner, wherever they are. One grant call is in flight per owner, batched.
+  - A full tab leaves a drop waiting, retried every 2 s for its 60 s life.
+  - Everyone sees drops. There is no pickup key, and `PickUp` is unused.
+- **Bosses:**
+  - A map counts kills to its `boss.kills` (300 in the forest), then the boss appears at its circle.
+  - It leaves after `field_boss.life` (10 min) unbeaten.
+  - Every online player hears it appear, through social's `Announce`.
+  - Each eligible player gets their own roll of its drop list.
+
+## 3. Data
+
+- **`loot.yaml`:**
+
+  ```yaml
+  pouch: {normal: 0.25, elite: 0.5}  # the chance a kill drops a pouch; a boss always leaves each eligible player a box
+  reach: 2            # metres from the character's middle to a pouch or box to open it
+  pouch_life: 60s     # a pouch still holding items then is gone
+  box_life: 2m        # a boss's box still holding items then is gone
+  ```
+
+  `collect_delay` and `room_check_every` go.
+- **`mobs.yaml`:**
+  - `field_boss` becomes `{respawn: 5m, drop_share: 0.01}`, and `life` goes.
+  - Drop lists are unchanged. The pouch chance thins them.
+- **Maps:** `boss: {at, radius, mob}`, and `kills` goes. A region's area names its boss's circle the same way (large-regions.md section 6).
+- **Loader rules:**
+  - `pouch` chances must be in (0, 1].
+  - `reach` must be at least the talk reach (1.875 m), so a pouch at a player's feet is always in reach.
+  - Both lives must be positive, and `respawn` too.
+
+## 4. Pouches in the world
+
+- **The roll** (`loot/ground.go`, at the kill, on the tick):
+  1. The owner is found as today: the killer, or the party's next living member on the map. The turn now moves once per pouch, not per item.
+  2. The pouch's chance is rolled: `pouch.normal`, or `pouch.elite` for an elite.
+     - If it passes, the drop list is rolled as today: chance, quantity, and stats for equipment.
+     - If it fails, only the items the owner's active quests still need are rolled, at their own chances.
+     - So a quest takes no more kills than before, and its items still come in a pouch.
+  3. If anything came of it, one pouch falls where the mob died, holding it all.
+- **A boss's boxes:** each player whose share reached `drop_share` gets their own box, holding their own roll as today, where the boss fell. A box is never gated, and party turns don't apply.
+- **A pouch is its owner's alone:**
+  - Only the owner is sent it, in their private part of the frame (large-regions.md section 5), so nobody else sees it.
+  - Its contents come with it: each item's template, quantity, and rolled stats, so the window and item cards need no round trip.
+- **Taking** (`TakeLoot{picks}`, each pick a pouch and an item in it):
+  1. The world checks that the player is alive, every pouch is theirs, and each is within `reach` of the player's position on the server, plus 0.5 m for the client's lead. Otherwise it's `POUCH_GONE`, `POUCH_OUT_OF_REACH` or `CHARACTER_DEAD`.
+  2. The items picked go to the item module as one `AddMany` batch, each under its pouch item's key (cause `drop`). The one-call-in-flight rule per owner stays.
+  3. **Granted items** leave the pouch. The owner gets `InventoryChanged` and `Loot{taken}`, and party members on the map get the same `Loot`, naming them.
+  4. **An item whose tab is full** stays in the pouch, and the answer names it with `*_TAB_FULL`.
+  5. **An emptied pouch** is gone at once.
+  6. **No answer from the item module:** the items stay marked as in flight and are retried under the same keys, as unsettled drops are today.
+- **Taking in combat** is allowed. A dead player can't take.
+- **Life:** a pouch is gone `pouch_life` after it fell, and a box after `box_life`, with whatever it still holds. The owner gets `Loot{left}` listing it. Nothing was created, so nothing is lost from the item history.
+- **What goes:**
+  - flying to the owner and the collect delay;
+  - waiting for room and its retries;
+  - `DropView.owner_id`, `collected_drops` and the unused `PickUp`.
+- **A world restart** loses pouches on the ground, as it loses drops today.
+
+## 5. Timed bosses
+
+- **Up from the start:** a map's instance, or a region's channel, raises each of its bosses as it starts.
+- **Beaten:**
+  - Rewards are paid as today, with the drops in boxes.
+  - The instance notes the tick `respawn` later, and raises the boss again at its spot then.
+  - The kill count, and kills not counting while a boss is up, go.
+- **No leaving:** a boss stays until it's beaten. `life`, the leave check and `FieldBossGone{beaten: false}` go.
+- **Who hears it:**
+  - Each player on the map, or in the area in a region, gets a notice and a line in the General tab: "King Slime has appeared!"
+  - The instance sends these itself. Social's `Announce` for bosses goes, with its kind.
+- **The bar:** name and HP. It has no time left, since a boss doesn't leave.
+- **While it's down:**
+  - The map window marks the boss's spot, greyed, with when it's back: "King Slime: back in 3:12".
+  - `FieldBossGone{mob, back_in_ms}` and the snapshot carry the time, and the client counts down itself.
+  - The client's copy of each map now carries the boss's circle. Only the kill count was hidden, and it's gone.
+- **Balance:**
+  - A boss's EXP is 40 times its map's top mob's, for about 3 minutes' fight alone.
+  - Every 5 minutes, that's about what a player earns hunting in the same time, so it isn't a farm to retune.
+  - Its gear chances, at 10 times its mob's, are rolled per eligible player every 5 minutes in place of every 300 kills, so boss gear becomes the main way to gear up.
+  - The balance harness measures both after the change.
+
+## 6. Protocol
+
+| Message | Way | What |
+| --- | --- | --- |
+| `PouchView{id, kind, x, y, z, items: [{item, template, quantity, stats}], gone_in_ms}` | server, private | A pouch or box of the player's; `kind` is `pouch` or `box` |
+| `Delta.pouches` and `Delta.pouches_gone` | server, private | Pouches added or changed, and ids gone |
+| `TakeLoot{picks: [{pouch, item}]}` | client | Take these. The answer lists each pick taken or refused, with why |
+| `Loot{kind: taken \| left, ...}` | server | The combat channel's line: taken, by the owner or a party member, or left behind |
+| `FieldBoss{mob_id, type}` | server, the map | It appears, and in the snapshot while it's up |
+| `FieldBossGone{mob_id, type, back_in_ms}` | server, the map | It's beaten, and when it's back |
+
+- `DropView`, `Delta.drops`, `collected_drops`, `removed_drops` and `PickUp` go. `Loot`'s kinds `collected`, `waiting` and `lost` become `taken` and `left`.
+- **Failures,** in the world's area after `TRAIT_LOCKED`:
+
+  | Code | Name | HTTP | When |
+  | --- | --- | --- | --- |
+  | 330039 | `POUCH_GONE` | 409 | A pouch that's gone, empty, or not the player's, or an item already taken |
+  | 330040 | `POUCH_OUT_OF_REACH` | 409 | A pouch farther than reach |
+
+## 7. Client
+
+- **Models:**
+  - A pouch is KayKit's sack, small, from the Medieval Hexagon Pack.
+  - A box is KayKit's chest, from Dungeon Remastered, gold for a box holding a 4★ item or better.
+  - Both are KayKit's own (CC0, the same author as the characters), recorded in `web/public/models/LICENSES.md`.
+- **Hint:** a pouch or box in reach shows the `loot` key over it ("T"), as an NPC in reach shows the talk key.
+- **The loot window,** `features/loot/LootWindow.tsx`:
+  - The `loot` key (`KeyT`, key-bindings.md) opens it on every pouch and box of the player's within reach, as one list.
+  - Each row has the item's icon, name in its star colour, and quantity. Hovering shows its card, with stats and comparison (D7).
+  - Clicking a row takes it. Take all, or the `loot` key again, takes every row.
+  - Esc, or walking out of reach of all of them, closes it. It closes by itself once they're empty.
+  - A refused row stays, with the reason under it, such as "Etc tab full".
+- **The combat channel:**
+  - "Took Iron Sword ★★";
+  - in a party, "Ayla took Iron Sword ★★";
+  - "A pouch was left behind: Red Potion, Slime Gel ×2".
+  - A 4★ or better taken still shows a toast.
+- **Gone:** drops' gems and their flight.
+- **The map window's** boss mark while it's down (section 5).
+
+## 8. cmd/bot
+
+Bots open every pouch in reach and take all, so the soak (large-regions.md section 13) counts the takes' calls.
+
+## 9. Testing
+
+- **Rolls:**
+  - the pouch chance by kind;
+  - an active quest's item rolled outside the gate;
+  - one pouch per kill holding the whole roll;
+  - turns per pouch;
+  - a box per eligible player and none for others.
+- **Visibility:** a pouch reaches only its owner's frames, and a box only its owner's.
+- **Taking:**
+  - each refusal;
+  - reach on the server's position with its slack;
+  - a full tab leaving the item;
+  - a batch partly refused;
+  - retries under the same key never giving twice;
+  - emptied pouches going;
+  - lives ending with `Loot{left}`.
+- **Bosses:**
+  - up at an instance's start;
+  - back `respawn` after a kill and never before;
+  - never leaving;
+  - notices only on its map or area;
+  - `back_in_ms` in the snapshot of a player joining while it's down.
+- **Item invariants** hold over randomized takes. Every created item has its `drop` cause.
+- **Client:**
+  - the window's list from several pouches;
+  - take one, take all, and the second press;
+  - closing out of reach;
+  - the hint;
+  - the boss mark's countdown.
+- **Live** (the player harness): hunt with pouches on each class, a boss's box with a party, a full Etc tab, and a boss coming back after 5 minutes.
+
+## 10. Build
+
+1. **Timed bosses:** the respawn, no leaving, map-only notices, the bar without time, `back_in_ms`, and the map window's mark.
+2. **Pouches,** server and client together, since auto pickup goes as T comes:
+   - the roll and gate, owners and boxes, private views, `TakeLoot`, lives;
+   - the models, hint, window, `loot` key and combat lines;
+   - cmd/bot taking.
+
+## 11. Decisions
+
+The user's choices are in section 1. These calls were made in planning and logged for the user to push back on:
+
+1. **Pouches and boxes are seen only by their owner.** Nobody else can take them, and others' pouches would only clutter the ground.
+2. **One window for every pouch in reach,** and T again takes all, so a kill streak is one press to open and one to take.
+3. **Nothing follows its owner anymore.** A pouch waits where it fell: 60 s for a pouch, 2 min for a boss's box.
+4. **A pouch on 1 kill in 4, and 1 in 2 for an elite.** A boss always leaves each eligible player a box.
+5. **Items an active quest still needs are rolled at their own chance,** outside the pouch's gate, so quests take no more kills. They still come in a pouch.
+6. **Party turns move per pouch,** not per item.
+7. **A full tab refuses that item only;** it stays in the pouch until its life ends.
+8. **A boss is up when its map starts,** never leaves, and its bar shows no time. The map window shows when it's back.
+9. **Taking works in combat,** not while dead.
+10. **The reach is 2 m,** with 0.5 m of slack on the server for the client's lead.
+
+## 12. Alternatives considered
+
+- **Auto pickup for potions and quest items:** kept the rules in two places, and the user wanted quest items in pouches.
+- **One shared box per boss, with need or greed:** bosses already give each player their own roll, and taking turns over a box is slower.
+- **Pouches everyone sees:** clutter, and a pouch nobody else can open invites confusion.
+- **Fuller pouches with the same loot per hour:** offered, and the user chose less loot overall.
+- **A boss on a 5-minute clock, or leaving after 10 minutes:** offered, and the user chose 5 minutes after it's beaten.

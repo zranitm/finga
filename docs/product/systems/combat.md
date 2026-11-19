@@ -151,12 +151,11 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
 Each hunting map has a field boss: a much bigger, stronger, and tougher version of its map's mob, with its own name and a look a glance tells from its mob's (C10). Towns have none.
 
 - **Appearing:**
-  - Each map counts the mobs killed on it, by anyone, and the boss appears at its set spot when the count reaches the map's number (proposal: 300; set per map in game data).
-  - The count is hidden from players.
-  - When a boss appears, every player in the game gets a notice, and a line in the General tab: "King Slime has appeared in the Forest!"
-  - Each channel counts and spawns its own, once there are several (B4).
-- **One at a time:** kills don't count while a boss is up, and its own kill doesn't count. After it's beaten or leaves, the count starts again from 0.
-- **Leaving:** a boss nobody beats leaves 10 minutes after it appears, drops nothing, and players on the map are told.
+  - Each boss stands at its set spot on its map, up from when the map opens.
+  - Once beaten, it comes back to its spot 5 minutes later.
+  - Players on the map get a notice, and a line in the General tab: "King Slime has appeared!" Nobody else is told.
+  - Each channel has its own, once there are several (B4).
+- **It never leaves on its own:** it stays until it's beaten. While it's down, the map window shows when it's back.
 - **Strength** (proposal, to tune):
   - Size: about 3 times its map's mob, its model scaled with a tint until it has its own art.
   - Level: the map's top mob level + 2.
@@ -164,10 +163,10 @@ Each hunting map has a field boss: a much bigger, stronger, and tougher version 
   - Attacks: its family's attack, bigger, and a slam that hits all around it after a one-second wind-up, taking turns. Their cooldowns are set so a lone melee player who never dodges needs at most 30 of their band's potions for the fight.
   - HP: enough that one on-level player beats it alone in about 3 minutes; a group does it faster.
 - **Fighting:** it blocks and attacks as other mobs do (Mobs), with its two attacks. Its family's attack shows a yellow area and can be blocked; its slam shows a red one and can't (C21). More special attacks come later.
-- **The boss HP bar:** while it's up, everyone on the map sees a bar at the top of the screen with its name, its HP, and the time it has left.
+- **The boss HP bar:** while it's up, everyone on the map sees a bar at the top of the screen with its name and HP.
 - **Rewards** go to the players alive on the map when it falls. Anyone dead or off the map then gets nothing, whatever they dealt.
   - **EXP:** the boss's EXP is split by each player's share of the damage dealt to it. A party's damage adds up, and its share is split among its members as for any kill (Social → Party).
-  - **Drops:** each player whose own damage, or whose party's, reached 1% of the boss's HP gets their own roll on its drop list. Drops are theirs alone, so party turns don't apply (Items → Drops).
+  - **Drops:** each player whose own damage, or whose party's, reached 1% of the boss's HP gets their own treasure box where it fell, holding their own roll on its drop list. Only they see it and open it, so party turns don't apply (Items → Drops).
   - The drop list holds its map's band gear at better odds than its mobs give (proposal, to tune).
 
 ## HP
