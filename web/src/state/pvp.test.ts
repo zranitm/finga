@@ -172,6 +172,20 @@ describe('pvp', () => {
     expect(pvp.getState().left).toBeNull();
   });
 
+  it('leaving a team match under way is a quit, its card not waited for; a duel’s forfeit, or a team match left once decided, keeps the match for its card', () => {
+    const team = (phase: MatchPhase) => ({ ...duel(phase, [0, 0], 'mt-3'), mode: 'team' });
+    pvp.getState().applyMatchState(team(MatchPhase.FIGHT), 0);
+    expect(pvp.getState().leftMatch()).toBe(true);
+    expect([pvp.getState().match, pvp.getState().left]).toEqual([null, null]);
+    expect(pvp.getState().leftMatch()).toBe(false); // already out
+    pvp.getState().applyMatchState(team(MatchPhase.RESULT), 0);
+    expect(pvp.getState().leftMatch()).toBe(false);
+    expect(pvp.getState().left?.id).toBe('mt-3');
+    pvp.getState().applyMatchState(duel(MatchPhase.FIGHT, [0, 0], 'mt-4'), 0);
+    expect(pvp.getState().leftMatch()).toBe(false);
+    expect(pvp.getState().left?.id).toBe('mt-4');
+  });
+
   it('reads the world’s ticks the count into a round holds everyone: the next in prep and between rounds, the rest of one under way, none in a fight or after', () => {
     const at = (phase: MatchPhase, tick: number) => {
       pvp.getState().applyMatchState(duel(phase), tick); // 3 s left: 60 ticks of 50 ms

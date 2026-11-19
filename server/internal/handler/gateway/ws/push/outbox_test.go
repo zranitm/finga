@@ -312,6 +312,14 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 			model.QuestChanged{Change: model.QuestAbandoned, Quest: model.QuestState{Quest: "a"}},
 			&clientv1.QuestChanged{Change: clientv1.QuestChange_QUEST_CHANGE_ABANDONED, Quest: &clientv1.QuestState{QuestId: "a"}},
 		},
+		{model.PvpQueued{Mode: "team", Since: 2 * time.Second, Members: []string{"p-1", "p-2"}}, &clientv1.PvpQueued{Mode: "team", SinceMs: 2000, Members: []string{"p-1", "p-2"}}},
+		{model.PvpUnqueued{Reason: model.PvpUnqueueLapsed, By: []string{"p-2"}}, &clientv1.PvpUnqueued{Reason: clientv1.PvpUnqueueReason_PVP_UNQUEUE_REASON_LAPSED, By: []string{"p-2"}}},
+		{model.PvpOffer{Offer: "of-1", Mode: "team", Bots: 2, Until: 10 * time.Second}, &clientv1.PvpOffer{Offer: "of-1", Mode: "team", Bots: 2, UntilMs: 10000}},
+		{model.PvpOfferCancelled{Offer: "of-1", Reason: model.PvpGoneLapsed, Requeued: true}, &clientv1.PvpOfferGone{Offer: "of-1", Reason: clientv1.PvpOfferGoneReason_PVP_OFFER_GONE_REASON_LAPSED, Requeued: true}},
+		{
+			model.MatchEnded{Mode: "team", Result: model.MatchLoss, Wins: [2]int{2, 1}, Rating: &model.PvpRatingChange{Before: 1000, After: 968, RankBefore: "bronze", RankAfter: "iron", PlacementLeft: 4}, Left: true},
+			&clientv1.MatchEnded{Mode: "team", Result: clientv1.MatchOutcome_MATCH_OUTCOME_LOSS, Wins: []int32{2, 1}, Rating: &clientv1.PvpRatingChange{Before: 1000, After: 968, RankBefore: "bronze", RankAfter: "iron", PlacementLeft: 4}, Left: true},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%T", tt.push), func(t *testing.T) {

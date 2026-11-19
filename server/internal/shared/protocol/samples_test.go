@@ -162,7 +162,7 @@ func samples() []wsconn.Message {
 		{Type: "AddToWardrobe", ReqID: "r-34", Data: &clientv1.AddToWardrobe{IdempotencyKey: "k-9", ItemId: item1}},
 		{Type: "SetLook", ReqID: "r-35", Data: &clientv1.SetLook{IdempotencyKey: "k-10", Look: &clientv1.Look{Outfit: "mage_robe", Headwear: "pointed_hat", Weapon: "oak_wand", Wings: "crystal_wings"}}},
 		{Type: "PvpQueued", Data: &clientv1.PvpQueued{Mode: "team", SinceMs: 4250, Members: []string{charA, charB}}},
-		{Type: "PvpUnqueued", Data: &clientv1.PvpUnqueued{Reason: clientv1.PvpUnqueueReason_PVP_UNQUEUE_REASON_PARTY_CHANGED}},
+		{Type: "PvpUnqueued", Data: &clientv1.PvpUnqueued{Reason: clientv1.PvpUnqueueReason_PVP_UNQUEUE_REASON_DECLINED, By: []string{charB}}},
 		{Type: "PvpOffer", Data: &clientv1.PvpOffer{Offer: "0192f6a4-7000-7c3e-8a1b-2c3d4e5f6a7b", Mode: "duel", Bots: 1, UntilMs: 10000}},
 		{Type: "PvpOfferGone", Data: &clientv1.PvpOfferGone{Offer: "0192f6a4-7000-7c3e-8a1b-2c3d4e5f6a7b", Reason: clientv1.PvpOfferGoneReason_PVP_OFFER_GONE_REASON_DECLINED, Requeued: true}},
 		// A 1v1 against a bot in its second round's countdown, side 1 a round up.
@@ -173,9 +173,11 @@ func samples() []wsconn.Message {
 				{Fighters: []*clientv1.MatchFighter{{Id: "0192f6a4-7002-7c3e-8a1b-2c3d4e5f6a7b", Name: "Cedar", Class: "magician", Bot: true}}},
 			},
 		}},
+		// A 3v3 leaver's: their side won, and they lost.
 		{Type: "MatchEnded", Tick: 2810, Data: &clientv1.MatchEnded{
-			Result: clientv1.MatchOutcome_MATCH_OUTCOME_WIN, Wins: []int32{2, 1},
-			Rating: &clientv1.PvpRatingChange{Before: 1000, After: 1046, RankBefore: "bronze", RankAfter: "bronze", PlacementLeft: 4},
+			Result: clientv1.MatchOutcome_MATCH_OUTCOME_LOSS, Wins: []int32{2, 1},
+			Rating: &clientv1.PvpRatingChange{Before: 1000, After: 968, RankBefore: "bronze", RankAfter: "bronze", PlacementLeft: 4},
+			Mode:   "team", Left: true,
 		}},
 		{Type: "ChatMessage", Data: &clientv1.ChatMessage{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Sender: charA, SenderName: "Ayla", Text: "hello there"}},
 		{Type: "PartyState", Data: &clientv1.PartyState{Party: party()}},

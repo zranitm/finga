@@ -8729,8 +8729,10 @@ func (x *PvpQueued) GetMembers() []string {
 
 // PvpUnqueued says the player's ticket left the queue without a match.
 type PvpUnqueued struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Reason        PvpUnqueueReason       `protobuf:"varint,1,opt,name=reason,proto3,enum=client.v1.PvpUnqueueReason" json:"reason,omitempty"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Reason PvpUnqueueReason       `protobuf:"varint,1,opt,name=reason,proto3,enum=client.v1.PvpUnqueueReason" json:"reason,omitempty"`
+	// The ticket's members whose answer took it out: the one who declined, or those who let the offer lapse; empty for any other reason.
+	By            []string `protobuf:"bytes,2,rep,name=by,proto3" json:"by,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -8770,6 +8772,13 @@ func (x *PvpUnqueued) GetReason() PvpUnqueueReason {
 		return x.Reason
 	}
 	return PvpUnqueueReason_PVP_UNQUEUE_REASON_UNSPECIFIED
+}
+
+func (x *PvpUnqueued) GetBy() []string {
+	if x != nil {
+		return x.By
+	}
+	return nil
 }
 
 // PvpOffer says a match was found; every player in it must accept with PvpAnswer before it lapses.
@@ -9215,7 +9224,11 @@ type MatchEnded struct {
 	// Side 1's and side 2's score in 15v15; empty in a round mode.
 	Score []int32 `protobuf:"varint,3,rep,packed,name=score,proto3" json:"score,omitempty"`
 	// The rated mode's rating change; unset for 15v15, or when the match had no result to rate.
-	Rating        *PvpRatingChange `protobuf:"bytes,4,opt,name=rating,proto3" json:"rating,omitempty"`
+	Rating *PvpRatingChange `protobuf:"bytes,4,opt,name=rating,proto3" json:"rating,omitempty"`
+	// The match's mode, as PvpQueue names it.
+	Mode string `protobuf:"bytes,5,opt,name=mode,proto3" json:"mode,omitempty"`
+	// The player left before the outcome, so lost whatever their side did; in a team mode the match ran on without them.
+	Left          bool `protobuf:"varint,6,opt,name=left,proto3" json:"left,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -9276,6 +9289,20 @@ func (x *MatchEnded) GetRating() *PvpRatingChange {
 		return x.Rating
 	}
 	return nil
+}
+
+func (x *MatchEnded) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+func (x *MatchEnded) GetLeft() bool {
+	if x != nil {
+		return x.Left
+	}
+	return false
 }
 
 // PvpRatingChange is a mode's shown rating and rank before and after a match.
@@ -9972,9 +9999,10 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\tPvpQueued\x12\x12\n" +
 	"\x04mode\x18\x01 \x01(\tR\x04mode\x12\x19\n" +
 	"\bsince_ms\x18\x02 \x01(\rR\asinceMs\x12\x18\n" +
-	"\amembers\x18\x03 \x03(\tR\amembers\"B\n" +
+	"\amembers\x18\x03 \x03(\tR\amembers\"R\n" +
 	"\vPvpUnqueued\x123\n" +
-	"\x06reason\x18\x01 \x01(\x0e2\x1b.client.v1.PvpUnqueueReasonR\x06reason\"c\n" +
+	"\x06reason\x18\x01 \x01(\x0e2\x1b.client.v1.PvpUnqueueReasonR\x06reason\x12\x0e\n" +
+	"\x02by\x18\x02 \x03(\tR\x02by\"c\n" +
 	"\bPvpOffer\x12\x14\n" +
 	"\x05offer\x18\x01 \x01(\tR\x05offer\x12\x12\n" +
 	"\x04mode\x18\x02 \x01(\tR\x04mode\x12\x12\n" +
@@ -10007,13 +10035,15 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
 	"\x06holder\x18\x02 \x01(\x05R\x06holder\x12\x1a\n" +
 	"\bprogress\x18\x03 \x01(\x01R\bprogress\x12\x1c\n" +
-	"\tcontested\x18\x04 \x01(\bR\tcontested\"\x9b\x01\n" +
+	"\tcontested\x18\x04 \x01(\bR\tcontested\"\xc3\x01\n" +
 	"\n" +
 	"MatchEnded\x12/\n" +
 	"\x06result\x18\x01 \x01(\x0e2\x17.client.v1.MatchOutcomeR\x06result\x12\x12\n" +
 	"\x04wins\x18\x02 \x03(\x05R\x04wins\x12\x14\n" +
 	"\x05score\x18\x03 \x03(\x05R\x05score\x122\n" +
-	"\x06rating\x18\x04 \x01(\v2\x1a.client.v1.PvpRatingChangeR\x06rating\"\xa6\x01\n" +
+	"\x06rating\x18\x04 \x01(\v2\x1a.client.v1.PvpRatingChangeR\x06rating\x12\x12\n" +
+	"\x04mode\x18\x05 \x01(\tR\x04mode\x12\x12\n" +
+	"\x04left\x18\x06 \x01(\bR\x04left\"\xa6\x01\n" +
 	"\x0fPvpRatingChange\x12\x16\n" +
 	"\x06before\x18\x01 \x01(\x05R\x06before\x12\x14\n" +
 	"\x05after\x18\x02 \x01(\x05R\x05after\x12\x1f\n" +
