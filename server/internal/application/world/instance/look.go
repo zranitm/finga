@@ -2,12 +2,9 @@ package instance
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
-	"math/rand/v2"
 
 	model "finga/internal/model/world"
-	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/pkg/transient"
 )
@@ -89,24 +86,4 @@ func (i *Instance) wear(p *player, look model.Look) {
 		p.Look = look
 		p.changed = true
 	}
-}
-
-// botLook is a bot's look, the same for one id: each slot its class's own or a catalogue piece, a weapon look of its class's kind. Every piece comes from a boss until step 4 adds rank sources, which bots must never wear.
-func botLook(data *gamedata.Data, id kernel.CharacterID, class kernel.Class) model.Look {
-	c, _ := data.Class(class)
-	seed := [16]byte(id)
-	r := rand.New(rand.NewPCG(binary.BigEndian.Uint64(seed[:8]), binary.BigEndian.Uint64(seed[8:]))) //nolint:gosec // a bot's looks, not a secret
-	worn := map[gamedata.LookSlot][]string{}
-	for _, p := range data.Pieces() {
-		if p.Slot != gamedata.WeaponSlot || p.Kind == c.Weapon {
-			worn[p.Slot] = append(worn[p.Slot], p.ID)
-		}
-	}
-	pick := func(slot gamedata.LookSlot) string {
-		if len(worn[slot]) == 0 || r.IntN(2) == 0 {
-			return "" // the class's own
-		}
-		return worn[slot][r.IntN(len(worn[slot]))]
-	}
-	return model.Look{Outfit: pick(gamedata.OutfitSlot), Headwear: pick(gamedata.HeadwearSlot), Face: pick(gamedata.FaceSlot), Weapon: pick(gamedata.WeaponSlot), Wings: pick(gamedata.WingsSlot), Revision: 1}
 }

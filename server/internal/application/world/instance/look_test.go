@@ -229,32 +229,12 @@ func botLookOf(t *testing.T, data *gamedata.Data, bot *model.Bot) model.Look {
 	return look
 }
 
-// A bot wears a look seeded by its id: the same each match, each pick its class's own or a piece a boss drops, of its slot, a weapon look of its class's kind.
-func TestABotWearsALookSeededByItsID(t *testing.T) {
+// A bot joins its match in the look its id gives its class.
+func TestABotJoinsInItsLook(t *testing.T) {
 	data := worldtest.LoadData(t)
-	first := botOf(data, "Ash")
-	if a, b := botLookOf(t, data, first), botLookOf(t, data, first); a != b {
-		t.Fatalf("one id wore %+v, then %+v", a, b)
-	}
-	class, _ := data.Class(first.Class)
-	picked := 0
-	for range 12 {
-		look := botLookOf(t, data, botOf(data, "Ash"))
-		for _, pick := range []struct {
-			slot gamedata.LookSlot
-			id   string
-		}{{gamedata.OutfitSlot, look.Outfit}, {gamedata.HeadwearSlot, look.Headwear}, {gamedata.FaceSlot, look.Face}, {gamedata.WeaponSlot, look.Weapon}, {gamedata.WingsSlot, look.Wings}} {
-			if pick.id == "" {
-				continue
-			}
-			picked++
-			p, ok := data.Piece(pick.id)
-			if !ok || p.Slot != pick.slot || len(p.From) == 0 || p.From[0].Boss == "" || p.Slot == gamedata.WeaponSlot && p.Kind != class.Weapon {
-				t.Errorf("a bot wears %q as its %s: %+v", pick.id, pick.slot, p)
-			}
-		}
-	}
-	if picked == 0 {
-		t.Fatal("twelve bots wore nothing but their class's own")
+	bot := botOf(data, "Ash")
+	class, _ := data.Class(bot.Class)
+	if got, want := botLookOf(t, data, bot), model.BotLook(data.Pieces(), class.Weapon, bot.ID); got != want {
+		t.Fatalf("the bot shows %+v, want %+v", got, want)
 	}
 }
