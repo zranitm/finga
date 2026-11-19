@@ -143,9 +143,15 @@ func playerViews(ps []model.PlayerView) []*clientv1.PlayerView {
 			Team: int32(p.Team), Bot: p.Bot, //nolint:gosec // 0, 1 or 2
 			Sprint: int32(p.Sprint), //nolint:gosec // a sprint's count stops at its start, a few hundred sub-steps
 			Walk:   p.Walk,
+			Look:   lookOf(p.Look),
 		})
 	}
 	return out
+}
+
+// lookOf is a look on the wire: its picks, as every view carries them; the revision stays on the server, which sends only the newest.
+func lookOf(l model.Look) *clientv1.Look {
+	return &clientv1.Look{Outfit: l.Outfit, Headwear: l.Headwear, Face: l.Face, Weapon: l.Weapon, HideHeadwear: l.HideHeadwear, Wings: l.Wings}
 }
 
 func slowWalk(s model.PlayerSlow) *clientv1.SlowWalk {

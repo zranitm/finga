@@ -100,6 +100,8 @@ func TestEachItemResultKeepsItsFields(t *testing.T) {
 			"Changed.Item.EquipSlot": "an item in a tab is worn nowhere",
 			"Equipment":              "a move or a discard changes no worn item",
 			"Worn":                   "a move or a discard changes no worn item",
+			"Piece":                  "a move or a discard adds no piece",
+			"Look":                   "a move or a discard changes no look",
 		},
 	}
 	match.Renames["Changed"] = "Slots"

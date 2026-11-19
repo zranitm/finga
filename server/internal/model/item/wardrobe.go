@@ -9,7 +9,7 @@ import (
 // PieceCause says what gave an account a piece.
 type PieceCause string
 
-// The piece causes; ranks, quests and feats come with their sources (outfits.md section 10, step 4).
+// PieceFromItem is a piece added from an item; ranks, quests and feats come with their sources (outfits.md section 10, step 4).
 const PieceFromItem PieceCause = "item"
 
 // Piece is a wardrobe entry: a piece the account collected, what gave it, and when.

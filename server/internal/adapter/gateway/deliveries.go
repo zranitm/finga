@@ -258,6 +258,7 @@ func playerViews(ps []world.PlayerView) []model.PlayerView {
 			Held:     p.State.Held,
 			Sprint:   p.State.Sprint,
 			Walk:     p.State.Walk,
+			Look:     model.Look(p.Look),
 			Slow:     model.PlayerSlow{Left: p.State.Slow.Left, Factor: p.State.Slow.Factor},
 			Statuses: statusViews(p.Statuses),
 			Team:     p.Team,

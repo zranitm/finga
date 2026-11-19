@@ -87,6 +87,7 @@ type ports struct {
 		instance.Equipment
 		instance.HandIns
 		instance.Gifts
+		instance.Looks
 		instance.Potions
 		game.HandedIns
 		game.Wardrobe
@@ -143,6 +144,7 @@ func New(_ context.Context, d Deps) (*Module, error) {
 		Equipment:    equipment,
 		HandIns:      equipment,
 		Gifts:        equipment,
+		Looks:        equipment,
 		Potions:      equipment,
 		HandedIns:    equipment,
 		Wardrobe:     equipment,

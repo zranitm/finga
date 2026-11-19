@@ -30,12 +30,14 @@ type itemFake struct {
 	unequips []item.UnequipRequest
 	handIns  []item.HandInRequest
 	lookups  [][]item.Completion
+	looks    []item.LookRequest
 	owners   []kernel.CharacterID
 
 	batch     item.Batch
 	result    item.Result
 	replayed  bool
 	inventory item.Inventory
+	look      item.Look
 	handedIn  func(asked []item.Completion) []item.HandedIn
 	err       error
 }
@@ -84,6 +86,17 @@ func (f *itemFake) HandIn(_ context.Context, a item.Actor, r item.HandInRequest)
 	f.actors = append(f.actors, a)
 	f.handIns = append(f.handIns, r)
 	return f.result, f.err
+}
+
+func (f *itemFake) SetLook(_ context.Context, actor item.Actor, r item.LookRequest) (item.Result, error) {
+	f.actors = append(f.actors, actor)
+	f.looks = append(f.looks, r)
+	return f.result, f.err
+}
+
+func (f *itemFake) Look(_ context.Context, owner kernel.CharacterID) (item.Look, error) {
+	f.owners = append(f.owners, owner)
+	return f.look, f.err
 }
 
 func (f *itemFake) HandedIn(_ context.Context, owner kernel.CharacterID, asked []item.Completion) ([]item.HandedIn, error) {
@@ -453,7 +466,7 @@ func TestEachItemCallKeepsItsFields(t *testing.T) {
 		},
 		"Give": func() []string {
 			m := copytest.Match{
-				Renames: callRenames(map[string]string{"Key": "Key", "Template": "TemplateID", "Stats": "Stats"}),
+				Renames: callRenames(map[string]string{"Key": "Key", "Template": "TemplateID", "Stats": "Stats", "Promotes": "Promotes"}),
 				Computed: map[string]string{
 					"Req.Quantity":   "a gift is one item",
 					"Req.Cause.Type": "a trainer's gift, always",
@@ -471,6 +484,7 @@ func TestEachItemCallKeepsItsFields(t *testing.T) {
 				Computed: map[string]string{
 					"Req.Cause.Type": "a drop's, always",
 					"Req.Cause.ID":   "the drop's key, as TestLootAsksForAnOwnersDropsEachUnderItsOwnKey checks",
+					"Req.Promotes":   "a drop promotes no one",
 				},
 			}
 			return copytest.Diff(m, func(c model.GrantCall) sent[[]item.AddRequest] {
@@ -516,6 +530,13 @@ func slotsMatch(m copytest.Match, from, to string) copytest.Match {
 func unworn(m copytest.Match, from string) copytest.Match {
 	m.Skip[from+".Equipment"] = "only an equip, an unequip or a starter grant changes an equip slot"
 	m.Skip[from+".Worn"] = "only an equip or an unequip lists what is worn"
+	return unlooked(m, from)
+}
+
+// unlooked is m with a result's wardrobe piece and look skipped, for a call that changes neither.
+func unlooked(m copytest.Match, from string) copytest.Match {
+	m.Skip[from+".Piece"] = "only an add to the wardrobe makes a piece, which the world never asks for"
+	m.Skip[from+".Look"] = "only a look or a trainer's gift changes the look"
 	return m
 }
 
@@ -527,7 +548,7 @@ func TestEachItemAnswerKeepsItsFields(t *testing.T) {
 	f := &itemFake{}
 	e := adapter.NewEquipment(f)
 	inventory := unworn(slotsMatch(copytest.Match{}, "R", ""), "R")
-	equipped := slotsMatch(copytest.Match{}, "R", "")
+	equipped := unlooked(slotsMatch(copytest.Match{}, "R", ""), "R")
 	equipped.Renames["R.Revision"] = "Worn.Revision"
 	equipped.Renames["R.Equipment"] = "Equipment"
 	equipped.Renames["R.Equipment.Item.TemplateID"] = "Equipment.Item.Template"
@@ -569,9 +590,26 @@ func TestEachItemAnswerKeepsItsFields(t *testing.T) {
 			})
 		},
 		"Give": func() []string {
-			return copytest.Diff(inventory, func(r result) model.Inventory {
+			gift := unworn(slotsMatch(copytest.Match{}, "R", ""), "R")
+			delete(gift.Skip, "R.Look")
+			gift.Renames["R.Look"] = "Look"
+			return copytest.Diff(gift, func(r result) model.Gift {
 				f.result = r.R
 				out, _ := e.Give(t.Context(), model.GiftCall{})
+				return out
+			})
+		},
+		"SetLook": func() []string {
+			return copytest.Diff(copytest.Match{}, func(look item.Look) model.Look {
+				f.result = item.Result{Look: &look}
+				out, _ := e.SetLook(t.Context(), model.LookCall{})
+				return out
+			})
+		},
+		"Look": func() []string {
+			return copytest.Diff(copytest.Match{}, func(look item.Look) model.Look {
+				f.look = look
+				out, _ := e.Look(t.Context(), kernel.CharacterID{})
 				return out
 			})
 		},

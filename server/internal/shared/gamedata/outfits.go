@@ -3,6 +3,7 @@ package gamedata
 // WeaponKind is what a class holds, which a weapon look must be of.
 type WeaponKind string
 
+// The weapon kinds.
 const (
 	OneHanded WeaponKind = "one_handed"
 	Knife     WeaponKind = "knife"
@@ -13,6 +14,7 @@ const (
 // LookSlot is one of the five picks a look makes.
 type LookSlot string
 
+// The look slots.
 const (
 	OutfitSlot   LookSlot = "outfit"
 	HeadwearSlot LookSlot = "headwear"

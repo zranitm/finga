@@ -24,6 +24,8 @@ type ItemModule interface {
 	Unequip(ctx context.Context, actor item.Actor, r item.UnequipRequest) (item.Result, error)
 	HandIn(ctx context.Context, actor item.Actor, r item.HandInRequest) (item.Result, error)
 	HandedIn(ctx context.Context, owner kernel.CharacterID, asked []item.Completion) ([]item.HandedIn, error)
+	SetLook(ctx context.Context, actor item.Actor, r item.LookRequest) (item.Result, error)
+	Look(ctx context.Context, character kernel.CharacterID) (item.Look, error)
 }
 
 // Loot adapts the item module to loot.Items.
@@ -120,15 +122,40 @@ func (e Equipment) HandIn(ctx context.Context, c model.HandInCall) (model.Invent
 // handedInMax is the most completions one HandedIn may ask about: the item module's MaxHandedIn.
 const handedInMax = 32
 
-// Give adds one item under the call's key, as a trainer's gift: a retried call, or one after a crash, gives it once while the item module keeps the key.
-func (e Equipment) Give(ctx context.Context, c model.GiftCall) (model.Inventory, error) {
+// Give adds one item under the call's key, as a trainer's gift: a retried call, or one after a crash, gives it once while the item module keeps the key. A weapon look the class promoted to can't hold is cleared with it.
+func (e Equipment) Give(ctx context.Context, c model.GiftCall) (model.Gift, error) {
 	res, err := e.items.Add(ctx, item.Actor{Account: c.Account, Character: c.Character}, item.AddRequest{
-		Key: c.Key.String(), TemplateID: c.Template, Quantity: 1, Cause: item.Cause{Type: item.CausePromotion, ID: c.Key}, Stats: cloned(c.Stats),
+		Key: c.Key.String(), TemplateID: c.Template, Quantity: 1, Cause: item.Cause{Type: item.CausePromotion, ID: c.Key}, Stats: cloned(c.Stats), Promotes: c.Promotes,
 	})
 	if err != nil {
-		return model.Inventory{}, ruleOr(err)
+		return model.Gift{}, ruleOr(err)
 	}
-	return inventoryOf(res), nil
+	gift := model.Gift{Inventory: inventoryOf(res)}
+	if res.Look != nil {
+		gift.Look = model.Look(*res.Look)
+	}
+	return gift, nil
+}
+
+// SetLook wears a look, checked against the account's wardrobe and the live class.
+func (e Equipment) SetLook(ctx context.Context, c model.LookCall) (model.Look, error) {
+	res, err := e.items.SetLook(ctx, item.Actor{Account: c.Account, Character: c.Character}, item.LookRequest{Key: c.Key, Look: item.Look(c.Look), Class: c.Class})
+	if err != nil {
+		return model.Look{}, ruleOr(err)
+	}
+	if res.Look == nil {
+		return model.Look{}, nil
+	}
+	return model.Look(*res.Look), nil
+}
+
+// Look is the look the character shows.
+func (e Equipment) Look(ctx context.Context, id kernel.CharacterID) (model.Look, error) {
+	look, err := e.items.Look(ctx, id)
+	if err != nil {
+		return model.Look{}, ruleOr(err)
+	}
+	return model.Look(look), nil
 }
 
 // HandedIn is which of the completions asked the item module handed in, each with the slots it changed, asked in batches of its limit.

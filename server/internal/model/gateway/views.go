@@ -24,6 +24,18 @@ type PlayerView struct {
 	Statuses        []StatusView
 	Team            int // its side in a match, 1 or 2; 0 outside one
 	Bot             bool
+	Look            Look
+}
+
+// Look is a player's five picks, each a piece id, "" keeping the class's own, at the count of its changes.
+type Look struct {
+	Outfit       string
+	Headwear     string
+	Face         string
+	Weapon       string
+	Wings        string
+	HideHeadwear bool
+	Revision     uint64
 }
 
 // PlayerSlow is a status slowing a player's walk: Factor × the walk speed for Left more sub-steps; Left 0 is none.
