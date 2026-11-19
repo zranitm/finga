@@ -334,7 +334,7 @@ describe('wings worn', () => {
   function run(b: Body, from: number, ms: number, gait: Gait): number {
     let now = from;
     for (; now < from + ms; now += FRAME_MS) {
-      b.update(now, FRAME_MS, gait);
+      b.update(now, FRAME_MS, gait, true);
     }
     return now;
   }
@@ -461,13 +461,13 @@ describe('wings worn', () => {
     const { left } = hinges(b);
     let now = run(b, 0, 400, JUMP);
     b.act('attack', beatsAt(now, now + 1050));
-    b.update(now, 0, JUMP);
+    b.update(now, 0, JUMP, true);
     const half = WING_EASE_MS / 2;
-    b.update(now + half, half, JUMP);
+    b.update(now + half, half, JUMP, true);
     expect(
       Math.abs(openOf(left, 1) - (FLAPS.air.open + FLAPS.folded.open) / 2),
     ).toBeLessThanOrEqual(FLAPS.air.swing / 2 + 1e-9); // halfway, beating half as wide
-    b.update(now + WING_EASE_MS, half, JUMP);
+    b.update(now + WING_EASE_MS, half, JUMP, true);
     expect(openOf(left, 1)).toBeCloseTo(FLAPS.folded.open, 9);
     now += WING_EASE_MS;
     b.dispose();

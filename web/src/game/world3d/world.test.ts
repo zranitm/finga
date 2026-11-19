@@ -9,6 +9,7 @@ import type { InputBlock } from '@babylonjs/core/Materials/Node/Blocks/Input/inp
 import type { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
 import type { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
+import { Frustum } from '@babylonjs/core/Maths/math.frustum';
 import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
@@ -327,7 +328,7 @@ function weight(root: TransformNode | undefined, name: string): number {
         a.name === name &&
         a.targetedAnimations.some((t) => t.target instanceof Node && t.target.isDescendantOf(root)),
     );
-  return g?.weight ?? NaN;
+  return g?.weight === -1 ? 1 : (g?.weight ?? NaN); // Babylon's -1, unweighted, is all of it
 }
 
 const mob = (id: number, type: string, x: number, pose = MobPose.UNSPECIFIED): MobWire => ({
@@ -872,6 +873,96 @@ describe('World', () => {
     );
     p.frames(1);
     await vi.waitFor(() => expect(shown('2H_Axe worn')).toBe(true), WAIT);
+  });
+
+  it('poses another player every frame near the camera’s target, every 2nd frame 45 m off, and never behind the camera', async () => {
+    const update = vi.spyOn(Body.prototype, 'update');
+    settings.getState().setZoom(1); // at its farthest, where ground 45 m off is in view
+    const p = await playing(FLAT, 4, 20);
+    const others = [
+      standing(6, 20, 'c-near', 'thief'),
+      standing(4, 65, 'c-far', 'thief'),
+      standing(4, -40, 'c-behind', 'thief'),
+    ];
+    for (let tick = 2; tick <= 6; tick++) {
+      p.push('delta', tick === 2 ? { players: others } : {}, { tick });
+      p.frames(1);
+    }
+    const at = (x: number, z: number) =>
+      update.mock.calls.flatMap((c, i) => {
+        const root = (update.mock.contexts[i] as Body).root.position;
+        return root.x === x && root.z === z ? [c[3]] : [];
+      });
+    await vi.waitFor(() => {
+      p.frames(1);
+      expect(at(4, -40).length * at(4, 65).length).toBeGreaterThan(0); // every figure in
+    }, WAIT);
+    update.mockClear();
+    p.frames(8);
+    expect(at(6, 20)).toEqual(Array(8).fill(true));
+    const alternate = [true, false, true, false, true, false, true, false];
+    expect([alternate, alternate.map((b) => !b)]).toContainEqual(at(4, 65));
+    expect(at(4, -40)).toEqual(Array(8).fill(false));
+    expect(at(4, 20)).toEqual(Array(8).fill(true)); // the player, the camera's target
+  });
+
+  it('poses another player whose middle is just off the screen’s side while their body reaches onto it', async () => {
+    const update = vi.spyOn(Body.prototype, 'update');
+    const p = await playing(FLAT, 4, 20);
+    p.frames(2);
+    const planes = Frustum.GetPlanes(p.scene()!.getTransformMatrix());
+    const middle = classLook('thief').height / 2;
+    const off = (x: number) =>
+      -Math.min(...planes.map((q) => q.signedDistanceTo(new Vector3(x, middle, 20))));
+    let [lo, hi] = [4, 60]; // the screen's east edge lies between, where a middle 1 m off is
+    while (hi - lo > 0.001) {
+      const x = (lo + hi) / 2;
+      [lo, hi] = off(x) < 1 ? [x, hi] : [lo, x];
+    }
+    p.push('delta', { players: [standing(lo, 20, 'c-edge', 'thief')] }, { tick: 2 });
+    const at = () =>
+      update.mock.calls.flatMap((c, i) =>
+        (update.mock.contexts[i] as Body).root.position.x === lo ? [c[3]] : [],
+      );
+    await vi.waitFor(() => {
+      p.frames(1);
+      expect(at().length).toBeGreaterThan(0);
+    }, WAIT);
+    update.mockClear();
+    p.frames(4);
+    expect([off(lo), at()]).toEqual([expect.closeTo(1, 2), [true, true, true, true]]);
+  });
+
+  it('lets another player cast a shadow within 25 m of the camera’s target, and none past it', async () => {
+    const p = await playing(FLAT, 4, 20);
+    const casting = (x: number) => {
+      const root = p
+        .scene()!
+        .transformNodes.find((n) => n.name === classLook('thief').file && n.position.x === x);
+      const list = p.scene()!.lights[0]!.getShadowGenerator()!.getShadowMap()!.renderList!;
+      return !!root && root.getChildMeshes(false).some((m) => list.includes(m));
+    };
+    for (let tick = 2; tick <= 6; tick++) {
+      p.push(
+        'delta',
+        tick === 2
+          ? { players: [standing(28, 20, 'c-near', 'thief'), standing(30, 20, 'c-far', 'thief')] }
+          : {},
+        { tick },
+      );
+      p.frames(1);
+    }
+    await vi.waitFor(() => {
+      p.frames(1);
+      expect([casting(28), casting(30)]).toEqual([true, false]); // 24 m and 26 m off
+    }, WAIT);
+    p.push(
+      'delta',
+      { players: [standing(31, 20, 'c-near', 'thief'), standing(20, 20, 'c-far', 'thief')] },
+      { tick: 7 },
+    );
+    p.live(30);
+    expect([casting(31), casting(20)]).toEqual([false, true]); // walked out and in
   });
 
   it('redraws the player on a promotion, keeping the old figure till the new one is in', async () => {
@@ -2046,6 +2137,24 @@ describe('World', () => {
     key('KeyX', true);
     key('KeyX', false);
     expect(p.sent('attack').map((d) => d.aim)).toEqual([expect.closeTo(-Math.PI / 2, 5)]); // west, past the sword's reach
+  });
+
+  it('draws in the outline’s pass only what could cover the locked mob: not a mob off its line', async () => {
+    const p = await playing(FLAT, 10, 20);
+    frames(p, 2, 10, [mob(1, 'green_slime', 4), mob(2, 'wild_boar', 18)]);
+    await vi.waitFor(() => expect(p.root('quaternius/Blob_Dog.glb')).toBeDefined(), WAIT);
+    frames(p, 11, 14, [mob(1, 'green_slime', 4), mob(2, 'wild_boar', 18)]);
+    expect(outlined(p, 'quaternius/GreenBlob.glb')).toBe(true);
+    const layer = p.scene()!.effectLayers[0] as HighlightLayer;
+    const drawn = new Set<AbstractMesh>();
+    layer.onBeforeRenderMeshToEffect.add((m) => drawn.add(m));
+    p.frames(2);
+    const of = (file: string) =>
+      p
+        .root(file)!
+        .getChildMeshes()
+        .filter((m) => drawn.has(m)).length;
+    expect([of('quaternius/GreenBlob.glb') > 0, of('quaternius/Blob_Dog.glb')]).toEqual([true, 0]);
   });
 
   it('Tab locks the next mob, the ring and the outline going with it: a fresh press only, the game’s and not the browser’s, and the chat’s while typing', async () => {

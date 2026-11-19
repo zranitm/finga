@@ -86,13 +86,15 @@ function frames(b: Body, from: number, ms: number, gait: Gait = STILL): number {
   let t = from;
   for (let left = ms; left > 0; left -= FRAME_MS) {
     t += FRAME_MS;
-    b.update(t, FRAME_MS, gait);
+    b.update(t, FRAME_MS, gait, true);
   }
   return t;
 }
 
+/** The share group name draws at: Babylon's -1, unweighted, is all of it. */
 function weight(name: string): number {
-  return scene.animationGroups.filter((g) => g.name === name).at(-1)?.weight ?? NaN;
+  const w = scene.animationGroups.filter((g) => g.name === name).at(-1)?.weight ?? NaN;
+  return w === -1 ? 1 : w;
 }
 
 const beats = (start: number, hit: number, readyAt: number): Beats => ({
@@ -204,7 +206,7 @@ describe('the classes', () => {
     scene.activeCamera = camera;
     const b = await body(classLook('magician'));
     for (let i = 0; i < 30; i++) {
-      b.update(i * FRAME_MS, FRAME_MS, STILL);
+      b.update(i * FRAME_MS, FRAME_MS, STILL, true);
       scene.render();
     }
     const built = new Set(builtShaders(engine));
@@ -392,7 +394,7 @@ describe('actions', () => {
       let fastest = 0;
       let slowest = Infinity;
       const at = (t: number) => {
-        b.update(t, t - last, STILL);
+        b.update(t, t - last, STILL, true);
         const now = share();
         if (last >= from && t <= to && weight(clip.clip) > 0) {
           const rate = ((now - was) * ms) / (t - last); // of its clip's own pace
@@ -436,7 +438,7 @@ describe('actions', () => {
       const g = scene.animationGroups.filter((x) => x.name === clip.clip).at(-1)!;
       const share = () => (g.getCurrentFrame() - g.from) / (g.to - g.from);
       const ms = ((g.to - g.from) / g.targetedAnimations[0]!.animation.framePerSecond) * 1000;
-      b.update(1000, FRAME_MS, STILL);
+      b.update(1000, FRAME_MS, STILL, true);
       const end = acts + charge.travel_ms;
       b.act(
         'attack',
@@ -452,7 +454,7 @@ describe('actions', () => {
       expect(share()).toBeLessThan(clip.strike);
       b.restrike(acts + 200, t);
       frames(b, t, 200 - FRAME_MS);
-      b.update(acts + 200, FRAME_MS, STILL);
+      b.update(acts + 200, FRAME_MS, STILL, true);
       expect(share()).toBeCloseTo(clip.strike, 2);
       b.dispose();
     });
@@ -464,7 +466,7 @@ describe('actions', () => {
       const struck = t + left / 1.5;
       frames(b, t, struck - t - FRAME_MS);
       expect(share()).toBeLessThan(clip.strike);
-      b.update(struck, FRAME_MS, STILL);
+      b.update(struck, FRAME_MS, STILL, true);
       expect(share()).toBeCloseTo(clip.strike, 2);
       b.dispose();
     });
@@ -474,7 +476,7 @@ describe('actions', () => {
       frames(struck.b, struck.t, charge.travel_ms + 50); // past its strike
       const after = struck.share();
       struck.b.restrike(acts, acts + charge.travel_ms + 50);
-      struck.b.update(acts + charge.travel_ms + 50 + FRAME_MS, FRAME_MS, STILL);
+      struck.b.update(acts + charge.travel_ms + 50 + FRAME_MS, FRAME_MS, STILL, true);
       expect(struck.share()).toBeGreaterThan(after);
       struck.b.dispose();
 
@@ -490,7 +492,7 @@ describe('actions', () => {
   it('drop a mob’s attack still waiting for its clip when it dies', async () => {
     const look = mobLook('glacier_snail');
     const b = await body(look);
-    b.update(0, FRAME_MS, STILL);
+    b.update(0, FRAME_MS, STILL, true);
     b.act('attack', { start: 0, hit: 800, strikeEnd: 1200, readyAt: 1800, end: 1800 });
     let t = frames(b, 0, 160);
     b.pose('dead', t);
@@ -536,24 +538,116 @@ describe('a sprint', () => {
   it('plays the run 1.3 times as fast, the body leaning 8° forward from the feet, and eases back to the run as it ends', async () => {
     const look = classLook('warrior');
     const b = await body(look);
-    const ratios = () =>
-      scene.animationGroups
-        .filter((g) => g.name === look.clips.run || g.name === `${look.clips.run}/upper`)
-        .slice(-2)
-        .map((g) => g.speedRatio);
+    const group = scene.animationGroups.filter((g) => g.name === look.clips.run).at(-1)!;
+    const fps = group.targetedAnimations[0]!.animation.framePerSecond;
+    let t = 0;
+    /** How fast the run plays over 100 ms of gait, against its own clock. */
+    const rate = (gait: Gait) => {
+      const [before, from] = [group.animatables[0]!.masterFrame, t];
+      t = frames(b, t, 100, gait);
+      const length = group.to - group.from;
+      return (
+        ((group.animatables[0]!.masterFrame - before + length) % length) /
+        ((fps * (t - from)) / 1000)
+      );
+    };
     const lean = () =>
       b.root.getChildren().find((n) => n.name === `${look.file} lean`) as TransformNode;
     const run: Gait = { pace: 'run', onGround: true };
-    let t = frames(b, 0, 300, run);
-    expect([weight(look.clips.run), ratios(), lean().rotation.x]).toEqual([1, [1, 1], 0]);
-    t = frames(b, t, 300, { pace: 'sprint', onGround: true });
-    expect([weight(look.clips.run), ratios(), lean().rotation.x]).toEqual([
+    const sprint: Gait = { pace: 'sprint', onGround: true };
+    t = frames(b, t, 300, run);
+    expect([weight(look.clips.run), rate(run), lean().rotation.x]).toEqual([
       1,
-      [1.3, 1.3],
+      expect.closeTo(1, 1),
+      0,
+    ]);
+    t = frames(b, t, 300, sprint);
+    expect([weight(look.clips.run), rate(sprint), lean().rotation.x]).toEqual([
+      1,
+      expect.closeTo(1.3, 1),
       expect.closeTo((8 * Math.PI) / 180, 2), // all but eased in
     ]);
-    frames(b, t, 300, run);
-    expect([ratios(), lean().rotation.x]).toEqual([[1, 1], expect.closeTo(0, 2)]);
+    t = frames(b, t, 300, run);
+    expect([rate(run), lean().rotation.x]).toEqual([expect.closeTo(1, 1), expect.closeTo(0, 2)]);
+    b.dispose();
+  });
+});
+
+describe('posing', () => {
+  /** Every joint's turn under b's model, as last posed. */
+  const joints = (b: Body) =>
+    b.root
+      .getDescendants(false)
+      .flatMap((n) =>
+        'rotationQuaternion' in n && n.rotationQuaternion
+          ? [...(n.rotationQuaternion as { asArray(): number[] }).asArray()]
+          : [],
+      );
+
+  it('draws a clip that holds all the weight unweighted, and a blend weighted', async () => {
+    const look = classLook('warrior');
+    const b = await body(look);
+    const raw = (name: string) =>
+      scene.animationGroups.filter((g) => g.name === name).at(-1)!.weight;
+    let t = frames(b, 0, 300, STILL);
+    expect([raw(look.clips.idle), raw(look.clips.run)]).toEqual([-1, 0]);
+    t = frames(b, t, FRAME_MS, { pace: 'run', onGround: true }); // a fade begun
+    expect(raw(look.clips.run)).toBeGreaterThan(0);
+    expect(raw(look.clips.run) + raw(look.clips.idle)).toBeCloseTo(1, 9);
+    frames(b, t, 300, { pace: 'run', onGround: true });
+    expect([raw(look.clips.idle), raw(look.clips.run)]).toEqual([0, -1]);
+    b.dispose();
+  });
+
+  it('poses its bones only when asked, its clips and actions running on meanwhile, so a skipped frame keeps the last pose and the next lands where every frame would', async () => {
+    const look = classLook('warrior');
+    const [every, some] = [await body(look), await body(look)];
+    const run: Gait = { pace: 'run', onGround: true };
+    expect(joints(every).length).toBeGreaterThan(4 * 30); // every joint of the rig
+    let t = 0;
+    for (let i = 1; i <= 36; i++) {
+      t += FRAME_MS;
+      if (i === 18) {
+        every.act('attack', beats(t, t, t + 600)); // a swing begun on the run
+        some.act('attack', beats(t, t, t + 600));
+      }
+      every.update(t, FRAME_MS, i < 12 ? STILL : run, true);
+      const before = joints(some);
+      some.update(t, FRAME_MS, i < 12 ? STILL : run, i % 4 === 0);
+      scene.animate();
+      if (i % 4 === 0) {
+        joints(some).forEach((q, k) => expect(q, `frame ${i}`).toBeCloseTo(joints(every)[k]!, 6));
+      } else {
+        expect(joints(some), `frame ${i}`).toEqual(before);
+      }
+    }
+    every.dispose();
+    some.dispose();
+  });
+});
+
+describe('shadows', () => {
+  it('casts from every mesh it draws until told not to, and again when told to, once each way', async () => {
+    const b = await body(classLook('warrior'));
+    const list = () => lighting.shadows.getShadowMap()!.renderList!;
+    const mine = () => list().filter((m) => b.root.getChildMeshes(false).includes(m));
+    const drawn = meshes(b);
+    expect(mine()).toEqual(expect.arrayContaining(drawn));
+    const all = list().length;
+    const removed = vi.spyOn(lighting.shadows, 'removeShadowCaster');
+    const added = vi.spyOn(lighting.shadows, 'addShadowCaster');
+    b.cast(false);
+    b.cast(false);
+    expect([mine(), list().length]).toEqual([[], all - drawn.length]);
+    b.cast(true);
+    b.cast(true);
+    expect([mine().length, list().length]).toEqual([drawn.length, all]);
+    expect([removed.mock.calls.length, added.mock.calls.length]).toEqual([
+      drawn.length,
+      drawn.length,
+    ]); // told twice, it goes through its meshes once
+    removed.mockRestore();
+    added.mockRestore();
     b.dispose();
   });
 });
