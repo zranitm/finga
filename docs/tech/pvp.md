@@ -348,6 +348,19 @@ bots:
 - **Teams (3v3):**
   - Each side's bots share a focus: the enemy with the lowest HP share within 12 m of a teammate. They hold it 2 s before changing.
   - Heals go to the lowest teammate under 60%. Buffs go out at the round's start.
+- **As built (step 5):** in a team mode the instance gives each side's bots a `bots.Team`; 1v1 has none, and plays as before.
+  - **The focus:**
+    - It's the enemy up with the lowest HP share within 12 m of the deciding bot or of any of its side up, as that bot sees them.
+    - Whichever of the side's bots decides first picks it, and the side holds it 2 s while it's up. A focus that goes down is dropped at once.
+    - With no enemy that near, a bot fights the nearest, as in 1v1, and the side holds nothing.
+    - Between fights the side lets its focus go, so each round picks afresh.
+    - Breaking free still steps away from the nearest enemy, not the focus.
+  - **Heals:**
+    - A bot with a heal in its bar, ready and paid for, heals the lowest of its side under 60%, itself among them.
+    - It presses once the heal would take them as the world deals it: the caster if hurt, then the nearest hurt within the radius, up to its targets.
+    - Out of reach, it walks to them and presses no other skill on the way, keeping the energy. It still attacks what's in reach.
+    - It comes after defending and follow-ups, and before the build's order. A heal needn't be in the order: the Magician's isn't.
+  - **Buffs at the round's start:** every buff in the shipped builds, War Cry and Focus, is first in its build's order. As no blow reaches from the spots, the first decision of a fight is the buff. The spots are 4 m apart, so War Cry from the middle spot takes both teammates.
 - **Roles (15v15):** on each respawn a bot picks a point.
   - First the nearest one its side doesn't hold, then a contested one.
   - No point gets more than half the side's bots.

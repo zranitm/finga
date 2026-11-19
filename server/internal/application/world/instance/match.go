@@ -42,6 +42,7 @@ type match struct {
 	players  bool                    // the spec has players, not bots alone
 	ring     *bots.Ring              // what its bots see; nil in a match with none
 	seen     []bots.Seen             // the ring's frame as it's filled
+	teams    [2]*bots.Team           // what each side's bots share in a team mode; nil in 1v1
 }
 
 // fighter is a place in the match and how its fighter did.
@@ -101,6 +102,9 @@ func newMatch(m Match, rules gamedata.PvpRules, tick func(time.Duration) uint64)
 				mt.ring = bots.NewRing(tick(gamedata.BotMemory))
 			}
 		}
+	}
+	if m.Mode.Team > 1 {
+		mt.teams = [2]*bots.Team{{}, {}}
 	}
 	return mt
 }

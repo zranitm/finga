@@ -109,9 +109,9 @@ func (i *Instance) botView(p *player, b *bot) bots.View {
 	}
 	slices.Sort(buffs)
 	return bots.View{
-		Tick: i.tick, Fighting: i.fighting(), Ring: i.match.ring,
+		Tick: i.tick, Fighting: i.fighting(), Ring: i.match.ring, Team: i.match.teams[i.match.fighters[p.ID].side],
 		Self: bots.Self{
-			ID: p.ID, Side: i.side(p.ID), State: p.state, Energy: p.Energy, Down: p.dead || p.HP <= 0,
+			ID: p.ID, Side: i.side(p.ID), State: p.state, HP: p.HP, MaxHP: p.derived.MaxHP, Energy: p.Energy, Down: p.dead || p.HP <= 0,
 			Hard: p.statuses.Hard(), CantAct: p.statuses.Blocks(gamedata.BlocksAct), Silenced: p.statuses.Blocks(gamedata.BlocksSkills),
 			SkillFrom: p.action.nextStart(skillAction), Waiting: p.waitingCast != nil, Attacking: p.attackQueued, Ready: p.skillReady, Buffs: buffs,
 		},
