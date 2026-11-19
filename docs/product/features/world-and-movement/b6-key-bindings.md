@@ -19,6 +19,7 @@
   | Attack | X |
   | Lock the next closest mob (C15) | Tab |
   | Talk to an NPC in reach, or enter the portal the player stands in | Z |
+  | Open the pouches and boxes in reach; again to take all (D1) | T |
   | Drink an HP potion | 1 |
   | Skills on the skill bar's eight keys | Q, W, E, R, A, S, D, F |
   | Inventory | I |

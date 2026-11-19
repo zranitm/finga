@@ -30,4 +30,5 @@ One rule runs through every page: **the client computes, the server validates.**
 - [Buffs and hidden cooldowns on the frame](./frame-icons.md): C22; the player's buffs and the cooldowns of follow-ups no key shows, beside their statuses.
 - [Large regions](./large-regions.md): B10 to B12; three regions about 1 km across, generated from a plan, with only what's near sent and drawn, region channels, sprint, waypoints and camera zoom.
 - [PvP](./pvp.md): I1 to I4; matchmaking with bots, match instances, combat between players, 1v1 and 3v3 rounds, 15v15 capture points, and ratings.
+- [Loot pouches and timed bosses](./loot-pouches.md): D1, C10; pouches and bosses' treasure boxes opened with T, and bosses back 5 minutes after they're beaten.
 - [Outfits](./outfits.md): D8, D9; a wardrobe per account with outfit, headwear, face and weapon looks on KayKit's rig, from boss drops, PvP ranks, quests and feats.

@@ -13,7 +13,7 @@ import {
 } from '@/protocol/messages';
 import { resetStores } from '@/testing/reset-stores';
 
-import { pvp, sideOf, walled } from './pvp';
+import { countdownTicks, pvp, sideOf, walled } from './pvp';
 
 const duel = (phase: MatchPhase, wins: number[] = [0, 0], match = 'mt-1') =>
   create(MatchStateSchema, {
@@ -69,10 +69,10 @@ describe('pvp', () => {
     expect([pvp.getState().offer, pvp.getState().queued]).toEqual([null, null]);
   });
 
-  it('a match’s state leaves the queue and its offer, times its phase from now, and a new match drops the last one’s outcome', () => {
+  it('a match’s state leaves the queue and its offer, times its phase from now and from the world’s tick it came at, and a new match drops the last one’s outcome', () => {
     pvp.getState().applyQueued(create(PvpQueuedSchema, { mode: 'duel' }));
     pvp.getState().applyOffer(create(PvpOfferSchema, { offer: 'of-1', mode: 'duel' }));
-    pvp.getState().applyMatchState(duel(MatchPhase.PREP));
+    pvp.getState().applyMatchState(duel(MatchPhase.PREP), 4120);
     const m = pvp.getState().match;
     expect([pvp.getState().queued, pvp.getState().offer]).toEqual([null, null]);
     expect(m).toMatchObject({
@@ -81,6 +81,7 @@ describe('pvp', () => {
       phase: MatchPhase.PREP,
       round: 1,
       endsAt: performance.now() + 3000,
+      sent: { tick: 4120, endsInMs: 3000 },
       sides: [
         [{ id: 'c-robin', name: 'Robin', cls: 'thief', bot: false }],
         [{ id: 'c-ayla', name: 'Ayla', cls: 'warrior', bot: false }],
@@ -98,14 +99,14 @@ describe('pvp', () => {
         create(MatchEndedSchema, { result: MatchOutcome.WIN, wins: [1, 2] }),
         'c-ayla',
       );
-    pvp.getState().applyMatchState(duel(MatchPhase.RESULT, [1, 2]));
+    pvp.getState().applyMatchState(duel(MatchPhase.RESULT, [1, 2]), 0);
     expect(pvp.getState().outcome?.result).toBe(MatchOutcome.WIN); // the same match's
-    pvp.getState().applyMatchState(duel(MatchPhase.PREP, [0, 0], 'mt-2'));
+    pvp.getState().applyMatchState(duel(MatchPhase.PREP, [0, 0], 'mt-2'), 0);
     expect(pvp.getState().outcome).toBeNull();
   });
 
   it('an outcome counts rounds from the player’s side and carries the rating’s change; it stays after the match is left till dismissed', () => {
-    pvp.getState().applyMatchState(duel(MatchPhase.RESULT, [1, 2]));
+    pvp.getState().applyMatchState(duel(MatchPhase.RESULT, [1, 2]), 0);
     pvp.getState().applyMatchEnded(
       create(MatchEndedSchema, {
         result: MatchOutcome.WIN,
@@ -143,6 +144,38 @@ describe('pvp', () => {
         'c-robin',
       );
     expect(pvp.getState().outcome).toMatchObject({ mode: '', rounds: [2, 0], rating: null });
+  });
+
+  it('a forfeit’s outcome, whose MapChange comes before its MatchEnded, keeps the match’s mode and counts rounds from the player’s side, side 2 here', () => {
+    pvp.getState().applyMatchState(duel(MatchPhase.FIGHT, [1, 0]), 0);
+    pvp.getState().leftMatch(); // the forfeiter's MapChange
+    expect(pvp.getState().match).toBeNull();
+    pvp
+      .getState()
+      .applyMatchEnded(
+        create(MatchEndedSchema, { result: MatchOutcome.LOSS, wins: [1, 0] }),
+        'c-ayla',
+      );
+    expect(pvp.getState().outcome).toMatchObject({ mode: 'duel', rounds: [0, 1] });
+    expect(pvp.getState().left).toBeNull();
+    pvp.getState().applyMatchState(duel(MatchPhase.FIGHT, [0, 0], 'mt-2'), 0);
+    pvp.getState().leftMatch();
+    pvp.getState().dismissOutcome(); // the card closed: no MatchEnded is waited for
+    expect(pvp.getState().left).toBeNull();
+  });
+
+  it('reads the world’s ticks the count into a round holds everyone: the next in prep and between rounds, the rest of one under way, none in a fight or after', () => {
+    const at = (phase: MatchPhase, tick: number) => {
+      pvp.getState().applyMatchState(duel(phase), tick); // 3 s left: 60 ticks of 50 ms
+      return countdownTicks(pvp.getState().match, 50);
+    };
+    expect(countdownTicks(null, 50)).toBeNull();
+    expect(at(MatchPhase.PREP, 1000)).toEqual({ from: 1060, until: 1120 }); // pvp.yaml's 3 s count
+    expect(countdownTicks(pvp.getState().match, 100)).toEqual({ from: 1030, until: 1060 }); // at 100 ms ticks
+    expect(at(MatchPhase.BETWEEN, 2000)).toEqual({ from: 2060, until: 2120 });
+    expect(at(MatchPhase.COUNTDOWN, 2060)).toEqual({ from: 2060, until: 2120 });
+    expect(at(MatchPhase.FIGHT, 2120)).toBeNull();
+    expect(at(MatchPhase.RESULT, 3000)).toBeNull();
   });
 
   it('the wall stands and everyone holds through prep and the count into a round only', () => {

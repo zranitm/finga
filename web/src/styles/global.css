@@ -41,7 +41,7 @@ body {
   inset: 0;
 }
 
-/* The React overlay lets clicks through to the canvas; windows and buttons turn them back on. */
+/* The React overlay lets the pointer through to the canvas; windows, buttons and hover helps (a title), wherever they sit, turn it back on. */
 #ui {
   position: fixed;
   inset: 0;
@@ -51,7 +51,8 @@ body {
 #ui .window,
 #ui .modal-backdrop,
 #ui .btn,
-#ui .screen {
+#ui .screen,
+#ui [title] {
   pointer-events: auto;
 }
 

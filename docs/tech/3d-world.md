@@ -504,7 +504,7 @@ As built in slice PR 8, after the playtest of PR 7's fixes:
   - A charge's end is fixed at its windup, against the mobs where they stand then. It's cut where the charger's body would first touch another mob in its lane, as it's cut at a wall. The windup's end, which the telegraph's lane runs to, shows the cut.
   - A mob that steps into the lane after the windup stops it too, touching, as a player does, though the telegraph showed the whole lane.
   - A lane that would go no more than 0.25 m into a mob only grazes it and passes, the overlap a walking mob may have before it's deep. Side by side at a player, chargers have each other's edges in their lanes: when edges stopped them, a ring of mushrooms touching a still player hit once in 62 s, against 21 in 45 s before.
-  - A player the charge meets before it would go 0.25 m deeper into any mob than it already is counts as met first, at the windup and on the way. A neighbour walking past and already overlapping a charger's side cut its lane to nothing, so a player a few cm ahead went unhit: 5 of 236 charges in finga-player's re-check of a1c2ad2d, all while the player moved.
+  - A player the charge meets before it would go 0.25 m deeper into any mob than it already is counts as met first, at the windup and on the way. A neighbour walking past and already overlapping a charger's side cut its lane to nothing, so a player a few cm ahead went unhit: 5 of 236 charges in the live re-check of a1c2ad2d, all while the player moved.
   - A charge cut to nothing still meets a player touching it, within 1e-9 m for the sim's float error.
   - Only charges change. Hops and leaps keep the two rules above, and walking mobs still pass through each other while the making way above parts them.
   - This changes mobs-fight-back.md's "mobs pass through mobs" for charges. The switch PR updates that page.
@@ -639,7 +639,7 @@ As built in slice PR 7:
   - **The rule:** a solid whose drawn box comes within 2 m of the camera, or holds it, is drawn at alpha 0, ink off. It's back to faded or whole once the camera is 2 m clear. Its shadow was meant to stay, but it only did from the camera follow-up below.
   - **Why 2 m:** the roof edge the tour saw was 1.7 m off the house's box, with the player at (17, 20).
   - **Why a client rule:** a map test that no building may hold the camera would bar tall buildings beside routes, and moving them changes nav, the goldens and the maps' designs. The rule holds on any map, the camera's hold at a map's edge included.
-- **Faded and gone solids keep their shadows and step in and out, and tall props fade too,** as built in the camera follow-up, after finga-player's live pass of the camera PR:
+- **Faded and gone solids keep their shadows and step in and out, and tall props fade too,** as built in the camera follow-up, after the live test of the camera PR:
   - **Shadows:** Babylon's shadow pass skips see-through meshes unless the generator's `transparencyShadow` is on.
     - So the 30% copy had cast no shadow since slice PR 7, and the camera PR's alpha-0 copy cast none either. That PR's test checked the copy was in the shadow map's list, not that the pass drew it.
     - The sun's generator, `sunShadows` in `world3d/body.ts`, now turns it on, so a faded or gone solid casts its full shadow.
@@ -653,11 +653,11 @@ As built in slice PR 7:
     - **What the rule covers:** all 496 of those taller than 0.875 m now fade: trees, dead trees, palms, pillars, crags, dead shrubs, bushes, cacti and small rocks. That's 531 props with a look in all.
     - **What it leaves out:** the 20 lower ones, grass, flowers, small mushrooms and pebbles. Each sits on a bank top and is seen across it only from the bank's foot.
     - **Why not every prop:** a copy for every prop would add about 700 meshes on each of the mushroom maps.
-    - **The crag finga-player saw at (40, 1.5) on Sandstone Cliffs:** it now fades for players at x 37.5–41.5, z 2–7.5.
+    - **The crag the live test saw at (40, 1.5) on Sandstone Cliffs:** it now fades for players at x 37.5–41.5, z 2–7.5.
   - **Cost:**
     - **Building a map** (the test engine, median of five): 9–32 ms more. Up to 90 more meshes (Spore Hollow, 40 to 130). Twice the see-through materials, for the two new steps (the crossroads, 46 to 92).
     - **Live,** in Chrome at 1280 by 800 on Spore Hollow: the world showed 579 ms after Play. The next 5.4 s ran 542 frames, the longest 11 ms. A frame's work at the map's busiest spot, with seven see-through copies and a fight on, was a median 2.5 ms, against 2.3 ms in the open. Both held the 100 fps cap.
-- **The place opens round the player,** as built in the cut-away PR, after finga-player's re-check of the camera follow-up:
+- **The place opens round the player,** as built in the cut-away PR, after the live re-check of the camera follow-up:
   - **What it found:** at (40, 6) on Sandstone Cliffs, with the crag gone, the cliff itself hid the player. The camera's line to the chest crosses the 4 m mesa's edge at 3.2 m. Terrain didn't fade.
   - **The sweep:**
     - **How:** a player every 0.5 m on reachable ground: from the portals, round the solids, and up no cliff higher than a 2.0 m jump. The game's camera at 1280 by 800, and each line to the chest sampled against the drawn ground's triangles.
@@ -672,7 +672,7 @@ As built in slice PR 7:
     - **Shadows:** the drop is in the main pass only. A material with a discard is alpha-tested, but a node material has no alpha-test texture, so the shadow pass draws it whole. The banks keep their shadows over the strip.
     - **What isn't cut:** bodies, drops and glows. The palette keys the place's materials apart, `cut` in their names, with their own ink.
     - **Each frame:** the camera sets the chest (`cutAround` in `world3d/toon.ts`). Till there's a player, nothing opens.
-  - **Round the mobs too,** as built in the mob holes PR, after finga-player's live check of the cut:
+  - **Round the mobs too,** as built in the mob holes PR, after the live test of the cut:
     - **What it found:** on Fallen Keep's south strip, bats and a gloom slime 2–3 m from the player showed only their tops above the bank, and the lock ring was cut in half. The hole round the chest is about 1.2 m.
     - **The sweep:** mobs 1–4 m round 779 hidden spots, in 16 directions, each map's own kinds, 79,969 placements the ground covers. A mob counts as seen when no drawn place fragment over its body or its lock ring is left. That's where each line enters the ground from the camera's side; the ground beyond is seen from inside, and its back faces aren't drawn.
       - **As built before:** 6% were seen whole.
@@ -685,7 +685,7 @@ As built in slice PR 7:
       - **Why not lower:** walkable floor cut shows nothing behind it, as the ground under a ramp is empty. Over 1 m opened the floor round a player standing on a ridge over a mob on 2.1% of reachable spots; over 1.5 m on none.
       - **What it leaves:** ground under 1.5 m over a mob's feet, as a dune or a low ledge, may still cover its bottom: 0.9% of the placements.
       - **The lanes:** a spit or charge lane over 2 m long may still lose its middle behind the bank's top: 60% are seen whole. Both its ends show, in the mob's hole and the player's. The middle shows faintly, below.
-  - **What it still hides of a warning shows faintly,** as built in the telegraph ghosts PR, after finga-player's check of the mob holes:
+  - **What it still hides of a warning shows faintly,** as built in the telegraph ghosts PR, after the live test of the mob holes:
     - **What it found:** on Fallen Keep's west strip, bats spit diagonally across the strip, and 19 of 27 lanes lost their middle on the floor 1–3 m north of the bank's foot, outside every hole.
       - It also saw a scarab's lock ring and a gloom slime's hop circle cut at the bank's foot. Read at the ring's own heights, as it climbs the bank's toe, and at the middles of the area's cells, both showed whole.
     - **The rule:** each warning has a ghost, drawn at half its strength and only where the place is in front of it.
@@ -706,7 +706,7 @@ As built in slice PR 7:
       - after a frame the stencil is on and marks 1, whatever turned it off;
       - a ghost tests the depth reversed and draws on a clear mark, and a decal draws only on a clear mark and leaves it;
       - an attack's area and balls have ghosts that show as they do, and the ring's ghost is in the ring's group.
-  - **The decals open with the place,** as built in the decal cut PR, after finga-player's check of the ghosts:
+  - **The decals open with the place,** as built in the decal cut PR, after the live test of the ghosts:
     - **What it found:** a red area laid on a bank's top wasn't cut with it, so it floated in front of whoever stood in the hole. It showed as straight-edged red blocks over the player and the mobs: 56,384 red pixels on bodies in 21 of 44 reads on Dune Road, and 36,501 in 16 of 39 on the keep's strip. The lock ring did the same.
     - **The rule:**
       - **The cut:** each red area and the lock ring is a palette decal (`decal` in `world3d/toon.ts`), an unlit node material carrying the place's own cut on the place's own state. A decal opens wherever the place under it opens, and now shows faintly there (next note).
@@ -724,7 +724,7 @@ As built in slice PR 7:
       - A decal carries the place's cut, its reach and its mob slots, on the place's state, and draws only on a clear mark.
       - **The sweeps:** in the player's sweep and the mob sweep, wherever the ground on a line to a chest, a head or a mob is opened, the decal 5 cm over it is opened too: 1,239 and 9,746 crossings.
       - **A fault it catches:** decals without the mob holes leave 7,342 floating.
-  - **A decal's opened part shows faintly, and decals draw before the effects,** as built in the faint decals PR, after finga-player's check of the decal cut:
+  - **A decal's opened part shows faintly, and decals draw before the effects,** as built in the faint decals PR, after the live test of the decal cut:
     - **What it found:** less of the red read at a bank than with the ghosts alone, for two reasons.
       - **Cut parts had no ghost.** The part of an area or the ring on opened place went with it, and a ghost draws only behind the place. Dune Road's lanes read 78.5–85.7% of their cells, against 96.9% before. The ring's part lifted onto a bank's toe read 23–30%.
       - **Effects erased red.** An effect mesh marks the stencil and writes depth, so a decal drawn after it found no place there. A brown strip ran along a slash arc through a hop circle. With effect meshes hidden, the keep's circles read 92% of their cells, not 78%.
@@ -789,7 +789,7 @@ As built in slice PR 7:
     - **Accepted residue:** a player judged to meet the run who sidesteps after it starts sees the bite at the judged meeting while the mob runs on, and takes no hit. Re-judging every frame isn't worth it for a rare case.
   - **As built after the third live check,** the client judges a charge or a spit against the player where the tick being run leaves them.
     - **Why:** the world moves the players through a whole tick before its mobs, so each tick's stretch of a run meets the player as that tick leaves them.
-    - **The bug:** the client judged against the player part way through the tick. A player sidestepping out of a charge's lane was still in it there, so the drawn charge stopped on them while the world's ran on. It held mid-lane till the run's end, then caught up. finga-player saw this in 1 of 10 sidesteps.
+    - **The bug:** the client judged against the player part way through the tick. A player sidestepping out of a charge's lane was still in it there, so the drawn charge stopped on them while the world's ran on. It held mid-lane till the run's end, then caught up. The live test saw this in 1 of 10 sidesteps.
     - **Where it's done:** the predictor's `tickEnd` runs the current tick's input through its remaining steps.
     - **Players are untouched:** they keep no cap on speed. The Thief's attack plays its follow-through at 2.2 times, and the Magician's skills at 1.8 times.
   - A cut fades the cut clip out over 80 ms, held at its pose, while the new one fades in, so a cancel reads as instant.

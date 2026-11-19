@@ -225,7 +225,7 @@ export function wireSocket(socket: GameSocket): () => void {
       }
     }),
     socket.on('matchState', (m) => {
-      pvp.getState().applyMatchState(m.d);
+      pvp.getState().applyMatchState(m.d, m.tick);
     }),
     socket.on('matchEnded', (m) => {
       pvp.getState().applyMatchEnded(m.d, character.getState().character?.id ?? '');

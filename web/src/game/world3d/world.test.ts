@@ -1664,6 +1664,7 @@ describe('World', () => {
   });
 
   it('in a match’s prep the wall across the ring stands, drawn and walked against, and attacks and skills wait; the round takes it down', async () => {
+    const holds = vi.spyOn(Predictor.prototype, 'holdFor');
     const p = await playing('ring', 22, 18);
     character.getState().applyWelcome(
       create(WelcomeSchema, {
@@ -1692,6 +1693,7 @@ describe('World', () => {
           round: 1,
           endsInMs: 10_000,
         }),
+        0,
       );
     p.live(1);
     expect(wallUp()).toBe(false); // no match yet
@@ -1700,6 +1702,7 @@ describe('World', () => {
     p.live(60);
     const me = p.root(classLook('warrior').file)!;
     expect(wallUp()).toBe(true);
+    expect(holds).toHaveBeenLastCalledWith({ from: 200, until: 260 }); // the count after prep's 10 s, held from its first tick
     expect(me.position.z).toBeCloseTo(22 - 0.3 - movement.radius, 3); // the wall's south face
     key('KeyX', true);
     key('KeyX', false);
@@ -1711,6 +1714,8 @@ describe('World', () => {
     p.live(40);
     key('ArrowUp', false);
     expect(wallUp()).toBe(false);
+    expect(holds).toHaveBeenLastCalledWith(null);
+    holds.mockRestore();
     expect(me.position.z).toBeGreaterThan(23); // through where it stood
     key('KeyX', true);
     key('KeyX', false);

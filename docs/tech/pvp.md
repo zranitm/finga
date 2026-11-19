@@ -501,9 +501,16 @@ As built for 1v1 (build step 2):
   - Prediction walks against the map's solids with the wall's appended after them, from the `MatchState` that starts or ends prep or the countdown.
   - While it stands, attacks wait, and a skill's key says "Wait for the round to start."
 - **The count into a round** shows mid-screen in big numbers.
+  - **Its hold is predicted:**
+    - The world sets each input's hold to the count's end at the tick it runs the input.
+    - The client knows those ticks before the count starts, from the state that ends prep or the gap between rounds, plus `countdown_ms` from `gen-gamedata`.
+    - So the predictor holds each input as the world will, and nothing is corrected across a count.
+    - From the count's own state alone it would come a tick late: a tick's Delta is sent before its events, `MatchState` among them.
 - **Leave match** is on the match bar. It forfeits after a second press, "Leave and lose?".
 - **The offer card and the result** draw over any open window.
 - **The result screen** stays through the trip back, until Return closes it.
+  - **A forfeit's card:** a forfeit's MapChange comes before its `MatchEnded`. So the store keeps the match left (`left`) until `MatchEnded` arrives, and the card has the match's mode and counts rounds from the player's side.
+- **The pointer:** the overlay lets the pointer through to the world. Windows, `.btn` buttons and anything with a `title`, a hover help, take it back, so the queue tag's ✕ and the frame rows' tooltips work.
 - **Party:**
   - In a round mode the party frames give way, their place the teammates' (none in 1v1).
   - A member on a match's map shows "In a match" on their frame and in the Party window.
