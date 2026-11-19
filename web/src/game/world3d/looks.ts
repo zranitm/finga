@@ -8,7 +8,7 @@ import { mobById } from '@/progression/mobs';
 import type { LookWire } from '../systems/interpolation';
 
 import { MODELS } from './model-looks';
-import type { Model } from './model-looks';
+import type { Hood, Model } from './model-looks';
 import { PIECE_LOOKS } from './outfit-looks';
 import type { PieceLook } from './outfit-looks';
 
@@ -114,9 +114,18 @@ export function classLook(cls: string, wearing?: Wearing): ModelLook {
     }
     return piece;
   });
-  return wearing.bareHead
-    ? { ...look, wear: wear.filter((p) => p.slot !== 'headwear'), bareHead: true }
+  if (wearing.bareHead) {
+    return { ...look, wear: wear.filter((p) => p.slot !== 'headwear'), bareHead: true };
+  }
+  const hood = look.hood;
+  return hood && wear.some((p) => p.slot === 'headwear')
+    ? { ...look, wear: [...wear, bareHead(hood)] }
     : { ...look, wear };
+}
+
+/** The bare head a hooded model wears under headwear, drawn from its file's parts as a piece is. */
+function bareHead(hood: Hood): PieceLook {
+  return { slot: 'face', file: hood.file, meshes: [hood.bare] };
 }
 
 /** An NPC's model by its look key: a trainer as its class's, the guide as the Barbarian dressed. */

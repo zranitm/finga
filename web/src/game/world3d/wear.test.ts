@@ -258,6 +258,31 @@ describe('an outfit piece worn', () => {
     for (const x of [own, b, bare]) x.dispose();
   });
 
+  it('swaps a hooded head for the bare one under headwear, skinned on the wearer’s rig, and keeps the hood under none, at the size it stands in its own', async () => {
+    const own = await make(classLook('bowman'));
+    const helmed = await make(wearing('bowman', 'knight_helmet'));
+    const bare = await make(classLook('bowman', { looks: ['knight_helmet'], bareHead: true }));
+    const robed = await make(wearing('bowman', 'mage_body'));
+    expect(mesh(helmed, 'Rogue_Head_Hooded')?.isEnabled()).toBe(false);
+    const head = mesh(helmed, 'Rogue_Head worn')!;
+    expect([head.isEnabled(), head.skeleton, head.parent?.name]).toEqual([
+      true,
+      mesh(helmed, 'Rogue_Body')!.skeleton,
+      'Rig',
+    ]);
+    expect(mesh(helmed, 'Knight_Helmet worn')?.isEnabled()).toBe(true);
+    for (const x of [own, bare, robed]) {
+      expect([mesh(x, 'Rogue_Head_Hooded')?.isEnabled(), mesh(x, 'Rogue_Head worn')]).toEqual([
+        true,
+        undefined,
+      ]);
+    }
+    for (const x of [helmed, bare, robed]) {
+      expect(x.root.scaling.x).toBeCloseTo(own.root.scaling.x, 9);
+    }
+    for (const x of [own, helmed, bare, robed]) x.dispose();
+  });
+
   it('copies the look into the afterimage: the worn parts drawn, the class’s own they replace left out', async () => {
     const b = await make(wearing('warrior', 'mage_body', 'two_handed_axe'));
     const still = b.afterimage(new StandardMaterial('after', scene));
