@@ -729,6 +729,23 @@ describe('World', () => {
     expect(nearby.getState().players).toEqual([]);
   });
 
+  it('takes away a player gone out of sight as one who left', async () => {
+    const p = await playing(FLAT, 4, 20);
+    for (let tick = 2; tick <= 8; tick++) {
+      p.push('delta', tick === 2 ? { players: [standing(8, 20, 'c-robin', 'thief')] } : {}, {
+        tick,
+      });
+      p.frames(1);
+    }
+    await vi.waitFor(() => expect(p.root(classLook('thief').file)).toBeDefined(), WAIT);
+    for (let tick = 9; tick <= 14; tick++) {
+      p.push('delta', tick === 9 ? { unseen: { players: ['c-robin'] } } : {}, { tick });
+      p.frames(1);
+    }
+    expect(p.root(classLook('thief').file)).toBeUndefined();
+    expect(nearby.getState().players).toEqual([]);
+  });
+
   it('redraws a player whose class changes, keeping the old figure till the new one is in, and the newest change winning', async () => {
     const p = await playing(FLAT, 4, 20);
     const [thief, bowman, mage] = ['thief', 'bowman', 'magician'].map((c) => classLook(c).file);
@@ -1285,6 +1302,40 @@ describe('World', () => {
       expect(p.root('quaternius/GreenBlob.glb')).toBeDefined();
       p.frames(20);
       expect(p.root('quaternius/GreenBlob.glb')).toBeUndefined();
+    });
+
+    it('go out of sight as they are, with no death, gone once drawn past', async () => {
+      const p = await playing(FLAT, 4, 20);
+      frames(p, 2, 10, [mob(1, 'green_slime', 8)]);
+      await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined(), WAIT);
+      p.push('delta', { unseen: { mobs: [1] } }, { tick: 11 });
+      p.frames(1);
+      expect(weight(p.root('quaternius/GreenBlob.glb'), 'CharacterArmature|Death')).not.toBe(1);
+      p.frames(20);
+      expect(p.root('quaternius/GreenBlob.glb')).toBeUndefined();
+    });
+
+    it('feed the boss bar the field boss the frames send from anywhere on the map, never drawing it from them; drawn, it shows the drawn one', async () => {
+      const make = vi.spyOn(Figures.prototype, 'make');
+      const p = await playing(FLAT, 4, 20);
+      fieldBoss
+        .getState()
+        .applyFieldBoss(create(FieldBossSchema, { mobId: 9, type: 'king_slime' }));
+      const king = { ...mob(9, 'king_slime', 6), hp: 700, maxHp: 1000 };
+      for (let tick = 2; tick <= 6; tick++) {
+        p.push('delta', { boss: king }, { tick });
+        p.frames(1);
+      }
+      expect(fieldBoss.getState().hp).toEqual({ hp: 700, maxHp: 1000 });
+      expect(make.mock.calls.some(([look]) => look.file === 'quaternius/GreenBlob_Crown.glb')).toBe(
+        false,
+      );
+      for (let tick = 7; tick <= 12; tick++) {
+        p.push('delta', { mobs: [{ ...king, hp: 650 }], boss: { ...king, hp: 640 } }, { tick }); // drawn behind the newest frame
+        p.frames(1);
+      }
+      expect(fieldBoss.getState().hp).toEqual({ hp: 650, maxHp: 1000 });
+      make.mockRestore();
     });
 
     it('show an HP bar over each one’s head, an elite’s in gold, none over a boss or a killed one', async () => {

@@ -9,9 +9,9 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// busyFrame is a tick on a map where every one of n players moved and ten mobs walked.
+// busyFrame is a tick on a map where every one of n players moved and ten mobs walked, all in one cell.
 func busyFrame(n int) *model.Frame {
-	f := &model.Frame{}
+	f := &model.Part{}
 	for i := range n {
 		f.Players = append(f.Players, model.PlayerView{
 			ID: fmt.Sprintf("0190a0f4-1c2d-7e3f-8a4b-%012d", i), Name: fmt.Sprintf("Player%03d", i), Class: "warrior", Level: 12,
@@ -21,7 +21,7 @@ func busyFrame(n int) *model.Frame {
 	for i := range 10 {
 		f.Mobs = append(f.Mobs, model.MobView{ID: uint64(i), Type: "green_slime", X: float64(i), Z: 25, Yaw: 1.5, HP: 30, MaxHP: 30})
 	}
-	return f
+	return &model.Frame{Parts: []model.Part{*f}}
 }
 
 // One tick's frame going out to its n players: each message made on the stream's goroutine, encoded on its writer.
@@ -32,9 +32,9 @@ func BenchmarkAMapsFrameToThePlayers(b *testing.B) {
 			o := &Outbox{frames: NewFrames()}
 			b.ReportAllocs()
 			for b.Loop() {
-				frame := busyFrame(n)
+				frame, parts := busyFrame(n), []int{0} // one list for all, as the gateway's adapter shares one
 				for i := range n {
-					body := o.body(model.Delta{Frame: frame, AckSeq: uint32(i)}) //nolint:gosec // a benchmark's index
+					body := o.body(model.Delta{Frame: frame, Parts: parts, AckSeq: uint32(i)}) //nolint:gosec // a benchmark's index
 					if _, err := codec.Encode(wsconn.Message{Tick: 9, Data: body}); err != nil {
 						b.Fatal(err)
 					}

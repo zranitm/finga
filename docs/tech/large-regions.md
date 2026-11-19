@@ -235,11 +235,11 @@ biomes:
 
 ### Interest cells
 
-- The region is cut into **32 m cells.** A player watches the cells within 96 m of them: a block of up to 7 × 7.
+- The region is cut into **32 m cells.** A player watches a block of 7 × 5 round their own: 3 columns each side, 3 rows ahead (north) and 1 behind, since the camera always faces north. That's at least 96 m to each side and ahead, and 32 m behind.
 - **Each tick, each cell's changes are encoded once** as a `Frame` part:
-  - its players, mobs and drops that changed;
+  - its players and mobs that changed;
   - those that arrived in it, as full views.
-- **A player's frame** is their watched cells' parts, plus their private part (`AckSeq`, energy).
+- **A player's frame** is their watched cells' parts, plus their private part (`AckSeq`, energy, their own pouches).
   - Protobuf merges repeated fields when messages are concatenated, so the gateway joins the encoded parts in place of decoding them.
   - So the "encode once" saving of `push/frames.go` holds per cell.
 - **Coming into view:** when a player's block changes (they moved cells), or an entity crosses into a watched cell, the player gets the entity's full view. Cells no longer watched give `Unseen{ids}`. The client drops what it no longer sees.
@@ -251,6 +251,32 @@ biomes:
   - Members out of view still show on the party frames.
   - Their spot reaches the minimap through `tellParty` once a second, in place of on map changes alone.
 - **PvP and the old maps** run the same code. A map smaller than a cell is one block, so nothing changes for them.
+- **As built (step 1a):**
+  - **Data:** `world.yaml`'s `interest` holds the cell and the block: `behind: 1`, `ahead: 3`, `side: 3`.
+  - **The loader** checks that nothing reaches past the rows behind (`behind × cell`): mob sight, every mob attack, every class attack and every skill's shape. Each mob is read with its own body and lengths, so an elite's or a boss's size counts as it is. Today's longest is Arrow Rain's 17 m.
+  - **A map one block holds from every cell** is sent whole: one part for everyone, the events to everyone, and no cells kept. That is a map whose columns, less one, are at most `side`, and whose rows, less one, are at most the smaller of `behind` and `ahead`: at 32 m cells, at most 128 m wide and 64 m deep. Every shipped map and arena is one today; a region of ~1 km is always cut.
+  - **On a larger map, each tick** the instance files every changed body in its cell. Each cell with changes gets one part: its changed views, the bodies that came to it, and the removals of those that left the map from it.
+    - A body leaving the map is filed in the cell the last frame left it in, so every player who saw it hears.
+    - A mob killed on the tick it spawned comes with its view and its removal where it stood.
+  - **A full part** (every body in the cell) is made the first time in a tick that a player's block reaches a cell. A player gets a cell's changes part only if their block already held it.
+  - **Each player keeps what they've seen.** A body that leaves their block, or whose cell their block leaves, comes in `Delta.unseen`. The client drops it with no death: a mob goes as it stands, a player as one who left.
+  - **The field boss** also goes in the map's own part, which every player is sent: `Delta.boss`, and `Snapshot.boss` on a join. The client feeds the boss bar from it and never draws from it, so the boss is drawn once its cell is in the block.
+  - **The gateway** encodes each part once and keeps the latest frame's parts. A player's message is their parts' bytes and then their own fields: ack, energy, `unseen` and their pouches. JSON merges the parts instead.
+  - **Events** go to the watchers of either end: the source's cell or the target's. A mob attack's target is where it lands. A shot into a block shows its hit there, and a shot out of it the shooter's swing. Deaths, respawns, chat, the boss's notices and matches go to the whole map.
+  - **A map nobody is on** isn't cut. The first player to come files every mob again, as some may have come or gone, and nobody is told of those who left before.
+  - **The client** keeps drawing a body that comes back before its removal is drawn past, as at a cell line a player steps back and forth over.
+  - **Measured** on an Apple M3, 150 players walking a 1 km map among 400 mobs (`internal/dependencies/interestbench`):
+
+    | Block | World's tick | Its allocations | Bytes to each client | The gateway, for all 150 |
+    |---|---|---|---|---|
+    | Whole map | 0.45 ms | 794, 266 KB | 30,100 | 0.35 ms |
+    | 7×7 | 0.51 ms | 1,200, 396 KB | 1,550 | 0.25 ms |
+    | 7×5 | 0.51 ms | 1,200, 394 KB | 1,120 | 0.25 ms |
+
+    At 20 frames a second, 7×5 sends each client about 22 kB/s, under the soak's 40 kB/s; the whole map would send 600 kB/s.
+
+  - **Today's maps** cost what they did before step 1a, in runs alternating with main on one machine: a 50-player town's tick takes 49.8 µs against 50.9 µs; a frame's encoding for 10, 50 and 200 players is within 4% either way, with 4 more allocations a frame; and the world's copy of it for the gateway is within 2%.
+  - **Waiting for 1b:** party spots once a second, and the fade at the block's side edges. **For 1c:** sleep.
 
 ### Spatial indexes
 
@@ -518,6 +544,20 @@ Built with step 1, which says who watches a cell.
   - reachability over the nav.
 - **Server:**
   - **Interest:** what a player is sent at a cell's edge; entities coming into and out of view; events reaching only watchers; and the concatenated frame decoding to the union of its parts.
+    - As built (step 1a):
+      - a join at each corner of a cell is sent exactly its block, itself, and every mob within the 96 m and 32 m;
+      - players going out of each other's sight, the one ahead first, and back whole;
+      - a still player is sent nothing more of still mobs at the block's every edge and corner;
+      - a shot across a cell line, heard by the watchers of either end, its kill included;
+      - a leave on the tick another's block moves off it;
+      - a mob that came back while the map was empty, in the next joiner's snapshot, and that joiner told nothing of those who left before;
+      - a map a row taller than the block from its south edge, cut by cells;
+      - a rejoin that failed, leaving no body;
+      - a mob killed on the tick it spawned;
+      - the field boss's bar far off, with no figure made;
+      - six players wandering a crowded map and fighting: each client then holds what a join on its spot holds, on three seeds;
+      - through the whole stack, on the forest cut in 6 m cells: a player crossing into another's block comes whole to each, a swing three cells off is heard inside the block and not from outside it, and leaving it sends each the other as unseen;
+      - the loader refusing a sight, shot, leap, class attack or skill past the rows behind.
   - **Indexes:** each check equals a full scan on randomized cases. `rapid` (pgregory.net/rapid) is already a dependency.
   - **Sleep:** a far camp stays full, and its mobs wake as a player comes.
   - **Channels:** filling, a party kept together, a new channel opening, and a spare one closing.
@@ -549,7 +589,10 @@ Built with step 1, which says who watches a cell.
 
 ## 14. Build
 
-1. **Interest cells** and the frame parts; `Unseen`; events by place; party spots; **sleep,** next to the cells that say who watches.
+1. **Interest cells,** in three PRs:
+   - 1a: the cells and the frame parts, `Unseen`, events by place, the field boss channel-wide, and the loader's reach check;
+   - 1b: party spots once a second, and the fade at the block's side edges;
+   - 1c: **sleep,** next to the cells that say who watches.
 2. **Spatial indexes,** in three PRs:
    - 2a: sim buckets (both sides, with vectors), and packed nav with its binned build;
    - 2b-1: blocker buckets in the Go sim, which mob moves, kept frames and knockbacks read;
@@ -557,7 +600,7 @@ Built with step 1, which says who watches a cell.
 3. **Sprint and zoom:** the sim rule, `PlayerView.sprint`, the look, the camera, the zoom actions, and saved zoom. Then **walk mode** (section 7), its own PR: the sim rule and vectors, `Input.walk` and `PlayerView.walk`, the `walk` action and setting, the notice and the icon.
 4. **The pipeline,** in two PRs:
    - 4a: `regiongen`, the kit and the bake, and the preview;
-   - 4b: the `region` kind and its loader rules, region channels, areas, towns, area bosses and respawn, and a test region. The client's sim walks a region's ground from its bake, and the loading screen holds for the near chunks.
+   - 4b: the `region` kind and its loader rules, region channels, areas, towns, area bosses and respawn, and a test region. The client's sim walks a region's ground from its bake, and the loading screen holds for the near chunks. The loader refuses a region one block would hold, so none is ever sent whole.
 5. **The client for regions,** in three PRs:
    - 5a: the overview, chunk streaming and detail, and props per chunk;
    - 5b: the looks grid, cascaded shadows and water;
@@ -574,7 +617,7 @@ Steps 1–3 change nothing on today's maps that a player sees, so they can land 
 The user's choices are in section 1. These calls were made in planning and logged for the user to push back on:
 
 1. **Terrain at 1 m,** not 0.5 m. Big rolling land needs no finer grid; towns and set pieces get their detail from solids.
-2. **Seen within about 100 m:** the interest block is 96 m. The land shows to the region's edge.
+2. **Seen within about 100 m:** the interest block is 96 m to each side and ahead, and 32 m behind: lopsided, because the camera always faces north. The land shows to the region's edge.
 3. **Channels of 150,** to be confirmed by the soak, filled least-full-first, with parties kept together.
 4. **Sprint needs no key held:** 2 s of walking out of combat, ×1.6. Jumping keeps it. Walk mode (section 1) turns it off.
 5. **Waypoints about every 150 m along roads,** found within 12 m. Each region's main town can always be teleported to.

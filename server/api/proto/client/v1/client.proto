@@ -697,7 +697,7 @@ message PouchItem {
   ItemStats stats = 4;
 }
 
-// Snapshot is everything on the map, on join and map change.
+// Snapshot is what the player sees of the map, the cells round them, on join and map change.
 message Snapshot {
   // 3 was the drops on the ground, which everyone saw.
   reserved 3;
@@ -711,6 +711,8 @@ message Snapshot {
   FieldBoss field_boss = 4;
   // The map's field boss while it's beaten, with when it's back.
   FieldBossGone field_boss_gone = 5;
+  // The field boss as it stands, wherever on the map, for its bar; it's drawn only from mobs, once it's among the cells round the player.
+  MobView boss = 7;
 }
 
 // FieldBoss says the map's field boss is up: as it appears, which its map's players hear of, and in the Snapshot of a player joining while it is. It stays until it's beaten.
@@ -757,6 +759,16 @@ message Delta {
   repeated PouchView pouches = 10;
   // The player's own pouches gone this tick: emptied, or their life ended.
   repeated uint32 pouches_gone = 11;
+  // What the player stopped seeing this tick: still on the map, out of the cells round them.
+  Unseen unseen = 12;
+  // The field boss as it changed this tick, to every player on the map wherever it stands, for its bar; it's drawn only from mobs.
+  MobView boss = 13;
+}
+
+// Unseen are entities the player no longer sees, though still on the map: the client drops them, with no death.
+message Unseen {
+  repeated string players = 1;
+  repeated uint32 mobs = 2;
 }
 
 // Damage is one resolved hit; source and target are "p:<character id>" or "m:<mob id>".

@@ -37,24 +37,39 @@ type Snapshot struct {
 	Pouches       []PouchView    // the joiner's own
 	FieldBoss     *FieldBoss     // while one is up
 	FieldBossGone *FieldBossGone // while the map's is beaten
+	Boss          *MobView       // the field boss as it stands while one is up, wherever on the map, for its bar
 }
 
-// Frame is what changed on a map in one tick, once for every player there through the gateway; read-only.
+// Frame is what changed on a map in one tick, in parts its players share through the gateway; read-only.
 type Frame struct {
+	Parts      []Part
+	Recipients []Recipient
+}
+
+// Part is what changed in one of a map's cells in a tick, or, for the map's own part, its field boss as it changed.
+type Part struct {
 	Players     []PlayerView
 	Mobs        []MobView
 	Removed     []kernel.CharacterID
 	RemovedMobs []uint64
-	Recipients  []Recipient
+	Boss        *MobView // the map's part: the field boss as it changed, for every player's bar
 }
 
-// Recipient is a player a frame goes to, with AckSeq, the latest input applied for it, its energy as of then when it changed or the player just joined, and its own pouches that changed, which nobody else's frame carries.
+// Recipient is a player a frame goes to: the parts they're sent, by index; AckSeq, the latest input applied for them; their energy as of then when it changed or they just joined; what they stopped seeing; and their own pouches that changed, which nobody else's frame carries.
 type Recipient struct {
 	Character  kernel.CharacterID
 	Connection string
+	Parts      []int
 	AckSeq     uint32
 	Energy     *int
+	Unseen     *Unseen // nil when nothing went out of their sight
 	Pouches    Pouches
+}
+
+// Unseen are the bodies a player stopped seeing, out of the cells round them though still on the map.
+type Unseen struct {
+	Players []kernel.CharacterID
+	Mobs    []uint64
 }
 
 // Pouches are the changes to a player's own pouches in a frame: those new or changed, and those gone.
@@ -527,15 +542,28 @@ func (g stream) SendFrame(f *model.Frame, to []model.Recipient) bool {
 
 // frameOf is the map's frame as the facade's own: its lists are copies, small and mostly empty, so no module shares the map's buffers.
 func frameOf(f *model.Frame, to []model.Recipient) Frame {
-	out := Frame{
-		Players: playerViews(f.Players), Mobs: mobViews(f.Mobs),
-		Removed: slices.Clone(f.Removed), RemovedMobs: slices.Clone(f.RemovedMobs),
-		Recipients: make([]Recipient, len(to)),
+	out := Frame{Parts: make([]Part, len(f.Parts)), Recipients: make([]Recipient, len(to))}
+	for i, p := range f.Parts {
+		out.Parts[i] = Part{
+			Players: playerViews(p.Players), Mobs: mobViews(p.Mobs),
+			Removed: slices.Clone(p.Removed), RemovedMobs: slices.Clone(p.RemovedMobs),
+			Boss: mobView(p.Boss),
+		}
 	}
+	n := 0
+	for _, r := range to {
+		n += len(r.Parts)
+	}
+	parts := make([]int, 0, n) // every recipient's, copied at once
 	for i, r := range to {
+		start := len(parts)
+		parts = append(parts, r.Parts...)
 		out.Recipients[i] = Recipient{
-			Character: r.Character, Connection: r.Connection, AckSeq: r.AckSeq, Energy: r.Energy,
+			Character: r.Character, Connection: r.Connection, Parts: parts[start:len(parts):len(parts)], AckSeq: r.AckSeq, Energy: r.Energy,
 			Pouches: Pouches{Changed: pouchViews(r.Pouches.Changed), Gone: slices.Clone(r.Pouches.Gone)},
+		}
+		if u := r.Unseen; u != nil {
+			out.Recipients[i].Unseen = &Unseen{Players: slices.Clone(u.Players), Mobs: slices.Clone(u.Mobs)}
 		}
 	}
 	return out
@@ -545,7 +573,7 @@ func frameOf(f *model.Frame, to []model.Recipient) Frame {
 func deliveryOf(e model.Event) Delivery {
 	switch ev := e.(type) {
 	case model.Snapshot:
-		snap := Snapshot{MapID: ev.MapID, Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Pouches: pouchViews(ev.Pouches)}
+		snap := Snapshot{MapID: ev.MapID, Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Pouches: pouchViews(ev.Pouches), Boss: mobView(ev.Boss)}
 		if b := ev.FieldBoss; b != nil {
 			snap.FieldBoss = &FieldBoss{Mob: b.Mob, Type: b.Type}
 		}
@@ -657,12 +685,25 @@ func mobViews(ms []model.MobView) []MobView {
 	}
 	out := make([]MobView, len(ms))
 	for i, m := range ms {
-		out[i] = MobView{
-			ID: m.ID, Type: m.Type, X: m.X, Y: m.Y, Z: m.Z, Yaw: m.Yaw, HP: m.HP, MaxHP: m.MaxHP, Pose: MobPose(m.Pose),
-			Statuses: statusViews(m.Statuses),
-		}
+		out[i] = mobViewOf(m)
 	}
 	return out
+}
+
+// mobView is the boss a snapshot or a frame's map part carries, nil for none.
+func mobView(m *model.MobView) *MobView {
+	if m == nil {
+		return nil
+	}
+	v := mobViewOf(*m)
+	return &v
+}
+
+func mobViewOf(m model.MobView) MobView {
+	return MobView{
+		ID: m.ID, Type: m.Type, X: m.X, Y: m.Y, Z: m.Z, Yaw: m.Yaw, HP: m.HP, MaxHP: m.MaxHP, Pose: MobPose(m.Pose),
+		Statuses: statusViews(m.Statuses),
+	}
 }
 
 func pouchViews(ps []model.PouchView) []PouchView {

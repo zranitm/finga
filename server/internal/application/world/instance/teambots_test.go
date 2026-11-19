@@ -24,7 +24,7 @@ func botAs(data *gamedata.Data, name string, class kernel.Class, tier string) *m
 func hpAt(s *worldtest.Sink, id kernel.CharacterID, tick uint64) int {
 	hp := -1
 	for _, d := range s.Deltas() {
-		if d.Frame == nil || d.Tick > tick {
+		if d.Part == nil || d.Tick > tick {
 			continue
 		}
 		for _, v := range d.Players {

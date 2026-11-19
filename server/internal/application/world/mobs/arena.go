@@ -2,6 +2,7 @@
 package mobs
 
 import (
+	"cmp"
 	"math"
 	"slices"
 	"time"
@@ -525,6 +526,15 @@ func (a *Arena) Views() []model.MobView {
 		views = append(views, mb.view())
 	}
 	return views
+}
+
+// View is mob id as it stands; false once it's gone.
+func (a *Arena) View(id uint64) (model.MobView, bool) {
+	k, ok := slices.BinarySearchFunc(a.mobs, id, func(mb *mob, id uint64) int { return cmp.Compare(mb.id, id) })
+	if !ok {
+		return model.MobView{}, false
+	}
+	return a.mobs[k].view(), true
 }
 
 // Changes are the tick's moved, turned, spawned or hurt mobs and those removed, each once, and the removed that no frame showed as they were; it keeps the frame for BlockersAt.

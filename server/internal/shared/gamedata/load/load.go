@@ -56,7 +56,7 @@ func Dir(dir string) (*gamedata.Data, error) {
 		ChatLineMax:     l.chatLineMax,
 		TeleportChannel: l.teleportChannel,
 		Pvp:             l.pvp,
-		InterestCell:    l.interestCell,
+		Interest:        l.interest,
 		Pieces:          l.pieces.list,
 	}), nil
 }
@@ -90,7 +90,7 @@ type loader struct {
 	chatLineMax     int
 	teleportChannel time.Duration
 	pvp             gamedata.PvpRules
-	interestCell    float64
+	interest        gamedata.Interest
 	pieces          byID[string, gamedata.Piece]
 }
 

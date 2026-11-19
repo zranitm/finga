@@ -4,6 +4,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -18,11 +19,16 @@ import (
 	"finga/internal/shared/sim"
 )
 
-// withCell is the shipped data with interest cells cell metres wide.
+// withCell is the shipped data with interest cells cell metres wide, and as many rows behind a player as cover 32 m, as the loader asks.
 func withCell(t *testing.T, cell string) *gamedata.Data {
 	t.Helper()
+	m, err := strconv.ParseFloat(cell, 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	behind := strconv.Itoa(int(math.Ceil(32 / m)))
 	return worldtest.LoadDataWith(t, map[string]func(string) string{"world.yaml": func(s string) string {
-		return strings.Replace(s, "  cell: 32\n", "  cell: "+cell+"\n", 1)
+		return strings.NewReplacer("  cell: 32\n", "  cell: "+cell+"\n", "  behind: 1\n", "  behind: "+behind+"\n").Replace(s)
 	}})
 }
 

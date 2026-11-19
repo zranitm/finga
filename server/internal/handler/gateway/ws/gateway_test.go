@@ -510,7 +510,7 @@ func TestWorldEventsReachTheClient(t *testing.T) {
 		c := h.dial(t)
 		c.hello(tokenAlice, aylaID)
 		c.expect("Snapshot")
-		h.world.delta(aylaID, 9, 3, world.Frame{
+		h.world.delta(aylaID, 9, 3, world.Part{
 			Players: []world.PlayerView{{ID: robinID, Name: "Robin", Class: "bowman", Level: 2, HP: 100, MaxHP: 105, State: sim.State{X: 10, Y: 0.5, Z: 20, VX: 5, HX: -1, OnGround: true}}},
 			Removed: []kernel.CharacterID{brunoID},
 		}, 6)
@@ -537,7 +537,7 @@ func TestAPouchReachesOnlyItsOwnersDelta(t *testing.T) {
 		bruno.hello(tokenBob, brunoID)
 		bruno.expect("Snapshot")
 		mine := world.Pouches{Changed: []world.PouchView{{ID: 3, Kind: world.PouchSmall, Items: []world.PouchItem{{ID: 1, Template: "slime_gel", Quantity: 1}}}}, Gone: []uint64{2}}
-		h.world.frame(12, world.Frame{RemovedMobs: []uint64{7}}, world.Recipient{Character: aylaID, Pouches: mine}, world.Recipient{Character: brunoID})
+		h.world.frame(12, world.Frame{Parts: []world.Part{{RemovedMobs: []uint64{7}}}}, world.Recipient{Character: aylaID, Parts: []int{0}, Pouches: mine}, world.Recipient{Character: brunoID, Parts: []int{0}})
 		if d := ayla.expect("Delta").Data.(*clientv1.Delta); len(d.Pouches) != 1 || len(d.PouchesGone) != 1 || !slices.Equal(d.RemovedMobs, []uint32{7}) {
 			t.Fatalf("Ayla's delta %+v, want her pouch, its gone one, and the shared frame", d)
 		}
@@ -575,7 +575,7 @@ func TestACloseLeavesTheMapOnce(t *testing.T) {
 		_ = c.c.Close(websocket.StatusNormalClosure, "bye")
 		waitFor(t, "the leave", h.world.leaves, 1)
 		for range 3 {
-			h.world.delta(aylaID, 9, 0, world.Frame{})
+			h.world.delta(aylaID, 9, 0, world.Part{})
 		}
 		time.Sleep(10 * time.Second)
 		synctest.Wait()
@@ -764,7 +764,7 @@ func TestCombatEventsReachTheClient(t *testing.T) {
 		if lu.GetCharacter().GetLevel() != 2 || lu.GetCharacter().GetMaxHp() != 252 || lu.GetCharacter().GetStats().GetStr() != 15 || lu.GetCharacter().GetName() != "Ayla" {
 			t.Fatalf("level-up %+v", lu)
 		}
-		h.world.delta(aylaID, 11, 0, world.Frame{
+		h.world.delta(aylaID, 11, 0, world.Part{
 			Mobs: []world.MobView{{ID: 7, Type: "green_slime", X: 9.375, Z: 4, Yaw: -1.5, HP: 9, MaxHP: 30}}, RemovedMobs: []uint64{6},
 		})
 		dl := c.expect("Delta").Data.(*clientv1.Delta)
@@ -1788,7 +1788,7 @@ func TestAHelloForAnotherAccountsCharacterLeavesItsPlayerAlone(t *testing.T) {
 		}
 		close(gate)
 		intruder.expectKick(clientv1.KickReason_KICK_REASON_UNAUTHENTICATED)
-		h.world.delta(aylaID, 9, 7, world.Frame{})
+		h.world.delta(aylaID, 9, 7, world.Part{})
 		if d := ayla.expect("Delta").Data.(*clientv1.Delta); d.AckSeq != 7 {
 			t.Fatalf("delta %+v", d)
 		}
@@ -2102,7 +2102,7 @@ func TestDeliveriesBeforeWelcomeWaitAndFollowIt(t *testing.T) {
 		if got[0] != "Welcome" || got[1] != "Snapshot" {
 			t.Fatalf("order %v, want Welcome then the Snapshot", got)
 		}
-		h.world.delta(aylaID, 42, 1, world.Frame{})
+		h.world.delta(aylaID, 42, 1, world.Part{})
 		if d := c.expect("Delta"); d.Data.(*clientv1.Delta).AckSeq != 1 {
 			t.Fatalf("delta %+v: the older presence's came through", d)
 		}
@@ -2121,7 +2121,7 @@ func TestAfterTheWorldsStreamBreaksEveryPlayerIsJoinedAgain(t *testing.T) {
 		bruno := h.dial(t)
 		bruno.hello(tokenBob, brunoID)
 		bruno.expect("Snapshot")
-		h.world.delta(aylaID, 500, 0, world.Frame{})
+		h.world.delta(aylaID, 500, 0, world.Part{})
 		if d := ayla.expect("Delta"); d.Tick != 500 {
 			t.Fatalf("delta tick %d", d.Tick)
 		}

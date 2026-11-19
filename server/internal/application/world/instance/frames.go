@@ -7,11 +7,12 @@ import (
 	"finga/internal/shared/kernel"
 )
 
-// broadcast sends the tick's frame and events; it returns the players it dropped for a refused send.
-func (i *Instance) broadcast(changed, removed []kernel.CharacterID) []kernel.CharacterID {
+// broadcast sends the tick's frame and events, dropping a player whose stream refuses them.
+func (i *Instance) broadcast(changed []kernel.CharacterID) {
 	if len(i.order) == 0 {
 		i.arena.Unwatched() // an empty map builds no frame, as nobody would get it; a player who joins gets a snapshot
-		return nil
+		i.interest.rest()
+		return
 	}
 	i.stampFights()
 	for _, id := range i.order {
@@ -26,14 +27,18 @@ func (i *Instance) broadcast(changed, removed []kernel.CharacterID) []kernel.Cha
 		}
 	}
 	mobs, removedMobs := i.arena.Changes()
-	frame := &model.Frame{Tick: i.tick, Players: views, Mobs: mobs, Removed: removed, RemovedMobs: removedMobs}
+	frame := i.cut(views, mobs, removedMobs)
 	refused := i.sendFrame(frame)
+	heard := i.heard()
 	var dropped []kernel.CharacterID
 	for _, id := range i.order {
 		p := i.players[id]
 		ok := !refused[id]
-		for _, e := range i.events {
-			ok = ok && p.sink.Send(e)
+		at := i.interest.watches[id].cell
+		for k, e := range i.events {
+			if heard[k].by(i.interest, at) {
+				ok = ok && p.sink.Send(e)
+			}
 		}
 		for _, e := range p.private {
 			ok = ok && p.sink.Send(e)
@@ -53,26 +58,27 @@ func (i *Instance) broadcast(changed, removed []kernel.CharacterID) []kernel.Cha
 		i.mover.Dropped(i, id, conn)
 	}
 	i.later = append(i.later, i.events[sent:]...)
-	return dropped
 }
 
-// sendFrame sends the frame once per stream the players are on; it returns the players whose stream refused it.
+// sendFrame sends the frame once per stream the players are on, each player their block's parts; it returns the players whose stream refused it.
 func (i *Instance) sendFrame(frame *model.Frame) map[kernel.CharacterID]bool {
 	type group struct {
 		stream Stream
 		to     []model.Recipient
 	}
 	var groups []group
+	all := make([]int, 0, 4*len(i.order)) // every player's parts, a few each
 	for _, id := range i.order {
 		p := i.players[id]
-		r := model.Recipient{Character: id, Connection: p.Connection, AckSeq: p.lastSeq, Pouches: i.ground.Changes(id)}
+		parts, unseen := i.follow(frame, id, &all)
+		r := model.Recipient{Character: id, Connection: p.Connection, Parts: parts, AckSeq: p.lastSeq, Unseen: unseen, Pouches: i.ground.Changes(id)}
 		if e := p.energyAsOfAck(); e != p.toldEnergy {
 			r.Energy, p.toldEnergy = &e, e
 		}
 		stream := p.sink.Stream()
 		k := slices.IndexFunc(groups, func(g group) bool { return g.stream == stream })
 		if k < 0 {
-			groups = append(groups, group{stream: stream})
+			groups = append(groups, group{stream: stream, to: make([]model.Recipient, 0, len(i.order))})
 			k = len(groups) - 1
 		}
 		groups[k].to = append(groups[k].to, r)

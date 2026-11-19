@@ -97,6 +97,9 @@ export class FrameBuffer<S> {
   ) {}
 
   push(t: number, state: S): void {
+    if (this.removedAt !== null && t > this.removedAt) {
+      this.removedAt = null; // back on the map, or in sight, before its removal was drawn past
+    }
     const last = this.items[this.items.length - 1];
     if (last && t <= last.t) {
       if (t === last.t) {

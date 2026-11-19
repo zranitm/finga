@@ -251,7 +251,7 @@ func (e EntityRef) IsMob() bool { return e.Player.IsZero() }
 //sumtype:decl
 type Event interface{ event() }
 
-// Snapshot is the whole map, sent to a player on join.
+// Snapshot is what a player sees of the map, the cells round them, sent on join.
 type Snapshot struct {
 	Tick          uint64
 	MapID         string
@@ -260,24 +260,39 @@ type Snapshot struct {
 	Pouches       []PouchView    // the joiner's own
 	FieldBoss     *FieldBoss     // while one is up
 	FieldBossGone *FieldBossGone // while the map's is beaten
+	Boss          *MobView       // the field boss as it stands while one is up, wherever on the map, for its bar
 }
 
-// Frame is what changed on a map in one tick, shared by every player there and read-only once sent.
+// Frame is what changed on a map in one tick, in parts its players share: each cell's they're sent, and the map's; read-only once sent.
 type Frame struct {
-	Tick        uint64
+	Tick  uint64
+	Parts []Part
+}
+
+// Part is what changed in one of a map's cells in a tick, or, for the map's own part, its field boss as it changed.
+type Part struct {
 	Players     []PlayerView
 	Mobs        []MobView
 	Removed     []kernel.CharacterID
 	RemovedMobs []uint64
+	Boss        *MobView // the map's part: the field boss as it changed, for every player's bar
 }
 
-// Recipient is a player a frame goes to, with AckSeq, the latest input applied for it, its energy as of then when it changed or the player just joined, and its own pouches that changed, which nobody else's frame carries.
+// Recipient is a player a frame goes to: the parts they're sent, by index; AckSeq, the latest input applied for them; their energy as of then when it changed or they just joined; what they stopped seeing; and their own pouches that changed, which nobody else's frame carries.
 type Recipient struct {
 	Character  kernel.CharacterID
 	Connection string
+	Parts      []int
 	AckSeq     uint32
 	Energy     *int
+	Unseen     *Unseen // nil when nothing went out of their sight
 	Pouches    Pouches
+}
+
+// Unseen are the bodies a player stopped seeing, out of the cells round them though still on the map.
+type Unseen struct {
+	Players []kernel.CharacterID
+	Mobs    []uint64
 }
 
 // Teleport moves the player to another map, whose instance sends the Snapshot.

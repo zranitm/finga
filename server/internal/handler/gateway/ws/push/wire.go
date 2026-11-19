@@ -185,12 +185,31 @@ func mobViews(ms []model.MobView) []*clientv1.MobView {
 	}
 	out := make([]*clientv1.MobView, 0, len(ms))
 	for _, m := range ms {
-		out = append(out, &clientv1.MobView{
-			Id: uint32(m.ID), Type: m.Type, X: m.X, Y: m.Y, Hp: int32(m.HP), MaxHp: int32(m.MaxHP), Pose: mobPoses[m.Pose],
-			Z: m.Z, Yaw: m.Yaw, Statuses: statusViews(m.Statuses),
-		})
+		out = append(out, mobViewOf(m))
 	}
 	return out
+}
+
+func mobView(m *model.MobView) *clientv1.MobView {
+	if m == nil {
+		return nil
+	}
+	return mobViewOf(*m)
+}
+
+func mobViewOf(m model.MobView) *clientv1.MobView {
+	return &clientv1.MobView{
+		Id: uint32(m.ID), Type: m.Type, X: m.X, Y: m.Y, Hp: int32(m.HP), MaxHp: int32(m.MaxHP), Pose: mobPoses[m.Pose],
+		Z: m.Z, Yaw: m.Yaw, Statuses: statusViews(m.Statuses),
+	}
+}
+
+// unseen is what a player stopped seeing, nil for nothing, so most frames carry no field for it.
+func unseen(u *model.Unseen) *clientv1.Unseen {
+	if u == nil {
+		return nil
+	}
+	return &clientv1.Unseen{Players: u.Players, Mobs: instanceIDs(u.Mobs)}
 }
 
 var mobPoses = map[model.MobPose]clientv1.MobPose{

@@ -173,7 +173,7 @@ func TestATeamLeaverIsStoodInTheTickTheyGo(t *testing.T) {
 				var standIn model.PlayerView
 				var took uint64
 				for _, d := range sinks[robin.ID].Deltas() {
-					if d.Frame == nil || !slices.Contains(d.Removed, ayla.ID) {
+					if d.Part == nil || !slices.Contains(d.Removed, ayla.ID) {
 						continue
 					}
 					took = d.Tick

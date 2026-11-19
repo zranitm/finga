@@ -448,6 +448,7 @@ export class World {
   private remotes: RemotePlayers | null = null;
   private readonly remoteViews = new Map<string, Drawn>();
   private readonly deadRemotes = new Set<string>();
+  private bossSent: MobWire | null = null; // the field boss as the frames last sent it for its bar, wherever it stands; never drawn from
   private mobs = new MobTracker(this.timing.tickMs);
   private readonly mobViews = new Map<number, Drawn>();
   private readonly mobTypes = new Map<number, string>();
@@ -884,7 +885,7 @@ export class World {
     this.feed.heard();
     switch (m.t) {
       case 'snapshot':
-        this.onSnapshot(m.d.players, m.d.mobs, this.tickOf(m.tick));
+        this.onSnapshot(m.d.players, m.d.mobs, m.d.boss, this.tickOf(m.tick));
         return;
       case 'delta':
         this.onDelta(m.d, this.tickOf(m.tick));
@@ -904,10 +905,16 @@ export class World {
     return this.lastTick;
   }
 
-  private onSnapshot(players: readonly Wire[], mobs: readonly MobWire[], tick: number): void {
+  private onSnapshot(
+    players: readonly Wire[],
+    mobs: readonly MobWire[],
+    boss: MobWire | undefined,
+    tick: number,
+  ): void {
     const now = this.deps.now();
     const t = tick * this.timing.tickMs;
     this.renderClock.update(tick, now);
+    this.bossSent = boss ?? null;
     this.remotes?.applySnapshot(t, players);
     this.mobs.applySnapshot(t, mobs);
     this.deadRemotes.clear();
@@ -931,8 +938,13 @@ export class World {
     this.ackSeq = d.ackSeq;
     const t = tick * this.timing.tickMs;
     this.renderClock.update(tick, now);
-    this.remotes?.applyDelta(t, d.players, d.removedPlayers);
-    this.mobs.applyDelta(t, d.mobs, d.removedMobs);
+    const unseen = d.unseen;
+    const removedPlayers = unseen ? [...d.removedPlayers, ...unseen.players] : d.removedPlayers; // out of sight, a player goes as one who left
+    this.remotes?.applyDelta(t, d.players, removedPlayers);
+    this.mobs.applyDelta(t, d.mobs, d.removedMobs, unseen?.mobs ?? []);
+    if (d.boss) {
+      this.bossSent = d.boss;
+    }
     for (const p of d.players) {
       if (p.id === this.deps.player.characterId) {
         continue;
@@ -943,7 +955,7 @@ export class World {
         this.deadRemotes.delete(p.id);
       }
     }
-    for (const id of d.removedPlayers) {
+    for (const id of removedPlayers) {
       this.deadRemotes.delete(id);
     }
     const me = d.players.find((p) => p.id === this.deps.player.characterId);
@@ -1111,18 +1123,18 @@ export class World {
     if (renderTime === null) {
       return;
     }
-    const { shown, gone } = this.mobs.render(renderTime);
+    const { shown, gone, unseen } = this.mobs.render(renderTime);
     const carried = this.combat?.mobsDrawn(renderTime, this.playerTime(renderTime), now, shown);
     for (const id of gone) {
-      const v = this.mobViews.get(id);
       const type = this.mobTypes.get(id);
-      this.mobViews.delete(id);
-      this.mobTypes.delete(id);
-      this.bars.delete(id);
+      const v = this.forgetMob(id);
       if (v) {
         v.pose('dead', now);
         this.dying.push({ id, type, view: v, until: now + DYING_MS });
       }
+    }
+    for (const id of unseen) {
+      this.forgetMob(id)?.dispose(); // out of sight: it goes as it is
     }
     for (let i = this.dying.length - 1; i >= 0; i--) {
       const d = this.dying[i]!;
@@ -1168,7 +1180,18 @@ export class World {
     this.marks.length = this.markFoes(marked);
     const boss = fieldBoss.getState().boss;
     const drawn = boss && shown.get(boss.mobId);
-    fieldBoss.getState().setHp(drawn ? { hp: drawn.hp, maxHp: drawn.maxHp } : null); // the boss bar shows what is drawn
+    const sent = boss && this.bossSent?.id === boss.mobId ? this.bossSent : null;
+    const hp = drawn ?? sent; // the boss bar shows what is drawn, else the boss as the frames send it from anywhere on the map
+    fieldBoss.getState().setHp(hp ? { hp: hp.hp, maxHp: hp.maxHp } : null);
+  }
+
+  /** Stops drawing mob id: its figure, which it returns, its type and its bar. */
+  private forgetMob(id: number): Drawn | undefined {
+    const v = this.mobViews.get(id);
+    this.mobViews.delete(id);
+    this.mobTypes.delete(id);
+    this.bars.delete(id);
+    return v;
   }
 
   /** The mark kept at i, made the first time. */

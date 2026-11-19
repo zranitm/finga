@@ -16,9 +16,15 @@ places:
   glacier_peak:      [84, 20]
   fallen_keep:       [92, 10]
 
-# The interest cell, in metres (large-regions.md section 5): a map's bodies are bucketed in squares this wide, so a mob reads only those near it.
+# The interest cells (large-regions.md section 5): a map is cut in squares cell metres wide, by which its bodies are bucketed, so a mob reads only those near it,
+# and each player is sent the block of cells round theirs: rows behind (south) and ahead (north), as the camera always faces north, and columns to each side.
+# From anywhere in their cell a player sees at least side × cell metres to each side (96), ahead × cell ahead (96) and behind × cell behind (32).
+# No sight, attack, shot or skill may reach farther than the rows behind cover.
 interest:
   cell: 32
+  behind: 1
+  ahead: 3
+  side: 3
 
 # A teleport from the world map channels this long before it takes the player; moving, acting or a landed hit cancels it. Over 0, at most 10s.
 teleport:

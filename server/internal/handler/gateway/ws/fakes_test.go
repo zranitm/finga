@@ -714,16 +714,15 @@ func (f *fakeWorld) failTeleports(err error) { f.fail(&f.tpErr, err) }
 func (f *fakeWorld) failPromotes(err error)  { f.fail(&f.promoteErr, err) }
 func (f *fakeWorld) failQuests(err error)    { f.fail(&f.questErr, err) }
 
-// delta sends the character a tick's Frame through its connection, with ack, the latest input applied, and the energy it holds when one is given.
-func (f *fakeWorld) delta(to kernel.CharacterID, tick uint64, ack uint32, fr world.Frame, energy ...int) {
+// delta sends the character a tick's Frame of one part through its connection, with ack, the latest input applied, and the energy it holds when one is given.
+func (f *fakeWorld) delta(to kernel.CharacterID, tick uint64, ack uint32, part world.Part, energy ...int) {
 	f.mu.Lock()
-	r := world.Recipient{Character: to, Connection: f.conns[to], AckSeq: ack}
+	r := world.Recipient{Character: to, Connection: f.conns[to], Parts: []int{0}, AckSeq: ack}
 	f.mu.Unlock()
 	for _, e := range energy {
 		r.Energy = &e
 	}
-	fr.Recipients = []world.Recipient{r}
-	f.deliveries.send(world.Delivery{Tick: tick, Event: fr})
+	f.deliveries.send(world.Delivery{Tick: tick, Event: world.Frame{Parts: []world.Part{part}, Recipients: []world.Recipient{r}}})
 }
 
 // frame sends one Frame to each recipient, every one through the connection it last joined by.

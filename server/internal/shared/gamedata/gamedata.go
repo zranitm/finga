@@ -45,7 +45,7 @@ type Parts struct {
 	ChatLineMax     int
 	TeleportChannel time.Duration
 	Pvp             PvpRules
-	InterestCell    float64
+	Interest        Interest
 	Pieces          []Piece
 }
 
@@ -120,5 +120,14 @@ func (d *Data) ChatLineMax() int { return d.p.ChatLineMax }
 // TeleportChannel is how long a teleport channels before it takes the player.
 func (d *Data) TeleportChannel() time.Duration { return d.p.TeleportChannel }
 
+// Interest is the cells a map is cut in and the block of them each player is sent (large-regions.md section 5).
+type Interest struct {
+	Cell                float64 // metres a side
+	Behind, Ahead, Side int     // rows south and north of the player's cell, as the camera faces north, and columns to each side
+}
+
 // InterestCell is the side in metres of the squares a map's bodies are bucketed in (large-regions.md section 5).
-func (d *Data) InterestCell() float64 { return d.p.InterestCell }
+func (d *Data) InterestCell() float64 { return d.p.Interest.Cell }
+
+// Interest is the cells and the block of them each player is sent.
+func (d *Data) Interest() Interest { return d.p.Interest }

@@ -207,6 +207,24 @@ func frame(d world.Delivery) world.Frame {
 	return f
 }
 
+// playersIn are the players in every part of the frame.
+func playersIn(f world.Frame) []world.PlayerView {
+	var out []world.PlayerView
+	for _, p := range f.Parts {
+		out = append(out, p.Players...)
+	}
+	return out
+}
+
+// removedIn are the players gone in every part of the frame.
+func removedIn(f world.Frame) []kernel.CharacterID {
+	var out []kernel.CharacterID
+	for _, p := range f.Parts {
+		out = append(out, p.Removed...)
+	}
+	return out
+}
+
 // recipientIn is the frame's recipient for the character; nil when the frame does not go to it.
 func recipientIn(f world.Frame, id kernel.CharacterID) *world.Recipient {
 	for i := range f.Recipients {
@@ -284,7 +302,7 @@ func TestJoinSendsTheSnapshotThenFramesOnTheGatewaysStream(t *testing.T) {
 			t.Fatalf("frame %+v after tick %d", d, last)
 		}
 		last = d.Tick
-		if p, ok := playerIn(f.Players, ayla.ID); ok && r.AckSeq == 1 && p.State.X <= ayla.X {
+		if p, ok := playerIn(playersIn(f), ayla.ID); ok && r.AckSeq == 1 && p.State.X <= ayla.X {
 			t.Fatalf("held right but at %v from %v", p.State.X, ayla.X)
 		}
 	}
@@ -327,10 +345,10 @@ func TestACommandCountsOnlyFromTheConnectionThatJoined(t *testing.T) {
 		t.Fatal(err)
 	}
 	d := until(t, gw, "her move", func(d world.Delivery) bool {
-		p, ok := playerIn(frame(d).Players, ayla.ID)
+		p, ok := playerIn(playersIn(frame(d)), ayla.ID)
 		return ok && p.State.X != ayla.X
 	})
-	if p, _ := playerIn(frame(d).Players, ayla.ID); p.State.X >= ayla.X {
+	if p, _ := playerIn(playersIn(frame(d)), ayla.ID); p.State.X >= ayla.X {
 		t.Fatalf("moved right to %v from %v: the older connection's input counted", p.State.X, ayla.X)
 	}
 
@@ -361,9 +379,9 @@ func TestLeaveRemovesOnlyThroughTheConnectionThatJoined(t *testing.T) {
 	// The first Leave changes nothing, the second removes her, and Bo sees her go once.
 	d := until(t, gw, "her removal", func(d world.Delivery) bool {
 		f := frame(d)
-		return recipientIn(f, bo.ID) != nil && len(f.Removed) > 0
+		return recipientIn(f, bo.ID) != nil && len(removedIn(f)) > 0
 	})
-	if got := frame(d).Removed; len(got) != 1 || got[0] != ayla.ID {
+	if got := removedIn(frame(d)); len(got) != 1 || got[0] != ayla.ID {
 		t.Fatalf("removed %v", got)
 	}
 }

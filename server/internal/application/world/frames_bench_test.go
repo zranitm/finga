@@ -10,9 +10,9 @@ import (
 	"finga/pkg/hub"
 )
 
-// busyFrame is a tick on a map where every one of n players moved and ten mobs walked.
+// busyFrame is a tick on a map where every one of n players moved and ten mobs walked, all in one cell.
 func busyFrame(n int) *model.Frame {
-	f := &model.Frame{Tick: 9}
+	f := &model.Part{}
 	for i := range n {
 		f.Players = append(f.Players, model.PlayerView{
 			ID: kernel.NewCharacterID(), Name: fmt.Sprintf("Player%03d", i), Class: kernel.Class("warrior"), Level: 12, HP: 180, MaxHP: 204,
@@ -22,7 +22,7 @@ func busyFrame(n int) *model.Frame {
 	for i := range 10 {
 		f.Mobs = append(f.Mobs, model.MobView{ID: uint64(i), Type: "green_slime", X: float64(i), Z: 25, Yaw: 1.5, HP: 30, MaxHP: 30})
 	}
-	return f
+	return &model.Frame{Tick: 9, Parts: []model.Part{*f}}
 }
 
 // One tick's frame for n players on one gateway, built by the map and handed to the gateway's stream as the facade's own types.
@@ -33,7 +33,7 @@ func BenchmarkAMapsFrameIntoTheFacade(b *testing.B) {
 			sub := hub.New[Delivery](1).Subscribe("gw")
 			to := make([]model.Recipient, n)
 			for i := range to {
-				to[i] = model.Recipient{Character: kernel.NewCharacterID(), Connection: fmt.Sprintf("c-%d", i), AckSeq: uint32(i)} //nolint:gosec // a benchmark's index
+				to[i] = model.Recipient{Character: kernel.NewCharacterID(), Connection: fmt.Sprintf("c-%d", i), Parts: []int{0}, AckSeq: uint32(i)} //nolint:gosec // a benchmark's index
 			}
 			s := stream{sub: sub}
 			b.ReportAllocs()
