@@ -229,7 +229,7 @@ func (b *bot) roll(s spot) nav.Point {
 	for range 8 {
 		a, d := b.rng.Float64()*2*math.Pi, s.radius*math.Sqrt(b.rng.Float64())
 		p := nav.Point{X: s.at.X + d*math.Sin(a), Z: s.at.Z + d*math.Cos(a)}
-		if m != nil && m.Grid.Fits(p, b.data.Movement().Radius) && !b.nearBoss(b.mapID, p) {
+		if m != nil && m.Grid().Fits(p, b.data.Movement().Radius) && !b.nearBoss(b.mapID, p) {
 			return p
 		}
 	}

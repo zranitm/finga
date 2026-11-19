@@ -69,10 +69,10 @@ type Map struct {
 	PlayerSpawn        Point   // where players appear; in towns, the respawn point
 	SpawnYaw           float64 // the way they face there, radians from north toward east
 	NPCs               []Placement
-	Boss               *BossSpot    // a hunting map's; nil in a town
-	Grid               *nav.Grid    // the walk grid, built at load so no tick waits on it
-	Sides              [2][]Spot    // a pvp map's starting spots, side 1's then side 2's
-	Walled             sim.Geometry // a pvp map's Geometry with its prep wall standing, before a round starts
+	Boss               *BossSpot        // a hunting map's; nil in a town
+	Grid               func() *nav.Grid // the walk grid, built at the first call; the world calls every map's as it starts, so no tick waits on one
+	Sides              [2][]Spot        // a pvp map's starting spots, side 1's then side 2's
+	Walled             sim.Geometry     // a pvp map's Geometry with its prep wall standing, before a round starts
 }
 
 // Spot is where a fighter starts, facing Yaw: radians from north toward east.

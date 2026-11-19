@@ -690,8 +690,8 @@ func TestValidDataLoads(t *testing.T) {
 		if field.Boss == nil || *field.Boss != (gamedata.BossSpot{Mob: "slime_lord", At: gamedata.Point{X: 30, Z: 14}, Radius: 4}) || town.Boss != nil {
 			t.Fatalf("field's boss %+v, town's %+v", field.Boss, town.Boss)
 		}
-		if g := field.Grid; g == nil || !g.Fits(nav.Point{X: 3, Z: 10}, 0.375) {
-			t.Fatal("the field's walk grid isn't built at load, with the player's spawn standing room")
+		if !field.Grid().Fits(nav.Point{X: 3, Z: 10}, 0.375) {
+			t.Fatal("the field's walk grid has no standing room at the player's spawn")
 		}
 		if len(d.Maps()) != 3 {
 			t.Fatalf("%d maps", len(d.Maps()))

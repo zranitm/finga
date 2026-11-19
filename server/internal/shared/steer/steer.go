@@ -64,9 +64,9 @@ type Walker struct {
 func (w *Walker) Keys(m *gamedata.Map, r float64, from, to nav.Point, now time.Duration, stalled bool) sim.Input {
 	if w.mapID != m.ID || nav.Distance(w.to, to) > repathMoved || now-w.found > repathEvery || (!w.none && (stalled || len(w.path) == 0)) {
 		leash := math.Hypot(m.Geometry.SizeX, m.Geometry.SizeZ)
-		w.path = w.finder.Path(m.Grid, from, to, r+gamedata.BotPathMargin, from, leash)
+		w.path = w.finder.Path(m.Grid(), from, to, r+gamedata.BotPathMargin, from, leash)
 		if len(w.path) == 0 {
-			w.path = w.finder.Path(m.Grid, from, to, r, from, leash)
+			w.path = w.finder.Path(m.Grid(), from, to, r, from, leash)
 		}
 		if n := len(w.path); n > 0 {
 			w.path[n-1] = to

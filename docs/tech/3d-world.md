@@ -85,7 +85,7 @@ boss: {at: [58, 20], radius: 9, mob: king_slime}
 As built in spike 3, and renamed in slice PRs 4 and 5:
 - The maps live in `server/data/maps/`, and the sim's constants in metres in `server/data/movement.yaml`. The format and its build are `server/internal/shared/mapfile`. Spike 3 kept them in `maps3d` and `movement3d.yaml` beside the 2D ones; the `.tmj` files and `pkg/tiled` went in slice PR 4.
   - `load.Dir` builds and checks them at startup, so a broken one stops the game.
-  - A map's walk grid is built at load (`gamedata.Map.Grid`, since large-regions step 2a), so no tick waits on it. It's built once per process for every map of the same geometry and params, so the tests' hundreds of loads share it.
+  - A map's walk grid (`gamedata.Map.Grid`) is built at its first call, which the world makes for every map as it starts, so no tick waits on it. It's built once per process for every map of the same geometry and params, so the tests' hundreds of loads share it, and a test that only reads the data builds none.
 - A box is `[x, z, width, depth]` about its centre. Its width runs across its yaw and its depth along it. An area is `[x, z, width, depth]` from its south-west corner.
 - A solid's `height` is above the terrain at its centre.
 - Each map starts with a `# Designed in 3D:` line saying what it is. As built, the converted placeholders started with `# Converted from` until their designs replaced them.
