@@ -14,9 +14,9 @@ kit:
   level: 30
   # Each promoted class's own factors on its kit's max HP and on the hits it deals, beside scale; the balance harness tunes them (pvp.md section 14).
   classes:
-    warrior: {hp: 0.48, damage: 1.19}
-    thief: {hp: 0.96, damage: 1.10}
-    bowman: {hp: 1.46, damage: 0.81}
+    warrior: {hp: 0.48, damage: 1.25}
+    thief: {hp: 0.96, damage: 1.21}
+    bowman: {hp: 1.46, damage: 0.92}
     magician: {hp: 1.48, damage: 0.94}
 # Multiplies a kit's max HP and every hit between players; the balance harness tunes them.
 scale: {hp: 4.0, damage: 0.42}

@@ -303,17 +303,21 @@ bots:
   - Its own state, now.
   - The others as they were `reaction` ago, in ticks, read from a ring the instance keeps of the last `gamedata.BotMemory` (a second) and the tick now, for matches with bots. A tier's reaction must be under it. The ring holds:
     - each tick's fighters: positions, HP, whether a hard status holds them, and their class's basic attack, which anyone can tell from their class;
-    - every attack and skill started, as the world showed it: the tick it showed, its hit, and its user's next blow, at its cancel point when it's cancelable, else its end. A blow's also has its shape, aim, lock, and any dash or leap toward the lock. A basic attack has no lock, as `AttackUsed` shows none.
+    - every attack and skill started, as the world showed it: the tick it showed, its hit, and its user's next blow. That's at a basic attack's end, and at a skill's cancel point when it's cancelable, else its end. A blow's also has its shape, aim, lock, and any dash or leap toward the lock. A basic attack has no lock, as `AttackUsed` shows none.
   - Never a player's keys, presses, cooldowns or energy.
 - **The rules, first first:**
   1. **Break free:** when hard-controlled with its break-free ready, it presses after `break_free`, at its tier's `defend` chance, rolled once for each hold. It presses from the break-free's root.
   2. **Defend:** it guards against an enemy's action it has seen start, unless it sees that enemy down or held, which ends the action:
      - **A delayed hit:** a blow whose shape will reach it at the hit time, by `model.Reached` at its predicted spot. A dash or leap toward the lock lands its blow from there. Few blows are delayed: a basic attack and most skills land as they start. The ones that don't are Lunge, Charge, Shadow Step and Meteor.
-     - **The next blow:** with the enemy within its basic attack's reach, the blow that may follow their action, guessed at that action's cancel point when it's cancelable, else its end. A player who holds the blow past the guess, feints or cancels early gets through.
+     - **The next blow:** with the enemy within its basic attack's reach at the guessed tick, the blow that may follow their action.
+       - After a basic attack, the bot expects the next swing at its end; cancelling early beats it. A skill cut in at the attack's cancel point lands before the guard.
+       - After a skill, it's guessed at the skill's cancel point when it's cancelable, else its end.
+       - A player who holds the blow past the guess, or feints, also gets through, the guard spent and cooling.
      - It presses the first of its dodges and blocks that's ready and runs over the guarded tick, at the `defend` chance, rolled once for each action, and guards each action once.
      - No guard comes sooner than its reaction after the action showed.
      - A block faces the attacker; a dodge's move goes away from them.
-     - A slow reaction can't beat a fast swing, which is the tiers' main difference. A basic attack's cancel point comes 250 ms (Warrior) or 150 ms (Thief) after it shows, the world counting whole ticks. So expert and master bots guard a Warrior's next blow, master bots alone a Thief's, and the rest guard neither.
+     - A slow reaction can't beat a fast action. A basic attack ends 650 ms (Thief) to 1,250 ms (Magician) after it shows, past every tier's reaction, so plain X spam is guarded at about the tier's `defend` chance while a guard is ready. A guess within its reaction is one a tier misses.
+     - If testers beat this with a fixed rhythm, the next step is a small jitter per tier on the guessed tick, not tracking habits.
   3. **Follow up:** when a key offers a chain's follow-up, by the same `holds` the world uses, it takes it at the `chain` chance, rolled once each time it's offered.
   4. **Objective** (15v15): it goes to its point while no enemy is within 10 m.
   5. **Fight:**
@@ -520,6 +524,8 @@ As built for 1v1 (build step 2):
 
 - **The harness,** `pvp_balance_test.go`, sits beside the rotation harness in `model/world`, on its helpers, against a player's kit, whom no blow MISSes. Its targets:
   - **Time to down:** for each pair of classes, the attacker's rotation, chained as players fight on the default traits, on a still kit defender downs it in 12 to 18 s. The mean over all pairs is 14 to 16 s.
+    - Presses come at human timing: each cut and each skill coming ready lands 100 ms (2 ticks) past the earliest point. An attack held to repeat follows at its end.
+    - The burst below keeps perfect timing, as a cap should hold for the best hands.
   - **Burst:** the longest control-into-chain burst takes at most 40% of a kit's HP.
     - A burst starts with a control that keeps its target from acting (stun, freeze, sleep or knockdown; a pin holds only the feet), with every skill ready and the energy full.
     - It chains as players fight, a follow-up that waits on a control open while one holds, and each control that lands adding its hold. A sleep ends at the next blow.
@@ -530,14 +536,18 @@ As built for 1v1 (build step 2):
 
   | attacker → defender | Bowman | Magician | Thief | Warrior |
   | --- | --- | --- | --- | --- |
-  | Bowman | 15.8 s | 13.4 s | 15.0 s | 16.7 s |
+  | Bowman | 15.9 s | 13.3 s | 15.0 s | 16.8 s |
   | Magician | 13.6 s | 17.1 s | 13.6 s | 13.3 s |
   | Thief | 16.0 s | 13.5 s | 15.2 s | 17.0 s |
   | Warrior | 16.0 s | 13.5 s | 15.1 s | 16.9 s |
 
   - The mean is 15.1 s. The Thief's evasiveness in a match is its dodges': it downs the others in 13.5 to 17.0 s, and they down it in 13.6 to 15.2 s.
-  - The longest burst is the Warrior's Charge stun into Ground Slam on a Magician: 37% of its HP.
+  - The longest burst is the Warrior's Charge stun into Ground Slam on a Magician: 38% of its HP.
   - The kits' HP in a match: Bowman 4,549, Thief 4,285, Magician 4,227, Warrior 3,452.
+  - **Human timing,** after #294's live pass, where a Thief downed a Warrior in about 22.5 s against the table's 17.0:
+    - The live presses cut at the cancel points within about 80 ms. Six presses a round went skill straight after skill, though, and a skill waits out its full second for the next. The table assumes an attack cuts every skill. The damage per press matched the harness.
+    - Pressing 100 ms late made the Bowman's, Thief's and Warrior's rotations 5 to 14% slower. Their `damage` factors took it back: Bowman 0.81 to 0.92, Thief 1.10 to 1.21, Warrior 1.19 to 1.25. The Magician's rotation cuts little, so it kept 0.94.
+    - At the old factors and human timing, Thief on Warrior took 18.7 s and the mean was 16.2 s, past the band.
 - **Playtests** judge the rest, class against class:
   - block uptime, such as the Warrior's Bastion every 2 s;
   - dodges and heals;
@@ -565,6 +575,7 @@ As built for 1v1 (build step 2):
   - **Capture:** rates, draining, contested points, score, respawn, the base's blocker and heal, and leavers replaced.
 - **Bots:**
   - Rules on fixed views: defending at the hit time, breaking free, taking a follow-up, keeping range, and team focus.
+  - The next blow through the ring, judged by ticks: plain X spam against an expert Thief parried at about its tier's chance; X cut into a skill at the cancel point landing through the guard; an X held back past the end landing while the guard cools.
   - A bot-against-bot match runs to its end, the same each time from one seed.
   - The tier choice.
 - **End to end** (`test/`, pgtest), judged by ticks, not the wall clock:

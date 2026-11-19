@@ -133,14 +133,14 @@ func (i *Instance) act(p *player, b *bot, d bots.Decision) {
 	}
 }
 
-// seenStarting keeps an action p starts in the match's ring for its bots; nothing in a match without them.
-func (i *Instance) seenStarting(p *player, start, length uint64, t gamedata.Timing, cancelable, blow bool, shape gamedata.Shape, lock model.EntityRef, mv gamedata.Move) {
+// seenStarting keeps an action p starts in the match's ring for its bots, its next blow expected at its cancel point when nextAtCancel and else at its end; nothing in a match without them.
+func (i *Instance) seenStarting(p *player, start, length uint64, t gamedata.Timing, nextAtCancel, blow bool, shape gamedata.Shape, lock model.EntityRef, mv gamedata.Move) {
 	if i.match == nil || i.match.ring == nil {
 		return
 	}
 	hitAt, cancelAt := model.ActionPoints(length, t.Hit, t.Cancel)
 	s := bots.Started{By: p.ID, Shown: i.tick, Start: start, Hit: start + hitAt, Next: start + length, Blow: blow}
-	if cancelable {
+	if nextAtCancel {
 		s.Next = start + cancelAt
 	}
 	if blow {

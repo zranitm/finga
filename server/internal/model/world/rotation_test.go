@@ -22,6 +22,9 @@ const horizon = 10 * 60 * 20
 // keysOnBar is how many keys a skill bar has, the character module's SkillBarKeys.
 const keysOnBar = 8
 
+// pressLate is how many ticks after the earliest point a player's press lands, about 100 ms: a cut or a skill coming ready, not an attack held to repeat.
+const pressLate = 2
+
 // act is an action a rotation takes: its expected damage, its length, hit and cancel point in ticks, and for a skill its id, cooldown and energy, and for a follow-up its root and the ticks after the root's hit it may go within.
 type act struct {
 	id                      string
@@ -72,7 +75,7 @@ func rotationOf(d *gamedata.Data, me progression.Derived, c gamedata.Class, poin
 	skills, onHit := keysOf(d, me, c, points, nil, on, keysOnBar)
 	extras, extrasOnHit := keysOf(d, me, c, points, extrasOf(d, points), on, keysOnBar)
 	e := d.Energy()
-	return rotation{basic: dps(basic, nil, e), skills: dps(basic, skills, e) + onHit, chain: chain(basic, skills, e) + onHit, skillShare: skillShare(&basic, skills, e), extras: dps(basic, extras, e) + extrasOnHit}
+	return rotation{basic: dps(basic, nil, e), skills: dps(basic, skills, e) + onHit, chain: chain(basic, skills, e, pressLate) + onHit, skillShare: skillShare(&basic, skills, e), extras: dps(basic, extras, e) + extrasOnHit}
 }
 
 // target is who a rotation hits: their defense, and whether a blow can MISS them, as a mob can and a player in a match can't.
@@ -234,8 +237,8 @@ func dps(basic act, skills []act, e gamedata.Energy) float64 {
 	return dealt / (float64(t) * tickInterval.Seconds())
 }
 
-// chain is damage a second as players fight, from no energy. After an attack, the strongest skill it leaves paid for, ready by its end and open as it goes, goes at the attack's cancel point or as it comes ready, whichever is later; else an attack follows at the end. After a skill an attack follows, cutting it at its cancel point if it is cancelable. The time runs to the last action's end.
-func chain(basic act, skills []act, e gamedata.Energy) float64 {
+// chain is damage a second as players fight, from no energy, each press late ticks after the earliest point it could land. After an attack, the strongest skill it leaves paid for, ready by its end and open as it goes, goes late after the attack's cancel point or after it comes ready, whichever is later; else an attack follows at the end, as a held key repeats. After a skill an attack follows, cutting it late after its cancel point if it is cancelable. The time runs to the last action's end.
+func chain(basic act, skills []act, e gamedata.Energy, late uint64) float64 {
 	ready := make([]uint64, len(skills))
 	hits := map[string]uint64{}
 	var dealt float64
@@ -249,7 +252,7 @@ func chain(basic act, skills []act, e gamedata.Energy) float64 {
 		case a == &basic:
 			energy = min(energy+e.PerAttack, e.Max)
 			for i := range skills {
-				from := max(start+a.cancelAt, ready[i])
+				from := max(start+a.cancelAt, ready[i]) + late
 				if skills[i].cost <= energy && ready[i] <= end && skills[i].open(from, hits) {
 					next, at = &skills[i], from
 					energy -= next.cost
@@ -259,7 +262,7 @@ func chain(basic act, skills []act, e gamedata.Energy) float64 {
 				}
 			}
 		case a.cancelable:
-			at = start + a.cancelAt
+			at = min(start+a.cancelAt+late, end)
 		}
 		if at >= horizon {
 			return dealt / (float64(end) * tickInterval.Seconds())
@@ -296,6 +299,10 @@ func TestRotation(t *testing.T) {
 	late := follow
 	late.after = 10
 	energy := gamedata.Energy{Max: 10, PerAttack: 2}
+	chained := func(late uint64) func(act, []act, gamedata.Energy) float64 {
+		return func(basic act, skills []act, e gamedata.Energy) float64 { return chain(basic, skills, e, late) }
+	}
+	chain := chained(0)
 	for _, tc := range []struct {
 		name string
 		dps  func(act, []act, gamedata.Energy) float64
@@ -313,6 +320,9 @@ func TestRotation(t *testing.T) {
 		{"one at a time, a follow-up whose window shut before its root ends never goes: the root and four attacks every 100 ticks", dps, []act{late, root}, 70 / 5.0},
 		{"chained, a follow-up goes at the next attack's cancel point, 22 ticks past the root's hit: the root, an attack, the follow-up and three attacks every 100 ticks", chain, []act{follow, root}, 120 / 5.0},
 		{"chained, a follow-up whose window shut by the attack's cancel point never goes", chain, []act{late, root}, 70 / 5.0},
+		{"chained with each press 2 ticks late, an attack cuts a cancelable Strike at 8 and Strike cuts the second attack at 8: Strike and two attacks every 36 ticks", chained(2), []act{cancelable}, 50 / 1.8},
+		{"chained with each press 2 ticks late, Strike goes 2 ticks after it comes ready: an attack and Strike every 32 ticks", chained(2), []act{strike}, 40 / 1.6},
+		{"chained with each press 2 ticks late, an attack held to repeat follows at the end", chained(2), nil, 10},
 	} {
 		if got := tc.dps(basic, tc.acts, energy); math.Abs(got-tc.want) > tc.want*0.005 {
 			t.Errorf("%s: %.2f a second, want %.2f", tc.name, got, tc.want)
