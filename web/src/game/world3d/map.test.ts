@@ -119,6 +119,18 @@ describe('loadMap', () => {
     await expect(read({ ...raw, box_models: raw.box_models.slice(1) })).rejects.toThrow();
   });
 
+  it('reads the region a map names, and refuses one that names no bake', async () => {
+    const raw = json('town') as object;
+    expect((await read({ ...raw, region: { id: 'tiny', hash: 'abc' } })).region).toEqual({
+      id: 'tiny',
+      hash: 'abc',
+    });
+    expect((await read(raw)).region).toBeNull();
+    for (const region of [{ id: 'tiny' }, { hash: 'abc' }, { id: 'tiny', hash: 7 }]) {
+      await expect(read({ ...raw, region })).rejects.toThrow('map town: its region names no bake');
+    }
+  });
+
   it('loads a map by its id from the page’s maps folder, and one not there throws', async () => {
     expect((await loadMap('cave')).sky).toBe('cave');
     await expect(loadMap('nowhere')).rejects.toThrow('map nowhere: 404');

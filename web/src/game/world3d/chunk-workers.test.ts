@@ -24,9 +24,15 @@ class FakeWorker {
   onmessage: ((e: { data: unknown }) => void) | null = null;
   onerror: ((e: { message: string }) => void) | null = null;
   readonly asked: number[] = [];
+  readonly work: Promise<void>[] = []; // each build, answered or not
+  ended = false;
 
   constructor(readonly url: URL) {
     FakeWorker.made.push(this);
+  }
+
+  terminate(): void {
+    this.ended = true;
   }
 
   postMessage({ id, req }: ChunkAsk): void {
@@ -35,9 +41,11 @@ class FakeWorker {
       void Promise.resolve().then(() => this.onerror?.({ message: 'it stopped' }));
       return;
     }
-    buildChunk(req).then(
-      (chunk) => this.onmessage?.({ data: { id, chunk } }),
-      (err: Error) => this.onmessage?.({ data: { id, error: err.message } }),
+    this.work.push(
+      buildChunk(req).then(
+        (chunk) => this.onmessage?.({ data: { id, chunk } }),
+        (err: Error) => this.onmessage?.({ data: { id, error: err.message } }),
+      ),
     );
   }
 }
@@ -58,9 +66,9 @@ describe('chunks built on workers', () => {
     const chunks = workerChunks(2);
     expect(FakeWorker.made).toEqual([]);
     const got = await Promise.all([
-      chunks(request(0, 0)),
-      chunks(request(1, 0)),
-      chunks(request(0, 1)),
+      chunks.build(request(0, 0)),
+      chunks.build(request(1, 0)),
+      chunks.build(request(0, 1)),
     ]);
     expect(got.map((c) => [c.cx, c.cz])).toEqual([
       [0, 0],
@@ -73,16 +81,37 @@ describe('chunks built on workers', () => {
 
   it("fails a chunk the worker couldn't build, and a stopped worker's chunks but not the other's", async () => {
     const chunks = workerChunks(2);
-    await expect(chunks({ ...request(0, 0), url: bakeUrl(TINY, chunkFile(7, 7)) })).rejects.toThrow(
-      /404/,
-    );
+    await expect(
+      chunks.build({ ...request(0, 0), url: bakeUrl(TINY, chunkFile(7, 7)) }),
+    ).rejects.toThrow(/404/);
     FakeWorker.failing = chunkFile(1, 1); // asked as id 1, of the second worker
-    const [lost, kept] = await Promise.allSettled([chunks(request(1, 1)), chunks(request(0, 0))]);
+    const [lost, kept] = await Promise.allSettled([
+      chunks.build(request(1, 1)),
+      chunks.build(request(0, 0)),
+    ]);
     expect(lost).toMatchObject({
       status: 'rejected',
       reason: new Error('chunk worker: it stopped'),
     });
     expect(kept).toMatchObject({ status: 'fulfilled' });
+  });
+
+  it('ends its workers at close, leaving what they were asked unanswered, and starts new ones at the next chunk', async () => {
+    const chunks = workerChunks(2);
+    chunks.close(); // none started yet
+    expect(FakeWorker.made).toEqual([]);
+    await chunks.build(request(0, 0));
+    const first = [...FakeWorker.made];
+    let answered = false;
+    void chunks.build(request(1, 0)).then(() => (answered = true));
+    chunks.close();
+    expect(first.map((w) => w.ended)).toEqual([true, true]);
+    await Promise.all(first.flatMap((w) => w.work)); // the fake still answers; the pool lets it go
+    await new Promise<void>((r) => setImmediate(r));
+    expect(answered).toBe(false);
+    expect((await chunks.build(request(0, 1))).cz).toBe(1);
+    expect(FakeWorker.made.length).toBe(4);
+    expect(FakeWorker.made.slice(2).map((w) => w.ended)).toEqual([false, false]);
   });
 });
 

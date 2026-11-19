@@ -207,6 +207,8 @@ interface Playing {
 }
 
 const open: { world: World; socket: GameSocket; engine: NullEngine; left?: boolean }[] = [];
+/** The chunks worlds asked for, each built here, and how often a world closed its source. */
+const chunkWork = { builds: [] as Promise<unknown>[], closed: 0 };
 /** A model file served as junk, as a broken download would be. */
 let broken = '';
 
@@ -238,7 +240,16 @@ async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Pr
         file === broken
           ? new Uint8Array([1, 2, 3])
           : new Uint8Array(readFileSync(path.join(MODELS, file))),
-      chunks: buildChunk,
+      chunks: {
+        build: (req) => {
+          const b = buildChunk(req);
+          chunkWork.builds.push(b);
+          return b;
+        },
+        close: () => {
+          chunkWork.closed++;
+        },
+      },
       now: () => t,
     },
     arriving,
@@ -410,11 +421,17 @@ describe('World', () => {
     const scene = p.scene()!;
     expect(scene.transformNodes.some((n) => n.name === `region ${TINY.id}`)).toBe(true);
     expect(scene.transformNodes.some((n) => n.name.startsWith('place '))).toBe(false);
-    await vi.waitFor(() => {
-      p.frames(1);
-      expect(scene.meshes.filter((m) => m.name.startsWith('chunk ')).length).toBe(4);
-    }, WAIT);
+    p.frames(1);
+    await Promise.allSettled(chunkWork.builds);
+    await new Promise<void>((r) => setImmediate(r));
+    p.frames(2); // two made a frame
+    expect(scene.meshes.filter((m) => m.name.startsWith('chunk ')).length).toBe(4);
     expect(scene.getMeshByName('overview')!.getTotalIndices()).toBe(0); // every chunk drawn over it
+    const closed = chunkWork.closed;
+    changeMap(p, { mapId: FLAT, x: 4, y: 0, z: 20, yaw: 0 });
+    expect(chunkWork.closed).toBe(closed + 1); // its workers end as it goes
+    leave(p);
+    expect(chunkWork.closed).toBe(closed + 2);
   });
 
   it('walks the player east till the tree in its way stops them, as the server’s sim would', async () => {

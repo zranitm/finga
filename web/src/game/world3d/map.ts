@@ -110,6 +110,9 @@ function parseMap(json: unknown): WorldMap {
   if (boxes.length !== m.box_models.length || cylinders.length !== m.cylinder_models.length) {
     throw new Error(`map ${m.id}: its models and solids differ in number`);
   }
+  if (m.region && (typeof m.region.id !== 'string' || typeof m.region.hash !== 'string')) {
+    throw new Error(`map ${m.id}: its region names no bake`);
+  }
   const geometry = indexed({
     size_x: m.geometry.size_x,
     size_z: m.geometry.size_z,

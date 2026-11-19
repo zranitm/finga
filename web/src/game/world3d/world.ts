@@ -136,7 +136,7 @@ export interface WorldDeps {
   readonly parent: HTMLElement;
   readonly player: Player;
   readonly models: ModelSource;
-  /** Builds a region's chunks off the page's thread. */
+  /** Builds a region's chunks off the page's thread; the world closes it as it leaves each map. */
   readonly chunks: ChunkSource;
   /** The page's clock in ms, which the keys, actions and frames share. */
   readonly now: () => number;
@@ -2153,6 +2153,7 @@ export class World {
     this.stopListening();
     this.arriving?.take(); // a build never finished, or a fade under way
     this.arriving = null;
+    this.deps.chunks.close(); // the next region starts them again
     this.clearOthers();
     for (const { view } of this.npcViews.values()) {
       view.dispose();

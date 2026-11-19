@@ -15,6 +15,11 @@ export interface GroundArrays {
   readonly details: readonly Uint32Array[];
 }
 
+/** A chunk's ground, and how far its skirts hang, which the overview's skirts round it hang too. */
+export interface ChunkArrays extends GroundArrays {
+  readonly skirt: number;
+}
+
 const GAMMA = 2.2; // as Babylon's toLinearSpace, which the scene's other colours go through
 
 /** Each palette colour, sRGB 0xrrggbb, as linear rgb, three to a colour: what the vertex colours index. */
@@ -30,14 +35,14 @@ export function linearPalette(palette: readonly number[]): Float32Array {
 
 /**
  * A chunk's ground, cell metres a sample, from its south-west corner: its n² samples, then a skirt's foot under each edge sample, south, north, west and east.
- * Normals take central differences over the bordered heights, so a shared edge gets the same normal from both chunks. Each detail's triangles carry their own skirts, which hang below where a neighbour drawn every coarsest samples could put the edge.
+ * Normals take central differences over the bordered heights, so a shared edge gets the same normal from both chunks. Each detail's triangles carry their own skirts, which hang below where any coarser neighbour could put the edge: a chunk drawn every 2nd or 4th sample, or the overview every coarsest.
  */
 export function chunkGround(
   c: Chunk,
   cell: number,
   linear: Float32Array,
   coarsest: number,
-): GroundArrays {
+): ChunkArrays {
   const { n } = c;
   const side = n + 2;
   const h = (ix: number, iz: number) => c.heights[(iz + 1) * side + ix + 1]!;
@@ -58,7 +63,7 @@ export function chunkGround(
     }
   }
   const edges = edgesOf(n);
-  const depth = skirtDepth(edges, positions, coarsest);
+  const depth = skirtDepth(edges, positions, [...new Set([DETAILS[1], DETAILS[2], coarsest])]);
   edges.forEach((edge, e) => {
     edge.forEach((v, k) => {
       const foot = n * n + e * n + k;
@@ -82,7 +87,7 @@ export function chunkGround(
     });
     return Uint32Array.from(out);
   });
-  return { positions, normals, colors, details };
+  return { positions, normals, colors, details, skirt: depth };
 }
 
 /** For each edge, south, north, west and east, whether a skirt's triangle goes down before along to face out of the chunk. */
@@ -99,15 +104,21 @@ function edgesOf(n: number): number[][] {
   ];
 }
 
-/** How far a skirt hangs: the most any edge sample strays from the line its neighbour draws every coarsest samples, and SKIRT_PAD more. */
-function skirtDepth(edges: readonly number[][], positions: Float32Array, coarsest: number): number {
+/** How far a skirt hangs: the most any edge sample strays from a line a neighbour draws, every so many samples for each of spacings, and SKIRT_PAD more. */
+function skirtDepth(
+  edges: readonly number[][],
+  positions: Float32Array,
+  spacings: readonly number[],
+): number {
   let most = 0;
   const y = (v: number) => positions[3 * v + 1]!;
-  for (const edge of edges) {
-    for (let k = 0; k + coarsest < edge.length; k += coarsest) {
-      const [a, b] = [y(edge[k]!), y(edge[k + coarsest]!)];
-      for (let j = 1; j < coarsest; j++) {
-        most = Math.max(most, Math.abs(y(edge[k + j]!) - (a + ((b - a) * j) / coarsest)));
+  for (const s of spacings) {
+    for (const edge of edges) {
+      for (let k = 0; k + s < edge.length; k += s) {
+        const [a, b] = [y(edge[k]!), y(edge[k + s]!)];
+        for (let j = 1; j < s; j++) {
+          most = Math.max(most, Math.abs(y(edge[k + j]!) - (a + ((b - a) * j) / s)));
+        }
       }
     }
   }
@@ -165,6 +176,69 @@ export function overviewIndices(
   const out: number[] = [];
   grid(o.nx, o.nz, 1, out, (ix, iz) => !drawn(Math.floor(ix / per), Math.floor(iz / per)));
   return Uint32Array.from(out);
+}
+
+/**
+ * Skirts round the overview's holes, where a drawn chunk meets the overview: down from the overview's edge as far as the chunk's own skirts hang, facing into the chunk.
+ * A chunk's edge, at any detail, strays from the overview's straight line by no more than its samples do, which its skirt depth covers; this hides the slit where the chunk's edge dips under the overview's.
+ * ground is the overview's arrays, per its cells a chunk's side; depth gives a drawn chunk's skirt depth, undefined where none is drawn. A chunk's edge on the region's own needs none.
+ */
+export function overviewSkirts(
+  o: Overview,
+  ground: Omit<GroundArrays, 'details'>,
+  per: number,
+  depth: (cx: number, cz: number) => number | undefined,
+): Omit<GroundArrays, 'details'> & { readonly indices: Uint32Array } {
+  const ncx = (o.nx - 1) / per;
+  const ncz = (o.nz - 1) / per;
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const colors: number[] = [];
+  const indices: number[] = [];
+  for (let cz = 0; cz < ncz; cz++) {
+    for (let cx = 0; cx < ncx; cx++) {
+      const d = depth(cx, cz);
+      if (d === undefined) {
+        continue;
+      }
+      const sides: [number, number, (k: number) => number][] = [
+        [cx, cz - 1, (k) => cz * per * o.nx + cx * per + k], // south
+        [cx, cz + 1, (k) => (cz + 1) * per * o.nx + cx * per + k], // north
+        [cx - 1, cz, (k) => (cz * per + k) * o.nx + cx * per], // west
+        [cx + 1, cz, (k) => (cz * per + k) * o.nx + (cx + 1) * per], // east
+      ];
+      sides.forEach(([nx, nz, sample], e) => {
+        if (nx < 0 || nz < 0 || nx >= ncx || nz >= ncz || depth(nx, nz) !== undefined) {
+          return;
+        }
+        const first = positions.length / 3;
+        for (let k = 0; k <= per; k++) {
+          const v = sample(k);
+          const [x, y, z] = ground.positions.subarray(3 * v, 3 * v + 3);
+          positions.push(x!, y!, z!, x!, y! - d, z!);
+          const n = ground.normals.subarray(3 * v, 3 * v + 3);
+          const c = ground.colors.subarray(4 * v, 4 * v + 4);
+          normals.push(...n, ...n);
+          colors.push(...c, ...c);
+        }
+        for (let k = 0; k < per; k++) {
+          const [a, fa, b, fb] = [
+            first + 2 * k,
+            first + 2 * k + 1,
+            first + 2 * k + 2,
+            first + 2 * k + 3,
+          ];
+          indices.push(...(DOWN_FIRST[e] ? [a, b, fa, b, fb, fa] : [a, fa, b, b, fa, fb])); // the chunk's own skirt's turned round
+        }
+      });
+    }
+  }
+  return {
+    positions: Float32Array.from(positions),
+    normals: Float32Array.from(normals),
+    colors: Float32Array.from(colors),
+    indices: Uint32Array.from(indices),
+  };
 }
 
 function unit(x: number, y: number, z: number): [number, number, number] {

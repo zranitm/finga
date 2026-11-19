@@ -11,7 +11,7 @@ type ChunkAnswer =
   | { readonly id: number; readonly chunk: BuiltChunk }
   | { readonly id: number; readonly error: string };
 
-/** A source spreading chunks over count workers, started at its first request; a worker that fails fails what it was asked. */
+/** A source spreading chunks over count workers, started at its first request and ended by close; a worker that fails fails what it was asked. */
 export function workerChunks(count: number): ChunkSource {
   const waiting = new Map<
     number,
@@ -41,13 +41,22 @@ export function workerChunks(count: number): ChunkSource {
       };
       return worker;
     });
-  return (req) =>
-    new Promise((resolve, reject) => {
-      if (pool.length === 0) {
-        pool = start();
+  return {
+    build: (req) =>
+      new Promise((resolve, reject) => {
+        if (pool.length === 0) {
+          pool = start();
+        }
+        const id = next++;
+        waiting.set(id, { resolve, reject });
+        pool[id % count]!.postMessage({ id, req } satisfies ChunkAsk);
+      }),
+    close: () => {
+      for (const worker of pool) {
+        worker.terminate();
       }
-      const id = next++;
-      waiting.set(id, { resolve, reject });
-      pool[id % count]!.postMessage({ id, req } satisfies ChunkAsk);
-    });
+      pool = [];
+      waiting.clear();
+    },
+  };
 }

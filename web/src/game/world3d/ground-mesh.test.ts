@@ -9,6 +9,7 @@ import {
   linearPalette,
   overviewGround,
   overviewIndices,
+  overviewSkirts,
 } from './ground-mesh';
 import type { GroundArrays } from './ground-mesh';
 import { readChunk, readOverview } from './region-bake';
@@ -155,6 +156,56 @@ describe("a region's ground as vertex arrays", () => {
     for (let k = 0; k < 9; k++) {
       expect(y(9 * 9 + k)).toBeCloseTo(y(k) - 0.5, 5); // the south edge's feet
     }
+  });
+
+  it('hangs a skirt below the line any coarser neighbour draws: every 4th sample can stray twice as far as every 8th', () => {
+    const edge = [0, 0, -2, 0, 2, 0, 0, 0, 0]; // along the south edge
+    const g = chunkGround(
+      madeUp(9, (ix, iz) => (iz === 0 ? edge[Math.min(Math.max(ix, 0), 8)]! : 0)),
+      1,
+      LINEAR,
+      8,
+    );
+    expect(g.skirt).toBeCloseTo(3 + 0.5, 5); // the 2nd sample 3 below the 4-line's 1, which the 8-line has 2 off
+    const y = (i: number) => g.positions[3 * i + 1]!;
+    for (let k = 0; k < 9; k++) {
+      expect(y(9 * 9 + k)).toBeCloseTo(y(k) - g.skirt, 5);
+    }
+  });
+
+  it('hangs skirts round the overview’s holes where a drawn chunk meets one not drawn, as deep as the chunk’s, facing into it', () => {
+    const o = readOverview(tinyFile('overview.bin'), CELL);
+    const g = overviewGround(o, LINEAR);
+    const depth = { '0_0': 3, '1_1': 5 } as Record<string, number>;
+    const s = overviewSkirts(o, g, 8, (cx, cz) => depth[`${cx}_${cz}`]);
+    expect(s.indices.length).toBe(4 * 8 * 6); // 0_0's north and east, 1_1's south and west; none on the region's edge
+    const sides = [
+      { chunk: '0_0', line: [1, 64], into: [0, -1] }, // its north side: z at 64 m
+      { chunk: '0_0', line: [0, 64], into: [-1, 0] }, // its east: x at 64 m
+      { chunk: '1_1', line: [1, 64], into: [0, 1] }, // its south
+      { chunk: '1_1', line: [0, 64], into: [1, 0] }, // its west
+    ];
+    const tops = s.positions.length / 6;
+    expect(tops).toBe(4 * 9);
+    sides.forEach(({ chunk, line: [axis, at], into }, side) => {
+      for (let k = 0; k < 9; k++) {
+        const top = 2 * (9 * side + k);
+        const [x, y, z] = vertex(s.positions, top);
+        expect([x, z][axis!]).toBe(at);
+        expect(vertex(s.positions, top + 1)).toEqual([x, Math.fround(y - depth[chunk]!), z]);
+        const v = (z / 8) * o.nx + x / 8;
+        expect(vertex(s.normals, top)).toEqual(vertex(g.normals, v));
+        expect([...s.colors.subarray(4 * top, 4 * top + 4)]).toEqual([
+          ...g.colors.subarray(4 * v, 4 * v + 4),
+        ]);
+      }
+      for (const t of triangles(s.indices.subarray(side * 48, side * 48 + 48))) {
+        const a = away({ ...s, details: [] }, t);
+        expect(a[0] * into[0]! + a[2] * into[1]!).toBeLessThan(0); // its front seen from inside the chunk
+      }
+    });
+    expect(overviewSkirts(o, g, 8, () => undefined).indices.length).toBe(0);
+    expect(overviewSkirts(o, g, 8, () => 1).indices.length).toBe(0); // every chunk drawn
   });
 
   it('draws the overview in the world every 8 m, with holes under the chunks drawn', () => {

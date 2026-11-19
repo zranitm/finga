@@ -519,6 +519,9 @@ export async function kitParts(
   root: TransformNode,
 ): Promise<KitPart[]> {
   const container = await models.load(kit.file);
+  if (root.isDisposed()) {
+    return []; // its place went while it loaded
+  }
   const made = container.instantiateModelsToScene((n) => `${key} ${n}`, false, {
     doNotInstantiate: true,
   });

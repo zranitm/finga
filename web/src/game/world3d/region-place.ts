@@ -10,7 +10,13 @@ import { Scene } from '@babylonjs/core/scene';
 
 import type { Lighting } from './body';
 import type { BuiltChunk, ChunkSource } from './chunk-build';
-import { DETAILS, linearPalette, overviewGround, overviewIndices } from './ground-mesh';
+import {
+  DETAILS,
+  linearPalette,
+  overviewGround,
+  overviewIndices,
+  overviewSkirts,
+} from './ground-mesh';
 import type { GroundArrays } from './ground-mesh';
 import { kitModels } from './kit-models';
 import type { Models } from './models';
@@ -94,6 +100,8 @@ class RegionView implements Place {
   private readonly linear: Float32Array;
   private readonly coarsest: number;
   private readonly overview: Mesh;
+  private readonly overviewArrays: Omit<GroundArrays, 'details'>;
+  private skirts: Mesh | null = null; // round the overview's holes
   private readonly drawn = new Map<string, Drawn>();
   private readonly asked = new Set<string>();
   private readonly failed = new Set<string>();
@@ -120,7 +128,8 @@ class RegionView implements Place {
     );
     this.linear = linearPalette(region.palette);
     this.coarsest = Math.max(DETAILS[2], far.spacing / region.cell);
-    this.overview = this.mesh('overview', overviewGround(far, this.linear), this.overviewHoles());
+    this.overviewArrays = overviewGround(far, this.linear);
+    this.overview = this.mesh('overview', this.overviewArrays, this.overviewHoles());
     this.overview.parent = this.root;
   }
 
@@ -171,6 +180,16 @@ class RegionView implements Place {
     if (this.holes) {
       this.holes = false;
       this.overview.setIndices(this.overviewHoles());
+      this.skirts?.dispose(false, false);
+      const per = this.region.chunk / this.far.spacing;
+      const s = overviewSkirts(
+        this.far,
+        this.overviewArrays,
+        per,
+        (cx, cz) => this.drawn.get(key(cx, cz))?.built.ground.skirt,
+      );
+      this.skirts = this.mesh('overview skirts', s, s.indices);
+      this.skirts.parent = this.root;
     }
   }
 
@@ -183,25 +202,27 @@ class RegionView implements Place {
   private ask(cx: number, cz: number): void {
     const k = key(cx, cz);
     this.asked.add(k);
-    this.chunks({
-      url: bakeUrl(this.region.ref, chunkFile(cx, cz)),
-      cell: this.region.cell,
-      linear: this.linear,
-      coarsest: this.coarsest,
-    }).then(
-      (b) => {
-        if (this.asked.delete(k)) {
-          this.ready.push(b);
-        }
-      },
-      (err: unknown) => {
-        this.asked.delete(k);
-        this.failed.add(k);
-        console.info(
-          `finga: chunk ${k} of ${this.region.ref.id} didn't load: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      },
-    );
+    this.chunks
+      .build({
+        url: bakeUrl(this.region.ref, chunkFile(cx, cz)),
+        cell: this.region.cell,
+        linear: this.linear,
+        coarsest: this.coarsest,
+      })
+      .then(
+        (b) => {
+          if (this.asked.delete(k)) {
+            this.ready.push(b);
+          }
+        },
+        (err: unknown) => {
+          this.asked.delete(k);
+          this.failed.add(k);
+          console.info(
+            `finga: chunk ${k} of ${this.region.ref.id} didn't load: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        },
+      );
   }
 
   /** Draws a built chunk: its ground at the farthest detail till the next follow sets it, and its props as their models load. */

@@ -1,6 +1,6 @@
 // A chunk fetched and built into arrays a mesh takes as they are: what the chunk workers run, off the page's thread (large-regions.md section 10).
 import { chunkGround } from './ground-mesh';
-import type { GroundArrays } from './ground-mesh';
+import type { ChunkArrays } from './ground-mesh';
 import { fetched, readChunk } from './region-bake';
 import type { Chunk } from './region-bake';
 
@@ -16,13 +16,17 @@ export interface ChunkRequest {
 export interface BuiltChunk {
   readonly cx: number;
   readonly cz: number;
-  readonly ground: GroundArrays;
+  readonly ground: ChunkArrays;
   readonly models: Uint16Array;
   readonly props: Float32Array;
 }
 
-/** Builds the chunk a request names: on a worker in the page, in tests on their own thread. */
-export type ChunkSource = (req: ChunkRequest) => Promise<BuiltChunk>;
+/** Builds the chunks a region asks for: on workers in the page, in tests on their own thread. */
+export interface ChunkSource {
+  build(req: ChunkRequest): Promise<BuiltChunk>;
+  /** Ends its workers once the region's left; what they hadn't answered never settles, and a later build starts them again. */
+  close(): void;
+}
 
 export async function buildChunk(req: ChunkRequest): Promise<BuiltChunk> {
   const c = readChunk(await (await fetched(req.url)).arrayBuffer());
