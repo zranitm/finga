@@ -169,6 +169,18 @@ type ItemDiscard struct {
 	Quantity       int
 }
 
+// WardrobeAdd adds the piece an item holds to the account's wardrobe, taking one of the item.
+type WardrobeAdd struct {
+	IdempotencyKey string
+	Item           kernel.ItemID
+}
+
+// LookSet wears a look of collected pieces.
+type LookSet struct {
+	IdempotencyKey string
+	Look           Look
+}
+
 // ItemDiscardMany destroys whole items or stacks, all of them or none.
 type ItemDiscardMany struct {
 	IdempotencyKey string

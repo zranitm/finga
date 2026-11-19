@@ -140,6 +140,22 @@ func (h *Handler) equip(c *msgContext, in *clientv1.Equip) (any, error) {
 	return nil, h.gw.Equip(c.Ctx, c.Session.session, model.ItemEquip{IdempotencyKey: in.GetIdempotencyKey(), Item: id, EquipSlot: in.GetEquipSlot()})
 }
 
+// addToWardrobe answers with the slot it took from; the piece is the item's, which the client knows.
+func (h *Handler) addToWardrobe(c *msgContext, in *clientv1.AddToWardrobe) (any, error) {
+	id, err := kernel.ParseItemID(in.GetItemId())
+	if err != nil {
+		return nil, err
+	}
+	return changed(h.gw.AddToWardrobe(c.Ctx, c.Session.session, model.WardrobeAdd{IdempotencyKey: in.GetIdempotencyKey(), Item: id}))
+}
+
+// setLook answers once the world applied it; the look comes in the player's next view.
+func (h *Handler) setLook(c *msgContext, in *clientv1.SetLook) (any, error) {
+	l := in.GetLook()
+	look := model.Look{Outfit: l.GetOutfit(), Headwear: l.GetHeadwear(), Face: l.GetFace(), Weapon: l.GetWeapon(), Wings: l.GetWings(), HideHeadwear: l.GetHideHeadwear()}
+	return nil, h.gw.SetLook(c.Ctx, c.Session.session, model.LookSet{IdempotencyKey: in.GetIdempotencyKey(), Look: look})
+}
+
 func (h *Handler) unequip(c *msgContext, in *clientv1.Unequip) (any, error) {
 	out := model.ItemUnequip{IdempotencyKey: in.GetIdempotencyKey(), EquipSlot: in.GetEquipSlot()}
 	if in.ToSlot != nil {

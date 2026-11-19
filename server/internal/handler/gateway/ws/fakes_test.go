@@ -197,6 +197,7 @@ type fakeWorld struct {
 	portals    []world.Presence
 	says       []sayCall
 	equips     []equipCall
+	looks      []lookCall
 	unequips   []unequipCall
 	equipErr   error // Equip and Unequip fail with it
 	uses       []useCall
@@ -262,6 +263,11 @@ type (
 		key       string
 		item      kernel.ItemID
 		equipSlot string
+	}
+	lookCall struct {
+		p    world.Presence
+		key  string
+		look world.Look
 	}
 	unequipCall struct {
 		p              world.Presence
@@ -542,6 +548,16 @@ func (f *fakeWorld) Say(_ context.Context, p world.Presence, name, text string) 
 	return nil
 }
 
+func (f *fakeWorld) SetLook(_ context.Context, p world.Presence, key string, look world.Look) error {
+	f.ops.Add(1)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.looks = append(f.looks, lookCall{p: p, key: key, look: look})
+	return f.equipErr
+}
+
+func (f *fakeWorld) lookCalls() []lookCall { return copied(&f.mu, &f.looks) }
+
 func (f *fakeWorld) Equip(_ context.Context, p world.Presence, key string, it kernel.ItemID, equipSlot string) error {
 	f.ops.Add(1)
 	f.mu.Lock()
@@ -763,6 +779,7 @@ type fakeItems struct {
 	moves       []itemCall[item.MoveRequest]
 	discards    []itemCall[item.DiscardRequest]
 	discardMany []itemCall[item.DiscardManyRequest]
+	wardrobe    []itemCall[item.WardrobeRequest]
 	changed     []item.Slot
 	revision    uint64 // every answer's
 	err         error
@@ -805,6 +822,14 @@ func (f *fakeItems) Discard(_ context.Context, a item.Actor, r item.DiscardReque
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.discards = append(f.discards, itemCall[item.DiscardRequest]{a, r})
+	return f.result()
+}
+
+func (f *fakeItems) AddToWardrobe(_ context.Context, a item.Actor, r item.WardrobeRequest) (item.Result, error) {
+	f.ops.Add(1)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.wardrobe = append(f.wardrobe, itemCall[item.WardrobeRequest]{a, r})
 	return f.result()
 }
 

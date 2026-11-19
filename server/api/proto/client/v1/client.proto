@@ -46,6 +46,8 @@ message ClientMessage {
     PvpLeaveQueue pvp_leave_queue = 33;
     PvpAnswer pvp_answer = 34;
     PvpForfeit pvp_forfeit = 35;
+    AddToWardrobe add_to_wardrobe = 36;
+    SetLook set_look = 37;
   }
 }
 
@@ -198,6 +200,18 @@ message InventoryDiscard {
   string idempotency_key = 1;
   string item_id = 2;
   int32 quantity = 3;
+}
+
+// AddToWardrobe takes one of an item that holds a piece and adds the piece, the item's piece.<id>, to the account's wardrobe; answered with the changed slot as InventoryChanged.
+message AddToWardrobe {
+  string idempotency_key = 1;
+  string item_id = 2;
+}
+
+// SetLook wears a look of collected pieces, alive and out of combat; answered once the world applied it, which every view then carries.
+message SetLook {
+  string idempotency_key = 1;
+  Look look = 2;
 }
 
 // InventoryDiscardMany destroys several whole items or stacks at once, all or none: one to a tab's 24, each once, none worn.

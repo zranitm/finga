@@ -33,6 +33,11 @@ func (m *itemModule) Discard(_ context.Context, a item.Actor, r item.DiscardRequ
 	return m.res, nil
 }
 
+func (m *itemModule) AddToWardrobe(_ context.Context, a item.Actor, r item.WardrobeRequest) (item.Result, error) {
+	m.actor, m.req = a, r
+	return m.res, nil
+}
+
 func (m *itemModule) DiscardMany(_ context.Context, a item.Actor, r item.DiscardManyRequest) (item.Result, error) {
 	m.actor, m.req = a, r
 	return m.res, nil
@@ -78,6 +83,12 @@ func TestEachItemRequestKeepsItsFields(t *testing.T) {
 				return sent[item.DiscardManyRequest]{m.actor, m.req.(item.DiscardManyRequest)}
 			})
 		},
+		"AddToWardrobe": func() []string {
+			return copytest.Diff(request("Item", "ItemID"), func(a asked[model.WardrobeAdd]) sent[item.WardrobeRequest] {
+				_, _ = items.AddToWardrobe(t.Context(), a.Actor, a.In)
+				return sent[item.WardrobeRequest]{m.actor, m.req.(item.WardrobeRequest)}
+			})
+		},
 	} {
 		if got := diff(); len(got) > 0 {
 			t.Errorf("%s: %v", name, got)
@@ -100,7 +111,7 @@ func TestEachItemResultKeepsItsFields(t *testing.T) {
 			"Changed.Item.EquipSlot": "an item in a tab is worn nowhere",
 			"Equipment":              "a move or a discard changes no worn item",
 			"Worn":                   "a move or a discard changes no worn item",
-			"Piece":                  "a move or a discard adds no piece",
+			"Piece":                  "the client knows the piece of the item it added",
 			"Look":                   "a move or a discard changes no look",
 		},
 	}
@@ -116,6 +127,10 @@ func TestEachItemResultKeepsItsFields(t *testing.T) {
 		},
 		"DiscardMany": func() model.InventoryChanged {
 			out, _ := items.DiscardMany(t.Context(), model.Actor{}, model.ItemDiscardMany{})
+			return out
+		},
+		"AddToWardrobe": func() model.InventoryChanged {
+			out, _ := items.AddToWardrobe(t.Context(), model.Actor{}, model.WardrobeAdd{})
 			return out
 		},
 	} {
