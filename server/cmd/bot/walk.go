@@ -9,125 +9,26 @@ import (
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/nav"
+	"finga/internal/shared/sim"
+	"finga/internal/shared/steer"
 )
 
 const (
-	waypointReach = 0.3              // metres from a path's waypoint the bot turns to the next
-	repathEvery   = time.Second      // a path is found again this often, or sooner when its end moves
-	repathMoved   = 1.0              // metres its end may move before the path is found again
-	stallMoved    = 0.05             // metres a bot pressing a way must move in stallFor decisions not to have stalled
-	stallFor      = 4                // decisions
-	inTheWayGap   = 0.5              // metres between bodies at which a mob ahead stands in the bot's way
-	inTheWayCone  = 0.5              // the cosine of the widest angle off the bot's way a mob in its way stands at, 60°
-	reachShare    = 0.7              // of an attack's reach a bot goes in to, so a step either way still hits
-	pathMargin    = 0.25             // metres a path keeps clear beyond the body's radius where it can, as eight-way keys stray off its line
-	asideFor      = 2                // decisions a stalled bot steps aside
-	giveUpFor     = 30 * time.Second // a bot leaves a mob it found no way to this long
-	bossMargin    = 3.0              // metres past a field boss's sight a bot keeps its hunt and its way
+	inTheWayGap  = 0.5              // metres between bodies at which a mob ahead stands in the bot's way
+	inTheWayCone = 0.5              // the cosine of the widest angle off the bot's way a mob in its way stands at, 60°
+	reachShare   = 0.7              // of an attack's reach a bot goes in to, so a step either way still hits
+	giveUpFor    = 30 * time.Second // a bot leaves a mob it found no way to this long
+	bossMargin   = 3.0              // metres past a field boss's sight a bot keeps its hunt and its way
 )
 
-// keysToward are the keys whose way is nearest (dx, dz), x east and z north: one key, or two for a diagonal, each within 22.5° of the way.
-func keysToward(dx, dz float64) *clientv1.Input {
-	l := math.Hypot(dx, dz)
-	if l == 0 {
-		return &clientv1.Input{}
-	}
-	s := l * math.Sin(math.Pi/8)
-	return &clientv1.Input{Right: dx > s, Left: dx < -s, Up: dz > s, Down: dz < -s}
+// clientKeys is a client's Input holding in's keys.
+func clientKeys(in sim.Input) *clientv1.Input {
+	return &clientv1.Input{Left: in.Left, Right: in.Right, Up: in.Up, Down: in.Down, Jump: in.Jump}
 }
 
-// yawTo is the aim from one point to another: radians from north toward east.
-func yawTo(from, to nav.Point) float32 {
-	return float32(math.Atan2(to.X-from.X, to.Z-from.Z))
-}
-
-// walker follows nav paths, turning each waypoint into keys; it finds the path again when its end moves, a second on, or when the bot stalls. With no way found it walks straight at its end for a second before looking again, as a search that fails covers the whole map.
-type walker struct {
-	finder nav.Finder
-	path   []nav.Point
-	mapID  string
-	to     nav.Point
-	found  time.Time
-	none   bool // the last search found no way
-	stalls int  // since it last reached a waypoint
-	aside  int  // decisions left stepping aside
-}
-
-// keys are the keys that walk a body of radius r at from on m toward to, along a path round what's in the way. A stall is met with a jump the first time, a step aside the next, each other step the other side, in turn.
-func (w *walker) keys(m *gamedata.Map, r float64, from, to nav.Point, now time.Time, stalled bool) *clientv1.Input {
-	if w.mapID != m.ID || nav.Distance(w.to, to) > repathMoved || now.Sub(w.found) > repathEvery || (!w.none && (stalled || len(w.path) == 0)) {
-		leash := math.Hypot(m.Geometry.SizeX, m.Geometry.SizeZ)
-		w.path = w.finder.Path(m.Grid, from, to, r+pathMargin, from, leash)
-		if len(w.path) == 0 {
-			w.path = w.finder.Path(m.Grid, from, to, r, from, leash)
-		}
-		if n := len(w.path); n > 0 {
-			w.path[n-1] = to
-		}
-		w.mapID, w.to, w.found, w.none = m.ID, to, now, len(w.path) == 0
-	}
-	for len(w.path) > 1 && nav.Distance(from, w.path[0]) < waypointReach {
-		w.path, w.stalls = w.path[1:], 0
-	}
-	next := to
-	if len(w.path) > 0 {
-		next = w.path[0]
-	}
-	dx, dz := next.X-from.X, next.Z-from.Z
-	if stalled {
-		w.stalls++
-		if w.stalls%2 == 1 {
-			in := keysToward(dx, dz)
-			in.Jump = true
-			return in
-		}
-		w.aside = asideFor
-	}
-	if w.aside > 0 {
-		w.aside--
-		side := float64(w.stalls%4 - 1) // 1 at the second stall, -1 at the fourth
-		return keysToward(-dz*side, dx*side)
-	}
-	return keysToward(dx, dz)
-}
-
-// lost reports whether the last search found no way to the walker's end.
-func (w *walker) lost() bool { return w.none }
-
-// stall finds a bot stuck against something: stallFor decisions pressing one way on the ground that move it less than stallMoved, told once and then counted again. Frames in the air or standing never count, so updates that arrive in bursts don't count as one, and a new way starts the count, as its first steps take a round trip to show.
-type stall struct {
-	at    nav.Point
-	way   [2]int
-	count int
-}
-
-// stalled takes a decision's position and the input held into it, and reports whether the bot has just stalled.
-func (s *stall) stalled(at nav.Point, onGround bool, held *clientv1.Input) bool {
-	way := wayOf(held)
-	if !onGround || way == ([2]int{}) || way != s.way || nav.Distance(at, s.at) >= stallMoved {
-		s.count, s.at, s.way = 0, at, way
-		return false
-	}
-	s.count++
-	if s.count < stallFor {
-		return false
-	}
-	s.count = 0
-	return true
-}
-
-// wayOf is the way an input's keys press, x east and z north, each -1, 0 or 1.
-func wayOf(in *clientv1.Input) [2]int {
-	key := func(plus, minus bool) int {
-		switch {
-		case plus && !minus:
-			return 1
-		case minus && !plus:
-			return -1
-		}
-		return 0
-	}
-	return [2]int{key(in.GetRight(), in.GetLeft()), key(in.GetUp(), in.GetDown())}
+// simKeys is the keys a client's Input holds.
+func simKeys(in *clientv1.Input) sim.Input {
+	return sim.Input{Left: in.GetLeft(), Right: in.GetRight(), Up: in.GetUp(), Down: in.GetDown(), Jump: in.GetJump()}
 }
 
 // at is where the bot stands on the ground's plane.
@@ -149,11 +50,11 @@ func (b *bot) walkTo(to nav.Point, within float64) bool {
 		b.input(&clientv1.Input{})
 		return true
 	}
-	stalled := b.stuck.stalled(b.at(), b.onGround, b.held)
+	stalled := b.stuck.Stalled(b.at(), b.onGround, simKeys(b.held))
 	if stalled {
 		b.count(func(s *stats) { s.stalls++ })
 	}
-	b.input(b.walk.keys(m, b.data.Movement().Radius, b.at(), to, time.Now(), stalled))
+	b.input(clientKeys(b.walk.Keys(m, b.data.Movement().Radius, b.at(), to, time.Since(b.born), stalled)))
 	return false
 }
 
@@ -214,7 +115,7 @@ func (b *bot) approach(m *clientv1.MobView) bool {
 
 // strike uses the main skill at a mob, else attacks it, aimed at it.
 func (b *bot) strike(m *clientv1.MobView) {
-	aim := yawTo(b.at(), nav.Point{X: m.GetX(), Z: m.GetZ()})
+	aim := steer.YawTo(b.at(), nav.Point{X: m.GetX(), Z: m.GetZ()})
 	if !b.useSkill(aim) {
 		b.command(&clientv1.Attack{Aim: aim})
 	}
@@ -268,12 +169,12 @@ func (b *bot) hunt(s spot, prey []string) *clientv1.MobView {
 		if b.approach(m) {
 			return m
 		}
-		if b.walk.lost() {
+		if b.walk.Lost() {
 			b.gaveUp[m.GetId()] = time.Now().Add(giveUpFor)
 		}
 		return nil
 	}
-	if !s.holds(b.roam) || b.nearBoss(b.mapID, b.roam) || b.walkTo(b.roam, 1) || b.walk.lost() {
+	if !s.holds(b.roam) || b.nearBoss(b.mapID, b.roam) || b.walkTo(b.roam, 1) || b.walk.Lost() {
 		b.roam = b.roll(s)
 	}
 	return nil

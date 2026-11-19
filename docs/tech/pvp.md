@@ -314,7 +314,7 @@ bots:
      - It uses the next skill of its build's `order` that's ready and paid for, else it attacks.
      - It aims off by up to `aim` degrees.
   6. **Move:** it walks the nav path toward where the rules want it.
-- **Walking:** cmd/bot's `walker` moves to `internal/shared/steer`, and both cmd/bot and the server's bots use it. That's `keys`, `keysToward`, `yawTo` and the stall handling.
+- **Walking:** `internal/shared/steer` is cmd/bot's walker, and both cmd/bot and the server's bots walk with it: `Walker`, `KeysToward`, `YawTo` and `Stall`. A path keeps `gamedata.BotPathMargin`, 0.25 m, beyond a player's radius where it can. The movement loader checks that sum against the walk grid's steps.
 - **Teams (3v3):**
   - Each side's bots share a focus: the enemy with the lowest HP share within 12 m of a teammate. They hold it 2 s before changing.
   - Heals go to the lowest teammate under 60%. Buffs go out at the round's start.

@@ -8,9 +8,6 @@ import (
 	"finga/internal/shared/kernel"
 )
 
-// BotPathMargin is how much farther than a player's radius a bot's path keeps from walls, so it doesn't graze corners; the loader checks the sum on the walk grid's steps.
-const BotPathMargin = 1.0 / 8
-
 // BarKeys is how many keys a skill bar has, the world's and a match's alike.
 const BarKeys = 8
 

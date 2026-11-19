@@ -10,30 +10,26 @@ import (
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/nav"
 	"finga/internal/shared/sim"
+	"finga/internal/shared/steer"
 )
 
-// The first brain's ranges and pace: it decides every thinkEvery and finds its path again every repathEvery or when its target has moved repathMoved.
+// The first brain's ranges and pace: it decides every thinkEvery.
 const (
-	thinkEvery  = 100 * time.Millisecond
-	repathEvery = time.Second
-	repathMoved = 1.0
-	meleeShare  = 0.7 // of its attack's reach, where a warrior or a thief stands
-	rangedKeep  = 7.5 // metres a bowman or a magician keeps from its target
-	tooClose    = 3.0 // inside which it steps away
-	reached     = 0.4 // metres from a waypoint that count as there
+	thinkEvery = 100 * time.Millisecond
+	meleeShare = 0.7 // of its attack's reach, where a warrior or a thief stands
+	rangedKeep = 7.5 // metres a bowman or a magician keeps from its target
+	tooClose   = 3.0 // inside which it steps away
 )
 
 // brain presses a bot's keys, as a player's client would: it walks to its target and keeps its range, uses the next skill of its build's order that's ready, else attacks. It's seeded from the match, so a match plays the same each time.
 type brain struct {
-	rand   *rand.Rand
-	order  []string
-	tier   gamedata.BotTier
-	keys   sim.Input
-	seq    uint32
-	finder nav.Finder
-	path   []nav.Point
-	to     nav.Point
-	found  uint64
+	rand  *rand.Rand
+	order []string
+	tier  gamedata.BotTier
+	keys  sim.Input
+	seq   uint32
+	walk  steer.Walker
+	stuck steer.Stall
 }
 
 // addBots posts each of the match's bots to join on the first tick, as a player joins.
@@ -107,6 +103,7 @@ func (i *Instance) thinkBots() {
 
 // decide picks what the bot does until its next beat.
 func (b *brain) decide(i *Instance, p *player) {
+	held := b.keys
 	b.keys = sim.Input{}
 	if p.dead || !i.fighting() {
 		return
@@ -134,11 +131,12 @@ func (b *brain) decide(i *Instance, p *player) {
 	if melee(p.class) {
 		keep = reachOf(p.class.Attack.Shape) * meleeShare
 	}
+	stalled := b.stuck.Stalled(from, p.state.OnGround, held)
 	switch {
 	case d > keep:
-		b.keys = b.walk(i, from, to)
+		b.keys = b.walk.Keys(i.m, i.params.Radius, from, to, time.Duration(i.tick)*i.tuning.TickInterval, stalled)
 	case !melee(p.class) && d < tooClose:
-		b.keys = keysToward(from.X-to.X, from.Z-to.Z)
+		b.keys = steer.KeysToward(from.X-to.X, from.Z-to.Z)
 	}
 }
 
@@ -160,22 +158,6 @@ func (b *brain) ready(i *Instance, p *player, id string, d float64) bool {
 		return d <= reachOf(st.Shape)
 	}
 	return false
-}
-
-// walk is the keys along a path to the target, found again on a beat or when it moved.
-func (b *brain) walk(i *Instance, from, to nav.Point) sim.Input {
-	if len(b.path) == 0 || nav.Distance(b.to, to) > repathMoved || i.tick-b.found >= i.ticksFor(repathEvery) {
-		leash := math.Hypot(i.m.Geometry.SizeX, i.m.Geometry.SizeZ)
-		b.path, b.to, b.found = b.finder.Path(i.m.Grid, from, to, i.params.Radius+gamedata.BotPathMargin, from, leash), to, i.tick
-	}
-	for len(b.path) > 0 && nav.Distance(from, b.path[0]) < reached {
-		b.path = b.path[1:]
-	}
-	next := to
-	if len(b.path) > 0 {
-		next = b.path[0]
-	}
-	return keysToward(next.X-from.X, next.Z-from.Z)
 }
 
 // nearestEnemy is p's nearest enemy still up, nil for none.
@@ -206,16 +188,6 @@ func reachOf(s gamedata.Shape) float64 {
 		return s.Reach + s.Radius
 	}
 	return s.Radius
-}
-
-// keysToward are the keys that walk along (dx, dz): east is right, north is up, and a diagonal presses two.
-func keysToward(dx, dz float64) sim.Input {
-	l := math.Hypot(dx, dz)
-	if l == 0 {
-		return sim.Input{}
-	}
-	s := l * math.Sin(math.Pi/8)
-	return sim.Input{Right: dx > s, Left: dx < -s, Up: dz > s, Down: dz < -s}
 }
 
 // botSink is a bot's: nothing it's sent goes anywhere.
