@@ -1,11 +1,17 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
+import type { AssetContainer } from '@babylonjs/core/assetContainer';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
+import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import { Logger } from '@babylonjs/core/Misc/logger';
 import { Scene } from '@babylonjs/core/scene';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { classes } from '@/gamedata/classes';
+import { mobs } from '@/gamedata/mobs';
+
+import { classLook, mobLook } from './looks';
 import { Models } from './models';
 
 const MODELS = path.resolve(process.cwd(), 'public/models');
@@ -51,6 +57,34 @@ describe('Models', () => {
     expect(warned.mock.calls.map((c) => String(c[0]))).toEqual([]);
   });
 
+  it('holds each file at rest: no clip of it plays, so a body cloned from it stands as tall whenever it’s made', async () => {
+    scene.useConstantAnimationDeltaTime = true; // each animate() a 16 ms step
+    const models = new Models(
+      scene,
+      (file) => new Uint8Array(readFileSync(path.join(MODELS, file))),
+    );
+    const files = [
+      ...new Set([
+        ...classes.map((c) => classLook(c.id).file),
+        ...mobs.map((m) => mobLook(m.id).file),
+      ]),
+    ];
+    const loaded = await Promise.all(files.map((f) => models.load(f)));
+    const heights = (): number[] => loaded.map(heightOfClone);
+    const first = heights();
+    for (let i = 0; i < 6; i++) {
+      for (let k = 0; k < 11; k++) {
+        scene.animate();
+      }
+      heights().forEach((h, k) =>
+        expect(h, `${files[k]} at ${(i + 1) * 176} ms`).toBeCloseTo(first[k]!, 6),
+      );
+    }
+    expect(
+      loaded.flatMap((c) => c.animationGroups.filter((g) => g.isPlaying).map((g) => g.name)),
+    ).toEqual([]);
+  });
+
   it('forgets a load that failed, so the next asks again', async () => {
     let bytes: Uint8Array = new Uint8Array([1, 2, 3]); // not a glTF
     const asked: string[] = [];
@@ -64,3 +98,18 @@ describe('Models', () => {
     expect(asked).toEqual(['quaternius/Mushnub.glb', 'quaternius/Mushnub.glb']);
   });
 });
+
+/** The height of a clone of c's model as its source poses it, skins included. */
+function heightOfClone(c: AssetContainer): number {
+  const made = c.instantiateModelsToScene((n) => n, false, { doNotInstantiate: true });
+  const root = made.rootNodes[0]!;
+  for (const m of root.getChildMeshes<AbstractMesh>(false)) {
+    if (m.skeleton) {
+      m.skeleton.prepare(true);
+      m.refreshBoundingInfo({ applySkeleton: true });
+    }
+  }
+  const { min, max } = root.getHierarchyBoundingVectors(true);
+  made.dispose();
+  return max.y - min.y;
+}

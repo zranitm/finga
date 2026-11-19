@@ -1,18 +1,15 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import type { AssetContainer } from '@babylonjs/core/assetContainer';
 import { TargetCamera } from '@babylonjs/core/Cameras/targetCamera';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
-import { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';
 import { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Scene } from '@babylonjs/core/scene';
-import { registerBuiltInLoaders } from '@babylonjs/loaders/dynamic';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { classes } from '@/gamedata/classes';
@@ -28,6 +25,7 @@ import { Body, FADED, RISE_MS, STILL, sunShadows } from './body';
 import type { Gait, Lighting } from './body';
 import { classLook, mobLook, npcLook } from './looks';
 import type { ModelLook } from './looks';
+import { Models } from './models';
 import { linearOf, Palette } from './toon';
 
 const MODELS = path.resolve(process.cwd(), 'public/models');
@@ -39,14 +37,14 @@ const WALK: Gait = { pace: 'walk', onGround: true };
 let engine: NullEngine;
 let scene: Scene;
 let lighting: Lighting;
-const containers = new Map<string, Promise<AssetContainer>>();
+let models: Models;
 
 beforeAll(() => {
-  registerBuiltInLoaders();
   engine = new NullEngine();
   scene = new Scene(engine);
   const sun = new DirectionalLight('sun', new Vector3(0.35, -1, 0.6).normalize(), scene);
   lighting = { palette: new Palette(scene), shadows: sunShadows(sun, 256) };
+  models = new Models(scene, (f) => new Uint8Array(readFileSync(path.join(MODELS, f))));
 });
 
 afterAll(() => {
@@ -55,15 +53,7 @@ afterAll(() => {
 });
 
 async function body(look: ModelLook): Promise<Body> {
-  let c = containers.get(look.file);
-  if (!c) {
-    c = LoadAssetContainerAsync(new Uint8Array(readFileSync(path.join(MODELS, look.file))), scene, {
-      pluginExtension: '.glb',
-      pluginOptions: { gltf: { alwaysComputeSkeletonRootNode: true } },
-    });
-    containers.set(look.file, c);
-  }
-  return new Body(scene, await c, look, lighting);
+  return new Body(scene, await models.load(look.file), look, lighting);
 }
 
 function heightOf(root: TransformNode): number {

@@ -608,6 +608,7 @@ As built in slice PR 6, every field above is added, and nothing is removed yet:
   - Spike 1 measured what entering the 3D world downloads: about 530 kB of JavaScript gzipped (2.0 MB raw), loaded only then, beside Phaser's 357 kB, which slice PRs 4 and 5 removed.
   - About 71 kB of that is the glTF loader's PBR material and its BRDF table, which the toon material replaces. Making the toon material in the loader would save it.
 - **Loading:** every glTF loads with `alwaysComputeSkeletonRootNode`. Quaternius's skins name a joint that isn't their joints' common root, and without it Babylon skins those models lying down at 100 times their size.
+- **At rest:** every glTF loads with no clip started (`animationStartMode` none). The loader plays a file's first clip by default, and every body cloned from the file copied that clip's pose of the moment and was sized from it. A redraw then grew or shrank a player by up to 8%, as the outfits playtest found.
 - **Engine:** WebGL2. WebGPU is a later option.
 - **Mounting:** the renderer mounts in `#game` behind today's `GameHandle` (`attach`, `enter`). React and its stores don't change.
 - **What goes:** Phaser, `game/scenes`, `game/entities`'s sprite views, `effects/draw.ts` (as built, rewritten for Babylon instead), `depth.ts`, `keys.ts`, `grey-art.ts`, `placeholders.ts`, the 2D assets, `testing/fake-phaser.ts`, and `recording-scene.ts`.
