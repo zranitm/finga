@@ -131,6 +131,9 @@ func (i *Instance) restrain(p *player, tick uint64) {
 
 // inflict puts what a mob's attack inflicts on p from the next tick: a status that blocks acting ends the action under way, as a death does, with its move, dodge and block, and the attack held for it.
 func (i *Instance) inflict(p *player, in model.Infliction) {
+	if in.Status.ID == gamedata.Knockdown {
+		in.Ticks = i.ticksFor(i.data.MobRules().React.Down) // the down pose, as a mob's blow lays a player down
+	}
 	if !p.statuses.Inflict(in, i.tick+1, 0, p.state.X, p.state.Z) {
 		return
 	}
@@ -155,7 +158,7 @@ func (i *Instance) runStatuses() {
 		for _, d := range dots {
 			amount := model.Steady(d.Power, p.statuses.Defending(model.PlayerDefender(p.derived)))
 			if i.match != nil {
-				amount = i.scaled(float64(amount))
+				amount = i.scaled(d.By.Player, float64(amount))
 			}
 			past := p.shielded(amount)
 			i.events = append(i.events, model.Damage{Tick: i.tick, Source: d.By, Target: model.EntityRef{Player: p.ID}, Amount: amount, Status: d.Status.ID, Shielded: amount - past})

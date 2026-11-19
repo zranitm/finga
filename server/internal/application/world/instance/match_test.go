@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"regexp"
 	"slices"
 	"testing"
 	"testing/synctest"
@@ -233,7 +234,7 @@ func walkTo(inst *instance.Instance, sink *worldtest.Sink, id kernel.CharacterID
 // Fighters on the two sides hit each other: the attack deals the kit's damage to the other, who blinks but takes no hit guard, until they're down, which ends the round for the other side.
 func TestPlayersOnOtherSidesHitEachOtherDownToTheRoundsEnd(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := worldtest.LoadData(t)
+		data := pvpData(t, "1.0", "1.0") // attacks alone down a kit within the round
 		results := &worldtest.Results{}
 		inst, ayla, robin, as, rs, stop := twoFighters(t, data, results)
 		defer stop()
@@ -338,10 +339,21 @@ func TestAMatchRefusesItemsGearPointsTraitsAndTeleports(t *testing.T) {
 // pvpData is the shipped data with pvp.yaml's scale set.
 func pvpData(t *testing.T, hp, damage string) *gamedata.Data {
 	t.Helper()
-	return worldtest.LoadDataWith(t, map[string]func(string) string{
-		"pvp.yaml": edit(t, "scale: {hp: 1.0, damage: 1.0}", "scale: {hp: "+hp+", damage: "+damage+"}"),
-	})
+	return worldtest.LoadDataWith(t, map[string]func(string) string{"pvp.yaml": scaleOf(t, hp, damage)})
 }
+
+// scaleOf sets pvp.yaml's scale, whatever the harness tuned it to.
+func scaleOf(t *testing.T, hp, damage string) func(string) string {
+	return func(s string) string {
+		if !scaleLine.MatchString(s) {
+			t.Fatal("no scale line in pvp.yaml")
+		}
+		return scaleLine.ReplaceAllString(s, "scale: {hp: "+hp+", damage: "+damage+"}")
+	}
+}
+
+// scaleLine is pvp.yaml's scale, whatever the harness tuned it to.
+var scaleLine = regexp.MustCompile(`(?m)^scale: \{.*\}$`)
 
 // Two fighters who down each other with blows landing on one tick both go down, whoever comes first in the map's order: an even round.
 func TestADoubleKnockoutIsAnEvenRound(t *testing.T) {
@@ -417,9 +429,11 @@ func TestScaleDamageScalesEveryBlowAndTick(t *testing.T) {
 	}
 	synctest.Test(t, func(t *testing.T) {
 		full, half := run(t, "1.0"), run(t, "0.5")
-		want := dealt{int(math.Round(float64(full.attack) * 0.5)), int(math.Round(float64(full.skill) * 0.5)), int(math.Round(float64(full.bleed) * 0.5))}
-		if half != want {
-			t.Fatalf("at half scale %+v, want half of %+v: %+v", half, full, want)
+		// Each is rounded from the raw blow times the scale and the Thief's own factor, so half the rounded full is within a point.
+		for _, c := range [][2]int{{half.attack, full.attack}, {half.skill, full.skill}, {half.bleed, full.bleed}} {
+			if math.Abs(float64(c[0])-float64(c[1])/2) > 1 {
+				t.Fatalf("at half scale %+v, want half of %+v, within a point", half, full)
+			}
 		}
 	})
 }
@@ -660,6 +674,77 @@ func TestAPlayersHitAndItsPinShareADelta(t *testing.T) {
 		// The kit's pinning_shot is at its last stage, Nailing Shot, which pins for 4 s: its ticks from the next, 3 sub-steps each.
 		if want := int(4*time.Second/worldtest.TickInterval) * 3; got == nil || got.Held != want {
 			t.Fatalf("the hit's Delta at tick %d: %+v; want held %d sub-steps", hits[0].Tick, got, want)
+		}
+	})
+}
+
+// A player's knockdown on another lasts the down pose, as a mob's does: Charge's Trample lays Robin down in the hit's own Delta.
+func TestAPlayersKnockdownLastsTheDownPose(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		ayla, robin := fighterFrom(t, data, "Ayla"), fighterFrom(t, data, "Robin")
+		ayla.Skills.Traits = map[string]string{"charge": "trample"}
+		inst, stop := worldtest.RunMatch(t, data, duel(model.Fighter{Character: ayla.ID}, model.Fighter{Character: robin.ID}), nil, worldtest.Options{})
+		defer stop()
+		as, rs := &worldtest.Sink{}, &worldtest.Sink{}
+		for _, j := range []struct {
+			p model.Player
+			s *worldtest.Sink
+		}{{ayla, as}, {robin, rs}} {
+			if err := inst.Join(context.Background(), j.p, j.s); err != nil {
+				t.Fatal(err)
+			}
+		}
+		sleep(data.Pvp().Rounds.Prep + data.Pvp().Rounds.Countdown + worldtest.TickInterval)
+		robinAt, _ := rs.Own(robin.ID)
+		seq := walkTo(inst, as, ayla.ID, 0, robinAt.State.Z-5, 0.2)
+		if err := inst.UseSkill(context.Background(), ayla.ID, ayla.Connection, model.SkillUse{Skill: "charge", Root: "strike", Target: model.EntityRef{Player: robin.ID}, Way: sim.Way{Z: 1, Length: 5}}, seq); err != nil {
+			t.Fatal(err)
+		}
+		worldtest.Walk(inst, ayla.ID, seq, sim.Input{}, 40) // the dash starts at the input after the press
+		hits := hitsOn(rs, robin.ID)
+		if len(hits) == 0 {
+			t.Fatal("the charge never landed")
+		}
+		var got *sim.State
+		for _, d := range rs.Deltas() {
+			for _, v := range d.Players {
+				if d.Tick == hits[0].Tick && v.ID == robin.ID {
+					got = &v.State
+				}
+			}
+		}
+		if want := int(data.MobRules().React.Down/worldtest.TickInterval) * 3; got == nil || got.Held != want {
+			t.Fatalf("the hit's Delta at tick %d: %+v; want held %d sub-steps, the down pose", hits[0].Tick, got, want)
+		}
+	})
+}
+
+// No evasion between players: on a roll that MISSes a mob's blow on a player and a player's on a mob (TestADodgedAttackNeitherKnocksBackNorBlinks and the energy test's MISS), a player's blow on another lands. Dodges and blocks are their defence.
+func TestABlowBetweenPlayersNeverMisses(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		ayla, robin := fighterFrom(t, data, "Ayla"), fighterFrom(t, data, "Robin")
+		inst, stop := worldtest.RunMatch(t, data, duel(model.Fighter{Character: ayla.ID}, model.Fighter{Character: robin.ID}), nil, worldtest.Options{NewRoll: worldtest.Rolls(0.999)})
+		defer stop()
+		as, rs := &worldtest.Sink{}, &worldtest.Sink{}
+		for _, j := range []struct {
+			p model.Player
+			s *worldtest.Sink
+		}{{ayla, as}, {robin, rs}} {
+			if err := inst.Join(context.Background(), j.p, j.s); err != nil {
+				t.Fatal(err)
+			}
+		}
+		sleep(data.Pvp().Rounds.Prep + data.Pvp().Rounds.Countdown + worldtest.TickInterval)
+		robinAt, _ := rs.Own(robin.ID)
+		walkTo(inst, as, ayla.ID, 0, robinAt.State.Z-1.2, 0.2)
+		if err := inst.Attack(ayla.ID, 0, model.EntityRef{Player: robin.ID}); err != nil {
+			t.Fatal(err)
+		}
+		sleep(time.Second)
+		if hits := hitsOn(rs, robin.ID); len(hits) != 1 || hits[0].Miss || hits[0].Amount == 0 {
+			t.Fatalf("Ayla's attack on Robin: %+v, want one that lands", hits)
 		}
 	})
 }

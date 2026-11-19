@@ -562,9 +562,13 @@ func (i *Instance) settleDowns() {
 	i.match.falling = i.match.falling[:0]
 }
 
-// scaled is a player's damage on another in a match, by scale.damage.
-func (i *Instance) scaled(amount float64) int {
-	return int(math.Round(amount * i.match.rules.Scale.Damage))
+// scaled is a fighter's damage on another in a match, by scale.damage and their class's kit's damage factor.
+func (i *Instance) scaled(by kernel.CharacterID, amount float64) int {
+	factor := i.match.rules.Scale.Damage
+	if f, ok := i.match.fighters[by]; ok {
+		factor *= i.match.rules.Kits[f.class].Damage
+	}
+	return int(math.Round(amount * factor))
 }
 
 // down is a fighter at 0 HP in a match: out of the round with their action, statuses and buffs gone, as a death, but with no penalty and no respawn; the round's reset brings them back.

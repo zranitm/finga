@@ -80,13 +80,13 @@ func (i *Instance) hitPlayer(t, by *player, s mobs.Strike, damages bool) {
 		return
 	}
 	if damages {
-		h := model.Resolve(s.Power, t.statuses.Defending(model.PlayerDefender(t.derived)), i.data.StatRules().Hit, i.roll)
+		h := model.Landed(s.Power, t.statuses.Defending(model.PlayerDefender(t.derived)), i.roll) // no evasion between players: dodges and blocks are their defence
 		dealt := model.Damage{Tick: tick, Source: src, Target: dst, Crit: h.Crit, Miss: h.Miss}
 		if h.Miss {
 			i.events = append(i.events, dealt)
 			return
 		}
-		dealt.Amount = i.scaled(float64(h.Damage) * t.statuses.Shatter(tick))
+		dealt.Amount = i.scaled(by.ID, float64(h.Damage)*t.statuses.Shatter(tick))
 		dealt.Shielded = dealt.Amount - t.shielded(dealt.Amount)
 		i.events = append(i.events, dealt)
 		t.HP -= dealt.Amount - dealt.Shielded

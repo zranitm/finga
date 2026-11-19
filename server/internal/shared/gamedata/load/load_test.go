@@ -310,7 +310,7 @@ modes:
 queue: {bots_after: 15s, offer: 10s, window: {start: 2, per_second: 0.2, most: 8}}
 rounds: {prep: 10s, countdown: 3s, between: 5s}
 result: 10s
-kit: {level: 4}
+kit: {level: 4, classes: {warrior: {hp: 1.5, damage: 0.8}, bowman: {hp: 1.0, damage: 1.25}}}
 scale: {hp: 1.0, damage: 1.0}
 rating: {mu: 25, sigma: 8.333, beta: 4.167, tau: 0.083, shown: {base: 1000, per_point: 40}, placement: 5}
 ranks:
@@ -679,10 +679,10 @@ func TestValidDataLoads(t *testing.T) {
 		if len(r.Bots.Tiers) != 2 || r.Bots.Tiers[0].Aim != 20*math.Pi/180 || len(r.Bots.Names) != 30 || len(r.Bots.Builds["warrior"]) != 1 {
 			t.Fatalf("bots %+v", r.Bots)
 		}
-		// Level 4: the root's stats and 15 points by each split, then each slot's best item the class can wear with them.
+		// Level 4: the root's stats and 15 points by each split, then each slot's best item the class can wear with them, and the class's own factors.
 		kits := map[kernel.Class]gamedata.Kit{
-			"warrior": {Level: 4, Own: gamedata.Stats{STR: 21, DEX: 5, INT: 4, AGI: 5, VIT: 16}, Worn: []gamedata.KitItem{{Slot: "weapon", Item: "wooden_sword"}, {Slot: "hat", Item: "leather_cap"}}},
-			"bowman":  {Level: 4, Own: gamedata.Stats{STR: 12, DEX: 14, INT: 4, AGI: 11, VIT: 10}, Worn: []gamedata.KitItem{{Slot: "weapon", Item: "short_bow"}, {Slot: "hat", Item: "leather_cap"}}},
+			"warrior": {Level: 4, Own: gamedata.Stats{STR: 21, DEX: 5, INT: 4, AGI: 5, VIT: 16}, Worn: []gamedata.KitItem{{Slot: "weapon", Item: "wooden_sword"}, {Slot: "hat", Item: "leather_cap"}}, HP: 1.5, Damage: 0.8},
+			"bowman":  {Level: 4, Own: gamedata.Stats{STR: 12, DEX: 14, INT: 4, AGI: 11, VIT: 10}, Worn: []gamedata.KitItem{{Slot: "weapon", Item: "short_bow"}, {Slot: "hat", Item: "leather_cap"}}, HP: 1.0, Damage: 1.25},
 		}
 		for class, want := range kits {
 			if got, ok := d.Kit(class); !ok || !reflect.DeepEqual(got, want) {
@@ -991,8 +991,11 @@ func TestRejections(t *testing.T) {
 		{"an offer that never lapses", "pvp.yaml", "offer: 10s", "offer: 0s", []string{"pvp.yaml", "offer"}},
 		{"a window whose most is under its start", "pvp.yaml", "most: 8}", "most: 1}", []string{"pvp.yaml", "window"}},
 		{"no countdown", "pvp.yaml", "countdown: 3s", "countdown: 0s", []string{"pvp.yaml", "countdown"}},
-		{"a kit past the level cap", "pvp.yaml", "kit: {level: 4}", "kit: {level: 5}", []string{"pvp.yaml", "kit", "cap 4"}},
-		{"a hit scaled to nothing", "pvp.yaml", "damage: 1.0}", "damage: 0}", []string{"pvp.yaml", "scale"}},
+		{"a kit past the level cap", "pvp.yaml", "kit: {level: 4,", "kit: {level: 5,", []string{"pvp.yaml", "kit", "cap 4"}},
+		{"a promoted class with no factors", "pvp.yaml", ", bowman: {hp: 1.0, damage: 1.25}}}", "}}", []string{"pvp.yaml", "kit", "bowman", "hp and damage"}},
+		{"a class's hits scaled to nothing", "pvp.yaml", "bowman: {hp: 1.0, damage: 1.25}", "bowman: {hp: 1.0, damage: 0}", []string{"pvp.yaml", "kit", "bowman", "hp and damage"}},
+		{"factors for the Beginner", "pvp.yaml", "classes: {warrior:", "classes: {beginner: {hp: 1.0, damage: 1.0}, warrior:", []string{"pvp.yaml", "kit", "beginner", "no promoted class"}},
+		{"a hit scaled to nothing", "pvp.yaml", "scale: {hp: 1.0, damage: 1.0}", "scale: {hp: 1.0, damage: 0}", []string{"pvp.yaml", "scale"}},
 		{"a rating with no skill gap", "pvp.yaml", "beta: 4.167", "beta: 0", []string{"pvp.yaml", "rating", "beta"}},
 		{"ranks not from 0", "pvp.yaml", "{id: bronze, from: 0}", "{id: bronze, from: 100}", []string{"pvp.yaml", "bronze", "rise from 0"}},
 		{"ranks that don't rise", "pvp.yaml", "{id: silver, from: 1200}", "{id: silver, from: 0}", []string{"pvp.yaml", "silver", "rise"}},

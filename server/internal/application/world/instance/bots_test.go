@@ -47,7 +47,7 @@ func TestAMatchOfBotsAloneRunsToItsEndTheSameEachTime(t *testing.T) {
 // A bot in a match sees a player's attacks and skills through the match's ring, its reaction late, and guards the blow that may follow, as its brain does on fixed views.
 func TestABotGuardsAPlayersAttacksAndSkillsThroughTheRing(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		sure, lasting := edit(t, "{id: novice, mu: 15, reaction: 450ms, defend: 0.15", "{id: novice, mu: 15, reaction: 100ms, defend: 1"), edit(t, "scale: {hp: 1.0", "scale: {hp: 20.0")
+		sure, lasting := edit(t, "{id: novice, mu: 15, reaction: 450ms, defend: 0.15", "{id: novice, mu: 15, reaction: 100ms, defend: 1"), scaleOf(t, "20.0", "1.0")
 		data := worldtest.LoadDataWith(t, map[string]func(string) string{"pvp.yaml": func(s string) string { return lasting(sure(s)) }}) // both up for the round
 		ayla := fighterFrom(t, data, "Ayla")
 		bot := botOf(data, "Ash")

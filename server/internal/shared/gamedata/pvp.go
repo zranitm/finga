@@ -61,11 +61,12 @@ type PvpRounds struct {
 	Prep, Countdown, Between time.Duration
 }
 
-// Kit is what a class fights with in a match: its own stats at Level, spent by its auto-assign split, and the best item it can wear in each equip slot.
+// Kit is what a class fights with in a match: its own stats at Level, spent by its auto-assign split, and the best item it can wear in each equip slot; and its own factors on its max HP and the hits it deals, beside the PvpScale, which the balance harness tunes.
 type Kit struct {
-	Level int
-	Own   Stats
-	Worn  []KitItem // one per equip slot, in slot order
+	Level      int
+	Own        Stats
+	Worn       []KitItem // one per equip slot, in slot order
+	HP, Damage float64
 }
 
 // KitItem is the item a kit wears in an equip slot, its stats at the middle of their rolls.

@@ -86,6 +86,11 @@ func Resolve(a Attacker, d Defender, curve gamedata.HitCurve, r Roll) Hit {
 	if r.Float64() >= curve.Chance(a.Accuracy, d.Evasion) {
 		return Hit{Miss: true}
 	}
+	return Landed(a, d, r)
+}
+
+// Landed is a's hit on d with no MISS roll, as a blow between players lands: its variation and crit drawn from r in that order.
+func Landed(a Attacker, d Defender, r Roll) Hit {
 	damage := a.against(d, minVariation+(maxVariation-minVariation)*r.Float64())
 	hit := Hit{Damage: int(damage)}
 	if r.Float64() < a.CritRate {
