@@ -1,7 +1,7 @@
 -- +goose Up
 -- Outfits (docs/tech/outfits.md section 4): each account's wardrobe and each character's look, kept by the item module. account_id, character_id and item_id have no foreign key, as modules refer to each other by ID only. The module stamps the times.
 
--- The wardrobe: each piece an account has collected, and what gave it. A piece added from an item names that item, whose last event is its collected one.
+-- The wardrobe: each piece an account has collected, and what gave it. A piece added from an item names that item, which has a collected event for it.
 CREATE TABLE account_pieces (
   account_id uuid NOT NULL,
   piece_id   text NOT NULL,                    -- a piece in outfits.yaml
@@ -13,7 +13,6 @@ CREATE TABLE account_pieces (
   CONSTRAINT account_pieces_cause CHECK (cause_type IN ('item', 'rank', 'quest', 'feat')),
   CONSTRAINT account_pieces_item CHECK ((cause_type = 'item') = (item_id IS NOT NULL) AND (cause_type = 'item') = (cause_ref IS NULL))
 );
-CREATE UNIQUE INDEX account_pieces_by_item ON account_pieces (item_id) WHERE item_id IS NOT NULL;
 
 -- A character's look: a piece id in each slot it doesn't leave to its class, null keeping the class's own. No row is the class's own in every slot.
 CREATE TABLE character_looks (

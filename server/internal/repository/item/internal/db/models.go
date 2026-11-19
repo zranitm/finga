@@ -11,6 +11,27 @@ import (
 	"github.com/google/uuid"
 )
 
+type AccountPiece struct {
+	AccountID uuid.UUID
+	PieceID   string
+	CauseType string
+	CauseRef  *string
+	ItemID    *uuid.UUID
+	AddedAt   time.Time
+}
+
+type CharacterLook struct {
+	CharacterID  uuid.UUID
+	Outfit       *string
+	Headwear     *string
+	Face         *string
+	Weapon       *string
+	HideHeadwear bool
+	Revision     int64
+	CreatedAt    dbx.Stamp
+	UpdatedAt    dbx.Stamp
+}
+
 type IdempotencyKey struct {
 	Owner       string
 	Scope       string

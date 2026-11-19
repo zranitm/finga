@@ -69,6 +69,12 @@ var (
 	NotEnoughItems       = Public{220024, "NOT_ENOUGH_ITEMS", "you don't have everything it asks for"}
 	NotUsable            = Public{220025, "NOT_USABLE", "that item can't be used"}
 	BadItemBatch         = Public{220026, "BAD_ITEM_BATCH", "name one item to a tab's slots, each once"}
+	NotAPiece            = Public{220027, "NOT_A_PIECE", "that item holds no wardrobe piece"}
+	PieceCollected       = Public{220028, "PIECE_COLLECTED", "your wardrobe has that piece"}
+	UnknownPiece         = Public{220029, "UNKNOWN_PIECE", "that isn't a wardrobe piece"}
+	WrongSlot            = Public{220030, "WRONG_SLOT", "that piece goes in another slot"}
+	PieceNotCollected    = Public{220031, "PIECE_NOT_COLLECTED", "your wardrobe hasn't collected that piece"}
+	WrongWeaponKind      = Public{220032, "WRONG_WEAPON_KIND", "your class can't hold that weapon look"}
 )
 
 // 33: the world and quests.

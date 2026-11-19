@@ -15,6 +15,10 @@ type Store interface {
 	Inventory(ctx context.Context, owner kernel.CharacterID) (model.Inventory, error)
 	// HandedIn finds the owner's hand-ins of the completions asked, leaving out those it has none of.
 	HandedIn(ctx context.Context, owner kernel.CharacterID, asked []Completion) ([]HandIn, error)
+	// Pieces lists the account's wardrobe, oldest first.
+	Pieces(ctx context.Context, account kernel.AccountID) ([]model.Piece, error)
+	// Look is the character's look, the zero Look when it never set one.
+	Look(ctx context.Context, character kernel.CharacterID) (model.Look, error)
 }
 
 // UnitOfWork is everything bound to one transaction.
@@ -24,6 +28,7 @@ type UnitOfWork interface {
 	Notices() Notices
 	Idempotency() Idempotency
 	HandIns() HandIns
+	Wardrobe() Wardrobe
 	// Savepoint runs fn; when fn fails, everything it wrote is undone and the transaction carries on.
 	Savepoint(ctx context.Context, fn func() error) error
 }
@@ -71,6 +76,18 @@ type HandIns interface {
 	Record(ctx context.Context, owner kernel.CharacterID, h HandIn) error
 }
 
+// Wardrobe keeps each account's pieces and each character's look.
+type Wardrobe interface {
+	// Add puts piece in the account's wardrobe, from item; false when it has it.
+	Add(ctx context.Context, account kernel.AccountID, piece string, item kernel.ItemID) (bool, error)
+	// Collected is which of pieces the account has.
+	Collected(ctx context.Context, account kernel.AccountID, pieces []string) ([]string, error)
+	// LockLook reads the character's look for a change in this transaction, the zero Look when it has none.
+	LockLook(ctx context.Context, character kernel.CharacterID) (model.Look, error)
+	// SetLook stores the character's look, one revision on, and returns it.
+	SetLook(ctx context.Context, character kernel.CharacterID, look model.Look) (model.Look, error)
+}
+
 // Content is what the use cases need from game data.
 type Content interface {
 	Item(id string) (gamedata.Item, bool)
@@ -78,4 +95,6 @@ type Content interface {
 	StartClass() gamedata.Class
 	EquipSlots() []gamedata.EquipSlot
 	EquipSlot(id string) (gamedata.EquipSlot, bool)
+	Piece(id string) (gamedata.Piece, bool)
+	PieceIn(item string) (gamedata.Piece, bool)
 }

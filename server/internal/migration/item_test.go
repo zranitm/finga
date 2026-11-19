@@ -125,7 +125,7 @@ func TestOneItemPerEquipSlotHoldsAtCommit(t *testing.T) {
 	})
 }
 
-// A wardrobe entry names its item exactly when an item gave it, and its rank, quest or feat otherwise; an item gives one entry.
+// A wardrobe entry names its item exactly when an item gave it, and its rank, quest or feat otherwise, once for each piece.
 func TestAWardrobeEntryNamesWhatGaveIt(t *testing.T) {
 	ctx := context.Background()
 	pool := migratedDB(t)
@@ -151,7 +151,6 @@ func TestAWardrobeEntryNamesWhatGaveIt(t *testing.T) {
 		{"a rank cause naming an item", "mage_robe", "rank", &silver, &item, "account_pieces_item"},
 		{"a rank cause naming no rank", "mage_robe", "rank", nil, nil, "account_pieces_item"},
 		{"a cause the wardrobe doesn't know", "mage_robe", "gacha", &silver, nil, "account_pieces_cause"},
-		{"a second entry from one item", "mage_robe", "item", nil, &item, "account_pieces_by_item"},
 		{"a piece collected twice", "knight_plate", "rank", &silver, nil, "account_pieces_pkey"},
 	} {
 		if err := insert(c.piece, c.cause, c.ref, c.item); err == nil || !strings.Contains(err.Error(), c.want) {

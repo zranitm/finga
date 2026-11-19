@@ -80,6 +80,12 @@ func TestEachKernelErrorReachesTheClientByName(t *testing.T) {
 		{kernel.ErrBadBatchSize, "BAD_ITEM_BATCH", none},
 		{kernel.ErrNotEnoughItems, "NOT_ENOUGH_ITEMS", none},
 		{kernel.ErrNotUsable, "NOT_USABLE", none},
+		{kernel.ErrNotAPiece, "NOT_A_PIECE", none},
+		{kernel.ErrPieceCollected, "PIECE_COLLECTED", none},
+		{kernel.ErrUnknownPiece, "UNKNOWN_PIECE", none},
+		{kernel.ErrWrongLookSlot, "WRONG_SLOT", none},
+		{kernel.ErrPieceNotCollected, "PIECE_NOT_COLLECTED", none},
+		{kernel.ErrWrongWeaponKind, "WRONG_WEAPON_KIND", none},
 		// social
 		{kernel.ErrNotPartyLeader, "NOT_PARTY_LEADER", none},
 		{kernel.ErrPartyFull, "PARTY_FULL", none},

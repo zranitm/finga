@@ -2,6 +2,7 @@ package item
 
 import (
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -71,6 +72,39 @@ type Result struct {
 	Equipment []EquipSlot // the equip slots an equip, an unequip or a starter grant changed
 	Worn      []Item      // after an equip or unequip, every item worn
 	Revision  uint64
+	Piece     string // the piece an add to the wardrobe made
+	Look      *Look  // a look worn, or the one a trainer's gift left
+}
+
+// Look is a character's four picks, each a piece id, "" keeping the class's own, at the count of its changes.
+type Look struct {
+	Outfit       string
+	Headwear     string
+	Face         string
+	Weapon       string
+	HideHeadwear bool
+	Revision     uint64 // 0 for a character that never set one; a request's is ignored
+}
+
+// Piece is a wardrobe entry: a piece the account collected, what gave it, and when.
+type Piece struct {
+	ID      string
+	Cause   string         // item; rank, quest and feat come with their sources
+	Item    *kernel.ItemID // the item added, for an item alone
+	AddedAt time.Time
+}
+
+// WardrobeRequest adds an item's piece to the account's wardrobe.
+type WardrobeRequest struct {
+	Key    string
+	ItemID kernel.ItemID
+}
+
+// LookRequest wears four picks, each a piece the account has collected or "" for the class's own.
+type LookRequest struct {
+	Key   string
+	Look  Look
+	Class kernel.Class // the character's live class, whose kind a weapon look must be
 }
 
 // AddRequest puts a quantity of a template in the inventory, under an idempotency key.
@@ -80,6 +114,7 @@ type AddRequest struct {
 	Quantity   int
 	Cause      Cause
 	Stats      *progression.ItemStats // the drop's roll: required for equipment, refused on anything else
+	Promotes   kernel.Class           // a trainer's gift: the class it promotes to; a weapon look it can't hold is cleared with the gift
 }
 
 // Outcome is how one drop of an AddMany went: refused by the rule in Err, granted, or granted before under its key.
@@ -198,7 +233,7 @@ func (r AddRequest) input(keyFirst bool) (application.AddInput, error) {
 	case !ok:
 		return application.AddInput{}, model.ErrBadCause
 	}
-	return application.AddInput{Key: r.Key, TemplateID: r.TemplateID, Quantity: r.Quantity, Cause: model.Cause{Type: t, ID: r.Cause.ID}, Stats: r.Stats}, nil
+	return application.AddInput{Key: r.Key, TemplateID: r.TemplateID, Quantity: r.Quantity, Cause: model.Cause{Type: t, ID: r.Cause.ID}, Stats: r.Stats, Promotes: r.Promotes}, nil
 }
 
 func (r HandInRequest) input() application.HandInInput {
@@ -238,7 +273,11 @@ func slotsOf(slots []model.Slot) []Slot {
 }
 
 func resultOf(res application.Result) Result {
-	out := Result{Changed: slotsOf(res.Changed), Worn: itemsOf(res.Worn), Revision: res.Revision}
+	out := Result{Changed: slotsOf(res.Changed), Worn: itemsOf(res.Worn), Revision: res.Revision, Piece: res.Piece}
+	if res.Look != nil {
+		look := Look(*res.Look)
+		out.Look = &look
+	}
 	for _, s := range res.Equipment {
 		out.Equipment = append(out.Equipment, EquipSlot{Slot: s.Slot, Item: itemAt(s.Item)})
 	}

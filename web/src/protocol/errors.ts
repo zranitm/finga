@@ -64,6 +64,12 @@ const texts: Record<ErrorCode, string> = {
   [ERR.NOT_ENOUGH_ITEMS]: 'You don’t have everything the quest asks for.',
   [ERR.NOT_USABLE]: 'That item can’t be used.',
   [ERR.BAD_ITEM_BATCH]: 'Pick one to 24 items, each once.',
+  [ERR.NOT_A_PIECE]: 'That item holds no wardrobe piece.',
+  [ERR.PIECE_COLLECTED]: 'Your wardrobe already has that piece.',
+  [ERR.UNKNOWN_PIECE]: 'That isn’t a wardrobe piece.',
+  [ERR.WRONG_SLOT]: 'That piece goes in another slot.',
+  [ERR.PIECE_NOT_COLLECTED]: 'You haven’t collected that piece.',
+  [ERR.WRONG_WEAPON_KIND]: 'Your class can’t hold that weapon look.',
 
   [ERR.CHARACTER_DEAD]: 'You can’t do that while dead.',
   [ERR.NOT_ENOUGH_POINTS]: 'You don’t have that many points.',
