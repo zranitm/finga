@@ -358,3 +358,20 @@ func TestNoGuardAgainstAnEnemyDownOrHeld(t *testing.T) {
 		}
 	}
 }
+
+// One guard for each action, even one longer than the ring: a 2 s blow landing at 1.5 s is guarded once as its hit comes, and not again while it still runs.
+func TestOneGuardForAnActionLongerThanTheRing(t *testing.T) {
+	f := newFight(t, "warrior", sure())
+	c, _ := f.data.Class("warrior")
+	s := f.started(20, 40, gamedata.Timing{Hit: 0.75}, false, &c.Attack.Shape, f.towardMe(), 0)
+	var guards []uint64
+	for at := uint64(22); at <= s.Hit; at++ {
+		if d := f.decide(at); defends(d) != "" {
+			guards = append(guards, at)
+			f.self.Ready[d.Skill.Skill] = at + 40 // cooling, as the world shows it
+		}
+	}
+	if len(guards) != 1 {
+		t.Fatalf("guards at %v against a blow landing at %d, want one", guards, s.Hit)
+	}
+}
