@@ -3,14 +3,17 @@ package instance_test
 import (
 	"context"
 	"errors"
+	"maps"
 	"math"
 	"reflect"
 	"testing"
 	"testing/synctest"
 	"time"
 
+	"finga/internal/application/world/instance"
 	"finga/internal/application/world/worldtest"
 	model "finga/internal/model/world"
+	"finga/internal/shared/kernel"
 )
 
 // A match of bots alone runs to its end: the rule that closes a match its players never came to holds only for a match that expected players. From one seed, its match and its bots, it plays the same each time.
@@ -105,5 +108,194 @@ func TestABotGuardsAPlayersAttacksAndSkillsThroughTheRing(t *testing.T) {
 			t.Fatal("the bot never guarded Ayla's Strikes")
 		}
 		t.Logf("%d guards against 15 attacks, %d against 5 Strikes", attacks, skills)
+	})
+}
+
+// parryOnly is an expert Thief bot whose bar holds Parry alone, so its one guard blocks in place.
+func parryOnly() *model.Bot {
+	return &model.Bot{ID: kernel.NewCharacterID(), Name: "Ash", Class: "thief", Tier: "expert", Build: model.Build{Bar: []string{"parry", "", "", "", "", "", "", ""}}}
+}
+
+// thiefDuel runs Ayla against bot, the expert tier defending at defend and more edits made, both up for the round, from the fight's start.
+func thiefDuel(t *testing.T, bot *model.Bot, defend string, more map[string]func(string) string) (*instance.Instance, *worldtest.Sink, model.Player, func()) {
+	t.Helper()
+	tier, lasting := edit(t, "{id: expert, mu: 30, reaction: 190ms, defend: 0.7", "{id: expert, mu: 30, reaction: 190ms, defend: "+defend), scaleOf(t, "20.0", "1.0")
+	edits := map[string]func(string) string{"pvp.yaml": func(s string) string { return lasting(tier(s)) }}
+	maps.Copy(edits, more)
+	data := worldtest.LoadDataWith(t, edits)
+	ayla := fighterFrom(t, data, "Ayla")
+	inst, stop := worldtest.RunMatch(t, data, duel(model.Fighter{Character: ayla.ID}, model.Fighter{Bot: bot}), nil, worldtest.Options{})
+	sink := &worldtest.Sink{}
+	if err := inst.Join(context.Background(), ayla, sink); err != nil {
+		t.Fatal(err)
+	}
+	sleep(data.Pvp().Rounds.Prep + data.Pvp().Rounds.Countdown + worldtest.TickInterval)
+	return inst, sink, ayla, stop
+}
+
+// xAt presses Ayla's attack at the bot; one pressed during an attack follows at its end, as a held key does.
+func xAt(t *testing.T, inst *instance.Instance, sink *worldtest.Sink, ayla model.Player, bot *model.Bot) {
+	t.Helper()
+	me, _ := sink.Own(ayla.ID)
+	it, _ := sink.Own(bot.ID)
+	if err := inst.Attack(ayla.ID, float32(math.Atan2(it.State.X-me.State.X, it.State.Z-me.State.Z)), model.EntityRef{Player: bot.ID}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// closeIn swings until a blow of Ayla's reaches the bot, which comes to her, then waits out a Parry's cooldown; it returns how many swings it took.
+func closeIn(t *testing.T, inst *instance.Instance, sink *worldtest.Sink, ayla model.Player, bot *model.Bot) int {
+	t.Helper()
+	for range 400 {
+		if len(blowsOn(sink, ayla.ID, bot.ID)) > 0 {
+			sleep(5 * time.Second)
+			return len(swingsOf(sink, ayla.ID))
+		}
+		xAt(t, inst, sink, ayla, bot)
+		sleep(worldtest.TickInterval)
+	}
+	t.Fatal("no swing of Ayla's reached the bot in 20 s")
+	return 0
+}
+
+// swingsOf are the ticks Ayla's attacks started.
+func swingsOf(sink *worldtest.Sink, id kernel.CharacterID) []uint64 {
+	var out []uint64
+	for _, a := range attacksOf(sink, id) {
+		out = append(out, a.Tick)
+	}
+	return out
+}
+
+// attacksOf are id's attacks as the world showed them, each with its length in ticks.
+func attacksOf(sink *worldtest.Sink, id kernel.CharacterID) []model.AttackUsed {
+	var out []model.AttackUsed
+	for _, a := range worldtest.Of[model.AttackUsed](sink) {
+		if a.Attacker == id {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// blowsOn are Ayla's hits on the bot by tick, true where its block stopped them; damage over time left out.
+func blowsOn(sink *worldtest.Sink, from, to kernel.CharacterID) map[uint64]bool {
+	out := map[uint64]bool{}
+	for _, d := range worldtest.Of[model.Damage](sink) {
+		if d.Source.Player == from && d.Target.Player == to && d.Status == "" {
+			out[d.Tick] = d.Block
+		}
+	}
+	return out
+}
+
+// parriesOf are the ticks the bot's Parries started.
+func parriesOf(sink *worldtest.Sink, id kernel.CharacterID) []uint64 {
+	var out []uint64
+	for _, u := range worldtest.Of[model.SkillUsed](sink) {
+		if u.Caster == id && u.Skill == "parry" {
+			out = append(out, u.Tick)
+		}
+	}
+	return out
+}
+
+// Option A of the guard's timing: after a basic attack the bot expects the next swing at its end, so plain X spam is guarded about as often as its tier defends, its Parry ready for every swing here.
+func TestXSpamIsGuardedAtTheTiersChance(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		bot := parryOnly()
+		quick := edit(t, "    effect: block\n    level: 10\n    granted: true\n    energy: 0\n    cooldown: 4s", "    effect: block\n    level: 10\n    granted: true\n    energy: 0\n    cooldown: 600ms")
+		inst, sink, ayla, stop := thiefDuel(t, bot, "0.7", map[string]func(string) string{"skills.yaml": quick})
+		defer stop()
+		for len(swingsOf(sink, ayla.ID)) < 61 {
+			xAt(t, inst, sink, ayla, bot)
+			sleep(worldtest.TickInterval)
+		}
+		swings := swingsOf(sink, ayla.ID)[1:61] // the first follows no swing the bot saw
+		blows, guarded := blowsOn(sink, ayla.ID, bot.ID), 0
+		reached := 0
+		for _, s := range swings {
+			if blocked, ok := blows[s]; ok {
+				reached++
+				if blocked {
+					guarded++
+				}
+			}
+		}
+		share := float64(guarded) / float64(reached)
+		t.Logf("%d of %d swings reached, %d of them parried: %.2f", reached, len(swings), guarded, share)
+		if reached < 50 || share < 0.5 || share > 0.9 {
+			t.Fatalf("%d of %d swings parried, want about the expert's 0.7", guarded, reached)
+		}
+	})
+}
+
+// Cutting X into a skill at the cancel point beats the guard: the bot parries the attack's end, which a second X held to repeat meets, while a skill cut in lands before.
+func TestXCutIntoASkillLandsThroughTheGuard(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		bot := parryOnly()
+		inst, sink, ayla, stop := thiefDuel(t, bot, "1", nil)
+		defer stop()
+		n := closeIn(t, inst, sink, ayla, bot)
+		for len(swingsOf(sink, ayla.ID)) < n+2 { // X held: the second swing at the first's end
+			xAt(t, inst, sink, ayla, bot)
+			sleep(worldtest.TickInterval)
+		}
+		held := swingsOf(sink, ayla.ID)[n+1]
+		sleep(5 * time.Second) // the Parry cools
+		first := len(parriesOf(sink, bot.ID))
+		xAt(t, inst, sink, ayla, bot)
+		sleep(worldtest.TickInterval)
+		cut := attacksOf(sink, ayla.ID)[n+2]
+		me, _ := sink.Own(ayla.ID)
+		it, _ := sink.Own(bot.ID)
+		aim := float32(math.Atan2(it.State.X-me.State.X, it.State.Z-me.State.Z))
+		if err := inst.UseSkill(context.Background(), ayla.ID, ayla.Connection, model.SkillUse{Skill: "strike", Root: "strike", Aim: aim, Target: model.EntityRef{Player: bot.ID}}, 900); err != nil {
+			t.Fatal(err)
+		}
+		sleep(time.Second)
+		blows := blowsOn(sink, ayla.ID, bot.ID)
+		if blocked, ok := blows[held]; !ok || !blocked {
+			t.Fatalf("the swing held to repeat at %d: blows %v, want it parried", held, blows)
+		}
+		var strike uint64
+		for _, u := range worldtest.Of[model.SkillUsed](sink) {
+			if u.Caster == ayla.ID && u.Skill == "strike" {
+				strike = u.Tick
+			}
+		}
+		if blocked, ok := blows[strike]; strike == 0 || strike >= cut.Tick+cut.Length || !ok || blocked {
+			t.Fatalf("Strike at %d, cut into the swing at %d of %d ticks: blows %v, want it landing before the swing's end", strike, cut.Tick, cut.Length, blows)
+		}
+		if parries := parriesOf(sink, bot.ID)[first:]; len(parries) == 0 || parries[0] <= strike {
+			t.Fatalf("the bot parried at %v, want once after Strike at %d, for the swing's end", parries, strike)
+		}
+	})
+}
+
+// An X held back past the attack's end lands: the bot's Parry spent on the end it expected, and cooling.
+func TestXDelayedPastTheEndLandsWhileTheGuardCools(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		bot := parryOnly()
+		inst, sink, ayla, stop := thiefDuel(t, bot, "1", nil)
+		defer stop()
+		n := closeIn(t, inst, sink, ayla, bot)
+		before := len(parriesOf(sink, bot.ID))
+		xAt(t, inst, sink, ayla, bot)
+		sleep(worldtest.TickInterval)
+		first := attacksOf(sink, ayla.ID)[n]
+		sleep(time.Duration(first.Length+10) * worldtest.TickInterval) // past the end, and the Parry's 8 ticks over it
+		xAt(t, inst, sink, ayla, bot)
+		sleep(worldtest.TickInterval)
+		late := swingsOf(sink, ayla.ID)[n+1]
+		parries := parriesOf(sink, bot.ID)[before:]
+		if end := first.Tick + first.Length; len(parries) != 1 || parries[0] <= first.Tick || parries[0] > end {
+			t.Fatalf("parried at %v, want once over the first swing's end at %d", parries, end)
+		}
+		if blows := blowsOn(sink, ayla.ID, bot.ID); !reflect.DeepEqual(blows[late], false) {
+			t.Fatalf("the swing at %d held past the end: blows %v, want it landing", late, blows)
+		} else if _, ok := blows[late]; !ok {
+			t.Fatalf("the swing at %d reached nothing: blows %v", late, blows)
+		}
 	})
 }

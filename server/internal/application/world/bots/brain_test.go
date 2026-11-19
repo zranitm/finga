@@ -75,20 +75,20 @@ func (f *fight) swing(start uint64, yaw float64) bots.Started {
 	return f.started(start, model.TicksIn(st.Length, tick), st.Timing, st.Cancelable, &st.Shape, yaw, st.Move.Distance)
 }
 
-// attack is the enemy's basic attack started at start, aimed at the bot: its blow lands as it starts.
+// attack is the enemy's basic attack started at start, aimed at the bot: its blow lands as it starts, and its next swing is expected at its end.
 func (f *fight) attack(start uint64) bots.Started {
 	c, _ := f.data.Class("warrior")
-	return f.started(start, model.TicksIn(c.Attack.Length, tick), c.Attack.Timing, true, &c.Attack.Shape, f.towardMe(), 0)
+	return f.started(start, model.TicksIn(c.Attack.Length, tick), c.Attack.Timing, false, &c.Attack.Shape, f.towardMe(), 0)
 }
 
-// started keeps the enemy's action in the ring as shown at start: a blow's shape aimed at yaw at the bot, after a dash of toward metres; no blow for a buff.
-func (f *fight) started(start, length uint64, t gamedata.Timing, cancelable bool, blow *gamedata.Shape, yaw, toward float64) bots.Started {
+// started keeps the enemy's action in the ring as shown at start: a blow's shape aimed at yaw at the bot, after a dash of toward metres; no blow for a buff. Its next blow is expected at its cancel point when nextAtCancel, as a cancelable skill's, else at its end.
+func (f *fight) started(start, length uint64, t gamedata.Timing, nextAtCancel bool, blow *gamedata.Shape, yaw, toward float64) bots.Started {
 	hitAt, cancelAt := model.ActionPoints(length, t.Hit, t.Cancel)
 	s := bots.Started{By: f.it.ID, Shown: start, Start: start, Hit: start + hitAt, Next: start + length}
 	if blow != nil {
 		s.Blow, s.Shape, s.Aim, s.Lock, s.Toward = true, *blow, model.Aim{X: f.it.Body.X, Z: f.it.Body.Z, Yaw: yaw}, model.EntityRef{Player: f.me.ID}, toward
 	}
-	if cancelable {
+	if nextAtCancel {
 		s.Next = start + cancelAt
 	}
 	f.ring.Start(s)
@@ -283,13 +283,14 @@ func (f *fight) guards(from, to uint64) (uint64, string) {
 	return 0, ""
 }
 
-// The next blow: a bot guards the blow that may follow a basic attack, at its cancel point, when its tier sees the attack in time.
+// The next blow: a bot guards the blow that may follow a short action, at its end, when its tier sees the action in time.
 func TestASlowTierMissesAShortActionAFastTierGuards(t *testing.T) {
 	data := gamedatatest.Shipped(t)
+	c, _ := data.Class("warrior")
 	for _, tier := range data.Pvp().Bots.Tiers {
 		tier.Defend = 1
 		f := newFight(t, "warrior", tier)
-		s := f.attack(20)
+		s := f.started(20, 6, c.Attack.Timing, false, &c.Attack.Shape, f.towardMe(), 0) // a blow of 300 ms
 		at, _ := f.guards(20, s.Next)
 		reaction := model.TicksIn(tier.Reaction, tick)
 		switch {

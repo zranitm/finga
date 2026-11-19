@@ -77,7 +77,7 @@ func (i *Instance) resolveAttacks() {
 		length := model.TicksIn(a.Length, i.tuning.TickInterval)
 		p.aimAt(p.attackAim)
 		i.events = append(i.events, model.AttackUsed{Tick: i.tick, Attacker: p.ID, Length: length, Aim: p.aim}) // before begin: a hit at share 0 lands now, and a watcher times its Damage by this attack
-		i.seenStarting(p, i.tick, length, a.Timing, true, true, a.Shape, model.EntityRef{}, gamedata.Move{})    // AttackUsed shows no target
+		i.seenStarting(p, i.tick, length, a.Timing, false, true, a.Shape, model.EntityRef{}, gamedata.Move{})   // the next swing comes at the end, which a skill cut in at the cancel point beats; AttackUsed shows no target
 		i.begin(p, attackAction, i.tick, length, a.Timing, true, func() {
 			if i.strike(p, p.attackTarget, mobs.Strike{Shape: a.Shape, Most: 1, Power: power}, a.Damage, gamedata.Inflict{}) {
 				i.gainEnergy(p) // a basic attack that reaches a mob, hit or MISS
