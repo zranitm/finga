@@ -195,6 +195,56 @@ describe('Predictor in combat (large-regions.md section 7)', () => {
     );
   });
 
+  /** The world's states for inputs walked from the west, input k at tick 100 + k, each held at the tick it runs as a match's count holds it. */
+  function countedWalk(inputs: readonly Input[], count: { from: number; until: number }): State[] {
+    const out: State[] = [];
+    let s = west;
+    inputs.forEach((input, i) => {
+      const tick = 101 + i;
+      const held = (count.until - tick) * STEPS;
+      if (tick >= count.from && held > (s.held ?? 0)) {
+        s = { ...s, held };
+      }
+      for (let k = 0; k < STEPS; k++) {
+        s = step(s, input, g, params);
+      }
+      out.push(s);
+    });
+    return out;
+  }
+
+  it('a match’s count into a round holds the player as the world does, each input from the tick it runs: walking into it, inputs on their way, nothing is corrected', () => {
+    const pred = walking();
+    const count = { from: 110, until: 130 }; // inputs 10 to 29
+    const inputs = Array<Input>(40).fill(R);
+    const world = countedWalk(inputs, count);
+    acked(pred, world, 1, 1);
+    pred.holdFor(count); // known from prep's end, before the count
+    for (let k = 2; k <= inputs.length; k++) {
+      run(pred, [R], k);
+      if (k > 4) {
+        pred.reconcile(world[k - 4]!, k - 3, 100 + k - 3); // three inputs behind
+      }
+    }
+    expect([pred.state, pred.resets]).toEqual([world.at(-1), 0]);
+    expect(world[9]!.x).toBe(world[28]!.x); // held still through the count
+    expect(world[29]!.x).toBeGreaterThan(world[28]!.x); // and walking once it ends
+  });
+
+  it('a count learned after inputs into it were predicted replays them held, and none ends it', () => {
+    const pred = walking();
+    const count = { from: 105, until: 115 };
+    const inputs = Array<Input>(12).fill(R);
+    const world = countedWalk(inputs, count);
+    acked(pred, world, 1, 1);
+    run(pred, inputs.slice(1), 2); // walked on, the count not yet known
+    expect(pred.state).not.toEqual(world.at(-1));
+    pred.holdFor({ ...count });
+    expect([pred.state, pred.resets]).toEqual([world.at(-1), 0]);
+    pred.holdFor(null);
+    expect(pred.state).toEqual(worldWalk(inputs, () => false).at(-1));
+  });
+
   it('a press ends the count from the first input past it, as the world ends it', () => {
     const pred = walking();
     run(pred, Array<Input>(SPRINT_TICKS + 5).fill(R));

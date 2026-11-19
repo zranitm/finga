@@ -63,6 +63,7 @@ describe('ArenaWindow', () => {
         .getState()
         .applyMatchState(
           create(MatchStateSchema, { match: 'mt-1', mode: 'duel', phase: MatchPhase.PREP }),
+          0,
         ),
     );
     expect(screen.getByRole('button', { name: 'Queue' })).toBeDisabled();

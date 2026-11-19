@@ -171,6 +171,7 @@ describe('App', () => {
             { fighters: [{ id: 'b-1', name: 'Ash', bot: true }] },
           ],
         }),
+        0,
       );
       pvp
         .getState()

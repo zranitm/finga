@@ -125,6 +125,7 @@ describe('MatchResult', () => {
           { fighters: [{ id: 'c-ayla', name: 'Ayla' }] },
         ],
       }),
+      0,
     );
   });
 

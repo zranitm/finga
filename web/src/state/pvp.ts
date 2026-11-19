@@ -1,4 +1,5 @@
 // PvP (pvp.md sections 11 and 13): the queue the player waits in, a match offer, the match under way and its outcome, as the server says them; each wait and time counts locally from when its message came, in performance.now() milliseconds.
+import { pvp as pvpData } from '@/gamedata/pvp';
 import { MatchPhase } from '@/protocol/messages';
 import type { Data, MatchOutcome } from '@/protocol/messages';
 
@@ -36,6 +37,8 @@ export interface Match {
   readonly wins: readonly number[];
   /** When the phase ends. */
   readonly endsAt: number;
+  /** The world tick the state was sent at, and the phase's time left then, as the world counts it in ticks. */
+  readonly sent: { readonly tick: number; readonly endsInMs: number };
   /** Side 1's fighters, then side 2's. */
   readonly sides: readonly (readonly Fighter[])[];
 }
@@ -70,8 +73,8 @@ export interface PvpState {
   applyOffer(d: Data<'pvpOffer'>): void;
   /** An offer ended without a match: the player stays queued if the world put them back. */
   applyOfferGone(d: Data<'pvpOfferGone'>): void;
-  /** The match's state: in it, the player has left the queue and its offer. */
-  applyMatchState(d: Data<'matchState'>): void;
+  /** The match's state, sent at the world's tick: in it, the player has left the queue and its offer. */
+  applyMatchState(d: Data<'matchState'>, tick: number): void;
   applyMatchEnded(d: Data<'matchEnded'>, me: string): void;
   /** The player was moved out of the match's map. */
   leftMatch(): void;
@@ -113,7 +116,7 @@ export const pvp = defineStore<PvpState>((set, get) => ({
     }
     set({ offer: null, ...(!d.requeued && { queued: null }) });
   },
-  applyMatchState: (d) => {
+  applyMatchState: (d, tick) => {
     const was = get().match;
     set({
       queued: null,
@@ -125,6 +128,7 @@ export const pvp = defineStore<PvpState>((set, get) => ({
         round: d.round,
         wins: d.wins,
         endsAt: performance.now() + d.endsInMs,
+        sent: { tick, endsInMs: d.endsInMs },
         sides: d.sides.map((s) =>
           s.fighters.map((f) => ({ id: f.id, name: f.name, cls: f.class, bot: f.bot })),
         ),
@@ -170,4 +174,24 @@ export const pvp = defineStore<PvpState>((set, get) => ({
 /** Whether the match holds everyone still: before the first round, and in the count into each. */
 export function walled(phase: MatchPhase | undefined): boolean {
   return phase === MatchPhase.PREP || phase === MatchPhase.COUNTDOWN;
+}
+
+/** The world's ticks the count into a round holds everyone still, the last exclusive, as the match's state tells them: the next count in prep and between rounds, which starts as they end, and the rest of one under way; none otherwise. */
+export function countdownTicks(
+  m: Match | null,
+  tickMs: number,
+): { readonly from: number; readonly until: number } | null {
+  if (!m) {
+    return null;
+  }
+  const ends = m.sent.tick + Math.round(m.sent.endsInMs / tickMs);
+  switch (m.phase) {
+    case MatchPhase.PREP:
+    case MatchPhase.BETWEEN:
+      return { from: ends, until: ends + Math.round(pvpData.countdown_ms / tickMs) };
+    case MatchPhase.COUNTDOWN:
+      return { from: m.sent.tick, until: ends };
+    default:
+      return null;
+  }
 }
