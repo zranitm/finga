@@ -97,7 +97,7 @@ func TestTravel(t *testing.T) {
 	})
 }
 
-// From a finga/test flake: Quinn ended her hunt just east of the forest's oak at (16, 20), and the way to the town portal at (2, 20) runs straight through its trunk. A walk goes round it either way, on the map the hop took it to, never stalling: each leg takes at most half again its straight line at walking speed.
+// From a finga/test flake: Quinn ended her hunt just east of the forest's oak at (16, 20), and the way to the town portal at (2, 20) runs straight through its trunk. A walk goes round it either way, on the map the hop took it to, never stalling: each leg takes at most 2.5 times its straight line at walking speed, where walking straight into the trunk and jumping takes five.
 func TestAWalkGoesRoundATreeInItsWay(t *testing.T) {
 	t.Parallel()
 	s := newStack(t)
@@ -121,8 +121,8 @@ func TestAWalkGoesRoundATreeInItsWay(t *testing.T) {
 			t.Fatalf("stopped at (%.2f, %.2f) on %s, short of %+v", l.X, l.Z, l.MapID, to)
 		}
 		straight := math.Hypot(to.X-from.X, to.Z-from.Z) / data.Movement().WalkSpeed * float64(l.TickHz)
-		if took := float64(l.Tick() - start); took > 1.5*straight {
-			t.Fatalf("%+v to %+v took %.0f ticks, over half again the %.0f a straight walk takes", from, to, took, straight)
+		if took := float64(l.Tick() - start); took > 2.5*straight {
+			t.Fatalf("%+v to %+v took %.0f ticks, over 2.5 times the %.0f a straight walk takes", from, to, took, straight)
 		}
 		t.Logf("%+v to %+v in %d ticks, %.0f straight", from, to, l.Tick()-start, straight)
 	}

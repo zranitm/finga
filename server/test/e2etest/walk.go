@@ -71,10 +71,16 @@ func (l *Looter) WalkTo(to gamedata.Point, d time.Duration) bool {
 	return false
 }
 
-// nextFrame reads until a frame newer than the last one has come, for up to 2 s.
+// nextFrame reads until a frame newer than the last one has come, for up to 2 s, then what has come behind it: a walk decides on the newest frame, however far behind its reader runs.
 func (l *Looter) nextFrame() bool {
 	was := l.tick
-	return l.Pump(2*time.Second, func(wsconn.Message) bool { return l.tick != was })
+	if !l.Pump(2*time.Second, func(wsconn.Message) bool { return l.tick != was }) {
+		return false
+	}
+	for m, ok := l.Read(0); ok; m, ok = l.Read(0) {
+		l.Observe(m)
+	}
+	return true
 }
 
 // ticksIn is d in the world's ticks.

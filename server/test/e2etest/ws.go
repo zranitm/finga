@@ -142,8 +142,16 @@ func (p *Player) Read(d time.Duration) (wsconn.Message, bool) {
 	return m, ok
 }
 
-// receive is the next message off the connection, waiting up to d.
+// receive is the next message off the connection, waiting up to d; with no d, only one already come.
 func (p *Player) receive(d time.Duration) (wsconn.Message, bool) {
+	if d <= 0 {
+		select {
+		case m := <-p.msgs:
+			return m, true
+		default:
+			return wsconn.Message{}, false
+		}
+	}
 	select {
 	case m := <-p.msgs:
 		return m, true
