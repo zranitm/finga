@@ -1,0 +1,12 @@
+{
+  "req": "r-35",
+  "set_look": {
+    "idempotency_key": "k-10",
+    "look": {
+      "outfit": "mage_robe",
+      "headwear": "pointed_hat",
+      "weapon": "oak_wand",
+      "wings": "crystal_wings"
+    }
+  }
+}
