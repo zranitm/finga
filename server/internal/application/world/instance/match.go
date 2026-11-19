@@ -7,6 +7,7 @@ import (
 	"slices"
 	"time"
 
+	"finga/internal/application/world/bots"
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
@@ -35,6 +36,9 @@ type match struct {
 	order    [2][]kernel.CharacterID // each side's, in the spec's order
 	winner   int                     // once decided: 1 or 2, 0 a draw
 	falling  []*player               // at 0 HP this tick: down once all the tick's hits have landed
+	players  bool                    // the spec has players, not bots alone
+	ring     *bots.Ring              // what its bots see; nil in a match with none
+	seen     []bots.Seen             // the ring's frame as it's filled
 }
 
 // fighter is a place in the match and how its fighter did.
@@ -87,6 +91,10 @@ func newMatch(m Match, rules gamedata.PvpRules, tick func(time.Duration) uint64)
 			}
 			mt.fighters[id] = fr
 			mt.order[s] = append(mt.order[s], id)
+			mt.players = mt.players || f.Bot == nil
+			if f.Bot != nil && mt.ring == nil {
+				mt.ring = bots.NewRing(tick(gamedata.BotMemory))
+			}
 		}
 	}
 	return mt
@@ -397,24 +405,24 @@ func (i *Instance) endMatch(winner int) {
 	i.enterPhase(model.PhaseResult, mt.rules.Result)
 }
 
-// settleLeavers ends the match for the other side once a side has no one left on the map, and closes it with no outcome when no player ever came; true when it ended.
+// settleLeavers ends the match for the other side once a side has no one left on the map, and closes it with no outcome when it expected players and none came; a match of bots alone runs. True when it ended.
 func (i *Instance) settleLeavers() bool {
 	mt := i.match
 	if mt.phase == model.PhaseResult {
 		return false
 	}
 	gone := [2]bool{true, true}
-	players := false
+	came := false
 	for _, f := range mt.fighters {
 		if !f.gone {
 			gone[f.side] = false
 		}
 		if f.bot == nil && f.arrived {
-			players = true
+			came = true
 		}
 	}
 	switch {
-	case !players:
+	case mt.players && !came:
 		i.closeMatch() // nobody to rate: no outcome
 		return true
 	case gone[0]:
@@ -554,9 +562,13 @@ func (i *Instance) settleDowns() {
 	i.match.falling = i.match.falling[:0]
 }
 
-// scaled is a player's damage on another in a match, by scale.damage.
-func (i *Instance) scaled(amount float64) int {
-	return int(math.Round(amount * i.match.rules.Scale.Damage))
+// scaled is a fighter's damage on another in a match, by scale.damage and their class's kit's damage factor.
+func (i *Instance) scaled(by kernel.CharacterID, amount float64) int {
+	factor := i.match.rules.Scale.Damage
+	if f, ok := i.match.fighters[by]; ok {
+		factor *= i.match.rules.Kits[f.class].Damage
+	}
+	return int(math.Round(amount * factor))
 }
 
 // down is a fighter at 0 HP in a match: out of the round with their action, statuses and buffs gone, as a death, but with no penalty and no respawn; the round's reset brings them back.

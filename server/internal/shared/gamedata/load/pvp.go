@@ -10,7 +10,6 @@ import (
 
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
-	"finga/internal/shared/nav"
 	"finga/internal/shared/progression"
 )
 
@@ -37,7 +36,8 @@ type pvpYAML struct {
 	} `yaml:"rounds"`
 	Result time.Duration `yaml:"result"`
 	Kit    struct {
-		Level int `yaml:"level"`
+		Level   int                                `yaml:"level"`
+		Classes map[kernel.Class]gamedata.PvpScale `yaml:"classes"`
 	} `yaml:"kit"`
 	Scale  gamedata.PvpScale `yaml:"scale"`
 	Rating struct {
@@ -102,9 +102,6 @@ func (l *loader) loadPvp(dir string) error {
 	if p.Modes, err = l.pvpModes(y.Modes); err != nil {
 		return fmt.Errorf("%s: %w", pvpFile, err)
 	}
-	if err := nav.CheckRadius(l.movement.Radius + gamedata.BotPathMargin); err != nil {
-		return fmt.Errorf("%s: a bot's path radius, %s's radius and its margin: %w", pvpFile, movementFile, err)
-	}
 	q, r := y.Queue, y.Rounds
 	switch w := q.Window; {
 	case q.BotsAfter <= 0 || q.Offer <= 0:
@@ -118,7 +115,7 @@ func (l *loader) loadPvp(dir string) error {
 	}
 	p.Queue = gamedata.PvpQueue{BotsAfter: q.BotsAfter, Offer: q.Offer, Window: gamedata.QueueWindow(q.Window)}
 	p.Rounds, p.Result, p.Scale = gamedata.PvpRounds(r), y.Result, y.Scale
-	if p.Kits, err = l.kits(y.Kit.Level); err != nil {
+	if p.Kits, err = l.kits(y.Kit.Level, y.Kit.Classes); err != nil {
 		return fmt.Errorf("%s: kit: %w", pvpFile, err)
 	}
 	if p.Rating, err = ratingRules(y); err != nil {
@@ -183,19 +180,28 @@ func (l *loader) pvpModes(modes map[string]modeYAML) ([]gamedata.PvpMode, error)
 	return out, nil
 }
 
-// kits is each promoted class's kit at level: the root's stats and the level's points by the class's split, and in each slot the item it can wear with the highest level up to it, then more stars, then the lower id.
-func (l *loader) kits(level int) (map[kernel.Class]gamedata.Kit, error) {
+// kits is each promoted class's kit at level: the root's stats and the level's points by the class's split, in each slot the item it can wear with the highest level up to it, then more stars, then the lower id, and its factors from classes, which name every promoted class and no other.
+func (l *loader) kits(level int, classes map[kernel.Class]gamedata.PvpScale) (map[kernel.Class]gamedata.Kit, error) {
 	if level < 1 || level > l.levelCap {
 		return nil, fmt.Errorf("level %d is not from 1 to the cap %d", level, l.levelCap)
+	}
+	for id := range classes {
+		if c, ok := l.classes.get(id); !ok || c.Parent == "" {
+			return nil, fmt.Errorf("classes: %s is no promoted class", id)
+		}
 	}
 	out := map[kernel.Class]gamedata.Kit{}
 	for _, c := range l.classes.list {
 		if c.Parent == "" {
 			continue
 		}
+		f, ok := classes[c.ID]
+		if !ok || !positive(f.HP) || !positive(f.Damage) {
+			return nil, fmt.Errorf("classes: %s needs its hp and damage, each over 0", c.ID)
+		}
 		root, _ := l.classes.get(c.Line[len(c.Line)-1])
 		own := progression.AddStats(root.BaseStats, autoAssigned(c.AutoAssign, (level-1)*l.stats.PointsPerLevel, l.stats.PointsPerLevel))
-		kit := gamedata.Kit{Level: level, Own: own}
+		kit := gamedata.Kit{Level: level, Own: own, HP: f.HP, Damage: f.Damage}
 		for _, slot := range l.slots {
 			best, found := gamedata.Item{}, false
 			for _, it := range l.items.list {
@@ -249,6 +255,8 @@ func (l *loader) botRules(y pvpYAML) (gamedata.BotRules, error) {
 			return out, fmt.Errorf("tier %s: mu must rise", t.ID)
 		case t.Reaction < 0 || t.BreakFree < 0 || !nonNegative(t.Aim) || !(t.Defend >= 0 && t.Defend <= 1) || !(t.Chain >= 0 && t.Chain <= 1):
 			return out, fmt.Errorf("tier %s: reaction, break_free and aim not below 0, defend and chain from 0 to 1", t.ID)
+		case t.Reaction >= gamedata.BotMemory:
+			return out, fmt.Errorf("tier %s: reaction %s, under the %s a bot remembers", t.ID, t.Reaction, gamedata.BotMemory)
 		}
 		out.Tiers = append(out.Tiers, gamedata.BotTier{ID: t.ID, Mu: t.Mu, Reaction: t.Reaction, Defend: t.Defend, Chain: t.Chain, BreakFree: t.BreakFree, Aim: radians(t.Aim)})
 	}

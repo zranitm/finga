@@ -326,7 +326,7 @@ func balanceOf(t *testing.T, d *gamedata.Data, items []gamedata.Item, m *gamedat
 			if c.Attack.Shape.Kind == gamedata.ArcShape {
 				life = fmt.Sprintf("%5.1f", f.killsPerLife)
 			}
-			r := rotationOf(d, me, c, planned(d, c, p.future, level), mob)
+			r := rotationOf(d, me, c, planned(d, c, p.future, level), onMob(mob))
 			// Logged for the user's playtest, not held to the bands: how fast skills on cooldown kill, in hits at the reference pace, and their share of the damage.
 			withSkills := float64(mob.HP) / r.skills / refPace
 			// What a player who never dodges takes against a touch every hit guard.
@@ -444,7 +444,7 @@ func bossOf(t *testing.T, d *gamedata.Data, items []gamedata.Item, m *gamedata.M
 		f := fightOf(d, me, c, boss)
 		minutes := f.secondsPerKill / 60
 		potions := max(0, f.secondsPerKill*f.taken-float64(me.MaxHP)) / float64(potion.HealHP)
-		r := rotationOf(d, me, c, planned(d, c, p.future, level), boss)
+		r := rotationOf(d, me, c, planned(d, c, p.future, level), onMob(boss))
 		t.Logf("%-17s %-16s L%-2d %-8s %4.1f min (%3.1f with skills, %3.1f on every extra)  hit %3.0f%%  hit by %3.0f%%, %4.1f a second, for %4.0f of %4d HP  %3.0f %s standing in reach",
 			m.ID, boss.ID, boss.Level, p.name, minutes, float64(boss.HP)/r.skills/60, float64(boss.HP)/r.extras/60, 100*f.hitRate, 100*f.landRate, f.hitsPerSecond, f.hitDamage, me.MaxHP, potions, potion.ID)
 		if level >= promotionLevel && (minutes < bossMinutes[0] || minutes > bossMinutes[1]) {

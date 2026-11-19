@@ -208,6 +208,7 @@ func (i *Instance) cast(u use, start uint64) {
 	p.aimAt(u.aim)
 	i.events = append(i.events, model.SkillUsed{Tick: i.tick, Caster: p.ID, Skill: s.ID, Stage: u.stage, Trait: u.trait, Aim: u.aim, Target: u.target})
 	length, hit := model.TicksIn(st.Length, i.tuning.TickInterval), i.effect(u)
+	i.seenStarting(p, start, length, st.Timing, st.Cancelable, s.Effect == gamedata.DamageEffect || s.Effect == gamedata.StatusEffect, st.Shape, u.target, st.Move)
 	i.begin(p, skillAction, start, length, st.Timing, st.Cancelable, hit)
 	hitAt, _ := model.ActionPoints(length, st.Hit, st.Cancel)
 	p.hitSeqs[s.ID] = uint64(u.seq) + hitAt

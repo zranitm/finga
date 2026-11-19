@@ -10,9 +10,16 @@ rounds: {prep: 10s, countdown: 3s, between: 5s}
 result: 10s
 
 # Equal stats: each class at this level, its points spent by its auto-assign split, wearing the best item it can wear by then in each slot, its rolls at their middle.
-kit: {level: 30}
+kit:
+  level: 30
+  # Each promoted class's own factors on its kit's max HP and on the hits it deals, beside scale; the balance harness tunes them (pvp.md section 14).
+  classes:
+    warrior: {hp: 0.48, damage: 1.19}
+    thief: {hp: 0.96, damage: 1.10}
+    bowman: {hp: 1.46, damage: 0.81}
+    magician: {hp: 1.48, damage: 0.94}
 # Multiplies a kit's max HP and every hit between players; the balance harness tunes them.
-scale: {hp: 1.0, damage: 1.0}
+scale: {hp: 4.0, damage: 0.42}
 
 # Weng-Lin's Bradley-Terry; the shown rating is base + per_point × (mu − 3 sigma), past the placement matches.
 rating: {mu: 25, sigma: 8.333, beta: 4.167, tau: 0.083, shown: {base: 1000, per_point: 40}, placement: 5}

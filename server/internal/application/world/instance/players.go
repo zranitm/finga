@@ -90,7 +90,7 @@ type player struct {
 	statuses     model.Statuses
 	combatUntil  uint64      // in combat before this tick: combat's length after the latest Damage naming the player
 	toMatch      *toMatchMsg // a hand-off to a match waiting for the item calls in flight
-	bot          *brain      // a match's bot's, which presses its keys; nil for a player
+	bot          *bot        // a match's bot's, which presses its keys; nil for a player
 }
 
 func (i *Instance) add(j *joinMsg) {
@@ -141,7 +141,7 @@ func (i *Instance) add(j *joinMsg) {
 		return
 	}
 	if i.match != nil {
-		p.bot = i.brainFor(p)
+		p.bot = i.botFor(p)
 		i.welcome(p)
 	}
 	i.tellParty(p, i.m.ID) // a join is a map change, and gives the party the member as the world has them

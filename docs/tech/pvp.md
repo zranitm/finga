@@ -60,8 +60,9 @@ rounds: {prep: 10s, countdown: 3s, between: 5s}
 battle: {prep: 20s, length: 12m, goal: 1000, per_point: 1, per_down: 5, respawn: 10s, base_heal: 0.10,
          capture: {time: 8s, per_extra: 0.25, fastest: 2}}
 result: 10s
-kit:    {level: 30}
-scale:  {hp: 1.0, damage: 1.0}  # tuned by the harness, section 14
+kit:    {level: 30, classes: {warrior: {hp: 0.48, damage: 1.19}, thief: {hp: 0.96, damage: 1.10},
+                              bowman: {hp: 1.46, damage: 0.81}, magician: {hp: 1.48, damage: 0.94}}}
+scale:  {hp: 4.0, damage: 0.42}  # beside each class's own factors; tuned by the harness, section 14
 rating: {mu: 25, sigma: 8.333, beta: 4.167, tau: 0.083, shown: {base: 1000, per_point: 40}, placement: 5}
 ranks:  [{id: bronze, from: 0}, {id: silver, from: 1200}, {id: gold, from: 1400},
          {id: platinum, from: 1600}, {id: diamond, from: 1800}, {id: master, from: 2000}]
@@ -131,6 +132,7 @@ bots:
 - **Leaving:**
   - A presence that goes, through logout or a dropped connection, is a forfeit. The instance removes the player as any leave does, and checkpoints `back`.
   - After a server stop or a crash, a match has no result and moves no rating.
+  - A match that expected players and saw none by prep's end closes with no outcome. A match of bots alone runs to its end, as its test runs one; the queue never makes one.
 - **Teardown:** after the result phase, the instance hands everyone out and its `Run` returns. Then it's dropped from `w.matches`.
 - **Party:** `tellParty` names the match's map, which the party frame shows as "In a match".
 - **Bots:**
@@ -163,8 +165,9 @@ bots:
 ### A hit
 
 - **Damage:**
-  - `model.Resolve(PlayerAttacker(attacker.derived, type).Times(power), defender.statuses.Defending(PlayerDefender(defender.derived)))`, times `scale.damage`.
-  - Damage over time uses `Steady`, as on mobs.
+  - `model.Landed(PlayerAttacker(attacker.derived, type).Times(power), defender.statuses.Defending(PlayerDefender(defender.derived)))`, times `scale.damage` and the attacker's class's `damage`.
+  - **No MISS between players:** `Landed` rolls variation and crit but no MISS. Accuracy and evasion count everywhere else, mobs both ways.
+  - Damage over time uses `Steady`, as on mobs, scaled the same way.
 - **One function for any hit on a player,** `hitPlayer`. `mobHits`'s three steps move into it, so dodge and block stay one path:
   1. **A dodge** passes it: `Damage.dodge`.
   2. **A block** from the front arc stops it: `Damage.block`, with the block's energy once per use. Nothing a player does is unblockable.
@@ -185,6 +188,7 @@ bots:
   - Who downed whom goes to the match's rules: the 15v15 score and the result screen.
 - **Statuses:**
   - Players' afflictions on players take through `inflict`, as mobs' do. Break-free is unchanged.
+  - A knockdown lasts the down pose, `react.down`, as a mob's lays a player down.
   - The aggro group (taunt, lose sight) doesn't take on players, as `statuses.yaml` says.
   - Damage over time on a player is credited to its inflicter.
 - **Chains:** `dodged` and `blocked` count any enemy's attack, a player's as a mob's.
@@ -218,7 +222,8 @@ bots:
     - Ties go to more stars, then the item id.
     - Each stat is at the middle of its range.
     - The loader picks them, so the kit follows new items.
-  - Max HP is multiplied by `scale.hp`. HP regen is 0.
+  - Max HP is multiplied by `scale.hp` and the class's own `hp`. HP regen is 0.
+  - Every hit and tick of damage over time a fighter deals is multiplied by `scale.damage` and their class's own `damage`.
 - **Pinned:** a test lists each class's kit, its derived stats, in a table. A data change that moves one then shows in review.
 - **Skills:**
   - Every skill the class learns, its own and the Beginner's, at its last stage and maximum points.
@@ -285,38 +290,41 @@ bots:
 
 ## 8. Bots
 
-- **Where:** `application/world/bots`, a package the instance calls each tick for its bots.
+- **Where:** `application/world/bots`, a package the instance calls each tick for its bots. The instance builds each bot's view and takes its decision as its client's input and presses.
 - **A bot only presses keys.**
   - Its brain queues what a player sends: keys held, `Attack`, and `UseSkill` with aim, target and chain root.
   - These go through the same checks: `usable`, `chainReady`, energy, cooldowns and the action clock. A bot can do nothing a player can't.
 - **The brain:**
   - A priority list: the first rule whose condition holds acts.
   - It decides every 100 ms, every other tick.
-  - It's seeded from the match id, so a match replays in tests.
+  - It's seeded from the match id and the bot's, so a match replays in tests. Each chance is rolled once for each thing it sees: an action, a hold, a follow-up offered.
   - A behaviour tree library was considered and left out (section 18).
 - **What it sees:**
   - Its own state, now.
-  - The others as they were `reaction` ago, read from a ring the instance keeps of the last second, for matches with bots. The ring holds:
-    - positions, HP and statuses;
-    - every attack and skill started, with its shape, aim and hit time.
+  - The others as they were `reaction` ago, in ticks, read from a ring the instance keeps of the last `gamedata.BotMemory` (a second) and the tick now, for matches with bots. A tier's reaction must be under it. The ring holds:
+    - each tick's fighters: positions, HP, whether a hard status holds them, and their class's basic attack, which anyone can tell from their class;
+    - every attack and skill started, as the world showed it: the tick it showed, its hit, and its user's next blow, at its cancel point when it's cancelable, else its end. A blow's also has its shape, aim, lock, and any dash or leap toward the lock. A basic attack has no lock, as `AttackUsed` shows none.
+  - Never a player's keys, presses, cooldowns or energy.
 - **The rules, first first:**
-  1. **Break free:** when hard-controlled with its break-free ready, it presses after `break_free`, at its tier's `defend` chance.
-  2. **Defend:**
-     - When it sees an enemy's attack or skill start whose shape will reach it at the hit time, by `model.Reached` at its predicted spot, it dodges or blocks.
-     - It uses whichever is ready and covers the hit time, at the `defend` chance.
-     - A block faces the attacker.
-     - A slow reaction can't beat a fast swing, which is the tiers' main difference.
-  3. **Follow up:** when a key offers a chain's follow-up, by the same `holds` the world uses, it takes it at the `chain` chance.
+  1. **Break free:** when hard-controlled with its break-free ready, it presses after `break_free`, at its tier's `defend` chance, rolled once for each hold. It presses from the break-free's root.
+  2. **Defend:** it guards against an enemy's action it has seen start, unless it sees that enemy down or held, which ends the action:
+     - **A delayed hit:** a blow whose shape will reach it at the hit time, by `model.Reached` at its predicted spot. A dash or leap toward the lock lands its blow from there. Few blows are delayed: a basic attack and most skills land as they start. The ones that don't are Lunge, Charge, Shadow Step and Meteor.
+     - **The next blow:** with the enemy within its basic attack's reach, the blow that may follow their action, guessed at that action's cancel point when it's cancelable, else its end. A player who holds the blow past the guess, feints or cancels early gets through.
+     - It presses the first of its dodges and blocks that's ready and runs over the guarded tick, at the `defend` chance, rolled once for each action, and guards each action once.
+     - No guard comes sooner than its reaction after the action showed.
+     - A block faces the attacker; a dodge's move goes away from them.
+     - A slow reaction can't beat a fast swing, which is the tiers' main difference. A basic attack's cancel point comes 250 ms (Warrior) or 150 ms (Thief) after it shows, the world counting whole ticks. So expert and master bots guard a Warrior's next blow, master bots alone a Thief's, and the rest guard neither.
+  3. **Follow up:** when a key offers a chain's follow-up, by the same `holds` the world uses, it takes it at the `chain` chance, rolled once each time it's offered.
   4. **Objective** (15v15): it goes to its point while no enemy is within 10 m.
   5. **Fight:**
-     - It picks its target.
+     - It picks its target: the nearest enemy still up.
      - It keeps its range:
        - Warrior and Thief: 70% of the attack's reach;
-       - Bowman and Magician: 6 to 9 m, stepping away inside 3 m.
-     - It uses the next skill of its build's `order` that's ready and paid for, else it attacks.
+       - Bowman and Magician: from past 9 m it walks in to 6 m, and it steps away inside 3 m.
+     - It uses the next skill of its build's `order` that's ready and paid for, its shape reaching past any dash to the lock, else it attacks.
      - It aims off by up to `aim` degrees.
   6. **Move:** it walks the nav path toward where the rules want it.
-- **Walking:** cmd/bot's `walker` moves to `internal/shared/steer`, and both cmd/bot and the server's bots use it. That's `keys`, `keysToward`, `yawTo` and the stall handling.
+- **Walking:** `internal/shared/steer` is cmd/bot's walker, and both cmd/bot and the server's bots walk with it: `Walker`, `KeysToward`, `YawTo` and `Stall`. A path keeps `gamedata.BotPathMargin`, 0.25 m, beyond a player's radius where it can. The movement loader checks that sum against the walk grid's steps.
 - **Teams (3v3):**
   - Each side's bots share a focus: the enemy with the lowest HP share within 12 m of a teammate. They hold it 2 s before changing.
   - Heals go to the lowest teammate under 60%. Buffs go out at the round's start.
@@ -510,9 +518,26 @@ As built for 1v1 (build step 2):
 
 ## 14. Balance
 
-- **The harness,** `pvp_balance_test.go`, sits beside the rotation harness in `model/world`. Its targets:
-  - **Time to down:** for each pair of classes, the attacker's rotation on a still kit defender downs it in 12 to 18 s. The mean over all pairs is 14 to 16 s. `scale.hp` and `scale.damage` set it.
+- **The harness,** `pvp_balance_test.go`, sits beside the rotation harness in `model/world`, on its helpers, against a player's kit, whom no blow MISSes. Its targets:
+  - **Time to down:** for each pair of classes, the attacker's rotation, chained as players fight on the default traits, on a still kit defender downs it in 12 to 18 s. The mean over all pairs is 14 to 16 s.
   - **Burst:** the longest control-into-chain burst takes at most 40% of a kit's HP.
+    - A burst starts with a control that keeps its target from acting (stun, freeze, sleep or knockdown; a pin holds only the feet), with every skill ready and the energy full.
+    - It chains as players fight, a follow-up that waits on a control open while one holds, and each control that lands adding its hold. A sleep ends at the next blow.
+    - It counts what lands until the target is free.
+- **As tuned:**
+  - `scale` alone moves every pair alike, so it sets the mean. Each class's own `hp` and `damage` bring the pairs together: without a MISS between players they leave them 1.27× apart, where they were 9× apart at scale 1.
+  - With passive evasion between players the pairs stayed 2× apart, past the band's 1.5×, as a kitted Warrior landed 26% of its swings on a Thief. So players have no evasion against each other (section 17).
+
+  | attacker → defender | Bowman | Magician | Thief | Warrior |
+  | --- | --- | --- | --- | --- |
+  | Bowman | 15.8 s | 13.4 s | 15.0 s | 16.7 s |
+  | Magician | 13.6 s | 17.1 s | 13.6 s | 13.3 s |
+  | Thief | 16.0 s | 13.5 s | 15.2 s | 17.0 s |
+  | Warrior | 16.0 s | 13.5 s | 15.1 s | 16.9 s |
+
+  - The mean is 15.1 s. The Thief's evasiveness in a match is its dodges': it downs the others in 13.5 to 17.0 s, and they down it in 13.6 to 15.2 s.
+  - The longest burst is the Warrior's Charge stun into Ground Slam on a Magician: 37% of its HP.
+  - The kits' HP in a match: Bowman 4,549, Thief 4,285, Magician 4,227, Warrior 3,452.
 - **Playtests** judge the rest, class against class:
   - block uptime, such as the Warrior's Bastion every 2 s;
   - dodges and heals;
@@ -612,6 +637,8 @@ The user's choices are in section 1. These calls were made in planning and logge
 16. **Ratings:** a shown rating of `1000 + 40 × (μ − 3σ)`, ranks every 200 from 1,200, and five placement matches.
 17. **The queue lives on one node** until there are more.
 18. **Ratings and bot brains are written in-house** (section 18).
+19. **No passive evasion between players;** active dodge and block are the defence. A blow between players never MISSes; mobs keep evasion both ways, and crits stay.
+20. **Each class has its own factors** on its kit's HP and the hits it deals, beside `scale`, so every pair of classes takes 12 to 18 s.
 
 ## 18. Alternatives considered
 

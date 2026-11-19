@@ -30,6 +30,7 @@ import (
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/nav"
 	"finga/internal/shared/protocol"
+	"finga/internal/shared/steer"
 	"finga/pkg/uuidv7"
 	"finga/pkg/wsconn"
 )
@@ -179,8 +180,9 @@ type bot struct {
 	townDue     time.Time            // the next trip to the town to talk to everyone, before promotion
 	roam        nav.Point            // the point of its spot it walks to while no prey is there
 	gaveUp      map[uint32]time.Time // mobs on its map it found no way to, till when it leaves them
-	walk        walker
-	stuck       stall
+	walk        steer.Walker
+	stuck       steer.Stall
+	born        time.Time // when it started, which its walker's clock counts from
 	heldAt      int       // the level the trainer last said no at: no promotion is tried again before the next
 	energy      int       // as its newest Delta, or its Welcome, said
 	skillReady  time.Time // when its damage skill may be used again, as far as it knows
@@ -243,7 +245,7 @@ func newBot(url, name, charName string, index int) *bot {
 	return &bot{
 		url: url, name: name, charName: charName, index: index, codec: protocol.ClientCodec(wsconn.Binary),
 		rng: rand.New(rand.NewPCG(uint64(index), uint64(time.Now().UnixNano()))), kills: newKills(),
-		quests: map[string]*clientv1.QuestState{}, lastTalk: map[string]time.Time{}, gaveUp: map[uint32]time.Time{}, attackEvery: 900 * time.Millisecond, tick: 50 * time.Millisecond,
+		born: time.Now(), quests: map[string]*clientv1.QuestState{}, lastTalk: map[string]time.Time{}, gaveUp: map[uint32]time.Time{}, attackEvery: 900 * time.Millisecond, tick: 50 * time.Millisecond,
 	}
 }
 
@@ -815,7 +817,7 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 	defer ticker.Stop()
 	nextAttack, nextChat, nextInvite := time.Now(), time.Now().Add(time.Duration(10+b.index*7)*time.Second), time.Now().Add(20*time.Second)
 	b.townDue = time.Now().Add(b.townEvery())
-	b.stuck = stall{at: b.at()}
+	b.stuck = steer.Stall{}
 	town := b.data.StartTown().ID
 	strike := func(m *clientv1.MobView) {
 		if time.Now().After(nextAttack) {
@@ -829,7 +831,7 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 			return
 		}
 		if m := b.inTheWay(); m != nil { // a mob in its way is fought, the way held into it, until it dies
-			b.stuck = stall{at: b.at()}
+			b.stuck = steer.Stall{}
 			strike(m)
 			return
 		}
