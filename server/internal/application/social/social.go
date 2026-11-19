@@ -41,6 +41,7 @@ type parties interface {
 	Promote(ctx context.Context, leader, target kernel.CharacterID) error
 	Update(ctx context.Context, id kernel.CharacterID, mapID string, class kernel.Class, level, hp, maxHP int) error
 	Memberships(ctx context.Context, visit func(party model.PartyID, members []kernel.CharacterID)) error
+	Of(ctx context.Context, id kernel.CharacterID) (model.Party, bool, error)
 }
 
 // chat is the module's chat application, as the facade calls it.
@@ -155,6 +156,17 @@ func (m *Module) UpdateMember(ctx context.Context, u MemberUpdate) (err error) {
 	ctx, call := m.calls.Start(ctx, "UpdateMember")
 	defer call.End(&err)
 	return m.parties.Update(ctx, u.ID, u.MapID, u.Class, u.Level, u.HP, u.MaxHP)
+}
+
+// PartyOf is the character's party as its members see it, nil without one.
+func (m *Module) PartyOf(ctx context.Context, id kernel.CharacterID) (_ *Party, err error) {
+	ctx, call := m.calls.Start(ctx, "PartyOf")
+	defer call.End(&err)
+	p, ok, err := m.parties.Of(ctx, id)
+	if err != nil || !ok {
+		return nil, err
+	}
+	return partyOf(&p), nil
 }
 
 // Memberships visits every party with its members, for a world's first view of them.

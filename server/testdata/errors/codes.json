@@ -754,5 +754,11 @@
     "name": "PVP_UNKNOWN_MODE",
     "status": 400,
     "message": "unknown PvP mode"
+  },
+  {
+    "code": 550012,
+    "name": "PVP_PARTY_CHANGED",
+    "status": 409,
+    "message": "the party changed while it queued"
   }
 ]

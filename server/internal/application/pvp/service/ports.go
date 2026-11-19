@@ -14,6 +14,14 @@ type World interface {
 	OpenMatch(ctx context.Context, spec model.Spec) error
 }
 
+// Social is the social module as the queue calls it.
+type Social interface {
+	// PartyOf is the character's party, false without one.
+	PartyOf(ctx context.Context, id kernel.CharacterID) (model.Party, bool, error)
+	// FollowParties tells changed each party's change, its characters and its members after it, none for out of one, until ctx ends; after each subscription, resync looks again at what a break may have hidden.
+	FollowParties(ctx context.Context, changed func(characters, members []kernel.CharacterID), resync func(ctx context.Context))
+}
+
 // Store keeps ratings and match history.
 type Store interface {
 	// Rating is the character's rating in mode, false when they have none yet.

@@ -196,8 +196,9 @@ func (i *Instance) remove(id kernel.CharacterID) {
 		return
 	}
 	i.checkpoint(p)
+	body := *p
 	i.detach(id)
-	i.leftMatch(id)
+	i.leftMatch(id, &body)
 }
 
 // detach drops a player without a checkpoint; the caller has saved one. A skill use still waiting for its turn hears it won't go.

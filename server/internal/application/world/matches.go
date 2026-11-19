@@ -13,9 +13,10 @@ const resultsQueue = 1024
 
 // MatchSpec is a match to open: its id and mode, and its two sides.
 type MatchSpec struct {
-	ID    kernel.MatchID
-	Mode  string
-	Sides [2][]Fighter
+	ID      kernel.MatchID
+	Mode    string
+	Sides   [2][]Fighter
+	StandIn string // the tier of a bot that takes a team mode's leaver's place
 }
 
 // Fighter is a place on a side: a character, or a bot when Bot is set.
@@ -71,7 +72,7 @@ func (r *results) Ended(res model.MatchResult) {
 }
 
 func specOf(s MatchSpec) model.MatchSpec {
-	out := model.MatchSpec{ID: s.ID, Mode: s.Mode}
+	out := model.MatchSpec{ID: s.ID, Mode: s.Mode, StandIn: s.StandIn}
 	for k, side := range s.Sides {
 		for _, f := range side {
 			mf := model.Fighter{Character: f.Character}

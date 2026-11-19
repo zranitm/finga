@@ -271,14 +271,14 @@ func (i *Instance) effect(u use) func() {
 	}
 }
 
-// buffed are who a buff reaches: the caster, and with reach_party each party member on the map within its radius in 3D, as a heal measures it.
+// buffed are who a buff reaches: the caster, and with reach_party each ally within its radius in 3D, as a heal measures it.
 func (i *Instance) buffed(p *player, st gamedata.Stage) []*player {
 	if !st.ReachParty {
 		return []*player{p}
 	}
 	out := []*player{p}
 	middle := p.state.Y + i.params.Height/2
-	for _, a := range i.present(p, i.deps.Parties.Party(p.ID))[1:] {
+	for _, a := range i.allies(p) {
 		if model.Gap(p.state.X, middle, p.state.Z, i.bodyOf(a)) <= st.Shape.Radius {
 			out = append(out, a)
 		}
@@ -306,7 +306,7 @@ func (p *player) shield() int {
 	return sum
 }
 
-// hurtInReach are the hurt a heal reaches, up to its targets: the caster, then the nearest party members within its radius in 3D.
+// hurtInReach are the hurt a heal reaches, up to its targets: the caster, then the nearest allies within its radius in 3D.
 func (i *Instance) hurtInReach(p *player, st gamedata.Stage) []*player {
 	hurt := func(t *player) bool { return t.HP < t.derived.MaxHP }
 	var reached []*player
@@ -319,7 +319,7 @@ func (i *Instance) hurtInReach(p *player, st gamedata.Stage) []*player {
 	}
 	var allies []ally
 	middle := p.state.Y + i.params.Height/2
-	for _, a := range i.present(p, i.deps.Parties.Party(p.ID))[1:] {
+	for _, a := range i.allies(p) {
 		if gap := model.Gap(p.state.X, middle, p.state.Z, i.bodyOf(a)); hurt(a) && gap <= st.Shape.Radius {
 			allies = append(allies, ally{a, gap})
 		}

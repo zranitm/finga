@@ -34,7 +34,7 @@ func NewPvp(p PvpModule, log *slog.Logger, rec *panics.Recorder) Pvp {
 
 // Queue puts the player in a mode's queue.
 func (p Pvp) Queue(ctx context.Context, who model.Player, mode string) error {
-	return wrap(p.p.Queue(ctx, pvp.Player{ID: who.ID, Name: who.Name}, mode))
+	return wrap(p.p.Queue(ctx, pvp.Player{ID: who.ID, Name: who.Name, Class: kernel.Class(who.Class)}, mode))
 }
 
 // LeaveQueue takes the player out of the queue.

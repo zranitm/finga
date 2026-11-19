@@ -29,7 +29,7 @@ func (i *Instance) broadcast(changed, removed []kernel.CharacterID) []kernel.Cha
 	frame := &model.Frame{Tick: i.tick, Players: views, Mobs: mobs, Removed: removed, RemovedMobs: removedMobs}
 	refused := i.sendFrame(frame)
 	var dropped []kernel.CharacterID
-	for _, id := range slices.Clone(i.order) {
+	for _, id := range i.order {
 		p := i.players[id]
 		ok := !refused[id]
 		for _, e := range i.events {
@@ -42,11 +42,17 @@ func (i *Instance) broadcast(changed, removed []kernel.CharacterID) []kernel.Cha
 		p.joined = false
 		p.changed = false
 		if !ok {
-			i.remove(id)
-			i.mover.Dropped(i, id, p.Connection)
 			dropped = append(dropped, id)
 		}
 	}
+	// Removed once every player has the tick's events: what a removal raises, a match's stand-in or end, goes out next tick.
+	sent := len(i.events)
+	for _, id := range dropped {
+		conn := i.players[id].Connection
+		i.remove(id)
+		i.mover.Dropped(i, id, conn)
+	}
+	i.later = append(i.later, i.events[sent:]...)
 	return dropped
 }
 

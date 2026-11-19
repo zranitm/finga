@@ -5,7 +5,9 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"maps"
 	"math"
 	"math/rand/v2"
 	"slices"
@@ -36,6 +38,7 @@ const (
 type Deps struct {
 	Data     *gamedata.Data
 	World    World
+	Social   Social
 	Store    Store
 	Notifier Notifier
 	Logger   *slog.Logger
@@ -48,29 +51,68 @@ type Service struct {
 	d       Deps
 	rules   gamedata.PvpRules
 	mu      sync.Mutex
-	tickets map[kernel.CharacterID]*ticket
+	tickets map[kernel.CharacterID]*ticket // by each member
 	offers  map[string]*offer
 	opening map[kernel.CharacterID]bool // accepted, while the world opens their match
 }
 
-// ticket is a player waiting in a mode's queue, with their rating there and when they joined, which a requeue keeps.
+// ticket is a player, or a party from its leader, waiting in a mode's queue: each member's rating there, and when they joined, which a requeue keeps.
 type ticket struct {
-	who    kernel.CharacterID
-	name   string
-	mode   gamedata.PvpMode
-	rating model.Rating
-	joined time.Time
-	offer  *offer // while one stands
+	members []member // the one who queued first
+	mode    gamedata.PvpMode
+	joined  time.Time
+	offer   *offer // while one stands
 }
 
-// offer is a match found, waiting for its players to accept.
+// member is a ticket's character as the matcher weighs them.
+type member struct {
+	model.Player
+	rating model.Rating
+}
+
+func (t *ticket) ids() []kernel.CharacterID {
+	out := make([]kernel.CharacterID, 0, len(t.members))
+	for _, m := range t.members {
+		out = append(out, m.ID)
+	}
+	return out
+}
+
+// mu is the mean of the members' mu, where the ticket stands in the queue.
+func (t *ticket) mu() float64 {
+	sum := 0.0
+	for _, m := range t.members {
+		sum += m.rating.Mu
+	}
+	return sum / float64(len(t.members))
+}
+
+// offer is a match found, waiting for its players to accept: each side's tickets, and bots in the places left.
 type offer struct {
-	id      string
-	mode    gamedata.PvpMode
-	tickets []*ticket
-	bots    int
-	yes     map[kernel.CharacterID]bool
-	until   time.Time
+	id    string
+	mode  gamedata.PvpMode
+	sides [2][]*ticket
+	yes   map[kernel.CharacterID]bool
+	until time.Time
+}
+
+func (o *offer) tickets() []*ticket { return slices.Concat(o.sides[0], o.sides[1]) }
+
+func (o *offer) players() int { return players(o.tickets()) }
+
+func (o *offer) bots() int { return 2*o.mode.Team - o.players() }
+
+// accepted reports whether every member of t said yes.
+func (o *offer) accepted(t *ticket) bool {
+	return !slices.ContainsFunc(t.members, func(m member) bool { return !o.yes[m.ID] })
+}
+
+func players(ts []*ticket) int {
+	n := 0
+	for _, t := range ts {
+		n += len(t.members)
+	}
+	return n
 }
 
 // New builds the service; Run runs its matcher.
@@ -78,30 +120,89 @@ func New(d Deps) *Service {
 	return &Service{d: d, rules: d.Data.Pvp(), tickets: map[kernel.CharacterID]*ticket{}, offers: map[string]*offer{}, opening: map[kernel.CharacterID]bool{}}
 }
 
-// Queue puts the player in a mode's queue, if the world says they can fight.
+// Queue puts the player in a mode's queue, with their party when the mode takes one, which only its leader queues; the world must say each of them can fight.
 func (s *Service) Queue(ctx context.Context, p model.Player, modeID string) error {
 	mode, ok := s.d.Data.PvpMode(modeID)
 	if !ok {
 		return model.ErrUnknownMode
 	}
-	if err := s.free(p.ID); err != nil {
-		return err
-	}
-	if err := s.d.World.CanFight(ctx, p.ID); err != nil {
-		return err
-	}
-	rt, err := s.ratingOf(ctx, p.ID, mode)
+	members, err := s.membersOf(ctx, p, mode)
 	if err != nil {
 		return err
 	}
+	for k := range members {
+		m := &members[k]
+		if err := s.free(m.ID); err != nil {
+			return asMember(k, err)
+		}
+		if err := s.d.World.CanFight(ctx, m.ID); err != nil {
+			return asMember(k, err)
+		}
+		if m.rating, err = s.ratingOf(ctx, m.ID, mode); err != nil {
+			return err
+		}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.taken(p.ID); err != nil {
+	for k, m := range members {
+		if err := s.taken(m.ID); err != nil {
+			return asMember(k, err)
+		}
+	}
+	// A change in the checks above found no ticket to take out: read the party again where the next change will find one.
+	again, err := s.membersOf(ctx, p, mode)
+	if err != nil {
 		return err
 	}
-	s.tickets[p.ID] = &ticket{who: p.ID, name: p.Name, mode: mode, rating: rt, joined: time.Now()}
-	s.d.Notifier.Push(p.ID, Queued{Mode: mode.ID, Members: []kernel.CharacterID{p.ID}})
+	if !sameSet(ids(again), ids(members)) {
+		return model.ErrPartyChanged
+	}
+	t := &ticket{members: members, mode: mode, joined: time.Now()}
+	for _, m := range members {
+		s.tickets[m.ID] = t
+	}
+	s.tell(t, Queued{Mode: mode.ID, Members: t.ids()})
 	return nil
+}
+
+// membersOf are who p's ticket holds: p alone in a mode of one a side, else p's party with p first, which only its leader queues.
+func (s *Service) membersOf(ctx context.Context, p model.Player, mode gamedata.PvpMode) ([]member, error) {
+	out := []member{{Player: p}}
+	if mode.Party == 1 {
+		return out, nil
+	}
+	party, ok, err := s.d.Social.PartyOf(ctx, p.ID)
+	switch {
+	case err != nil:
+		return nil, err
+	case !ok || len(party.Members) < 2:
+		return out, nil
+	case party.Leader != p.ID:
+		return nil, model.ErrNotLeader
+	case len(party.Members) > mode.Party:
+		return nil, model.ErrPartyTooBig
+	}
+	for _, m := range party.Members {
+		if m.ID != p.ID {
+			out = append(out, member{Player: m})
+		}
+	}
+	return out, nil
+}
+
+// asMember is a refusal met by a ticket's k-th member: the queuer's own, and for any other, that the party isn't ready.
+func asMember(k int, err error) error {
+	if k == 0 {
+		return err
+	}
+	return fmt.Errorf("%w: %v", model.ErrPartyNotReady, err) //nolint:errorlint // the member's refusal is the party's, not theirs
+}
+
+// tell pushes d to each of t's members. The caller holds mu.
+func (s *Service) tell(t *ticket, d Delivery) {
+	for _, m := range t.members {
+		s.d.Notifier.Push(m.ID, d)
+	}
 }
 
 func (s *Service) free(who kernel.CharacterID) error {
@@ -137,7 +238,7 @@ func (s *Service) fresh() model.Rating {
 	return model.Rating{Mu: s.rules.Rating.Mu, Sigma: s.rules.Rating.Sigma}
 }
 
-// Leave takes the player out of the queue; with an offer standing, they decline it.
+// Leave takes the player's ticket, their party's with them, out of the queue; with an offer standing, they decline it.
 func (s *Service) Leave(_ context.Context, who kernel.CharacterID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -149,7 +250,7 @@ func (s *Service) Leave(_ context.Context, who kernel.CharacterID) error {
 	return nil
 }
 
-// Offline takes a player who went offline out of the queue, declining any offer, and tells nobody but those it affects.
+// Offline takes the ticket of a player who went offline out of the queue, as their leaving, declining any offer, and tells nobody but those it affects.
 func (s *Service) Offline(_ context.Context, who kernel.CharacterID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -158,39 +259,122 @@ func (s *Service) Offline(_ context.Context, who kernel.CharacterID) {
 	}
 }
 
+// PartyChanged takes out of the queue each ticket in a mode that takes parties whose members are no longer a character's party, now members, none for out of one: a member left, or one joined, or a player queued alone joined one.
+func (s *Service) PartyChanged(characters, members []kernel.CharacterID) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, id := range characters {
+		t, ok := s.tickets[id]
+		if !ok || t.mode.Party == 1 {
+			continue
+		}
+		now := members
+		if len(now) == 0 {
+			now = []kernel.CharacterID{id}
+		}
+		if !sameSet(now, t.ids()) {
+			s.out(t, UnqueuePartyChanged)
+		}
+	}
+}
+
+// Resync looks again at each ticket in a mode that takes parties, as a break in the party stream may have hidden a change to one.
+func (s *Service) Resync(ctx context.Context) {
+	s.mu.Lock()
+	var check []kernel.CharacterID
+	for _, t := range s.unique() {
+		if t.mode.Party > 1 {
+			check = append(check, t.members[0].ID)
+		}
+	}
+	s.mu.Unlock()
+	for _, id := range check {
+		party, ok, err := s.d.Social.PartyOf(ctx, id)
+		if err != nil {
+			s.d.Logger.WarnContext(ctx, "a queued party couldn't be looked at again: its ticket goes out", "character_id", id, "err", err)
+			s.mu.Lock()
+			if t := s.tickets[id]; t != nil {
+				s.out(t, UnqueuePartyChanged)
+			}
+			s.mu.Unlock()
+			continue
+		}
+		var members []kernel.CharacterID
+		if ok {
+			for _, m := range party.Members {
+				members = append(members, m.ID)
+			}
+		}
+		s.PartyChanged([]kernel.CharacterID{id}, members)
+	}
+}
+
+func ids(ms []member) []kernel.CharacterID {
+	out := make([]kernel.CharacterID, 0, len(ms))
+	for _, m := range ms {
+		out = append(out, m.ID)
+	}
+	return out
+}
+
+func sameSet(a, b []kernel.CharacterID) bool {
+	return len(a) == len(b) && !slices.ContainsFunc(a, func(id kernel.CharacterID) bool { return !slices.Contains(b, id) })
+}
+
+// unique are the tickets standing, each once, oldest first. The caller holds mu.
+func (s *Service) unique() []*ticket {
+	var out []*ticket
+	for id, t := range s.tickets {
+		if t.members[0].ID == id {
+			out = append(out, t)
+		}
+	}
+	slices.SortFunc(out, func(a, b *ticket) int {
+		return cmp.Or(a.joined.Compare(b.joined), cmp.Compare(a.members[0].ID.String(), b.members[0].ID.String()))
+	})
+	return out
+}
+
 // out takes t out of the queue for reason; an offer it's in falls through, the others going back to the queue with their wait kept. The caller holds mu.
 func (s *Service) out(t *ticket, reason UnqueueReason) {
 	if o := t.offer; o != nil {
 		s.fail(o, GoneDeclined, func(o *ticket) bool { return o == t })
 	}
-	delete(s.tickets, t.who)
-	s.d.Notifier.Push(t.who, Unqueued{Reason: reason})
+	s.drop(t)
+	s.tell(t, Unqueued{Reason: reason})
+}
+
+// drop forgets t under each of its members. The caller holds mu.
+func (s *Service) drop(t *ticket) {
+	for _, m := range t.members {
+		delete(s.tickets, m.ID)
+	}
 }
 
 // fail ends offer o for reason, telling each player: those leaving go out of the queue, and the rest back to it with their wait kept; it returns those leaving, for the caller to tell why. The caller holds mu.
 func (s *Service) fail(o *offer, reason GoneReason, leaving func(*ticket) bool) []*ticket {
 	delete(s.offers, o.id)
 	var gone []*ticket
-	for _, t := range o.tickets {
+	for _, t := range o.tickets() {
 		t.offer = nil
 		out := leaving(t)
-		s.d.Notifier.Push(t.who, OfferGone{Offer: o.id, Reason: reason, Requeued: !out})
+		s.tell(t, OfferGone{Offer: o.id, Reason: reason, Requeued: !out})
 		if out {
-			delete(s.tickets, t.who)
+			s.drop(t)
 			gone = append(gone, t)
 		}
 	}
 	return gone
 }
 
-// Answer accepts or declines an offer: a decline sends its player out of the queue and the others back; the last accept opens the match.
+// Answer accepts or declines an offer: a decline sends its player's ticket out of the queue, their party's with them, and the others back; the last accept opens the match.
 func (s *Service) Answer(ctx context.Context, who kernel.CharacterID, offerID string, accept bool) error {
 	s.mu.Lock()
 	t, o, err := s.offerOf(who, offerID)
 	if err != nil || !accept {
 		if err == nil {
 			s.fail(o, GoneDeclined, func(o *ticket) bool { return o == t })
-			s.d.Notifier.Push(who, Unqueued{Reason: UnqueueDeclined})
+			s.tell(t, Unqueued{Reason: UnqueueDeclined})
 		}
 		s.mu.Unlock()
 		return err
@@ -200,26 +384,30 @@ func (s *Service) Answer(ctx context.Context, who kernel.CharacterID, offerID st
 		return err // a dead player's accept waits for them to rise
 	}
 	s.mu.Lock()
-	if t, o, err = s.offerOf(who, offerID); err != nil {
+	if _, o, err = s.offerOf(who, offerID); err != nil {
 		s.mu.Unlock()
 		return err
 	}
 	o.yes[who] = true
-	if len(o.yes) < len(o.tickets) {
+	if len(o.yes) < o.players() {
 		s.mu.Unlock()
 		return nil
 	}
 	delete(s.offers, o.id)
-	for _, t := range o.tickets {
-		delete(s.tickets, t.who)
-		s.opening[t.who] = true
+	for _, t := range o.tickets() {
+		s.drop(t)
+		for _, m := range t.members {
+			s.opening[m.ID] = true
+		}
 	}
 	spec := s.spec(o)
 	s.mu.Unlock()
 	s.open(context.WithoutCancel(ctx), spec, o)
 	s.mu.Lock()
-	for _, t := range o.tickets {
-		delete(s.opening, t.who)
+	for _, t := range o.tickets() {
+		for _, m := range t.members {
+			delete(s.opening, m.ID)
+		}
 	}
 	s.mu.Unlock()
 	return nil
@@ -244,9 +432,9 @@ func (s *Service) open(ctx context.Context, spec model.Spec, o *offer) {
 		return
 	}
 	s.d.Logger.ErrorContext(ctx, "the world didn't open a match", "match_id", spec.ID, "err", err)
-	for _, t := range o.tickets {
-		s.d.Notifier.Push(t.who, OfferGone{Offer: o.id, Reason: GoneLapsed})
-		s.d.Notifier.Push(t.who, Unqueued{Reason: UnqueueLapsed})
+	for _, t := range o.tickets() {
+		s.tell(t, OfferGone{Offer: o.id, Reason: GoneLapsed})
+		s.tell(t, Unqueued{Reason: UnqueueLapsed})
 	}
 }
 
@@ -264,7 +452,7 @@ func (s *Service) Run(ctx context.Context) error {
 	}
 }
 
-// step lapses the offers past their time, then pairs each mode's waiting tickets, oldest first, with the nearest in mu within both their windows, and one waiting past bots_after with bots.
+// step lapses the offers past their time, then matches each mode's waiting tickets, oldest first: one a side in pairs, round modes' teams in sides; 15v15 isn't matched yet.
 func (s *Service) step(now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -272,40 +460,121 @@ func (s *Service) step(now time.Time) {
 		if now.Before(o.until) {
 			continue
 		}
-		for _, t := range s.fail(o, GoneLapsed, func(t *ticket) bool { return !o.yes[t.who] }) {
-			s.d.Notifier.Push(t.who, Unqueued{Reason: UnqueueLapsed})
+		for _, t := range s.fail(o, GoneLapsed, func(t *ticket) bool { return !o.accepted(t) }) {
+			s.tell(t, Unqueued{Reason: UnqueueLapsed})
 		}
 	}
-	waiting := make([]*ticket, 0, len(s.tickets))
-	for _, t := range s.tickets {
-		if t.offer == nil && t.mode.Team == 1 {
-			waiting = append(waiting, t)
+	byMode := map[string][]*ticket{}
+	for _, t := range s.unique() {
+		if t.offer == nil {
+			byMode[t.mode.ID] = append(byMode[t.mode.ID], t)
 		}
 	}
-	slices.SortFunc(waiting, func(a, b *ticket) int {
-		return cmp.Or(a.joined.Compare(b.joined), cmp.Compare(a.who.String(), b.who.String()))
-	})
+	for _, id := range slices.Sorted(maps.Keys(byMode)) {
+		waiting := byMode[id]
+		switch mode := waiting[0].mode; {
+		case mode.Team == 1:
+			s.pair(waiting, now)
+		case mode.Rounds.BestOf > 0:
+			s.teams(waiting, now)
+		}
+	}
+}
+
+// pair pairs each waiting ticket, oldest first, with the nearest in mu within both their windows, and one waiting past bots_after with a bot. The caller holds mu.
+func (s *Service) pair(waiting []*ticket, now time.Time) {
 	for _, a := range waiting {
 		if a.offer != nil {
 			continue
 		}
 		var best *ticket
 		for _, b := range waiting {
-			gap := math.Abs(a.rating.Mu - b.rating.Mu)
-			if b == a || b.offer != nil || b.mode.ID != a.mode.ID || gap > min(s.window(a, now), s.window(b, now)) {
+			gap := math.Abs(a.mu() - b.mu())
+			if b == a || b.offer != nil || gap > min(s.window(a, now), s.window(b, now)) {
 				continue
 			}
-			if best == nil || gap < math.Abs(a.rating.Mu-best.rating.Mu) {
+			if best == nil || gap < math.Abs(a.mu()-best.mu()) {
 				best = b
 			}
 		}
 		switch {
 		case best != nil:
-			s.offer(a.mode, []*ticket{a, best}, 0, now)
+			s.offer(a.mode, [2][]*ticket{{a}, {best}}, now)
 		case now.Sub(a.joined) >= s.rules.Queue.BotsAfter:
-			s.offer(a.mode, []*ticket{a}, a.mode.Team, now)
+			s.offer(a.mode, [2][]*ticket{{a}, nil}, now)
 		}
 	}
+}
+
+// teams builds, for each waiting ticket oldest first, a match of the tickets within each other's windows, oldest first and parties whole: two full sides at the split that best balances their mean mu, or, once it has waited bots_after, the players found with bots in the places left. The caller holds mu.
+func (s *Service) teams(waiting []*ticket, now time.Time) {
+	team := waiting[0].mode.Team
+	for _, a := range waiting {
+		if a.offer != nil {
+			continue
+		}
+		group := []*ticket{a}
+		for _, b := range waiting {
+			n := players(group) + len(b.members)
+			if b == a || b.offer != nil || n > 2*team || !s.near(b, group, now) {
+				continue
+			}
+			if _, ok := split(append(slices.Clone(group), b), team, false); n == 2*team && !ok {
+				continue // no two full sides of these parties
+			}
+			group = append(group, b)
+		}
+		full := players(group) == 2*team
+		if !full && now.Sub(a.joined) < s.rules.Queue.BotsAfter {
+			continue
+		}
+		if sides, ok := split(group, team, !full); ok {
+			s.offer(a.mode, sides, now)
+		}
+	}
+}
+
+// near reports whether b is within the window of every ticket in group, and each within b's.
+func (s *Service) near(b *ticket, group []*ticket, now time.Time) bool {
+	return !slices.ContainsFunc(group, func(t *ticket) bool {
+		return math.Abs(b.mu()-t.mu()) > min(s.window(b, now), s.window(t, now))
+	})
+}
+
+// split is the tickets in two sides of team players each, parties whole, at the least gap between the sides' mean mu; with bots, a side may hold fewer, a side with no players counting as even, so players who fit on one side fight together. The first ticket stays on the first side, and of equal splits the first found is kept.
+func split(ts []*ticket, team int, bots bool) ([2][]*ticket, bool) {
+	var best [2][]*ticket
+	gap, found := math.Inf(1), false
+	for mask := 1; mask < 1<<len(ts); mask += 2 {
+		var sides [2][]*ticket
+		for k, t := range ts {
+			sides[1-mask>>k&1] = append(sides[1-mask>>k&1], t)
+		}
+		n0, n1 := players(sides[0]), players(sides[1])
+		if n0 > team || n1 > team || !bots && (n0 != team || n1 != team) {
+			continue
+		}
+		g := 0.0
+		if n1 > 0 {
+			g = math.Abs(meanMu(sides[0]) - meanMu(sides[1]))
+		}
+		if g < gap {
+			best, gap, found = sides, g, true
+		}
+	}
+	return best, found
+}
+
+// meanMu is the mean mu of the tickets' members.
+func meanMu(ts []*ticket) float64 {
+	sum, n := 0.0, 0
+	for _, t := range ts {
+		for _, m := range t.members {
+			sum += m.rating.Mu
+			n++
+		}
+	}
+	return sum / float64(n)
 }
 
 func (s *Service) offersByAge() []*offer {
@@ -323,39 +592,54 @@ func (s *Service) window(t *ticket, now time.Time) float64 {
 	return min(w.Start+w.PerSecond*now.Sub(t.joined).Seconds(), w.Most)
 }
 
-// offer makes an offer of tickets with bots in the places left and tells each player. The caller holds mu.
-func (s *Service) offer(mode gamedata.PvpMode, tickets []*ticket, bots int, now time.Time) {
-	o := &offer{id: uuidv7.NewString(), mode: mode, tickets: tickets, bots: bots, yes: map[kernel.CharacterID]bool{}, until: now.Add(s.rules.Queue.Offer)}
+// offer makes an offer of sides, with bots in the places left, and tells each player. The caller holds mu.
+func (s *Service) offer(mode gamedata.PvpMode, sides [2][]*ticket, now time.Time) {
+	o := &offer{id: uuidv7.NewString(), mode: mode, sides: sides, yes: map[kernel.CharacterID]bool{}, until: now.Add(s.rules.Queue.Offer)}
 	s.offers[o.id] = o
-	for _, t := range tickets {
+	for _, t := range o.tickets() {
 		t.offer = o
-		s.d.Notifier.Push(t.who, Offered{Offer: o.id, Mode: mode.ID, Bots: bots, Until: s.rules.Queue.Offer})
+		s.tell(t, Offered{Offer: o.id, Mode: mode.ID, Bots: o.bots(), Until: s.rules.Queue.Offer})
 	}
 }
 
-// spec is the match an accepted offer opens: its players a side each, or all on side 1 against bots of the tier nearest their mu − sigma, named unlike anyone in it. The caller holds mu.
+// spec is the match an accepted offer opens: each side's players, then bots in its places left, of the tier nearest its players' mean mu − sigma, else the other side's, with no class three times on a side and every name unlike anyone's in it. A team mode's leaver's stand-in takes the tier nearest all the players'. The caller holds mu.
 func (s *Service) spec(o *offer) model.Spec {
 	spec := model.Spec{ID: kernel.NewMatchID(), Mode: o.mode.ID}
-	if o.bots == 0 {
-		for k, t := range o.tickets {
-			spec.Sides[k] = append(spec.Sides[k], model.Place{Character: t.who})
-		}
-		return spec
-	}
-	strength := 0.0
 	var names []string
-	for _, t := range o.tickets {
-		spec.Sides[0] = append(spec.Sides[0], model.Place{Character: t.who})
-		strength += t.rating.Mu - t.rating.Sigma
-		names = append(names, t.name)
+	var classes [2][]kernel.Class
+	var strength [2][]float64
+	for k, side := range o.sides {
+		for _, t := range side {
+			for _, m := range t.members {
+				spec.Sides[k] = append(spec.Sides[k], model.Place{Character: m.ID})
+				names = append(names, m.Name)
+				classes[k] = append(classes[k], m.Class)
+				strength[k] = append(strength[k], m.rating.Mu-m.rating.Sigma)
+			}
+		}
 	}
-	tier := s.tierNear(strength / float64(len(o.tickets)))
-	for range o.bots {
-		b := s.bot(tier, names)
-		names = append(names, b.Name)
-		spec.Sides[1] = append(spec.Sides[1], model.Place{Bot: b})
+	spec.StandIn = s.tierNear(mean(slices.Concat(strength[0], strength[1]))).ID
+	for k := range spec.Sides {
+		of := strength[k]
+		if len(of) == 0 {
+			of = strength[1-k]
+		}
+		tier := s.tierNear(mean(of))
+		for range o.mode.Team - len(spec.Sides[k]) {
+			b := s.bot(tier, names, classes[k])
+			names, classes[k] = append(names, b.Name), append(classes[k], b.Class)
+			spec.Sides[k] = append(spec.Sides[k], model.Place{Bot: b})
+		}
 	}
 	return spec
+}
+
+func mean(xs []float64) float64 {
+	sum := 0.0
+	for _, x := range xs {
+		sum += x
+	}
+	return sum / float64(len(xs))
 }
 
 // tierNear is the bot tier whose mu is nearest mu.
@@ -364,17 +648,29 @@ func (s *Service) tierNear(mu float64) gamedata.BotTier {
 	return slices.MinFunc(tiers, func(a, b gamedata.BotTier) int { return cmp.Compare(math.Abs(a.Mu-mu), math.Abs(b.Mu-mu)) })
 }
 
-// bot is a bot of tier: a random promoted class, one of its builds, and a name not in taken.
-func (s *Service) bot(tier gamedata.BotTier, taken []string) *model.Bot {
+// bot is a bot of tier: a random promoted class its side holds fewer than two of, one of its builds, and a name not in taken.
+func (s *Service) bot(tier gamedata.BotTier, taken []string, side []kernel.Class) *model.Bot {
 	classes := make([]kernel.Class, 0, len(s.rules.Bots.Builds))
 	for c := range s.rules.Bots.Builds {
-		classes = append(classes, c)
+		if count(side, c) < 2 {
+			classes = append(classes, c)
+		}
 	}
 	slices.Sort(classes)
 	class := classes[s.d.Rand.IntN(len(classes))]
 	builds := s.rules.Bots.Builds[class]
 	free := slices.DeleteFunc(slices.Clone(s.rules.Bots.Names), func(n string) bool { return slices.Contains(taken, n) })
 	return &model.Bot{ID: kernel.NewCharacterID(), Name: free[s.d.Rand.IntN(len(free))], Class: class, Tier: tier.ID, Bar: builds[s.d.Rand.IntN(len(builds))].Bar}
+}
+
+func count(of []kernel.Class, c kernel.Class) int {
+	n := 0
+	for _, x := range of {
+		if x == c {
+			n++
+		}
+	}
+	return n
 }
 
 // Outcomes stores each outcome follow hands it on its own goroutine, storesAtOnce at most, so one slow store holds up no other match's; it waits for those under way before it returns.
@@ -437,13 +733,21 @@ func (s *Service) Record(ctx context.Context, r model.Result) {
 	for side, fs := range r.Sides {
 		for _, f := range fs {
 			if !f.Character.IsZero() {
-				s.d.Notifier.Push(f.Character, Ended{Outcome: outcomeOf(r.Winner, side+1), Wins: r.Wins, Rating: changes[f.Character]})
+				s.d.Notifier.Push(f.Character, Ended{Outcome: outcomeFor(f, r.Winner, side+1), Wins: r.Wins, Rating: changes[f.Character]})
 			}
 		}
 	}
 }
 
-// rate is what r does to the characters' ratings, from before: bots take part at their tier's mu and a sigma of 1, and keep it.
+// outcomeFor is how the match went for f, on side: a loss for one who left, whatever their side's.
+func outcomeFor(f model.Outcome, winner, side int) Outcome {
+	if f.Left {
+		return Loss
+	}
+	return outcomeOf(winner, side)
+}
+
+// rate is what r does to the characters' ratings, from before: bots take part at their tier's mu and a sigma of 1, and keep it. A leaver is rated as their side losing; their side by the outcome, the stand-in that took their place counted at their rating.
 func (s *Service) rate(r model.Result, before map[kernel.CharacterID]model.Rating) model.Rated {
 	var sides [2][]rating.Rating
 	for k, side := range r.Sides {
@@ -459,7 +763,9 @@ func (s *Service) rate(r model.Result, before map[kernel.CharacterID]model.Ratin
 		score = 0
 	}
 	rr := s.rules.Rating
-	moved := rating.Rate(rating.Rules{Beta: rr.Beta, Tau: rr.Tau}, sides, score)
+	rules := rating.Rules{Beta: rr.Beta, Tau: rr.Tau}
+	moved := rating.Rate(rules, sides, score)
+	lost := [2][2][]rating.Rating{rating.Rate(rules, sides, 0), rating.Rate(rules, sides, 1)} // as side 1 loses, and as side 2 does
 	out := model.Rated{After: map[kernel.CharacterID]model.Rating{}}
 	for k, side := range r.Sides {
 		for slot, f := range side {
@@ -467,9 +773,12 @@ func (s *Service) rate(r model.Result, before map[kernel.CharacterID]model.Ratin
 			fr.Before = model.Rating{Mu: sides[k][slot].Mu, Sigma: sides[k][slot].Sigma}
 			fr.After = fr.Before
 			if !f.Character.IsZero() {
-				b := before[f.Character]
-				a := model.Rating{Mu: moved[k][slot].Mu, Sigma: moved[k][slot].Sigma, Matches: b.Matches + 1, Wins: b.Wins, Losses: b.Losses, Draws: b.Draws}
-				switch outcomeOf(r.Winner, k+1) {
+				b, m := before[f.Character], moved[k][slot]
+				if f.Left {
+					m = lost[k][k][slot]
+				}
+				a := model.Rating{Mu: m.Mu, Sigma: m.Sigma, Matches: b.Matches + 1, Wins: b.Wins, Losses: b.Losses, Draws: b.Draws}
+				switch outcomeFor(f, r.Winner, k+1) {
 				case Win:
 					a.Wins++
 				case Loss:

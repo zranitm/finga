@@ -135,6 +135,7 @@ const texts: Record<ErrorCode, string> = {
   [ERR.PVP_PARTY_TOO_BIG]: 'Your party is too large for this mode.',
   [ERR.PVP_PARTY_NOT_READY]:
     'Everyone in your party must be online, have a class, and be out of a match and a queue.',
+  [ERR.PVP_PARTY_CHANGED]: 'Your party changed as it queued. Queue again.',
   [ERR.PVP_IN_MATCH]: 'Not during a match.',
   [ERR.PVP_OFFER_GONE]: 'That match is gone.',
   [ERR.PVP_NOT_IN_MATCH]: 'You’re not in a match.',

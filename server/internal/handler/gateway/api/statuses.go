@@ -128,6 +128,7 @@ var statuses = map[model.Public]int{
 	model.PvpNotQueued:         http.StatusConflict,
 	model.PvpPartyTooBig:       http.StatusConflict,
 	model.PvpPartyNotReady:     http.StatusConflict,
+	model.PvpPartyChanged:      http.StatusConflict,
 	model.PvpInMatch:           http.StatusConflict,
 	model.PvpOfferGone:         http.StatusConflict,
 	model.PvpNotInMatch:        http.StatusConflict,
