@@ -11,6 +11,7 @@ classes:
     name: Beginner
     description: "Tries a bit of everything: a short swing, a thrown stone, a spark of magic."
     look: {model: barbarian}
+    weapon: one_handed # the kind its weapon looks are
     attack: {kind: arc, damage: physical, radius: 1.875, angle: 120, height: 1.5, length: 1050ms, ready: 0.85}
     base_stats: {str: 7, dex: 7, int: 7, agi: 7, vit: 7}
     starter_items:
@@ -26,6 +27,7 @@ classes:
     description: "Fights up close with a sword: tough, hard-hitting and hard to put down."
     parent: beginner
     look: {model: knight}
+    weapon: one_handed
     attack: {kind: arc, damage: physical, radius: 2.375, angle: 120, height: 1.75, length: 900ms, ready: 0.85}
     auto_assign: {str: 3, vit: 2}
     skills: [slash_blast, iron_body, charge, ground_slam, war_cry, taunt, toughness, unyielding, bastion]
@@ -43,6 +45,7 @@ classes:
     description: "Fights up close with daggers: quick strikes, and dodges what comes back."
     parent: beginner
     look: {model: rogue, tint: 0x9a70d8}
+    weapon: knife
     attack: {kind: arc, damage: physical, radius: 1.875, angle: 120, height: 1.5, length: 650ms, ready: 0.85}
     auto_assign: {str: 1, agi: 3, vit: 1}
     skills: [double_stab, haste, shadow_step, smoke_bomb, flurry, poison_blade, keen_edge, vanish, parry]
@@ -60,6 +63,7 @@ classes:
     description: "Fights from afar with a bow: long shots that land true."
     parent: beginner
     look: {model: rogue_hooded}
+    weapon: crossbow
     attack: {kind: shot, damage: physical, range: 13.125, width: 0.6, length: 1050ms, ready: 0.85}
     auto_assign: {str: 2, dex: 2, agi: 1}
     skills: [power_shot, focus, disengage, pinning_shot, arrow_rain, eagle_eye, archery, recoil, deflect]
@@ -74,6 +78,7 @@ classes:
     description: "Fights from afar with magic: strong spells that hit hard."
     parent: beginner
     look: {model: mage, tint: 0xf0c060}
+    weapon: staff
     attack: {kind: shot, damage: magic, range: 11.25, width: 0.6, length: 1250ms, ready: 0.85}
     auto_assign: {int: 3, dex: 1, vit: 1}
     skills: [fire_arrow, heal, blink, frost_nova, barrier, meteor, arcane_mind, arcane_release, ward]

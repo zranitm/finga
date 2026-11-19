@@ -6,6 +6,14 @@ import (
 	"finga/internal/shared/kernel"
 )
 
+// Piece is a wardrobe entry: a piece the account collected, what gave it, and when.
+type Piece struct {
+	ID      string
+	Cause   string         // item; rank, quest and feat come with their sources
+	Item    *kernel.ItemID // the item added, for an item alone
+	AddedAt time.Time
+}
+
 // Account is an account as the REST API shows it, never with its password.
 type Account struct {
 	ID        kernel.AccountID

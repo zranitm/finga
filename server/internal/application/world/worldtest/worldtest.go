@@ -257,6 +257,7 @@ type Options struct {
 	Equipment          instance.Equipment
 	HandIns            instance.HandIns
 	Gifts              instance.Gifts
+	Looks              instance.Looks
 	Potions            instance.Potions
 	ItemCalls          *itemcalls.Pool
 	Parties            instance.Parties
@@ -301,6 +302,9 @@ func (o Options) Fill() Options {
 	if o.Gifts == nil {
 		o.Gifts = nobody{}
 	}
+	if o.Looks == nil {
+		o.Looks = nobody{}
+	}
 	if o.Potions == nil {
 		o.Potions = nobody{}
 	}
@@ -342,7 +346,7 @@ func (o Options) Fill() Options {
 
 // Services are the filled options every map takes.
 func (o Options) Services() instance.Services {
-	return instance.Services{NewRoll: o.NewRoll, Observer: o.Observer, Items: o.Items, Batches: o.Batches, Equipment: o.Equipment, HandIns: o.HandIns, Gifts: o.Gifts, Potions: o.Potions, ItemCalls: o.ItemCalls, Parties: o.Parties, Traces: o.Traces, Notices: o.Notices}
+	return instance.Services{NewRoll: o.NewRoll, Observer: o.Observer, Items: o.Items, Batches: o.Batches, Equipment: o.Equipment, HandIns: o.HandIns, Gifts: o.Gifts, Looks: o.Looks, Potions: o.Potions, ItemCalls: o.ItemCalls, Parties: o.Parties, Traces: o.Traces, Notices: o.Notices}
 }
 
 // Checkpoints records what a map puts for saving.
@@ -580,6 +584,14 @@ func (nobody) HandIn(context.Context, model.HandInCall) (model.Inventory, error)
 }
 
 // Give refuses.
-func (nobody) Give(context.Context, model.GiftCall) (model.Inventory, error) {
-	return model.Inventory{}, errNobody
+func (nobody) Give(context.Context, model.GiftCall) (model.Gift, error) {
+	return model.Gift{}, errNobody
 }
+
+// SetLook refuses.
+func (nobody) SetLook(context.Context, model.LookCall) (model.Look, error) {
+	return model.Look{}, errNobody
+}
+
+// Look is the class's own in every slot, so a join goes on.
+func (nobody) Look(context.Context, kernel.CharacterID) (model.Look, error) { return model.Look{}, nil }

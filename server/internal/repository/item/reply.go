@@ -17,6 +17,19 @@ type reply struct {
 	Revision  uint64          `json:"revision,omitempty"`
 	Equipment []replyWornSlot `json:"equipment,omitempty"`
 	Worn      []replyItem     `json:"worn,omitempty"`
+	Piece     string          `json:"piece,omitempty"`
+	Look      *replyLook      `json:"look,omitempty"`
+}
+
+// replyLook is a look, its picks as piece ids.
+type replyLook struct {
+	Outfit       string `json:"outfit,omitempty"`
+	Headwear     string `json:"headwear,omitempty"`
+	Face         string `json:"face,omitempty"`
+	Weapon       string `json:"weapon,omitempty"`
+	Wings        string `json:"wings,omitempty"`
+	HideHeadwear bool   `json:"hide_headwear,omitempty"`
+	Revision     uint64 `json:"revision,omitempty"`
 }
 
 type replySlot struct {
@@ -64,7 +77,10 @@ type replyStats struct {
 }
 
 func encodeReply(res application.Result) ([]byte, error) {
-	r := reply{Revision: res.Revision}
+	r := reply{Revision: res.Revision, Piece: res.Piece}
+	if l := res.Look; l != nil {
+		r.Look = &replyLook{Outfit: l.Outfit, Headwear: l.Headwear, Face: l.Face, Weapon: l.Weapon, Wings: l.Wings, HideHeadwear: l.HideHeadwear, Revision: l.Revision}
+	}
 	if res.Changed != nil {
 		r.Changed = make([]replySlot, 0, len(res.Changed))
 	}
@@ -103,7 +119,10 @@ func decodeReply(raw []byte) (application.Result, error) {
 	if err := json.Unmarshal(raw, &r); err != nil {
 		return application.Result{}, fmt.Errorf("item: stored reply: %w", err)
 	}
-	res := application.Result{Revision: r.Revision}
+	res := application.Result{Revision: r.Revision, Piece: r.Piece}
+	if l := r.Look; l != nil {
+		res.Look = &model.Look{Outfit: l.Outfit, Headwear: l.Headwear, Face: l.Face, Weapon: l.Weapon, Wings: l.Wings, HideHeadwear: l.HideHeadwear, Revision: l.Revision}
+	}
 	if r.Changed != nil {
 		res.Changed = make([]model.Slot, 0, len(r.Changed))
 	}

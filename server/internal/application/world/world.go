@@ -48,6 +48,7 @@ type service interface {
 	EnterPortal(id kernel.CharacterID, conn string) error
 	Say(id kernel.CharacterID, conn, name, text string) error
 	Equip(ctx context.Context, id kernel.CharacterID, conn, key string, item kernel.ItemID, equipSlot string) error
+	SetLook(ctx context.Context, id kernel.CharacterID, conn, key string, look model.Look) error
 	UseItem(ctx context.Context, id kernel.CharacterID, conn, key string, item kernel.ItemID, template string) error
 	Unequip(ctx context.Context, id kernel.CharacterID, conn, key, equipSlot string, toSlot *int) error
 	SpendPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points gamedata.Stats) error
@@ -87,6 +88,7 @@ type ports struct {
 		instance.Equipment
 		instance.HandIns
 		instance.Gifts
+		instance.Looks
 		instance.Potions
 		game.HandedIns
 		game.Wardrobe
@@ -143,6 +145,7 @@ func New(_ context.Context, d Deps) (*Module, error) {
 		Equipment:    equipment,
 		HandIns:      equipment,
 		Gifts:        equipment,
+		Looks:        equipment,
 		Potions:      equipment,
 		HandedIns:    equipment,
 		Wardrobe:     equipment,
@@ -269,6 +272,13 @@ func (m *Module) Equip(ctx context.Context, p Presence, key string, item kernel.
 	ctx, call := m.calls.Start(ctx, "Equip")
 	defer call.End(&err)
 	return m.svc.Equip(ctx, p.Character, p.Conn, key, item, equipSlot)
+}
+
+// SetLook wears a look and answers once everyone sees it.
+func (m *Module) SetLook(ctx context.Context, p Presence, key string, look Look) (err error) {
+	ctx, call := m.calls.Start(ctx, "SetLook")
+	defer call.End(&err)
+	return m.svc.SetLook(ctx, p.Character, p.Conn, key, model.Look(look))
 }
 
 // UseItem drinks a potion and answers once its HP applies.

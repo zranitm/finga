@@ -40,6 +40,10 @@ type service interface {
 	Unequip(ctx context.Context, actor model.Actor, in application.UnequipInput) (application.Result, error)
 	HandIn(ctx context.Context, actor model.Actor, in application.HandInInput) (application.Result, error)
 	HandedIn(ctx context.Context, owner kernel.CharacterID, asked []application.Completion) ([]application.HandIn, error)
+	AddToWardrobe(ctx context.Context, actor model.Actor, in application.WardrobeInput) (application.Result, error)
+	SetLook(ctx context.Context, actor model.Actor, in application.LookInput) (application.Result, error)
+	Pieces(ctx context.Context, account kernel.AccountID) ([]model.Piece, error)
+	Look(ctx context.Context, character kernel.CharacterID) (model.Look, error)
 }
 
 // outboxCountEvery is how often the finga_outbox_unpublished gauge is counted again.
@@ -253,4 +257,46 @@ func (m *Module) HandedIn(ctx context.Context, owner kernel.CharacterID, asked [
 		out = append(out, HandedIn{Quest: h.Quest, Completion: h.Completion, Result: resultOf(h.Result)})
 	}
 	return out, err
+}
+
+// AddToWardrobe takes one of an item that holds a piece and puts the piece in the account's wardrobe, in one transaction.
+func (m *Module) AddToWardrobe(ctx context.Context, actor Actor, r WardrobeRequest) (_ Result, err error) {
+	ctx, call := m.calls.Start(ctx, "AddToWardrobe")
+	defer call.End(&err)
+	if err := checkKey(r.Key); err != nil {
+		return Result{}, err
+	}
+	res, err := m.svc.AddToWardrobe(ctx, model.Actor(actor), application.WardrobeInput(r))
+	return resultOf(res), err
+}
+
+// SetLook wears five picks, each checked against the catalogue, the account's wardrobe and the class's weapon kind.
+func (m *Module) SetLook(ctx context.Context, actor Actor, r LookRequest) (_ Result, err error) {
+	ctx, call := m.calls.Start(ctx, "SetLook")
+	defer call.End(&err)
+	if err := checkKey(r.Key); err != nil {
+		return Result{}, err
+	}
+	res, err := m.svc.SetLook(ctx, model.Actor(actor), application.LookInput{Key: r.Key, Look: model.Look(r.Look), Class: r.Class})
+	return resultOf(res), err
+}
+
+// Wardrobe lists the account's pieces, oldest first.
+func (m *Module) Wardrobe(ctx context.Context, account kernel.AccountID) (_ []Piece, err error) {
+	ctx, call := m.calls.Start(ctx, "Wardrobe")
+	defer call.End(&err)
+	found, err := m.svc.Pieces(ctx, account)
+	out := make([]Piece, 0, len(found))
+	for _, p := range found {
+		out = append(out, Piece{ID: p.ID, Cause: string(p.Cause), Item: p.Item, AddedAt: p.AddedAt})
+	}
+	return out, err
+}
+
+// Look is the character's look, the zero Look when it never set one.
+func (m *Module) Look(ctx context.Context, character kernel.CharacterID) (_ Look, err error) {
+	ctx, call := m.calls.Start(ctx, "Look")
+	defer call.End(&err)
+	look, err := m.svc.Look(ctx, character)
+	return Look(look), err
 }

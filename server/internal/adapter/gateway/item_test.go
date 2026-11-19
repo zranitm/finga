@@ -12,10 +12,16 @@ import (
 
 // itemModule records the last call and answers with inv or res.
 type itemModule struct {
-	actor item.Actor
-	req   any
-	inv   item.Inventory
-	res   item.Result
+	actor  item.Actor
+	req    any
+	inv    item.Inventory
+	res    item.Result
+	pieces []item.Piece
+}
+
+func (m *itemModule) Wardrobe(_ context.Context, account kernel.AccountID) ([]item.Piece, error) {
+	m.req = account
+	return m.pieces, nil
 }
 
 func (m *itemModule) Inventory(_ context.Context, owner kernel.CharacterID) (item.Inventory, error) {
@@ -29,6 +35,11 @@ func (m *itemModule) Move(_ context.Context, a item.Actor, r item.MoveRequest) (
 }
 
 func (m *itemModule) Discard(_ context.Context, a item.Actor, r item.DiscardRequest) (item.Result, error) {
+	m.actor, m.req = a, r
+	return m.res, nil
+}
+
+func (m *itemModule) AddToWardrobe(_ context.Context, a item.Actor, r item.WardrobeRequest) (item.Result, error) {
 	m.actor, m.req = a, r
 	return m.res, nil
 }
@@ -78,6 +89,12 @@ func TestEachItemRequestKeepsItsFields(t *testing.T) {
 				return sent[item.DiscardManyRequest]{m.actor, m.req.(item.DiscardManyRequest)}
 			})
 		},
+		"AddToWardrobe": func() []string {
+			return copytest.Diff(request("Item", "ItemID"), func(a asked[model.WardrobeAdd]) sent[item.WardrobeRequest] {
+				_, _ = items.AddToWardrobe(t.Context(), a.Actor, a.In)
+				return sent[item.WardrobeRequest]{m.actor, m.req.(item.WardrobeRequest)}
+			})
+		},
 	} {
 		if got := diff(); len(got) > 0 {
 			t.Errorf("%s: %v", name, got)
@@ -100,6 +117,8 @@ func TestEachItemResultKeepsItsFields(t *testing.T) {
 			"Changed.Item.EquipSlot": "an item in a tab is worn nowhere",
 			"Equipment":              "a move or a discard changes no worn item",
 			"Worn":                   "a move or a discard changes no worn item",
+			"Piece":                  "the client knows the piece of the item it added",
+			"Look":                   "a move or a discard changes no look",
 		},
 	}
 	match.Renames["Changed"] = "Slots"
@@ -116,6 +135,10 @@ func TestEachItemResultKeepsItsFields(t *testing.T) {
 			out, _ := items.DiscardMany(t.Context(), model.Actor{}, model.ItemDiscardMany{})
 			return out
 		},
+		"AddToWardrobe": func() model.InventoryChanged {
+			out, _ := items.AddToWardrobe(t.Context(), model.Actor{}, model.WardrobeAdd{})
+			return out
+		},
 	} {
 		got := copytest.Diff(match, func(res item.Result) model.InventoryChanged {
 			m.res = res
@@ -124,6 +147,24 @@ func TestEachItemResultKeepsItsFields(t *testing.T) {
 		if len(got) > 0 {
 			t.Errorf("%s: %v", name, got)
 		}
+	}
+}
+
+// A wardrobe reaches the REST API with every field of every piece.
+func TestAWardrobeKeepsItsFields(t *testing.T) {
+	m := &itemModule{}
+	items := NewItems(m)
+	account := kernel.NewAccountID()
+	got := copytest.Diff(copytest.Match{}, func(pieces []item.Piece) []model.Piece {
+		m.pieces = pieces
+		out, _ := items.Pieces(t.Context(), account)
+		if m.req != account {
+			t.Errorf("asked for %v's wardrobe, not %v's", m.req, account)
+		}
+		return out
+	})
+	if len(got) > 0 {
+		t.Error(got)
 	}
 }
 

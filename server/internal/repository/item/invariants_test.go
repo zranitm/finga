@@ -232,7 +232,7 @@ func TestInventoryProperties(t *testing.T) {
 	pool := cluster.DB(t)
 	store := NewPostgres(pool, nil)
 	svc := application.NewService(application.Deps{Store: store, Content: data, Logger: slog.New(slog.DiscardHandler)})
-	templates := []string{"red_potion", "white_potion", "slime_gel", "wooden_sword", "short_bow", "leather_cap", "leather_vest"}
+	templates := []string{"red_potion", "white_potion", "slime_gel", "wooden_sword", "short_bow", "leather_cap", "leather_vest", "piece.knight_plate", "piece.greatsword"}
 	var equipSlots []string
 	for _, s := range data.EquipSlots() {
 		equipSlots = append(equipSlots, s.ID)
@@ -258,7 +258,7 @@ func TestInventoryProperties(t *testing.T) {
 				}
 				return application.AddInput{Key: key, TemplateID: tmpl, Quantity: qty, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}, Stats: stats}
 			}
-			switch rapid.IntRange(0, 7).Draw(rt, "op") {
+			switch rapid.IntRange(0, 9).Draw(rt, "op") {
 			case 0:
 				in := drop(key)
 				added = append(added, in)
@@ -368,6 +368,25 @@ func TestInventoryProperties(t *testing.T) {
 				if _, err := svc.HandIn(ctx, actor, in); err != nil && !isRule(err) {
 					rt.Fatalf("hand in: %v", err)
 				}
+			case 8:
+				read, _ := svc.Inventory(ctx, actor.Character)
+				if len(read.Items) == 0 {
+					continue
+				}
+				src := rapid.SampledFrom(read.Items).Draw(rt, "item")
+				if _, _, err := svc.Use(ctx, actor, application.UseInput{Key: key, ItemID: src.ID, Template: src.TemplateID}); err != nil && !isRule(err) {
+					rt.Fatalf("use: %v", err)
+				}
+			case 9:
+				// An item added to the wardrobe: a piece's, once for each piece, or one that holds none.
+				read, _ := svc.Inventory(ctx, actor.Character)
+				if len(read.Items) == 0 {
+					continue
+				}
+				src := rapid.SampledFrom(read.Items).Draw(rt, "item")
+				if _, err := svc.AddToWardrobe(ctx, actor, application.WardrobeInput{Key: key, ItemID: src.ID}); err != nil && !isRule(err) {
+					rt.Fatalf("add to the wardrobe: %v", err)
+				}
 			case 4:
 				in := application.UnequipInput{Key: key, EquipSlot: rapid.SampledFrom(equipSlots).Draw(rt, "equip slot")}
 				if rapid.Bool().Draw(rt, "chosen slot") {
@@ -404,7 +423,7 @@ func isRule(err error) bool {
 	for _, rule := range []error{
 		model.ErrEquipTabFull, model.ErrUseTabFull, model.ErrEtcTabFull, model.ErrBadQuantity, model.ErrBadSlot, model.ErrWrongTab, model.ErrDifferentItem, model.ErrStackFull, model.ErrNotFound,
 		model.ErrSlotTaken, model.ErrItemWorn, model.ErrLevelTooLow, model.ErrWrongClass, model.ErrSTRTooLow, model.ErrDEXTooLow, model.ErrINTTooLow, model.ErrAGITooLow, model.ErrVITTooLow, model.ErrWrongEquipSlot, model.ErrNotEquipment, model.ErrNothingWorn,
-		model.ErrNotEnoughItems,
+		model.ErrNotEnoughItems, model.ErrNotUsable, model.ErrNotAPiece, model.ErrPieceCollected,
 	} {
 		if errorsIs(err, rule) {
 			return true

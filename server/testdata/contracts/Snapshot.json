@@ -27,7 +27,12 @@
             "id": "slow",
             "ends": 81246
           }
-        ]
+        ],
+        "look": {
+          "outfit": "knight_plate",
+          "weapon": "greatsword",
+          "hide_headwear": true
+        }
       }
     ],
     "mobs": [

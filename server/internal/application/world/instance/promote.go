@@ -33,7 +33,7 @@ type giftedMsg struct {
 	caller *player // the join that made the call, whose count of calls in flight it ends
 	npc    string
 	class  kernel.Class
-	result model.Inventory
+	result model.Gift
 	err    error
 	done   chan error
 }
@@ -52,6 +52,9 @@ func (i *Instance) promote(m promoteMsg) {
 	p, class, err := i.promotable(m.id, m.conn, m.npc, m.class)
 	if err == nil && p.promoting {
 		err = fmt.Errorf("%w: a promotion is in flight", transient.ErrUnavailable)
+	}
+	if err == nil && p.looking > 0 {
+		err = fmt.Errorf("%w: a look is in flight, checked against the class the promotion would change", transient.ErrUnavailable)
 	}
 	if err != nil {
 		m.done <- err
@@ -108,7 +111,7 @@ func (i *Instance) promotionOf(p *player) promotions.Character {
 // giftOf is the trainer's weapon for p, under a key of the character and class, so a retry, or a promotion again within the item module's key retention (24 h), gives it once. Its roll is the middle of each range, the same on every try.
 func (i *Instance) giftOf(p *player, class gamedata.Class) model.GiftCall {
 	weapon := class.Promotion.Weapon
-	call := model.GiftCall{Account: p.Account, Character: p.ID, Key: uuidv7.Derived(uuid.UUID(p.ID), "promotion:"+class.ID.String()), Template: weapon}
+	call := model.GiftCall{Account: p.Account, Character: p.ID, Key: uuidv7.Derived(uuid.UUID(p.ID), "promotion:"+class.ID.String()), Template: weapon, Promotes: class.ID}
 	if tmpl, ok := i.data.Item(weapon); ok {
 		roll := progression.Rolled(tmpl.Rolls, func(r gamedata.Range) int { return (r.Min + r.Max) / 2 })
 		call.Stats = &roll
@@ -117,13 +120,13 @@ func (i *Instance) giftOf(p *player, class gamedata.Class) model.GiftCall {
 }
 
 // callGift tries the gift until the item module answers or refuses, or handInFor passes, as a hand-in does.
-func (i *Instance) callGift(ctx context.Context, call model.GiftCall) (model.Inventory, error) {
+func (i *Instance) callGift(ctx context.Context, call model.GiftCall) (model.Gift, error) {
 	ctx, cancel := context.WithTimeoutCause(ctx, handInFor, fmt.Errorf("%w: the item module didn't answer the trainer's gift in time", transient.ErrUnavailable))
 	defer cancel()
 	who := []any{"character_id", call.Character, "template_id", call.Template}
 	tries := 0
 	wait := &backoff.ExponentialBackOff{InitialInterval: handInRetryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: handInRetryMax}
-	return backoff.Retry(ctx, func() (model.Inventory, error) {
+	return backoff.Retry(ctx, func() (model.Gift, error) {
 		tries++
 		tryCtx, cancelTry := context.WithTimeout(ctx, handInTimeout)
 		defer cancelTry()
@@ -164,6 +167,7 @@ func (i *Instance) settlePromotion(m giftedMsg) {
 	if len(m.result.Slots) > 0 {
 		p.private = append(p.private, model.InventoryChanged{Tick: i.tick, Revision: m.result.Revision, Slots: m.result.Slots})
 	}
+	i.wear(p, m.result.Look) // a weapon look the new class can't hold went with the gift
 	i.promoteTo(p, class)
 	m.done <- nil
 }

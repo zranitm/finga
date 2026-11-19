@@ -33,8 +33,35 @@ type fakeService struct {
 	result    application.Result
 	batch     application.Batch
 	handedIn  []application.HandIn
+	account   kernel.AccountID
+	pieces    []model.Piece
+	look      model.Look
 	err       error
 	calls     int
+}
+
+func (f *fakeService) AddToWardrobe(_ context.Context, actor model.Actor, in application.WardrobeInput) (application.Result, error) {
+	f.calls++
+	f.actor, f.in = actor, in
+	return f.result, f.err
+}
+
+func (f *fakeService) SetLook(_ context.Context, actor model.Actor, in application.LookInput) (application.Result, error) {
+	f.calls++
+	f.actor, f.in = actor, in
+	return f.result, f.err
+}
+
+func (f *fakeService) Pieces(_ context.Context, account kernel.AccountID) ([]model.Piece, error) {
+	f.calls++
+	f.account = account
+	return f.pieces, f.err
+}
+
+func (f *fakeService) Look(_ context.Context, character kernel.CharacterID) (model.Look, error) {
+	f.calls++
+	f.owner = character
+	return f.look, f.err
 }
 
 func (f *fakeService) Inventory(_ context.Context, owner kernel.CharacterID) (model.Inventory, error) {

@@ -69,6 +69,12 @@ var (
 	NotEnoughItems       = Public{220024, "NOT_ENOUGH_ITEMS", "you don't have everything it asks for"}
 	NotUsable            = Public{220025, "NOT_USABLE", "that item can't be used"}
 	BadItemBatch         = Public{220026, "BAD_ITEM_BATCH", "name one item to a tab's slots, each once"}
+	NotAPiece            = Public{220027, "NOT_A_PIECE", "that item holds no wardrobe piece"}
+	PieceCollected       = Public{220028, "PIECE_COLLECTED", "your wardrobe has that piece"}
+	UnknownPiece         = Public{220029, "UNKNOWN_PIECE", "that isn't a wardrobe piece"}
+	WrongSlot            = Public{220030, "WRONG_SLOT", "that piece goes in another slot"}
+	PieceNotCollected    = Public{220031, "PIECE_NOT_COLLECTED", "your wardrobe hasn't collected that piece"}
+	WrongWeaponKind      = Public{220032, "WRONG_WEAPON_KIND", "your class can't hold that weapon look"}
 )
 
 // 33: the world and quests.
@@ -109,7 +115,7 @@ var (
 	SkillChainNotReady   = Public{330034, "SKILL_CHAIN_NOT_READY", "that follow-up isn't offered now: its key's root doesn't chain to it, or its condition didn't hold"}
 	NotControlled        = Public{330035, "NOT_CONTROLLED", "a break-free skill goes only while you're held: stunned, frozen, asleep, knocked down or pinned"}
 	TraitUnknown         = Public{330036, "TRAIT_UNKNOWN", "that skill has no such trait"}
-	InCombat             = Public{330037, "IN_COMBAT", "you can't change traits in combat"}
+	InCombat             = Public{330037, "IN_COMBAT", "you can't change traits or looks in combat"}
 	TraitLocked          = Public{330038, "TRAIT_LOCKED", "that trait opens once the skill reaches its last evolution"}
 )
 

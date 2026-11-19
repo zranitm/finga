@@ -17,9 +17,10 @@ type Starter interface {
 	GrantStarter(ctx context.Context, account kernel.AccountID, id kernel.CharacterID) error
 }
 
-// Wardrobe reads what a character wears; a join can't derive its stats without it, so it fails while the read does.
+// Wardrobe reads what a character wears and the look it shows; a join can't derive its stats without them, so it fails while a read does.
 type Wardrobe interface {
 	Worn(ctx context.Context, id kernel.CharacterID) (model.Worn, error)
+	Look(ctx context.Context, id kernel.CharacterID) (model.Look, error)
 }
 
 // HandedIns finds which completions the item module handed in; a join fails while it can't, as a hand-in the world missed would be lost.

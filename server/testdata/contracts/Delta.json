@@ -28,7 +28,12 @@
             "id": "slow",
             "ends": 81246
           }
-        ]
+        ],
+        "look": {
+          "outfit": "knight_plate",
+          "weapon": "greatsword",
+          "hide_headwear": true
+        }
       },
       {
         "id": "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7c",
@@ -87,7 +92,11 @@
         "z": 18,
         "hx": -1,
         "team": 2,
-        "bot": true
+        "bot": true,
+        "look": {
+          "headwear": "pointed_hat",
+          "weapon": "oak_wand"
+        }
       }
     ],
     "mobs": [

@@ -45,7 +45,12 @@ type HandIns interface {
 
 // Gifts is the item module's gift of one item under its own key, called from the item-call pool, never inside a tick; a failure that is no rule is transient.ErrUnavailable.
 type Gifts interface {
-	Give(ctx context.Context, c model.GiftCall) (model.Inventory, error)
+	Give(ctx context.Context, c model.GiftCall) (model.Gift, error)
+}
+
+// Looks is the item module's look, called from the item-call pool, never inside a tick; a failure that is no rule is transient.ErrUnavailable.
+type Looks interface {
+	SetLook(ctx context.Context, c model.LookCall) (model.Look, error)
 }
 
 // Potions is the item module's use of an item, called from the item-call pool, never inside a tick; a failure that is no rule is transient.ErrUnavailable.

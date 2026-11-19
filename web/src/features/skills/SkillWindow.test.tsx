@@ -592,7 +592,7 @@ describe('traits', () => {
     skills(0, { strike: 25 });
     await user.click(diamond('Crushing Blow', 'Concussion'));
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'You can’t change traits in combat.',
+      'You can’t change traits or looks in combat.',
     );
     expect(diamond('Crushing Blow', 'Swift')).toHaveAttribute('aria-pressed', 'true');
     expect(diamond('Crushing Blow', 'Concussion')).not.toHaveClass('skill-trait-pending');

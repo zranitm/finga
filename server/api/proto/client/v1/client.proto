@@ -46,6 +46,8 @@ message ClientMessage {
     PvpLeaveQueue pvp_leave_queue = 33;
     PvpAnswer pvp_answer = 34;
     PvpForfeit pvp_forfeit = 35;
+    AddToWardrobe add_to_wardrobe = 36;
+    SetLook set_look = 37;
   }
 }
 
@@ -198,6 +200,18 @@ message InventoryDiscard {
   string idempotency_key = 1;
   string item_id = 2;
   int32 quantity = 3;
+}
+
+// AddToWardrobe takes one of an item that holds a piece and adds the piece, the item's piece.<id>, to the account's wardrobe; answered with the changed slot as InventoryChanged.
+message AddToWardrobe {
+  string idempotency_key = 1;
+  string item_id = 2;
+}
+
+// SetLook wears a look of collected pieces, alive and out of combat; answered once the world applied it, which every view then carries.
+message SetLook {
+  string idempotency_key = 1;
+  Look look = 2;
 }
 
 // InventoryDiscardMany destroys several whole items or stacks at once, all or none: one to a tab's 24, each once, none worn.
@@ -560,6 +574,19 @@ message PlayerView {
   int32 sprint = 31;
   // The mode it last stepped in, State.Walk: walk mode, or sprint mode when false; the player's own reconcile replays from it.
   bool walk = 32;
+  // Its look, in every view: the client draws what this says, as it does the class.
+  Look look = 33;
+}
+
+// Look is a player's picks from the wardrobe, each a piece id in outfits.yaml; empty keeps the class's own, and for wings is none.
+message Look {
+  string outfit = 1;
+  string headwear = 2;
+  string face = 3;
+  string weapon = 4;
+  // The headwear stays off, the class's own and a piece alike.
+  bool hide_headwear = 5;
+  string wings = 6;
 }
 
 // SlowWalk is a status slowing a player's walk: factor × the walk speed for left more sub-steps.

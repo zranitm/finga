@@ -36,3 +36,13 @@ func (g *Gateway) DiscardItem(ctx context.Context, s *session.Session, in model.
 func (g *Gateway) DiscardItems(ctx context.Context, s *session.Session, in model.ItemDiscardMany) (model.InventoryChanged, error) {
 	return g.deps.Items.DiscardMany(ctx, s.Actor(), in)
 }
+
+// AddToWardrobe takes one of an item that holds a piece and adds the piece to the account's wardrobe, returning the slot it changed.
+func (g *Gateway) AddToWardrobe(ctx context.Context, s *session.Session, in model.WardrobeAdd) (model.InventoryChanged, error) {
+	return g.deps.Items.AddToWardrobe(ctx, s.Actor(), in)
+}
+
+// SetLook wears a look through the world, which refuses a dead player or one in combat; every view carries it once applied.
+func (g *Gateway) SetLook(ctx context.Context, s *session.Session, in model.LookSet) error {
+	return g.deps.World.SetLook(ctx, s.Presence(), in)
+}

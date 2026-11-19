@@ -24,6 +24,10 @@ func (f fakeWardrobe) Worn(context.Context, kernel.CharacterID) (model.Worn, err
 	return f.worn, f.err
 }
 
+func (f fakeWardrobe) Look(context.Context, kernel.CharacterID) (model.Look, error) {
+	return model.Look{}, f.err
+}
+
 // capEquipment wears a cap in the hat slot, giving 30 max HP, at revision 4, and refuses every unequip.
 type capEquipment struct{}
 

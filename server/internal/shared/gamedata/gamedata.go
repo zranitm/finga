@@ -46,6 +46,7 @@ type Parts struct {
 	TeleportChannel time.Duration
 	Pvp             PvpRules
 	InterestCell    float64
+	Pieces          []Piece
 }
 
 // Data is everything loaded, read-only once built.
@@ -59,21 +60,33 @@ type Data struct {
 	mapIdx    map[string]int
 	npcIdx    map[string]int
 	questIdx  map[string]int
+	pieceIdx  map[string]int
+	// pieceItemIdx files each piece with an item under its item.
+	pieceItemIdx map[string]int
 }
 
 // New indexes parts by ID; they must already be checked, as load.Dir does.
 func New(p Parts) *Data {
 	return &Data{
-		p:         p,
-		classIdx:  index(p.Classes, func(c Class) kernel.Class { return c.ID }),
-		skillIdx:  index(p.Skills, func(s Skill) string { return s.ID }),
-		statusIdx: index(p.Statuses, func(s Status) string { return s.ID }),
-		itemIdx:   index(p.Items, func(it Item) string { return it.ID }),
-		mobIdx:    index(p.Mobs, func(m Mob) string { return m.ID }),
-		mapIdx:    index(p.Maps, func(m *Map) string { return m.ID }),
-		npcIdx:    index(p.NPCs, func(n NPC) string { return n.ID }),
-		questIdx:  index(p.Quests, func(q Quest) string { return q.ID }),
+		p:            p,
+		classIdx:     index(p.Classes, func(c Class) kernel.Class { return c.ID }),
+		skillIdx:     index(p.Skills, func(s Skill) string { return s.ID }),
+		statusIdx:    index(p.Statuses, func(s Status) string { return s.ID }),
+		itemIdx:      index(p.Items, func(it Item) string { return it.ID }),
+		mobIdx:       index(p.Mobs, func(m Mob) string { return m.ID }),
+		mapIdx:       index(p.Maps, func(m *Map) string { return m.ID }),
+		npcIdx:       index(p.NPCs, func(n NPC) string { return n.ID }),
+		questIdx:     index(p.Quests, func(q Quest) string { return q.ID }),
+		pieceIdx:     index(p.Pieces, func(p Piece) string { return p.ID }),
+		pieceItemIdx: pieceItems(p.Pieces),
 	}
+}
+
+// pieceItems files each piece an item holds under the item.
+func pieceItems(all []Piece) map[string]int {
+	idx := index(all, func(p Piece) string { return p.Item })
+	delete(idx, "") // a piece no item holds
+	return idx
 }
 
 // index maps each entry's ID to its position in all.

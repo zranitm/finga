@@ -16,6 +16,8 @@ type ItemModule interface {
 	Move(ctx context.Context, actor item.Actor, r item.MoveRequest) (item.Result, error)
 	Discard(ctx context.Context, actor item.Actor, r item.DiscardRequest) (item.Result, error)
 	DiscardMany(ctx context.Context, actor item.Actor, r item.DiscardManyRequest) (item.Result, error)
+	AddToWardrobe(ctx context.Context, actor item.Actor, r item.WardrobeRequest) (item.Result, error)
+	Wardrobe(ctx context.Context, account kernel.AccountID) ([]item.Piece, error)
 }
 
 // Items is the application's Items over the item module.
@@ -100,4 +102,26 @@ func rollOf(s *progression.ItemStats) *model.ItemStats {
 		CritRate: s.CritRate, CritDamage: s.CritDamage, Penetration: s.Penetration, HPRegen: s.HPRegen,
 		CooldownSpeed: s.CooldownSpeed, MoveSpeed: s.MoveSpeed,
 	}
+}
+
+// AddToWardrobe adds the piece an item holds to the account's wardrobe and returns the slot it changed.
+func (i Items) AddToWardrobe(ctx context.Context, a model.Actor, in model.WardrobeAdd) (model.InventoryChanged, error) {
+	res, err := i.items.AddToWardrobe(ctx, actor(a), item.WardrobeRequest{Key: in.IdempotencyKey, ItemID: in.Item})
+	if err != nil {
+		return model.InventoryChanged{}, wrap(err)
+	}
+	return changed(res), nil
+}
+
+// Pieces lists the account's wardrobe, oldest first.
+func (i Items) Pieces(ctx context.Context, account kernel.AccountID) ([]model.Piece, error) {
+	found, err := i.items.Wardrobe(ctx, account)
+	if err != nil {
+		return nil, wrap(err)
+	}
+	out := make([]model.Piece, 0, len(found))
+	for _, p := range found {
+		out = append(out, model.Piece(p))
+	}
+	return out, nil
 }

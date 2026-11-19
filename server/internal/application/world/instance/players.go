@@ -77,6 +77,7 @@ type player struct {
 	itemCalls    int                          // equips, unequips, hand-ins and potions in flight, which keep the player on this map
 	handingIn    map[string]bool              // quests whose hand-in is in flight
 	promoting    bool                         // a promotion's gift is in flight
+	looking      int                          // looks in flight, which a promotion waits out: each was checked against the class it had
 	questChanges map[string]model.QuestChange // this tick's, told at its end
 	toldHP       int                          // the HP and max HP the party last heard
 	toldMaxHP    int
@@ -343,7 +344,7 @@ func (i *Instance) view(p *player) model.PlayerView {
 	return model.PlayerView{
 		ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.derived.MaxHP, Dead: p.dead, Invulnerable: p.invulnUntil > i.tick,
 		Dodging: p.dodging(i.tick), Shield: p.shield(), State: p.state, Aim: p.aim,
-		Statuses: p.statuses.Shown(), Team: i.side(p.ID), Bot: p.bot != nil,
+		Statuses: p.statuses.Shown(), Team: i.side(p.ID), Bot: p.bot != nil, Look: p.Look,
 	}
 }
 

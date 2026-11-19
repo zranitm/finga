@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -122,4 +123,38 @@ func TestOneItemPerEquipSlotHoldsAtCommit(t *testing.T) {
 			}
 		}
 	})
+}
+
+// A wardrobe entry names its item exactly when an item gave it, and its rank, quest or feat otherwise, once for each piece.
+func TestAWardrobeEntryNamesWhatGaveIt(t *testing.T) {
+	ctx := context.Background()
+	pool := migratedDB(t)
+	account, item := uuidv7.New(), uuidv7.New()
+	insert := func(piece, cause string, ref *string, item *uuid.UUID) error {
+		_, err := pool.Exec(ctx, `INSERT INTO account_pieces (account_id, piece_id, cause_type, cause_ref, item_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, now(), now())`, account, piece, cause, ref, item)
+		return err
+	}
+	silver := "silver"
+	if err := insert("knight_plate", "item", nil, &item); err != nil {
+		t.Fatal(err)
+	}
+	if err := insert("knight_helm", "rank", &silver, nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		name, piece, cause string
+		ref                *string
+		item               *uuid.UUID
+		want               string
+	}{
+		{"an item cause with no item", "mage_robe", "item", nil, nil, "account_pieces_item"},
+		{"a rank cause naming an item", "mage_robe", "rank", &silver, &item, "account_pieces_item"},
+		{"a rank cause naming no rank", "mage_robe", "rank", nil, nil, "account_pieces_item"},
+		{"a cause the wardrobe doesn't know", "mage_robe", "gacha", &silver, nil, "account_pieces_cause"},
+		{"a piece collected twice", "knight_plate", "rank", &silver, nil, "account_pieces_pkey"},
+	} {
+		if err := insert(c.piece, c.cause, c.ref, c.item); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s stored: %v, want %s", c.name, err, c.want)
+		}
+	}
 }
