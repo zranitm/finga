@@ -1,3 +1,4 @@
+import { create } from '@bufbuild/protobuf';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -6,17 +7,35 @@ import { run } from '@/game/world3d/run';
 import { GameSocket } from '@/net/socket';
 import { clearToken } from '@/net/token';
 import { ERR } from '@/protocol/errors';
-import { KickReason } from '@/protocol/messages';
+import {
+  FieldBossSchema,
+  KickReason,
+  MatchEndedSchema,
+  MatchOutcome,
+  MatchPhase,
+  MatchStateSchema,
+  PartyStateSchema,
+  PvpOfferSchema,
+  PvpQueuedSchema,
+} from '@/protocol/messages';
+import { character } from '@/state/character';
 import { chat } from '@/state/chat';
 import { combatLog } from '@/state/combat-log';
+import { fieldBoss } from '@/state/field-boss';
+import { party } from '@/state/party';
+import { pvp } from '@/state/pvp';
 import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
+import { statuses } from '@/state/statuses';
+import { target } from '@/state/target';
+import { teleport } from '@/state/teleport';
 import { ui } from '@/state/ui';
 import { fakeFetch, sampleCharacter } from '@/testing/fake-fetch';
 import type { FakeFetch, Script } from '@/testing/fake-fetch';
 import { FakeWebSocket } from '@/testing/fake-socket';
 import { resetStores } from '@/testing/reset-stores';
 import { user } from '@/testing/user';
+import { pointerReaches } from '@/testing/pointer';
 
 import { App } from './App';
 import { socketUrl } from './services';
@@ -67,6 +86,103 @@ describe('App', () => {
   afterEach(() => {
     clearToken();
     parent.remove();
+  });
+
+  it('lets the pointer reach whatever in the world’s overlay a player clicks or hovers, and nothing else, so the rest passes it through to the world', async () => {
+    fetching(({ path }) => {
+      if (path === '/api/sessions') return { status: 201, body: { token: 'tok-1' } };
+      if (path === '/api/settings') return { status: 200, body: {} };
+      return { status: 200, body: { characters: [sampleCharacter] } };
+    });
+    const overlay = document.createElement('div');
+    overlay.id = 'ui';
+    document.body.appendChild(overlay);
+    render(<App />, { container: overlay });
+    await logIn();
+    await user.click(await screen.findByRole('button', { name: 'Play' }));
+    const ws = FakeWebSocket.latest();
+    ws.open();
+    ws.push('welcome', welcome);
+    await screen.findByLabelText('Status');
+    const unreachable = () =>
+      Array.from(
+        overlay.querySelectorAll(
+          'button, a[href], input, select, textarea, [role="button"], [title], [tabindex]',
+        ),
+      )
+        .filter((el) => !pointerReaches(el))
+        .map((el) => el.outerHTML.slice(0, 120));
+    const now = performance.now();
+    act(() => {
+      const me = [{ id: 'stun', from: now, until: now + 5000 }];
+      statuses.getState().show({ me, target: me, party: { 'c-bruno': me } });
+      settings.getState().setWalk(true);
+      pvp.getState().applyQueued(create(PvpQueuedSchema, { mode: 'duel' }));
+      pvp
+        .getState()
+        .applyOffer(
+          create(PvpOfferSchema, { offer: 'of-1', mode: 'duel', bots: 1, untilMs: 10_000 }),
+        );
+      party.getState().applyPartyState(
+        create(PartyStateSchema, {
+          party: {
+            leader: id,
+            members: [
+              { characterId: id, name, level, class: 'warrior', hp, maxHp: hp, online: true },
+              {
+                characterId: 'c-bruno',
+                name: 'Bruno',
+                level: 3,
+                class: 'thief',
+                hp: 40,
+                maxHp: 50,
+                online: true,
+              },
+            ],
+          },
+        }),
+      );
+      target.getState().show({ kind: 'mob', ref: 'm:7', type: 'green_slime', hp: 20 });
+      fieldBoss
+        .getState()
+        .applyFieldBoss(
+          create(FieldBossSchema, { mobId: 9, type: 'king_slime', leavesInMs: 600000n }),
+        );
+      fieldBoss.getState().setHp({ hp: 3100, maxHp: 4260 });
+      teleport.getState().start('forest');
+      character.getState().setDead(true);
+    });
+    for (const shown of ['Leave the queue', 'Walk mode', 'Stun']) {
+      expect(overlay.querySelector(`[aria-label="${shown}"]`), shown).not.toBeNull();
+    }
+    expect(within(overlay).getAllByText('Bruno').length).toBeGreaterThan(0);
+    expect(within(overlay).getByText('Green Slime')).toBeInTheDocument();
+    expect(within(overlay).getByRole('button', { name: 'Accept' })).toBeInTheDocument();
+    expect(unreachable()).toEqual([]);
+    act(() => {
+      pvp.getState().applyMatchState(
+        create(MatchStateSchema, {
+          match: 'mt-1',
+          mode: 'duel',
+          phase: MatchPhase.RESULT,
+          wins: [2, 1],
+          sides: [
+            { fighters: [{ id, name }] },
+            { fighters: [{ id: 'b-1', name: 'Ash', bot: true }] },
+          ],
+        }),
+      );
+      pvp
+        .getState()
+        .applyMatchEnded(create(MatchEndedSchema, { result: MatchOutcome.WIN, wins: [2, 1] }), id);
+    });
+    expect(screen.getByRole('dialog', { name: 'Match result' })).toBeInTheDocument();
+    expect(unreachable()).toEqual([]);
+    for (const through of ['.hud', '.unit-frame', '.minimap', '.top-bars', '.match-count']) {
+      const el = overlay.querySelector(through);
+      expect(el && pointerReaches(el), through).not.toBe(true); // the world takes the wheel through them
+    }
+    overlay.remove();
   });
 
   it('flows from login to the characters screen into the world and back out, driving the game', async () => {
