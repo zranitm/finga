@@ -66,6 +66,7 @@ import { ui } from '@/state/ui';
 import { FakeWebSocket } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
 import { mapJson, servePublic } from '@/testing/public-on-disk';
+import { TINY } from '@/testing/region-fixture';
 import { resetStores } from '@/testing/reset-stores';
 import { builtShaders } from '@/testing/shaders';
 
@@ -82,6 +83,7 @@ import { beatsOf } from './beats';
 import { BLEND_MS } from './blend';
 import { Body, FADED } from './body';
 import type { Figure } from './body';
+import { buildChunk } from './chunk-build';
 import { Figures } from './figures';
 import { CHEST_M } from './follow';
 import { classLook, mobLook } from './looks';
@@ -99,10 +101,10 @@ const WAIT = { timeout: 3000, interval: 5 }; // polled every 5 ms, not 50; 3 s f
 
 vi.mock('./kit-models', () => ({ kitModels: {} })); // every key a stand-in: place.test draws town and forest with the real kit models
 
-/** Hunting maps with no NPCs, served flat and bare for the tests no map's own layout bears on: FLAT, and the two a map change goes to. */
-const [FLAT, FLAT2, FLAT3] = maps
+/** Hunting maps with no NPCs, served flat and bare for the tests no map's own layout bears on: FLAT, the two a map change goes to, and one served as a region. */
+const [FLAT, FLAT2, FLAT3, REGIONED] = maps
   .filter((m) => m.kind === 'hunting' && npcsOn(m.id).length === 0)
-  .map((m) => m.id) as [string, string, string];
+  .map((m) => m.id) as [string, string, string, string];
 
 /** Map id flat and bare, 72 by 40 m. */
 function bare(id: string) {
@@ -142,11 +144,27 @@ function slim(id: string) {
   };
 }
 
+/** Map id drawn from the tiny region's bake, 128 m square. */
+function regioned(id: string) {
+  const m = bare(id);
+  return {
+    ...m,
+    geometry: {
+      ...m.geometry,
+      size_x: 128,
+      size_z: 128,
+      terrain: { cell: 8, nx: 17, nz: 17, heights: Array<number>(17 * 17).fill(0) },
+    },
+    region: TINY,
+  };
+}
+
 /** The maps served in place of the real ones, made once; the rest come from disk. */
 const SERVED = {
   [FLAT]: bare(FLAT),
   [FLAT2]: bare(FLAT2),
   [FLAT3]: bare(FLAT3),
+  [REGIONED]: regioned(REGIONED),
   town: slim('town'),
   ring: { ...bare('ring'), prep_wall: (mapJson('ring') as { prep_wall: unknown }).prep_wall }, // flat, with its own prep wall
 };
@@ -193,6 +211,8 @@ interface Playing {
 }
 
 const open: { world: World; socket: GameSocket; engine: NullEngine; left?: boolean }[] = [];
+/** The chunks worlds asked for, each built here, and how often a world closed its source. */
+const chunkWork = { builds: [] as Promise<unknown>[], closed: 0 };
 /** A model file served as junk, as a broken download would be. */
 let broken = '';
 
@@ -224,6 +244,16 @@ async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Pr
         file === broken
           ? new Uint8Array([1, 2, 3])
           : new Uint8Array(readFileSync(path.join(MODELS, file))),
+      chunks: {
+        build: (req) => {
+          const b = buildChunk(req);
+          chunkWork.builds.push(b);
+          return b;
+        },
+        close: () => {
+          chunkWork.closed++;
+        },
+      },
       now: () => t,
     },
     arriving,
@@ -396,6 +426,24 @@ describe('World', () => {
     p.frames(10);
     expect(p.inputs() - before).toBe(10);
     expect(p.label('me')).toBe('Ayla');
+  });
+
+  it('draws a map whose data names a region from that bake, streaming its chunks round the camera', async () => {
+    const p = await playing(REGIONED, 30, 60);
+    const scene = p.scene()!;
+    expect(scene.transformNodes.some((n) => n.name === `region ${TINY.id}`)).toBe(true);
+    expect(scene.transformNodes.some((n) => n.name.startsWith('place '))).toBe(false);
+    p.frames(1);
+    await Promise.allSettled(chunkWork.builds);
+    await new Promise<void>((r) => setImmediate(r));
+    p.frames(2); // two made a frame
+    expect(scene.meshes.filter((m) => m.name.startsWith('chunk ')).length).toBe(4);
+    expect(scene.getMeshByName('overview')!.getTotalIndices()).toBe(0); // every chunk drawn over it
+    const closed = chunkWork.closed;
+    changeMap(p, { mapId: FLAT, x: 4, y: 0, z: 20, yaw: 0 });
+    expect(chunkWork.closed).toBe(closed + 1); // its workers end as it goes
+    leave(p);
+    expect(chunkWork.closed).toBe(closed + 2);
   });
 
   it('walks the player east till the tree in its way stops them, as the server’s sim would', async () => {

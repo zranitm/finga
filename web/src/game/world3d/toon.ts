@@ -3,6 +3,7 @@ import { Constants } from '@babylonjs/core/Engines/constants';
 import type { Material } from '@babylonjs/core/Materials/material';
 import { AddBlock } from '@babylonjs/core/Materials/Node/Blocks/addBlock';
 import { ClampBlock } from '@babylonjs/core/Materials/Node/Blocks/clampBlock';
+import { ColorSplitterBlock } from '@babylonjs/core/Materials/Node/Blocks/colorSplitterBlock';
 import { DivideBlock } from '@babylonjs/core/Materials/Node/Blocks/divideBlock';
 import { DotBlock } from '@babylonjs/core/Materials/Node/Blocks/dotBlock';
 import { FogBlock } from '@babylonjs/core/Materials/Node/Blocks/Dual/fogBlock';
@@ -84,6 +85,7 @@ export interface ToonBase {
   readonly texture: Texture | null;
   readonly color: Color3; // linear, as glTF writes it
   readonly glow?: boolean; // drawn in the lit band only, with a rim, as prestige wings are
+  readonly vertexColors?: boolean; // times each vertex's colour, linear, as a region's ground is
 }
 
 const RIM_FROM = 0.45; // how far a surface turns from the camera before a glow's rim starts
@@ -430,6 +432,10 @@ function toonMaterial(
     texture.convertToLinearSpace = true; // a no-op for an sRGB buffer, which samples linear already
     s.attribute('uv').output.connectTo(texture.uv);
     texture.rgb.connectTo(albedo.left);
+  } else if (base.vertexColors) {
+    const vertex = new ColorSplitterBlock('vertexColor');
+    s.attribute('color').output.connectTo(vertex.rgba);
+    vertex.rgbOut.connectTo(albedo.left);
   } else {
     lit.output.connectTo(albedo.left);
   }
@@ -576,16 +582,10 @@ export class Palette {
   /** The toon material for base, drawn at alpha: 1, or less for a solid faded out of the camera's way; cut for the place, which opens round the player. */
   toon(base: ToonBase, alpha = 1, cut = false): NodeMaterial {
     const color = base.color.clampToRef(0, 1, new Color3());
-    const key = `${base.texture?.uniqueId ?? '-'} ${color.toHexString()}${base.glow ? ' glow' : ''}${cut ? ' cut' : ''}${alpha < 1 ? ` ${alpha}` : ''}`;
+    const key = `${base.texture?.uniqueId ?? '-'} ${color.toHexString()}${base.glow ? ' glow' : ''}${base.vertexColors ? ' vertex' : ''}${cut ? ' cut' : ''}${alpha < 1 ? ` ${alpha}` : ''}`;
     let m = this.made.get(key);
     if (!m) {
-      m = toonMaterial(
-        `toon ${key}`,
-        this.scene,
-        { texture: base.texture, color, glow: base.glow === true },
-        alpha,
-        cut ? this.cut : null,
-      );
+      m = toonMaterial(`toon ${key}`, this.scene, { ...base, color }, alpha, cut ? this.cut : null);
       this.made.set(key, m);
     }
     return m;

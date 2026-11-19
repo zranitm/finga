@@ -13,8 +13,8 @@ import (
 	"strings"
 )
 
-// Format is the bake's version, in every file; a reader refuses another.
-const Format = 1
+// Format is the bake's version, in every file; a reader refuses another. 2: a chunk's heights carry a border.
+const Format = 2
 
 // tileM is a map tile's side; tiles are drawn at 1 and 4 metres a pixel.
 const tileM = 128
@@ -97,15 +97,16 @@ func (w *writer) header(magic string, a, b, c int) {
 	w.u16(c)
 }
 
-// chunk is one 64 m square: "FRCK", the format, its x and z, and its samples a side (shared with its neighbours); then its heights and colours row by row from its south-west corner, and the props, cylinders and boxes whose centres it holds.
+// chunk is one 64 m square: "FRCK", the format, its x and z, and its samples a side n (its edges shared with its neighbours); then (n+2)² heights, its own with a border one sample wide, held to the region at its edges, so a client takes an edge's normal from the same numbers on both sides; then n² colours, row by row from the south-west, and the props, cylinders and boxes whose centres it holds.
 func (r *Region) chunk(cx, cz int) []byte {
 	t := r.Geometry.Terrain
 	per := int(chunkM / t.Cell)
 	var w writer
 	w.header("FRCK", cx, cz, per+1)
-	for iz := range per + 1 {
-		for ix := range per + 1 {
-			w.f32(t.Heights[(cz*per+iz)*t.NX+cx*per+ix])
+	for iz := -1; iz <= per+1; iz++ {
+		for ix := -1; ix <= per+1; ix++ {
+			sx, sz := min(max(cx*per+ix, 0), t.NX-1), min(max(cz*per+iz, 0), t.NZ-1)
+			w.f32(t.Heights[sz*t.NX+sx])
 		}
 	}
 	for iz := range per + 1 {

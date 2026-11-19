@@ -60,7 +60,7 @@ func fileOf(t *testing.T, b Bake, path string) File {
 	return b.Files[i]
 }
 
-// Read back as the client will, every chunk holds its square's heights and colours, its edges shared with its neighbours, and the props and solids whose centres it holds, each once; the overview holds every 8th sample.
+// Read back as the client will, every chunk holds its square's heights and colours, its edges shared with its neighbours, its heights with a border a sample wide held to the region, and the props and solids whose centres it holds, each once; the overview holds every 8th sample.
 func TestTheBakeReadsBackAsTheRegion(t *testing.T) {
 	r, b := smallRegion(t), smallBake(t)
 	tr := r.Geometry.Terrain
@@ -72,9 +72,10 @@ func TestTheBakeReadsBackAsTheRegion(t *testing.T) {
 			if h := rd.header("FRCK"); h != [3]int{cx, cz, 65} {
 				t.Fatalf("chunk %d_%d's header %v", cx, cz, h)
 			}
-			for iz := range 65 {
-				for ix := range 65 {
-					if got, want := rd.f32(), tr.Heights[(cz*64+iz)*tr.NX+cx*64+ix]; got != want {
+			for iz := -1; iz <= 65; iz++ {
+				for ix := -1; ix <= 65; ix++ {
+					sx, sz := min(max(cx*64+ix, 0), tr.NX-1), min(max(cz*64+iz, 0), tr.NZ-1)
+					if got, want := rd.f32(), tr.Heights[sz*tr.NX+sx]; got != want {
 						t.Fatalf("chunk %d_%d's height at (%d, %d) is %v; want %v", cx, cz, ix, iz, got, want)
 					}
 				}
