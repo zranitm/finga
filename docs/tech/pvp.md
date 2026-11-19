@@ -299,13 +299,13 @@ bots:
   - A behaviour tree library was considered and left out (section 18).
 - **What it sees:**
   - Its own state, now.
-  - The others as they were `reaction` ago, in ticks, read from a ring the instance keeps of the last `gamedata.BotMemory` (a second), for matches with bots. A tier's reaction must be under it. The ring holds:
+  - The others as they were `reaction` ago, in ticks, read from a ring the instance keeps of the last `gamedata.BotMemory` (a second) and the tick now, for matches with bots. A tier's reaction must be under it. The ring holds:
     - each tick's fighters: positions, HP, whether a hard status holds them, and their class's basic attack, which anyone can tell from their class;
-    - every attack and skill started, as the world showed it: the tick it showed, its hit, and its user's next blow, at its cancel point when it's cancelable, else its end. A blow's also has its shape, aim, lock, and any dash or leap toward the lock.
+    - every attack and skill started, as the world showed it: the tick it showed, its hit, and its user's next blow, at its cancel point when it's cancelable, else its end. A blow's also has its shape, aim, lock, and any dash or leap toward the lock. A basic attack has no lock, as `AttackUsed` shows none.
   - Never a player's keys, presses, cooldowns or energy.
 - **The rules, first first:**
   1. **Break free:** when hard-controlled with its break-free ready, it presses after `break_free`, at its tier's `defend` chance, rolled once for each hold. It presses from the break-free's root.
-  2. **Defend:** it guards against an enemy's action it has seen start:
+  2. **Defend:** it guards against an enemy's action it has seen start, unless it sees that enemy down or held, which ends the action:
      - **A delayed hit:** a blow whose shape will reach it at the hit time, by `model.Reached` at its predicted spot. A dash or leap toward the lock lands its blow from there. Few blows are delayed: a basic attack and most skills land as they start. The ones that don't are Lunge, Charge, Shadow Step and Meteor.
      - **The next blow:** with the enemy within its basic attack's reach, the blow that may follow their action, guessed at that action's cancel point when it's cancelable, else its end. A player who holds the blow past the guess, feints or cancels early gets through.
      - It presses the first of its dodges and blocks that's ready and runs over the guarded tick, at the `defend` chance, rolled once for each action, and guards each action once.
