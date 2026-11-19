@@ -141,6 +141,7 @@ var ownErrors = []struct {
 	{kernel.ErrPvpUnknownMode, PvpUnknownMode},
 	{kernel.ErrPvpPartyTooBig, PvpPartyTooBig},
 	{kernel.ErrPvpPartyNotReady, PvpPartyNotReady},
+	{kernel.ErrPvpPartyChanged, PvpPartyChanged},
 	{kernel.ErrChatEmpty, ChatEmpty},
 	{kernel.ErrChatTooLong, ChatTooLong},
 	{kernel.ErrBadChatChannel, BadChatChannel},

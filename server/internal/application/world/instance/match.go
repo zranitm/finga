@@ -422,7 +422,7 @@ func (i *Instance) endMatch(winner int) {
 	i.enterPhase(model.PhaseResult, mt.rules.Result)
 }
 
-// settleLeavers ends the match for the other side once a side has no one left on the map, and closes it with no outcome when it expected players and none came; a match of bots alone runs. True when it ended.
+// settleLeavers ends the match for the other side once a side has no one left on the map or every player of it has left, and closes it with no outcome when it expected players and none came; a match of bots alone runs. True when it ended.
 func (i *Instance) settleLeavers() bool {
 	mt := i.match
 	if mt.phase == model.PhaseResult {
@@ -438,14 +438,28 @@ func (i *Instance) settleLeavers() bool {
 	case mt.players && !i.someoneCame():
 		i.closeMatch() // nobody to rate: no outcome
 		return true
-	case gone[0]:
+	case gone[0] || i.allLeft(0):
 		i.endMatch(2)
 		return true
-	case gone[1]:
+	case gone[1] || i.allLeft(1):
 		i.endMatch(1)
 		return true
 	}
 	return false
+}
+
+// allLeft reports whether side s had players and every one has left: it concedes, as a 1v1 forfeit does, its stand-ins playing for nobody.
+func (i *Instance) allLeft(s int) bool {
+	had := false
+	for _, f := range i.match.fighters {
+		if f.side == s && f.bot == nil {
+			if !f.left {
+				return false
+			}
+			had = true
+		}
+	}
+	return had
 }
 
 // someoneCame reports whether any player came to the match.
@@ -458,11 +472,11 @@ func (i *Instance) someoneCame() bool {
 	return false
 }
 
-// standIn has a bot of the spec's stand-in tier take a team fighter's place the tick they leave before the outcome: their body as it stands, with their class, name, HP and energy, or a fresh one at their spot for one who never came; the tier's build for the class, as a bot plays from its order. Nothing outside a team mode or once decided.
+// standIn has a bot of the spec's stand-in tier take a team fighter's place the tick they leave before the outcome: their body as it stands, with their class, name, HP and energy, or a fresh one at their spot for one who never came, down if they were at 0 HP; the tier's build for the class, as a bot plays from its order. Nothing outside a team mode, once decided, or for a side's last player, whose side concedes.
 func (i *Instance) standIn(id kernel.CharacterID, body *player) {
 	mt := i.match
 	f := mt.fighters[id]
-	if mt.Mode.Team <= 1 || mt.phase == model.PhaseResult || f.bot != nil {
+	if mt.Mode.Team <= 1 || mt.phase == model.PhaseResult || f.bot != nil || i.allLeft(f.side) {
 		return
 	}
 	name, class := f.name, f.class
@@ -488,7 +502,10 @@ func (i *Instance) standIn(id kernel.CharacterID, body *player) {
 		st.VX, st.VY, st.VZ, st.Move, st.Held, st.Slow = 0, 0, 0, sim.Move{}, 0, sim.Slow{}
 		p.state, p.aim = st, body.aim
 		p.HP, p.Energy = min(body.HP, p.derived.MaxHP), body.Energy
-		if body.dead {
+		if body.dead || body.HP <= 0 {
+			if !body.dead {
+				f.downs++ // they fell this tick: the down is theirs
+			}
 			p.HP, p.dead, p.deadUntil = 0, true, math.MaxUint64
 		}
 		p.changed, p.moved = true, true

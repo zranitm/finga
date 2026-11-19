@@ -16,4 +16,5 @@ var errorTable = facade.Errors{
 	{Model: model.ErrNotLeader, Kernel: kernel.ErrNotPartyLeader},
 	{Model: model.ErrPartyTooBig, Kernel: kernel.ErrPvpPartyTooBig},
 	{Model: model.ErrPartyNotReady, Kernel: kernel.ErrPvpPartyNotReady},
+	{Model: model.ErrPartyChanged, Kernel: kernel.ErrPvpPartyChanged},
 }

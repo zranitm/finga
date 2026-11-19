@@ -149,6 +149,14 @@ func (s *Service) Queue(ctx context.Context, p model.Player, modeID string) erro
 			return asMember(k, err)
 		}
 	}
+	// A change in the checks above found no ticket to take out: read the party again where the next change will find one.
+	again, err := s.membersOf(ctx, p, mode)
+	if err != nil {
+		return err
+	}
+	if !sameSet(ids(again), ids(members)) {
+		return model.ErrPartyChanged
+	}
 	t := &ticket{members: members, mode: mode, joined: time.Now()}
 	for _, m := range members {
 		s.tickets[m.ID] = t
@@ -283,7 +291,12 @@ func (s *Service) Resync(ctx context.Context) {
 	for _, id := range check {
 		party, ok, err := s.d.Social.PartyOf(ctx, id)
 		if err != nil {
-			s.d.Logger.WarnContext(ctx, "a queued party wasn't looked at again", "character_id", id, "err", err)
+			s.d.Logger.WarnContext(ctx, "a queued party couldn't be looked at again: its ticket goes out", "character_id", id, "err", err)
+			s.mu.Lock()
+			if t := s.tickets[id]; t != nil {
+				s.out(t, UnqueuePartyChanged)
+			}
+			s.mu.Unlock()
 			continue
 		}
 		var members []kernel.CharacterID
@@ -294,6 +307,14 @@ func (s *Service) Resync(ctx context.Context) {
 		}
 		s.PartyChanged([]kernel.CharacterID{id}, members)
 	}
+}
+
+func ids(ms []member) []kernel.CharacterID {
+	out := make([]kernel.CharacterID, 0, len(ms))
+	for _, m := range ms {
+		out = append(out, m.ID)
+	}
+	return out
 }
 
 func sameSet(a, b []kernel.CharacterID) bool {

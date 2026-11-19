@@ -107,6 +107,7 @@ func TestEachKernelErrorReachesTheClientByName(t *testing.T) {
 		{kernel.ErrPvpUnknownMode, "PVP_UNKNOWN_MODE", none},
 		{kernel.ErrPvpPartyTooBig, "PVP_PARTY_TOO_BIG", none},
 		{kernel.ErrPvpPartyNotReady, "PVP_PARTY_NOT_READY", none},
+		{kernel.ErrPvpPartyChanged, "PVP_PARTY_CHANGED", none},
 		{kernel.ErrChatEmpty, "CHAT_EMPTY", none},
 		{kernel.ErrChatTooLong, "CHAT_TOO_LONG", none},
 		{kernel.ErrBadChatChannel, "BAD_CHAT_CHANNEL", none},

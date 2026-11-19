@@ -18,6 +18,7 @@ var (
 	ErrNotLeader     = errors.New("pvp: only the party's leader queues it")
 	ErrPartyTooBig   = errors.New("pvp: the party is larger than the mode allows")
 	ErrPartyNotReady = errors.New("pvp: a party member can't fight now, or is queued")
+	ErrPartyChanged  = errors.New("pvp: the party changed while it queued")
 )
 
 // Player is a character as they queue: the name is theirs in a match, which no bot there takes.

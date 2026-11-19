@@ -211,6 +211,51 @@ func TestAPartyChangeTakesItsTicketOut(t *testing.T) {
 		f.svc.Resync(ctx)
 		left(t, f, ps, service.UnqueuePartyChanged)
 	})
+	t.Run("a party that can't be looked at again", func(t *testing.T) {
+		f := newFixture(t)
+		ps := f.party(player("Ann", "warrior"), player("Bo", "warrior"))
+		if err := f.svc.Queue(ctx, ps[0], "team"); err != nil {
+			t.Fatal(err)
+		}
+		f.social.fail = errors.New("social is away")
+		f.svc.Resync(ctx)
+		left(t, f, ps, service.UnqueuePartyChanged)
+	})
+}
+
+// A party that changes while its ticket is checked, before it stands where a change finds it, is refused: nobody is queued, and a ticket never holds a member who left.
+func TestAPartyChangedWhileQueueingIsRefused(t *testing.T) {
+	ctx := context.Background()
+	for _, tt := range []struct {
+		name   string
+		change func(f fixture, ps []model.Player) []kernel.CharacterID // what the party is after it, and who it touched
+	}{
+		{"a member leaves", func(f fixture, ps []model.Player) []kernel.CharacterID {
+			f.social.parties[0].Members = ps[:2]
+			return []kernel.CharacterID{ps[2].ID}
+		}},
+		{"one joins", func(f fixture, ps []model.Player) []kernel.CharacterID {
+			f.social.parties[0].Members = append(slices.Clone(ps[:2]), player("Dee", "thief")) // Cy had left before; Dee joins
+			return idsOf(f.social.parties[0].Members)
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(t)
+			ps := f.party(player("Ann", "warrior"), player("Bo", "warrior"), player("Cy", "magician"))
+			if tt.name == "one joins" {
+				f.social.parties[0].Members = ps[:2]
+			}
+			f.social.after = func() { f.svc.PartyChanged(tt.change(f, ps), idsOf(f.social.parties[0].Members)) }
+			if err := f.svc.Queue(ctx, ps[0], "team"); !errors.Is(err, model.ErrPartyChanged) {
+				t.Fatalf("queueing as the party changed: %v, want ErrPartyChanged", err)
+			}
+			for _, p := range ps {
+				if f.queued(p.ID) {
+					t.Fatalf("%s is queued after a refused ticket", p.Name)
+				}
+			}
+		})
+	}
 }
 
 // Every member of a party accepts before its match opens.
@@ -393,7 +438,7 @@ func TestEachSidesBotsMatchItsPlayers(t *testing.T) {
 	})
 }
 
-// A leaver is rated as their side losing, and told so; their side, winning, is rated by the outcome.
+// A leaver is rated as their side losing, and told so; their side, winning, is rated by the outcome. A side that all left loses to the side that stayed.
 func TestALeaverLosesWhateverTheirSideDoes(t *testing.T) {
 	f := newFixture(t)
 	ann, bo, cy := kernel.NewCharacterID(), kernel.NewCharacterID(), kernel.NewCharacterID()
@@ -411,5 +456,16 @@ func TestALeaverLosesWhateverTheirSideDoes(t *testing.T) {
 	}
 	if e, _ := last[service.Ended](f.notes, ann); e.Outcome != service.Win {
 		t.Fatalf("Ann heard %+v; want a win", f.notes.of(ann))
+	}
+
+	// A side whose players all left concedes: the side that stayed wins, rated against the leavers.
+	f = newFixture(t)
+	r = model.Result{Match: kernel.NewMatchID(), Mode: "team", Winner: 2}
+	r.Sides[0] = []model.Outcome{{Character: ann, Left: true}, {Character: bo, Left: true}, {Tier: "novice"}}
+	r.Sides[1] = []model.Outcome{{Character: cy}, {Tier: "novice"}, {Tier: "novice"}}
+	f.svc.Record(context.Background(), r)
+	a, b, c = f.store.ratings[ann], f.store.ratings[bo], f.store.ratings[cy]
+	if a.Mu >= fresh || a.Losses != 1 || b.Mu >= fresh || b.Losses != 1 || c.Mu <= fresh || c.Wins != 1 {
+		t.Fatalf("Ann %+v, Bo %+v, Cy %+v; want the two who left down with a loss, Cy up with a win", a, b, c)
 	}
 }

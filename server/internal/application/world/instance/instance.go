@@ -96,6 +96,7 @@ type Instance struct {
 
 	dropped []kernel.CharacterID // removed during the last broadcast, reported next tick
 	events  []model.Event        // map-wide events of the current tick
+	later   []model.Event        // events raised after a tick's were sent, which open the next tick's
 	casts   []skillMsg           // this tick's skill uses, resolved after movement
 }
 
@@ -314,7 +315,8 @@ func (i *Instance) Wait(ctx context.Context, done <-chan struct{}) error {
 // Step runs one tick. Nothing here may block or touch the database.
 func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.tick = n
-	i.events = i.events[:0]
+	i.events = append(i.events[:0], i.later...)
+	i.later = i.later[:0]
 	i.ground.Begin(n)
 	removed := slices.Concat(i.dropped, i.drain(), i.stepMatch(), i.pendingMatches())
 	i.thinkBots()

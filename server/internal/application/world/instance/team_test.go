@@ -125,7 +125,7 @@ func TestSidesNotPartiesDecideWhoASkillReaches(t *testing.T) {
 	})
 }
 
-// A team fighter who leaves before the outcome, by forfeit, by logging out, or by never coming, has a bot of the match's stand-in tier take their body the tick they go: where it stands, with their class, name and HP, the tier's build for the class; the side plays on, the bot fights, a return finds the place taken, and the outcome lists the leaver in their slot as having left.
+// A team fighter who leaves before the outcome, by forfeit, by logging out, or by never coming, while one of their side stays, has a bot of the match's stand-in tier take their body the tick they go: where it stands, with their class, name and HP, the tier's build for the class; the side plays on, the bot fights, a return finds the place taken, and the outcome lists the leaver in their slot as having left.
 func TestATeamLeaverIsStoodInTheTickTheyGo(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -148,11 +148,11 @@ func TestATeamLeaverIsStoodInTheTickTheyGo(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				data := worldtest.LoadData(t)
 				results, moves := &worldtest.Results{}, &worldtest.Moves{}
-				ayla, robin := fighterFrom(t, data, "Ayla"), fighterFrom(t, data, "Robin")
-				spec := team([2][]model.Fighter{{{Character: ayla.ID}}, {{Character: robin.ID}}}, "expert")
+				ayla, bea, robin := fighterFrom(t, data, "Ayla"), fighterFrom(t, data, "Bea"), fighterFrom(t, data, "Robin")
+				spec := team([2][]model.Fighter{{{Character: ayla.ID}, {Character: bea.ID}}, {{Character: robin.ID}}}, "expert") // Bea stays, so her side plays on
 				inst, stop := worldtest.RunMatch(t, data, spec, nil, worldtest.Options{Results: results, Transfer: moves})
 				defer stop()
-				sinks := joinAll(t, inst, ayla, robin)
+				sinks := joinAll(t, inst, ayla, bea, robin)
 				sleep(data.Pvp().Rounds.Prep + data.Pvp().Rounds.Countdown + worldtest.TickInterval)
 				robinAt, _ := sinks[robin.ID].Own(robin.ID)
 				walkTo(inst, sinks[ayla.ID], ayla.ID, 0, robinAt.State.Z-1.2, 0.2)
@@ -191,7 +191,7 @@ func TestATeamLeaverIsStoodInTheTickTheyGo(t *testing.T) {
 					t.Fatalf("the stand-in %+v, want Ayla's warrior body where it stood, %+v", standIn, body)
 				}
 				st := worldtest.Of[model.MatchState](sinks[robin.ID])
-				if last := st[len(st)-1]; len(last.Sides[0]) != 1 || last.Sides[0][0].ID != standIn.ID || !last.Sides[0][0].Bot || len(results.All()) != 0 {
+				if last := st[len(st)-1]; len(last.Sides[0]) != 2 || last.Sides[0][0].ID != standIn.ID || !last.Sides[0][0].Bot || len(results.All()) != 0 {
 					t.Fatalf("the match %+v with outcomes %+v; want it going on, the bot in Ayla's place", last, results.All())
 				}
 				if err := inst.Join(context.Background(), ayla, &worldtest.Sink{}); !errors.Is(err, model.ErrNotInMatch) {
@@ -206,12 +206,89 @@ func TestATeamLeaverIsStoodInTheTickTheyGo(t *testing.T) {
 				}
 				sleep(10 * time.Minute)
 				got := results.All()
-				if len(got) != 1 || len(got[0].Sides[0]) != 1 || got[0].Sides[0][0].Character != ayla.ID || !got[0].Sides[0][0].Left {
+				if len(got) != 1 || len(got[0].Sides[0]) != 2 || got[0].Sides[0][0].Character != ayla.ID || !got[0].Sides[0][0].Left {
 					t.Fatalf("outcomes %+v, want Ayla in her slot, having left", got)
 				}
 			})
 		})
 	}
+}
+
+// A side whose players have all left concedes at once, as a 1v1 forfeit does: the other side wins, and its last leaver gets no stand-in. So a match whose one player leaves among bots ends then, no bots playing on for nobody.
+func TestASideWhoseFightersAllLeaveConcedes(t *testing.T) {
+	forfeit := func(t *testing.T, inst *instance.Instance, p model.Player) {
+		t.Helper()
+		if err := inst.Forfeit(context.Background(), p.ID, p.Connection); err != nil {
+			t.Fatal(err)
+		}
+		sleep(worldtest.TickInterval)
+	}
+	t.Run("the last of two", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			data := worldtest.LoadData(t)
+			results := &worldtest.Results{}
+			ayla, bea, robin := fighterFrom(t, data, "Ayla"), fighterFrom(t, data, "Bea"), fighterFrom(t, data, "Robin")
+			spec := team([2][]model.Fighter{{{Character: ayla.ID}, {Character: bea.ID}}, {{Character: robin.ID}}}, "novice")
+			inst, stop := worldtest.RunMatch(t, data, spec, nil, worldtest.Options{Results: results})
+			defer stop()
+			sinks := joinAll(t, inst, ayla, bea, robin)
+			sleep(data.Pvp().Rounds.Prep + data.Pvp().Rounds.Countdown + worldtest.TickInterval)
+			forfeit(t, inst, ayla)
+			if got := results.All(); len(got) != 0 {
+				t.Fatalf("outcomes %+v with Bea still in; want the match going on", got)
+			}
+			forfeit(t, inst, bea)
+			got := results.All()
+			if len(got) != 1 || got[0].Winner != 2 || !got[0].Sides[0][0].Left || got[0].Sides[0][1].Character != bea.ID || !got[0].Sides[0][1].Left {
+				t.Fatalf("outcomes %+v; want side 2 winning the tick Bea left, both listed as having left", got)
+			}
+			for _, st := range worldtest.Of[model.MatchState](sinks[robin.ID]) {
+				if st.Sides[0][1].ID != bea.ID {
+					t.Fatalf("side 1 %+v; want no stand-in for Bea, the last to leave", st.Sides[0])
+				}
+			}
+		})
+	})
+	t.Run("one player among bots", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			data := worldtest.LoadData(t)
+			results := &worldtest.Results{}
+			ayla := fighterFrom(t, data, "Ayla")
+			spec := team([2][]model.Fighter{
+				{{Character: ayla.ID}, {Bot: botOf(data, "Ash")}, {Bot: botOf(data, "Birch")}},
+				{{Bot: botOf(data, "Cedar")}, {Bot: botOf(data, "Elm")}, {Bot: botOf(data, "Fern")}},
+			}, "novice")
+			inst, stop := worldtest.RunMatch(t, data, spec, nil, worldtest.Options{Results: results})
+			defer stop()
+			joinAll(t, inst, ayla)
+			sleep(data.Pvp().Rounds.Prep + data.Pvp().Rounds.Countdown + worldtest.TickInterval)
+			forfeit(t, inst, ayla)
+			if got := results.All(); len(got) != 1 || got[0].Winner != 2 || got[0].Sides[0][0].Character != ayla.ID || !got[0].Sides[0][0].Left {
+				t.Fatalf("outcomes %+v; want the bots' side winning the tick Ayla left", got)
+			}
+		})
+	})
+}
+
+// A team fighter dropped for a full connection is stood in as one who logs out, and every player hears their side as it now stands, though the drop came as the tick's events were going out.
+func TestADroppedTeamFighterIsStoodInForEveryone(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		ayla, bea, robin := fighterFrom(t, data, "Ayla"), fighterFrom(t, data, "Bea"), fighterFrom(t, data, "Robin")
+		spec := team([2][]model.Fighter{{{Character: ayla.ID}, {Character: bea.ID}}, {{Character: robin.ID}}}, "novice")
+		inst, stop := worldtest.RunMatch(t, data, spec, nil, worldtest.Options{})
+		defer stop()
+		sinks := joinAll(t, inst, ayla, robin, bea) // Bea last: the others were sent the tick's events before she's dropped
+		sleep(data.Pvp().Rounds.Prep + data.Pvp().Rounds.Countdown + worldtest.TickInterval)
+		sinks[bea.ID].Refuse()
+		sleep(3 * worldtest.TickInterval)
+		for _, p := range []model.Player{ayla, robin} {
+			st := worldtest.Of[model.MatchState](sinks[p.ID])
+			if last := st[len(st)-1]; last.Sides[0][1].ID == bea.ID || !last.Sides[0][1].Bot {
+				t.Fatalf("%s's last side 1 %+v; want a bot in Bea's place", p.Name, last.Sides[0])
+			}
+		}
+	})
 }
 
 // A team fighter who never comes by prep's end is stood in at their spot at full HP, of the class their side has fewest of and a bot's name; the match runs, and they're listed as having left.

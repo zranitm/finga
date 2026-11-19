@@ -135,21 +135,31 @@ func last[T service.Delivery](n *notes, id kernel.CharacterID) (T, bool) {
 	return zero, false
 }
 
-// social is the parties as the queue sees them.
+// social is the parties as the queue sees them; after runs once, after the next read, and fail fails every read.
 type social struct {
 	mu      sync.Mutex
 	parties []model.Party
+	after   func()
+	fail    error
 }
 
 func (s *social) PartyOf(_ context.Context, id kernel.CharacterID) (model.Party, bool, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	var party model.Party
+	ok := false
 	for _, p := range s.parties {
 		if slices.ContainsFunc(p.Members, func(m model.Player) bool { return m.ID == id }) {
-			return p, true, nil
+			party, ok = p, true
+			break
 		}
 	}
-	return model.Party{}, false, nil
+	after, fail := s.after, s.fail
+	s.after = nil
+	s.mu.Unlock()
+	if after != nil {
+		after()
+	}
+	return party, ok, fail
 }
 
 // FollowParties is the module's to run; a test calls PartyChanged and Resync itself.

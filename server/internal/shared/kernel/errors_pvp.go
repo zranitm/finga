@@ -12,4 +12,5 @@ var (
 	ErrPvpUnknownMode   = NewRule("pvp_unknown_mode")
 	ErrPvpPartyTooBig   = NewRule("pvp_party_too_big")
 	ErrPvpPartyNotReady = NewRule("pvp_party_not_ready")
+	ErrPvpPartyChanged  = NewRule("pvp_party_changed")
 )
