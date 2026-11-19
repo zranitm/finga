@@ -579,8 +579,8 @@ func (s *Stack) InventoryTotals(t *testing.T, owner string) map[string]int {
 	return out
 }
 
-// Swapper gives the character a sword, then returns a loop that wears it and the starter club in turn through the item module for d, counting the swaps that answered.
-func (s *Stack) Swapper(t *testing.T, id string) func(d time.Duration) int {
+// Swapper gives the character a sword, then returns a loop that wears it and the starter club in turn through the item module until stop closes and a second past it, counting the swaps that answered.
+func (s *Stack) Swapper(t *testing.T, id string) func(stop <-chan struct{}) int {
 	t.Helper()
 	ctx := context.Background()
 	actor := s.Actor(t, id)
@@ -594,9 +594,15 @@ func (s *Stack) Swapper(t *testing.T, id string) func(d time.Duration) int {
 		t.Fatalf("weapons %v (%v), want the starter club and the sword", weapons, err)
 	}
 	ids := []kernel.ItemID{MustID(t, kernel.ParseItemID, weapons[0]), MustID(t, kernel.ParseItemID, weapons[1])}
-	return func(d time.Duration) int {
+	return func(stop <-chan struct{}) int {
 		n := 0
-		for k, end := 0, time.Now().Add(d); time.Now().Before(end); k++ {
+		end := time.Now().Add(time.Hour)
+		for k := 0; time.Now().Before(end); k++ {
+			select {
+			case <-stop:
+				end, stop = time.Now().Add(time.Second), nil
+			default:
+			}
 			callCtx, cancel := context.WithTimeout(ctx, time.Second)
 			_, err := s.Items.Equip(callCtx, actor, item.EquipRequest{Key: uuidv7.NewString(), ItemID: ids[k%2], Level: 1, Class: "warrior"})
 			cancel()

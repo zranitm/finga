@@ -14,7 +14,7 @@ import (
 // B9: a player teleports from the town to the forest and back, each landing at the map's player spawn no sooner than the channel allows, and the database keeps the last.
 func TestTeleportFromTheTownToTheForestAndBack(t *testing.T) {
 	t.Parallel()
-	s := newStack(t)
+	s := newStackOver(t, e2etest.GameData(t, e2etest.DataEdit{File: "world.yaml", Old: "channel: 3s", New: "channel: 1s"})) // twenty ticks still tell a landing before its channel ends
 	data, err := load.Dir(s.Data)
 	if err != nil {
 		t.Fatal(err)

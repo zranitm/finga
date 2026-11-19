@@ -19,6 +19,7 @@ import (
 	migrateapp "finga/cmd/migrate/app"
 	"finga/config"
 	"finga/internal/application/item"
+	"finga/internal/shared/gamedata"
 	"finga/internal/shared/host"
 	"finga/pkg/dbx"
 	"finga/pkg/pgtest"
@@ -54,6 +55,7 @@ type Stack struct {
 	Data  string       // the game data every module loads
 	Cfg   config.Config
 	build host.Build[config.Config] // cmd/finga's app, or a test's composition
+	host  *host.Host                // the game's, as last started
 	Stop  func()
 }
 
@@ -95,21 +97,32 @@ func NewStackBuilt(t *testing.T, data string, build host.Build[config.Config]) *
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	s.DB, s.Items = pool, ItemsOver(t, s.Cfg)
+	loaded, err := s.host.GameData() // loaded by the game's start: the item module shares it rather than reading it again
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.DB, s.Items = pool, itemsOn(t, s.Cfg, loaded)
 	return s
 }
 
 // ItemsOver is the item module on a host never run, over cfg's database: what a row asks of it goes through the module's rules, as a world's call does.
 func ItemsOver(t *testing.T, cfg config.Config) *item.Module {
 	t.Helper()
+	return itemsOn(t, cfg, nil)
+}
+
+// itemsOn is ItemsOver over game data already loaded from cfg's data directory, or loading it when data is nil.
+func itemsOn(t *testing.T, cfg config.Config, data *gamedata.Data) *item.Module {
+	t.Helper()
 	h, err := host.New(host.Options{Name: "items", Settings: host.Settings{DataDir: cfg.DataDir, Database: cfg.Database}, Logger: runnertest.NewLog().Logger(), Registry: prometheus.NewRegistry()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(h.Close)
-	data, err := h.GameData()
-	if err != nil {
-		t.Fatal(err)
+	if data == nil {
+		if data, err = h.GameData(); err != nil {
+			t.Fatal(err)
+		}
 	}
 	m, err := h.Module("item")
 	if err != nil {
@@ -150,6 +163,7 @@ func (s *Stack) start() {
 		h.Close()
 		s.T.Fatal(err)
 	}
+	s.host = h
 	p := runnertest.Start(s.T, log, h.Run, "http", "ops")
 	s.Stop = func() {
 		if err := p.Stop(); err != nil {

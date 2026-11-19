@@ -2,9 +2,13 @@
 package e2e_test
 
 import (
+	"flag"
 	"net/http"
 	"os"
 	"reflect"
+	"regexp"
+	"slices"
+	"strings"
 	"testing"
 
 	clientv1 "finga/api/gen/client/v1"
@@ -16,13 +20,30 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	flag.Parse()
 	var err error
 	if binDir, err = os.MkdirTemp("", "finga-e2e-bin"); err != nil {
 		panic(err)
 	}
+	prebuilt := !testing.Short() && runsProcessTests()
+	if prebuilt {
+		go func() { _, _ = buildOnce() }() // beside the first tests, not in a process test's slot
+	}
 	code := e2etest.Main(m)
+	if prebuilt {
+		_, _ = buildOnce() // done, unless no process test ran: then not left building into a removed directory
+	}
 	_ = os.RemoveAll(binDir)
 	os.Exit(code)
+}
+
+// processTests run the game as its own process, from the binary buildOnce makes; one missing here still builds it, in its own slot.
+var processTests = []string{"TestASigtermedGameSavesItsPlayers", "TestCrashDuringTakes"}
+
+// runsProcessTests reports whether -run takes in a process test, judged by its top-level part.
+func runsProcessTests() bool {
+	re, err := regexp.Compile(strings.SplitN(flag.Lookup("test.run").Value.String(), "/", 2)[0])
+	return err == nil && slices.ContainsFunc(processTests, re.MatchString)
 }
 
 func newStack(t *testing.T) *e2etest.Stack {

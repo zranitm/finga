@@ -282,7 +282,7 @@ func TestLootAndKeep(t *testing.T) {
 
 	t.Run("D1/a-full-tab-leaves-the-item-in-its-pouch-until-there-is-room-or-its-life-ends", func(t *testing.T) {
 		t.Parallel()
-		s := newStackOver(t, e2etest.GameData(t, append(e2etest.QuickSlimes(), slimesDrop(oneCap), e2etest.LootRules(1, "15s"))...))
+		s := newStackOver(t, e2etest.GameData(t, append(e2etest.QuickSlimes(), slimesDrop(oneCap), e2etest.LootRules(1, "8s"))...)) // a life that outlasts the first cap's take, and is short to sit out for the second
 		token, id := s.CreateCharacter(t, "sol", "Sol", "bowman")
 		s.Place(t, id, "forest", e2etest.SlimeField, 134, 0)
 		for range 24 {
@@ -317,7 +317,7 @@ func TestLootAndKeep(t *testing.T) {
 			t.Fatalf("gone %v, loot %v; want the cap taken once there was room", l.Gone, l.Loots)
 		}
 
-		// The tab is full again: the next cap stays in its pouch through its 15 s life, then is said left, never taken.
+		// The tab is full again: the next cap stays in its pouch through its 8 s life, then is said left, never taken.
 		next, ok := l.Hunt(30*time.Second, "leather_cap")
 		if !ok {
 			t.Fatal("no second cap in 30 s of hunting")
@@ -451,14 +451,33 @@ func TestCrashDuringTakes(t *testing.T) {
 	}
 	var wg sync.WaitGroup
 	took, swapped := make([]int, len(hunters)), make([]int, len(hunters))
+	killed := make(chan struct{})
+	before := make([]map[string]int, len(hunters))
 	for k, h := range hunters {
+		before[k] = s.InventoryTotals(t, h.ID)
 		swap := s.Swapper(t, h.ID)
-		wg.Go(func() { took[k] = h.Farm(10 * time.Second) })
-		wg.Go(func() { swapped[k] = swap(6 * time.Second) }) // on for a second past the kill
+		wg.Go(func() { took[k] = h.Farm(20 * time.Second) })
+		wg.Go(func() { swapped[k] = swap(killed) }) // on for a second past the kill
 	}
-	// Hard-kill the game while takes and swaps are in flight; the swaps go on through the item module beside it.
-	time.Sleep(5 * time.Second)
+	gained := func() int { // drops taken since the hunt began; the weapons only swap in and out
+		n := 0
+		for k, h := range hunters {
+			for template, held := range s.InventoryTotals(t, h.ID) {
+				if template != "wooden_club" && template != "wooden_sword" {
+					n += max(0, held-before[k][template])
+				}
+			}
+		}
+		return n
+	}
+	// Hard-kill the game once the hunters are taking in their stride, more takes on the way; the swaps go on through the item module beside it.
+	for deadline := time.Now().Add(15 * time.Second); gained() < 3; time.Sleep(100 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatalf("%d drops taken in 15 s, want 3 before the kill", gained())
+		}
+	}
 	game.kill()
+	close(killed)
 	wg.Wait()
 	t.Logf("inventory changes before the kill: %v; swaps: %v", took, swapped)
 	s.CheckInvariants(t)
