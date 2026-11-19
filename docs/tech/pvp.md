@@ -303,17 +303,21 @@ bots:
   - Its own state, now.
   - The others as they were `reaction` ago, in ticks, read from a ring the instance keeps of the last `gamedata.BotMemory` (a second) and the tick now, for matches with bots. A tier's reaction must be under it. The ring holds:
     - each tick's fighters: positions, HP, whether a hard status holds them, and their class's basic attack, which anyone can tell from their class;
-    - every attack and skill started, as the world showed it: the tick it showed, its hit, and its user's next blow, at its cancel point when it's cancelable, else its end. A blow's also has its shape, aim, lock, and any dash or leap toward the lock. A basic attack has no lock, as `AttackUsed` shows none.
+    - every attack and skill started, as the world showed it: the tick it showed, its hit, and its user's next blow. That's at a basic attack's end, and at a skill's cancel point when it's cancelable, else its end. A blow's also has its shape, aim, lock, and any dash or leap toward the lock. A basic attack has no lock, as `AttackUsed` shows none.
   - Never a player's keys, presses, cooldowns or energy.
 - **The rules, first first:**
   1. **Break free:** when hard-controlled with its break-free ready, it presses after `break_free`, at its tier's `defend` chance, rolled once for each hold. It presses from the break-free's root.
   2. **Defend:** it guards against an enemy's action it has seen start, unless it sees that enemy down or held, which ends the action:
      - **A delayed hit:** a blow whose shape will reach it at the hit time, by `model.Reached` at its predicted spot. A dash or leap toward the lock lands its blow from there. Few blows are delayed: a basic attack and most skills land as they start. The ones that don't are Lunge, Charge, Shadow Step and Meteor.
-     - **The next blow:** with the enemy within its basic attack's reach, the blow that may follow their action, guessed at that action's cancel point when it's cancelable, else its end. A player who holds the blow past the guess, feints or cancels early gets through.
+     - **The next blow:** with the enemy within its basic attack's reach at the guessed tick, the blow that may follow their action.
+       - After a basic attack, the bot expects the next swing at its end; cancelling early beats it. A skill cut in at the attack's cancel point lands before the guard.
+       - After a skill, it's guessed at the skill's cancel point when it's cancelable, else its end.
+       - A player who holds the blow past the guess, or feints, also gets through, the guard spent and cooling.
      - It presses the first of its dodges and blocks that's ready and runs over the guarded tick, at the `defend` chance, rolled once for each action, and guards each action once.
      - No guard comes sooner than its reaction after the action showed.
      - A block faces the attacker; a dodge's move goes away from them.
-     - A slow reaction can't beat a fast swing, which is the tiers' main difference. A basic attack's cancel point comes 250 ms (Warrior) or 150 ms (Thief) after it shows, the world counting whole ticks. So expert and master bots guard a Warrior's next blow, master bots alone a Thief's, and the rest guard neither.
+     - A slow reaction can't beat a fast action. A basic attack ends 650 ms (Thief) to 1,250 ms (Magician) after it shows, past every tier's reaction, so plain X spam is guarded at about the tier's `defend` chance while a guard is ready. A guess within its reaction is one a tier misses.
+     - If testers beat this with a fixed rhythm, the next step is a small jitter per tier on the guessed tick, not tracking habits.
   3. **Follow up:** when a key offers a chain's follow-up, by the same `holds` the world uses, it takes it at the `chain` chance, rolled once each time it's offered.
   4. **Objective** (15v15): it goes to its point while no enemy is within 10 m.
   5. **Fight:**
@@ -571,6 +575,7 @@ As built for 1v1 (build step 2):
   - **Capture:** rates, draining, contested points, score, respawn, the base's blocker and heal, and leavers replaced.
 - **Bots:**
   - Rules on fixed views: defending at the hit time, breaking free, taking a follow-up, keeping range, and team focus.
+  - The next blow through the ring, judged by ticks: plain X spam against an expert Thief parried at about its tier's chance; X cut into a skill at the cancel point landing through the guard; an X held back past the end landing while the guard cools.
   - A bot-against-bot match runs to its end, the same each time from one seed.
   - The tier choice.
 - **End to end** (`test/`, pgtest), judged by ticks, not the wall clock:
