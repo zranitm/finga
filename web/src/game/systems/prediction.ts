@@ -165,6 +165,8 @@ export class Predictor {
   private ack: { readonly seq: number; readonly tick: number } | null = null;
   /** The world's ticks the player is in combat, until the last exclusive, which it steps with no sprint. */
   private fight: { readonly from: number; readonly until: number } | null = null;
+  /** The world's ticks a match's count into a round holds the player still, until the last exclusive. */
+  private countdown: { readonly from: number; readonly until: number } | null = null;
 
   /** timing is the world's: its ticks, and the movement steps each holds; blockersAt is the mobs at a view, which block the player. */
   constructor(
@@ -253,6 +255,18 @@ export class Predictor {
     this.fight = null;
   }
 
+  /** The ticks a match's count into a round holds the player still, as the world sets each input's hold to the count's end at the tick it runs it (pvp.md section 13); what was predicted since replays as it will run there. Null for none. */
+  holdFor(ticks: { readonly from: number; readonly until: number } | null): void {
+    const c = this.countdown;
+    if (c?.from === ticks?.from && c?.until === ticks?.until) {
+      return;
+    }
+    this.countdown = ticks;
+    if (this.server) {
+      this.replayFrom(this.server.state, this.server.seq);
+    }
+  }
+
   /** Starts a skill's move from the first input past after, a break-free's ending the hold first; dropMark takes it back. */
   mark(after: number, start: Mark['start'], breaks = false): Mark {
     const m = { after, start, breaks };
@@ -300,7 +314,7 @@ export class Predictor {
       state: this.state,
     };
     this.currentG = this.at(this.current);
-    this.state = started(this.state, marked, this.currentG, this.p);
+    this.state = started(this.held(this.state, this.current), marked, this.currentG, this.p);
     this.current.state = this.state;
     this.history.push(this.current);
   }
@@ -339,6 +353,17 @@ export class Predictor {
     }
     const tick = this.ack.tick + e.seq - this.ack.seq;
     return tick >= f.from && tick < f.until ? fighting(e.p) : e.p;
+  }
+
+  /** s as the world holds it as it runs e: still at least till the count into a round ends, one tick an input on from the last ack. */
+  private held(s: State, e: Pick<TickEntry, 'seq'>): State {
+    const c = this.countdown;
+    if (!c || !this.ack) {
+      return s;
+    }
+    const tick = this.ack.tick + e.seq - this.ack.seq;
+    const held = (c.until - tick) * this.stepsPerTick;
+    return tick >= c.from && held > (s.held ?? 0) ? { ...s, held } : s;
   }
 
   /** The server tick, fraction and all, that the player drawn f of the way through the last step stands at: its input's tick, the world running one input a tick from the last ack; null before an ack. */
@@ -404,7 +429,7 @@ export class Predictor {
       }
       const g = this.at(e);
       const p = this.paceOf(e);
-      s = started(s, e.marks, g, e.p);
+      s = started(this.held(s, e), e.marks, g, e.p);
       for (let i = 0; i < e.steps; i++) {
         s = step(s, e.input, g, p);
       }

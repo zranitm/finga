@@ -37,6 +37,7 @@ const state = (phase: MatchPhase, round: number, wins: number[], endsInMs: numbe
           { fighters: [{ id: 'c-ayla', name: 'Ayla', class: 'warrior' }] },
         ],
       }),
+      0,
     ),
   );
 

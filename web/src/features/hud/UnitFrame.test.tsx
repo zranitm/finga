@@ -102,6 +102,7 @@ describe('PartyPanel', () => {
         .getState()
         .applyMatchState(
           create(MatchStateSchema, { match: 'mt-1', mode: 'duel', phase: MatchPhase.PREP }),
+          0,
         ),
     );
     expect(screen.queryByRole('group', { name: 'Party' })).not.toBeInTheDocument();
