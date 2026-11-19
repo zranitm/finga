@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"finga/config"
 	"finga/internal/application/item"
 	"finga/internal/shared/gamedata"
+	"finga/internal/shared/gamedata/load"
 	"finga/internal/shared/host"
 	"finga/pkg/dbx"
 	"finga/pkg/pgtest"
@@ -57,6 +59,19 @@ type Stack struct {
 	build host.Build[config.Config] // cmd/finga's app, or a test's composition
 	host  *host.Host                // the game's, as last started
 	Stop  func()
+
+	readOnce sync.Once // Data read for a walk, when the game runs as its own process
+	read     *gamedata.Data
+	readErr  error
+}
+
+// gameData is the data the game plays: its host's, or Data read once when the game runs as its own process.
+func (s *Stack) gameData() (*gamedata.Data, error) {
+	if s.host != nil {
+		return s.host.GameData()
+	}
+	s.readOnce.Do(func() { s.read, s.readErr = load.Dir(s.Data) })
+	return s.read, s.readErr
 }
 
 const grace = time.Second
