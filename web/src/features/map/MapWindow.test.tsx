@@ -269,7 +269,9 @@ describe('MapWindow', () => {
     expect(
       screen.getAllByRole('tab').map((t) => [t.textContent, t.getAttribute('aria-selected')]),
     ).toEqual([['This map', 'true']]);
-    act(() => pvp.getState().leftMatch());
+    act(() => {
+      pvp.getState().leftMatch();
+    });
     expect(screen.getByRole('tab', { name: 'World' })).toHaveAttribute('aria-selected', 'true'); // the tab chosen before
   });
 

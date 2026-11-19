@@ -289,7 +289,7 @@ describe('wiring', () => {
     ws.push('pvpQueued', { mode: 'duel' });
     ws.push('pvpUnqueued', { reason: PvpUnqueueReason.LEFT });
     ws.push('pvpQueued', { mode: 'duel' });
-    ws.push('pvpUnqueued', { reason: PvpUnqueueReason.LAPSED });
+    ws.push('pvpUnqueued', { reason: PvpUnqueueReason.LAPSED, by: ['c-ayla'] });
     ws.push('pvpQueued', { mode: 'duel' });
     ws.push('pvpUnqueued', { reason: PvpUnqueueReason.PARTY_CHANGED });
     expect(pvp.getState().queued).toBeNull();
@@ -305,6 +305,98 @@ describe('wiring', () => {
       .applyMatchEnded(create(MatchEndedSchema, { result: MatchOutcome.LOSS }), 'c-ayla');
     leaveCharacter();
     expect(pvp.getState().outcome).toBeNull();
+  });
+
+  it('a party taken out of the queue by one member’s answer names that member to the others; the player’s own answer says its own, or nothing for a decline', async () => {
+    const { ws } = await connectedSocket();
+    ws.push('partyState', {
+      party: {
+        leader: 'c-ayla',
+        members: [
+          { characterId: 'c-ayla', name: 'Ayla' },
+          { characterId: 'c-robin', name: 'Robin' },
+          { characterId: 'c-jade', name: 'Jade' },
+        ],
+      },
+    });
+    const out = (reason: PvpUnqueueReason, by: string[]) => {
+      toasts.getState().clear();
+      ws.push('pvpQueued', { mode: 'team', members: ['c-ayla', 'c-robin', 'c-jade'] });
+      ws.push('pvpUnqueued', { reason, by });
+      expect(pvp.getState().queued).toBeNull();
+      return toasts.getState().toasts.map((t) => t.text);
+    };
+    expect(out(PvpUnqueueReason.LAPSED, ['c-robin'])).toEqual([
+      'Robin didn’t answer the match offer, so your party left the queue.',
+    ]);
+    expect(out(PvpUnqueueReason.LAPSED, ['c-robin', 'c-jade'])).toEqual([
+      'Robin and Jade didn’t answer the match offer, so your party left the queue.',
+    ]);
+    expect(out(PvpUnqueueReason.LAPSED, ['c-ayla', 'c-robin'])).toEqual([
+      'You didn’t answer the match offer, so you left the queue.',
+    ]);
+    expect(out(PvpUnqueueReason.LAPSED, ['c-gone'])).toEqual([
+      'A party member didn’t answer the match offer, so your party left the queue.',
+    ]);
+    expect(out(PvpUnqueueReason.LAPSED, [])).toEqual([
+      'The match couldn’t open, so you left the queue.',
+    ]);
+    expect(out(PvpUnqueueReason.DECLINED, ['c-jade'])).toEqual([
+      'Jade declined the match, so your party left the queue.',
+    ]);
+    expect(out(PvpUnqueueReason.DECLINED, ['c-ayla'])).toEqual([]);
+  });
+
+  it('a team match’s leaver hears at once that it counts as a loss, and its end as a General line, never the card, even from inside another match; a duel’s forfeiter gets the card', async () => {
+    const { ws } = await connectedSocket();
+    const said = () => toasts.getState().toasts.map((t) => t.text);
+    const state = (match: string, mode: string, phase: MatchPhase) => ({
+      match,
+      mode,
+      phase,
+      round: 1,
+      endsInMs: 10_000,
+      sides: [
+        {
+          fighters: [
+            { id: 'c-ayla', name: 'Ayla' },
+            { id: 'c-robin', name: 'Robin' },
+          ],
+        },
+        {
+          fighters: [
+            { id: 'b-1', name: 'Ash', bot: true },
+            { id: 'b-2', name: 'Oak', bot: true },
+          ],
+        },
+      ],
+    });
+    const ended = { result: MatchOutcome.LOSS, wins: [2, 0], left: true };
+    const rating = { before: 1000, after: 968, rankBefore: 'bronze', rankAfter: 'bronze' };
+    ws.push('mapChange', { mapId: 'ring' });
+    ws.push('matchState', state('mt-1', 'team', MatchPhase.FIGHT));
+    ws.push('mapChange', { mapId: 'forest' });
+    expect(said()).toEqual([
+      'You left the match: it counts as a loss. Your rating updates when the match ends.',
+    ]);
+    ws.push('welcome', welcome); // a rejoin after is out already, and says nothing more
+    expect(said()).toHaveLength(1);
+    ws.push('matchState', state('mt-0', 'team', MatchPhase.PREP));
+    ws.push('welcome', welcome); // a drop and rejoin mid-match leaves it too
+    expect(said()).toHaveLength(2);
+    toasts.getState().clear();
+    ws.push('mapChange', { mapId: 'ring' });
+    ws.push('matchState', state('mt-2', 'duel', MatchPhase.FIGHT));
+    ws.push('matchEnded', { ...ended, mode: 'team', rating }); // mt-1's, minutes on
+    expect(chat.getState().lines).toMatchObject([
+      { kind: 'notice', text: 'Your 3v3 match ended: Defeat. Rating 1000 → 968 (−32).' },
+    ]);
+    expect([pvp.getState().match?.id, pvp.getState().outcome]).toEqual(['mt-2', null]);
+    ws.push('mapChange', { mapId: 'forest' }); // the duel's forfeit
+    expect(said()).toEqual([]);
+    ws.push('matchEnded', { ...ended, mode: 'duel', rating });
+    expect(pvp.getState().outcome).toMatchObject({ mode: 'duel', result: MatchOutcome.LOSS });
+    expect(chat.getState().lines).toHaveLength(1);
   });
 
   it('a Kicked frame sets the connection to kicked and returns to the login screen', async () => {

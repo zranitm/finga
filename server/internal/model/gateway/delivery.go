@@ -266,8 +266,11 @@ type PvpQueued struct {
 	Members []string
 }
 
-// PvpUnqueued says the player left the queue without a match.
-type PvpUnqueued struct{ Reason PvpUnqueueReason }
+// PvpUnqueued says the player left the queue without a match; By is the members whose answer took the ticket out.
+type PvpUnqueued struct {
+	Reason PvpUnqueueReason
+	By     []string
+}
 
 // PvpUnqueueReason is why.
 type PvpUnqueueReason int
@@ -305,9 +308,11 @@ const (
 
 // MatchEnded is a match's outcome for the player, with their rating's change in a rated mode.
 type MatchEnded struct {
+	Mode   string
 	Result MatchOutcome
 	Wins   [2]int
 	Rating *PvpRatingChange
+	Left   bool
 }
 
 // MatchOutcome is a match's end for the player's side.

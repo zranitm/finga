@@ -73,13 +73,17 @@ func pvpPush(d pvp.Delivery) (model.Push, bool) {
 		}
 		return model.PvpQueued{Mode: d.Mode, Since: d.Since, Members: members}, true
 	case pvp.Unqueued:
-		return model.PvpUnqueued{Reason: model.PvpUnqueueReason(d.Reason)}, true
+		by := make([]string, 0, len(d.By))
+		for _, id := range d.By {
+			by = append(by, id.String())
+		}
+		return model.PvpUnqueued{Reason: model.PvpUnqueueReason(d.Reason), By: by}, true
 	case pvp.Offered:
 		return model.PvpOffer{Offer: d.Offer, Mode: d.Mode, Bots: d.Bots, Until: d.Until}, true
 	case pvp.OfferGone:
 		return model.PvpOfferCancelled{Offer: d.Offer, Reason: model.PvpGoneReason(d.Reason), Requeued: d.Requeued}, true
 	case pvp.Ended:
-		e := model.MatchEnded{Result: model.MatchOutcome(d.Outcome), Wins: d.Wins}
+		e := model.MatchEnded{Mode: d.Mode, Result: model.MatchOutcome(d.Outcome), Wins: d.Wins, Left: d.Left}
 		if r := d.Rating; r != nil {
 			e.Rating = &model.PvpRatingChange{Before: r.Before, After: r.After, RankBefore: r.RankBefore, RankAfter: r.RankAfter, PlacementLeft: r.PlacementLeft}
 		}

@@ -319,3 +319,39 @@ func TestATeamFighterWhoNeverCameIsStoodIn(t *testing.T) {
 		}
 	})
 }
+
+// From the live 3v3: fighters arriving one by one each make everyone already in the ring hear the match again, the newcomer named, so no frame waits for the countdown to learn a name.
+func TestEachArrivalNamesTheNewcomerToEveryoneInTheRing(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		ayla, bea, robin := fighterFrom(t, data, "Ayla"), fighterFrom(t, data, "Bea"), fighterFrom(t, data, "Robin")
+		spec := team([2][]model.Fighter{{{Character: ayla.ID}, {Character: bea.ID}}, {{Character: robin.ID}}}, "novice")
+		inst, stop := worldtest.RunMatch(t, data, spec, nil, worldtest.Options{})
+		defer stop()
+		sinks := map[kernel.CharacterID]*worldtest.Sink{}
+		var here []string
+		for _, p := range []model.Player{ayla, bea, robin} {
+			sinks[p.ID] = &worldtest.Sink{}
+			if err := inst.Join(context.Background(), p, sinks[p.ID]); err != nil {
+				t.Fatal(err)
+			}
+			tick(1)
+			here = append(here, p.Name)
+			for _, q := range []model.Player{ayla, bea, robin}[:len(here)] {
+				st := worldtest.Of[model.MatchState](sinks[q.ID])
+				var named []string
+				for _, side := range st[len(st)-1].Sides {
+					for _, f := range side {
+						if f.Name != "" {
+							named = append(named, f.Name)
+						}
+					}
+				}
+				slices.Sort(named)
+				if want := slices.Sorted(slices.Values(here)); st[len(st)-1].Phase != model.PhasePrep || !slices.Equal(named, want) {
+					t.Fatalf("after %s came, %s's latest state %+v names %v, want %v in prep", p.Name, q.Name, st[len(st)-1], named, want)
+				}
+			}
+		}
+	})
+}

@@ -51,7 +51,7 @@ var matchOutcomes = map[model.MatchOutcome]clientv1.MatchOutcome{
 }
 
 func matchEnded(e model.MatchEnded) *clientv1.MatchEnded {
-	out := &clientv1.MatchEnded{Result: matchOutcomes[e.Result], Wins: []int32{int32(e.Wins[0]), int32(e.Wins[1])}} //nolint:gosec // a few rounds
+	out := &clientv1.MatchEnded{Mode: e.Mode, Result: matchOutcomes[e.Result], Wins: []int32{int32(e.Wins[0]), int32(e.Wins[1])}, Left: e.Left} //nolint:gosec // a few rounds
 	if r := e.Rating; r != nil {
 		out.Rating = &clientv1.PvpRatingChange{Before: int32(r.Before), After: int32(r.After), RankBefore: r.RankBefore, RankAfter: r.RankAfter, PlacementLeft: int32(r.PlacementLeft)} //nolint:gosec // ratings fit
 	}

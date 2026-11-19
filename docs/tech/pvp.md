@@ -278,11 +278,12 @@ bots:
   - **Tier and build:**
     - The tier is the spec's `StandIn`, which pvp gives: the one nearest the mean `mu − σ` of all the match's players.
     - The build is that tier's build for the class, chosen from the leaver's id. A bot plays from its build's `order`, and a player's bar has none, so the leaver's bar isn't kept.
-  - **Its place:** the bot takes the leaver's slot on their side, so rounds, resets, `MatchState.sides` and the bots' ring see the body. `MatchState` goes out again, with the slot now the bot's id and `bot` set.
+  - **Its place:** the bot takes the leaver's slot on their side, so rounds, resets, `MatchState.sides` and the bots' ring see the body. `MatchState` goes out again, with the slot now the bot's id and `bot` set: the stand-in's arrival sends it, as any fighter's does.
   - **The outcome:** it still lists the leaver in their slot, with `left` set and their own downs, never the bot. pvp rates the leaver as losing, and the side by the result, with the stand-in counted at the leaver's mu (section 10).
   - **No way back:** a leaver who reconnects mid-match lands on their world map, not in the match. The place stays the bot's to the end.
   - **When no player came at all,** the match still closes with no outcome, and no stand-ins are made.
   - **A side's last player** gets no stand-in: their side concedes (section 10).
+- **Arrivals, as built after the 3v3 playtest:** each fighter's arrival sends `MatchState` to everyone in the ring, not only to the one arriving. A state names only fighters who have arrived, so without it the first in saw blank frames until the countdown's state, 10 s on.
 
 ### Points: 15v15
 
@@ -412,6 +413,7 @@ bots:
   - **Offers:**
     - Each member hears the offer. It opens once every character, not every ticket, has accepted.
     - One member's decline or lapse takes the whole ticket out, and the others go back as before.
+    - Every member hears `PvpUnqueued` with `by`: the member who declined, or those who let it lapse. So a member who accepted is told it was someone else (section 13).
     - One member's `PvpLeaveQueue` or going offline takes the whole ticket out too.
   - **A party change:**
     - pvp follows the social module's membership changes under a subscriber of its own.
@@ -487,11 +489,11 @@ bots:
 | `PvpForfeit{}` | client | Leave the match as a loss |
 | `Attack.target`, `UseSkill.target` | client | Become refs, `"m:<id>"` or `"p:<id>"` |
 | `PvpQueued{mode, since_ms, members}` | server | In the queue; sent on joining and to each party member |
-| `PvpUnqueued{reason}` | server | Out of the queue: left, declined, lapsed, party changed |
+| `PvpUnqueued{reason, by}` | server | Out of the queue: left, declined, lapsed, party changed; `by` names the ticket's members whose answer took it out |
 | `PvpOffer{offer, mode, bots, until_ms}` | server | A match found |
 | `PvpOfferGone{reason, requeued}` | server | Someone declined or it lapsed; `requeued` says whether this player is back in the queue |
 | `MatchState{match, mode, phase, round, wins, ends_in_ms, sides, score, points}` | server | On entry and at each change; `sides` lists each fighter's id, name, class and `bot`; `points` each point's holder, progress and whether contested |
-| `MatchEnded{result, wins, score, rating}` | server | The outcome; `rating` has the mode's shown rating and rank before and after, and placement matches left |
+| `MatchEnded{result, wins, score, rating, mode, left}` | server | The outcome; `rating` has the mode's shown rating and rank before and after, and placement matches left; `left` is set for a player who left before the outcome |
 | `PlayerView.team`, `PlayerView.bot` | server | The side, 0 outside a match, and the bot flag |
 | `SkillUsed.target` | server | Becomes a ref |
 | `StatsChanged.timers` | server | Set when it replaces every cooldown and buff the client holds: into a match, at each round's reset, and back out |
@@ -590,6 +592,18 @@ As built for 3v3 (build step 5, the client):
   - **Enemies** show in a team mode under the match bar: one row of compact frames, wrapping before it reaches the corner's frames. The bar then leaves their names to the frames; in 1v1 it still names the enemy.
   - A mode the client doesn't know has no rounds, so the party frames stay the party, as they will in 15v15.
 - **Party members:** the queue tag and the offer card say who is queued with the player ("with Robin and Jade"), from `PvpQueued`'s members, named as their party names them.
+
+As built after the 3v3 playtest:
+
+- **Party notices:** a ticket taken out by another member's answer names them from `PvpUnqueued.by`, as their party names them:
+  - "Robin didn't answer the match offer, so your party left the queue."
+  - "Jade declined the match, so your party left the queue."
+  - The player's own lapse still says "You didn't answer the match offer, so you left the queue." Their own decline says nothing.
+  - A member the party doesn't name is "A party member". A lapse naming no one is a match the world couldn't open: "The match couldn't open, so you left the queue."
+- **A team match's leaver:**
+  - Leaving a match under way, by Leave match or by a rejoin after a drop, says at once: "You left the match: it counts as a loss. Your rating updates when the match ends."
+  - Its end comes as a General line, never the result card: "Your 3v3 match ended: Defeat. Rating 1000 → 968 (−32)." The card is for those the match ended with. The leaver may be anywhere by then, even in another match, so the line is drawn from `MatchEnded`'s own `mode` and `left`, not from the match the store holds.
+  - A 1v1 forfeit ends the match at once, so its forfeiter still gets the card.
 
 ## 14. Balance
 

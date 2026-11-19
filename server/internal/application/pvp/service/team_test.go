@@ -279,6 +279,42 @@ func TestEveryMemberAccepts(t *testing.T) {
 	})
 }
 
+// From the live 3v3: a party's ticket out over one member's answer names that member to every member, so those who accepted can be told it was someone else's doing.
+func TestAPartyOutOverOneMembersAnswerNamesThem(t *testing.T) {
+	for _, declines := range []bool{true, false} {
+		t.Run(map[bool]string{true: "declined", false: "lapsed"}[declines], func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				f := newFixture(t)
+				f.run(t)
+				ctx := context.Background()
+				ps := f.party(player("Ann", "warrior"), player("Bo", "magician"), player("Cy", "bowman"))
+				if err := f.svc.Queue(ctx, ps[0], "team"); err != nil {
+					t.Fatal(err)
+				}
+				wait(f.data.Pvp().Queue.BotsAfter)
+				offer, _ := last[service.Offered](f.notes, ps[0].ID)
+				if err := f.svc.Answer(ctx, ps[0].ID, offer.Offer, true); err != nil {
+					t.Fatal(err)
+				}
+				want := service.Unqueued{Reason: service.UnqueueLapsed, By: []kernel.CharacterID{ps[1].ID, ps[2].ID}}
+				if declines {
+					if err := f.svc.Answer(ctx, ps[1].ID, offer.Offer, false); err != nil {
+						t.Fatal(err)
+					}
+					want = service.Unqueued{Reason: service.UnqueueDeclined, By: []kernel.CharacterID{ps[1].ID}}
+				} else {
+					wait(f.data.Pvp().Queue.Offer)
+				}
+				for _, p := range ps {
+					if u, ok := last[service.Unqueued](f.notes, p.ID); !ok || u.Reason != want.Reason || !slices.Equal(u.By, want.By) {
+						t.Fatalf("%s heard %+v, want %+v", p.Name, f.notes.of(p.ID), want)
+					}
+				}
+			})
+		})
+	}
+}
+
 // sideOf is which side of spec holds id, or -1.
 func sideOf(spec model.Spec, id kernel.CharacterID) int {
 	for k, side := range spec.Sides {
@@ -451,11 +487,11 @@ func TestALeaverLosesWhateverTheirSideDoes(t *testing.T) {
 	if a.Mu <= fresh || a.Wins != 1 || b.Mu >= fresh || b.Losses != 1 || c.Mu >= fresh || c.Losses != 1 {
 		t.Fatalf("Ann %+v, Bo %+v, Cy %+v; want Ann up with a win, Bo who left down with a loss, Cy down", a, b, c)
 	}
-	if e, ok := last[service.Ended](f.notes, bo); !ok || e.Outcome != service.Loss {
-		t.Fatalf("Bo heard %+v; want a loss", f.notes.of(bo))
+	if e, ok := last[service.Ended](f.notes, bo); !ok || e.Outcome != service.Loss || !e.Left || e.Mode != "team" {
+		t.Fatalf("Bo heard %+v; want a loss in team, told he left", f.notes.of(bo))
 	}
-	if e, _ := last[service.Ended](f.notes, ann); e.Outcome != service.Win {
-		t.Fatalf("Ann heard %+v; want a win", f.notes.of(ann))
+	if e, _ := last[service.Ended](f.notes, ann); e.Outcome != service.Win || e.Left || e.Mode != "team" {
+		t.Fatalf("Ann heard %+v; want a win in team, not told she left", f.notes.of(ann))
 	}
 
 	// A side whose players all left concedes: the side that stayed wins, rated against the leavers.

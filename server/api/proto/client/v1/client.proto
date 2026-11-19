@@ -1137,6 +1137,8 @@ message PvpQueued {
 // PvpUnqueued says the player's ticket left the queue without a match.
 message PvpUnqueued {
   PvpUnqueueReason reason = 1;
+  // The ticket's members whose answer took it out: the one who declined, or those who let the offer lapse; empty for any other reason.
+  repeated string by = 2;
 }
 
 enum PvpUnqueueReason {
@@ -1240,6 +1242,10 @@ message MatchEnded {
   repeated int32 score = 3;
   // The rated mode's rating change; unset for 15v15, or when the match had no result to rate.
   PvpRatingChange rating = 4;
+  // The match's mode, as PvpQueue names it.
+  string mode = 5;
+  // The player left before the outcome, so lost whatever their side did; in a team mode the match ran on without them.
+  bool left = 6;
 }
 
 enum MatchOutcome {

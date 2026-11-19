@@ -18,8 +18,11 @@ type Queued struct {
 	Members []kernel.CharacterID
 }
 
-// Unqueued says the player is out of the queue, and why.
-type Unqueued struct{ Reason UnqueueReason }
+// Unqueued says the player is out of the queue, and why: By is the members whose answer took the ticket out, the one who declined or those who let the offer lapse.
+type Unqueued struct {
+	Reason UnqueueReason
+	By     []kernel.CharacterID
+}
 
 // UnqueueReason is why a player left the queue.
 type UnqueueReason int
@@ -58,9 +61,11 @@ const (
 
 // Ended is a match's outcome for one of its players, with their rating's change in a rated mode.
 type Ended struct {
+	Mode    string
 	Outcome Outcome
 	Wins    [2]int
 	Rating  *RatingChange
+	Left    bool // the player left before the outcome, so lost whatever their side did
 }
 
 // Outcome is a match's end for a side.

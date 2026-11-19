@@ -253,9 +253,12 @@ func (i *Instance) joinMatch(j *joinMsg) bool {
 	return true
 }
 
-// welcome tells an arrived fighter the match and replaces their sheet and timers with the kit's.
+// welcome tells an arrived fighter the match and replaces their sheet and timers with the kit's; those already here hear the match again, as only an arrival names its fighter.
 func (i *Instance) welcome(p *player) {
-	p.private = append(p.private, i.matchState())
+	st := i.matchState()
+	for _, q := range i.players {
+		q.private = append(q.private, st)
+	}
 	i.retime(p)
 }
 
@@ -470,7 +473,7 @@ func (i *Instance) someoneCame() bool {
 	return false
 }
 
-// standIn has a bot of the spec's stand-in tier take a team fighter's place the tick they leave before the outcome: their body as it stands, with their class, name, HP and energy, or a fresh one at their spot for one who never came, down if they were at 0 HP; the tier's build for the class, as a bot plays from its order. Nothing outside a team mode, once decided, or for a side's last player, whose side concedes.
+// standIn has a bot of the spec's stand-in tier take a team fighter's place the tick they leave before the outcome: their body as it stands, with their class, name, HP and energy, or a fresh one at their spot for one who never came, down if they were at 0 HP; the tier's build for the class, as a bot plays from its order. Its arrival tells everyone the match with the slot now the bot's. Nothing outside a team mode, once decided, or for a side's last player, whose side concedes.
 func (i *Instance) standIn(id kernel.CharacterID, body *player) {
 	mt := i.match
 	f := mt.fighters[id]
@@ -508,7 +511,6 @@ func (i *Instance) standIn(id kernel.CharacterID, body *player) {
 		}
 		p.changed, p.moved = true, true
 	}
-	i.events = append(i.events, i.matchState())
 }
 
 // freeName is the first bot name no fighter in the match has.

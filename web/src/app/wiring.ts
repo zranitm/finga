@@ -1,4 +1,6 @@
 // The single place net and state meet.
+import { membersNamed } from '@/features/pvp/mates';
+import { leaverLine } from '@/features/pvp/outcome';
 import { itemName, starMarks, starsOf } from '@/features/shared/items';
 import { article } from '@/features/shared/words';
 import { RequestError } from '@/net/socket';
@@ -27,7 +29,7 @@ import { fieldBoss } from '@/state/field-boss';
 import { inventory } from '@/state/inventory';
 import { party } from '@/state/party';
 import { pouches } from '@/state/pouches';
-import { pvp } from '@/state/pvp';
+import { pvp, runsOn } from '@/state/pvp';
 import { outdates, questPlayer, quests } from '@/state/quests';
 import { session } from '@/state/session';
 import { settings } from '@/state/settings';
@@ -44,11 +46,37 @@ const CANCELLED: Partial<Record<TeleportCancelReason, string>> = {
   [TeleportCancelReason.HIT]: 'you were hit',
 };
 
-/** Why the queue let the player go, as its notice says it; leaving or declining is their own doing, and says nothing. */
-const UNQUEUED: Partial<Record<PvpUnqueueReason, string>> = {
-  [PvpUnqueueReason.LAPSED]: 'You didn’t answer the match offer, so you left the queue.',
-  [PvpUnqueueReason.PARTY_CHANGED]: 'Your party changed, so it left the queue.',
-};
+/** Why the queue let the player go, as its notice says it: leaving or declining is their own doing, and says nothing; a party member's answer names them; a lapse no one caused is a match that couldn't open. */
+function unqueued(d: Data<'pvpUnqueued'>): string | null {
+  const me = character.getState().character?.id ?? '';
+  const others = d.by.filter((id) => id !== me);
+  switch (d.reason) {
+    case PvpUnqueueReason.PARTY_CHANGED:
+      return 'Your party changed, so it left the queue.';
+    case PvpUnqueueReason.LAPSED:
+      if (d.by.includes(me)) {
+        return 'You didn’t answer the match offer, so you left the queue.';
+      }
+      return others.length > 0
+        ? `${membersNamed(others)} didn’t answer the match offer, so your party left the queue.`
+        : 'The match couldn’t open, so you left the queue.';
+    case PvpUnqueueReason.DECLINED:
+      return others.length > 0
+        ? `${membersNamed(others)} declined the match, so your party left the queue.`
+        : null;
+    default:
+      return null;
+  }
+}
+
+const QUIT = 'You left the match: it counts as a loss. Your rating updates when the match ends.';
+
+/** The player is out of the match's map: one who left it under way, in a match that runs on, hears at once what it costs them. */
+function leaveMatch(): void {
+  if (pvp.getState().leftMatch()) {
+    toasts.getState().push(QUIT, 'info');
+  }
+}
 
 /** Why a match offer the player accepted fell through. */
 const FELL_THROUGH: Partial<Record<PvpOfferGoneReason, string>> = {
@@ -87,7 +115,7 @@ export function wireSocket(socket: GameSocket): () => void {
       quests.getState().applyWelcome(m.d);
       ui.getState().closeWindow('npc');
       pvp.getState().applyUnqueued(); // a join is out of any match; the queue sends its ticket again
-      pvp.getState().leftMatch();
+      leaveMatch();
       restoreSkillTimers(
         m.d.skillTimers,
         m.d.character?.sheet,
@@ -202,7 +230,7 @@ export function wireSocket(socket: GameSocket): () => void {
       combat.getState().clear();
       pouches.getState().clear(); // the new map's Snapshot brings its own
       if (!isMatchMap(m.d.mapId)) {
-        pvp.getState().leftMatch();
+        leaveMatch();
       }
     }),
     socket.on('pvpQueued', (m) => {
@@ -210,7 +238,7 @@ export function wireSocket(socket: GameSocket): () => void {
     }),
     socket.on('pvpUnqueued', (m) => {
       pvp.getState().applyUnqueued();
-      const why = UNQUEUED[m.d.reason];
+      const why = unqueued(m.d);
       if (why) {
         toasts.getState().push(why, 'info');
       }
@@ -229,6 +257,10 @@ export function wireSocket(socket: GameSocket): () => void {
       pvp.getState().applyMatchState(m.d, m.tick);
     }),
     socket.on('matchEnded', (m) => {
+      if (m.d.left && runsOn(m.d.mode)) {
+        chat.getState().notice(leaverLine(m.d)); // the card is for those it ended with; a leaver may be anywhere by now
+        return;
+      }
       pvp.getState().applyMatchEnded(m.d, character.getState().character?.id ?? '');
     }),
     socket.on('damage', (m) => {

@@ -78,10 +78,15 @@ export interface PvpState {
   /** The match's state, sent at the world's tick: in it, the player has left the queue and its offer. */
   applyMatchState(d: Data<'matchState'>, tick: number): void;
   applyMatchEnded(d: Data<'matchEnded'>, me: string): void;
-  /** The player was moved out of the match's map. */
-  leftMatch(): void;
+  /** The player was moved out of the match's map; true when they left it under way and it runs on without them, so its end comes as a line, not the card. */
+  leftMatch(): boolean;
   dismissOutcome(): void;
   clear(): void;
+}
+
+/** Whether a match of mode runs on without a fighter who leaves, a bot in their place, as a team mode's does; a 1v1 ends with them. */
+export function runsOn(mode: string): boolean {
+  return (pvpData.modes.find((m) => m.id === mode)?.team ?? 1) > 1;
 }
 
 /** Which side, 1 or 2, the player fights on in match, 0 for neither. */
@@ -163,7 +168,13 @@ export const pvp = defineStore<PvpState>((set, get) => ({
     });
   },
   leftMatch: () => {
-    set({ match: null, left: get().match ?? get().left });
+    const m = get().match;
+    if (!m) {
+      return false;
+    }
+    const quit = m.phase !== MatchPhase.RESULT && runsOn(m.mode);
+    set({ match: null, left: quit ? null : m });
+    return quit;
   },
   dismissOutcome: () => {
     set({ outcome: null, left: null });

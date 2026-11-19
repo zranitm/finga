@@ -104,7 +104,18 @@ func (o *offer) bots() int { return 2*o.mode.Team - o.players() }
 
 // accepted reports whether every member of t said yes.
 func (o *offer) accepted(t *ticket) bool {
-	return !slices.ContainsFunc(t.members, func(m member) bool { return !o.yes[m.ID] })
+	return len(o.silent(t)) == 0
+}
+
+// silent is t's members who haven't accepted o.
+func (o *offer) silent(t *ticket) []kernel.CharacterID {
+	var out []kernel.CharacterID
+	for _, m := range t.members {
+		if !o.yes[m.ID] {
+			out = append(out, m.ID)
+		}
+	}
+	return out
 }
 
 func players(ts []*ticket) int {
@@ -374,7 +385,7 @@ func (s *Service) Answer(ctx context.Context, who kernel.CharacterID, offerID st
 	if err != nil || !accept {
 		if err == nil {
 			s.fail(o, GoneDeclined, func(o *ticket) bool { return o == t })
-			s.tell(t, Unqueued{Reason: UnqueueDeclined})
+			s.tell(t, Unqueued{Reason: UnqueueDeclined, By: []kernel.CharacterID{who}})
 		}
 		s.mu.Unlock()
 		return err
@@ -461,7 +472,7 @@ func (s *Service) step(now time.Time) {
 			continue
 		}
 		for _, t := range s.fail(o, GoneLapsed, func(t *ticket) bool { return !o.accepted(t) }) {
-			s.tell(t, Unqueued{Reason: UnqueueLapsed})
+			s.tell(t, Unqueued{Reason: UnqueueLapsed, By: o.silent(t)})
 		}
 	}
 	byMode := map[string][]*ticket{}
@@ -733,7 +744,7 @@ func (s *Service) Record(ctx context.Context, r model.Result) {
 	for side, fs := range r.Sides {
 		for _, f := range fs {
 			if !f.Character.IsZero() {
-				s.d.Notifier.Push(f.Character, Ended{Outcome: outcomeFor(f, r.Winner, side+1), Wins: r.Wins, Rating: changes[f.Character]})
+				s.d.Notifier.Push(f.Character, Ended{Mode: r.Mode, Outcome: outcomeFor(f, r.Winner, side+1), Wins: r.Wins, Rating: changes[f.Character], Left: f.Left})
 			}
 		}
 	}

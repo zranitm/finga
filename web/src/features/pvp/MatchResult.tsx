@@ -5,13 +5,7 @@ import { pvp } from '@/state/pvp';
 import type { RatingChange } from '@/state/pvp';
 
 import { modeName } from './modes';
-
-const TITLE: Readonly<Record<MatchOutcome, string>> = {
-  [MatchOutcome.UNSPECIFIED]: 'Match over',
-  [MatchOutcome.WIN]: 'Victory',
-  [MatchOutcome.LOSS]: 'Defeat',
-  [MatchOutcome.DRAW]: 'Draw',
-};
+import { outcomeTitle, ratingMoved, ratingNote } from './outcome';
 
 export function MatchResult() {
   const outcome = pvp.use((s) => s.outcome);
@@ -23,7 +17,7 @@ export function MatchResult() {
     <div className="match-result" role="dialog" aria-label="Match result">
       <span className="muted">{modeName(outcome.mode)}</span>
       <strong className={`match-result-title result-${MatchOutcome[outcome.result].toLowerCase()}`}>
-        {TITLE[outcome.result]}
+        {outcomeTitle(outcome.result)}
       </strong>
       <span>
         Rounds {mine} – {theirs}
@@ -35,24 +29,11 @@ export function MatchResult() {
 }
 
 function Rating({ change: r }: { readonly change: RatingChange }) {
-  const delta = r.after - r.before;
+  const note = ratingNote(r);
   return (
     <>
-      <span>
-        Rating {r.before} → {r.after} ({delta >= 0 ? `+${delta}` : `−${-delta}`})
-      </span>
-      {r.placementLeft > 0 ? (
-        <span className="muted">
-          {r.placementLeft} placement {r.placementLeft === 1 ? 'match' : 'matches'} left
-        </span>
-      ) : (
-        r.rankAfter !== r.rankBefore && <span>New rank: {rankName(r.rankAfter)}</span>
-      )}
+      <span>{ratingMoved(r)}</span>
+      {note && <span className={r.placementLeft > 0 ? 'muted' : undefined}>{note}</span>}
     </>
   );
-}
-
-/** A rank id as a name: silver is Silver. */
-function rankName(id: string): string {
-  return id.charAt(0).toUpperCase() + id.slice(1);
 }

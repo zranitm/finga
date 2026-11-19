@@ -1,17 +1,19 @@
 {
   "tick": 2810,
   "match_ended": {
-    "result": "MATCH_OUTCOME_WIN",
+    "result": "MATCH_OUTCOME_LOSS",
     "wins": [
       2,
       1
     ],
     "rating": {
       "before": 1000,
-      "after": 1046,
+      "after": 968,
       "rank_before": "bronze",
       "rank_after": "bronze",
       "placement_left": 4
-    }
+    },
+    "mode": "team",
+    "left": true
   }
 }

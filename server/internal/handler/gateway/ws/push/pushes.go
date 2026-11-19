@@ -57,7 +57,7 @@ func (o *Outbox) body(p model.Push) any {
 	case model.PvpQueued:
 		return &clientv1.PvpQueued{Mode: p.Mode, SinceMs: uint32(p.Since.Milliseconds()), Members: p.Members} //nolint:gosec // a wait of minutes
 	case model.PvpUnqueued:
-		return &clientv1.PvpUnqueued{Reason: unqueueReasons[p.Reason]}
+		return &clientv1.PvpUnqueued{Reason: unqueueReasons[p.Reason], By: p.By}
 	case model.PvpOffer:
 		return &clientv1.PvpOffer{Offer: p.Offer, Mode: p.Mode, Bots: int32(p.Bots), UntilMs: uint32(p.Until.Milliseconds())} //nolint:gosec // a few bots, seconds
 	case model.PvpOfferCancelled:
