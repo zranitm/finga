@@ -1,5 +1,6 @@
 // Each body's look (3d-world.md section 11): a class's, mob's or NPC's model from its look key, its tint on one part.
 import { classes } from '@/gamedata/classes';
+import { mobs } from '@/gamedata/mobs';
 import { movement } from '@/gamedata/movement';
 import { outfits } from '@/gamedata/outfits';
 import { mobById } from '@/progression/mobs';
@@ -48,30 +49,39 @@ export function drawnAs(cls: string, look: LookWire | undefined): string {
   return shown.every((s) => s === '') ? cls : `${cls} ${shown.join('|')}`;
 }
 
-const unknownPieces = new Set<string>();
+const unknown = new Set<string>();
 
-/** Piece id's look key, or none for a piece this client's data lacks, as a client older than the server's has: said once, and the class's own drawn for that slot. */
+/** Says once that what, an id the server sent, isn't in this client's data, as when the client is older than the server's, and what's drawn instead. */
+function stale(what: string, instead: string): void {
+  if (!unknown.has(what)) {
+    unknown.add(what);
+    console.info(`finga: no ${what} in this client's data; drawn as ${instead}`);
+  }
+}
+
+/** Piece id's look key, or none for a piece this client's data lacks: the class's own drawn for that slot. */
 function pieceLook(id: string): string[] {
   const piece = outfits.pieces.find((p) => p.id === id);
   if (piece) {
     return [piece.look];
   }
-  if (!unknownPieces.has(id)) {
-    unknownPieces.add(id);
-    console.info(`finga: no piece ${id} in this client's data; drawn as the class's own`);
-  }
+  stale(`piece ${id}`, "the class's own");
   return [];
 }
 
-/** A player's model: their class's, in what their look wears. */
+/** A player's model: their class's, in what their look wears; a class this client's data lacks is drawn as the first, the Beginner, as its attacks are. */
 export function playerLook(cls: string, look: LookWire | undefined): ModelLook {
-  if (!look || drawnAs(cls, look) === cls) {
-    return classLook(cls);
+  const known = classes.some((c) => c.id === cls) ? cls : classes[0].id;
+  if (known !== cls) {
+    stale(`class ${cls}`, `a ${classes[0].name}`);
+  }
+  if (!look || drawnAs(known, look) === known) {
+    return classLook(known);
   }
   const looks = slotsOf(look)
     .filter((id) => id !== '')
     .flatMap(pieceLook);
-  return classLook(cls, { looks, bareHead: look.hideHeadwear });
+  return classLook(known, { looks, bareHead: look.hideHeadwear });
 }
 
 function modelLook(key: string, height: number, tint: number | null): ModelLook {
@@ -115,11 +125,15 @@ export function npcLook(look: string): ModelLook {
   return trainer ? classLook(trainer) : modelLook(look, movement.height, null);
 }
 
-/** A mob's model at its cylinder's height, which its look's scale is already part of, its tint on the main material, drawn no wider than its circle. */
+/** The mob drawn for a type this client's data lacks: the smallest, so a stand-in never looms. */
+const STAND_IN = mobs.reduce((a, b) => (b.radius < a.radius ? b : a));
+
+/** A mob's model at its cylinder's height, which its look's scale is already part of, its tint on the main material, drawn no wider than its circle; a type this client's data lacks is drawn as the smallest mob. */
 export function mobLook(type: string): ModelLook {
-  const m = mobById(type);
+  let m = mobById(type);
   if (!m) {
-    throw new Error(`no mob ${type}`);
+    stale(`mob ${type}`, `a ${STAND_IN.name}`);
+    m = STAND_IN;
   }
   return { ...modelLook(m.look.model, m.height, m.look.tint), width: 2 * m.radius };
 }

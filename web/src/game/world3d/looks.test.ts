@@ -72,10 +72,33 @@ describe('looks', () => {
     }
   });
 
-  it('refuse a key the data doesn’t have rather than draw something else', () => {
+  it('refuse a key the client’s own data doesn’t have rather than draw something else', () => {
     expect(() => classLook('pirate')).toThrow('no class pirate');
-    expect(() => mobLook('dragon')).toThrow('no mob dragon');
     expect(() => npcLook('merchant')).toThrow('no model merchant');
     expect(() => npcLook('trainer_pirate')).toThrow('no class pirate');
+  });
+
+  it('draw a class or mob type the server sends and this client’s data lacks as a Beginner or the smallest mob, and say so once', () => {
+    const said = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const robe = {
+      outfit: 'mage_robe',
+      headwear: '',
+      face: '',
+      weapon: '',
+      wings: '',
+      hideHeadwear: false,
+    };
+    expect(playerLook('pirate', undefined)).toEqual(classLook('beginner'));
+    expect(playerLook('pirate', robe)).toEqual(
+      classLook('beginner', { looks: ['mage_body'], bareHead: false }),
+    );
+    const smallest = [...mobs].sort((a, b) => a.radius - b.radius)[0]!;
+    expect(mobLook('dragon')).toEqual(mobLook(smallest.id));
+    mobLook('dragon');
+    expect(said.mock.calls).toEqual([
+      ["finga: no class pirate in this client's data; drawn as a Beginner"],
+      [`finga: no mob dragon in this client's data; drawn as a ${smallest.name}`],
+    ]);
+    said.mockRestore();
   });
 });
