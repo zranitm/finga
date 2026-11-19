@@ -145,8 +145,9 @@
 
   | Code | Name | HTTP | When |
   | --- | --- | --- | --- |
-  | 330039 | `POUCH_GONE` | 409 | A pouch that's gone, empty, or not the player's, or an item already taken |
+  | 330039 | `POUCH_GONE` | 409 | A pouch that's gone, empty, or not the player's; an item already taken, or named twice in one take |
   | 330040 | `POUCH_OUT_OF_REACH` | 409 | A pouch farther than reach |
+  | 330041 | `TAKE_BUSY` | 409 | Added as built: an item already being taken, by a call in flight, a waiting take, or a retry after no answer, since it's still in the pouch; or a take while another already waits (section 4) |
 - **As built (step 2):**
   - `TakeLoot{picks: [{pouch, item}]}` is answered in its `Response`: `ok`, with `picks: [{pick, code}]`, code 0 for taken. A take refused whole, such as a dead player's, is a failed `Response` with its code.
   - `Snapshot.pouches` (6), `Delta.pouches` (10) and `Delta.pouches_gone` (11) carry the player's own. `PouchView.kind` is `POUCH_KIND_POUCH` or `POUCH_KIND_BOX`, and each `PouchItem` carries equipment's `stats`.
@@ -157,7 +158,7 @@
     - `Loot`'s `drop_id`, `template` and `quantity` (3, 6, 7).
 
     `DropView` and `PickUp` are deleted.
-  - **One more failure:** 330041 `TAKE_BUSY` (409): an item already being taken, or a take while another already waits (section 4).
+  - **One more failure:** 330041 `TAKE_BUSY`, in the table above. An item being taken is busy, not gone, because it's still in its pouch.
 
 ## 7. Client
 
