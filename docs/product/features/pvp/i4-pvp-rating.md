@@ -34,11 +34,12 @@
   - **Leaderboard:** the top 100 of 1v1 or 3v3 by rating, with name, class, rank, rating and wins and losses, and the player's own place under it. Only players past placement are listed.
 - **After a match** the result screen shows the rating before and after, and a new rank when it changes.
 - **Nothing else changes:** a rating gives no items, EXP, currency or stats.
+- **Rank outfits** (D9): the first time a character reaches Silver or a higher rank, in either mode, the account gets that rank's outfit piece. It's a look only.
 
 ## Not in this feature
 
 - Seasons and season resets.
-- Rewards for ranks.
+- Rewards for ranks, beyond the rank outfits.
 - Guild ratings, which come with guild war.
 
 ## Rules

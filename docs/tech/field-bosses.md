@@ -1,5 +1,7 @@
 # Field bosses
 
+> **Changed by [Outfits](./outfits.md):** a boss's drop list gains the items of the outfit pieces `outfits.yaml` gives it, added by the loader and rolled on each player's own roll as the rest.
+
 > **Status: approved · 2026-11-12.** The high-level design for [C10. Field bosses](../product/features/combat-and-progression/c10-field-bosses.md) and [Systems → Combat → Field bosses](../product/systems/combat.md). It builds on `main` after [Animation cancel](./animation-cancel.md), whose pace step retunes the same mobs, and describes the change it plans. Since [Mobs fight back](./mobs-fight-back.md) (C12), a boss fights with attacks, not touches, as every mob does.
 
 > **As built in 3D (2026-11-16).** The 3D rework ([3D world](./3d-world.md) sections 4 and 7) keeps the rules below and changes the boss's place and size. The YAML and Tiled samples below are the 2D build's.

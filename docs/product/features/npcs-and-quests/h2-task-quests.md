@@ -18,6 +18,7 @@
 - **Handing in:**
   - At the named NPC, once every objective is done.
   - Items the quest collects are taken, and the rewards arrive at once.
+  - A quest can give an outfit piece, which goes straight into the wardrobe (D9).
   - An item reward that doesn't fit refuses the hand-in, with nothing taken.
 - **Repeating:** a one-time quest can't be taken again once finished; a repeatable one can.
 - **Limit:** at most 20 quests are active at once (`max_active` in `server/data/quests.yaml`).
