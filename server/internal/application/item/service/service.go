@@ -26,6 +26,7 @@ type AddInput struct {
 	Quantity   int
 	Cause      model.Cause
 	Stats      *progression.ItemStats // the drop's roll: required for equipment, refused on anything else
+	Promotes   kernel.Class           // a trainer's gift: the class it promotes to, whose kind a weapon look must be
 }
 
 // MoveInput moves an item to a slot of its tab.
@@ -79,6 +80,8 @@ type Result struct {
 	Equipment []model.WornSlot // the equip slots an equip, an unequip or a starter grant changed
 	Worn      []model.Item     // after an equip or unequip, every item worn
 	Revision  uint64
+	Piece     string      // the piece an add to the wardrobe made
+	Look      *model.Look // a look worn, or the one a trainer's gift left
 }
 
 // A fingerprint is a command's values in fixed order; a value added later goes in only when set, so old retries match.
@@ -93,6 +96,9 @@ func (in AddInput) fingerprint(c kernel.CharacterID) []byte {
 		} {
 			values = append(values, strconv.Itoa(v))
 		}
+	}
+	if in.Promotes != "" {
+		values = append(values, "promotes", string(in.Promotes))
 	}
 	return idempotency.Fingerprint("item.add/4", values...)
 }
@@ -138,6 +144,8 @@ const (
 	scopeUse         = "item.use"
 	scopeEquip       = "item.equip"
 	scopeUnequip     = "item.unequip"
+	scopeWardrobe    = "item.wardrobe"
+	scopeLook        = "item.look"
 )
 
 // Service is the item module's use cases.
@@ -211,6 +219,9 @@ func (s *Service) Add(ctx context.Context, actor model.Actor, in AddInput) (Resu
 		var err error
 		res, err = uow.Idempotency().Run(ctx, actor.Account, scopeAdd, in.Key, in.fingerprint(actor.Character), func() (Result, error) {
 			res, err := s.add(ctx, uow, actor.Character, tmpl, in.Quantity, in.Stats, in.Cause)
+			if err == nil && in.Promotes != "" {
+				res.Look, err = s.fitLook(ctx, uow, actor.Character, in.Promotes)
+			}
 			return revised(ctx, uow, actor.Character, res, err)
 		})
 		return err

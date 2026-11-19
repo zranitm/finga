@@ -115,6 +115,18 @@ paths:
         "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
+  /api/wardrobe:
+    get:
+      summary: The account's wardrobe
+      description: Every piece the account collected, oldest first, each with what gave it; its characters share it (outfits.md section 4).
+      security: [{ bearer: [] }]
+      responses:
+        "200":
+          description: The account's pieces
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Wardrobe" }
+        "401": { $ref: "#/components/responses/Error" }
   /api/settings:
     get:
       summary: Read settings
@@ -228,6 +240,22 @@ components:
         characters:
           type: array
           items: { $ref: "#/components/schemas/Character" }
+    Wardrobe:
+      type: object
+      required: [pieces]
+      properties:
+        pieces:
+          type: array
+          description: Oldest first; [] for none, never null.
+          items: { $ref: "#/components/schemas/Piece" }
+    Piece:
+      type: object
+      required: [id, cause, added_at]
+      properties:
+        id: { type: string, description: "A piece in outfits.yaml" }
+        cause: { type: string, enum: [item, rank, quest, feat], description: "What gave it; step 1 adds from items alone" }
+        item_id: { type: string, format: uuid, description: "The item added, for an item cause alone" }
+        added_at: { type: string, format: date-time }
     Settings:
       type: object
       properties:

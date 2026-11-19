@@ -37,7 +37,8 @@ type Class struct {
 	Parent      kernel.Class   // "" for the root
 	Line        []kernel.Class // the class, then each class above it up to the root
 	Attack      Attack
-	Promotion   Promotion // none for the root
+	Weapon      WeaponKind // what it holds: a weapon look must be of this kind
+	Promotion   Promotion  // none for the root
 	// The root alone has these: every character starts with them, and a promotion keeps them.
 	BaseStats    Stats // primary stats at level 1
 	StarterItems []Grant

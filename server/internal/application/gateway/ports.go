@@ -26,6 +26,11 @@ type Sessions interface {
 	RevokeAll(ctx context.Context, account kernel.AccountID) error
 }
 
+// Wardrobes is the item module's wardrobe, for the REST API.
+type Wardrobes interface {
+	Pieces(ctx context.Context, account kernel.AccountID) ([]model.Piece, error)
+}
+
 // Characters is the character module, for the REST API.
 type Characters interface {
 	List(ctx context.Context, account kernel.AccountID) ([]model.Character, error)

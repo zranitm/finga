@@ -1,0 +1,16 @@
+# The wardrobe's pieces (docs/tech/outfits.md section 3): looks only, never stats. A piece's look is a key in the client's look table.
+# A boss source puts the piece's item, piece.<id>, on that boss's drops, rolled on each eligible player's own roll.
+# The starter catalogue; the full one is designed with the user from the preview sheet (section 8).
+pieces:
+  - {id: knight_plate,   slot: outfit,   name: Knight's Plate,   stars: 3, look: knight_body,      from: [{boss: king_slime, chance: 0.05}]}
+  - {id: barbarian_furs, slot: outfit,   name: Barbarian Furs,   stars: 2, look: barbarian_body,   from: [{boss: vampire_bat, chance: 0.05}]}
+  - {id: rogue_leathers, slot: outfit,   name: Rogue's Leathers, stars: 3, look: rogue_body,       from: [{boss: spore_mother, chance: 0.05}]}
+  - {id: mage_robe,      slot: outfit,   name: Mage's Robe,      stars: 3, look: mage_body,        from: [{boss: moth_empress, chance: 0.05}]}
+  - {id: crimson_plate,  slot: outfit,   name: Crimson Plate,    stars: 4, look: knight_crimson,   from: [{boss: crypt_warden, chance: 0.02}]}
+  - {id: knight_helm,    slot: headwear, name: Knight's Helm,    stars: 3, look: knight_helmet,    from: [{boss: dune_baron, chance: 0.05}]}
+  - {id: horned_hat,     slot: headwear, name: Horned Hat,       stars: 2, look: barbarian_hat,    from: [{boss: king_slime, chance: 0.05}]}
+  - {id: pointed_hat,    slot: headwear, name: Pointed Hat,      stars: 3, look: mage_hat,         from: [{boss: lantern_slime, chance: 0.05}]}
+  - {id: greatsword,     slot: weapon,   kind: one_handed, name: Greatsword,    stars: 3, look: two_handed_sword, from: [{boss: cliff_reaper, chance: 0.05}]}
+  - {id: greataxe,       slot: weapon,   kind: one_handed, name: Greataxe,      stars: 3, look: two_handed_axe,   from: [{boss: avalanche_slime, chance: 0.05}]}
+  - {id: oak_wand,       slot: weapon,   kind: staff,      name: Oak Wand,      stars: 2, look: wand,             from: [{boss: lantern_slime, chance: 0.05}]}
+  - {id: hand_crossbow,  slot: weapon,   kind: crossbow,   name: Hand Crossbow, stars: 3, look: crossbow_1h,      from: [{boss: blizzard_wing, chance: 0.05}]}

@@ -57,6 +57,7 @@ func Mount(d Dependencies) func(e *gin.Engine) {
 		authed.DELETE("/sessions/current", h.logout)
 		authed.DELETE("/sessions", h.logoutEverywhere)
 		authed.GET("/characters", h.listCharacters)
+		authed.GET("/wardrobe", h.wardrobe)
 		authed.POST("/characters", h.createCharacter)
 		authed.PUT("/characters/:id/skill-bar", h.setSkillBar)
 		authed.GET("/settings", h.settings)
@@ -196,6 +197,15 @@ func (h *api) settings(c *gin.Context) {
 		return
 	}
 	writeJSON(c, http.StatusOK, toSettings(s))
+}
+
+func (h *api) wardrobe(c *gin.Context) {
+	pieces, err := h.lobby.Wardrobe(c.Request.Context(), principalFrom(c))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	writeJSON(c, http.StatusOK, toWardrobe(pieces))
 }
 
 func (h *api) updateSettings(c *gin.Context) {

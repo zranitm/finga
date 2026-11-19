@@ -25,17 +25,17 @@ import (
 type fakeGifts struct {
 	mu     sync.Mutex
 	calls  []model.GiftCall
-	answer model.Inventory
+	answer model.Gift
 	err    error
 	gate   chan struct{}
 }
 
-func (f *fakeGifts) Give(ctx context.Context, c model.GiftCall) (model.Inventory, error) {
+func (f *fakeGifts) Give(ctx context.Context, c model.GiftCall) (model.Gift, error) {
 	if f.gate != nil {
 		select {
 		case <-f.gate:
 		case <-ctx.Done():
-			return model.Inventory{}, ctx.Err()
+			return model.Gift{}, ctx.Err()
 		}
 	}
 	f.mu.Lock()
@@ -104,7 +104,7 @@ func TestAPromotion(t *testing.T) {
 		data := worldtest.LoadData(t)
 		p := trainee(t)
 		sword := model.Slot{Tab: gamedata.Equip, Slot: 3, Item: &model.SlotItem{ID: kernel.NewItemID(), Template: "wooden_sword", Quantity: 1}}
-		gifts := &fakeGifts{answer: model.Inventory{Revision: 9, Slots: []model.Slot{sword}}}
+		gifts := &fakeGifts{answer: model.Gift{Inventory: model.Inventory{Revision: 9, Slots: []model.Slot{sword}}}}
 		inst, s, cps, parties := promotionTown(t, p, gifts)
 		done := promoteAsync(inst, p.ID, "warrior_trainer", "warrior")
 		tick(2)

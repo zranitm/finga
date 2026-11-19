@@ -316,6 +316,18 @@ type PlayerView struct {
 	Statuses     []StatusView
 	Team         int // its side in a match, 1 or 2; 0 outside one
 	Bot          bool
+	Look         Look
+}
+
+// Look is a player's five picks, each a piece id, "" keeping the class's own, at the count of its changes.
+type Look struct {
+	Outfit       string
+	Headwear     string
+	Face         string
+	Weapon       string
+	Wings        string
+	HideHeadwear bool
+	Revision     uint64
 }
 
 // StatusView is an abnormal status on a player or mob: its id and the tick it ends on, the latest of its kind's.
@@ -576,7 +588,7 @@ func playerViews(ps []model.PlayerView) []PlayerView {
 		out[i] = PlayerView{
 			ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.MaxHP, Dead: p.Dead,
 			Invulnerable: p.Invulnerable, Dodging: p.Dodging, Shield: p.Shield, State: p.State, Aim: p.Aim,
-			Statuses: statusViews(p.Statuses), Team: p.Team, Bot: p.Bot,
+			Statuses: statusViews(p.Statuses), Team: p.Team, Bot: p.Bot, Look: Look(p.Look),
 		}
 	}
 	return out

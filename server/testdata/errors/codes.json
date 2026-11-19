@@ -318,6 +318,42 @@
     "message": "name one item to a tab's slots, each once"
   },
   {
+    "code": 220027,
+    "name": "NOT_A_PIECE",
+    "status": 409,
+    "message": "that item holds no wardrobe piece"
+  },
+  {
+    "code": 220028,
+    "name": "PIECE_COLLECTED",
+    "status": 409,
+    "message": "your wardrobe has that piece"
+  },
+  {
+    "code": 220029,
+    "name": "UNKNOWN_PIECE",
+    "status": 400,
+    "message": "that isn't a wardrobe piece"
+  },
+  {
+    "code": 220030,
+    "name": "WRONG_SLOT",
+    "status": 400,
+    "message": "that piece goes in another slot"
+  },
+  {
+    "code": 220031,
+    "name": "PIECE_NOT_COLLECTED",
+    "status": 409,
+    "message": "your wardrobe hasn't collected that piece"
+  },
+  {
+    "code": 220032,
+    "name": "WRONG_WEAPON_KIND",
+    "status": 409,
+    "message": "your class can't hold that weapon look"
+  },
+  {
     "code": 330001,
     "name": "CHARACTER_DEAD",
     "status": 409,
@@ -537,7 +573,7 @@
     "code": 330037,
     "name": "IN_COMBAT",
     "status": 409,
-    "message": "you can't change traits in combat"
+    "message": "you can't change traits or looks in combat"
   },
   {
     "code": 330038,

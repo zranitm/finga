@@ -77,6 +77,9 @@ func (idle) Discard(context.Context, model.Actor, model.ItemDiscard) (model.Inve
 func (idle) DiscardMany(context.Context, model.Actor, model.ItemDiscardMany) (model.InventoryChanged, error) {
 	return model.InventoryChanged{}, nil
 }
+func (idle) AddToWardrobe(context.Context, model.Actor, model.WardrobeAdd) (model.InventoryChanged, error) {
+	return model.InventoryChanged{}, nil
+}
 func (idle) Chat(_ context.Context, _ model.Player, channel model.ChatChannel, text string) (model.ChatLine, error) {
 	return model.ChatLine{Channel: channel, Text: text}, nil
 }
@@ -402,6 +405,7 @@ func (w *world) Attack(context.Context, model.Presence, float32, model.Target) e
 func (w *world) EnterPortal(context.Context, model.Presence) error                       { return nil }
 func (w *world) Say(context.Context, model.Presence, string, string) error               { return nil }
 func (w *world) Equip(context.Context, model.Presence, model.ItemEquip) error            { return nil }
+func (w *world) SetLook(context.Context, model.Presence, model.LookSet) error            { return nil }
 func (w *world) Unequip(context.Context, model.Presence, model.ItemUnequip) error        { return nil }
 func (w *world) UseItem(context.Context, model.Presence, model.ItemUse) error            { return nil }
 func (w *world) SpendPoints(context.Context, model.Presence, model.PointsSpend) error {

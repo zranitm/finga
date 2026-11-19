@@ -1,9 +1,13 @@
 package world
 
 import (
+	"encoding/binary"
 	"errors"
+	"math/rand/v2"
+	"slices"
 	"time"
 
+	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 )
 
@@ -99,4 +103,28 @@ type FighterResult struct {
 	Tier      string             // a bot's
 	Left      bool
 	Downs     int
+}
+
+// BotLook is a bot's look, the same for one id: each slot its class's own half the time, else a piece of that slot every source of which is a boss, and a weapon look of weapon's kind. A rank, quest or feat piece never shows on a bot, so a rank piece always means a player earned it; feat pieces join with feats.
+func BotLook(pieces []gamedata.Piece, weapon gamedata.WeaponKind, id kernel.CharacterID) Look {
+	seed := [16]byte(id)
+	r := rand.New(rand.NewPCG(binary.BigEndian.Uint64(seed[:8]), binary.BigEndian.Uint64(seed[8:]))) //nolint:gosec // a bot's looks, not a secret
+	worn := map[gamedata.LookSlot][]string{}
+	for _, p := range pieces {
+		if dropped(p) && (p.Slot != gamedata.WeaponSlot || p.Kind == weapon) {
+			worn[p.Slot] = append(worn[p.Slot], p.ID)
+		}
+	}
+	pick := func(slot gamedata.LookSlot) string {
+		if len(worn[slot]) == 0 || r.IntN(2) == 0 {
+			return "" // the class's own
+		}
+		return worn[slot][r.IntN(len(worn[slot]))]
+	}
+	return Look{Outfit: pick(gamedata.OutfitSlot), Headwear: pick(gamedata.HeadwearSlot), Face: pick(gamedata.FaceSlot), Weapon: pick(gamedata.WeaponSlot), Wings: pick(gamedata.WingsSlot), Revision: 1}
+}
+
+// dropped is whether every source of p is a boss.
+func dropped(p gamedata.Piece) bool {
+	return len(p.From) > 0 && !slices.ContainsFunc(p.From, func(s gamedata.PieceSource) bool { return s.Boss == "" })
 }

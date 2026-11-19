@@ -1,6 +1,8 @@
 package load
 
 import (
+	"slices"
+
 	"errors"
 	"fmt"
 
@@ -20,6 +22,7 @@ type classYAML struct {
 	Description  string         `yaml:"description"`
 	Parent       string         `yaml:"parent"`
 	Look         lookYAML       `yaml:"look"`
+	Weapon       string         `yaml:"weapon"`
 	Attack       attackYAML     `yaml:"attack"`
 	BaseStats    primaryYAML    `yaml:"base_stats"`
 	AutoAssign   primaryYAML    `yaml:"auto_assign"`
@@ -95,6 +98,10 @@ func (l *loader) loadClasses(dir string) error {
 		if c.Look.Model == "" || c.Look.Tint != nil && (*c.Look.Tint < 0 || *c.Look.Tint > 0xffffff) || c.Look.Scale != nil {
 			return fmt.Errorf("%s: class %s: look needs a model, a tint is an RGB color, and a class has no scale", classesFile, id)
 		}
+		weapon := gamedata.WeaponKind(c.Weapon)
+		if !slices.Contains(weaponKinds, weapon) {
+			return fmt.Errorf("%s: class %s: weapon is the kind it holds, one of %v, got %q", classesFile, id, weaponKinds, c.Weapon)
+		}
 		shape := c.Attack.shape()
 		if shape.Kind != gamedata.ArcShape && shape.Kind != gamedata.ShotShape {
 			return fmt.Errorf("%s: class %s: a basic attack is an arc or a shot, not %q", classesFile, id, shape.Kind)
@@ -120,6 +127,7 @@ func (l *loader) loadClasses(dir string) error {
 		l.classes.add(id, gamedata.Class{
 			ID: id, Name: c.Name, Description: c.Description, Parent: kernel.Class(c.Parent), Line: line, Promotion: promotion,
 			Attack:       gamedata.Attack{Shape: shape, Damage: damage, Timing: timing},
+			Weapon:       weapon,
 			BaseStats:    gamedata.Stats(c.BaseStats),
 			AutoAssign:   gamedata.Stats(c.AutoAssign),
 			StarterItems: grants(c.StarterItems),

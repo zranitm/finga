@@ -47,6 +47,10 @@ type (
 		Item      kernel.ItemID
 		EquipSlot string
 	}
+	lookArgs struct {
+		Key  string
+		Look world.Look
+	}
 	unequipArgs struct {
 		Key       string
 		EquipSlot string
@@ -116,6 +120,10 @@ func (w *worldModule) Say(_ context.Context, p world.Presence, name, text string
 
 func (w *worldModule) Equip(_ context.Context, p world.Presence, key string, item kernel.ItemID, equipSlot string) error {
 	return w.record(p, equipArgs{key, item, equipSlot})
+}
+
+func (w *worldModule) SetLook(_ context.Context, p world.Presence, key string, look world.Look) error {
+	return w.record(p, lookArgs{key, look})
 }
 
 func (w *worldModule) UseItem(_ context.Context, p world.Presence, key string, item kernel.ItemID, template string) error {
@@ -251,6 +259,9 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 		},
 		"Equip": func() []string {
 			return worldCall[model.ItemEquip, equipArgs](w, key, func(p model.Presence, in model.ItemEquip) error { return a.Equip(ctx, p, in) })
+		},
+		"SetLook": func() []string {
+			return worldCall[model.LookSet, lookArgs](w, key, func(p model.Presence, in model.LookSet) error { return a.SetLook(ctx, p, in) })
 		},
 		"Unequip": func() []string {
 			return worldCall[model.ItemUnequip, unequipArgs](w, key, func(p model.Presence, in model.ItemUnequip) error { return a.Unequip(ctx, p, in) })

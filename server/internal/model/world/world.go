@@ -53,7 +53,7 @@ var (
 
 	ErrTraitUnknown = errors.New("world: the skill has no trait with that id")
 	ErrTraitLocked  = errors.New("world: the extra trait opens once the skill's points reach its last stage")
-	ErrInCombat     = errors.New("world: a trait can't change while the player is in combat")
+	ErrInCombat     = errors.New("world: a trait or a look can't change while the player is in combat")
 
 	ErrPromotionUnmet   = errors.New("world: the character doesn't meet every condition of the promotion")
 	ErrNotYourNextClass = errors.New("world: the NPC doesn't train that class, or its parent isn't the character's class")
@@ -68,6 +68,26 @@ var (
 type Worn struct {
 	Revision uint64
 	Items    []WornItem
+}
+
+// Look is a character's five picks, each a piece id, "" keeping the class's own, at the count of its changes (outfits.md section 4).
+type Look struct {
+	Outfit       string
+	Headwear     string
+	Face         string
+	Weapon       string
+	Wings        string
+	HideHeadwear bool
+	Revision     uint64
+}
+
+// LookCall wears a look: the item module checks each pick against the account's wardrobe and the class's weapon kind.
+type LookCall struct {
+	Account   kernel.AccountID
+	Character kernel.CharacterID
+	Key       string
+	Look      Look
+	Class     kernel.Class // the live class
 }
 
 // WornItem is one worn item: its template and roll.
@@ -117,6 +137,7 @@ type Player struct {
 	// Connection is the gateway connection joined through; a Leave from another one is ignored.
 	Connection string
 	Worn       Worn        // travels with the player between maps
+	Look       Look        // travels with the player too
 	Quests     Quests      // travels with the player too
 	Timers     SkillTimers // travels with the player too, and the checkpoint keeps it
 	// HandedIn are completions the item module handed in while the world missed the reply; the map's join finishes them.
@@ -183,6 +204,7 @@ type PlayerView struct {
 	Statuses []StatusView // its abnormal statuses
 	Team     int          // its side in a match, 1 or 2; 0 outside one
 	Bot      bool
+	Look     Look // its picks; the revision stays in the world
 }
 
 // MobView is a mob as everyone on the map sees it.

@@ -13,6 +13,7 @@ type Lobby struct {
 	accounts   Accounts
 	characters Characters
 	sessions   Sessions
+	wardrobes  Wardrobes
 }
 
 // LobbyDeps are what the lobby is built over: the account and character modules and the session guard.
@@ -20,11 +21,12 @@ type LobbyDeps struct {
 	Accounts   Accounts
 	Characters Characters
 	Sessions   Sessions
+	Wardrobes  Wardrobes
 }
 
 // NewLobby builds the use cases over deps.
 func NewLobby(deps LobbyDeps) *Lobby {
-	return &Lobby{accounts: deps.Accounts, characters: deps.Characters, sessions: deps.Sessions}
+	return &Lobby{accounts: deps.Accounts, characters: deps.Characters, sessions: deps.Sessions, wardrobes: deps.Wardrobes}
 }
 
 // Authenticate resolves a bearer token to its login session.
@@ -70,6 +72,11 @@ func (l *Lobby) SetSkillBar(ctx context.Context, p model.Principal, id kernel.Ch
 // Settings are the caller's account settings.
 func (l *Lobby) Settings(ctx context.Context, p model.Principal) (model.Settings, error) {
 	return l.accounts.Settings(ctx, p.AccountID)
+}
+
+// Wardrobe lists the caller's account's pieces, oldest first.
+func (l *Lobby) Wardrobe(ctx context.Context, p model.Principal) ([]model.Piece, error) {
+	return l.wardrobes.Pieces(ctx, p.AccountID)
 }
 
 // UpdateSettings replaces the caller's account settings.

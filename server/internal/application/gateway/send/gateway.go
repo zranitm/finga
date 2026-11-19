@@ -33,6 +33,7 @@ type World interface {
 	ResetPoints(ctx context.Context, p model.Presence, expectedUnspent int) error
 	SpendSkillPoints(ctx context.Context, p model.Presence, in model.SkillPointsSpend) error
 	ChooseTrait(ctx context.Context, p model.Presence, in model.TraitChoice) error
+	SetLook(ctx context.Context, p model.Presence, in model.LookSet) error
 	UseSkill(ctx context.Context, p model.Presence, in model.SkillUse, seq uint32) error
 	Talk(ctx context.Context, p model.Presence, npc string) error
 	AcceptQuest(ctx context.Context, p model.Presence, in model.QuestAsk) error
@@ -55,6 +56,7 @@ type Items interface {
 	Move(ctx context.Context, a model.Actor, in model.ItemMove) (model.InventoryChanged, error)
 	Discard(ctx context.Context, a model.Actor, in model.ItemDiscard) (model.InventoryChanged, error)
 	DiscardMany(ctx context.Context, a model.Actor, in model.ItemDiscardMany) (model.InventoryChanged, error)
+	AddToWardrobe(ctx context.Context, a model.Actor, in model.WardrobeAdd) (model.InventoryChanged, error)
 }
 
 // Social is the social module's commands: parties and chat.

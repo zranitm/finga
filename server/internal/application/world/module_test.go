@@ -116,6 +116,8 @@ func (w wears) Unequip(context.Context, model.UnequipCall) (model.Equipped, erro
 
 func (wears) Worn(context.Context, kernel.CharacterID) (model.Worn, error) { return model.Worn{}, nil }
 
+func (wears) Look(context.Context, kernel.CharacterID) (model.Look, error) { return model.Look{}, nil }
+
 // HandIn takes the gel and gives nothing back, at revision 4; err refuses it.
 func (w wears) HandIn(context.Context, model.HandInCall) (model.Inventory, error) {
 	return model.Inventory{Revision: 4, Slots: []model.Slot{{Tab: gamedata.Etc, Slot: 0}}}, w.err

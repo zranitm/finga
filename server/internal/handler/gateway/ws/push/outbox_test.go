@@ -152,8 +152,10 @@ var (
 )
 
 func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
-	players := []model.PlayerView{{ID: "p-1", Name: "Robin", Class: "bowman", Level: 3, X: 1, Y: 2, Z: 3, VX: 5, VY: -5, VZ: 4, HX: 0.6, HZ: 0.8, OnGround: true, HP: 50, MaxHP: 105, Dead: true, Invulnerable: true}}
-	wirePlayers := []*clientv1.PlayerView{{Id: "p-1", Name: "Robin", Class: "bowman", Level: 3, X: 1, Y: 2, Z: 3, Vx: 5, Vy: -5, Vz: 4, Hx: 0.6, Hz: 0.8, OnGround: true, Hp: 50, MaxHp: 105, Dead: true, Invulnerable: true}}
+	players := []model.PlayerView{{ID: "p-1", Name: "Robin", Class: "bowman", Level: 3, X: 1, Y: 2, Z: 3, VX: 5, VY: -5, VZ: 4, HX: 0.6, HZ: 0.8, OnGround: true, HP: 50, MaxHP: 105, Dead: true, Invulnerable: true,
+		Look: model.Look{Outfit: "knight_plate", Headwear: "knight_helm", Face: "round_glasses", Weapon: "greatsword", Wings: "bat_wings", HideHeadwear: true, Revision: 4}}}
+	wirePlayers := []*clientv1.PlayerView{{Id: "p-1", Name: "Robin", Class: "bowman", Level: 3, X: 1, Y: 2, Z: 3, Vx: 5, Vy: -5, Vz: 4, Hx: 0.6, Hz: 0.8, OnGround: true, Hp: 50, MaxHp: 105, Dead: true, Invulnerable: true,
+		Look: &clientv1.Look{Outfit: "knight_plate", Headwear: "knight_helm", Face: "round_glasses", Weapon: "greatsword", Wings: "bat_wings", HideHeadwear: true}}}
 	mobs := []model.MobView{{ID: 7, Type: "green_slime", X: 3, Y: 4, Z: 5, Yaw: 1.5, HP: 9, MaxHP: 30}}
 	wireMobs := []*clientv1.MobView{{Id: 7, Type: "green_slime", X: 3, Y: 4, Z: 5, Yaw: 1.5, Hp: 9, MaxHp: 30}}
 	drops := []model.DropView{{ID: 3, Template: "slime_gel", Quantity: 2, X: 5, Y: 6}}
@@ -193,21 +195,21 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 				Mobs:    []model.MobView{{ID: 7, Statuses: []model.StatusView{{ID: "poison", Ends: 81290}}}},
 			}},
 			&clientv1.Delta{
-				Players: []*clientv1.PlayerView{{Id: "p-1", Held: 30, Slow: &clientv1.SlowWalk{Left: 12, Factor: 0.6}, Statuses: []*clientv1.StatusView{{Id: "slow", Ends: 81246}, {Id: "stun", Ends: 81250}}}},
+				Players: []*clientv1.PlayerView{{Id: "p-1", Held: 30, Slow: &clientv1.SlowWalk{Left: 12, Factor: 0.6}, Statuses: []*clientv1.StatusView{{Id: "slow", Ends: 81246}, {Id: "stun", Ends: 81250}}, Look: &clientv1.Look{}}},
 				Mobs:    []*clientv1.MobView{{Id: 7, Statuses: []*clientv1.StatusView{{Id: "poison", Ends: 81290}}}},
 			},
 		},
 		{ // a sprint's count, which the player's own reconcile steps on from
 			model.Delta{Frame: &model.Frame{Players: []model.PlayerView{{ID: "p-1", Sprint: 120}}}},
-			&clientv1.Delta{Players: []*clientv1.PlayerView{{Id: "p-1", Sprint: 120}}},
+			&clientv1.Delta{Players: []*clientv1.PlayerView{{Id: "p-1", Sprint: 120, Look: &clientv1.Look{}}}},
 		},
 		{ // walk mode, the mode the player's own reconcile steps on in
 			model.Delta{Frame: &model.Frame{Players: []model.PlayerView{{ID: "p-1", Walk: true}}}},
-			&clientv1.Delta{Players: []*clientv1.PlayerView{{Id: "p-1", Walk: true}}},
+			&clientv1.Delta{Players: []*clientv1.PlayerView{{Id: "p-1", Walk: true, Look: &clientv1.Look{}}}},
 		},
 		{ // a break-free's leap through mobs, with the farthest point it reached clear of them
 			model.Delta{Frame: &model.Frame{Players: []model.PlayerView{{ID: "p-1", Move: model.PlayerMove{VX: -13, Left: 9, Through: true, ClearX: 6.5, ClearZ: 3}}}}},
-			&clientv1.Delta{Players: []*clientv1.PlayerView{{Id: "p-1", Move: &clientv1.SkillMove{Vx: -13, Left: 9, Through: true, ClearX: 6.5, ClearZ: 3}}}},
+			&clientv1.Delta{Players: []*clientv1.PlayerView{{Id: "p-1", Move: &clientv1.SkillMove{Vx: -13, Left: 9, Through: true, ClearX: 6.5, ClearZ: 3}, Look: &clientv1.Look{}}}},
 		},
 		{model.MapChange{MapID: "forest", X: 2, Z: 1, Yaw: -0.5}, &clientv1.MapChange{MapId: "forest", X: 2, Z: 1, Yaw: -0.5}},
 		{model.TeleportCancelled{Reason: model.TeleportMoved}, &clientv1.TeleportCancelled{Reason: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_MOVED}},
