@@ -16,7 +16,7 @@ func BenchmarkThirtyMobsChaseARunningPlayer(b *testing.B) {
 	run := func(n uint64) {
 		turn := 5 * tick.Seconds() * float64(n) / 6 // 5 m/s round a circle 6 m wide
 		p.X, p.Z = 20+6*math.Sin(turn), 20+6*math.Cos(turn)
-		a.Step(n, []mobs.Body{p})
+		a.Step(n, []mobs.Body{p}, nil)
 	}
 	for n := range uint64(200) { // the crowd gathers first
 		run(n + 1)

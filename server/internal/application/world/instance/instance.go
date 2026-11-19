@@ -328,7 +328,7 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	if len(i.order) == 0 {
 		i.arena.Rest(n)
 	} else {
-		i.arena.Step(n, i.living())
+		i.arena.Step(n, i.living(), i.interest.awake())
 	}
 	i.creditDots()
 	for _, e := range i.arena.Started() {

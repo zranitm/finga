@@ -29,7 +29,8 @@ type interest struct {
 	full    []int
 	boss    int
 
-	part, to, ends []int // file's, kept to fill again
+	part, to, ends []int  // file's, kept to fill again
+	lit            []bool // awake's, by cell
 }
 
 // body is a player or a mob on the map.
@@ -67,7 +68,7 @@ func newInterest(in gamedata.Interest, sizeX, sizeZ float64) *interest {
 	n := &interest{
 		in: in, nx: nx, nz: nz, whole: nx-1 <= in.Side && nz-1 <= min(in.Behind, in.Ahead),
 		where: map[body]int{}, cells: make([][]body, nx*nz), watches: map[kernel.CharacterID]*watch{},
-		changes: make([]int, nx*nz), full: make([]int, nx*nz), boss: -1,
+		changes: make([]int, nx*nz), full: make([]int, nx*nz), boss: -1, lit: make([]bool, nx*nz),
 	}
 	for c := range n.changes {
 		n.changes[c], n.full[c] = -1, -1
@@ -89,6 +90,23 @@ func (n *interest) sees(c, d int) bool {
 	}
 	dc, dr := d%n.nx-c%n.nx, d/n.nx-c/n.nx
 	return dc >= -n.in.Side && dc <= n.in.Side && dr >= -n.in.Behind && dr <= n.in.Ahead
+}
+
+// awake is which cells some player's block holds, as the last frame left it, whose mobs take their turns; the rest sleep (large-regions.md section 5). Nil on a map sent whole, where all are awake.
+func (n *interest) awake() []bool {
+	if n.whole {
+		return nil
+	}
+	clear(n.lit)
+	for _, w := range n.watches {
+		col, row := w.cell%n.nx, w.cell/n.nx
+		for r := max(row-n.in.Behind, 0); r <= min(row+n.in.Ahead, n.nz-1); r++ {
+			for k := max(col-n.in.Side, 0); k <= min(col+n.in.Side, n.nx-1); k++ {
+				n.lit[r*n.nx+k] = true
+			}
+		}
+	}
+	return n.lit
 }
 
 // block is the cells a player whose block is round c is sent, ascending.

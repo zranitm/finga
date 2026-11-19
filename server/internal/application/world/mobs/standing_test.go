@@ -25,7 +25,7 @@ func standing(t *testing.T) (*mobs.Arena, func(n int, id mobs.Body, bodies ...mo
 		bit := false
 		for range n {
 			tick++
-			a.Step(tick, bodies)
+			a.Step(tick, bodies, nil)
 			bit = bit || bitten(a, id.ID)
 		}
 		return bit
@@ -65,6 +65,26 @@ func TestAStandingBossFightsOnlyOnceHit(t *testing.T) {
 	}
 }
 
+// A standing boss struck on the tick its map empties, before it took anyone for its target, calms as the map rests, and lets a stranger beside it be.
+func TestABossStruckAsItsMapEmptiesCalms(t *testing.T) {
+	a := newArena(t, meadow(t, open()), worldtest.FixedRoll{V: 0.5})
+	def, spot := king(t)
+	a.SpawnBoss(def, spot)
+	a.Strike(wake(player(30, 27)))
+	var n uint64
+	for range 200 {
+		n++
+		a.Rest(n)
+	}
+	stranger := player(30, 27)
+	for range 200 {
+		n++
+		if a.Step(n, []mobs.Body{stranger}, nil); bitten(a, stranger.ID) {
+			t.Fatalf("the boss bit a stranger beside its spot at tick %d", n)
+		}
+	}
+}
+
 // A standing boss still awake when its map empties gives up as it would with nobody left to fight: on the empty map it walks home and calms, so whoever comes next, even beside its spot, is let be.
 func TestABossAwakeWhenItsMapEmptiesWalksHomeAndCalms(t *testing.T) {
 	for _, tt := range []struct {
@@ -86,7 +106,7 @@ func TestABossAwakeWhenItsMapEmptiesWalksHomeAndCalms(t *testing.T) {
 						a.Rest(n)
 						continue
 					}
-					a.Step(n, bodies)
+					a.Step(n, bodies, nil)
 					bit = bit || bitten(a, bodies[0].ID)
 				}
 				return bit
@@ -146,7 +166,7 @@ func TestMobsByAStandingBossStillFight(t *testing.T) {
 	p := player(30, 27)
 	bit := false
 	for n := range uint64(200) {
-		a.Step(n+1, []mobs.Body{p})
+		a.Step(n+1, []mobs.Body{p}, nil)
 		bit = bit || bitten(a, p.ID)
 	}
 	if !bit {

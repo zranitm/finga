@@ -52,14 +52,14 @@ func TestABossHitAllTheWayHomeStaysAwake(t *testing.T) {
 			a.Strike(Strike{By: p.ID, Shape: gamedata.Shape{Kind: gamedata.AreaShape, Radius: 30}, Most: 1, Power: model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 1}, Aim: model.Aim{X: p.X, Z: p.Z}})
 			last = tick
 		}
-		a.Step(tick+1, []Body{p})
+		a.Step(tick+1, []Body{p}, nil)
 	}
 	if nav.Distance(k.at(), k.home) > k.homeR {
 		t.Fatalf("the king at %v never got home", k.at())
 	}
 	after := false // bitten once the last blow's provoke is long over
 	for end := tick + 400; tick < end; tick++ {
-		a.Step(tick+1, []Body{p})
+		a.Step(tick+1, []Body{p}, nil)
 		after = after || tick > last+a.ticks(a.data.MobRules().Provoke)+40 && bit(a, p.ID)
 	}
 	if k.calm || !after {
@@ -72,12 +72,12 @@ func TestABossCaughtOnItsWayHomeIsPutBackAtItsSpot(t *testing.T) {
 	a, k, p := homing(t)
 	p.X, p.Z = 30, 27 // beside its spot
 	tick := a.ticks(stuckFor) + 2
-	a.Step(tick, []Body{p}) // its walk home started on tick 0 and got nowhere since
+	a.Step(tick, []Body{p}, nil) // its walk home started on tick 0 and got nowhere since
 	if k.at() != k.home || !k.calm || k.homing {
 		t.Fatalf("the king at %v, calm %v, homing %v; want it at its spot %v, calm", k.at(), k.calm, k.homing, k.home)
 	}
 	for end := tick + 200; tick < end; tick++ {
-		a.Step(tick+1, []Body{p})
+		a.Step(tick+1, []Body{p}, nil)
 		if bit(a, p.ID) {
 			t.Fatal("the king put back at its spot bit a player beside it")
 		}

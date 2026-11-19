@@ -97,8 +97,8 @@ func TestAnArenaInCellsRunsAsOneReadingEveryBody(t *testing.T) {
 				a.Rest(n)
 				b.Rest(n)
 			} else {
-				a.Step(n, players)
-				b.Step(n, players)
+				a.Step(n, players, nil)
+				b.Step(n, players, nil)
 			}
 			same(n, "views", a.Views(), b.Views())
 			same(n, "attacks begun", a.Started(), b.Started())

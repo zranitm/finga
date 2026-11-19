@@ -26,6 +26,7 @@ import (
 const (
 	regionSize = 1024.0 // a region, about a kilometre square
 	crowd      = 150    // players, spread over it
+	quiet      = 20     // players on a quiet channel
 	camps      = 100    // of four mobs each
 )
 
@@ -46,7 +47,7 @@ func BenchmarkACrowdedRegionsFrames(b *testing.B) {
 				"  side: 3\n", fmt.Sprintf("  side: %d\n", sh.side),
 			).Replace(s)
 		}})
-		s := newScene(b, m, data)
+		s := newScene(b, m, data, crowd)
 		s.run(200) // the crowd spreads and the camps wake
 		b.Run(sh.name+"/tick", func(b *testing.B) {
 			b.ReportAllocs()
@@ -78,6 +79,16 @@ func BenchmarkACrowdedRegionsFrames(b *testing.B) {
 	}
 }
 
+// A tick of a quiet channel, 20 players on the region among its 400 mobs: about half its cells are watched, and the mobs in the rest sleep.
+func BenchmarkAQuietRegionsTick(b *testing.B) {
+	s := newScene(b, region(b), worldtest.LoadData(b), quiet)
+	s.run(200)
+	b.ReportAllocs()
+	for b.Loop() {
+		s.step()
+	}
+}
+
 // region is flat ground a kilometre square, with camps of four mobs spread over it.
 func region(b *testing.B) *gamedata.Map {
 	r := rand.New(rand.NewPCG(5, 8))
@@ -104,10 +115,10 @@ type scene struct {
 	seq  uint32
 }
 
-func newScene(b *testing.B, m *gamedata.Map, data *gamedata.Data) *scene {
+func newScene(b *testing.B, m *gamedata.Map, data *gamedata.Data, players int) *scene {
 	s := &scene{inst: worldtest.NewInstance(m, data, nil, worldtest.Options{}), out: &stream{}, r: rand.New(rand.NewPCG(2, 9))}
 	var joined sync.WaitGroup
-	for k := range crowd {
+	for k := range players {
 		p := worldtest.NewPlayer(fmt.Sprintf("P%03d", k), 20+s.r.Float64()*(regionSize-40), 20+s.r.Float64()*(regionSize-40))
 		p.Level, p.HP = 60, 50000 // walks among mobs all through the run
 		s.ids, s.keys = append(s.ids, p.ID), append(s.keys, sim.Input{})
