@@ -5,3 +5,5 @@ public/maps
 src/gamedata
 src/protocol/gen
 package-lock.json
+src/testing/regions
+public/regions
