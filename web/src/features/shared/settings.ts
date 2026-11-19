@@ -1,13 +1,32 @@
-// The account's settings: read after login, and saved whole on each change, from whichever screen makes it.
+// The account's settings: read after login, and saved whole on each change, from whichever screen makes it; a read waits for the saves before it and gives way to a change made while it was out.
 import { saveQueue } from '@/lib/save-queue';
+import type { SaveQueue } from '@/lib/save-queue';
 import { RestError } from '@/net/rest';
 import type { RestClient } from '@/net/rest';
 import { settings } from '@/state/settings';
 
-/** The account's saved settings win over the local ones once they arrive; until then, every flag off, the minimap on, the camera close, sprint mode and this browser's last keys stay in force. */
+/** The queues of settings saves on screen, and the saves under way, which a read lets land first. */
+const queues = new Set<SaveQueue>();
+const sending = new Set<Promise<unknown>>();
+
+/** Tells reads of a queue saving the settings, till the returned stop: they save its change waiting at once and wait for it. */
+export function holdReadsFor(queue: SaveQueue): () => void {
+  queues.add(queue);
+  return () => queues.delete(queue);
+}
+
+/** The account's saved settings win over the local ones once they arrive; until then, every flag off, the minimap on, the camera close, sprint mode and this browser's last keys stay in force. A change still waiting is saved first, so the read has it, and one made while the read is out stands over what it reads. */
 export async function loadSettings(rest: Pick<RestClient, 'getSettings'>): Promise<void> {
+  const before = settings.getState();
+  for (const q of queues) {
+    q.flush();
+  }
+  await Promise.all([...[...queues].map((q) => q.settled()), ...sending]);
   try {
     const saved = await rest.getSettings();
+    if (settings.getState() !== before) {
+      return; // changed while it was out: the change is newer, and saves itself
+    }
     const s = settings.getState();
     s.setAutoAssignPoints(saved.auto_assign_points ?? false);
     s.setChatPinned(saved.chat_pinned ?? false);
@@ -37,6 +56,7 @@ export function watchPlaySettings(
     PLAY_SAVE_MS,
   );
   window.addEventListener('pagehide', queue.flush);
+  const held = holdReadsFor(queue);
   const off = settings.subscribe((now, before) => {
     if (now.zoom !== before.zoom || now.walk !== before.walk) {
       queue.changed();
@@ -44,6 +64,7 @@ export function watchPlaySettings(
   });
   return () => {
     off();
+    held();
     window.removeEventListener('pagehide', queue.flush);
     queue.flush();
   };
@@ -52,15 +73,22 @@ export function watchPlaySettings(
 /** A PUT replaces every setting, so it sends them all as they now stand. A failure keeps the local choice and returns what to tell the player. */
 export async function saveSettings(rest: Pick<RestClient, 'putSettings'>): Promise<string | null> {
   const s = settings.getState();
+  const put = rest.putSettings({
+    auto_assign_points: s.autoAssignPoints,
+    chat_pinned: s.chatPinned,
+    hide_minimap: !s.showMinimap,
+    zoom: s.zoom,
+    walk: s.walk,
+    keys: s.keys,
+  });
+  const landed = put.then(
+    () => undefined,
+    () => undefined,
+  );
+  sending.add(landed);
+  void landed.then(() => sending.delete(landed));
   try {
-    await rest.putSettings({
-      auto_assign_points: s.autoAssignPoints,
-      chat_pinned: s.chatPinned,
-      hide_minimap: !s.showMinimap,
-      zoom: s.zoom,
-      walk: s.walk,
-      keys: s.keys,
-    });
+    await put;
     return null;
   } catch (err) {
     return err instanceof RestError ? err.message : 'Could not save the setting.';

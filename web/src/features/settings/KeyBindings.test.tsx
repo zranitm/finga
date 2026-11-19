@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Modal } from '@/components/Modal';
+import { loadSettings } from '@/features/shared/settings';
 import { RestError } from '@/net/rest';
 import type { Settings } from '@/net/rest';
 import { keyboardLayout } from '@/state/keyboard-layout';
@@ -81,6 +82,18 @@ describe('KeyBindings', () => {
     expect(group('Fixed')).toEqual(['Chat: Enter or Num Enter', 'Close the top window: Esc']);
     expect(chip('Chat: Enter or Num Enter')).toBeDisabled();
     expect(chip('Close the top window: Esc')).toBeDisabled();
+  });
+
+  it('a read of the settings while a binding’s save waits saves it first, so the binding stays', async () => {
+    vi.useFakeTimers();
+    let saved: Settings = {};
+    const { putSettings } = setup((s) => Promise.resolve((saved = s)));
+    listen('Attack');
+    press('KeyB');
+    const getSettings = vi.fn(() => Promise.resolve(saved));
+    await act(() => loadSettings({ getSettings })); // inside the save's delay
+    expect(putSettings).toHaveBeenCalledOnce();
+    expect(settings.getState().keys).toEqual({ attack: 'KeyB' });
   });
 
   it('binds the next key pressed, at once, and the game never sees that key', () => {
