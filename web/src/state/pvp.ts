@@ -17,8 +17,6 @@ export interface Offer {
   readonly bots: number;
   /** When it lapses. */
   readonly until: number;
-  /** The player accepted it and waits for the others. */
-  readonly accepted: boolean;
 }
 
 export interface Fighter {
@@ -68,8 +66,6 @@ export interface PvpState {
   applyQueued(d: Data<'pvpQueued'>): void;
   applyUnqueued(): void;
   applyOffer(d: Data<'pvpOffer'>): void;
-  /** The player accepted the offer. */
-  accepted(id: string): void;
   /** An offer ended without a match: the player stays queued if the world put them back. */
   applyOfferGone(d: Data<'pvpOfferGone'>): void;
   /** The match's state: in it, the player has left the queue and its offer. */
@@ -105,15 +101,8 @@ export const pvp = defineStore<PvpState>((set, get) => ({
         mode: d.mode,
         bots: d.bots,
         until: performance.now() + d.untilMs,
-        accepted: false,
       },
     });
-  },
-  accepted: (id) => {
-    const o = get().offer;
-    if (o?.id === id) {
-      set({ offer: { ...o, accepted: true } });
-    }
   },
   applyOfferGone: (d) => {
     if (get().offer?.id !== d.offer) {

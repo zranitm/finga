@@ -452,7 +452,7 @@ Area 55, PvP:
   - **Play:** a card for each mode, with the rating, rank or "Placing (n of 5)", the record, and Queue or Leave queue. A refusal shows the server's message.
   - **Leaderboard:** 1v1 or 3v3, the top 100, and the player's own row.
 - **The queue tag,** `features/pvp/QueueTag.tsx`, by the minimap: the mode and the time waited, counted locally from `since_ms`, with ✕ to leave.
-- **The offer card,** `features/pvp/MatchOffer.tsx`, with Accept and Decline. It counts down locally.
+- **The offer card,** `features/pvp/MatchOffer.tsx`, with Accept and Decline. It counts down locally. Accept shows "Waiting for the others…" at once, as its Response comes only when the match opens, after the MapChange; a refusal brings the buttons back.
 - **The match bar,** `features/hud/MatchBar.tsx`:
   - **Rounds:** each side's pips and the round's time.
   - **15v15:** both scores, the three points in their holders' colours, each with its ring, and the time.

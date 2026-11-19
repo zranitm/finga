@@ -30,6 +30,7 @@ function Shown({
   const now = useNow(250);
   const dead = character.use((s) => s.dead);
   const [busy, setBusy] = useState(false);
+  const [accepted, setAccepted] = useState<string | null>(null); // the offer accepted: its answer comes once the match opens
   const [problem, setProblem] = useState<string | null>(null);
   const left = Math.ceil((offer.until - now) / 1000);
   if (left <= 0) {
@@ -38,12 +39,13 @@ function Shown({
   const answer = async (accept: boolean) => {
     setBusy(true);
     setProblem(null);
+    if (accept) {
+      setAccepted(offer.id);
+    }
     try {
       await socket.request('pvpAnswer', { offer: offer.id, accept });
-      if (accept) {
-        pvp.getState().accepted(offer.id);
-      }
     } catch (err) {
+      setAccepted(null);
       setProblem(problemOf(err));
     } finally {
       setBusy(false);
@@ -58,7 +60,7 @@ function Shown({
       <span className="match-offer-time" aria-label={`${left} seconds left`}>
         {left}s
       </span>
-      {offer.accepted ? (
+      {accepted === offer.id ? (
         <span className="muted">Waiting for the others…</span>
       ) : (
         <div className="row">
@@ -70,7 +72,9 @@ function Shown({
           </Button>
         </div>
       )}
-      {dead && !offer.accepted && <span className="muted">Get back on your feet to accept.</span>}
+      {dead && accepted !== offer.id && (
+        <span className="muted">Get back on your feet to accept.</span>
+      )}
       {problem && (
         <span className="error" role="alert">
           {problem}

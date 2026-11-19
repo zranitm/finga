@@ -51,12 +51,7 @@ describe('pvp', () => {
       mode: 'duel',
       bots: 1,
       until: now + 9500,
-      accepted: false,
     });
-    pvp.getState().accepted('of-2'); // another's
-    expect(pvp.getState().offer?.accepted).toBe(false);
-    pvp.getState().accepted('of-1');
-    expect(pvp.getState().offer?.accepted).toBe(true);
   });
 
   it('an offer that falls through keeps the player queued when the world put them back, else leaves the queue too; another offer’s end changes nothing', () => {

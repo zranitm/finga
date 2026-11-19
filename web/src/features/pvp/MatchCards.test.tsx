@@ -18,11 +18,15 @@ import { resetStores } from '@/testing/reset-stores';
 import { MatchOffer } from './MatchOffer';
 import { MatchResult } from './MatchResult';
 
-function fakeSocket(answers: readonly (object | Error)[] = []) {
+/** A socket answering each request in turn: an answer, a refusal, or, held, none yet, as an accept's waits for the match to open. */
+function fakeSocket(answers: readonly (object | Error | 'held')[] = []) {
   const calls: { t: string; d: unknown }[] = [];
   const request = vi.fn((t: string, d: unknown) => {
     calls.push({ t, d });
     const a = answers[calls.length - 1] ?? { ok: true };
+    if (a === 'held') {
+      return new Promise(() => undefined);
+    }
     return a instanceof Error ? Promise.reject(a) : Promise.resolve(a);
   });
   return { socket: { request } as never, calls };
@@ -47,8 +51,8 @@ describe('MatchOffer', () => {
     vi.useRealTimers();
   });
 
-  it('says the mode and its bots, counts down, and Accept sends the answer and waits for the others', async () => {
-    const { socket, calls } = fakeSocket();
+  it('says the mode and its bots, counts down, and Accept sends the answer and waits for the others at once, as its answer comes only when the match opens', () => {
+    const { socket, calls } = fakeSocket(['held']);
     render(<MatchOffer socket={socket} />);
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     offer();
@@ -60,10 +64,19 @@ describe('MatchOffer', () => {
     });
     expect(within(card).getByLabelText('7 seconds left')).toBeInTheDocument();
     act(() => within(card).getByRole('button', { name: 'Accept' }).click());
-    await settle();
     expect(calls).toEqual([{ t: 'pvpAnswer', d: { offer: 'of-1', accept: true } }]);
     expect(card).toHaveTextContent('Waiting for the others…');
     expect(within(card).queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('an accept refused gives the buttons back, saying why', async () => {
+    const { socket } = fakeSocket([refusal(ERR.PVP_OFFER_GONE)]);
+    render(<MatchOffer socket={socket} />);
+    offer();
+    act(() => screen.getByRole('button', { name: 'Accept' }).click());
+    await settle();
+    expect(screen.getByRole('alert')).toHaveTextContent('That match is gone.');
+    expect(screen.getByRole('button', { name: 'Accept' })).toBeEnabled();
   });
 
   it('Decline sends the answer; a refusal shows; the card goes once the offer lapses', async () => {
@@ -82,7 +95,7 @@ describe('MatchOffer', () => {
   });
 
   it('a dead player can’t accept until back on their feet, and a new offer starts afresh', () => {
-    const { socket } = fakeSocket();
+    const { socket } = fakeSocket(['held']);
     render(<MatchOffer socket={socket} />);
     act(() => character.getState().setDead(true));
     offer();
@@ -90,7 +103,8 @@ describe('MatchOffer', () => {
     expect(screen.getByRole('alertdialog')).toHaveTextContent('Get back on your feet to accept.');
     act(() => character.getState().setDead(false));
     expect(screen.getByRole('button', { name: 'Accept' })).toBeEnabled();
-    act(() => pvp.getState().accepted('of-1'));
+    act(() => screen.getByRole('button', { name: 'Accept' }).click());
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('Waiting for the others…');
     offer('of-2', 2);
     expect(screen.getByRole('alertdialog')).toHaveTextContent('1v1 · 2 bots');
     expect(screen.getByRole('button', { name: 'Accept' })).toBeEnabled();
