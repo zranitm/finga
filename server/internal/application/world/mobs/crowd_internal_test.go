@@ -45,7 +45,7 @@ func TestAPileChasingAMovingPlayerAttacksOnceItCan(t *testing.T) {
 				for n := uint64(1); n <= 600; n++ {
 					th := float64(n) * 0.02 // round the pile 5 m out, 2 m/s
 					p.X, p.Z = 20+5*math.Sin(th), 20+5*math.Cos(th)
-					a.Step(n, []Body{p})
+					a.Step(n, []Body{p}, nil)
 					for _, mb := range a.mobs {
 						ready := false
 						for k := range mb.def.Attacks {

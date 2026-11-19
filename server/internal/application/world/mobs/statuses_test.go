@@ -115,7 +115,7 @@ func TestSuperArmorShrugsOffHardStatusesAndHalvesTheRest(t *testing.T) {
 	a.Afflict(inflicting(t, inflicting(t, statusSkill(20, v.Z-4), "stun", 5*time.Second, 0), "poison", 4*time.Second, 1))
 	hits, ticks := 0, 0
 	for n := next; n < next+120; n++ {
-		a.Step(n, []mobs.Body{p})
+		a.Step(n, []mobs.Body{p}, nil)
 		for _, l := range a.Landings() {
 			hits += len(l.Hits)
 		}
@@ -323,7 +323,7 @@ func TestLosingSightLeavesAnothersHold(t *testing.T) {
 			for n := from; n <= to; n++ {
 				m := theMob(t, a)
 				warrior.X, warrior.Z = m.X+9.8, m.Z // just out of sight, which only a provoke follows
-				a.Step(n, []mobs.Body{thief, bystander, warrior})
+				a.Step(n, []mobs.Body{thief, bystander, warrior}, nil)
 			}
 		}
 		run(1, 5)
@@ -370,7 +370,7 @@ func TestDamageOverTimeIsItsInflicters(t *testing.T) {
 	want := map[kernel.CharacterID]int{mine.By: model.Steady(tenAttack.Times(0.2), model.MobDefender(slime)), theirs.By: model.Steady(tenAttack.Times(0.1), model.MobDefender(slime))}
 	got := map[kernel.CharacterID][]uint64{}
 	for n := uint64(6); n <= 120; n++ {
-		a.Step(n, nil)
+		a.Step(n, nil, nil)
 		for _, b := range a.Dots() {
 			if b.Damage.Amount != want[b.Damage.Source.Player] || b.Damage.Crit || b.Damage.Miss || b.Damage.Target.Mob != v.ID || b.Damage.Status != "poison" {
 				t.Fatalf("tick %d: %+v; want %d", n, b.Damage, want[b.Damage.Source.Player])
@@ -389,7 +389,7 @@ func TestDamageOverTimeIsItsInflicters(t *testing.T) {
 	bv := theMob(t, b)
 	b.Afflict(inflicting(t, statusSkill(bv.X, bv.Z), "poison", 4*time.Second, 1000))
 	for n := uint64(1); n <= 21; n++ {
-		b.Step(n, nil)
+		b.Step(n, nil, nil)
 		if dots := b.Dots(); len(dots) > 0 {
 			if k := dots[0].Killed; k == nil || k.Mob.ID != "green_slime" || len(b.Views()) != 0 {
 				t.Fatalf("dots %+v, mobs %d; want the poison's kill, the slime gone", dots, len(b.Views()))
@@ -411,7 +411,7 @@ func TestABleedHurtsMoreOnTheMove(t *testing.T) {
 		}
 		a.Afflict(inflicting(t, statusSkill(v.X, v.Z), "bleed", 3*time.Second, 1))
 		for n := uint64(1); n <= 21; n++ {
-			a.Step(n, players)
+			a.Step(n, players, nil)
 			if dots := a.Dots(); len(dots) == 1 {
 				return dots[0].Damage.Amount
 			}
@@ -437,7 +437,7 @@ func TestStatusesWeakenAMobsBlowsAndBreakItsArmour(t *testing.T) {
 		}
 		_, next := windup(t, a, []mobs.Body{p}, 1)
 		for n := next; n < next+40; n++ {
-			a.Step(n, []mobs.Body{p})
+			a.Step(n, []mobs.Body{p}, nil)
 			if ls := a.Landings(); len(ls) > 0 {
 				return a.Roll(ls[0], p.ID, d)
 			}

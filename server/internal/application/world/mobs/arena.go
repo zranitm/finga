@@ -198,12 +198,17 @@ func NewArena(d Deps, t Tuning) *Arena {
 	return a
 }
 
-// Step starts tick n: respawns, spits in flight, the mobs' statuses, each mob's turn among the living players, from one mob further on each tick so none waits behind the others for its path searches, then mobs that overlap drift apart, and a mob inside a player steps out.
-func (a *Arena) Step(n uint64, players []Body) {
+// Step starts tick n: respawns, spits in flight, the mobs' statuses, each mob's turn among the living players, from one mob further on each tick so none waits behind the others for its path searches, then mobs that overlap drift apart, and a mob inside a player steps out. A mob whose interest cell awake doesn't hold sleeps (large-regions.md section 5); nil holds every cell.
+func (a *Arena) Step(n uint64, players []Body, awake []bool) {
 	a.start(n, players)
 	a.runStatuses()
 	for k := range a.mobs {
-		a.turn(a.mobs[(k+int(n%uint64(len(a.mobs))))%len(a.mobs)], players)
+		mb := a.mobs[(k+int(n%uint64(len(a.mobs))))%len(a.mobs)]
+		if awake == nil || awake[mb.cell] {
+			a.turn(mb, players)
+		} else {
+			a.doze(mb)
+		}
 	}
 	a.spread()
 	a.yield(players)
@@ -291,26 +296,31 @@ func (a *Arena) Blockers() *sim.Blockers {
 	return &a.standingBlocking
 }
 
-// Rest starts tick n on a map nobody is on: respawns, spits in flight, statuses, pushes, acts under way and walks home go on, and a standing boss still awake gives up, as with nobody left to fight; but no mob looks for anyone or wanders, so an empty map costs next to nothing.
+// Rest starts tick n on a map nobody is on: respawns, spits in flight and statuses go on, and every mob sleeps, so an empty map costs next to nothing.
 func (a *Arena) Rest(n uint64) {
 	a.start(n, nil)
 	a.runStatuses()
 	for _, mb := range a.mobs {
-		mb.near, mb.waiting, mb.claimFor = false, false, kernel.CharacterID{}
-		a.settle(mb)
-		if a.pushed(mb) {
-			continue
-		}
-		if mb.attack >= 0 {
-			a.advance(mb, nil)
-			continue
-		}
-		if mb.spawn == noSpawn && !mb.calm && !mb.homing {
-			a.giveUp(mb) // it walks home, and calms there
-		}
-		if mb.homing && mb.pauseUntil <= a.tick && !mb.held() {
-			a.goHome(mb)
-		}
+		a.doze(mb)
+	}
+}
+
+// doze is a sleeping mob's turn: a push, an act and a walk home under way go on, and one after someone, or a standing boss still awake, gives up as with nobody left to fight; but it looks for nobody and doesn't wander.
+func (a *Arena) doze(mb *mob) {
+	mb.near, mb.waiting, mb.claimFor = false, false, kernel.CharacterID{}
+	a.settle(mb)
+	if a.pushed(mb) {
+		return
+	}
+	if mb.attack >= 0 {
+		a.advance(mb, nil)
+		return
+	}
+	if !mb.homing && (mb.target != kernel.CharacterID{} || mb.spawn == noSpawn && !mb.calm) {
+		a.giveUp(mb) // it walks home, and a boss calms there
+	}
+	if mb.homing && mb.pauseUntil <= a.tick && !mb.held() {
+		a.goHome(mb)
 	}
 }
 

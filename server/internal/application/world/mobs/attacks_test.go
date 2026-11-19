@@ -17,7 +17,7 @@ import (
 func windup(t *testing.T, a *mobs.Arena, players []mobs.Body, from uint64) (model.MobAttacked, uint64) {
 	t.Helper()
 	for n := from; n < from+60; n++ {
-		a.Step(n, players)
+		a.Step(n, players, nil)
 		if s := a.Started(); len(s) > 0 {
 			return s[0], n + 1
 		}
@@ -30,7 +30,7 @@ func windup(t *testing.T, a *mobs.Arena, players []mobs.Body, from uint64) (mode
 func landed(a *mobs.Arena, players []mobs.Body, from, ticks uint64) []mobs.Hit {
 	var hits []mobs.Hit
 	for n := from; n < from+ticks; n++ {
-		a.Step(n, players)
+		a.Step(n, players, nil)
 		for _, l := range a.Landings() {
 			hits = append(hits, l.Hits...)
 		}
@@ -125,7 +125,7 @@ func TestAChargeEndsOnTheFirstPlayerItMeetsOrAWallOrAMob(t *testing.T) {
 			if n > 60 {
 				t.Fatal("no charge in 3 s")
 			}
-			a.Step(n, p)
+			a.Step(n, p, nil)
 			for _, s := range a.Started() {
 				if s.Mob == 1 && end == 0 {
 					at, end = s, n+25 // the windup's 800 ms and the travel's 400
@@ -167,7 +167,7 @@ func TestChargersRingingAPlayerLandTheirCharges(t *testing.T) {
 	beside, landed := 0, 0
 	behind := map[uint64]bool{}          // whether each mob's latest charge began behind the ring
 	for n := uint64(1); n <= 1200; n++ { // a minute
-		a.Step(n, []mobs.Body{p})
+		a.Step(n, []mobs.Body{p}, nil)
 		for _, s := range a.Started() {
 			v := slices.IndexFunc(a.Views(), func(v model.MobView) bool { return v.ID == s.Mob })
 			gap := distance(a.Views()[v], p.X, p.Z) - 0.5625 - playerRadius
@@ -198,7 +198,7 @@ func TestAChargePastANeighbourAtItsSideLandsOnAPlayerJustAhead(t *testing.T) {
 		if n > 60 {
 			t.Fatal("no charge in 3 s")
 		}
-		a.Step(n, p)
+		a.Step(n, p, nil)
 		for _, s := range a.Started() {
 			if s.Mob == 2 {
 				at = s
@@ -296,7 +296,7 @@ func (h happened) startTicks() []uint64 {
 func stepThrough(a *mobs.Arena, from, to uint64, players ...mobs.Body) happened {
 	var h happened
 	for n := from; n <= to; n++ {
-		a.Step(n, players)
+		a.Step(n, players, nil)
 		h.started = append(h.started, a.Started()...)
 		for _, l := range a.Landings() {
 			h.landed, h.landTicks = append(h.landed, l), append(h.landTicks, n)
@@ -353,7 +353,7 @@ func TestAKilledMobLandsNothing(t *testing.T) {
 	v := a.Views()[0]
 	p := player(20, v.Z-1.3)
 	stepThrough(a, 1, 12+wait, p)
-	if a.Step(13+wait, []mobs.Body{p}); !bitten(a, p.ID) {
+	if a.Step(13+wait, []mobs.Body{p}, nil); !bitten(a, p.ID) {
 		t.Fatalf("landings %+v; want the bite", a.Landings())
 	}
 	if blow, _ := one(t, a.Strike(slay(v.X, v.Z))); blow.Killed == nil {
@@ -486,7 +486,7 @@ func TestAProvokedMobFollowsItsAttackerThenWalksBack(t *testing.T) {
 	a := alone(t, "green_slime")
 	home := a.Views()[0]
 	p := player(20, 5) // 15 m off: out of its sight even after following them 5 m
-	a.Step(1, []mobs.Body{p})
+	a.Step(1, []mobs.Body{p}, nil)
 	s := slay(home.X, home.Z)
 	s.By, s.Power = p.ID, model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 1, Accuracy: 0} // a MISS provokes too
 	if blow, _ := one(t, a.Strike(s)); !blow.Damage.Miss {
@@ -512,7 +512,7 @@ func TestAMobAttacksWhoItCanReachOnlyWhenStuck(t *testing.T) {
 	t.Run("free to walk on", func(t *testing.T) {
 		a := alone(t, "wild_boar")
 		far := player(20, 27)
-		a.Step(1, []mobs.Body{far}) // its target: the only player it sees, kept while it sees them
+		a.Step(1, []mobs.Body{far}, nil) // its target: the only player it sees, kept while it sees them
 		v := a.Views()[0]
 		beside := player(v.X-1.3, v.Z) // in its bite's reach, out of its way
 		if got := stepThrough(a, 2, 30, far, beside); len(got.started) != 0 || a.Views()[0].Z < v.Z+2 {
@@ -532,7 +532,7 @@ func stuck(t *testing.T, cell string, boar func(t *testing.T, g sim.Geometry) *m
 	t.Run("a player in its way, cells of "+cell+" m", func(t *testing.T) {
 		a := boar(t, open())
 		far := player(20, 27)
-		a.Step(1, []mobs.Body{far})
+		a.Step(1, []mobs.Body{far}, nil)
 		v := a.Views()[0]
 		block := player(v.X, v.Z+1.25) // touching its north side, between it and its target
 		got := stepThrough(a, 2, 40, far, block)
@@ -566,7 +566,7 @@ func TestMobsOnOneSpotDontAttackTillTheyHaveParted(t *testing.T) {
 	slime, _ := worldtest.LoadData(t).Mob("green_slime")
 	attacked := map[uint64]bool{}
 	for n := uint64(1); n <= 200; n++ {
-		a.Step(n, []mobs.Body{p})
+		a.Step(n, []mobs.Body{p}, nil)
 		v := a.Views()
 		apart := distance(v[0], v[1].X, v[1].Z)
 		for _, s := range a.Started() {

@@ -62,7 +62,7 @@ func TestAMobComesAfterOnlyAPlayerItSees(t *testing.T) {
 			a := alone(t, "wild_boar")
 			home := a.Views()[0]
 			for n := range uint64(100) {
-				a.Step(n+1, []mobs.Body{tt.p})
+				a.Step(n+1, []mobs.Body{tt.p}, nil)
 				if v := a.Views()[0]; !tt.comes && distance(v, home.X, home.Z) > 0.5 {
 					t.Fatalf("tick %d: the boar at (%.2f, %.2f) left its spot for a player it can't see", n+1, v.X, v.Z)
 				}
@@ -85,7 +85,7 @@ func TestAMobWalksRoundAWallToItsTarget(t *testing.T) {
 	a := boarAt(t, open(wall), 20, 20)
 	p := player(20, 25.5)
 	for n := range uint64(200) {
-		a.Step(n+1, []mobs.Body{p})
+		a.Step(n+1, []mobs.Body{p}, nil)
 		if v := a.Views()[0]; boxGap(wall, v.X, v.Z) < 0.875-1e-9 {
 			t.Fatalf("tick %d: the boar at (%.3f, %.3f) is in the wall", n+1, v.X, v.Z)
 		}
@@ -109,7 +109,7 @@ func TestAMobWedgedInACornerGetsFree(t *testing.T) {
 	a := newArena(t, m, worldtest.FixedRoll{V: 0.5})
 	p := player(24, 25) // past the gap between the wall's end and the tree, too narrow for the boar
 	for n := range uint64(200) {
-		a.Step(n+1, []mobs.Body{p})
+		a.Step(n+1, []mobs.Body{p}, nil)
 		if bitten(a, p.ID) {
 			return
 		}
@@ -126,7 +126,7 @@ func TestAMobGivesUpOnAPlayerPastItsLeash(t *testing.T) {
 	p, farthest := player(20, 9), 0.0
 	for n := range uint64(400) {
 		p.Z = min(9+float64(3*float64(n)*tick.Seconds()), 36) // running north at 3 m/s, faster than the boar
-		a.Step(n+1, []mobs.Body{p})
+		a.Step(n+1, []mobs.Body{p}, nil)
 		v := a.Views()[0]
 		if distance(v, home.X, home.Z) > leash {
 			t.Fatalf("tick %d: the boar at (%.2f, %.2f), past its leash", n+1, v.X, v.Z)
@@ -159,7 +159,7 @@ func settle(t *testing.T, a *mobs.Arena, p mobs.Body, r, reach float64, from uin
 	t.Helper()
 	var before []model.MobView
 	for n := from; n < from+400; n++ {
-		a.Step(n, []mobs.Body{p})
+		a.Step(n, []mobs.Body{p}, nil)
 		if n == from+380 {
 			before = a.Views()
 		}
@@ -244,7 +244,7 @@ func TestAMobNeverStepsIntoAPortal(t *testing.T) {
 	p := player(20, 26)
 	bit := false
 	for n := range uint64(200) {
-		a.Step(n+1, []mobs.Body{p})
+		a.Step(n+1, []mobs.Body{p}, nil)
 		if v := a.Views()[0]; distance(v, 20, 26) < 1+0.875-1e-9 {
 			t.Fatalf("tick %d: the boar at (%.3f, %.3f) stepped into the portal", n+1, v.X, v.Z)
 		}
@@ -368,7 +368,7 @@ func TestABossHoldsAtAPortalsEdge(t *testing.T) {
 	a.Strike(mobs.Strike{By: p.ID, Shape: gamedata.Shape{Kind: gamedata.AreaShape, Radius: 30}, Most: 1, Power: model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 1}, Aim: model.Aim{X: 30, Z: 36}})
 	hit := false
 	for n := range uint64(300) {
-		a.Step(n+1, []mobs.Body{p})
+		a.Step(n+1, []mobs.Body{p}, nil)
 		if v := a.Views()[0]; distance(v, 30, 36) < 1+def.Radius-1e-9 {
 			t.Fatalf("tick %d: the king at (%.3f, %.3f) stepped into the portal", n+1, v.X, v.Z)
 		}
@@ -399,7 +399,7 @@ func TestNoShippedMobStepsIntoAPortal(t *testing.T) {
 		}
 		closest := math.Inf(1)       // the least gap between a mob and a portal's edge
 		for n := range uint64(400) { // 20 s: every circle keeps out of sight of the portals, and the forest's slimes walk 1 m/s
-			a.Step(n+1, players)
+			a.Step(n+1, players, nil)
 			for k := range m.Portals {
 				if bitten(a, players[2*k+1].ID) {
 					hits++

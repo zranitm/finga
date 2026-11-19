@@ -276,7 +276,6 @@ biomes:
     At 20 frames a second, 7×5 sends each client about 22 kB/s, under the soak's 40 kB/s; the whole map would send 600 kB/s.
 
   - **Today's maps** cost what they did before step 1a, in runs alternating with main on one machine: a 50-player town's tick takes 49.8 µs against 50.9 µs; a frame's encoding for 10, 50 and 200 players is within 4% either way, with 4 more allocations a frame; and the world's copy of it for the gateway is within 2%.
-  - **For 1c:** sleep.
 - **As built (step 1b):**
   - **Party spots** come from the instance, not through `tellParty`, so the social module's party store isn't rewritten every second.
     - Once a second, on a map cut by cells, each player in a party is told a private `PartySpots`: their party members on the map whom they don't see, and where they stand. It goes when it's empty too, so the client hears within a second of a member leaving the map, its channel or the game. A map sent whole tells nothing.
@@ -350,6 +349,19 @@ Built with step 1, which says who watches a cell.
 - **Camps keep filling while asleep,** so a camp a player walks to is full.
 - **Waking:** a mob wakes when its cell comes into a player's view.
 - Statuses and damage over time on a sleeping mob run on.
+- **As built (step 1c):**
+  - **Who watches:** a mob is awake while some player's block holds its cell, as the last frame left the blocks, and asleep otherwise. Every mob a player is sent is awake. On a map sent whole, every mob is awake while anyone is on it.
+  - **A sleeping mob** goes on with a push, an act and a walk home under way. One that was after someone gives up and walks home, as at its leash, and a standing boss still awake gives up and calms at its spot.
+  - **An empty map** sleeps every mob the same way: `Rest` is a sleep for all, so #314's rule for a boss awake as its map empties is the one sleep uses.
+  - **Waking** is the first tick a player's block holds the cell. Mobs asleep that overlap still drift apart, but two standing ones never do.
+  - **Measured** on an Apple M3, the 1 km region with 400 mobs (`internal/dependencies/interestbench`), against step 1b:
+
+    | Channel | World's tick | Its allocations |
+    |---|---|---|
+    | Quiet, 20 players | 0.21 ms, against 0.29 ms | 338, against 539 |
+    | Full, 150 players | 0.48 ms, against 0.49 ms | 1,166, against 1,189 |
+
+    A full channel watches nearly every cell, so sleep saves little there; a quiet one sleeps about half.
 
 ### Budget
 
@@ -578,6 +590,11 @@ Built with step 1, which says who watches a cell.
       - bodies fading toward 96 m to the side and none past it on a map cut by cells, and every body whole on a 128 m map sent whole.
   - **Indexes:** each check equals a full scan on randomized cases. `rapid` (pgregory.net/rapid) is already a dependency.
   - **Sleep:** a far camp stays full, and its mobs wake as a player comes.
+    - As built (step 1c):
+      - a camp nobody's block holds stands where it fell asleep for 30 s, a killed one comes back meanwhile, and a player come within its block wakes it;
+      - a boar chasing a player gives up as he leaves and nobody watches it, and is home 20 s later;
+      - the mobs at a block's four corner cells are awake;
+      - a standing boss struck on the tick its map empties, before it took a target, calms, and lets a stranger beside it be.
   - **Channels:** filling, a party kept together, a new channel opening, and a spare one closing.
   - **Areas:** the area's boss, a town's refusals, and respawn at the nearest point.
   - **Sprint** in the shared vectors, walk mode too:
@@ -643,7 +660,7 @@ The user's choices are in section 1. These calls were made in planning and logge
 7. **The zoom runs from 16 m at 50° to 40 m at 35°,** with = and − as keys besides the wheel.
 8. **Ground colours by vertex,** with no textures, so the flat toon look stays and there are no texture assets to fetch.
 9. **Deep water blocks;** fords and bridges cross rivers. No swimming.
-10. **A mob sleeps when no one watches its cell,** while its camp keeps filling.
+10. **A mob sleeps when no one watches its cell,** while its camp keeps filling. One asleep mid-chase gives up and walks home, as at its leash, so nobody returns to find it frozen where the chase left it.
 11. **The server generates each region; the client reads a bake the same generator writes.** Planned as one bake both sides read, and reversed in step 4a: the generator gives the same bits on every CPU, which the golden hashes needed anyway. So the server needs no artifact and can't run on one older than its plan (section 3).
 12. **The old maps stay behind a gate** until the region that covers their levels replaces them.
 13. **Walk mode shows** as a notice at each switch and a walk icon first on the player's own frame row, since the mode is kept between logins and a player who logs in walking should see why.

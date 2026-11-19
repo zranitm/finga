@@ -114,7 +114,7 @@ func TestAMobWandersItsCircleAndPausesAtEachSpot(t *testing.T) {
 	fastest := slime.Speed * (1 + data.MobRules().Patrol.SpeedJitter) * tick.Seconds()
 	last, still, pauses := a.Views()[0], 0, 0
 	for n := range uint64(600) {
-		a.Step(n+1, nil)
+		a.Step(n+1, nil, nil)
 		v := a.Views()[0]
 		step := distance(v, last.X, last.Z)
 		if step > fastest+1e-9 || distance(v, 20, 20) > 3+slime.Radius {
@@ -136,7 +136,7 @@ func TestAMobWandersItsCircleAndPausesAtEachSpot(t *testing.T) {
 
 func TestAKilledMobComesBackAfterItsRespawn(t *testing.T) {
 	a := slimes(t, 0.5)
-	a.Step(1, nil)
+	a.Step(1, nil, nil)
 	_, _ = a.Changes()
 	stood := a.Views()[0]
 	blow, reached := one(t, a.Strike(swing(stood.X, stood.Z-1.5, 0)))
@@ -148,12 +148,12 @@ func TestAKilledMobComesBackAfterItsRespawn(t *testing.T) {
 	}
 	back := 1 + uint64(5*time.Second/tick)
 	for n := uint64(2); n < back; n++ {
-		a.Step(n, nil)
+		a.Step(n, nil, nil)
 		if got := len(a.Views()); got != 1 {
 			t.Fatalf("tick %d: %d slimes; want one until the respawn", n, got)
 		}
 	}
-	a.Step(back, nil)
+	a.Step(back, nil, nil)
 	views := a.Views()
 	if len(views) != 2 || views[1].ID == blow.Damage.Target.Mob {
 		t.Fatalf("tick %d: %+v; want a new slime back", back, views)
@@ -333,7 +333,7 @@ func TestChangesTellEachChangeOnce(t *testing.T) {
 	weak := swing(20, 18, 0)
 	weak.Power = model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 10, Accuracy: 100}
 	hit, _ := one(t, a.Strike(weak))
-	a.Step(1, nil)
+	a.Step(1, nil, nil)
 	if changed, _ := a.Changes(); len(changed) != 1 || changed[0].ID != hit.Damage.Target.Mob || changed[0].HP == changed[0].MaxHP {
 		t.Fatalf("changed %+v; want the slime hit, once", changed)
 	}
@@ -346,7 +346,7 @@ func TestAnUnwatchedTickKeepsItsBlockersAndTellsNothingLater(t *testing.T) {
 	weak := swing(20, 17, 0)
 	weak.Power = model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 10, Accuracy: 100}
 	a.Strike(weak)
-	a.Step(1, nil)
+	a.Step(1, nil, nil)
 	a.Unwatched()
 	got, views := blockersAt(a, 1), a.Views()
 	slime, _ := worldtest.LoadData(t).Mob("green_slime")
@@ -367,7 +367,7 @@ func TestEachFramesBlockersAreKeptForHistoryTicks(t *testing.T) {
 	a := newArena(t, meadow(t, open(), spawn("green_slime", 1, 20, 20, 3)), &cycle{v: []float64{0.1, 0.7, 0.4, 0.9, 0.25}})
 	kept := map[uint64]sim.Blocker{}
 	for n := uint64(1); n <= 3*mobs.History; n++ {
-		a.Step(n, nil)
+		a.Step(n, nil, nil)
 		_, _ = a.Changes()
 		kept[n] = blockersAt(a, n)[0]
 		for back := range uint64(mobs.History) {
@@ -406,7 +406,7 @@ func TestABossSpawnsAtItsSpotsCentreAndNeverRespawns(t *testing.T) {
 	}
 	moved := false
 	for n := range uint64(400) {
-		a.Step(n+1, nil)
+		a.Step(n+1, nil, nil)
 		for _, v := range a.Views() {
 			if v.ID == id && distance(v, 30, 30) > spot.Radius+def.Radius {
 				t.Fatalf("tick %d: the king at (%.2f, %.2f), outside its spot", n+1, v.X, v.Z)
@@ -424,7 +424,7 @@ func TestABossSpawnsAtItsSpotsCentreAndNeverRespawns(t *testing.T) {
 		t.Fatalf("blow %+v; want the king killed", blow)
 	}
 	for n := uint64(401); n < 401+uint64(time.Minute/tick); n++ {
-		a.Step(n, nil)
+		a.Step(n, nil, nil)
 	}
 	if views := a.Views(); len(views) != 2 || views[0].Type != "green_slime" || views[1].Type != "green_slime" {
 		t.Fatalf("a minute on: %+v; want the two slimes and no king", views)
@@ -466,7 +466,7 @@ func TestAMobStopsAtAPlayerItWouldWalkInto(t *testing.T) {
 	p := player(20, 20)
 	touched := false
 	for n := uint64(1); n <= 100; n++ {
-		a.Step(n, []mobs.Body{p})
+		a.Step(n, []mobs.Body{p}, nil)
 		d := distance(a.Views()[0], p.X, p.Z)
 		if d < 0.875-1e-9 {
 			t.Fatalf("tick %d: the slime %.3f m off the player, in them", n, d)
@@ -477,7 +477,7 @@ func TestAMobStopsAtAPlayerItWouldWalkInto(t *testing.T) {
 		t.Fatal("the slime never stopped at the player's side")
 	}
 	for n := uint64(101); n <= 200; n++ {
-		a.Step(n, nil)
+		a.Step(n, nil, nil)
 	}
 	if v := a.Views()[0]; v.Z < 21 {
 		t.Fatalf("the slime at (%.3f, %.3f); want it walked on north once the player left", v.X, v.Z)
@@ -489,13 +489,13 @@ func TestAMobPartlyInAPlayerGoesNoDeeper(t *testing.T) {
 	a := stroller(t)
 	p := player(20, 17.8) // 0.8 m off, 7.5 cm into the slime
 	for n := uint64(1); n <= 30; n++ {
-		a.Step(n, []mobs.Body{p})
+		a.Step(n, []mobs.Body{p}, nil)
 		if d := distance(a.Views()[0], p.X, p.Z); d < 0.8-1e-9 {
 			t.Fatalf("tick %d: the slime %.3f m off the player; want no deeper than 0.8", n, d)
 		}
 	}
 	for n := uint64(31); n <= 200; n++ {
-		a.Step(n, nil)
+		a.Step(n, nil, nil)
 	}
 	if v := a.Views()[0]; v.Z < 19 {
 		t.Fatalf("the slime at (%.3f, %.3f); want it walked on north once the player left", v.X, v.Z)
@@ -508,7 +508,7 @@ func TestMobsAPlayerStepsIntoStepOutSideBySide(t *testing.T) {
 	m.Kind = gamedata.Town
 	a := newArena(t, m, worldtest.FixedRoll{V: 0.5}) // both on (20, 20 - √2), staying
 	p := player(20, 20-math.Sqrt2+0.3)
-	a.Step(1, []mobs.Body{p})
+	a.Step(1, []mobs.Body{p}, nil)
 	v := a.Views()
 	for _, s := range v {
 		if d := distance(s, p.X, p.Z); d < playerRadius+0.5-1e-6 {
@@ -524,12 +524,12 @@ func TestMobsAPlayerStepsIntoStepOutSideBySide(t *testing.T) {
 func TestAMobWithAPlayerWhollyInsideStepsOutAndWalksOn(t *testing.T) {
 	a := stroller(t)
 	p := player(20, 17) // on the slime's centre
-	a.Step(1, []mobs.Body{p})
+	a.Step(1, []mobs.Body{p}, nil)
 	if d := distance(a.Views()[0], p.X, p.Z); d < playerRadius+0.5-1e-9 {
 		t.Fatalf("the slime %.3f m from the player after a tick; want it out of them, %v or more", d, playerRadius+0.5)
 	}
 	for n := uint64(2); n <= 30; n++ {
-		a.Step(n, []mobs.Body{p})
+		a.Step(n, []mobs.Body{p}, nil)
 	}
 	if d := distance(a.Views()[0], p.X, p.Z); d < 1 {
 		t.Fatalf("the slime %.3f m from the player after 30 ticks; want it walked on", d)

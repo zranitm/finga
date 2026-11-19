@@ -71,7 +71,7 @@ func TestABlowFlinchesAMobAndCancelsItsWindup(t *testing.T) {
 // A MISS neither flinches nor pushes a mob.
 func TestAMissDoesNotFlinch(t *testing.T) {
 	a := alone(t, "green_slime")
-	a.Step(1, nil)
+	a.Step(1, nil, nil)
 	v := theMob(t, a)
 	s := nudge(20, v.Z-1)
 	s.Power.Accuracy = 0 // the least hit chance, under a roll of 0.5
@@ -99,7 +99,7 @@ func TestAPushStopsAtAPlayerASolidAndTheMapsEdge(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			a := newArena(t, meadow(t, c.g, spawn("green_slime", 1, 20, c.at, 0.01)), worldtest.FixedRoll{V: 0.5})
-			a.Step(1, c.players) // the players are what the tick's pushes stop at
+			a.Step(1, c.players, nil) // the players are what the tick's pushes stop at
 			v := theMob(t, a)
 			one(t, a.Strike(nudge(20, v.Z-1)))
 			if got := theMob(t, a); got.Pose != model.Flinching || got.X != 20 || math.Abs(got.Z-c.want) > 1e-9 {
@@ -243,7 +243,7 @@ func TestAKnockdownEndsTheActUnderWay(t *testing.T) {
 // A pose goes out in the frame it changes, even one in which the mob neither moves nor is hurt, as when a flinch ends.
 func TestAPoseChangeGoesOutInItsFrame(t *testing.T) {
 	a := alone(t, "green_slime") // it stands where it spawned, pausing for 1 s
-	a.Step(1, nil)
+	a.Step(1, nil, nil)
 	one(t, a.Strike(nudge(20, theMob(t, a).Z-1)))
 	changed, _ := a.Changes()
 	if len(changed) != 1 || changed[0].Pose != model.Flinching {
@@ -251,12 +251,12 @@ func TestAPoseChangeGoesOutInItsFrame(t *testing.T) {
 	}
 	hit := changed[0]
 	for n := uint64(2); n <= 7; n++ {
-		a.Step(n, nil)
+		a.Step(n, nil, nil)
 		if changed, _ := a.Changes(); len(changed) != 0 {
 			t.Fatalf("frame %d sent %+v; want nothing while it stands flinching", n, changed)
 		}
 	}
-	a.Step(8, nil)
+	a.Step(8, nil, nil)
 	if changed, _ := a.Changes(); len(changed) != 1 || changed[0].Pose != model.Standing || changed[0].X != hit.X || changed[0].Z != hit.Z || changed[0].HP != hit.HP {
 		t.Fatalf("frame 8 sent %+v; want the slime standing again where it was, its 300 ms over", changed)
 	}
@@ -267,7 +267,7 @@ func TestIdleMobsThatOverlapDriftApart(t *testing.T) {
 	a := newArena(t, meadow(t, open(), spawn("green_slime", 2, 20, 20, 0.01)), worldtest.FixedRoll{V: 0.999}) // both on one point, pausing 28 ticks
 	apart := 0.0
 	for n := uint64(1); n <= 28; n++ {
-		a.Step(n, nil)
+		a.Step(n, nil, nil)
 		views := a.Views()
 		d := distance(views[0], views[1].X, views[1].Z)
 		if d > apart+0.1+1e-9 || d < apart-1e-9 || views[1].X < views[0].X {
@@ -293,7 +293,7 @@ func TestAMobInAPileDriftsNoFasterThanOneOfAPair(t *testing.T) {
 	}
 	last := a.Views()
 	for n := uint64(1); n <= 28; n++ {
-		a.Step(n, nil)
+		a.Step(n, nil, nil)
 		views := a.Views()
 		for i, v := range views {
 			if d := distance(v, last[i].X, last[i].Z); d > 0.05+1e-9 {
@@ -323,7 +323,7 @@ func TestAWaitingMobMakesWayForOneThatLandsOnIt(t *testing.T) {
 		if n > 200 {
 			t.Fatal("the far slime never hopped")
 		}
-		a.Step(n, p)
+		a.Step(n, p, nil)
 		for _, w := range a.Started() {
 			if w.Mob == 2 && landed == 0 {
 				landed = n + 20 // its 600 ms windup and 400 ms travel
@@ -335,7 +335,7 @@ func TestAWaitingMobMakesWayForOneThatLandsOnIt(t *testing.T) {
 		t.Fatalf("the far slime landed %.3f m into the near one; want it on top of it", at)
 	}
 	for n := landed + 1; n <= landed+3; n++ {
-		a.Step(n, p)
+		a.Step(n, p, nil)
 	}
 	if o := overlap(); o > at-0.01 {
 		t.Fatalf("%.3f m into each other 150 ms into the hopper's recovery, from %.3f; want the waiting one making way", o, at)
@@ -344,7 +344,7 @@ func TestAWaitingMobMakesWayForOneThatLandsOnIt(t *testing.T) {
 		if n > landed+35 {
 			t.Fatalf("still %.3f m into each other 1.75 s after the landing; want them parted", overlap())
 		}
-		a.Step(n, p)
+		a.Step(n, p, nil)
 	}
 }
 
@@ -359,7 +359,7 @@ func TestAWanderPauseIsRolled(t *testing.T) {
 		var arrived, paused uint64
 		last := theMob(t, a)
 		for n := uint64(1); n <= 400 && paused == 0; n++ {
-			a.Step(n, nil)
+			a.Step(n, nil, nil)
 			v := theMob(t, a)
 			moved := v.X != last.X || v.Z != last.Z
 			switch {
