@@ -131,7 +131,7 @@ func (i *Instance) act(p *player, b *bot, d bots.Decision) {
 	}
 }
 
-// seenStarting keeps in a match's ring, for its bots, an action of length ticks and timing t that p starts at start, shown now: cancelable or not, and a blow's with its shape and lock, aimed from where p stands, and its move toward the lock. Nothing in a match with no bots.
+// seenStarting keeps an action p starts in the match's ring for its bots; nothing in a match without them.
 func (i *Instance) seenStarting(p *player, start, length uint64, t gamedata.Timing, cancelable, blow bool, shape gamedata.Shape, lock model.EntityRef, mv gamedata.Move) {
 	if i.match == nil || i.match.ring == nil {
 		return

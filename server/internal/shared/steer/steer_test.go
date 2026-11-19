@@ -92,27 +92,27 @@ func TestAStalledWalkerJumpsThenStepsAsideEachSideInTurn(t *testing.T) {
 	from, now := nav.Point{X: m.PlayerSpawn.X, Z: m.PlayerSpawn.Z}, 1000*time.Second
 	to := nav.Point{X: from.X + 4, Z: from.Z}
 	var wk Walker
-	ahead := WayOf(wk.Keys(m, r, from, to, now, false))
+	ahead := wayOf(wk.Keys(m, r, from, to, now, false))
 	jump := wk.Keys(m, r, from, to, now, true)
-	if !jump.Jump || WayOf(jump) != ahead {
+	if !jump.Jump || wayOf(jump) != ahead {
 		t.Fatalf("the first stall presses %+v, want a jump ahead %v", jump, ahead)
 	}
-	aside := WayOf(wk.Keys(m, r, from, to, now, true))
+	aside := wayOf(wk.Keys(m, r, from, to, now, true))
 	if aside == ([2]int{}) || aside[0]*ahead[0]+aside[1]*ahead[1] != 0 {
 		t.Fatalf("the second stall steps %v, want across the way ahead %v", aside, ahead)
 	}
 	for k := 1; k < asideFor; k++ {
-		if got := WayOf(wk.Keys(m, r, from, to, now, false)); got != aside {
+		if got := wayOf(wk.Keys(m, r, from, to, now, false)); got != aside {
 			t.Fatalf("decision %d of the step aside presses %v, want %v", k+1, got, aside)
 		}
 	}
-	if got := WayOf(wk.Keys(m, r, from, to, now, false)); got != ahead {
+	if got := wayOf(wk.Keys(m, r, from, to, now, false)); got != ahead {
 		t.Fatalf("after the step aside it presses %v, want %v", got, ahead)
 	}
 	if !wk.Keys(m, r, from, to, now, true).Jump {
 		t.Fatal("the third stall doesn't jump")
 	}
-	if got := WayOf(wk.Keys(m, r, from, to, now, true)); got != [2]int{-aside[0], -aside[1]} {
+	if got := wayOf(wk.Keys(m, r, from, to, now, true)); got != [2]int{-aside[0], -aside[1]} {
 		t.Fatalf("the fourth stall steps %v, want the other side of %v", got, aside)
 	}
 }
@@ -121,7 +121,7 @@ func TestAWalkerWithNoWayWalksStraightAndLooksAgainASecondOn(t *testing.T) {
 	m, r := shippedMap(t, "forest")
 	from, onTop, now := nav.Point{X: 40, Z: 28}, nav.Point{X: 50, Z: 28}, 1000*time.Second // a ledge only a jump gets onto
 	var wk Walker
-	if got := WayOf(wk.Keys(m, r, from, onTop, now, false)); !wk.Lost() || got != [2]int{1, 0} {
+	if got := wayOf(wk.Keys(m, r, from, onTop, now, false)); !wk.Lost() || got != [2]int{1, 0} {
 		t.Fatalf("lost %v, pressing %v; want lost, straight east", wk.Lost(), got)
 	}
 	if wk.Keys(m, r, from, onTop, now+repathEvery/2, true); wk.found != now {

@@ -1,4 +1,4 @@
-// Package bots is a match's bots' brains: each decides on its beat what a player's client would send, its keys and presses, from what it sees: itself now, and the others as they were its reaction ago (docs/tech/pvp.md section 8).
+// Package bots is a match's bots' brains, deciding what a player's client would send from what they see (docs/tech/pvp.md section 8).
 package bots
 
 import (
@@ -46,7 +46,7 @@ type Seen struct {
 	Attack    gamedata.Shape
 }
 
-// Started is an attack or skill a fighter started, as the world showed it at Shown: the ticks it starts, its first hit lands, and its user's next blow may start, its cancel point when it's cancelable, else its end. A blow's has its shape, the aim from where they stood, their lock, and how far they dash or leap toward the lock before it lands.
+// Started is an attack or skill as the world showed it: when it starts, hits and may be followed, and a blow's shape, aim, lock and dash.
 type Started struct {
 	By                      kernel.CharacterID
 	Shown, Start, Hit, Next uint64

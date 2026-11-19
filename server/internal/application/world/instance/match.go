@@ -93,7 +93,7 @@ func newMatch(m Match, rules gamedata.PvpRules, tick func(time.Duration) uint64)
 			mt.order[s] = append(mt.order[s], id)
 			mt.players = mt.players || f.Bot == nil
 			if f.Bot != nil && mt.ring == nil {
-				mt.ring = bots.NewRing(int(tick(gamedata.BotMemory))) //nolint:gosec // a second's ticks
+				mt.ring = bots.NewRing(tick(gamedata.BotMemory))
 			}
 		}
 	}

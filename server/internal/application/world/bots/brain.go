@@ -22,7 +22,7 @@ const (
 	tooClose   = 3.0 // metres inside which a bowman or a magician steps away
 )
 
-// Setup is what a bot fights with: its seed, tier and class, its build's keys and the order it uses their skills in, every skill it has at its points and trait, the map, a player's body, and a tick's length.
+// Setup is what a bot fights with: its seed, tier, class, build and skills, the map and its body.
 type Setup struct {
 	Seed   [2]uint64
 	Tier   gamedata.BotTier
@@ -42,7 +42,7 @@ type Skill struct {
 	Spec gamedata.Stage
 }
 
-// Brain decides a bot's keys and presses by a priority list, the first rule that holds acting: break free, defend, follow up, fight, and walk to where the fight wants it. Its chances are rolled from its seed once for each thing it sees, so a match plays the same each time.
+// Brain picks a bot's keys and presses by a priority list, its chances rolled from its seed.
 type Brain struct {
 	s                    Setup
 	rand                 *rand.Rand
@@ -152,19 +152,19 @@ func (b *Brain) breakOut(v View, others []Seen) Decision {
 	return Decision{Skill: use}
 }
 
-// defend guards against an enemy's action the world showed it starting, its reaction ago: a blow whose shape reaches the bot's spot at its hit, or, with the enemy in its basic attack's reach, their next blow, guessed at the action's cancel point when it's cancelable, else its end. It reads that action alone, never the enemy's keys, cooldowns or energy, so a blow held past the guess gets through. At its tier's defend chance, rolled once for each action, it presses the first of its dodges and blocks that's ready and runs over the guarded tick: none can be sooner than its reaction after the action showed, as the ring shows it no sooner and a guard runs from its press. A block faces the attacker; a dodge's move goes away from them.
+// defend guards a delayed hit that will reach the bot, or the next blow of an enemy in reach, once for each action at its tier's chance.
 func (b *Brain) defend(v View, others []Seen, started []Started) *model.SkillUse {
 	for k := range b.defending {
-		if k.start+uint64(len(v.Ring.frames)) < v.Tick {
-			delete(b.defending, k)
+		if !slices.ContainsFunc(started, func(s Started) bool { return s.By == k.by && s.Start == k.start }) {
+			delete(b.defending, k) // over: the ring shows an action until its hit and next blow have passed
 		}
 	}
 	me := v.Self
 	at := point(me.State)
 	for _, s := range started {
 		by := find(others, s.By)
-		if by == nil || by.Side == me.Side {
-			continue
+		if by == nil || by.Side == me.Side || !by.Up || by.Hard {
+			continue // down or held, its action is over
 		}
 		var guard []uint64
 		if s.Blow && s.Hit >= v.Tick && b.reaches(v, s, others) {
@@ -210,7 +210,7 @@ func (b *Brain) ahead(v View, tick uint64) nav.Point {
 	return nav.Point{X: me.X + float64(me.VX*secs), Z: me.Z + float64(me.VZ*secs)}
 }
 
-// reaches is whether s's shape, aimed as it started, takes in the bot where it will stand at the hit: from the end of a dash or leap toward the lock, short of its body, and round the lock for an area there.
+// reaches is whether s's blow takes in the bot where it will stand at the hit.
 func (b *Brain) reaches(v View, s Started, others []Seen) bool {
 	at := b.ahead(v, s.Hit)
 	body := model.Body{X: at.X, Y: v.Self.State.Y, Z: at.Z, Radius: b.s.Radius, Height: b.s.Height}
@@ -266,7 +266,7 @@ func (b *Brain) followUp(v View, lock model.EntityRef, yaw float32, way sim.Way,
 	return use
 }
 
-// keep is the keys that hold the bot's range from its target: a warrior or a thief walks within its attack's reach; a bowman or a magician walks in from past rangedFar to rangedNear, and steps away inside tooClose.
+// keep is the keys that hold the bot's range from its target.
 func (b *Brain) keep(v View, held sim.Input, at, to nav.Point, dist float64) sim.Input {
 	stalled := b.stuck.Stalled(at, v.Self.State.OnGround, held)
 	now := time.Duration(v.Tick) * b.s.Tick

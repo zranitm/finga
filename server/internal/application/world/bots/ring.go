@@ -14,8 +14,8 @@ type frame struct {
 	seen []Seen
 }
 
-// NewRing keeps ticks frames.
-func NewRing(ticks int) *Ring { return &Ring{frames: make([]frame, max(ticks, 1))} }
+// NewRing keeps the frames from back ticks ago to now, so a reaction of back ticks sees its own.
+func NewRing(back uint64) *Ring { return &Ring{frames: make([]frame, back+1)} }
 
 // Record keeps the fighters as they are at tick, in place of the frame a ring ago.
 func (r *Ring) Record(tick uint64, seen []Seen) {
@@ -28,7 +28,7 @@ func (r *Ring) Record(tick uint64, seen []Seen) {
 // Start keeps an action a fighter started.
 func (r *Ring) Start(s Started) { r.started = append(r.started, s) }
 
-// As is the fighters as of tick of, the oldest frame kept when the ring doesn't reach back so far, and the actions the world had shown by then whose hit or next blow comes at now or later. The fighters are the ring's own, good until its next Record.
+// As is the fighters as of tick of, or the oldest frame kept, and the actions shown by then still to hit or follow; the fighters are good until the next Record.
 func (r *Ring) As(of, now uint64) ([]Seen, []Started) {
 	var started []Started
 	for _, s := range r.started {

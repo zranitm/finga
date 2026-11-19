@@ -24,7 +24,7 @@ func TestAMatchOfBotsAloneRunsToItsEndTheSameEachTime(t *testing.T) {
 			results := &worldtest.Results{}
 			_, stop := worldtest.RunMatch(t, data, spec, nil, worldtest.Options{Results: results})
 			defer stop()
-			for start := time.Now(); len(results.All()) == 0 && time.Since(start) < 10*time.Minute; {
+			for k := 0; len(results.All()) == 0 && k < 600; k++ { // a second a step, up to ten minutes of match
 				sleep(time.Second)
 			}
 			got := results.All()

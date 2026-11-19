@@ -81,7 +81,7 @@ func (f *fight) attack(start uint64) bots.Started {
 	return f.started(start, model.TicksIn(c.Attack.Length, tick), c.Attack.Timing, true, &c.Attack.Shape, f.towardMe(), 0)
 }
 
-// started keeps the enemy's action in the ring as the world shows it at start: a blow's with its shape, aimed at yaw, at the bot as its lock, after a dash of toward metres to it; nil for one without a blow, as a buff.
+// started keeps the enemy's action in the ring as shown at start: a blow's shape aimed at yaw at the bot, after a dash of toward metres; no blow for a buff.
 func (f *fight) started(start, length uint64, t gamedata.Timing, cancelable bool, blow *gamedata.Shape, yaw, toward float64) bots.Started {
 	hitAt, cancelAt := model.ActionPoints(length, t.Hit, t.Cancel)
 	s := bots.Started{By: f.it.ID, Shown: start, Start: start, Hit: start + hitAt, Next: start + length}
@@ -110,7 +110,7 @@ func defends(d bots.Decision) string {
 	return ""
 }
 
-// Defend: a Charge seen starting that will reach the bot at its hit is blocked, facing the swinger; one aimed away, one not yet seen through the bot's reaction, or a tier that never defends goes undefended. With its block cooling down, it dodges back instead, the dodge running over the hit.
+// Defend: a Charge that will reach the bot is blocked facing the swinger, or dodged with the block cooling; not when aimed away, unseen, or at a tier that never defends.
 func TestABotDefendsASwingThatReachesItAtTheHit(t *testing.T) {
 	f := newFight(t, "warrior", sure())
 	s := f.swing(20, f.towardMe())
@@ -283,7 +283,7 @@ func (f *fight) guards(from, to uint64) (uint64, string) {
 	return 0, ""
 }
 
-// The next blow: a basic attack lands as it starts, so a bot guards the blow that may follow it, at the attack's cancel point. A fast tier sees the attack in time for that; a slow one doesn't, and never guards before its reaction has passed since the attack showed.
+// The next blow: a bot guards the blow that may follow a basic attack, at its cancel point, when its tier sees the attack in time.
 func TestASlowTierMissesAShortActionAFastTierGuards(t *testing.T) {
 	data := gamedatatest.Shipped(t)
 	for _, tier := range data.Pvp().Bots.Tiers {
@@ -302,7 +302,7 @@ func TestASlowTierMissesAShortActionAFastTierGuards(t *testing.T) {
 	}
 }
 
-// Counterplay, each tier: a player who holds their next blow past the bot's guess lands it, the guard over and its skill cooling. The bot guarded the guessed tick alone, and sees nothing of a blow before it lands.
+// Counterplay, each tier: a blow held past the bot's guess lands, the guard over and cooling.
 func TestABlowHeldPastTheGuessLandsOnEachTier(t *testing.T) {
 	data := gamedatatest.Shipped(t)
 	for _, tier := range data.Pvp().Bots.Tiers {
@@ -338,5 +338,23 @@ func TestNoGuardBeforeTheBotHasSeenTheAction(t *testing.T) {
 	}
 	if at, _ := f.guards(s.Shown+2, s.Next); at != s.Shown+2 {
 		t.Fatalf("guarded at %d, want as soon as it saw it, at %d", at, s.Shown+2)
+	}
+}
+
+// An enemy seen down or held has no blow coming: a hard status ends an action under way, so the bot guards neither its swing nor its next blow.
+func TestNoGuardAgainstAnEnemyDownOrHeld(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		set  func(*bots.Seen)
+	}{
+		{"held", func(s *bots.Seen) { s.Hard = true }},
+		{"down", func(s *bots.Seen) { s.Up = false }},
+	} {
+		f := newFight(t, "warrior", sure())
+		f.swing(20, f.towardMe())
+		c.set(&f.it)
+		if d := f.decide(22); defends(d) != "" {
+			t.Errorf("an enemy %s: %+v, want no guard", c.name, d.Skill)
+		}
 	}
 }

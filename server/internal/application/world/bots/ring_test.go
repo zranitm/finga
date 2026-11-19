@@ -8,9 +8,9 @@ import (
 	"finga/internal/shared/kernel"
 )
 
-// The ring gives the fighters as they were at a tick, the oldest it keeps when asked further back, and the actions shown by then whose hit or next blow is still to come; an action is dropped once a ring has passed both.
+// The ring gives the fighters as they were at a tick, as far back as it keeps, else its oldest, and the actions shown by then still to hit or follow.
 func TestTheRingGivesTheFightersAsTheyWere(t *testing.T) {
-	r := bots.NewRing(4)
+	r := bots.NewRing(3)
 	id := kernel.NewCharacterID()
 	at := func(tick uint64) []bots.Seen { return []bots.Seen{{ID: id, Body: model.Body{X: float64(tick)}}} }
 	for tick := uint64(10); tick <= 15; tick++ {
@@ -18,6 +18,9 @@ func TestTheRingGivesTheFightersAsTheyWere(t *testing.T) {
 	}
 	if seen, _ := r.As(13, 15); len(seen) != 1 || seen[0].Body.X != 13 {
 		t.Fatalf("as of 13: %+v", seen)
+	}
+	if seen, _ := r.As(12, 15); len(seen) != 1 || seen[0].Body.X != 12 {
+		t.Fatalf("as of 12, the 3 ticks back it keeps: %+v, want 12's own, as a reaction at the bot's memory sees", seen)
 	}
 	if seen, _ := r.As(5, 15); len(seen) != 1 || seen[0].Body.X != 12 {
 		t.Fatalf("as of 5, before the ring: %+v, want its oldest, 12", seen)

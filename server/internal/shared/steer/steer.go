@@ -34,8 +34,8 @@ func YawTo(from, to nav.Point) float32 {
 	return float32(math.Atan2(to.X-from.X, to.Z-from.Z))
 }
 
-// WayOf is the way an input's keys press, x east and z north, each -1, 0 or 1.
-func WayOf(in sim.Input) [2]int {
+// wayOf is the way an input's keys press, x east and z north, each -1, 0 or 1.
+func wayOf(in sim.Input) [2]int {
 	key := func(plus, minus bool) int {
 		switch {
 		case plus && !minus:
@@ -48,7 +48,7 @@ func WayOf(in sim.Input) [2]int {
 	return [2]int{key(in.Right, in.Left), key(in.Up, in.Down)}
 }
 
-// Walker follows nav paths, turning each waypoint into keys; it finds the path again when its end moves, a second on, or when the bot stalls. With no way found it walks straight at its end for a second before looking again, as a search that fails covers the whole map. Its zero value is ready.
+// Walker turns nav paths into keys, finding the path again when its end moves, a second on, or after a stall. Its zero value is ready.
 type Walker struct {
 	finder nav.Finder
 	path   []nav.Point
@@ -60,7 +60,7 @@ type Walker struct {
 	aside  int  // decisions left stepping aside
 }
 
-// Keys are the keys that walk a body of radius r at from on m toward to, along a path round what's in the way, now on the caller's clock from any start. A path keeps gamedata.BotPathMargin clear beyond r where it can. A stall is met with a jump the first time, a step aside the next, each other step the other side, in turn.
+// Keys walks a body of radius r from from toward to on m, round what's in the way, jumping then stepping aside at a stall.
 func (w *Walker) Keys(m *gamedata.Map, r float64, from, to nav.Point, now time.Duration, stalled bool) sim.Input {
 	if w.mapID != m.ID || nav.Distance(w.to, to) > repathMoved || now-w.found > repathEvery || (!w.none && (stalled || len(w.path) == 0)) {
 		leash := math.Hypot(m.Geometry.SizeX, m.Geometry.SizeZ)
@@ -101,7 +101,7 @@ func (w *Walker) Keys(m *gamedata.Map, r float64, from, to nav.Point, now time.D
 // Lost reports whether the last search found no way to the walker's end.
 func (w *Walker) Lost() bool { return w.none }
 
-// Stall finds a body stuck against something: stallFor decisions pressing one way on the ground that move it less than stallMoved, told once and then counted again. Frames in the air or standing never count, so updates that arrive in bursts don't count as one, and a new way starts the count, as its first steps take a round trip to show. Its zero value is ready.
+// Stall finds a body pressing one way on the ground that barely moves, counting only frames that could move it. Its zero value is ready.
 type Stall struct {
 	at    nav.Point
 	way   [2]int
@@ -110,7 +110,7 @@ type Stall struct {
 
 // Stalled takes a decision's position and the input held into it, and reports whether the body has just stalled.
 func (s *Stall) Stalled(at nav.Point, onGround bool, held sim.Input) bool {
-	way := WayOf(held)
+	way := wayOf(held)
 	if !onGround || way == ([2]int{}) || way != s.way || nav.Distance(at, s.at) >= stallMoved {
 		s.count, s.at, s.way = 0, at, way
 		return false
