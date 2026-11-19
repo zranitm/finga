@@ -5,6 +5,8 @@ import { ground } from '@/sim/step';
 import type { Box, Cylinder, Geometry } from '@/sim/step';
 import { height, terrain } from '@/sim/terrain';
 
+import type { RegionRef } from './region-bake';
+
 /** How far above or below a portal's ground feet in its circle stand in it, as the server's portalHeight. */
 const PORTAL_HEIGHT = 1;
 
@@ -40,6 +42,8 @@ export interface WorldMap {
   readonly portals: readonly Portal[];
   /** A match's map's prep wall: its boxes as drawn, and the map's geometry with them added after its own, as the world walks it through prep and the count into a round (pvp.md section 3); none elsewhere. */
   readonly prepWall: { readonly boxes: readonly Box[]; readonly walled: Geometry } | null;
+  /** The region whose bake draws it, or null for a map drawn whole from its own JSON. */
+  readonly region: RegionRef | null;
 }
 
 /** One map's JSON, as mapjson writes it. */
@@ -82,6 +86,7 @@ interface MapJson {
     readonly boxes: readonly Box[] | null;
     readonly cylinders: readonly Cylinder[] | null;
   };
+  readonly region?: RegionRef;
 }
 
 /** The map with id, from its JSON in the page's maps folder. */
@@ -148,6 +153,7 @@ function parseMap(json: unknown): WorldMap {
           }), // its own index: the map's never saw the wall
         }
       : null,
+    region: m.region ?? null,
   };
 }
 

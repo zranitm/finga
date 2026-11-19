@@ -74,3 +74,13 @@ it('warms one material for a stretched mesh and a whole one alike, as each takes
     ]),
   ).toEqual(['stretched true', 'whole false']);
 });
+
+it('draws a ground in its vertices’ colours, in a material of its own', () => {
+  const palette = new Palette(scene);
+  const plain = palette.toon({ texture: null, color: Color3.White() });
+  const ground = palette.toon({ texture: null, color: Color3.White(), vertexColors: true });
+  expect(ground).not.toBe(plain);
+  expect(palette.toon({ texture: null, color: Color3.White(), vertexColors: true })).toBe(ground);
+  expect(ground.getBlockByName('vertexColor')).not.toBeNull();
+  expect(plain.getBlockByName('vertexColor')).toBeNull();
+});

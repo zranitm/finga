@@ -97,6 +97,7 @@ import { beatsOf } from './beats';
 import type { Beats } from './beats';
 import type { Figure, Gait, Lighting, Pose } from './body';
 import { STILL, sunShadows } from './body';
+import type { ChunkSource } from './chunk-build';
 import { Combat, playerBody } from './combat';
 import { cutMobs } from './cut-mobs';
 import { DropMark, warmGems } from './drop';
@@ -116,6 +117,7 @@ import { Overlay } from './overlay';
 import { buildPlace, fade, fogFor } from './place';
 import type { Place } from './place';
 import { PrepWall } from './prep-wall';
+import { buildRegion } from './region-place';
 import { ShieldBubbles } from './shield-bubbles';
 import { teleportGlow } from './teleport-glow';
 import { Palette } from './toon';
@@ -134,6 +136,8 @@ export interface WorldDeps {
   readonly parent: HTMLElement;
   readonly player: Player;
   readonly models: ModelSource;
+  /** Builds a region's chunks off the page's thread. */
+  readonly chunks: ChunkSource;
   /** The page's clock in ms, which the keys, actions and frames share. */
   readonly now: () => number;
 }
@@ -555,7 +559,9 @@ export class World {
       const models = new Models(scene, this.deps.models);
       figures = new Figures(scene, lighting, models);
       fx = new Fx(scene, map, art, this.deps.now, lighting.palette);
-      place = await buildPlace(scene, map, lighting, models);
+      place = map.region
+        ? await buildRegion(scene, map.region, lighting, models, this.deps.chunks)
+        : await buildPlace(scene, map, lighting, models);
     } catch (err) {
       scene.dispose();
       throw err;
@@ -1212,6 +1218,7 @@ export class World {
     cameraAt(look.x, look.y, look.z, this.zoom, camera.position);
     camera.setTarget(look);
     if (this.place) {
+      this.place.follow(look.x, look.z);
       fade(
         camera.position,
         this.head.set(at.x, at.y + movement.height, at.z),

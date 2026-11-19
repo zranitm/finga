@@ -1,0 +1,247 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
+import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
+import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
+import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { Mesh } from '@babylonjs/core/Meshes/mesh';
+import { Scene } from '@babylonjs/core/scene';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { servePublic } from '@/testing/public-on-disk';
+import { TINY, tinyFile } from '@/testing/region-fixture';
+
+import { sunShadows } from './body';
+import type { Lighting } from './body';
+import { buildChunk } from './chunk-build';
+import type { BuiltChunk, ChunkRequest, ChunkSource } from './chunk-build';
+import { Models } from './models';
+import type { Place } from './place';
+import { readChunk } from './region-bake';
+import { buildRegion, chunkDistance, chunksNear, detailAt } from './region-place';
+import { Palette } from './toon';
+
+const MODELS = path.resolve(process.cwd(), 'public/models');
+const WHOLE = 16 * 16 * 6; // the overview's indices with no holes: 128 m every 8 m
+
+describe('which chunks a target wants', () => {
+  it('measures to the nearest point of a chunk, 0 inside it', () => {
+    expect(chunkDistance(1, 1, 64, 100, 100)).toBe(0);
+    expect(chunkDistance(1, 1, 64, 30, 100)).toBe(34);
+    expect(chunkDistance(1, 1, 64, 30, 30)).toBeCloseTo(Math.hypot(34, 34));
+  });
+
+  it('draws every sample within 64 m, every 2nd within 128 m and every 4th beyond', () => {
+    expect([0, 63.9, 64, 127.9, 128, 300].map(detailAt)).toEqual([0, 0, 1, 1, 2, 2]);
+  });
+
+  it('lists the chunks within reach, held to the region, nearest first', () => {
+    const near = chunksNear(16, 16, 64, 100, 30, 100);
+    expect(near[0]).toEqual({ cx: 1, cz: 0, d: 0 });
+    expect(near.map((c) => c.d)).toEqual([...near.map((c) => c.d)].sort((a, b) => a - b));
+    expect(near.every((c) => c.d <= 100 && c.cx >= 0 && c.cz >= 0)).toBe(true);
+    expect(near.some((c) => c.cx === 3 && c.cz === 0)).toBe(true); // 92 m east
+    expect(near.some((c) => c.cx === 3 && c.cz === 2)).toBe(false); // 128 m off
+  });
+});
+
+describe('a region drawn from its bake', () => {
+  let engine: NullEngine;
+  let scene: Scene;
+  let lighting: Lighting;
+  let asked: string[];
+  let place: Place | undefined;
+  const meshes = (prefix: string) =>
+    scene.meshes.filter((m) => m.name.startsWith(prefix)) as Mesh[];
+  const chunkNames = () =>
+    meshes('chunk ')
+      .map((m) => m.name)
+      .sort();
+  const props = (k: string) => scene.getTransformNodeByName(`chunk ${k} props`);
+  const copies = (k: string) =>
+    (props(k)?.getChildMeshes(true) ?? []).filter((m): m is Mesh => m instanceof Mesh);
+  const tick = () => new Promise((r) => setTimeout(r, 1));
+
+  async function built(source: ChunkSource = buildChunk): Promise<void> {
+    place = await buildRegion(
+      scene,
+      TINY,
+      lighting,
+      new Models(scene, (f) => new Uint8Array(readFileSync(path.join(MODELS, f)))),
+      (req: ChunkRequest) => {
+        asked.push(req.url.slice(req.url.indexOf('chunks/')));
+        return source(req);
+      },
+    );
+  }
+
+  /** Follows (x, z) frame after frame till count chunks are made and their props are in. */
+  async function settle(x: number, z: number, count: number): Promise<void> {
+    await vi.waitFor(async () => {
+      place!.follow(x, z);
+      await tick();
+      const made = chunkNames();
+      expect(made.length).toBe(count);
+      expect(made.every((m) => copies(m.slice(6)).length > 0)).toBe(true);
+    }, 5000);
+  }
+
+  beforeEach(() => {
+    servePublic();
+    engine = new NullEngine();
+    engine.getCaps().instancedArrays = true;
+    scene = new Scene(engine);
+    const sun = new DirectionalLight('sun', new Vector3(0.35, -1, 0.6).normalize(), scene);
+    lighting = { palette: new Palette(scene), shadows: sunShadows(sun, 256) };
+    asked = [];
+  });
+
+  afterEach(() => {
+    place?.dispose();
+    place = undefined;
+    scene.dispose();
+    engine.dispose();
+    vi.unstubAllGlobals();
+  });
+
+  it('starts with the whole overview, then makes the chunks round the target, two a frame, cutting the overview where they stand', async () => {
+    await built();
+    const [overview] = meshes('overview');
+    expect(overview!.getTotalIndices()).toBe(WHOLE);
+    place!.follow(30, 60);
+    expect(asked).toEqual(['chunks/0_0.bin', 'chunks/0_1.bin', 'chunks/1_0.bin', 'chunks/1_1.bin']);
+    expect(chunkNames()).toEqual([]);
+    await tick();
+    place!.follow(30, 60);
+    expect(chunkNames().length).toBe(2);
+    place!.follow(30, 60);
+    expect(chunkNames()).toEqual(['chunk 0_0', 'chunk 0_1', 'chunk 1_0', 'chunk 1_1']);
+    expect(overview!.getTotalIndices()).toBe(0);
+    expect(asked.length).toBe(4); // each asked once
+    const c = meshes('chunk 1_1')[0]!;
+    expect(c.position.asArray()).toEqual([64, 0, 64]);
+    expect(c.getTotalIndices()).toBe((32 * 32 * 2 + 4 * 32 * 2) * 3); // every sample, with its skirts
+  });
+
+  it('draws each chunk at its detail and its props within 160 m, and frees it past 320 m', async () => {
+    await built();
+    await settle(30, 60, 4);
+    for (const k of ['0_0', '1_1']) {
+      const oaks = readChunk(tinyFile(`chunks/${k}.bin`)).props.models.length; // the tiny plan scatters oaks alone
+      for (const part of copies(k)) {
+        expect(part.thinInstanceCount).toBe(oaks);
+        expect((part.getChildMeshes(true)[0] as Mesh).thinInstanceCount).toBe(oaks); // its ink
+      }
+    }
+    expect(lighting.shadows.getShadowMap()!.renderList).toHaveLength(0); // no casting till the cascades come
+    for (const part of copies('1_1')) {
+      const { minimumWorld: lo, maximumWorld: hi } = part.getBoundingInfo().boundingBox;
+      for (const m of part.thinInstanceGetWorldMatrices()) {
+        const at = m.getTranslation();
+        expect([
+          at.x >= lo.x - 1e-3,
+          at.x <= hi.x + 1e-3,
+          at.z >= lo.z - 1e-3,
+          at.z <= hi.z + 1e-3,
+        ]).toEqual([true, true, true, true]); // culled by where its copies stand
+      }
+    }
+    const templates = scene
+      .getTransformNodeByName('kit models')!
+      .getChildMeshes(false)
+      .map((m) => m.name);
+    expect(templates.length).toBeGreaterThan(0);
+    expect(new Set(templates).size).toBe(templates.length); // each kit model loaded once for every chunk
+    const [a, b] = [copies('0_0')[0]!, copies('1_1')[0]!]; // the same part in two chunks
+    expect(a.name.split(' ').slice(0, -1)).toEqual(b.name.split(' ').slice(0, -1));
+    expect(a.geometry).not.toBe(b.geometry); // each its own: thin instances' matrices live on the geometry
+    expect(a.getChildMeshes(true)[0]!.geometry).toBe(a.geometry); // its ink draws the same instances
+
+    place!.follow(-100, 60); // the west chunks 100 m off, the east ones 164 m
+    expect(meshes('chunk 0_0')[0]!.getTotalIndices()).toBe((16 * 16 * 2 + 4 * 16 * 2) * 3);
+    expect(meshes('chunk 1_0')[0]!.getTotalIndices()).toBe((8 * 8 * 2 + 4 * 8 * 2) * 3);
+    expect(props('0_0')!.isEnabled()).toBe(true);
+    expect(props('1_0')!.isEnabled()).toBe(false);
+
+    place!.follow(-330, 60); // the west chunks 330 m off: freed; the east ones too
+    expect(chunkNames()).toEqual([]);
+    expect(props('0_0')).toBeNull();
+    expect(meshes('overview')[0]!.getTotalIndices()).toBe(WHOLE);
+  });
+
+  it("leaves the overview where a chunk won't come, asking for it once", async () => {
+    await built((req) =>
+      req.url.endsWith('1_1.bin') ? Promise.reject(new Error('gone')) : buildChunk(req),
+    );
+    const said = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    await settle(30, 60, 3);
+    for (let i = 0; i < 5; i++) {
+      place!.follow(30, 60);
+    }
+    expect(chunkNames()).toEqual(['chunk 0_0', 'chunk 0_1', 'chunk 1_0']);
+    expect(asked.filter((a) => a.endsWith('1_1.bin')).length).toBe(1);
+    expect(meshes('overview')[0]!.getTotalIndices()).toBe(8 * 8 * 6);
+    expect(said).toHaveBeenCalledWith(expect.stringContaining('chunk 1_1 of tiny'));
+    said.mockRestore();
+  });
+
+  it('makes no chunk that was built while the target went out of its reach', async () => {
+    await built();
+    place!.follow(30, 60);
+    await tick(); // all four built
+    place!.follow(-400, 60);
+    expect(chunkNames()).toEqual([]);
+    place!.follow(-400, 60);
+    expect(chunkNames()).toEqual([]);
+  });
+
+  it('leaves no props for a chunk freed before its models came', async () => {
+    await built();
+    place!.follow(30, 60);
+    await tick();
+    place!.follow(30, 60); // two made, their oaks still loading
+    expect(chunkNames().length).toBe(2);
+    place!.follow(-400, 60); // and freed
+    await vi.waitFor(
+      () =>
+        expect(
+          scene.getTransformNodeByName('kit models')!.getChildMeshes(false).length,
+        ).toBeGreaterThan(0),
+      5000,
+    );
+    await tick();
+    expect(scene.meshes.filter((m) => / \d+_\d+$/.test(m.name))).toEqual([]);
+  });
+
+  it('asks for four chunks at a time, nearest first, in a region with more in reach', async () => {
+    const disk = globalThis.fetch;
+    vi.stubGlobal('fetch', async (url: string) => {
+      const r = await disk(url);
+      return url.endsWith('region.json')
+        ? Response.json({ ...(await r.json()), chunks: [4, 4] })
+        : r;
+    }); // the tiny bake, said to be 4 by 4 chunks
+    await built(() => new Promise<BuiltChunk>(() => undefined));
+    place!.follow(100, 100);
+    place!.follow(100, 100);
+    expect(asked).toEqual(['chunks/1_1.bin', 'chunks/2_1.bin', 'chunks/1_2.bin', 'chunks/1_0.bin']); // 0, 28, 28 and 36 m off
+  });
+
+  it('drops a chunk that comes after it went out of reach, and one that comes after the region went', async () => {
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    await built((req) => held.then(() => buildChunk(req)));
+    place!.follow(30, 60);
+    place!.follow(-400, 60);
+    release();
+    await tick();
+    place!.follow(30, 60); // asked again, as they're back in reach
+    expect(chunkNames()).toEqual([]);
+    place!.dispose();
+    place = undefined;
+    await tick();
+    expect(scene.fogMode).toBe(Scene.FOGMODE_NONE);
+    expect(scene.meshes).toEqual([]);
+  });
+});

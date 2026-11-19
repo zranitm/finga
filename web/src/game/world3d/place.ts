@@ -1,4 +1,5 @@
 // A map drawn (3d-world.md section 10): its sky and fog, its ground from the height grid, its solids and props as kit models or stand-ins, and its portals' glow.
+import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import type { Material } from '@babylonjs/core/Materials/material';
 import type { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
@@ -140,6 +141,8 @@ export class Look {
 export interface Place {
   /** Each solid's look by its index among the map's, then the kit props' taller than LOW_PROP in the map's order. */
   readonly looks: readonly Look[];
+  /** Draws what the camera's target at (x, z) needs: a region streams its chunks round it, a map is drawn whole. */
+  follow(x: number, z: number): void;
   dispose(): void;
 }
 
@@ -158,6 +161,15 @@ export function fogFor(scene: Scene, sky: string, zoom: number): void {
   scene.fogEnd = end * far;
 }
 
+/** Sets scene's sky: its colour behind everything and its fog, close up. */
+export function skyFor(scene: Scene, key: string): void {
+  const sky = SKIES[key] ?? SKIES.day!;
+  scene.clearColor = Color4.FromColor3(Color3.FromHexString(hex(sky.color)), 1);
+  scene.fogMode = Scene.FOGMODE_LINEAR;
+  scene.fogColor = linearOf(sky.color); // the toon materials fog in linear light, then go to gamma
+  fogFor(scene, key, 0);
+}
+
 /** Draws map in scene: its sky, ground, solids, props and portals; a model key with a kit model draws it, any other a stand-in. */
 export async function buildPlace(
   scene: Scene,
@@ -166,11 +178,7 @@ export async function buildPlace(
   models: Models,
 ): Promise<Place> {
   const root = new TransformNode(`place ${map.id}`, scene);
-  const sky = SKIES[map.sky] ?? SKIES.day!;
-  scene.clearColor = Color4.FromColor3(Color3.FromHexString(hex(sky.color)), 1);
-  scene.fogMode = Scene.FOGMODE_LINEAR;
-  scene.fogColor = linearOf(sky.color); // the toon materials fog in linear light, then go to gamma
-  fogFor(scene, map.sky, 0);
+  skyFor(scene, map.sky);
 
   const { palette } = lighting;
   const g = map.geometry;
@@ -235,7 +243,7 @@ export async function buildPlace(
   }
   await Promise.all(
     [...placed].map(async ([key, p]) => {
-      const parts = await kitParts(models, p.kit, key, lighting, root);
+      const parts = await kitParts(models, p.kit, key, lighting.palette, lighting.shadows, root);
       const all = [...p.solids, ...p.props].map((s) => s.at);
       p.solids.forEach(({ i, at }, n) => {
         solids[i] = kitLook(parts, at, n, lighting, root, fades); // its copy made before any instance, which a clone would carry
@@ -273,6 +281,9 @@ export async function buildPlace(
 
   return {
     looks: [...solids, ...props.filter((l): l is Look => l !== undefined)],
+    follow: () => {
+      // a map is drawn whole: nothing streams
+    },
     dispose: () => {
       root.dispose(false, false);
       scene.fogMode = Scene.FOGMODE_NONE;
@@ -477,7 +488,13 @@ function standInSolid(
 }
 
 /** Where a kit model stands: scaled, turned by its yaw, raised over the ground at (x, z). */
-function placement(kit: KitModel, x: number, z: number, yawDeg: number, ground: number): Matrix {
+export function placement(
+  kit: KitModel,
+  x: number,
+  z: number,
+  yawDeg: number,
+  ground: number,
+): Matrix {
   return Matrix.Compose(
     new Vector3(kit.scale, kit.scale, kit.scale),
     Quaternion.RotationAxis(Vector3.Up(), yawDeg * DEG),
@@ -486,21 +503,21 @@ function placement(kit: KitModel, x: number, z: number, yawDeg: number, ground: 
 }
 
 /** A kit model's mesh in the model's own space, drawn once per placement as a thin instance with its ink, and its material at each of STEPS. */
-interface KitPart {
+export interface KitPart {
   readonly mesh: Mesh;
   readonly ink: Mesh | null;
   readonly steps: readonly Material[];
 }
 
-/** key's kit model, made once: each mesh baked into the model's space at an identity transform, toon-drawn, inked and casting shadows; its clips and skeletons let go, as it stands still. */
-async function kitParts(
+/** key's kit model, made once: each mesh baked into the model's space at an identity transform, toon-drawn, inked and casting shadows when given them; its clips and skeletons let go, as it stands still. */
+export async function kitParts(
   models: Models,
   kit: KitModel,
   key: string,
-  lighting: Lighting,
+  palette: Palette,
+  shadows: ShadowGenerator | null,
   root: TransformNode,
 ): Promise<KitPart[]> {
-  const { palette, shadows } = lighting;
   const container = await models.load(kit.file);
   const made = container.instantiateModelsToScene((n) => `${key} ${n}`, false, {
     doNotInstantiate: true,
@@ -530,7 +547,7 @@ async function kitParts(
     const steps = STEPS.map((a) => palette.toon(base, a, true));
     mesh.material = steps[0]!;
     mesh.receiveShadows = true;
-    shadows.addShadowCaster(mesh, false);
+    shadows?.addShadowCaster(mesh, false);
     palette.outline(mesh, true);
     const ink = mesh
       .getChildMeshes(true)

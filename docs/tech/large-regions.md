@@ -200,7 +200,7 @@ biomes:
   | File | What | Size at 1 km |
   | --- | --- | --- |
   | `region.json` | The format, name, sky, size, cell, chunk size and grid, overview spacing, and height range; the palette (each ground's name and colour) and the model names, which chunks index; each river's path, width and levels and each lake's area and level; and the plan's areas, camps, waypoints, NPCs, gates and start | 6 kB |
-  | `chunks/<cx>_<cz>.bin` | `FRCK`, the format, its x, z and 65 samples a side, its edges shared with its neighbours; then 65 × 65 heights (float32) and colour indices, row by row from the south-west; then the props (model, x, z, yaw), cylinders (x, z, radius, top) and boxes (x, z, half width, half depth, axis, top) whose centres it holds | 23 kB, 16 kB gzipped |
+  | `chunks/<cx>_<cz>.bin` | `FRCK`, the format, its x, z and 65 samples a side, its edges shared with its neighbours; then 67 × 67 heights (float32), its own with a border one sample wide held to the region at its edges, and 65 × 65 colour indices, row by row from the south-west; then the props (model, x, z, yaw), cylinders (x, z, radius, top) and boxes (x, z, half width, half depth, axis, top) whose centres it holds | 23 kB, 16 kB gzipped |
   | `overview.bin` | `FROV`, the format, its samples along x and z and its spacing; then heights and colour indices every 8 m, for the far land | 83 kB, 61 kB gzipped |
   | `tiles/1/<x>_<z>.png`, `tiles/4/<x>_<z>.png` | The map image in 128 m squares from the south-west, at 1 and 4 m a pixel: each ground's colour shaded by its slope toward the north-west light, water over beds, solids dark | 450 kB in all |
 
@@ -442,6 +442,30 @@ Built with step 1, which says who watches a cell.
   - **The World tab** charts the three regions and any old maps still in use.
   - `map-image.ts` reads its height range from `region.json`, not from a spread of every height.
 - **Loading a region:** the loading screen holds until the overview and the chunks within 128 m are built, then fades as today.
+- **As built (step 5a):**
+  - **Wiring:** a map's JSON may name `region: {id, hash}`. The world then draws that bake in place of the map's own ground and props, and tells it the camera's target each frame. No map names one until 4b serves a region, so only tests and the preview draw one.
+  - **Building chunks:** two Web Workers decode and build them (`chunk-workers.ts`), four asked at a time, nearest first. Two meshes are made a frame, so streaming never holds a frame up.
+    - A chunk built after the target moved out of its reach isn't made.
+    - A chunk that fails to load isn't asked again; the overview stands in for it.
+  - **The overview** is cut under every chunk drawn, and whole again where one is freed.
+  - **Seams:**
+    - The bake's format 2 gives each chunk's heights a border one sample wide. Normals take central differences over it, so a shared edge gets one normal from both chunks and no toon band steps along the seam.
+    - Each detail's skirt hangs 0.5 m below the most an edge strays from the line a coarser neighbour draws.
+    - Stills with a magenta sky and no fog show no crack across the 64 m and 128 m steps or at the overview's edge.
+  - **Props:** each chunk copies each kit model's parts, with their ink, as one thin instance per prop.
+    - Every copy has a geometry of its own. Babylon keeps thin instances' matrices on the geometry, so copies sharing one all drew the last chunk's trees. Only real Chrome showed it; the null engine draws nothing.
+    - Each kit model loads once for the region. A chunk freed before its models come gets none.
+  - **Measured** on the wide test plan (1 km), M3 on Metal, 1280×800, full zoom, walking 12 m/s for 60 s:
+    - frames: a median 6.8 ms, p95 10.7 ms, the longest 27 ms;
+    - draw calls: a median 81, at most 200, with no shadows yet;
+    - the first view shown 0.47 s after the overview, and a chunk drawn a median 30 ms (p95 45 ms) after it comes within 256 m;
+    - 15.5 MB of buffers and a 123 MB JS heap.
+    - At 32:9 (2560×720), props reach the sides of the view at full zoom.
+  - **Not yet:**
+    - the looks grid, cascaded shadows and water (5b);
+    - label and bar limits, and map tiles (5c);
+    - the loading screen's hold, with 4b, when a player first enters a region.
+    - A river's bed steps 1 m at a time along its banks until 5b's water covers it.
 
 ## 11. cmd/bot
 
@@ -502,6 +526,11 @@ Built with step 1, which says who watches a cell.
 - **Client:**
   - chunks loading and unloading round a moving target;
   - detail and seams;
+  - As built (step 5a), on the tiny bake, which `TestTheClientsFixtureIsTheTinyBake` keeps current:
+    - the order chunks are asked in, four at a time, two made a frame, freed past 320 m;
+    - a late chunk, a failed one and a chunk freed before its models came;
+    - the overview's holes, each detail's triangles and skirts, and shared edges' normals;
+    - props within 160 m, each chunk's copies on their own geometry, culled by where they stand.
   - the looks grid;
   - the zoom's angle and fog;
   - the map views from tiles.
@@ -520,13 +549,11 @@ Built with step 1, which says who watches a cell.
 3. **Sprint and zoom:** the sim rule, `PlayerView.sprint`, the look, the camera, the zoom actions, and saved zoom. Then **walk mode** (section 7), its own PR: the sim rule and vectors, `Input.walk` and `PlayerView.walk`, the `walk` action and setting, the notice and the icon.
 4. **The pipeline,** in two PRs:
    - 4a: `regiongen`, the kit and the bake, and the preview;
-   - 4b: the `region` kind and its loader rules, region channels, areas, towns, area bosses and respawn, and a test region.
-5. **The client for regions:**
-   - the overview, chunk streaming and detail;
-   - props per chunk and the looks grid;
-   - cascaded shadows and water;
-   - label and bar limits;
-   - tiles for the map views.
+   - 4b: the `region` kind and its loader rules, region channels, areas, towns, area bosses and respawn, and a test region. The client's sim walks a region's ground from its bake, and the loading screen holds for the near chunks.
+5. **The client for regions,** in three PRs:
+   - 5a: the overview, chunk streaming and detail, and props per chunk;
+   - 5b: the looks grid, cascaded shadows and water;
+   - 5c: label and bar limits, and tiles for the map views.
 6. **Waypoints and teleport:** finding, storage, `Teleport{waypoint}`, and the map views' waypoints.
 7. **The soak:** cmd/bot on regions, and the budget run. `channel_cap` is set.
 8. **The green region:** its design first, then its build.

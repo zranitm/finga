@@ -26,6 +26,7 @@ function map(boxes: Box[] = []): WorldMap {
     prepWall: null,
     props: [],
     portals: [],
+    region: null,
   };
 }
 
