@@ -382,58 +382,88 @@ func TestADoubleKnockoutIsAnEvenRound(t *testing.T) {
 	})
 }
 
-// scale.damage scales every way a player hurts another: an attack, a damage skill's blows, and the damage over time it leaves.
-func TestScaleDamageScalesEveryBlowAndTick(t *testing.T) {
-	type dealt struct{ attack, skill, bleed int }
-	run := func(t *testing.T, damage string) dealt {
-		data := pvpData(t, "1.0", damage)
-		ayla, robin := fighterFrom(t, data, "Ayla"), fighterFrom(t, data, "Robin")
-		ayla.Class = "thief"
-		inst, stop := worldtest.RunMatch(t, data, duel(model.Fighter{Character: ayla.ID}, model.Fighter{Character: robin.ID}), nil, worldtest.Options{})
-		defer stop()
-		as, rs := &worldtest.Sink{}, &worldtest.Sink{}
-		for _, j := range []struct {
-			p model.Player
-			s *worldtest.Sink
-		}{{ayla, as}, {robin, rs}} {
-			if err := inst.Join(context.Background(), j.p, j.s); err != nil {
-				t.Fatal(err)
-			}
-		}
-		sleep(data.Pvp().Rounds.Prep + data.Pvp().Rounds.Countdown + worldtest.TickInterval)
-		robinAt, _ := rs.Own(robin.ID)
-		walkTo(inst, as, ayla.ID, 0, robinAt.State.Z-1.2, 0.2)
-		var got dealt
-		_ = inst.Attack(ayla.ID, 0, model.EntityRef{Player: robin.ID})
-		sleep(time.Second)
-		if hits := hitsOn(as, robin.ID); len(hits) > 0 {
-			got.attack = hits[0].Amount
-		}
-		seen := len(hitsOn(as, robin.ID))
-		if err := inst.UseSkill(context.Background(), ayla.ID, ayla.Connection, model.SkillUse{Skill: "double_stab", Root: "double_stab", Target: model.EntityRef{Player: robin.ID}}, 0); err != nil {
+// blows is what a Thief's attack, Double Stab and its bleed's first tick did to a Warrior in a match, and the Warrior's max HP there.
+type blows struct{ attack, skill, bleed, maxHP int }
+
+// thiefOnWarrior is what Ayla, a Thief, deals Robin on data.
+func thiefOnWarrior(t *testing.T, data *gamedata.Data) blows {
+	ayla, robin := fighterFrom(t, data, "Ayla"), fighterFrom(t, data, "Robin")
+	ayla.Class = "thief"
+	inst, stop := worldtest.RunMatch(t, data, duel(model.Fighter{Character: ayla.ID}, model.Fighter{Character: robin.ID}), nil, worldtest.Options{})
+	defer stop()
+	as, rs := &worldtest.Sink{}, &worldtest.Sink{}
+	for _, j := range []struct {
+		p model.Player
+		s *worldtest.Sink
+	}{{ayla, as}, {robin, rs}} {
+		if err := inst.Join(context.Background(), j.p, j.s); err != nil {
 			t.Fatal(err)
 		}
-		sleep(3 * time.Second)
-		for _, h := range hitsOn(as, robin.ID)[seen:] {
-			switch {
-			case h.Status == "bleed" && got.bleed == 0:
-				got.bleed = h.Amount
-			case h.Status == "" && got.skill == 0:
-				got.skill = h.Amount
-			}
-		}
-		if got.attack == 0 || got.skill == 0 || got.bleed == 0 {
-			t.Fatalf("at scale %s Ayla dealt %+v; want an attack, a stab and a bleed tick", damage, got)
-		}
-		return got
 	}
+	sleep(data.Pvp().Rounds.Prep + data.Pvp().Rounds.Countdown + worldtest.TickInterval)
+	robinAt, _ := rs.Own(robin.ID)
+	walkTo(inst, as, ayla.ID, 0, robinAt.State.Z-1.2, 0.2)
+	got := blows{maxHP: robinAt.MaxHP}
+	_ = inst.Attack(ayla.ID, 0, model.EntityRef{Player: robin.ID})
+	sleep(time.Second)
+	if hits := hitsOn(as, robin.ID); len(hits) > 0 {
+		got.attack = hits[0].Amount
+	}
+	seen := len(hitsOn(as, robin.ID))
+	if err := inst.UseSkill(context.Background(), ayla.ID, ayla.Connection, model.SkillUse{Skill: "double_stab", Root: "double_stab", Target: model.EntityRef{Player: robin.ID}}, 0); err != nil {
+		t.Fatal(err)
+	}
+	sleep(3 * time.Second)
+	for _, h := range hitsOn(as, robin.ID)[seen:] {
+		switch {
+		case h.Status == "bleed" && got.bleed == 0:
+			got.bleed = h.Amount
+		case h.Status == "" && got.skill == 0:
+			got.skill = h.Amount
+		}
+	}
+	if got.attack == 0 || got.skill == 0 || got.bleed == 0 {
+		t.Fatalf("Ayla dealt %+v; want an attack, a stab and a bleed tick", got)
+	}
+	return got
+}
+
+// within1 reports whether each of got's blows is want's times f, within the point each rounds by.
+func within1(got, want blows, f float64) bool {
+	for _, c := range [][2]int{{got.attack, want.attack}, {got.skill, want.skill}, {got.bleed, want.bleed}} {
+		if math.Abs(float64(c[0])-float64(c[1])*f) > 1 {
+			return false
+		}
+	}
+	return true
+}
+
+// scale.damage scales every way a player hurts another: an attack, a damage skill's blows, and the damage over time it leaves.
+func TestScaleDamageScalesEveryBlowAndTick(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		full, half := run(t, "1.0"), run(t, "0.5")
-		// Each is rounded from the raw blow times the scale and the Thief's own factor, so half the rounded full is within a point.
-		for _, c := range [][2]int{{half.attack, full.attack}, {half.skill, full.skill}, {half.bleed, full.bleed}} {
-			if math.Abs(float64(c[0])-float64(c[1])/2) > 1 {
-				t.Fatalf("at half scale %+v, want half of %+v, within a point", half, full)
-			}
+		full, half := thiefOnWarrior(t, pvpData(t, "1.0", "1.0")), thiefOnWarrior(t, pvpData(t, "1.0", "0.5"))
+		if !within1(half, full, 0.5) {
+			t.Fatalf("at half scale %+v, want half of %+v, within a point", half, full)
+		}
+	})
+}
+
+// A class's own factors scale its kit: the Thief's damage every blow and tick it deals, the Warrior's hp its max HP.
+func TestAClassesFactorsScaleItsKit(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		factors := func(thiefDamage, warriorHP string) *gamedata.Data {
+			thief, warrior := regexp.MustCompile(`(?m)^    thief: \{.*\}$`), regexp.MustCompile(`(?m)^    warrior: \{.*\}$`)
+			return worldtest.LoadDataWith(t, map[string]func(string) string{"pvp.yaml": func(s string) string {
+				if !thief.MatchString(s) || !warrior.MatchString(s) {
+					t.Fatal("no thief or warrior factors in pvp.yaml")
+				}
+				s = thief.ReplaceAllString(s, "    thief: {hp: 1.0, damage: "+thiefDamage+"}")
+				return warrior.ReplaceAllString(s, "    warrior: {hp: "+warriorHP+", damage: 1.0}")
+			}})
+		}
+		once, twice := thiefOnWarrior(t, factors("1.0", "1.0")), thiefOnWarrior(t, factors("2.0", "2.0"))
+		if !within1(twice, once, 2) || math.Abs(float64(twice.maxHP)-2*float64(once.maxHP)) > 1 {
+			t.Fatalf("at twice the factors %+v, want twice %+v, within a point", twice, once)
 		}
 	})
 }
