@@ -793,6 +793,30 @@ describe('World', () => {
     expect(shown('Knight_Body')).toBe(true); // the player's own knight, as their class draws them
   });
 
+  it('draws a player of a class and a mob of a type this client’s data lacks as stand-ins, and keeps drawing the world', async () => {
+    const said = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const p = await playing(FLAT, 4, 20);
+    for (let tick = 2; tick <= 6; tick++) {
+      p.push(
+        'delta',
+        tick === 2
+          ? { players: [standing(8, 20, 'c-robin', 'pirate')], mobs: [mob(1, 'dragon', 12)] }
+          : {},
+        { tick },
+      );
+      p.frames(1);
+    }
+    const smallest = [...mobData].sort((a, b) => a.radius - b.radius)[0]!;
+    await vi.waitFor(() => expect(p.root(classLook('beginner').file)).toBeDefined(), WAIT);
+    await vi.waitFor(() => expect(p.root(mobLook(smallest.id).file)).toBeDefined(), WAIT);
+    const before = p.inputs();
+    p.live(5);
+    expect(p.inputs() - before).toBe(5); // still stepping
+    expect(said).toHaveBeenCalledWith(expect.stringContaining('no class pirate'));
+    expect(said).toHaveBeenCalledWith(expect.stringContaining('no mob dragon'));
+    said.mockRestore();
+  });
+
   it('draws a player wearing a piece this client’s data lacks in their class’s own for it, and keeps drawing the world', async () => {
     const said = vi.spyOn(console, 'info').mockImplementation(() => undefined);
     const p = await playing(FLAT, 4, 20);

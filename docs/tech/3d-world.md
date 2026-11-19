@@ -891,6 +891,9 @@ All CC0. Each pack is recorded in `web/public/models/LICENSES.md` with its sourc
   - A look's file keeps only the clips its looks play, read from `world3d/model-looks.ts`, and the gear one of them shows. A look hides the rest in its `hide` list.
   - Then it resamples the clips, prunes and dedups, and quantizes the meshes with KHR_mesh_quantization, on one grid for the whole scene, so a character's one skin stays whole. Babylon reads it with no decoder.
   - A look that plays a new clip needs the script run again; the script fails on a clip or gear its source lacks.
+- **Ids the client lacks:** the server may send a class, mob type or wardrobe piece that an older client's data doesn't have.
+  - It's drawn as a Beginner, as the smallest mob, or as the class's own for that slot, and the console says so once per id. It never stops the frame.
+  - The client's own data, such as NPCs' looks and classes' models, still refuses a key it lacks. Tests check that data.
 
 | Use | Pack |
 | --- | --- |

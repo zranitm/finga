@@ -212,7 +212,7 @@ Changing looks in combat is `IN_COMBAT` (330037), the code a trait change in com
   - Colourways add materials, not draw calls, since each figure already draws on its own.
   - Measured with the regions soak's crowded town (large-regions.md section 13).
 - **As built (step 2):**
-  - `npm run gen` writes each piece's id, slot and look key to `gamedata/outfits.ts`. A test checks each has a look of its slot. A piece the data lacks throws rather than draw something else.
+  - `npm run gen` writes each piece's id, slot and look key to `gamedata/outfits.ts`. A test checks each has a look of its slot. A piece id the client's data lacks, as an older client meets, is drawn as the class's own for that slot (3d-world.md section 11).
   - A body is named by its class and each slot's piece, so a promotion or a look change redraws it, and a look wearing nothing keeps the class's own figure. The player is dressed by their own first frame, others by theirs. The old figure stays until the new one is in.
   - Dressing comes after `stand()`, so no piece or bare head changes the body's size. A bare head hides headwear only. The hooded Rogue's hood is part of its head, so it stays, and headwear sits over it.
   - Rigged class files and parts files keep raw positions. Quantizing folds each file's grid into its skins' inverse bind matrices, so files' rigs differed; a test holds one rig across them.
