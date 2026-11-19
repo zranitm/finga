@@ -91,13 +91,21 @@ function strip(doc: Document, file: string, clips: ReadonlySet<string>): void {
   }
 }
 
-/** The meshes each source file's parts file keeps: every one an outfit piece wears. */
+/** The meshes each source file's parts file keeps: every one an outfit piece wears, and the bare head a hooded model wears under headwear. */
 function worn(): Map<string, Set<string>> {
   const byFile = new Map<string, Set<string>>();
+  const keep = (file: string, mesh: string) => {
+    const meshes = byFile.get(file) ?? new Set<string>();
+    meshes.add(mesh);
+    byFile.set(file, meshes);
+  };
   for (const piece of Object.values(PIECE_LOOKS)) {
-    const meshes = byFile.get(piece.file) ?? new Set<string>();
-    piece.meshes.forEach((m) => meshes.add(m));
-    byFile.set(piece.file, meshes);
+    piece.meshes.forEach((m) => keep(piece.file, m));
+  }
+  for (const m of Object.values(MODELS)) {
+    if (m.hood) {
+      keep(m.hood.file, m.hood.bare);
+    }
   }
   return byFile;
 }
