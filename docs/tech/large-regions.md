@@ -447,10 +447,14 @@ Built with step 1, which says who watches a cell.
   - **Building chunks:** two Web Workers decode and build them (`chunk-workers.ts`), four asked at a time, nearest first. Two meshes are made a frame, so streaming never holds a frame up.
     - A chunk built after the target moved out of its reach isn't made.
     - A chunk that fails to load isn't asked again; the overview stands in for it.
+    - The workers start at a region's first chunk, and end as the world leaves the map or the game.
+    - A chunk freed before its worker answers is still built, then dropped: at most four are asked at once, so cancelling saves little.
   - **The overview** is cut under every chunk drawn, and whole again where one is freed.
+    - Each change rebuilds its index list over every cell, about 16,000 cells for 1 km. A larger region wants each chunk's cells as a fixed index range instead.
   - **Seams:**
     - The bake's format 2 gives each chunk's heights a border one sample wide. Normals take central differences over it, so a shared edge gets one normal from both chunks and no toon band steps along the seam.
-    - Each detail's skirt hangs 0.5 m below the most an edge strays from the line a coarser neighbour draws.
+    - Each detail's skirt hangs 0.5 m below the most an edge strays from the line any coarser neighbour draws: a chunk every 2nd or 4th sample, or the overview every 8 m. The 4-sample line can sit twice as far from a sample as the 8 m one.
+    - The overview hangs skirts of its own from its edge where a drawn chunk meets one not drawn, as deep as that chunk's and facing into it. So a chunk's edge dipping under the overview's straight line leaves no slit.
     - Stills with a magenta sky and no fog show no crack across the 64 m and 128 m steps or at the overview's edge.
   - **Props:** each chunk copies each kit model's parts, with their ink, as one thin instance per prop.
     - Every copy has a geometry of its own. Babylon keeps thin instances' matrices on the geometry, so copies sharing one all drew the last chunk's trees. Only real Chrome showed it; the null engine draws nothing.
@@ -528,8 +532,10 @@ Built with step 1, which says who watches a cell.
   - detail and seams;
   - As built (step 5a), on the tiny bake, which `TestTheClientsFixtureIsTheTinyBake` keeps current:
     - the order chunks are asked in, four at a time, two made a frame, freed past 320 m;
-    - a late chunk, a failed one and a chunk freed before its models came;
-    - the overview's holes, each detail's triangles and skirts, and shared edges' normals;
+    - a late chunk, a failed one, a chunk freed before its models came, and a region gone while a kit model loaded;
+    - the overview's holes and the skirts round them, each detail's triangles and skirts, and shared edges' normals;
+    - the workers ended at close, and closed as the world leaves a map.
+    - The tests hand each chunk and kit model over themselves and wait on those, never on a timer.
     - props within 160 m, each chunk's copies on their own geometry, culled by where they stand.
   - the looks grid;
   - the zoom's angle and fog;
