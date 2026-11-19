@@ -5,7 +5,7 @@
 - **Priority:** P0
 - **Status:** Draft
 
-**Story:** As a player, I can chat with everyone in the same region, or map, and channel. In a large region (B10) the General tab reaches the whole region's channel.
+**Story:** As a player, I can chat with everyone in the same region, or map, and channel. In a large region (B10) the General tab reaches the whole region's channel. A cave or underwater place has its own (B13).
 
 ## Acceptance
 

@@ -8,6 +8,7 @@
 - **Camps:** the places in an area where mobs live, and how many at most.
 - **Waypoints:** found by walking past them; players teleport between the ones they've found, and get back up at the nearest one after dying (B11).
 - **Gates:** a mountain pass at a region's edge leads to the next region.
+- **Underground and underwater:** a cave or a sunken place entered from a region, through a cave mouth or a dive spot, with a short load. Each is one of its region's areas (B13).
 - **Channels:** each region runs in channels, independent copies, so a crowd never fills one (B4). Players see only those in their own region and channel, and only within view.
 
 ## What a region contains
@@ -27,13 +28,14 @@
 
 | Region | Levels | Character |
 | --- | --- | --- |
-| **Green region** | 1–12 | Meadows, woods, a mushroom glade and a cave under the northern cliffs; the starting town in the south |
+| **Green region** | 1–12 | Meadows, woods, a mushroom glade, a lake and the northern cliffs; the starting town in the south. Below it: a cave under the cliffs, lit by torches, and a shrine sunk under the lake |
 | **Desert** | 12–22 | Dunes, canyons, an oasis town and sunken ruins |
 | **Snow mountains** | 22–30 | Frozen trails, an icefall and a glacier, with the Fallen Keep at the top as the endgame: a challenge for characters at the level cap |
 
 - **Areas:** about five a region, each a few levels wide, each with its field boss.
 - **Mobs:** today's 24 types, given the levels of the areas they live in, until new ones are made.
 - **Region names and their layouts** are designed one region at a time, from the generator's previews.
+- **Underground and underwater** (B13): the green region has two to start. The cave takes today's Cave's mobs, its Vampire Bat and the Thief's trainer. The sunken shrine has new sea mobs. Inside, players walk and fight as on land. The other regions get theirs, or none, when they're designed.
 
 ## Until the regions are built
 

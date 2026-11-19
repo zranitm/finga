@@ -9,6 +9,8 @@
 
 Changed by [B10. Large regions](./b10-large-regions.md): This map becomes This region, with pan and zoom, showing areas with their levels, towns, camps, gates and waypoints, lit once found ([B11](./b11-sprint-and-waypoints.md)). The minimap stays at about 40 m round the player. The World tab charts the regions and any old maps still in use.
 
+Changed by [B13. Underground and underwater](./b13-underground-and-underwater.md): while a player is in a cave or underwater, the minimap and the map window show it. The region's map marks each entrance with its name and levels. A party member inside shows at its entrance, and one outside at the way back.
+
 ## Acceptance
 
 - **The minimap:**

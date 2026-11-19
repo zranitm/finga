@@ -1,5 +1,7 @@
 # 3D world
 
+> **Changed by [Underground and underwater](./underground-and-underwater.md):** two new looks. `cave` has no sun and lights everything from a baked torch light map, with a floor of light. `sea` has caustics, rays, swaying kelp, bubbles and fish.
+>
 > **Changed by [Outfits](./outfits.md) sections 6 and 7:** a figure binds its outfit's body parts to its class's rig, with headwear and face pieces on `head` and a weapon look in `handslot.r`. Colourways are recoloured atlases. Remote figures redraw when their class or look changes.
 >
 > **Changed by [Large regions](./large-regions.md):** regions replace the small maps one at a time. Its sections 4, 5 and 10 change how terrain, props, shadows and the camera work at region scale.

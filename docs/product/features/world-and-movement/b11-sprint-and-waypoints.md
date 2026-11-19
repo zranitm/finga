@@ -26,11 +26,12 @@
   - A waypoint is a tall stone with a glow at the top, in every town and at crossroads, camps and passes, about every 150 m along the roads.
   - Walking within 12 m of one finds it. A notice says "Waypoint found: <name>", and it's remembered for the character.
   - Unfound waypoints show grey on the map, and found ones lit.
+  - Each underground or underwater place has one inside, by its entrance (B13).
 - **Teleport** (B9) goes to a waypoint, in place of a map:
   - In the map window, picking a found waypoint, in any region, shows Teleport here.
   - The 3-second channel and what cancels it are as in B9.
   - Every region's main town can always be teleported to, found or not.
-- **After dying,** the player gets back up at the nearest waypoint in their region, found or not, or the nearest town if that's closer.
+- **After dying,** the player gets back up at the nearest waypoint in their region, found or not, or the nearest town if that's closer. Inside an underground or underwater place, it's the waypoint inside (B13).
 
 ## Not in this feature
 

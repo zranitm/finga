@@ -27,6 +27,7 @@ What players can do, grouped by game area; each feature has its acceptance crite
 | [B10. Large regions](./world-and-movement/b10-large-regions.md) | P0 | Agreed |
 | [B11. Sprint and waypoints](./world-and-movement/b11-sprint-and-waypoints.md) | P0 | Agreed |
 | [B12. Camera zoom](./world-and-movement/b12-camera-zoom.md) | P1 | Agreed |
+| [B13. Underground and underwater](./world-and-movement/b13-underground-and-underwater.md) | P1 | Agreed |
 
 ## C. Combat and progression
 
