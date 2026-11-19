@@ -407,6 +407,7 @@ Built with step 1, which says who watches a cell.
   - Two new rebindable actions, `zoomIn` and `zoomOut`, sit on `Equal` and `Minus`. Each press steps an eighth. They're in the key-binding window's Windows group (key-bindings.md).
   - The camera eases to the zoom as it eases after the player.
 - **Saved** in the account's settings as `zoom`, 0 to 1, as the minimap flag is. It's saved 800 ms after the wheel stops, and as the player leaves the world. A zoom outside 0 to 1 is `BAD_ZOOM` (110009).
+  - **A read of the settings,** such as opening Settings, first saves a change still waiting and waits for every save under way, so it reads what the player set. A setting changed while it waits or is out keeps its change, and the read sets the others. Before this, opening Settings inside the 800 ms undid a zoom step or a walk switch.
 - **Fog and the far plane** follow the zoom. Each sky's fog draws back up to 3.6 times as far: the day sky's from 45–140 m close up to about 160–500 m zoomed out. `maxZ` is 1,500 m.
 - **`heldView`'s clamp** keeps the view inside the region, as it does the map.
 
