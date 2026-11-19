@@ -133,10 +133,10 @@ func TestABotKeepsClearOfAFieldBoss(t *testing.T) {
 	}
 }
 
-// A bot keeps far enough from a field boss that none of its blows can wake it: its prey, past bossClear, stands farther than the boss's body and the widest area round the bot or its lock, with the bot's own reach to its prey.
+// A bot keeps far enough from a field boss that none of its blows can wake it: its prey, past bossClear, stands farther than the boss's body plus the widest area round the bot or its lock with the bot's own reach to its prey, or plus the longest shot that goes on past its first mob. A one-mob shot, as every basic attack is, stops at the prey it's aimed at.
 func TestABotsBlowsNeverReachAFieldBoss(t *testing.T) {
 	data, _ := testWorld(t)
-	body, around, reach := 0.0, 0.0, 0.0
+	body, around, reach, shot := 0.0, 0.0, 0.0, 0.0
 	for _, m := range data.Mobs() {
 		if m.Boss {
 			body = max(body, m.Radius)
@@ -144,8 +144,13 @@ func TestABotsBlowsNeverReachAFieldBoss(t *testing.T) {
 	}
 	for _, s := range data.Skills() {
 		for _, st := range s.Stages {
-			if sh := st.Shape; sh.Kind == gamedata.AreaShape || sh.Kind == gamedata.ArcShape {
+			switch sh := st.Shape; sh.Kind {
+			case gamedata.AreaShape, gamedata.ArcShape:
 				around = max(around, sh.Radius)
+			case gamedata.ShotShape:
+				if st.Targets != 1 { // several mobs, or a status skill's every mob in it
+					shot = max(shot, sh.Range+sh.Width/2)
+				}
 			}
 		}
 	}
@@ -154,7 +159,7 @@ func TestABotsBlowsNeverReachAFieldBoss(t *testing.T) {
 			reach = max(reach, s.Radius)
 		}
 	}
-	if need := body + around + reach; bossClear <= need {
-		t.Errorf("bossClear %v m, want past %v: the boss's body %v, the widest area %v, a bot's reach %v", bossClear, need, body, around, reach)
+	if need := body + max(around+reach, shot); bossClear <= need {
+		t.Errorf("bossClear %v m, want past %v: the boss's body %v, then the widest area %v and a bot's reach %v, or the longest shot past its first mob %v", bossClear, need, body, around, reach, shot)
 	}
 }

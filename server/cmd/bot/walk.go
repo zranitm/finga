@@ -18,7 +18,7 @@ const (
 	inTheWayCone = 0.5              // the cosine of the widest angle off the bot's way a mob in its way stands at, 60°
 	reachShare   = 0.7              // of an attack's reach a bot goes in to, so a step either way still hits
 	giveUpFor    = 30 * time.Second // a bot leaves a mob it found no way to this long
-	bossClear    = 14.0             // metres from a field boss a bot keeps its prey and its hunt: past its reach to its prey, the widest area a skill covers round it, and the boss's body, so no blow of its wakes the boss
+	bossClear    = 15.0             // metres from a field boss a bot keeps its prey and its hunt: past the boss's body and the widest area round the bot with its reach to its prey, or the longest shot that goes on past its first mob, so no blow of its wakes the boss
 )
 
 // clientKeys is a client's Input holding in's keys.

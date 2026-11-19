@@ -15,7 +15,7 @@ const (
 	membershipsQueue = 4096
 )
 
-// Delivery is what a gateway hears: a PartyState, an Invited or a ChatLine for one of its players, or a BossAppeared for all of them.
+// Delivery is what a gateway hears: a PartyState, an Invited or a ChatLine for one of its players.
 //
 //sumtype:decl
 type Delivery interface{ delivery() }

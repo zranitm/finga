@@ -88,10 +88,11 @@
   - The instance notes the tick `respawn` later, and raises the boss again at its spot then.
   - The kill count, and kills not counting while a boss is up, go.
 - **No leaving:** a boss stays until it's beaten. `life`, the leave check and `FieldBossGone{beaten: false}` go.
+- **Restarts:** when it's back lives only in the instance, as mob positions do, so an instance rebuilt while its boss is down raises it at once.
 - **Calm until hit** (decision 11):
-  - A standing boss sees nobody. Any blow from a player wakes it, an area hit or a miss included, and so does a status or a taunt; a skill that only hides its user doesn't.
+  - A standing boss sees nobody. Any blow from a player wakes it, an area hit or a miss included, and so does a status or a taunt; a skill whose every status only hides its user doesn't.
   - Awake, it fights as any mob: sight, chase, attacks and warning areas. It goes after whoever hit it, and others it sees as any fighting mob does.
-  - It's calm again once its reset takes it home: led past its leash, hit from beyond it, or with nobody left it sees. HP stays as it is on the way home, as for any mob. There's no calm cue.
+  - It's calm again once its reset takes it home: led past its leash, hit from beyond it, or with nobody left it sees. A blow on the way home that still provokes it when it arrives keeps it awake. One caught on the way is put back at its spot. HP stays as it is, as for any mob. There's no calm cue.
   - Mobs in its circle are as before.
 - **Who hears it:**
   - Each player on the map, or in the area in a region, gets a notice and a line in the General tab: "King Slime has appeared!"
@@ -152,7 +153,7 @@
 - **Step 1, as built:**
   - A bot takes each map's boss as standing unless it heard it beaten there, until its `back_in_ms` runs out or it sees it back.
   - A calm boss blocks no way, so bots no longer wait bosses out in the town.
-  - A bot keeps its prey and its hunt 14 m from a boss (`bossClear`). That's past the boss's body, the widest area a skill covers and a bot's reach, so no blow of a bot's wakes it. A test checks the margin against the data.
+  - A bot keeps its prey and its hunt 15 m from a boss (`bossClear`). That's past the boss's body plus either the widest area a skill covers with a bot's reach, or the longest shot that goes on past its first mob, so no blow of a bot's wakes it. A test checks the margin against the data.
 - **Step 2:** bots open every pouch in reach and take all, so the soak (large-regions.md section 13) counts the takes' calls.
 
 ## 9. Testing

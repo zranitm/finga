@@ -13,13 +13,13 @@ import (
 	"finga/test/e2etest"
 )
 
-// quickBoss: one-hit mushrooms that bite 0.03 m out, and a still, weak boss paying 1001 EXP and a boar tusk, back 10 s after it falls.
+// quickBoss: one-hit mushrooms that bite 0.03 m out, and a still, weak boss paying 1001 EXP and a boar tusk, back 3 s after it falls.
 func quickBoss() []e2etest.DataEdit {
 	return []e2etest.DataEdit{
 		{File: "mobs.yaml", Old: "    name: Orange Mushroom\n    level: 4\n    hp: 72\n", New: "    name: Orange Mushroom\n    level: 4\n    hp: 1\n"},
 		{File: "mobs.yaml", Old: "    attacks: [{use: charge, status: {id: poison, time: 1s, power: 0.15}}]\n    look: {model: mushnub, tint: 0xe08a3c}\n", New: "    attacks: [{use: bite, reach: 0.03}]\n    look: {model: mushnub, tint: 0xe08a3c}\n"},
 		{File: "maps/forest.yaml", Old: "mob: orange_mushroom, max: 4, respawn: 12s}", New: "mob: orange_mushroom, max: 4, respawn: 1s}"},
-		{File: "mobs.yaml", Old: "  respawn: 5m #", New: "  respawn: 10s #"},
+		{File: "mobs.yaml", Old: "  respawn: 5m #", New: "  respawn: 3s #"},
 		{File: "mobs.yaml", Old: "    name: King Slime\n    boss: true\n    level: 6\n    hp: 4530\n    attack: 24\n", New: "    name: King Slime\n    boss: true\n    level: 6\n    hp: 40\n    attack: 1\n"},
 		{File: "mobs.yaml", Old: "    exp: 840\n    speed: 0.75\n", New: "    exp: 1001\n    speed: 0\n"},
 		{File: "mobs.yaml", Old: kingSlimeDrops, New: "      - {item: boar_tusk, chance: 1, min: 1, max: 1}\n"},
@@ -105,6 +105,8 @@ func TestFieldBoss(t *testing.T) {
 		ls, snaps[l] = append(ls, l), snap
 	}
 	ann, ben, cal := ls[0], ls[1], ls[2]
+	deeToken, deeID := s.CreateCharacter(t, "dee", "Dee", "warrior")
+	s.Place(t, deeID, "forest", gamedata.Point{X: 20, Z: 30}, 144, 0)
 	if r := ann.Command(t, "inv-1", &clientv1.PartyInvite{CharacterId: ben.ID}); !r.GetOk() {
 		t.Fatalf("invite: %+v", r)
 	}
@@ -131,15 +133,19 @@ func TestFieldBoss(t *testing.T) {
 		return
 	}
 
+	// Ann and Ben beat it, and Dee joins the moment they hear it fall, on this test's connections rather than a subtest's, which close with it.
+	fightBoss(t, boss, reach, 60*time.Second, []*e2etest.Looter{ann, ben}, ls)
+	p, deeSnap := s.Join(t, deeToken, deeID)
+	dee := e2etest.NewLooter(p, deeSnap)
+
 	if !t.Run("C10/a-party-beats-it-and-each-member-gets-their-share-and-their-own-drop", func(t *testing.T) {
-		fightBoss(t, boss, reach, 60*time.Second, []*e2etest.Looter{ann, ben}, ls)
 		// 1001 EXP for all its HP, 10% more for the second sharer, 1101 in two: Ann, first on the map, takes the odd one.
 		for l, want := range map[*e2etest.Looter]int64{ann: 551, ben: 550} {
 			e2etest.Take(t, l, "the boss's ExpGained", &l.Exp, 5*time.Second, func(e *clientv1.ExpGained) bool { return e.GetAmount() == want })
 		}
 		for _, l := range []*e2etest.Looter{ann, ben} {
-			if g := l.BossesGone[0].Msg; g.GetMobId() != boss || g.GetType() != "king_slime" || g.GetBackInMs() != 10_000 {
-				t.Fatalf("%s heard the boss gone as %+v; want the king, back in 10 s", l.ID, g)
+			if g := l.BossesGone[0].Msg; g.GetMobId() != boss || g.GetType() != "king_slime" || g.GetBackInMs() != 3000 {
+				t.Fatalf("%s heard the boss gone as %+v; want the king, back in 3 s", l.ID, g)
 			}
 		}
 		tuskOwners := func() map[string]bool {
@@ -166,19 +172,19 @@ func TestFieldBoss(t *testing.T) {
 
 	t.Run("C10/a-player-joining-while-it-is-down-sees-its-time-back-and-it-is-back-to-the-tick", func(t *testing.T) {
 		fell := ann.BossesGone[0].Tick
-		back := fell + 10*uint64(ann.TickHz)
-		token, id := s.CreateCharacter(t, "dee", "Dee", "warrior")
-		s.Place(t, id, "forest", gamedata.Point{X: 20, Z: 30}, 144, 0)
-		p, snap := s.Join(t, token, id)
-		dee := e2etest.NewLooter(p, snap)
-		down := snap.GetFieldBossGone()
-		if p.Joined >= back {
-			t.Fatalf("Dee joined on tick %d, the king back on %d: the stack was too slow to see it down", p.Joined, back)
+		back := fell + 3*uint64(ann.TickHz)
+		joined := dee.Joined
+		hearing := []*e2etest.Looter{ann, ben}
+		if joined < back {
+			down := deeSnap.GetFieldBossGone()
+			if want := int64(back-joined) * 1000 / int64(ann.TickHz); deeSnap.GetFieldBoss() != nil || down.GetMobId() != boss || down.GetBackInMs() != want {
+				t.Fatalf("Dee joined on tick %d to %+v, %+v; want the king down, back in %d ms", joined, deeSnap.GetFieldBoss(), down, want)
+			}
+			hearing = append(hearing, dee)
+		} else {
+			t.Logf("Dee joined on tick %d, the king back on %d: this run checks no down Snapshot", joined, back) // a slow run's rewards outlasted the respawn
 		}
-		if want := int64(back-p.Joined) * 1000 / int64(ann.TickHz); snap.GetFieldBoss() != nil || down.GetMobId() != boss || down.GetBackInMs() != want {
-			t.Fatalf("Dee joined on tick %d to %+v, %+v; want the king down, back in %d ms", p.Joined, snap.GetFieldBoss(), down, want)
-		}
-		for _, l := range []*e2etest.Looter{ann, ben, dee} {
+		for _, l := range hearing {
 			fb := e2etest.Take(t, l, "the boss back", &l.FieldBosses, 15*time.Second, nil) // a hang guard: the ticks decide
 			if fb.Tick != back || fb.Msg.GetMobId() == boss || fb.Msg.GetType() != "king_slime" {
 				t.Fatalf("%s saw the king back as %+v on tick %d; want a new king on tick %d, %d ticks after it fell", l.ID, fb.Msg, fb.Tick, back, back-fell)

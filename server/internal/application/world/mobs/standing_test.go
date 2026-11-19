@@ -78,6 +78,17 @@ func TestABlowFromSomeoneHiddenWakesAStandingBoss(t *testing.T) {
 	}
 }
 
+// A status skill that hides its user and does more wakes a standing boss: only one that does nothing but hide leaves it calm.
+func TestAHidingSkillThatAlsoSlowsWakesAStandingBoss(t *testing.T) {
+	a, run := standing(t)
+	hider, other := player(30, 27), player(27, 30)
+	s := mobs.Strike{By: hider.ID, Shape: gamedata.Shape{Kind: gamedata.AreaShape, Radius: 30}, Most: 1, Aim: model.Aim{X: 30, Z: 27}}
+	a.Afflict(inflicting(t, inflicting(t, s, gamedata.LoseSight, 30*time.Second, 0), "slow", 5*time.Second, 0))
+	if !run(200, other, hider, other) {
+		t.Fatal("a smoke that also slows left the boss calm")
+	}
+}
+
 // A standing boss's circle leaves its neighbours as they are: a slime in it still comes after a player it sees.
 func TestMobsByAStandingBossStillFight(t *testing.T) {
 	a := newArena(t, meadow(t, open(), spawn("green_slime", 1, 30, 30, 1)), worldtest.FixedRoll{V: 0.5})

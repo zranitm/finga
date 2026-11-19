@@ -313,7 +313,7 @@ func TestAPlayerJoiningSeesTheBossOrItsTimeBack(t *testing.T) {
 	})
 }
 
-// C10 decision 11: a standing boss fights only once hit, so a player walking the forest's way from the town to the cave, stopping 5 s right by King Slime in its sight, is never chased: it keeps to its circle and attacks nobody.
+// A standing boss fights only once hit, so a player walking the forest's way from the town to the cave, stopping 5 s right by King Slime in its sight, is never chased: it keeps to its circle and attacks nobody.
 func TestAPlayerWalkingPastACalmBossIsNeverChased(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)

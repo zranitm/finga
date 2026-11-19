@@ -5,7 +5,7 @@
 - **Priority:** P1
 - **Status:** Draft
 
-**Story:** As a player, I hunt on a map until its field boss appears, then fight it with whoever is there, for a share of its EXP and a roll on its drops.
+**Story:** As a player, I find each hunting map's field boss standing at its spot, take it on when I'm ready, alone or with whoever is there, for a share of its EXP and a treasure box of my own. Once it's beaten, it's back 5 minutes later.
 
 ## Acceptance
 
