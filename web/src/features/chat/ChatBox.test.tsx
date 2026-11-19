@@ -220,6 +220,7 @@ describe('ChatBox', () => {
         chat_pinned: true,
         hide_minimap: false,
         zoom: 0,
+        walk: false,
         keys: {},
       });
       await user.keyboard('{Escape}');

@@ -412,7 +412,12 @@ describe('World', () => {
     const walkFrom = me.position.x;
     p.live(10);
     const walked = me.position.x - walkFrom;
-    expect(p.sent('input').slice(before).every((d) => d.walk === true)).toBe(true);
+    expect(
+      p
+        .sent('input')
+        .slice(before)
+        .every((d) => d.walk === true),
+    ).toBe(true);
     const switched = p.inputs();
     key('ShiftLeft', true);
     key('ShiftLeft', false);
@@ -421,8 +426,13 @@ describe('World', () => {
     const sprintFrom = me.position.x;
     p.live(10);
     key('ArrowRight', false);
-    expect((me.position.x - sprintFrom) / walked).toBeCloseTo(movement.sprint!.speed, 2);
-    expect(p.sent('input').slice(switched).some((d) => d.walk === true)).toBe(false);
+    expect((me.position.x - sprintFrom) / walked).toBeCloseTo(movement.sprint.speed, 2);
+    expect(
+      p
+        .sent('input')
+        .slice(switched)
+        .some((d) => d.walk === true),
+    ).toBe(false);
   });
 
   it('eases the camera after the player, time-based, and holds it inside the map', async () => {
