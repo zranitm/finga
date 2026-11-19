@@ -4,7 +4,10 @@ import { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import type { Scene } from '@babylonjs/core/scene';
 import { registerBuiltInLoaders } from '@babylonjs/loaders/dynamic';
-import type { IGLTFLoaderData } from '@babylonjs/loaders/glTF/glTFFileLoader';
+import type {
+  GLTFLoaderAnimationStartMode,
+  IGLTFLoaderData,
+} from '@babylonjs/loaders/glTF/glTFFileLoader';
 
 /** Where a model file comes from: its URL in the page, its bytes in a test. */
 export type ModelSource = (file: string) => string | ArrayBufferView;
@@ -36,6 +39,7 @@ export class Models {
         pluginOptions: {
           gltf: {
             alwaysComputeSkeletonRootNode: true,
+            animationStartMode: 0 satisfies GLTFLoaderAnimationStartMode.NONE, // the file at rest, so every body cloned from it stands as tall; its enum would load the loader up front
             onParsed: (data: IGLTFLoaderData) => unnameStrayRoots(data.json),
           },
         },

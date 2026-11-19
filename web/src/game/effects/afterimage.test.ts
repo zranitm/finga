@@ -5,10 +5,8 @@ import { TargetCamera } from '@babylonjs/core/Cameras/targetCamera';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
-import { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Scene } from '@babylonjs/core/scene';
-import { registerBuiltInLoaders } from '@babylonjs/loaders/dynamic';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { servePublic } from '@/testing/public-on-disk';
@@ -17,6 +15,7 @@ import { builtShaders } from '@/testing/shaders';
 import { Body, STILL, sunShadows } from '../world3d/body';
 import { classLook } from '../world3d/looks';
 import { loadMap } from '../world3d/map';
+import { Models } from '../world3d/models';
 import { Palette } from '../world3d/toon';
 
 import { warmAfterimage } from './afterimage';
@@ -29,7 +28,6 @@ let engine: NullEngine;
 let scene: Scene;
 
 beforeAll(() => {
-  registerBuiltInLoaders();
   servePublic();
   engine = new NullEngine();
   scene = new Scene(engine);
@@ -45,11 +43,10 @@ it('warms a figure’s afterimage for both of its passes and every pose, so no c
   const sun = new DirectionalLight('sun', new Vector3(0.35, -1, 0.6).normalize(), scene);
   const palette = new Palette(scene);
   const look = classLook('magician');
-  const container = await LoadAssetContainerAsync(
-    new Uint8Array(readFileSync(path.resolve(process.cwd(), 'public/models', look.file))),
+  const container = await new Models(
     scene,
-    { pluginExtension: '.glb', pluginOptions: { gltf: { alwaysComputeSkeletonRootNode: true } } },
-  );
+    (f) => new Uint8Array(readFileSync(path.resolve(process.cwd(), 'public/models', f))),
+  ).load(look.file);
   const figure = new Body(scene, container, look, { palette, shadows: sunShadows(sun, 256) });
   const camera = new TargetCamera('eye', new Vector3(0, 1, -4), scene);
   camera.setTarget(new Vector3(0, 1, 0));
