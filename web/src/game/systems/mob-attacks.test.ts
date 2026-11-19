@@ -405,7 +405,7 @@ describe('MobAttacks', () => {
     });
 
     it('runs on behind another charge running ahead of it in its lane, swept where it is carried this frame', () => {
-      // finga-player's k29: two mushrooms charging east in a line 1.26 m apart, 0.135 m clear of touching, at 60 fps
+      // the live test's k29: two mushrooms charging east in a line 1.26 m apart, 0.135 m clear of touching, at 60 fps
       const gap = 1.26;
       const speed = charger.attack.distance / charger.attack.travel_ms; // metres a millisecond
       expect(gap - r).toBeLessThan(speed * (1000 / 60)); // a frame stale would cut it
