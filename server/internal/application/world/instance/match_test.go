@@ -461,8 +461,8 @@ func TestAForfeitBetweenRoundsLoses(t *testing.T) {
 	})
 }
 
-// A match its player never comes to closes once prep ends, with no outcome to rate.
-func TestAMatchNoPlayerComesToClosesWithNoOutcome(t *testing.T) {
+// A match that expected players and saw none closes once prep ends, with no outcome to rate; a match of bots alone runs (TestAMatchOfBotsAloneRunsToItsEndTheSameEachTime).
+func TestAMatchThatExpectedPlayersAndSawNoneClosesWithNoOutcome(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		results := &worldtest.Results{}

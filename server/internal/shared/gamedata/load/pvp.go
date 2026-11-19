@@ -245,6 +245,8 @@ func (l *loader) botRules(y pvpYAML) (gamedata.BotRules, error) {
 			return out, fmt.Errorf("tier %s: mu must rise", t.ID)
 		case t.Reaction < 0 || t.BreakFree < 0 || !nonNegative(t.Aim) || !(t.Defend >= 0 && t.Defend <= 1) || !(t.Chain >= 0 && t.Chain <= 1):
 			return out, fmt.Errorf("tier %s: reaction, break_free and aim not below 0, defend and chain from 0 to 1", t.ID)
+		case t.Reaction >= gamedata.BotMemory:
+			return out, fmt.Errorf("tier %s: reaction %s, under the %s a bot remembers", t.ID, t.Reaction, gamedata.BotMemory)
 		}
 		out.Tiers = append(out.Tiers, gamedata.BotTier{ID: t.ID, Mu: t.Mu, Reaction: t.Reaction, Defend: t.Defend, Chain: t.Chain, BreakFree: t.BreakFree, Aim: radians(t.Aim)})
 	}

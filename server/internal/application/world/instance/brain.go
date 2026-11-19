@@ -2,34 +2,23 @@ package instance
 
 import (
 	"encoding/binary"
-	"math"
-	"math/rand/v2"
+	"slices"
 	"time"
 
+	"finga/internal/application/world/bots"
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
-	"finga/internal/shared/nav"
 	"finga/internal/shared/sim"
-	"finga/internal/shared/steer"
 )
 
-// The first brain's ranges and pace: it decides every thinkEvery.
-const (
-	thinkEvery = 100 * time.Millisecond
-	meleeShare = 0.7 // of its attack's reach, where a warrior or a thief stands
-	rangedKeep = 7.5 // metres a bowman or a magician keeps from its target
-	tooClose   = 3.0 // inside which it steps away
-)
+// thinkEvery is how often a bot decides: every other tick.
+const thinkEvery = 100 * time.Millisecond
 
-// brain presses a bot's keys, as a player's client would: it walks to its target and keeps its range, uses the next skill of its build's order that's ready, else attacks. It's seeded from the match, so a match plays the same each time.
-type brain struct {
-	rand  *rand.Rand
-	order []string
-	tier  gamedata.BotTier
+// bot is a match's bot's: its brain, the keys it holds, and the sequence its inputs count.
+type bot struct {
+	brain *bots.Brain
 	keys  sim.Input
 	seq   uint32
-	walk  steer.Walker
-	stuck steer.Stall
 }
 
 // addBots posts each of the match's bots to join on the first tick, as a player joins.
@@ -43,34 +32,33 @@ func (i *Instance) addBots() {
 	}
 }
 
-// brainFor is the brain of the fighter p if they're a bot, nil for a player.
-func (i *Instance) brainFor(p *player) *brain {
+// botFor is the fighter p's bot if they're one, nil for a player: its brain seeded from the match and the bot, with the kit's skills p holds.
+func (i *Instance) botFor(p *player) *bot {
 	f := i.match.fighters[p.ID]
 	if f.bot == nil {
 		return nil
 	}
-	var seed [2]uint64
-	id, bot := i.match.Spec.ID, f.bot.ID
-	seed[0], seed[1] = binary.BigEndian.Uint64(id[:8])^binary.BigEndian.Uint64(bot[8:]), binary.BigEndian.Uint64(id[8:])
-	b := &brain{rand: rand.New(rand.NewPCG(seed[0], seed[1])), tier: i.tierOf(f.bot.Tier)} //nolint:gosec // a bot's choices, not a secret
+	id, b := i.match.Spec.ID, f.bot.ID
+	setup := bots.Setup{
+		Seed: [2]uint64{binary.BigEndian.Uint64(id[:8]) ^ binary.BigEndian.Uint64(b[8:]), binary.BigEndian.Uint64(id[8:])},
+		Tier: i.tierOf(f.bot.Tier), Class: p.class, Bar: f.bot.Build.Bar, Skills: map[string]bots.Skill{},
+		Map: i.m, Radius: i.params.Radius, Height: i.params.Height, Tick: i.tuning.TickInterval,
+	}
 	for _, build := range i.data.Pvp().Bots.Builds[f.bot.Class] {
-		if equalBars(build.Bar, f.bot.Build.Bar) {
-			b.order = build.Order
+		if slices.Equal(build.Bar, f.bot.Build.Bar) {
+			setup.Order = build.Order
 		}
 	}
-	return b
-}
-
-func equalBars(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k := range a {
-		if a[k] != b[k] {
-			return false
+	for _, s := range i.data.Skills() {
+		if points := s.PointsIn(p.Skills.Points[s.ID]); s.Kind == gamedata.Active && points > 0 && p.class.Learnable(s) {
+			trait := p.Skills.Traits[s.ID]
+			if k, ok := s.Trait(trait); !ok || k == 0 || !s.TraitOpen(points) {
+				trait = ""
+			}
+			setup.Skills[s.ID] = bots.Skill{Skill: s, Spec: s.Spec(points, trait)}
 		}
 	}
-	return true
+	return &bot{brain: bots.New(setup)}
 }
 
 // tierOf is the bot tier named id, the first when there's none.
@@ -84,8 +72,18 @@ func (i *Instance) tierOf(id string) gamedata.BotTier {
 	return tiers[0]
 }
 
-// thinkBots has each bot decide on its beat and queues its keys for the tick, as a client sends one input a tick.
+// thinkBots keeps the match's fighters in its ring, has each bot decide on its beat, and queues its keys for the tick, as a client sends one input a tick; a match with no bots keeps no ring.
 func (i *Instance) thinkBots() {
+	mt := i.match
+	if mt == nil || mt.ring == nil {
+		return
+	}
+	mt.seen = mt.seen[:0]
+	for _, id := range i.order {
+		p := i.players[id]
+		mt.seen = append(mt.seen, bots.Seen{ID: id, Side: i.side(id), Body: i.bodyOf(p), HP: p.HP, MaxHP: p.derived.MaxHP, Up: !p.dead && p.HP > 0, Hard: p.statuses.Hard(), Attack: p.class.Attack.Shape})
+	}
+	mt.ring.Record(i.tick, mt.seen)
 	every := i.ticksFor(thinkEvery)
 	for _, id := range i.order {
 		p := i.players[id]
@@ -94,100 +92,62 @@ func (i *Instance) thinkBots() {
 			continue
 		}
 		if i.tick%every == 0 {
-			b.decide(i, p)
+			i.act(p, b, b.brain.Decide(i.botView(p, b)))
 		}
 		b.seq++
 		p.pending = enqueueInput(p.pending, inputMsg{id: id, seq: b.seq, in: b.keys, view: uint32(i.tick)}, p.lastSeq) //nolint:gosec // a match lasts minutes
 	}
 }
 
-// decide picks what the bot does until its next beat.
-func (b *brain) decide(i *Instance, p *player) {
-	held := b.keys
-	b.keys = sim.Input{}
-	if p.dead || !i.fighting() {
+// botView is what the bot p sees now: itself, the match's ring, and the world's judgement of its follow-ups.
+func (i *Instance) botView(p *player, b *bot) bots.View {
+	var buffs []string
+	for id := range p.buffs {
+		buffs = append(buffs, id)
+	}
+	slices.Sort(buffs)
+	return bots.View{
+		Tick: i.tick, Fighting: i.fighting(), Ring: i.match.ring,
+		Self: bots.Self{
+			ID: p.ID, Side: i.side(p.ID), State: p.state, Energy: p.Energy, Down: p.dead || p.HP <= 0,
+			Hard: p.statuses.Hard(), CantAct: p.statuses.Blocks(gamedata.BlocksAct), Silenced: p.statuses.Blocks(gamedata.BlocksSkills),
+			SkillFrom: p.action.nextStart(skillAction), Waiting: p.waitingCast != nil, Attacking: p.attackQueued, Ready: p.skillReady, Buffs: buffs,
+		},
+		Holds: func(root, skill string, lock model.EntityRef) bool {
+			f, ok := p.class.FollowUp(root, skill)
+			return ok && i.holds(p, root, f.When, b.seq, lock)
+		},
+	}
+}
+
+// act takes the bot's decision as its client's input and presses: the keys it holds from now, its attack queued, and its skill use put with this tick's, pressed during its latest input.
+func (i *Instance) act(p *player, b *bot, d bots.Decision) {
+	b.keys = d.Keys
+	if a := d.Attack; a != nil && !p.attackQueued {
+		p.attackQueued, p.attackAim, p.attackTarget = true, a.Aim, a.Lock
+	}
+	if u := d.Skill; u != nil {
+		i.casts = append(i.casts, skillMsg{id: p.ID, in: *u, seq: b.seq, done: make(chan error, 1)})
+	}
+}
+
+// seenStarting keeps in a match's ring, for its bots, an action of length ticks and timing t that p starts at start, shown now: cancelable or not, and a blow's with its shape and lock, aimed from where p stands, and its move toward the lock. Nothing in a match with no bots.
+func (i *Instance) seenStarting(p *player, start, length uint64, t gamedata.Timing, cancelable, blow bool, shape gamedata.Shape, lock model.EntityRef, mv gamedata.Move) {
+	if i.match == nil || i.match.ring == nil {
 		return
 	}
-	t := i.nearestEnemy(p)
-	if t == nil {
-		return
+	hitAt, cancelAt := model.ActionPoints(length, t.Hit, t.Cancel)
+	s := bots.Started{By: p.ID, Shown: i.tick, Start: start, Hit: start + hitAt, Next: start + length, Blow: blow}
+	if cancelable {
+		s.Next = start + cancelAt
 	}
-	from, to := nav.Point{X: p.state.X, Z: p.state.Z}, nav.Point{X: t.state.X, Z: t.state.Z}
-	d := nav.Distance(from, to)
-	yaw := model.YawOf(to.X-from.X, to.Z-from.Z) + float32((b.rand.Float64()*2-1)*b.tier.Aim)
-	lock := model.EntityRef{Player: t.ID}
-	if p.waitingCast == nil && p.action.nextStart(skillAction) <= i.tick {
-		for _, id := range b.order {
-			if b.ready(i, p, id, d) {
-				i.casts = append(i.casts, skillMsg{id: p.ID, in: model.SkillUse{Skill: id, Root: id, Aim: yaw, Target: lock, Way: sim.Way{X: math.Sin(float64(yaw)), Z: math.Cos(float64(yaw))}}, seq: b.seq, done: make(chan error, 1)})
-				break
-			}
+	if blow {
+		s.Shape, s.Aim, s.Lock = shape, model.Aim{X: p.state.X, Y: p.state.Y, Z: p.state.Z, Yaw: float64(p.aim)}, lock
+		if mv.Toward == gamedata.TowardLock && mv.Kind != gamedata.BlinkMove {
+			s.Toward = mv.Distance
 		}
 	}
-	if d <= reachOf(p.class.Attack.Shape) && !p.attackQueued {
-		p.attackQueued, p.attackAim, p.attackTarget = true, yaw, lock
-	}
-	keep := rangedKeep
-	if melee(p.class) {
-		keep = reachOf(p.class.Attack.Shape) * meleeShare
-	}
-	stalled := b.stuck.Stalled(from, p.state.OnGround, held)
-	switch {
-	case d > keep:
-		b.keys = b.walk.Keys(i.m, i.params.Radius, from, to, time.Duration(i.tick)*i.tuning.TickInterval, stalled)
-	case !melee(p.class) && d < tooClose:
-		b.keys = steer.KeysToward(from.X-to.X, from.Z-to.Z)
-	}
-}
-
-// ready is whether the bot would use skill now at d metres from its target: learned, cooled down, paid for, and its shape reaching, or a buff not running.
-func (b *brain) ready(i *Instance, p *player, id string, d float64) bool {
-	s, ok := i.data.Skill(id)
-	if !ok || p.skillReady[id] > i.tick {
-		return false
-	}
-	st := s.Spec(s.PointsIn(p.Skills.Points[id]), p.Skills.Traits[id])
-	if p.Energy < st.Energy {
-		return false
-	}
-	switch s.Effect {
-	case gamedata.BuffEffect:
-		_, running := p.buffs[id]
-		return !running
-	case gamedata.DamageEffect, gamedata.StatusEffect:
-		return d <= reachOf(st.Shape)
-	}
-	return false
-}
-
-// nearestEnemy is p's nearest enemy still up, nil for none.
-func (i *Instance) nearestEnemy(p *player) *player {
-	var best *player
-	bestD := math.Inf(1)
-	for _, id := range i.order {
-		q := i.players[id]
-		if q.dead || !i.enemies(p.ID, id) {
-			continue
-		}
-		if d := math.Hypot(q.state.X-p.state.X, q.state.Z-p.state.Z); d < bestD {
-			best, bestD = q, d
-		}
-	}
-	return best
-}
-
-// melee is whether the class fights up close: its attack an arc.
-func melee(c gamedata.Class) bool { return c.Attack.Shape.Kind == gamedata.ArcShape }
-
-// reachOf is how far from its user a shape reaches.
-func reachOf(s gamedata.Shape) float64 {
-	switch {
-	case s.Kind == gamedata.ShotShape:
-		return s.Range
-	case s.At == gamedata.AtLock:
-		return s.Reach + s.Radius
-	}
-	return s.Radius
+	i.match.ring.Start(s)
 }
 
 // botSink is a bot's: nothing it's sent goes anywhere.

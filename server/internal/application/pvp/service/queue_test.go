@@ -511,3 +511,73 @@ func TestNoQueueingWhileAMatchOpens(t *testing.T) {
 		}
 	})
 }
+
+// The matcher never opens a match of bots alone, which a match instance would run to its end: bots fill only the places of players still waiting, so a player who leaves before their bot, declines it, or lets it lapse takes that match with them, and one sent back by another's decline still meets a bot of their own.
+func TestTheMatcherNeverOpensAMatchOfBotsAlone(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newFixture(t)
+		f.run(t)
+		ctx := context.Background()
+		q := f.data.Pvp().Queue
+		queue := func(name string) kernel.CharacterID {
+			id := kernel.NewCharacterID()
+			if err := f.svc.Queue(ctx, model.Player{ID: id, Name: name}, "duel"); err != nil {
+				t.Fatal(err)
+			}
+			return id
+		}
+		answer := func(id kernel.CharacterID, accept bool) {
+			offer, ok := last[service.Offered](f.notes, id)
+			if !ok {
+				t.Fatalf("no offer for %v: %+v", id, f.notes.of(id))
+			}
+			if err := f.svc.Answer(ctx, id, offer.Offer, accept); err != nil {
+				t.Fatal(err)
+			}
+		}
+		ayla := queue("Ayla")
+		wait(q.BotsAfter - time.Second)
+		if err := f.svc.Leave(ctx, ayla); err != nil {
+			t.Fatal(err)
+		}
+		robin := queue("Robin")
+		wait(q.BotsAfter)
+		answer(robin, false)
+		cleo := queue("Cleo")
+		wait(q.BotsAfter + q.Offer + time.Second)
+		if _, ok := last[service.Offered](f.notes, cleo); !ok {
+			t.Fatal("Cleo had no bot to let lapse")
+		}
+		dan := queue("Dan")
+		wait(q.BotsAfter)
+		answer(dan, true)
+		eve, finn := queue("Eve"), queue("Finn")
+		wait(time.Second)
+		answer(eve, true)
+		answer(finn, false)
+		wait(q.BotsAfter)
+		answer(eve, true)
+		wait(q.BotsAfter + q.Offer)
+
+		accepted := map[kernel.CharacterID]bool{dan: true, eve: true}
+		if len(f.world.opened) != 2 {
+			t.Fatalf("opened %+v, want Dan's and Eve's against bots", f.world.opened)
+		}
+		for _, spec := range f.world.opened {
+			players := 0
+			for _, side := range spec.Sides {
+				for _, fr := range side {
+					if fr.Bot == nil {
+						players++
+						if !accepted[fr.Character] {
+							t.Fatalf("%v is in %+v without accepting", fr.Character, spec)
+						}
+					}
+				}
+			}
+			if players == 0 {
+				t.Fatalf("opened a match of bots alone: %+v", spec)
+			}
+		}
+	})
+}

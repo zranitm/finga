@@ -8,6 +8,9 @@ import (
 	"finga/internal/shared/kernel"
 )
 
+// BotMemory is how far back a match's bots see the fighters: a tier's reaction is under it.
+const BotMemory = time.Second
+
 // BarKeys is how many keys a skill bar has, the world's and a match's alike.
 const BarKeys = 8
 

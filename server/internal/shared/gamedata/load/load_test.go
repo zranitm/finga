@@ -998,6 +998,7 @@ func TestRejections(t *testing.T) {
 		{"ranks that don't rise", "pvp.yaml", "{id: silver, from: 1200}", "{id: silver, from: 0}", []string{"pvp.yaml", "silver", "rise"}},
 		{"tiers whose mu doesn't rise", "pvp.yaml", "{id: adept, mu: 20,", "{id: adept, mu: 15,", []string{"pvp.yaml", "adept", "mu must rise"}},
 		{"a tier that defends past always", "pvp.yaml", "defend: 0.35", "defend: 1.5", []string{"pvp.yaml", "adept", "defend"}},
+		{"a tier slower than a bot remembers", "pvp.yaml", "reaction: 350ms", "reaction: 1s", []string{"pvp.yaml", "adept", "reaction 1s", "under the 1s"}},
 		{"too few names", "pvp.yaml", " N30]", "]", []string{"pvp.yaml", "29 names"}},
 		{"a name twice", "pvp.yaml", " N30]", " N29]", []string{"pvp.yaml", "N29"}},
 		{"a promoted class with no build", "pvp.yaml", "    bowman:\n      - {bar: [strike, '', '', '', '', '', '', ''], traits: {}, order: [strike]}\n", "", []string{"pvp.yaml", "bowman", "no build"}},

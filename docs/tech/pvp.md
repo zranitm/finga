@@ -129,6 +129,7 @@ bots:
 - **Leaving:**
   - A presence that goes, through logout or a dropped connection, is a forfeit. The instance removes the player as any leave does, and checkpoints `back`.
   - After a server stop or a crash, a match has no result and moves no rating.
+  - A match that expected players and saw none by prep's end closes with no outcome. A match of bots alone runs to its end, as its test runs one; the queue never makes one.
 - **Teardown:** after the result phase, the instance hands everyone out and its `Run` returns. Then it's dropped from `w.matches`.
 - **Party:** `tellParty` names the match's map, which the party frame shows as "In a match".
 - **Bots:**
@@ -283,35 +284,38 @@ bots:
 
 ## 8. Bots
 
-- **Where:** `application/world/bots`, a package the instance calls each tick for its bots.
+- **Where:** `application/world/bots`, a package the instance calls each tick for its bots. The instance builds each bot's view and takes its decision as its client's input and presses.
 - **A bot only presses keys.**
   - Its brain queues what a player sends: keys held, `Attack`, and `UseSkill` with aim, target and chain root.
   - These go through the same checks: `usable`, `chainReady`, energy, cooldowns and the action clock. A bot can do nothing a player can't.
 - **The brain:**
   - A priority list: the first rule whose condition holds acts.
   - It decides every 100 ms, every other tick.
-  - It's seeded from the match id, so a match replays in tests.
+  - It's seeded from the match id and the bot's, so a match replays in tests. Each chance is rolled once for each thing it sees: an action, a hold, a follow-up offered.
   - A behaviour tree library was considered and left out (section 18).
 - **What it sees:**
   - Its own state, now.
-  - The others as they were `reaction` ago, read from a ring the instance keeps of the last second, for matches with bots. The ring holds:
-    - positions, HP and statuses;
-    - every attack and skill started, with its shape, aim and hit time.
+  - The others as they were `reaction` ago, in ticks, read from a ring the instance keeps of the last `gamedata.BotMemory` (a second), for matches with bots. A tier's reaction must be under it. The ring holds:
+    - each tick's fighters: positions, HP, whether a hard status holds them, and their class's basic attack, which anyone can tell from their class;
+    - every attack and skill started, as the world showed it: the tick it showed, its hit, and its user's next blow, at its cancel point when it's cancelable, else its end. A blow's also has its shape, aim, lock, and any dash or leap toward the lock.
+  - Never a player's keys, presses, cooldowns or energy.
 - **The rules, first first:**
-  1. **Break free:** when hard-controlled with its break-free ready, it presses after `break_free`, at its tier's `defend` chance.
-  2. **Defend:**
-     - When it sees an enemy's attack or skill start whose shape will reach it at the hit time, by `model.Reached` at its predicted spot, it dodges or blocks.
-     - It uses whichever is ready and covers the hit time, at the `defend` chance.
-     - A block faces the attacker.
-     - A slow reaction can't beat a fast swing, which is the tiers' main difference.
-  3. **Follow up:** when a key offers a chain's follow-up, by the same `holds` the world uses, it takes it at the `chain` chance.
+  1. **Break free:** when hard-controlled with its break-free ready, it presses after `break_free`, at its tier's `defend` chance, rolled once for each hold. It presses from the break-free's root.
+  2. **Defend:** it guards against an enemy's action it has seen start:
+     - **A delayed hit:** a blow whose shape will reach it at the hit time, by `model.Reached` at its predicted spot. A dash or leap toward the lock lands its blow from there. Few blows are delayed: a basic attack and most skills land as they start. The ones that don't are Lunge, Charge, Shadow Step and Meteor.
+     - **The next blow:** with the enemy within its basic attack's reach, the blow that may follow their action, guessed at that action's cancel point when it's cancelable, else its end. A player who holds the blow past the guess, feints or cancels early gets through.
+     - It presses the first of its dodges and blocks that's ready and runs over the guarded tick, at the `defend` chance, rolled once for each action, and guards each action once.
+     - No guard comes sooner than its reaction after the action showed.
+     - A block faces the attacker; a dodge's move goes away from them.
+     - A slow reaction can't beat a fast swing, which is the tiers' main difference. A basic attack's cancel point comes 250 ms (Warrior) or 150 ms (Thief) after it shows, the world counting whole ticks. So expert and master bots guard a Warrior's next blow, master bots alone a Thief's, and the rest guard neither.
+  3. **Follow up:** when a key offers a chain's follow-up, by the same `holds` the world uses, it takes it at the `chain` chance, rolled once each time it's offered.
   4. **Objective** (15v15): it goes to its point while no enemy is within 10 m.
   5. **Fight:**
-     - It picks its target.
+     - It picks its target: the nearest enemy still up.
      - It keeps its range:
        - Warrior and Thief: 70% of the attack's reach;
-       - Bowman and Magician: 6 to 9 m, stepping away inside 3 m.
-     - It uses the next skill of its build's `order` that's ready and paid for, else it attacks.
+       - Bowman and Magician: from past 9 m it walks in to 6 m, and it steps away inside 3 m.
+     - It uses the next skill of its build's `order` that's ready and paid for, its shape reaching past any dash to the lock, else it attacks.
      - It aims off by up to `aim` degrees.
   6. **Move:** it walks the nav path toward where the rules want it.
 - **Walking:** `internal/shared/steer` is cmd/bot's walker, and both cmd/bot and the server's bots walk with it: `Walker`, `KeysToward`, `YawTo` and `Stall`. A path keeps `gamedata.BotPathMargin`, 0.25 m, beyond a player's radius where it can. The movement loader checks that sum against the walk grid's steps.
