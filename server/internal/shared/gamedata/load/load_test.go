@@ -94,6 +94,7 @@ classes:
     name: Beginner
     description: "Tries everything."
     look: {model: barbarian, tint: 0xd8c8a8}
+    weapon: one_handed
     attack: {kind: arc, damage: physical, radius: 1.875, angle: 120, height: 1.5, length: 700ms}
     base_stats: {str: 12, dex: 5, int: 4, agi: 5, vit: 10}
     starter_items: [{item: wooden_sword, quantity: 1}]
@@ -103,6 +104,7 @@ classes:
     description: "Fights up close."
     parent: beginner
     look: {model: knight}
+    weapon: one_handed
     attack: {kind: arc, damage: physical, radius: 2.375, angle: 120, height: 1.75, length: 600ms}
     auto_assign: {str: 3, vit: 2}
     promotion: {trainer: drillmaster, level: 3, stats: {str: 20, vit: 10}, skills: {strike: 2}, quests: [first_hunt], weapon: wooden_sword}
@@ -111,6 +113,7 @@ classes:
     description: "Fights from afar."
     parent: beginner
     look: {model: rogue_hooded}
+    weapon: crossbow
     attack: {kind: shot, damage: magic, range: 13.125, width: 0.6, length: 800ms, hit: 0.25, cancel: 0.5, ready: 0.6}
     auto_assign: {dex: 3, agi: 2}
     promotion: {trainer: hunter, level: 2, weapon: short_bow}
@@ -304,6 +307,11 @@ sides:
 prep_wall:
   - {box: [10, 10, 20, 0.6], height: 3, model: prep_wall}
 `,
+		"outfits.yaml": `
+pieces:
+  - {id: lord_robe, slot: outfit, name: Lord's Robe, stars: 3, look: mage_body, from: [{boss: slime_lord, chance: 0.05}]}
+  - {id: lord_bow, slot: weapon, kind: crossbow, name: Lord's Bow, stars: 4, look: crossbow_1h, from: [{boss: slime_lord, chance: 0.02}]}
+`,
 		"pvp.yaml": `
 modes:
   duel: {name: 1v1, team: 1, party: 1, map: pit, rated: true, rounds: {best_of: 3, most: 5, length: 60s}}
@@ -389,6 +397,34 @@ func TestValidDataLoads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Run("each class's weapon kind, and the wardrobe's pieces, each with an item on its boss's drops", func(t *testing.T) {
+		for id, want := range map[kernel.Class]gamedata.WeaponKind{"beginner": gamedata.OneHanded, "warrior": gamedata.OneHanded, "bowman": gamedata.Crossbow} {
+			if c, _ := d.Class(id); c.Weapon != want {
+				t.Errorf("%s holds %q, want %q", id, c.Weapon, want)
+			}
+		}
+		want := []gamedata.Piece{
+			{ID: "lord_robe", Slot: gamedata.OutfitSlot, Name: "Lord's Robe", Stars: 3, Look: "mage_body", Item: "piece.lord_robe", From: []gamedata.PieceSource{{Boss: "slime_lord", Chance: 0.05}}},
+			{ID: "lord_bow", Slot: gamedata.WeaponSlot, Kind: gamedata.Crossbow, Name: "Lord's Bow", Stars: 4, Look: "crossbow_1h", Item: "piece.lord_bow", From: []gamedata.PieceSource{{Boss: "slime_lord", Chance: 0.02}}},
+		}
+		if got := d.Pieces(); !reflect.DeepEqual(got, want) {
+			t.Fatalf("pieces %+v, want %+v", got, want)
+		}
+		if p, ok := d.PieceIn("piece.lord_bow"); !ok || p.ID != "lord_bow" {
+			t.Fatalf("the piece in piece.lord_bow: %+v", p)
+		}
+		if _, ok := d.PieceIn("slime_gel"); ok {
+			t.Fatal("slime_gel holds a piece")
+		}
+		it, _ := d.Item("piece.lord_robe")
+		if wantItem := (gamedata.Item{ID: "piece.lord_robe", Name: "Lord's Robe", Tab: gamedata.Etc, Stars: 3, Description: "Adds Lord's Robe to your wardrobe.", MaxStack: 100}); !reflect.DeepEqual(it, wantItem) {
+			t.Fatalf("the robe's item %+v, want %+v", it, wantItem)
+		}
+		lord, _ := d.Mob("slime_lord")
+		if got := lord.Drops[len(lord.Drops)-2:]; !reflect.DeepEqual(got, []gamedata.Drop{{Item: "piece.lord_robe", Chance: 0.05, Min: 1, Max: 1}, {Item: "piece.lord_bow", Chance: 0.02, Min: 1, Max: 1}}) {
+			t.Fatalf("the lord's last drops %+v, want its two pieces", got)
+		}
+	})
 	t.Run("the most active quests and the longest chat line", func(t *testing.T) {
 		if d.MaxActiveQuests() != 20 || d.ChatLineMax() != 120 || d.TeleportChannel() != 2500*time.Millisecond || d.InterestCell() != 32 {
 			t.Fatalf("max active %d, chat line %d, teleport channel %v, interest cell %v", d.MaxActiveQuests(), d.ChatLineMax(), d.TeleportChannel(), d.InterestCell())
@@ -749,6 +785,19 @@ func TestRejections(t *testing.T) {
 		replace string
 		wantAll []string // substrings the error must contain
 	}{
+		{"a class holding no known kind", "classes.yaml", "    look: {model: knight}\n    weapon: one_handed\n", "    look: {model: knight}\n    weapon: shield\n", []string{"classes.yaml", "warrior", "shield"}},
+		{"two pieces of one id", "outfits.yaml", "id: lord_bow,", "id: lord_robe,", []string{"outfits.yaml", "lord_robe", "an id of its own"}},
+		{"a piece in no slot", "outfits.yaml", "slot: outfit,", "slot: cape,", []string{"outfits.yaml", "lord_robe", "cape"}},
+		{"a weapon look of no kind", "outfits.yaml", "kind: crossbow, ", "", []string{"outfits.yaml", "lord_bow", "a kind a class holds"}},
+		{"a weapon look of a kind no class holds", "outfits.yaml", "kind: crossbow,", "kind: staff,", []string{"outfits.yaml", "lord_bow", "staff"}},
+		{"an outfit naming a kind", "outfits.yaml", "slot: outfit,", "slot: outfit, kind: crossbow,", []string{"outfits.yaml", "lord_robe", "only a weapon look"}},
+		{"a piece with no look", "outfits.yaml", "look: mage_body", "look: ''", []string{"outfits.yaml", "lord_robe", "a look"}},
+		{"a piece past seven stars", "outfits.yaml", "stars: 3, look: mage_body", "stars: 8, look: mage_body", []string{"outfits.yaml", "lord_robe", "stars"}},
+		{"a piece from nowhere", "outfits.yaml", "from: [{boss: slime_lord, chance: 0.05}]", "from: []", []string{"outfits.yaml", "lord_robe", "a source"}},
+		{"a piece from a mob that's no boss", "outfits.yaml", "boss: slime_lord, chance: 0.05", "boss: green_slime, chance: 0.05", []string{"outfits.yaml", "lord_robe", "green_slime"}},
+		{"a piece at a chance past one", "outfits.yaml", "chance: 0.05", "chance: 1.5", []string{"outfits.yaml", "lord_robe", "chance"}},
+		{"a source this build doesn't have", "outfits.yaml", "{boss: slime_lord, chance: 0.02}", "{rank: silver}", []string{"outfits.yaml", "rank"}},
+		{"a piece's item clashing with an item", "items.yaml", `  - {id: slime_gel, name: Slime Gel, tab: etc, stars: 2, description: "Sticky."}`, "  - {id: slime_gel, name: Slime Gel, tab: etc, stars: 2, description: \"Sticky.\"}\n  - {id: piece.lord_robe, name: Robe, tab: etc, stars: 1, description: \"A robe.\"}", []string{"outfits.yaml", "lord_robe", "clashes"}},
 		{"a drop table naming an unknown item", "mobs.yaml", `item: slime_gel`, `item: dragon_scale`, []string{"mobs.yaml", "green_slime", "dragon_scale"}},
 		{"an equipment drop with a quantity above one", "mobs.yaml", `{item: red_potion, chance: 0.15, min: 1, max: 1}`, `{item: wooden_sword, chance: 0.15, min: 1, max: 2}`, []string{"mobs.yaml", "green_slime", "wooden_sword"}},
 		{"a drop chance above one", "mobs.yaml", `chance: 0.6`, `chance: 1.5`, []string{"mobs.yaml", "green_slime", "chance"}},

@@ -19,7 +19,7 @@ import (
 // Dir reads and validates every file under dir.
 func Dir(dir string) (*gamedata.Data, error) {
 	l := &loader{}
-	steps := []func(string) error{l.loadMovement, l.loadLoot, l.loadActions, l.loadStatuses, l.loadClasses, l.loadSkills, l.loadStats, l.loadExpCurve, l.checkSkillLevels, l.checkChains, l.loadItems, l.validateStarters, l.loadMobs, l.loadNPCs, l.loadMaps, l.loadQuests, l.checkPromotions, l.loadChat, l.loadWorld, l.loadPvp}
+	steps := []func(string) error{l.loadMovement, l.loadLoot, l.loadActions, l.loadStatuses, l.loadClasses, l.loadSkills, l.loadStats, l.loadExpCurve, l.checkSkillLevels, l.checkChains, l.loadItems, l.validateStarters, l.loadMobs, l.loadNPCs, l.loadMaps, l.loadQuests, l.checkPromotions, l.loadChat, l.loadWorld, l.loadPvp, l.loadOutfits}
 	for _, step := range steps {
 		if err := step(dir); err != nil {
 			return nil, fmt.Errorf("gamedata: %w", err)
@@ -57,6 +57,7 @@ func Dir(dir string) (*gamedata.Data, error) {
 		TeleportChannel: l.teleportChannel,
 		Pvp:             l.pvp,
 		InterestCell:    l.interestCell,
+		Pieces:          l.pieces.list,
 	}), nil
 }
 
@@ -90,6 +91,7 @@ type loader struct {
 	teleportChannel time.Duration
 	pvp             gamedata.PvpRules
 	interestCell    float64
+	pieces          byID[string, gamedata.Piece]
 }
 
 // byID keeps one file's entries in file order, indexed by ID.
