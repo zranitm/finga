@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mapLinks } from '@/gamedata/map-links';
 import { maps } from '@/gamedata/maps';
 import { npcs } from '@/gamedata/npcs';
+import { clashes } from '@/lib/tags';
 import { mobById } from '@/progression/mobs';
 import { ERR } from '@/protocol/errors';
 import {
@@ -95,14 +96,18 @@ describe('MapWindow', () => {
     }
   });
 
-  /** Each spawn label's mob and the middle of its text, in metres, at the window's scale (480 by 320 px at most). */
-  const spawnLabels = (id: string) => {
-    const m = map(id);
+  /** A map's size in metres and its pixels a metre at the window's scale (480 by 320 px at most). */
+  const fitted = (id: string) => {
     const raw = readFileSync(path.resolve(process.cwd(), `public/maps/${id}.json`), 'utf8');
     const { size_x: sx, size_z: sz } = (
       JSON.parse(raw) as { geometry: { size_x: number; size_z: number } }
     ).geometry;
-    const scale = Math.min(480 / sx, 320 / sz);
+    return { sx, sz, scale: Math.min(480 / sx, 320 / sz) };
+  };
+  /** Each spawn label's mob and the middle of its text, in metres, at the window's scale. */
+  const spawnLabels = (id: string) => {
+    const m = map(id);
+    const { sx, sz, scale } = fitted(id);
     return mapLabels(m, null, scale, [sx, sz], new Set(), null)
       .filter((l) => l.kind === 'spawn')
       .map((l) => {
@@ -119,6 +124,43 @@ describe('MapWindow', () => {
     expect(labels.filter((l) => l.mob === 'dust_vulture')).toHaveLength(4);
     // four slime circles: the mesa's and the slope's overlap; the west one and the east one stand apart
     expect(labels.filter((l) => l.mob === 'sun_slime')).toHaveLength(3);
+  });
+
+  /** A map's labels with its boss beaten, the boss's own, and where its crown's middle is, in pixels down. */
+  const bossLabels = (id: string) => {
+    const m = map(id);
+    const spot = m.boss!;
+    const { sx, sz, scale } = fitted(id);
+    const labels = mapLabels(m, null, scale, [sx, sz], new Set(), { type: spot.mob, backAt: 0 });
+    return { labels, boss: labels.find((l) => l.kind === 'boss')!, crown: (sz - spot.z) * scale };
+  };
+
+  it('puts a beaten boss’s label under its crown when that has more room than tags keep: the forest’s, by the mesa slimes’ label', () => {
+    const room = 6; // the boss label's, past the tags' 2 px
+    const { labels, boss, crown } = bossLabels('forest');
+    const near = labels.filter(
+      (l) =>
+        l !== boss &&
+        Math.abs(l.x - boss.x) * 2 < l.w + boss.w &&
+        l.bottom + room > boss.bottom - boss.h &&
+        l.bottom - l.h < boss.bottom + room,
+    );
+    expect([boss.bottom - boss.h >= crown, near.map((l) => l.text)]).toEqual([true, []]);
+  });
+
+  it('keeps a beaten boss’s label off its crown and clear of every label, on every map with a boss', () => {
+    const DOT = 3; // the crown reaches 1.8 dots over its middle and 1.2 under
+    const bad = maps
+      .filter((m) => m.boss)
+      .flatMap(({ id }) => {
+        const { labels, boss, crown } = bossLabels(id);
+        const off = boss.bottom - boss.h >= crown + 1.2 * DOT || boss.bottom <= crown - 1.8 * DOT;
+        return [
+          ...(off ? [] : [`${id}: on its crown`]),
+          ...labels.filter((l) => l !== boss && clashes(l, boss)).map((l) => `${id}: ${l.text}`),
+        ];
+      });
+    expect(bad).toEqual([]);
   });
 
   it('puts every spawn label on one of its own mob’s circles, on every map', () => {

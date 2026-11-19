@@ -125,7 +125,7 @@
   - The instance sends these itself, as `FieldBoss` to the map. Bosses were the only news social's `Announce` carried, so it goes whole: the `Announcement` message (field 28, reserved), social's `Announce` and the world's announce queue.
 - **The bar:** name and HP. It has no time left, since a boss doesn't leave.
 - **While it's down:**
-  - The map window marks the boss's spot, greyed, with when it's back: "King Slime: back in 3:12".
+  - The map window marks the boss's spot, greyed, with when it's back: "King Slime: back in 3:12". The label sits under its crown, or over it, whichever keeps 6 px clear of every other label. Where neither does, it's lifted clear of the rest as any label is.
   - `FieldBossGone{mob, back_in_ms}` and the snapshot carry the time, and the client counts down itself.
   - The client's copy of each map now carries the boss's circle. Only the kill count was hidden, and it's gone.
 - **Balance:**

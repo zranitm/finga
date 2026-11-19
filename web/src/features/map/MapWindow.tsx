@@ -38,6 +38,7 @@ const CHART_PX = 5; // pixels a unit of the world chart
 const CHART_PAD = 10; // chart units round the outermost maps
 const GROUP_GAP_M = 6; // spawn circles of one mob this close at their edges share one label
 const LABEL_REACH_M = 8; // every spawn circle has a label of its own mob on it, or this close to its edge
+const BOSS_ROOM_PX = 6; // more room than tags keep round a beaten boss's label, so its countdown reads apart
 
 const nameOf = (id: string) => maps.find((m) => m.id === id)?.name ?? id;
 
@@ -102,7 +103,7 @@ function within(members: Spawn[]): Spawn[][] {
   return [near, ...(far.length > 0 ? within(far) : [])];
 }
 
-/** This map's labels at scale pixels a metre. A spawn group's label sits on one of its own circles, nearest the group's middle first, stepped up or down inside the circle, wherever it's in LABEL_REACH_M of all the group's circles and covers no quest mark or label before it; failing that, it's lifted. Portals, NPCs and the player follow, each lifted clear of everything before it. */
+/** This map's labels at scale pixels a metre. A spawn group's label sits on one of its own circles, nearest the group's middle first, stepped up or down inside the circle, wherever it's in LABEL_REACH_M of all the group's circles and covers no quest mark or label before it; failing that, it's lifted. Portals and NPCs follow, each lifted clear of everything before it; then a beaten boss's, under its crown or over it, wherever it has BOSS_ROOM_PX round it, else lifted as the rest are; then the player's. */
 export function mapLabels(
   map: MapData,
   me: Spot | null,
@@ -166,18 +167,33 @@ export function mapLabels(
       placed.push(label);
       return label;
     });
-  const rest: MapLabel[] = [
+  const marks: MapLabel[] = [
     ...map.portals.map((p) =>
       box('portal', `To ${nameOf(p.to)}`, p.x, y(p.z) - Math.max(p.radius * scale, 2 * DOT_PX) - 2),
     ),
     ...here.map((n) => box('npc', n.name, n.x, y(n.z) - DOT_PX - 2)),
-    ...(down && map.boss
-      ? [box('boss', backIn(down.type, 0), map.boss.x, y(map.boss.z) - 3 * DOT_PX - 2)]
-      : []),
-    ...(me ? [box('me', 'You', me.x, y(me.z) - 3 * DOT_PX - 2)] : []),
   ];
-  const bottoms = stackTags(placed, rest);
-  return [...spawns, ...rest.map((l, i) => ({ ...l, bottom: bottoms[i]! }))];
+  const markBottoms = stackTags(placed, marks);
+  const settled = marks.map((l, i) => ({ ...l, bottom: markBottoms[i]! }));
+  const around = [...placed, ...settled];
+  const roomy = (t: TagBox) =>
+    !around.some((p) =>
+      clashes({ ...t, bottom: t.bottom + BOSS_ROOM_PX, h: t.h + 2 * BOSS_ROOM_PX }, p),
+    );
+  const last: MapLabel[] = [];
+  if (down && map.boss) {
+    const text = backIn(down.type, 0);
+    const [under, over] = [
+      box('boss', text, map.boss.x, y(map.boss.z) + 2 * DOT_PX + LABEL_PX),
+      box('boss', text, map.boss.x, y(map.boss.z) - 3 * DOT_PX - 2),
+    ];
+    last.push([under, over].find(roomy) ?? over);
+  }
+  if (me) {
+    last.push(box('me', 'You', me.x, y(me.z) - 3 * DOT_PX - 2));
+  }
+  const bottoms = stackTags(around, last);
+  return [...spawns, ...settled, ...last.map((l, i) => ({ ...l, bottom: bottoms[i]! }))];
 }
 
 /** A beaten boss's label: its name and the time until it's back. */
