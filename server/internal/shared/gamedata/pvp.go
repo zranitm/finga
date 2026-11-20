@@ -153,6 +153,34 @@ func PvpBuildFault(c Class, skill func(string) (Skill, bool), bar []string, trai
 	return nil
 }
 
+// PvpCopy is the pvp build a character of c has before they save one: their world bar and traits, with a block not c's own swapped for c's block, moved there if it stood on another key as a promotion does, and keys c can't use or repeats left empty; the traits are those of the skills it keeps.
+func PvpCopy(c Class, skill func(string) (Skill, bool), bar []string, traits map[string]string) ([]string, map[string]string) {
+	out := make([]string, BarKeys)
+	copy(out, bar)
+	isBlock := func(id string) bool { s, ok := skill(id); return ok && s.Effect == BlockEffect }
+	if own := slices.IndexFunc(c.Skills, isBlock); own >= 0 {
+		block := c.Skills[own]
+		if k := slices.IndexFunc(out, func(id string) bool { return isBlock(id) && id != block }); k >= 0 {
+			if j := slices.Index(out, block); j >= 0 {
+				out[j] = ""
+			}
+			out[k] = block
+		}
+	}
+	for k, id := range out {
+		if s, ok := skill(id); id != "" && (!ok || s.Kind != Active || !c.Learnable(s) || slices.Contains(out[:k], id)) {
+			out[k] = ""
+		}
+	}
+	kept := map[string]string{}
+	for id, t := range traits {
+		if slices.Contains(out, id) {
+			kept[id] = t
+		}
+	}
+	return out, kept
+}
+
 // Pvp is the match rules.
 func (d *Data) Pvp() PvpRules { return d.p.Pvp }
 

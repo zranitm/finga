@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -22,12 +23,27 @@ import (
 	"finga/pkg/transient"
 )
 
-// world is the world as the matcher sees it: who can't fight, and the matches it opened; while hold is open, an open waits for it.
+// world is the world as the matcher sees it: who can't fight, the matches it opened and the builds it was sent, which fail with buildErr; while hold is open, an open waits for it.
 type world struct {
-	mu     sync.Mutex
-	cant   map[kernel.CharacterID]error
-	opened []model.Spec
-	hold   chan struct{}
+	mu       sync.Mutex
+	cant     map[kernel.CharacterID]error
+	opened   []model.Spec
+	hold     chan struct{}
+	builds   map[kernel.CharacterID][]model.Build
+	buildErr error
+}
+
+func (w *world) SetBuild(_ context.Context, id kernel.CharacterID, b model.Build) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.builds[id] = append(w.builds[id], b)
+	return w.buildErr
+}
+
+func (w *world) sent(id kernel.CharacterID) []model.Build {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return slices.Clone(w.builds[id])
 }
 
 func (w *world) CanFight(_ context.Context, id kernel.CharacterID) error {
@@ -49,17 +65,108 @@ func (w *world) OpenMatch(_ context.Context, spec model.Spec) error {
 	return nil
 }
 
-// store keeps ratings and matches in memory, as the Postgres store does: the next lost Records store, then fail as a commit whose answer was lost; a match in hold waits for it to close.
+// store keeps ratings, matches and builds in memory, as the Postgres store does: the next lost Records store, then fail as a commit whose answer was lost; a match in hold waits for it to close. The board and a profile read modes, ratings by mode; buildErr fails every build read and save.
 type store struct {
-	mu      sync.Mutex
-	ratings map[kernel.CharacterID]model.Rating
-	matches map[kernel.MatchID]model.Rated
-	lost    int
-	hold    map[kernel.MatchID]chan struct{}
+	mu       sync.Mutex
+	ratings  map[kernel.CharacterID]model.Rating
+	matches  map[kernel.MatchID]model.Rated
+	lost     int
+	hold     map[kernel.MatchID]chan struct{}
+	modes    map[string]map[kernel.CharacterID]model.Rating
+	builds   map[kernel.CharacterID]model.Build
+	buildErr error
+	boards   int // the boards read
 }
 
 func newStore() *store {
-	return &store{ratings: map[kernel.CharacterID]model.Rating{}, matches: map[kernel.MatchID]model.Rated{}, hold: map[kernel.MatchID]chan struct{}{}}
+	return &store{ratings: map[kernel.CharacterID]model.Rating{}, matches: map[kernel.MatchID]model.Rated{}, hold: map[kernel.MatchID]chan struct{}{}, modes: map[string]map[kernel.CharacterID]model.Rating{}, builds: map[kernel.CharacterID]model.Build{}}
+}
+
+func (s *store) Ratings(_ context.Context, id kernel.CharacterID) (map[string]model.Rating, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := map[string]model.Rating{}
+	for mode, rs := range s.modes {
+		if r, ok := rs[id]; ok {
+			out[mode] = r
+		}
+	}
+	return out, nil
+}
+
+func (s *store) Board(_ context.Context, mode string, most int) ([]model.Ranked, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.boards++
+	var out []model.Ranked
+	for id, r := range s.modes[mode] {
+		if r.Placed {
+			out = append(out, model.Ranked{Character: id, Rating: r})
+		}
+	}
+	slices.SortFunc(out, func(a, b model.Ranked) int {
+		return cmp.Or(cmp.Compare(b.Rating.Shown, a.Rating.Shown), slices.Compare(a.Character[:], b.Character[:]))
+	})
+	return out[:min(most, len(out))], nil
+}
+
+func (s *store) Above(_ context.Context, mode string, shown int) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for _, r := range s.modes[mode] {
+		if r.Placed && r.Shown > shown {
+			n++
+		}
+	}
+	return n, nil
+}
+
+func (s *store) Build(_ context.Context, id kernel.CharacterID) (model.Build, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	b, ok := s.builds[id]
+	return b, ok, s.buildErr
+}
+
+func (s *store) PutBuild(_ context.Context, id kernel.CharacterID, b model.Build) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.buildErr != nil {
+		return 0, s.buildErr
+	}
+	b.Revision = s.builds[id].Revision + 1
+	s.builds[id] = b
+	return b.Revision, nil
+}
+
+// characters are the characters pvp reads: whose, their class, world bar and traits, and names.
+type characters struct {
+	mu sync.Mutex
+	of map[kernel.CharacterID]model.Character
+	as map[kernel.CharacterID]model.Named
+}
+
+func (c *characters) Character(_ context.Context, id kernel.CharacterID) (model.Character, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	ch, ok := c.of[id]
+	if !ok {
+		return model.Character{}, model.ErrNoCharacter
+	}
+	return ch, nil
+}
+
+func (c *characters) Names(_ context.Context, ids []kernel.CharacterID) (map[kernel.CharacterID]model.Named, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := map[kernel.CharacterID]model.Named{}
+	for _, id := range ids {
+		if n, ok := c.as[id]; ok {
+			out[id] = n
+		}
+	}
+	return out, nil
 }
 
 func (s *store) Rating(_ context.Context, id kernel.CharacterID, _ string) (model.Rating, bool, error) {
@@ -170,6 +277,7 @@ type fixture struct {
 	svc    *service.Service
 	world  *world
 	store  *store
+	chars  *characters
 	notes  *notes
 	social *social
 	data   *gamedata.Data
@@ -184,9 +292,9 @@ func newFixture(t *testing.T) fixture {
 func seeded(t *testing.T, seed uint64) fixture {
 	t.Helper()
 	data := gamedatatest.Shipped(t)
-	f := fixture{world: &world{cant: map[kernel.CharacterID]error{}}, store: newStore(), notes: &notes{got: map[kernel.CharacterID][]service.Delivery{}}, social: &social{}, data: data}
+	f := fixture{world: &world{cant: map[kernel.CharacterID]error{}, builds: map[kernel.CharacterID][]model.Build{}}, store: newStore(), chars: &characters{of: map[kernel.CharacterID]model.Character{}, as: map[kernel.CharacterID]model.Named{}}, notes: &notes{got: map[kernel.CharacterID][]service.Delivery{}}, social: &social{}, data: data}
 	log := slog.New(slog.DiscardHandler)
-	f.svc = service.New(service.Deps{Data: data, World: f.world, Social: f.social, Store: f.store, Notifier: f.notes, Logger: log, Panics: panics.NewRecorder(log, nil), Rand: rand.New(rand.NewPCG(seed, 2))}) //nolint:gosec // a test's bots
+	f.svc = service.New(service.Deps{Data: data, World: f.world, Social: f.social, Characters: f.chars, Store: f.store, Notifier: f.notes, Logger: log, Panics: panics.NewRecorder(log, nil), Rand: rand.New(rand.NewPCG(seed, 2))}) //nolint:gosec // a test's bots
 	return f
 }
 

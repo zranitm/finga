@@ -8,6 +8,7 @@ import (
 	"finga/internal/application/account"
 	"finga/internal/application/character"
 	"finga/internal/application/item"
+	"finga/internal/application/pvp"
 	"finga/internal/shared/kernel"
 	"finga/pkg/hub"
 )
@@ -140,4 +141,23 @@ func (*fakeItems) DiscardMany(context.Context, item.Actor, item.DiscardManyReque
 
 func (*fakeItems) AddToWardrobe(context.Context, item.Actor, item.WardrobeRequest) (item.Result, error) {
 	return item.Result{}, errors.New("not the REST API's")
+}
+
+// fakeArena is the pvp module's profiles, builds and boards.
+type fakeArena struct {
+	profile  func(account kernel.AccountID, id kernel.CharacterID) (pvp.Profile, error)
+	setBuild func(account kernel.AccountID, id kernel.CharacterID, bar []string, traits map[string]string) error
+	board    func(mode string) ([]pvp.Row, error)
+}
+
+func (f *fakeArena) Profile(_ context.Context, account kernel.AccountID, id kernel.CharacterID) (pvp.Profile, error) {
+	return f.profile(account, id)
+}
+
+func (f *fakeArena) SetBuild(_ context.Context, account kernel.AccountID, id kernel.CharacterID, bar []string, traits map[string]string) error {
+	return f.setBuild(account, id, bar, traits)
+}
+
+func (f *fakeArena) Leaderboard(_ context.Context, mode string) ([]pvp.Row, error) {
+	return f.board(mode)
 }

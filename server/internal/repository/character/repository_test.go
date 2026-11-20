@@ -95,6 +95,21 @@ func TestRepository(t *testing.T) {
 		}
 	})
 
+	t.Run("find reads characters by ID, of any account, leaving out an ID of none", func(t *testing.T) {
+		cass := insert(t, store, sample(kernel.NewAccountID(), "Cass"))
+		got, err := store.Find(ctx, []kernel.CharacterID{cass.ID, kernel.NewCharacterID(), ayla.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		names := map[kernel.CharacterID]string{}
+		for _, c := range got {
+			names[c.ID] = c.Name
+		}
+		if len(got) != 2 || names[ayla.ID] != "Ayla" || names[cass.ID] != "Cass" || got[0].AccountID == got[1].AccountID {
+			t.Fatalf("found %+v; want Ayla and Cass, of their own accounts", got)
+		}
+	})
+
 	t.Run("the skill bar is set only for its owner", func(t *testing.T) {
 		bar := []string{"strike", "", "", "", "", "spark", "", ""}
 		set := func(account kernel.AccountID, bar []string) error {

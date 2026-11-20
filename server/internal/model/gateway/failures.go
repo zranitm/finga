@@ -160,4 +160,5 @@ var (
 	BadPvpBuild      = Public{550010, "BAD_PVP_BUILD", "an arena build has eight keys, each empty or one of the class's active skills, with each trait one of its skill's"}
 	PvpUnknownMode   = Public{550011, "PVP_UNKNOWN_MODE", "unknown PvP mode"}
 	PvpPartyChanged  = Public{550012, "PVP_PARTY_CHANGED", "the party changed while it queued"}
+	NotOnArenaBar    = Public{550013, "NOT_ON_ARENA_BAR", "in a match, only the skills on the arena bar can be used"}
 )

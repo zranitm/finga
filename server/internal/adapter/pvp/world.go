@@ -1,4 +1,4 @@
-// Package pvp adapts the modules the pvp module calls: the world's matches.
+// Package pvp adapts the modules the pvp module calls: the world's matches, the social module's parties and the character module's characters.
 package pvp
 
 import (
@@ -13,6 +13,7 @@ import (
 type WorldModule interface {
 	CanFight(ctx context.Context, id kernel.CharacterID) error
 	OpenMatch(ctx context.Context, spec world.MatchSpec) error
+	SetBuild(ctx context.Context, id kernel.CharacterID, b world.Build) error
 	FollowResults(ctx context.Context, deliver func(world.MatchResult)) error
 }
 
@@ -40,6 +41,11 @@ func (w World) OpenMatch(ctx context.Context, spec model.Spec) error {
 		}
 	}
 	return w.w.OpenMatch(ctx, out)
+}
+
+// SetBuild hands the character's match their arena build.
+func (w World) SetBuild(ctx context.Context, id kernel.CharacterID, b model.Build) error {
+	return w.w.SetBuild(ctx, id, world.Build(b))
 }
 
 // FollowResults hands deliver each match's outcome until ctx ends.

@@ -13,10 +13,10 @@ ORDER BY character_id
 FOR UPDATE;
 
 -- name: PutRating :exec
-INSERT INTO pvp_ratings (character_id, mode, mu, sigma, shown, matches, wins, losses, draws, created_at, updated_at)
-VALUES (sqlc.arg(character_id), sqlc.arg(mode), sqlc.arg(mu), sqlc.arg(sigma), sqlc.arg(shown), sqlc.arg(matches), sqlc.arg(wins), sqlc.arg(losses), sqlc.arg(draws), sqlc.arg(now), sqlc.arg(now))
+INSERT INTO pvp_ratings (character_id, mode, mu, sigma, shown, placed, matches, wins, losses, draws, created_at, updated_at)
+VALUES (sqlc.arg(character_id), sqlc.arg(mode), sqlc.arg(mu), sqlc.arg(sigma), sqlc.arg(shown), sqlc.arg(placed), sqlc.arg(matches), sqlc.arg(wins), sqlc.arg(losses), sqlc.arg(draws), sqlc.arg(now), sqlc.arg(now))
 ON CONFLICT (character_id, mode) DO UPDATE SET
-  mu = EXCLUDED.mu, sigma = EXCLUDED.sigma, shown = EXCLUDED.shown, matches = EXCLUDED.matches,
+  mu = EXCLUDED.mu, sigma = EXCLUDED.sigma, shown = EXCLUDED.shown, placed = EXCLUDED.placed, matches = EXCLUDED.matches,
   wins = EXCLUDED.wins, losses = EXCLUDED.losses, draws = EXCLUDED.draws, updated_at = EXCLUDED.updated_at;
 
 -- name: RecordFighter :exec
@@ -29,3 +29,26 @@ FROM pvp_match_fighters f
 JOIN pvp_ratings r ON r.character_id = f.character_id AND r.mode = sqlc.arg(mode)
 WHERE f.match_id = sqlc.arg(match_id)
 ORDER BY f.side, f.slot;
+
+-- name: Ratings :many
+SELECT mode, mu, sigma, matches, wins, losses, draws FROM pvp_ratings WHERE character_id = $1;
+
+-- name: Board :many
+-- The placed ratings of mode, highest first, read in order from pvp_ratings_board.
+SELECT character_id, shown, matches, wins, losses, draws FROM pvp_ratings
+WHERE mode = sqlc.arg(mode) AND placed
+ORDER BY shown DESC, character_id
+LIMIT sqlc.arg(most);
+
+-- name: Above :one
+SELECT count(*) FROM pvp_ratings WHERE mode = sqlc.arg(mode) AND placed AND shown > sqlc.arg(shown);
+
+-- name: Build :one
+SELECT skill_bar, traits, revision FROM pvp_builds WHERE character_id = $1;
+
+-- name: PutBuild :one
+INSERT INTO pvp_builds (character_id, skill_bar, traits, revision, created_at, updated_at)
+VALUES (sqlc.arg(character_id), sqlc.arg(skill_bar), sqlc.arg(traits), 1, sqlc.arg(now), sqlc.arg(now))
+ON CONFLICT (character_id) DO UPDATE SET
+  skill_bar = EXCLUDED.skill_bar, traits = EXCLUDED.traits, revision = pvp_builds.revision + 1, updated_at = EXCLUDED.updated_at
+RETURNING revision;

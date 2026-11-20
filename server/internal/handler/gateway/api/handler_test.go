@@ -62,6 +62,7 @@ type harness struct {
 	accounts   *fakeAccounts
 	characters *fakeCharacters
 	items      *fakeItems
+	arena      *fakeArena
 	logs       *bytes.Buffer
 	handler    http.Handler
 }
@@ -72,12 +73,13 @@ func newHarness(origins ...string) *harness {
 		accounts:   &fakeAccounts{token: goodToken, principal: principal},
 		characters: &fakeCharacters{},
 		items:      &fakeItems{},
+		arena:      &fakeArena{},
 		logs:       &bytes.Buffer{},
 	}
 	e := handler.NewEngine()
 	log := slog.New(slog.NewJSONHandler(h.logs, nil))
 	api.Mount(api.Dependencies{
-		Lobby:  application.NewLobby(application.LobbyDeps{Accounts: adapter.NewAccounts(h.accounts), Characters: adapter.NewCharacters(h.characters), Sessions: adapter.NewGuard(h.accounts), Wardrobes: adapter.NewItems(h.items)}),
+		Lobby:  application.NewLobby(application.LobbyDeps{Accounts: adapter.NewAccounts(h.accounts), Characters: adapter.NewCharacters(h.characters), Sessions: adapter.NewGuard(h.accounts), Wardrobes: adapter.NewItems(h.items), Arena: adapter.NewArena(h.arena)}),
 		Logger: log, CORSOrigins: origins, Panics: panics.NewRecorder(log, nil), Traces: traces,
 	})(e)
 	h.handler = e

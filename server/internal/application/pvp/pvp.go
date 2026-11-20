@@ -1,4 +1,4 @@
-// Package pvp is the pvp module's facade: the queue, offers and ratings; its types and kernel errors are the module's contract.
+// Package pvp is the pvp module's facade: the queue, offers, ratings, the board and arena builds; its types and kernel errors are the module's contract.
 package pvp
 
 import (
@@ -27,10 +27,11 @@ type Module struct {
 
 // Deps are what the module is built from.
 type Deps struct {
-	Module *host.Module // its logs, panics, tasks, metrics and database
-	Data   *gamedata.Data
-	World  adapter.WorldModule
-	Social adapter.SocialModule
+	Module    *host.Module // its logs, panics, tasks, metrics and database
+	Data      *gamedata.Data
+	World     adapter.WorldModule
+	Social    adapter.SocialModule
+	Character adapter.CharacterModule
 }
 
 // New builds the module and adds its matcher and its follower of the world's outcomes; the queue lives in memory, so a restart empties it.
@@ -42,7 +43,7 @@ func New(ctx context.Context, d Deps) (*Module, error) {
 	pushes := hub.New[Push](pushQueue)
 	world, social := adapter.NewWorld(d.World), adapter.NewSocial(d.Social, d.Module.Panics)
 	svc := service.New(service.Deps{
-		Data: d.Data, World: world, Social: social, Store: repository.NewPostgres(pool, dbMetrics), Notifier: notifier{pushes}, Logger: d.Module.Logger, Panics: d.Module.Panics,
+		Data: d.Data, World: world, Social: social, Characters: adapter.NewCharacters(d.Character), Store: repository.NewPostgres(pool, dbMetrics), Notifier: notifier{pushes}, Logger: d.Module.Logger, Panics: d.Module.Panics,
 		Rand: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())), //nolint:gosec // bots' classes and names, not a secret
 	})
 	d.Module.Task("matcher", svc.Run, host.Restartable)
@@ -85,6 +86,27 @@ func (m *Module) Offline(ctx context.Context, who kernel.CharacterID) (err error
 	defer call.End(&err)
 	m.svc.Offline(ctx, who)
 	return nil
+}
+
+// SetBuild saves the arena build of one of the account's characters, which their match, if they're in one, fights with from its next round.
+func (m *Module) SetBuild(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, bar []string, traits map[string]string) (err error) {
+	ctx, call := m.calls.Start(ctx, "SetBuild")
+	defer call.End(&err)
+	return m.svc.SetBuild(ctx, account, id, bar, traits)
+}
+
+// Profile is one of the account's characters' standing in each rated mode, and their arena build.
+func (m *Module) Profile(ctx context.Context, account kernel.AccountID, id kernel.CharacterID) (_ Profile, err error) {
+	ctx, call := m.calls.Start(ctx, "Profile")
+	defer call.End(&err)
+	return m.svc.Profile(ctx, account, id)
+}
+
+// Leaderboard is a rated mode's top placed characters, highest first.
+func (m *Module) Leaderboard(ctx context.Context, mode string) (_ []Row, err error) {
+	ctx, call := m.calls.Start(ctx, "Leaderboard")
+	defer call.End(&err)
+	return m.svc.Leaderboard(ctx, mode)
 }
 
 // Subscribe opens a gateway's pushes from now on: every player's, which the gateway hands to those it has.

@@ -49,3 +49,36 @@ type Character struct {
 	// The skill on each of the bar's eight keys, "" for none.
 	SkillBar []string
 }
+
+// ArenaBuild is a character's arena build: eight keys, "" for an empty one, and the trait chosen for skills on it.
+type ArenaBuild struct {
+	Bar    []string
+	Traits map[string]string
+}
+
+// PvpStanding is a character in a rated mode: their shown rating and rank, the placement matches left, their record, and their place on the board, 0 before they're placed.
+type PvpStanding struct {
+	Mode                string
+	Shown               int
+	Rank                string
+	PlacementLeft       int
+	Wins, Losses, Draws int
+	Place               int
+}
+
+// PvpProfile is a character's standing in each rated mode, and their arena build.
+type PvpProfile struct {
+	Standings []PvpStanding
+	Build     ArenaBuild
+}
+
+// PvpRow is a character on a mode's board, a tie sharing its place.
+type PvpRow struct {
+	Place               int
+	Character           kernel.CharacterID
+	Name                string
+	Class               string
+	Shown               int
+	Rank                string
+	Wins, Losses, Draws int
+}

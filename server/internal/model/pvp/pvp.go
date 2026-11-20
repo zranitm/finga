@@ -19,6 +19,8 @@ var (
 	ErrPartyTooBig   = errors.New("pvp: the party is larger than the mode allows")
 	ErrPartyNotReady = errors.New("pvp: a party member can't fight now, or is queued")
 	ErrPartyChanged  = errors.New("pvp: the party changed while it queued")
+	ErrBadBuild      = errors.New("pvp: an arena build that isn't the class's")
+	ErrNoCharacter   = errors.New("pvp: no such character of the account")
 )
 
 // Player is a character as they queue: the name is theirs in a match, which no bot there takes.
@@ -34,11 +36,39 @@ type Party struct {
 	Members []Player
 }
 
-// Rating is a character's in a rated mode, its shown number, and their record there.
+// Rating is a character's in a rated mode, its shown number, whether they've played their placement matches, and their record there.
 type Rating struct {
 	Mu, Sigma                    float64
 	Shown                        int
+	Placed                       bool
 	Matches, Wins, Losses, Draws int
+}
+
+// Ranked is a placed character's rating on a mode's board.
+type Ranked struct {
+	Character kernel.CharacterID
+	Rating    Rating
+}
+
+// Build is a character's arena build: eight keys, "" for an empty one, and the trait chosen for skills on it. Revision counts its saves; 0 is one never saved, the copy of the world bar.
+type Build struct {
+	Bar      []string
+	Traits   map[string]string
+	Revision int
+}
+
+// Character is a character as pvp reads them: whose they are, their class, and their world bar and traits, which a build is first copied from.
+type Character struct {
+	Account kernel.AccountID
+	Class   kernel.Class
+	Bar     []string
+	Traits  map[string]string
+}
+
+// Named is a character as the board shows them.
+type Named struct {
+	Name  string
+	Class kernel.Class
 }
 
 // Match is a match's outcome to store; Winner is 1 or 2, 0 for a draw.

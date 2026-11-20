@@ -122,6 +122,11 @@ func (s *Service) Load(ctx context.Context, id kernel.CharacterID, account kerne
 	return s.store.Load(ctx, id, account)
 }
 
+// Find is the characters with ids, of any account, for another module to read: pvp's board and arena builds.
+func (s *Service) Find(ctx context.Context, ids []kernel.CharacterID) ([]model.Character, error) {
+	return s.store.Find(ctx, ids)
+}
+
 // Quests is a loaded character's quests; the world reads them at join, while it is the only writer.
 func (s *Service) Quests(ctx context.Context, id kernel.CharacterID) ([]model.Quest, error) {
 	return s.store.Quests(ctx, id)

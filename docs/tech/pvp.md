@@ -43,7 +43,8 @@
 - **One queue owner:** the queue is in memory, in the pvp module, on one node. A second node will need a single owner, such as a lease row. Until then there's one node.
 - **Ports both ways,** as the other modules do (`internal/adapter`):
   - pvp → world: `CanFight`, `OpenMatch` and `SetBuild`.
-  - world → pvp: `Results` and `Build`.
+  - world → pvp: `Results`.
+  - As built (step 4), pvp sends each player's build after `OpenMatch` returns, rather than the world reading it at entry. The world is built before pvp, so a world → pvp port would need a cycle. Section 6 has the order that keeps a save from being lost.
   - The gateway serves both modules' commands and pushes.
 
 ## 3. Data
@@ -240,10 +241,26 @@ bots:
 - **Set:** `PUT /api/characters/{id}/pvp-build {skill_bar, traits}` through the pvp module.
   - It holds eight keys.
   - Each skill must be one of the class's active skills, and each trait one of that skill's. Anything else is `BAD_PVP_BUILD`.
-  - The client saves it 500 ms after the last change, as it does the skill bar.
+  - The client saves it after the last change, as the skill bar does.
 - **In a match:**
-  - The world reads the build at entry, through `Build`.
+  - The match takes the build as it opens.
   - A build saved while the player is in a match goes to the world too, through `SetBuild`. It applies from the next round's start.
+  - **In a match, a skill goes only from a key on the arena bar.** A follow-up goes from its root's key. Any other is `NOT_ON_ARENA_BAR`. Out of a match, no bar is judged.
+- **As built (step 4a):**
+  - **The copy:** `gamedata.PvpCopy` makes it from the world bar and traits, which the character module holds.
+    - A block that isn't the class's own takes the class's block, moved there if it stood on another key.
+    - Keys the class can't use, and repeats, are left empty.
+    - The traits kept are those of the skills on it.
+  - **The rows:** `pvp_builds` (migration 00014) has `revision`, which counts the saves.
+  - **Into a match:**
+    1. `OpenMatch` registers the match's players in the world's index of who is in which match, before it returns.
+    2. pvp then reads each player's build, the saved one or the copy, and sends it with `SetBuild`.
+    3. A save from then on finds the match through the same index.
+    - The match keeps the newest revision it's sent, so an older read landing late doesn't undo a newer save.
+  - **If a read fails:** the reads and sends run on their own goroutine, with a 5 s bound, after the match is open, so they never hold it. A player whose build doesn't come fights with no bar check, on their world traits. Their client still shows the bar they chose.
+  - **When a build applies:** the match wears each build it was sent at the next countdown: its bar, and its traits from then on. That's round 1's countdown for a build sent during prep.
+  - **Bots** are never judged, as they keep to their own bars.
+  - **The save delay** is the skill bar's own.
 
 ## 7. Match rules
 
@@ -462,13 +479,14 @@ bots:
   - **`pvp_ratings`:**
     - columns `character_id`, `mode`, `mu`, `sigma`, `matches`, `wins`, `losses`, `draws` and `updated_at`;
     - `shown`, written with `mu` and `sigma` by `pvp.yaml`'s rule, which a generated column couldn't follow;
-    - key `(character_id, mode)`, with an index on `(mode, shown desc)`.
+    - key `(character_id, mode)`;
+    - as built (step 4a), `placed`, written with `shown` by `pvp.yaml`'s `placement`, and the index `pvp_ratings_board` on `(mode, shown desc, character_id) where placed`. An index's predicate can't read `pvp.yaml`, so the flag is a column. The board reads its top 100 straight from that index, and a place counts those above from it.
   - **`pvp_matches`:** `id`, `mode`, `started_at`, `ended_at` and `winner`.
   - **`pvp_match_fighters`:**
     - `match_id`, `side` and `character_id`, null for a bot;
     - `bot_tier`, `left`, `downs` and `points`;
     - `mu_before`, `sigma_before`, `mu_after` and `sigma_after`.
-  - **`pvp_builds`:** section 6, in its own migration with the arena builds (step 4).
+  - **`pvp_builds`:** section 6, in its own migration with the arena builds (step 4, migration 00014).
 - **One transaction per result:**
   - It inserts the match. The id is the key, so a repeated result does nothing.
   - It locks the players' rating rows `FOR UPDATE`, rates them and writes them.
@@ -477,7 +495,8 @@ bots:
   - `GET /api/pvp/leaderboard?mode=duel|team` lists the top 100 by `shown`, among players past `placement`.
   - It's cached 30 s.
   - It includes the caller's own place: those above them, plus one.
-- **Profile:** `GET /api/characters/{id}/pvp` gives each mode's shown rating, rank, placement matches left, wins, losses and draws.
+  - As built (step 4a), the caller's own place comes in their profile instead, so the board is the same for every caller and one read serves them all. A tie shares its place. Names come from the character module by ID, as the modules share no tables.
+- **Profile:** `GET /api/characters/{id}/pvp` gives each mode's shown rating, rank, placement matches left, wins, losses and draws. As built (step 4a), it also gives the place, 0 before placement, and the arena build, the saved one or the copy.
 
 ## 11. Protocol
 
@@ -522,6 +541,7 @@ Area 55, PvP:
 | 550010 | `BAD_PVP_BUILD` | 400 | An arena build that isn't the class's |
 | 550011 | `PVP_UNKNOWN_MODE` | 400 | A mode that isn't in `pvp.yaml` |
 | 550012 | `PVP_PARTY_CHANGED` | 409 | The party changed while its ticket was checked (step 5, as built) |
+| 550013 | `NOT_ON_ARENA_BAR` | 409 | In a match, a skill from a key not on the arena bar (step 4, as built) |
 
 ## 13. Client
 
@@ -699,6 +719,7 @@ As built after the 3v3 playtest:
    - the Arena tab and `PUT pvp-build`, applied between rounds;
    - the profile, ranks and placement;
    - the leaderboard and its tab.
+   - As built, it lands as two PRs: 4a the server (builds, the bar in a match, the profile and board), then 4b the client.
 5. **3v3:**
    - party tickets and the 3v3 matcher;
    - allies by side;

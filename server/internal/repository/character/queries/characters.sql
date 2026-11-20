@@ -23,6 +23,9 @@ SELECT * FROM characters WHERE account_id = $1 ORDER BY created_at, id;
 -- name: GetOwnedCharacter :one
 SELECT * FROM characters WHERE id = $1 AND account_id = $2;
 
+-- name: ListCharactersByID :many
+SELECT * FROM characters WHERE id = ANY(sqlc.arg(ids)::uuid[]) ORDER BY id;
+
 -- name: SaveCheckpoint :execrows
 UPDATE characters
 SET class = sqlc.arg(class), map_id = sqlc.arg(map_id), pos_x = sqlc.arg(pos_x), pos_y = sqlc.arg(pos_y), pos_z = sqlc.arg(pos_z), yaw = sqlc.arg(yaw), hp = sqlc.arg(hp), energy = sqlc.arg(energy),

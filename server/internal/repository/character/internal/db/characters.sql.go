@@ -238,6 +238,55 @@ func (q *Queries) ListCharactersByAccount(ctx context.Context, accountID uuid.UU
 	return items, nil
 }
 
+const listCharactersByID = `-- name: ListCharactersByID :many
+SELECT id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, map_id, pos_x, pos_y, updated_at, created_at, free_reset_used, unspent_skill_points, skill_bar, energy, pos_z, yaw FROM characters WHERE id = ANY($1::uuid[]) ORDER BY id
+`
+
+func (q *Queries) ListCharactersByID(ctx context.Context, ids []uuid.UUID) ([]Character, error) {
+	rows, err := q.db.Query(ctx, listCharactersByID, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Character
+	for rows.Next() {
+		var i Character
+		if err := rows.Scan(
+			&i.ID,
+			&i.AccountID,
+			&i.Name,
+			&i.Class,
+			&i.Level,
+			&i.Exp,
+			&i.StrPoints,
+			&i.DexPoints,
+			&i.IntPoints,
+			&i.AgiPoints,
+			&i.VitPoints,
+			&i.UnspentPoints,
+			&i.Hp,
+			&i.MapID,
+			&i.PosX,
+			&i.PosY,
+			&i.UpdatedAt,
+			&i.CreatedAt,
+			&i.FreeResetUsed,
+			&i.UnspentSkillPoints,
+			&i.SkillBar,
+			&i.Energy,
+			&i.PosZ,
+			&i.Yaw,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listQuests = `-- name: ListQuests :many
 SELECT quest_id, status, progress, times_finished FROM character_quests WHERE character_id = $1 ORDER BY quest_id
 `

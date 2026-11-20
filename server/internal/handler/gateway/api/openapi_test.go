@@ -87,6 +87,12 @@ func TestDTOsMatchOpenAPISchemas(t *testing.T) {
 		{"Piece", api.PieceResponse{}},
 		{"SkillBar", api.SkillBarRequest{}},
 		{"SkillBar", api.SkillBarResponse{}},
+		{"ArenaBuild", api.ArenaBuildRequest{}},
+		{"ArenaBuild", api.ArenaBuildResponse{}},
+		{"PvpStanding", api.PvpStandingResponse{}},
+		{"PvpProfile", api.PvpProfileResponse{}},
+		{"Leaderboard", api.LeaderboardResponse{}},
+		{"LeaderboardRow", api.LeaderboardRowResponse{}},
 		{"Error", api.ErrorResponse{}},
 	}
 	for _, tt := range tests {

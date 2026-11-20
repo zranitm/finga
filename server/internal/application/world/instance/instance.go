@@ -456,6 +456,8 @@ func (i *Instance) drain() {
 			i.goToMatch(m)
 		case fightMsg:
 			i.canFight(m)
+		case buildMsg:
+			i.setBuild(m)
 		case usedMsg:
 			i.settleUse(m)
 		case chatMsg:

@@ -115,6 +115,58 @@ paths:
         "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
+  /api/characters/{id}/pvp:
+    get:
+      summary: A character's PvP profile
+      description: Each rated mode's shown rating, rank, placement matches left, record and place on the board, 0 before placement; and the arena build, the world bar's copy until one is saved (pvp.md section 10).
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: The profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PvpProfile" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/characters/{id}/pvp-build:
+    put:
+      summary: Save a character's arena build
+      description: Eight keys, each empty or one of the class's active skills, none twice, and a trait of its own for skills on it (pvp.md section 6). A match the character is in fights with it from its next round's countdown.
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ArenaBuild" }
+      responses:
+        "200":
+          description: The saved build
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ArenaBuild" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/pvp/leaderboard:
+    get:
+      summary: A rated mode's leaderboard
+      description: The top 100 placed characters by shown rating, a tie sharing its place; the same for every caller and read again at most every 30 s. The caller's own place is in their profile.
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: mode, in: query, required: true, schema: { type: string, enum: [duel, team] } }
+      responses:
+        "200":
+          description: The board
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Leaderboard" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
   /api/wardrobe:
     get:
       summary: The account's wardrobe
@@ -233,6 +285,62 @@ components:
           items: { type: string }
           minItems: 8
           maxItems: 8
+    ArenaBuild:
+      type: object
+      required: [skill_bar, traits]
+      properties:
+        skill_bar:
+          type: array
+          description: The skill on each of the eight keys, "" for none
+          items: { type: string }
+          minItems: 8
+          maxItems: 8
+        traits:
+          type: object
+          description: The trait chosen for skills on the bar, by skill; one left out is the skill's default
+          additionalProperties: { type: string }
+    PvpStanding:
+      type: object
+      required: [mode, shown, rank, placement_left, wins, losses, draws, place]
+      properties:
+        mode: { type: string }
+        shown: { type: integer, description: "The shown rating: 1000 + 40 × (mu − 3 sigma), at least 0" }
+        rank: { type: string }
+        placement_left: { type: integer, description: The placement matches still to play; the board lists only those with none }
+        wins: { type: integer }
+        losses: { type: integer }
+        draws: { type: integer }
+        place: { type: integer, description: "1 + those placed above, 0 before placement" }
+    PvpProfile:
+      type: object
+      required: [standings, build]
+      properties:
+        standings:
+          type: array
+          description: Each rated mode, in pvp.yaml's order
+          items: { $ref: "#/components/schemas/PvpStanding" }
+        build: { $ref: "#/components/schemas/ArenaBuild" }
+    Leaderboard:
+      type: object
+      required: [mode, rows]
+      properties:
+        mode: { type: string }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/LeaderboardRow" }
+    LeaderboardRow:
+      type: object
+      required: [place, character_id, name, class, shown, rank, wins, losses, draws]
+      properties:
+        place: { type: integer }
+        character_id: { type: string, format: uuid }
+        name: { type: string }
+        class: { type: string }
+        shown: { type: integer }
+        rank: { type: string }
+        wins: { type: integer }
+        losses: { type: integer }
+        draws: { type: integer }
     Characters:
       type: object
       required: [characters]
