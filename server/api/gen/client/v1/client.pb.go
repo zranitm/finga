@@ -6146,7 +6146,9 @@ type Snapshot struct {
 	// The map's field boss while it's beaten, with when it's back.
 	FieldBossGone *FieldBossGone `protobuf:"bytes,5,opt,name=field_boss_gone,json=fieldBossGone,proto3" json:"field_boss_gone,omitempty"`
 	// The field boss as it stands, wherever on the map, for its bar; it's drawn only from mobs, once it's among the cells round the player.
-	Boss          *MobView `protobuf:"bytes,7,opt,name=boss,proto3" json:"boss,omitempty"`
+	Boss *MobView `protobuf:"bytes,7,opt,name=boss,proto3" json:"boss,omitempty"`
+	// The region's channel the player is in, from 1; 0 on any other map. A join and every map change send a snapshot, so the client always knows it.
+	Channel       uint32 `protobuf:"varint,8,opt,name=channel,proto3" json:"channel,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6221,6 +6223,13 @@ func (x *Snapshot) GetBoss() *MobView {
 		return x.Boss
 	}
 	return nil
+}
+
+func (x *Snapshot) GetChannel() uint32 {
+	if x != nil {
+		return x.Channel
+	}
+	return 0
 }
 
 // FieldBoss says the map's field boss is up: as it appears, which its map's players hear of, and in the Snapshot of a player joining while it is. It stays until it's beaten.
@@ -9936,7 +9945,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x04item\x18\x01 \x01(\rR\x04item\x12\x1a\n" +
 	"\btemplate\x18\x02 \x01(\tR\btemplate\x12\x1a\n" +
 	"\bquantity\x18\x03 \x01(\x05R\bquantity\x12*\n" +
-	"\x05stats\x18\x04 \x01(\v2\x14.client.v1.ItemStatsR\x05stats\"\xbf\x02\n" +
+	"\x05stats\x18\x04 \x01(\v2\x14.client.v1.ItemStatsR\x05stats\"\xd9\x02\n" +
 	"\bSnapshot\x12/\n" +
 	"\aplayers\x18\x01 \x03(\v2\x15.client.v1.PlayerViewR\aplayers\x12&\n" +
 	"\x04mobs\x18\x02 \x03(\v2\x12.client.v1.MobViewR\x04mobs\x12.\n" +
@@ -9944,7 +9953,8 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\n" +
 	"field_boss\x18\x04 \x01(\v2\x14.client.v1.FieldBossR\tfieldBoss\x12@\n" +
 	"\x0ffield_boss_gone\x18\x05 \x01(\v2\x18.client.v1.FieldBossGoneR\rfieldBossGone\x12&\n" +
-	"\x04boss\x18\a \x01(\v2\x12.client.v1.MobViewR\x04bossJ\x04\b\x03\x10\x04R\x05drops\"J\n" +
+	"\x04boss\x18\a \x01(\v2\x12.client.v1.MobViewR\x04boss\x12\x18\n" +
+	"\achannel\x18\b \x01(\rR\achannelJ\x04\b\x03\x10\x04R\x05drops\"J\n" +
 	"\tFieldBoss\x12\x15\n" +
 	"\x06mob_id\x18\x01 \x01(\rR\x05mobId\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04typeJ\x04\b\x03\x10\x04R\fleaves_in_ms\"f\n" +

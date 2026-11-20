@@ -10,22 +10,36 @@ import (
 	"finga/pkg/panics"
 )
 
-// Transfer marks the player in transit from the calling instance and lands them on another, a map's or a match's, on its own goroutine, so the calling tick never waits nor takes the character's lock.
+// Transfer marks the player in transit from the calling instance and lands them on another, a map's, a region channel's or a match's, on its own goroutine, so the calling tick never waits nor takes the character's lock.
 func (w *World) Transfer(from *instance.Instance, p model.Player, sink instance.Sink, dest instance.Dest) {
-	target, ok := w.instanceAt(dest.ID)
-	if !ok { // a match that closed meanwhile: the gateway joins them again, where they came from
-		w.deps.Logger.Error("transfer to no open instance", "character_id", p.ID, "to", dest.ID)
+	target, landed, err := w.destination(p.ID, dest)
+	if err != nil { // a match that closed meanwhile, or the World stopping: the gateway joins them again, where they came from
+		w.deps.Logger.Error("transfer to no open instance", "character_id", p.ID, "to", dest.ID, "err", err)
 		w.presences.forgetThrough(p.ID, p.Connection)
 		sink.Send(model.Detached{})
 		return
 	}
 	at, ok := w.presences.handOff(p.ID, p.Connection, from, target)
 	if !ok {
+		landed()
 		return // a newer join took the presence, or a leave took it off
 	}
 	w.background.Go(func() {
+		defer landed()
 		w.deps.Panics.Do(w.jobsCtx, panics.FlowJob, func() { w.land(p, sink, at) }, "job", "transfer", "character_id", p.ID, "to", dest.ID)
 	})
+}
+
+// destination is the instance a hand-off to dest goes to, and what to call once it has landed or failed: in a region, the channel picked for it, which counts it as coming until then.
+func (w *World) destination(id kernel.CharacterID, dest instance.Dest) (*instance.Instance, func(), error) {
+	if r, ok := w.channels.regions[dest.ID]; ok {
+		return w.pickChannel(id, r, dest.Channel, dest.Switch)
+	}
+	inst, ok := w.instanceAt(dest.ID)
+	if !ok {
+		return nil, nil, model.ErrNoMap
+	}
+	return inst, func() {}, nil
 }
 
 // Dropped forgets the presence of a player its map removed for a failed sink, so the registry holds only players on a map.

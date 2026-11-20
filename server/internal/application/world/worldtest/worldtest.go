@@ -292,7 +292,7 @@ func worldTraces() *tracing.Provider {
 	return tp
 }
 
-// Options are what a test sets; Fill gives the rest a 50 ms tick, rolls of 0.5, grant calls of up to 32 drops and services that do nothing.
+// Options are what a test sets; Fill gives the rest a 50 ms tick, rolls of 0.5, grant calls of up to 32 drops, region channels of 150 closing after 5 idle minutes, and services that do nothing.
 type Options struct {
 	TickInterval       time.Duration
 	CheckpointInterval time.Duration
@@ -303,6 +303,9 @@ type Options struct {
 	Items              loot.Items
 	Batches            loot.Observer
 	BatchMax           int // drops per grant call
+	ChannelCap         int // a region's channel's players
+	ChannelIdle        time.Duration
+	Channel            int // the region's channel a map run alone is
 	Equipment          instance.Equipment
 	HandIns            instance.HandIns
 	Gifts              instance.Gifts
@@ -325,6 +328,8 @@ func (o Options) Fill() Options {
 	o.TickInterval = cmp.Or(o.TickInterval, TickInterval)
 	o.CheckpointInterval = cmp.Or(o.CheckpointInterval, 30*time.Second)
 	o.FlushTimeout = cmp.Or(o.FlushTimeout, 10*time.Second)
+	o.ChannelCap = cmp.Or(o.ChannelCap, 150)
+	o.ChannelIdle = cmp.Or(o.ChannelIdle, 5*time.Minute)
 	if o.NewRoll == nil {
 		o.NewRoll = Rolls(0.5)
 	}
@@ -422,7 +427,7 @@ func NewInstance(m *gamedata.Map, data *gamedata.Data, cps *Checkpoints, o Optio
 	if cps == nil {
 		cps = &Checkpoints{}
 	}
-	return instance.New(instance.Deps{Services: o.Services(), Map: m, Data: data, Saves: cps, Mover: o.Transfer, Logger: o.Logger}, instance.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, BatchMax: o.BatchMax})
+	return instance.New(instance.Deps{Services: o.Services(), Map: m, Data: data, Saves: cps, Mover: o.Transfer, Logger: o.Logger, Channel: o.Channel}, instance.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, BatchMax: o.BatchMax})
 }
 
 // World is a World built for a test, with the item calls pool its maps submit to.
@@ -446,7 +451,10 @@ func NewWorld(data *gamedata.Data, saver world.Saver, o Options) *World {
 	return &World{World: world.New(world.Deps{
 		Services: o.Services(), Data: data, Saver: saver, Characters: o.Characters, Starter: o.Starter, Wardrobe: o.Wardrobe, HandedIns: o.HandedIns,
 		Panics: DiscardPanics(), Logger: o.Logger, SaveObserver: o.SaveObserver, Results: o.Results,
-	}, world.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, FlushTimeout: o.FlushTimeout, BatchMax: o.BatchMax}), calls: o.ItemCalls}
+	}, world.Tuning{
+		TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, FlushTimeout: o.FlushTimeout, BatchMax: o.BatchMax,
+		ChannelCap: o.ChannelCap, ChannelIdle: o.ChannelIdle,
+	}), calls: o.ItemCalls}
 }
 
 // Run starts a town map in the synctest bubble; stop waits for Run so nothing outlives it.

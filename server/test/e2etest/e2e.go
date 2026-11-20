@@ -102,7 +102,7 @@ func NewStackBuilt(t *testing.T, data string, build host.Build[config.Config]) *
 		},
 		Account: config.Account{Password: cheapPasswords, Sessions: config.AccountSessions{Keep: 30 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}},
 		Item:    ItemConfig,
-		World:   config.World{TickRateHz: 20, CheckpointInterval: 30 * time.Second, FlushTimeout: 10 * time.Second, ItemCalls: config.ItemCalls{Workers: 2, BatchMax: 32}},
+		World:   config.World{TickRateHz: 20, CheckpointInterval: 30 * time.Second, FlushTimeout: 10 * time.Second, ItemCalls: config.ItemCalls{Workers: 2, BatchMax: 32}, Channels: config.Channels{Cap: 150, Idle: 5 * time.Minute}},
 		Social:  config.Social{Members: config.Members{Keep: time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}},
 	}}
 	s.start()

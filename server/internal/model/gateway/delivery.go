@@ -15,6 +15,7 @@ type Push interface{ push() }
 
 // Snapshot is what the player sees of their map, the cells round them; a join waits for it.
 type Snapshot struct {
+	Channel       int // the region's channel, from 1; 0 on any other map
 	Players       []PlayerView
 	Mobs          []MobView
 	Pouches       []PouchView    // the player's own

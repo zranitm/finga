@@ -36,7 +36,7 @@ func delivered(d world.Delivery, deliver func(model.WorldEvent)) {
 func worldPush(e world.Event) (model.Push, bool) {
 	switch ev := e.(type) {
 	case world.Snapshot:
-		snap := model.Snapshot{Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Pouches: pouchViews(ev.Pouches), Boss: mobView(ev.Boss)}
+		snap := model.Snapshot{Channel: ev.Channel, Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Pouches: pouchViews(ev.Pouches), Boss: mobView(ev.Boss)}
 		if ev.FieldBoss != nil {
 			boss := fieldBoss(*ev.FieldBoss)
 			snap.FieldBoss = &boss

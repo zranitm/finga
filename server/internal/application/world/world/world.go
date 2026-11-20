@@ -41,6 +41,7 @@ type World struct {
 	instances map[string]*instance.Instance
 	order     []string
 	opened    opened // matches and channels, opened on demand
+	channels  channels
 	tuning    instance.Tuning
 	presences presences
 	locks     *keylock.Locks[kernel.CharacterID] // every presence change of a character but the tick's, one at a time
@@ -73,12 +74,14 @@ type Deps struct {
 	Results      instance.Results // where matches' outcomes go
 }
 
-// Tuning is how often the maps tick and checkpoint, how long the last saves may take on shutdown, and how many drops one grant call may carry.
+// Tuning is how often the maps tick and checkpoint, how long the last saves may take on shutdown, how many drops one grant call may carry, and how a region's channels fill and close.
 type Tuning struct {
 	TickInterval       time.Duration
 	CheckpointInterval time.Duration
 	FlushTimeout       time.Duration
 	BatchMax           int
+	ChannelCap         int           // players a region's channel takes before a pick passes it
+	ChannelIdle        time.Duration // how long a channel past the first stays open empty
 }
 
 // New builds an instance for every map in d.Data; the World moves their players between maps.
@@ -88,6 +91,7 @@ func New(d Deps, t Tuning) *World {
 		data: data, deps: d, instances: map[string]*instance.Instance{}, presences: newPresences(), locks: keylock.New[kernel.CharacterID](),
 		saves:        coalesce.New(func(cp model.Checkpoint) kernel.CharacterID { return cp.ID }),
 		flushTimeout: t.FlushTimeout, tick: t.TickInterval,
+		channels: channels{cap: t.ChannelCap, idle: t.ChannelIdle, regions: map[string]*region{}},
 	}
 	w.mapsCtx, w.mapsStopped = context.WithCancel(context.Background())
 	w.jobsCtx, w.stopBackground = context.WithCancel(context.Background())
@@ -99,19 +103,29 @@ func New(d Deps, t Tuning) *World {
 		if m.Kind == gamedata.Pvp {
 			continue // a match opens its own
 		}
-		w.instances[m.ID] = instance.New(instance.Deps{Services: d.Services, Map: m, Data: data, Saves: w.saves, Mover: w, Logger: d.Logger}, w.tuning)
+		deps := instance.Deps{Services: d.Services, Map: m, Data: data, Saves: w.saves, Mover: w, Logger: d.Logger}
+		if m.Kind == gamedata.Region {
+			deps.Channel = 1
+		}
+		w.instances[m.ID] = instance.New(deps, w.tuning)
 		w.order = append(w.order, m.ID)
+		if m.Kind == gamedata.Region {
+			w.channels.regions[m.ID] = &region{m: m, open: []*channel{{n: 1, inst: w.instances[m.ID], id: m.ID}}}
+		}
 	}
 	return w
 }
 
-// mapNamed finds a map's actor.
-func (w *World) mapNamed(mapID string) (*instance.Instance, error) {
+// mapNamed is the instance character id joins on map mapID, and what to call once they've joined or failed: in a region, the channel picked for them.
+func (w *World) mapNamed(id kernel.CharacterID, mapID string) (*instance.Instance, func(), error) {
+	if r, ok := w.channels.regions[mapID]; ok {
+		return w.pickChannel(id, r, 0, false)
+	}
 	i, ok := w.instances[mapID]
 	if !ok {
-		return nil, model.ErrNoMap
+		return nil, nil, model.ErrNoMap
 	}
-	return i, nil
+	return i, func() {}, nil
 }
 
 // Run ticks every map, and every match as it opens, until ctx is done or one panics, whose suspect state is not saved; then it stops the transfers, and Save flushes the rest. Run once.
@@ -120,6 +134,11 @@ func (w *World) Run(ctx context.Context) error {
 	runCtx, fail := context.WithCancelCause(ctx)
 	defer fail(nil)
 	w.opened.start(runCtx, fail)
+	if len(w.channels.regions) > 0 {
+		w.background.Go(func() {
+			w.deps.Panics.Do(w.jobsCtx, panics.FlowJob, w.closeIdleChannels, "job", "close idle channels")
+		})
+	}
 	g, gctx := errgroup.WithContext(runCtx)
 	for _, id := range w.order {
 		inst := w.instances[id]

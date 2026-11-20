@@ -130,7 +130,7 @@ func (i *Instance) add(j *joinMsg) {
 	i.players[p.ID] = p
 	i.order = append(i.order, p.ID)
 	i.count.Add(1)
-	snap := model.Snapshot{Tick: i.tick, MapID: i.m.ID, Pouches: i.ground.Views(j.player.ID)}
+	snap := model.Snapshot{Tick: i.tick, MapID: i.m.ID, Channel: i.channel, Pouches: i.ground.Views(j.player.ID)}
 	i.watchFrom(p, &snap)
 	switch {
 	case i.boss != nil:

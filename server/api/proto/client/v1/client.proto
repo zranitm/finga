@@ -714,6 +714,8 @@ message Snapshot {
   FieldBossGone field_boss_gone = 5;
   // The field boss as it stands, wherever on the map, for its bar; it's drawn only from mobs, once it's among the cells round the player.
   MobView boss = 7;
+  // The region's channel the player is in, from 1; 0 on any other map. A join and every map change send a snapshot, so the client always knows it.
+  uint32 channel = 8;
 }
 
 // FieldBoss says the map's field boss is up: as it appears, which its map's players hear of, and in the Snapshot of a player joining while it is. It stays until it's beaten.

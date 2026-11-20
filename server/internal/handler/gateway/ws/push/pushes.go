@@ -10,7 +10,7 @@ import (
 func (o *Outbox) body(p model.Push) any {
 	switch p := p.(type) {
 	case model.Snapshot:
-		snap := &clientv1.Snapshot{Players: playerViews(p.Players), Mobs: mobViews(p.Mobs), Pouches: pouchViews(p.Pouches), Boss: mobView(p.Boss)}
+		snap := &clientv1.Snapshot{Channel: uint32(p.Channel), Players: playerViews(p.Players), Mobs: mobViews(p.Mobs), Pouches: pouchViews(p.Pouches), Boss: mobView(p.Boss)}
 		if p.FieldBoss != nil {
 			snap.FieldBoss = fieldBoss(*p.FieldBoss)
 		}

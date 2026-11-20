@@ -155,7 +155,10 @@ func New(_ context.Context, d Deps) (*Module, error) {
 		Logger:       log,
 		SaveObserver: meters,
 		Results:      outcomes,
-	}, game.Tuning{TickInterval: cfg.TickInterval(), CheckpointInterval: cfg.CheckpointInterval, FlushTimeout: cfg.FlushTimeout, BatchMax: cfg.ItemCalls.BatchMax})
+	}, game.Tuning{
+		TickInterval: cfg.TickInterval(), CheckpointInterval: cfg.CheckpointInterval, FlushTimeout: cfg.FlushTimeout, BatchMax: cfg.ItemCalls.BatchMax,
+		ChannelCap: cfg.Channels.Cap, ChannelIdle: cfg.Channels.Idle,
+	})
 	m.Task("parties", parties.Run, host.Restartable)
 	m.Task("world", maps.Run, host.Vital)
 	m.Task("saves", maps.Save, host.Vital)
