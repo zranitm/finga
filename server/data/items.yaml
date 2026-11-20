@@ -144,6 +144,10 @@ items:
   - {id: mushroom_cap, name: Mushroom Cap, tab: etc, stars: 1, description: "The springy cap of a wandering mushroom."}
   - {id: boar_tusk, name: Boar Tusk, tab: etc, stars: 1, description: "A curved tusk, still sharp."}
   - {id: bat_wing, name: Bat Wing, tab: etc, stars: 1, description: "A thin leathery wing."}
+  - {id: piranha_tooth, name: Piranha Tooth, tab: etc, stars: 1, description: "Small and sharp, and there are always more."}
+  - {id: lionfish_spine, name: Lionfish Spine, tab: etc, stars: 1, description: "Striped like its owner, and it still stings."}
+  - {id: swordfish_bill, name: Swordfish Bill, tab: etc, stars: 1, description: "Long, straight and pointed, as the name promises."}
+  - {id: shark_jaw, name: Goblin Shark Jaw, tab: etc, stars: 1, description: "It snaps shut if you poke it."}
   - {id: spore_jelly, name: Spore Jelly, tab: etc, stars: 1, description: "A wobbling lump that puffs spores when squeezed."}
   - {id: moss_shell, name: Moss Shell, tab: etc, stars: 1, description: "A snail shell under a thick green coat."}
   - {id: moth_dust, name: Moth Dust, tab: etc, stars: 1, description: "Pale powder that makes the nose itch."}

@@ -115,6 +115,17 @@ const MONSTER_FLYING = {
   attack: { clip: 'Headbutt', strike: 0.18 },
 } as const;
 
+// Quaternius's Animated Cute Fish, as Poly Pizza has them: one rig, its clips under their armature; the head moves fastest at 0.33 of the attack.
+const FISH = {
+  idle: 'Fish_Armature|Swimming_Normal',
+  walk: 'Fish_Armature|Swimming_Fast',
+  run: 'Fish_Armature|Swimming_Fast',
+  fall: 'Fish_Armature|Swimming_Normal',
+  hit: 'Fish_Armature|Swimming_Impulse',
+  death: 'Fish_Armature|Death',
+  attack: { clip: 'Fish_Armature|Attack', strike: 0.33 },
+} as const;
+
 /** Quaternius's eye white is 0.28 linear: lit 3.6 times over it reads white, as the pack's own renders show. */
 const QUATERNIUS_EXPOSURE = 3.6;
 
@@ -373,6 +384,46 @@ export const MODELS: Readonly<Record<string, Model>> = {
     tinted: 'Main',
     flies: true,
     clips: { ...MONSTER_FLYING, attack: { clip: 'Headbutt', strike: 0.14 } },
+  },
+  piranha: {
+    file: 'quaternius/Fish_Piranha.glb',
+    hide: [],
+    exposure: QUATERNIUS_EXPOSURE,
+    tinted: 'Piranha_Main',
+    flies: true,
+    clips: FISH,
+  },
+  goblin_shark: {
+    file: 'quaternius/Fish_GoblinShark.glb',
+    hide: [],
+    exposure: QUATERNIUS_EXPOSURE,
+    tinted: 'GoblinShark_Main',
+    flies: true,
+    clips: FISH,
+  },
+  lionfish: {
+    file: 'quaternius/Fish_Lionfish.glb',
+    hide: [],
+    exposure: QUATERNIUS_EXPOSURE,
+    tinted: 'Lionfish_Main',
+    flies: true,
+    clips: FISH,
+  },
+  swordfish: {
+    file: 'quaternius/Fish_Swordfish.glb',
+    hide: [],
+    exposure: QUATERNIUS_EXPOSURE,
+    tinted: 'Swordfish_Main',
+    flies: true,
+    clips: FISH,
+  },
+  anglerfish: {
+    file: 'quaternius/Fish_Anglerfish.glb',
+    hide: [],
+    exposure: QUATERNIUS_EXPOSURE,
+    tinted: 'Anglerfish_Main',
+    flies: true,
+    clips: FISH,
   },
 };
 

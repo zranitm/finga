@@ -205,17 +205,27 @@ The steps of large-regions.md section 3, with these added. Everything keeps the 
 
 ## 8. Sea mobs
 
-- **Three or four new mobs and a boss,** each from today's attacks (`mobs.yaml`): bite, hop, charge, spit and slam, with the statuses mobs already give. For example:
-  - a crab that bites;
-  - an elite crab whose bite reaches 1.5 times as far;
-  - a jelly that floats as flyers do and stings with a poisoning spit, for magic damage;
-  - an eel that charges along a lane;
-  - a boss that slams and spits.
+- **Four new mobs and a boss,** each from today's attacks (`mobs.yaml`): bite, hop, charge, spit and slam, with the statuses mobs already give.
+- **As built** (B13 step 5), five fish that swim as flyers fly, drawn at their height's middle:
+
+  | Mob | Level | Attack | Length |
+  | --- | --- | --- | --- |
+  | Piranha | 9 | bite | 1 m |
+  | Lionfish | 10 | a poisoning spit, magic damage | 1.2 m |
+  | Swordfish | 10 | charge, along a lane | 1.6 m |
+  | Goblin Shark, the elite | 11 | a bite reaching 1.5 times as far | 1.8 m |
+  | Anglerfish, the boss | 13 | spit and slam | 3.5 m |
+
+  - **The levels are provisional,** set with the shrine's layout (B13 step 6). If the layout moves them, only the levels change; the stats follow `mobs.yaml`'s rule.
+  - **Stats** sit with the cave's boar at like levels: below level 15 the balance harness only logs, as for the forest and the cave. The Goblin Shark takes about 2.5 times the Piranha's hits and gives 2.5 times its EXP. The Anglerfish takes 2.7 to 3.4 minutes alone, with its cooldowns the Vampire Bat's (spit 4.25 s, slam 8.25 s), the smallest that keep a melee player within 30 red potions.
+  - **The four fish ship in `mobs.yaml` unplaced.** The Anglerfish's entry waits for step 6, since every boss needs a map that places it. Step 6's map brings them all under the balance tests.
+  - **Each drops its own material:** a Piranha Tooth, a Lionfish Spine, a Swordfish Bill and a Goblin Shark Jaw. Each also drops red potions and the cave's band of gear, the boar's, with the next band rarely.
 - **No new mechanic.** If a sea mob needs one, it stops and is brought back for a decision.
 - **Stats** follow `mobs.yaml`'s rule for their area's levels, checked by the balance harness.
 - **Models are picked with the user from previews:**
   - first from the Ultimate Monsters pack already in use, whose Fish blob and Squidle are drawn today;
   - any other pack only once it's vetted for its source, licence and files, as the packs in use were.
+  - **As built,** they're from Quaternius's Animated Cute Fish Pack (section 9).
 - **The cave's mobs** are today's Cave's: wild boars, cave bats and the Vampire Bat, moved to the area's levels.
 
 ## 9. Art
@@ -224,6 +234,13 @@ The steps of large-regions.md section 3, with these added. Everything keeps the 
   - It's the pack of the treasure box (loot-pouches.md), already vetted.
   - Each texture is shrunk to 256 px, as the chest's was, and listed in `web/public/models/LICENSES.md`.
 - **The shrine** is built from the same pack's pillars, columns and broken walls, in sea-worn colours.
+- **The sea mobs** are Quaternius's Animated Cute Fish Pack (CC0), from the author of the monsters in use.
+  - The pack's own download fails, so each fish comes from its Poly Pizza page by Quaternius, which marks it CC0.
+  - The files are glTF 2.0 from FBX2glTF, in flat colours, 1,270 to 1,940 triangles each, on one 6-joint rig. They hold nothing from outside the file.
+  - They ship as Poly Pizza has them, as Mushnub and the Green Blob do: they face +z, and the client fits each to its mob's height and circle.
+  - Each fish plays Swimming_Normal standing, Swimming_Fast moving, Attack, Swimming_Impulse when hit, and Death.
+  - Poly Pizza's "Shark" comes from an older pack and isn't used.
+  - The Anglerfish's lure may glow in the sea look, as looks only.
 - **Coral, kelp, sea grass, shells and the small fish** are modelled in Blender, in flat colours.
   - No CC0 pack from KayKit, Quaternius or Kenney with them was found.
   - The coral packs found are sold on marketplaces under their own licences.
