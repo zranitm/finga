@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
@@ -105,6 +106,20 @@ func (l *loader) loadRegions(dir string) error {
 			return fmt.Errorf("%s: %w", file, err)
 		}
 	}
+	return l.uniqueWaypoints()
+}
+
+// uniqueWaypoints refuses one waypoint id in two regions: a teleport, a find and a character's row name a waypoint by its id alone.
+func (l *loader) uniqueWaypoints() error {
+	in := map[string]string{}
+	for _, id := range slices.Sorted(maps.Keys(l.regions)) {
+		for _, w := range l.regions[id].waypoints {
+			if other, ok := in[w.ID]; ok {
+				return fmt.Errorf("%s: waypoint %s is in %s too; a waypoint's id names it across every region", regionsDir, w.ID, other)
+			}
+			in[w.ID] = id
+		}
+	}
 	return nil
 }
 
@@ -128,12 +143,51 @@ func (l *loader) loadRegion(id string, raw, kitRaw []byte, kit regiongen.Kit) er
 	if err := l.spots(m, bosses); err != nil {
 		return err
 	}
+	waypoints, err := l.waypointsOf(p, m, grid)
+	if err != nil {
+		return err
+	}
 	l.maps.add(id, m)
 	if l.regions == nil {
 		l.regions = map[string]regionParts{}
 	}
-	l.regions[id] = partsOf(p, grid, folder)
+	l.regions[id] = partsOf(p, grid, folder, waypoints)
 	return nil
+}
+
+// arriveAt is how far from its stone a waypoint's arrival stands, in metres.
+const arriveAt = 2
+
+// around is the eight ways from a stone, north first and on clockwise.
+var around = [8][2]float64{{0, 1}, {math.Sqrt2 / 2, math.Sqrt2 / 2}, {1, 0}, {math.Sqrt2 / 2, -math.Sqrt2 / 2}, {0, -1}, {-math.Sqrt2 / 2, -math.Sqrt2 / 2}, {-1, 0}, {-math.Sqrt2 / 2, math.Sqrt2 / 2}}
+
+// waypointsOf is a region's waypoints as players use them: each one's arrival, the first of the spots arriveAt round its stone, in around's order, that a player fits on in the stone's own area, facing away; and those in its main town, the town holding its start, which a region with towns starts in.
+func (l *loader) waypointsOf(p regiongen.Plan, m *mapfile.Map, areas regiongen.AreaGrid) ([]gamedata.Waypoint, error) {
+	main := areas.Holding(p.Start.At[0], p.Start.At[1])
+	if main >= 0 && p.Areas[main].Kind != regiongen.Town {
+		main = -1
+	}
+	if main < 0 && slices.ContainsFunc(p.Areas, func(a regiongen.Area) bool { return a.Kind == regiongen.Town }) {
+		return nil, fmt.Errorf("the start at %v stands in no town; a region with towns starts in its main town, which anyone may teleport to", p.Start.At)
+	}
+	out := make([]gamedata.Waypoint, 0, len(p.Waypoints))
+	for _, w := range p.Waypoints {
+		area := areas.Holding(w.At[0], w.At[1])
+		k := slices.IndexFunc(around[:], func(d [2]float64) bool {
+			at := [2]float64{w.At[0] + arriveAt*d[0], w.At[1] + arriveAt*d[1]}
+			return areas.Holding(at[0], at[1]) == area && nav.FitsAt(m.Geometry, l.movement.Step, mapfile.Point(at), l.movement.Radius)
+		})
+		if k < 0 {
+			return nil, fmt.Errorf("waypoint %s at %v has no spot %d m round it in its area that a player fits on, to arrive at", w.ID, w.At, arriveAt)
+		}
+		d := around[k]
+		out = append(out, gamedata.Waypoint{
+			ID: w.ID, Name: w.Name, At: gamedata.Point{X: w.At[0], Z: w.At[1]},
+			Arrive: gamedata.Point{X: w.At[0] + arriveAt*d[0], Z: w.At[1] + arriveAt*d[1]}, Yaw: float64(k) * math.Pi / 4,
+			Main: main >= 0 && area == main,
+		})
+	}
+	return out, nil
 }
 
 // regionParts is what a region adds to its map: its bake folder, its areas and where they lie, and its waypoints.
@@ -144,17 +198,14 @@ type regionParts struct {
 	waypoints []gamedata.Waypoint
 }
 
-func partsOf(p regiongen.Plan, grid regiongen.AreaGrid, bake string) regionParts {
-	out := regionParts{bake: bake, grid: grid}
+func partsOf(p regiongen.Plan, grid regiongen.AreaGrid, bake string, waypoints []gamedata.Waypoint) regionParts {
+	out := regionParts{bake: bake, grid: grid, waypoints: waypoints}
 	for _, a := range p.Areas {
 		area := gamedata.Area{ID: a.ID, Name: a.Name, Kind: gamedata.MapKind(a.Kind), MinLevel: a.Levels[0], MaxLevel: a.Levels[1]}
 		if b := a.Boss; b != nil {
 			area.Boss = &gamedata.BossSpot{Mob: b.Mob, At: gamedata.Point{X: b.At[0], Z: b.At[1]}, Radius: b.Radius}
 		}
 		out.areas = append(out.areas, area)
-	}
-	for _, w := range p.Waypoints {
-		out.waypoints = append(out.waypoints, gamedata.Waypoint{ID: w.ID, Name: w.Name, At: gamedata.Point{X: w.At[0], Z: w.At[1]}})
 	}
 	return out
 }

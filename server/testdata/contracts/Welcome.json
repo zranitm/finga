@@ -175,6 +175,10 @@
         "points": 3,
         "trait": "iron_wall"
       }
+    ],
+    "waypoints": [
+      "town",
+      "west"
     ]
   }
 }

@@ -30,13 +30,13 @@ func (i *Instance) trackAreas() {
 	}
 }
 
-// getUp is where one who died at (x, z) gets up on a map that revives its own dead: its nearest waypoint in a straight line, found or not, on a region, whose towns each hold one; the map's spawn on a town.
-func (i *Instance) getUp(x, z float64) gamedata.Point {
-	at, best := i.m.PlayerSpawn, math.Inf(1)
+// getUp is where one who died at (x, z) gets up on a map that revives its own dead, and the way they face: beside its nearest waypoint in a straight line, found or not, on a region, whose towns each hold one; the map's spawn on a town.
+func (i *Instance) getUp(x, z float64) (gamedata.Point, float32) {
+	at, yaw, best := i.m.PlayerSpawn, i.m.SpawnYaw, math.Inf(1)
 	for _, w := range i.m.Waypoints {
 		if d := math.Hypot(w.At.X-x, w.At.Z-z); d < best {
-			at, best = w.At, d
+			at, yaw, best = w.Arrive, w.Yaw, d
 		}
 	}
-	return at
+	return at, float32(yaw)
 }

@@ -81,6 +81,7 @@ var ownErrors = []struct {
 	{kernel.ErrBadQuest, Internal},
 	{kernel.ErrBadSkill, Internal},
 	{kernel.ErrBadSkillTimer, Internal},
+	{kernel.ErrBadWaypoint, Internal},
 	{kernel.ErrBadCheckpoint, Internal},
 	{kernel.ErrBadSkillBar, BadSkillBar},
 	// item

@@ -31,6 +31,7 @@ type service interface {
 	Quests(ctx context.Context, id kernel.CharacterID) ([]model.Quest, error)
 	Skills(ctx context.Context, id kernel.CharacterID) ([]model.SkillPoints, error)
 	Timers(ctx context.Context, id kernel.CharacterID) ([]model.SkillTimer, error)
+	Waypoints(ctx context.Context, id kernel.CharacterID) ([]model.Waypoint, error)
 	Own(c model.Character) gamedata.Stats
 	Derived(c model.Character) (progression.Derived, error)
 	SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
@@ -114,7 +115,14 @@ func (m *Module) Load(ctx context.Context, id kernel.CharacterID, account kernel
 	if err != nil {
 		return Loaded{}, err
 	}
-	out := Loaded{Character: m.characterOf(c), Quests: make([]Quest, 0, len(qs)), Skills: make([]SkillPoints, 0, len(sks)), Timers: make([]SkillTimer, 0, len(ts))}
+	ws, err := m.svc.Waypoints(ctx, id)
+	if err != nil {
+		return Loaded{}, err
+	}
+	out := Loaded{Character: m.characterOf(c), Quests: make([]Quest, 0, len(qs)), Skills: make([]SkillPoints, 0, len(sks)), Timers: make([]SkillTimer, 0, len(ts)), Waypoints: make([]Waypoint, 0, len(ws))}
+	for _, w := range ws {
+		out.Waypoints = append(out.Waypoints, Waypoint(w))
+	}
 	for _, q := range qs {
 		out.Quests = append(out.Quests, questOf(q))
 	}

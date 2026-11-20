@@ -58,10 +58,16 @@ type Area struct {
 	Boss               *BossSpot
 }
 
-// Waypoint is a region's waypoint, where its dead get up.
+// WaypointReach is how near a waypoint's stone a player comes to find it, in metres.
+const WaypointReach = 12
+
+// Waypoint is a region's waypoint: a stone found within WaypointReach, where its dead get up.
 type Waypoint struct {
 	ID, Name string
-	At       Point
+	At       Point   // the stone
+	Arrive   Point   // beside it, where a teleport lands and the dead get up
+	Yaw      float64 // facing away from the stone there, radians from north toward east
+	Main     bool    // in the region's main town, the town holding its start
 }
 
 // Placement is an NPC standing on a map, facing Yaw: radians from north toward east.
@@ -92,7 +98,7 @@ type Map struct {
 	Bake               string             // a region's bake hash, the first 16 hex digits, naming the folder its client files are in; empty on a map
 	Areas              []Area             // a region's, in its plan's order; none on a map
 	AreaGrid           regiongen.AreaGrid // which of Areas holds each 4 m square of a region
-	Waypoints          []Waypoint         // a region's; every town area holds one
+	Waypoints          []Waypoint         // a region's, ids unique across every region; every town area holds one
 }
 
 // Spot is where a fighter starts, facing Yaw: radians from north toward east.

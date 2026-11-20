@@ -22,6 +22,7 @@ var (
 	ErrBadQuest         = errors.New("character: a quest with no ID or one listed twice, an unknown status, a negative count, or finished without a completion")
 	ErrBadSkillBar      = errors.New("character: a skill bar without eight keys, or with a key holding a skill that isn't an active one in the game data")
 	ErrBadSkillTimer    = errors.New("character: a skill timer with no skill, an unknown kind, listed twice, or a buff without points")
+	ErrBadWaypoint      = errors.New("character: a found waypoint with no ID, or one listed twice")
 	ErrBadCheckpoint    = errors.New("character: a checkpoint or level-up with a number its column can't hold: a level below 1, a negative count, exp or HP, energy past 32767, or a position that isn't a finite float32")
 )
 
@@ -107,6 +108,13 @@ type Checkpoint struct {
 	UnspentSkillPoints int
 	Skills             []SkillPoints // every skill with points; a stored one not listed keeps its own
 	Timers             []SkillTimer  // every cooldown and buff still running; a stored one not listed goes
+	Waypoints          []Waypoint    // every waypoint found; a stored one not listed stays, as a find is for good
+}
+
+// Waypoint is a waypoint the character found, by its id across every region, and when.
+type Waypoint struct {
+	ID      string
+	FoundAt time.Time
 }
 
 // TimerKind is what a skill timer times.

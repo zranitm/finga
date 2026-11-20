@@ -21,12 +21,13 @@ type fakeStore struct {
 	quests  map[kernel.CharacterID]map[string]model.Quest
 	skills  map[kernel.CharacterID]map[string]model.SkillPoints
 	timers  map[kernel.CharacterID][]model.SkillTimer
+	found   map[kernel.CharacterID][]model.Waypoint
 	order   []kernel.CharacterID
 	txCount int
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{chars: map[kernel.CharacterID]model.Character{}, quests: map[kernel.CharacterID]map[string]model.Quest{}, skills: map[kernel.CharacterID]map[string]model.SkillPoints{}, timers: map[kernel.CharacterID][]model.SkillTimer{}}
+	return &fakeStore{chars: map[kernel.CharacterID]model.Character{}, quests: map[kernel.CharacterID]map[string]model.Quest{}, skills: map[kernel.CharacterID]map[string]model.SkillPoints{}, timers: map[kernel.CharacterID][]model.SkillTimer{}, found: map[kernel.CharacterID][]model.Waypoint{}}
 }
 
 func (s *fakeStore) InTx(_ context.Context, fn func(uow application.UnitOfWork) error) error {
@@ -40,9 +41,9 @@ func (s *fakeStore) InTx(_ context.Context, fn func(uow application.UnitOfWork) 
 	for id, sk := range s.skills {
 		skills[id] = maps.Clone(sk)
 	}
-	order, timers := slices.Clone(s.order), maps.Clone(s.timers)
+	order, timers, found := slices.Clone(s.order), maps.Clone(s.timers), maps.Clone(s.found)
 	if err := fn(fakeUOW{s}); err != nil {
-		s.chars, s.quests, s.skills, s.order, s.timers = chars, quests, skills, order, timers
+		s.chars, s.quests, s.skills, s.order, s.timers, s.found = chars, quests, skills, order, timers, found
 		return err
 	}
 	return nil
@@ -70,6 +71,12 @@ func (s *fakeStore) Timers(_ context.Context, id kernel.CharacterID) ([]model.Sk
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return slices.Clone(s.timers[id]), nil
+}
+
+func (s *fakeStore) Waypoints(_ context.Context, id kernel.CharacterID) ([]model.Waypoint, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.found[id]), nil
 }
 
 func (s *fakeStore) List(_ context.Context, account kernel.AccountID) ([]model.Character, error) {
@@ -189,6 +196,11 @@ func (r fakeRepo) SaveCheckpoint(_ context.Context, cp model.Checkpoint) error {
 		r.s.quests[cp.ID][q.ID] = q
 	}
 	r.s.timers[cp.ID] = slices.Clone(cp.Timers)
+	for _, w := range cp.Waypoints { // a find is for good: one already found keeps its time
+		if !slices.ContainsFunc(r.s.found[cp.ID], func(f model.Waypoint) bool { return f.ID == w.ID }) {
+			r.s.found[cp.ID] = append(slices.Clone(r.s.found[cp.ID]), w)
+		}
+	}
 	return nil
 }
 

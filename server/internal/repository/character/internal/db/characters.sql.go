@@ -391,6 +391,35 @@ func (q *Queries) ListSkills(ctx context.Context, characterID uuid.UUID) ([]List
 	return items, nil
 }
 
+const listWaypoints = `-- name: ListWaypoints :many
+SELECT waypoint_id, found_at FROM character_waypoints WHERE character_id = $1 ORDER BY waypoint_id
+`
+
+type ListWaypointsRow struct {
+	WaypointID string
+	FoundAt    time.Time
+}
+
+func (q *Queries) ListWaypoints(ctx context.Context, characterID uuid.UUID) ([]ListWaypointsRow, error) {
+	rows, err := q.db.Query(ctx, listWaypoints, characterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListWaypointsRow
+	for rows.Next() {
+		var i ListWaypointsRow
+		if err := rows.Scan(&i.WaypointID, &i.FoundAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockAccountCharacters = `-- name: LockAccountCharacters :exec
 SELECT pg_advisory_xact_lock(hashtextextended('character.account:' || $1::text, 0))
 `
@@ -593,6 +622,31 @@ func (q *Queries) SaveSkills(ctx context.Context, arg SaveSkillsParams) error {
 		arg.SkillIds,
 		arg.Points,
 		arg.Traits,
+		arg.Now,
+	)
+	return err
+}
+
+const saveWaypoints = `-- name: SaveWaypoints :exec
+INSERT INTO character_waypoints (character_id, waypoint_id, found_at, created_at, updated_at)
+SELECT $1, ($2::text[])[k], ($3::timestamptz[])[k], $4, $4
+FROM generate_subscripts($2::text[], 1) AS k
+ON CONFLICT (character_id, waypoint_id) DO NOTHING
+`
+
+type SaveWaypointsParams struct {
+	CharacterID uuid.UUID
+	WaypointIds []string
+	FoundAts    []time.Time
+	Now         dbx.Stamp
+}
+
+// A waypoint already found keeps its row as it is, with when it was found.
+func (q *Queries) SaveWaypoints(ctx context.Context, arg SaveWaypointsParams) error {
+	_, err := q.db.Exec(ctx, saveWaypoints,
+		arg.CharacterID,
+		arg.WaypointIds,
+		arg.FoundAts,
 		arg.Now,
 	)
 	return err

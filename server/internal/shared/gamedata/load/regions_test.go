@@ -149,7 +149,8 @@ func TestARegionLoadsAsAMapOfItsPlan(t *testing.T) {
 		if !reflect.DeepEqual(m.Areas, want) {
 			t.Errorf("areas %+v", m.Areas)
 		}
-		if want := []gamedata.Waypoint{{ID: "hamlet", Name: "Hamlet", At: gamedata.Point{X: 64, Z: 32}}}; !reflect.DeepEqual(m.Waypoints, want) {
+		// The start stands in Hamlet, so it's the main town; north of the stone is clear, so one arrives there facing north.
+		if want := []gamedata.Waypoint{{ID: "hamlet", Name: "Hamlet", At: gamedata.Point{X: 64, Z: 32}, Arrive: gamedata.Point{X: 64, Z: 34}, Main: true}}; !reflect.DeepEqual(m.Waypoints, want) {
 			t.Errorf("waypoints %+v", m.Waypoints)
 		}
 		for _, c := range []struct {
@@ -174,6 +175,37 @@ func TestARegionLoadsAsAMapOfItsPlan(t *testing.T) {
 	})
 }
 
+// boxedIn are four houses 1.5 m round Vale's waypoint stone: the stone's spot fits a player, and no spot 2 m round it does.
+const boxedIn = `  - {house: {area: [58, 33.5, 12, 3.5], height: 4, model: house_small}}
+  - {house: {area: [58, 29, 12, 1.5], height: 4, model: house_small}}
+  - {house: {area: [65.5, 30.5, 3.5, 3], height: 4, model: house_small}}
+  - {house: {area: [59, 30.5, 3.5, 3], height: 4, model: house_small}}
+`
+
+// One arrives beside a stone at the first spot round it, north first and on clockwise, that a player fits on in the stone's area, facing away.
+func TestAWaypointsArrivalIsTheFirstSpotRoundItThatFits(t *testing.T) {
+	for _, tt := range []struct {
+		name, old, replace string
+		want               gamedata.Point
+	}{
+		{"past a house filling the north and north-east", "pieces:\n", "pieces:\n  - {house: {area: [60, 33.5, 8, 3], height: 4, model: house_small}}\n", gamedata.Point{X: 66, Z: 32}},
+		{"past the north and north-east, in Meadow over the town's line at z 48", "at: [64, 32]}", "at: [64, 47]}", gamedata.Point{X: 66, Z: 47}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			files := regioned(t)
+			files["regions/vale.yaml"] = strings.Replace(vale, tt.old, tt.replace, 1)
+			d, err := load.Dir(write(t, files))
+			if err != nil {
+				t.Fatal(err)
+			}
+			m, _ := d.Map("vale")
+			if w := m.Waypoints[0]; w.Arrive != tt.want || w.Yaw != math.Pi/2 {
+				t.Errorf("arrives at %+v facing %g; want %+v, east of the stone, facing east", w.Arrive, w.Yaw, tt.want)
+			}
+		})
+	}
+}
+
 func TestRegionRejections(t *testing.T) {
 	const file = "regions/vale.yaml"
 	tests := []struct {
@@ -192,6 +224,8 @@ func TestRegionRejections(t *testing.T) {
 		{"two areas over one square", file, "[[16, 16], [112, 16], [112, 48], [16, 48]]", "[[16, 16], [112, 16], [112, 52], [16, 52]]", []string{file, "hamlet and meadow", "square at [16 48]"}},
 		{"two areas of one id", file, "id: meadow", "id: hamlet", []string{file, "two areas are hamlet"}},
 		{"an area's straight edge off the squares' lines", file, "[112, 48], [16, 48]], biome: meadow, kind: town}\n  - {id: meadow, name: Meadow, area: [[16, 48], [112, 48]", "[112, 50], [16, 50]], biome: meadow, kind: town}\n  - {id: meadow, name: Meadow, area: [[16, 50], [112, 50]", []string{file, "area hamlet", "from [112 50] to [16 50]", "4 m lines"}},
+		{"a start in no town of a region with one", file, "start: {at: [64, 28]", "start: {at: [64, 60]", []string{file, "start at [64 60]", "no town"}},
+		{"a waypoint with no room beside it", file, "pieces:\n", "pieces:\n" + boxedIn, []string{file, "waypoint hamlet", "no spot 2 m round it"}},
 		{"an area without a name", file, "name: Meadow", "name: ''", []string{file, "area meadow", "name"}},
 		{"a hunting area's levels out of order", file, "levels: [1, 5]", "levels: [5, 1]", []string{file, "area meadow", "1 <= lowest <= highest"}},
 		{"a hunting area without a boss", file, ", kind: hunting,\n     boss: {at: [90, 90], radius: 4, mob: slime_lord}}", ", kind: hunting}", []string{file, "area meadow", "boss"}},
@@ -262,6 +296,13 @@ func TestRegionRejections(t *testing.T) {
 		files := regioned(t)
 		files["regions/field.yaml"] = vale
 		if _, err := load.Dir(write(t, files)); err == nil || !strings.Contains(err.Error(), "regions/field.yaml") || !strings.Contains(err.Error(), "a map has the id field") {
+			t.Fatalf("error %v", err)
+		}
+	})
+	t.Run("one waypoint id in two regions", func(t *testing.T) {
+		files := regioned(t)
+		files["regions/dale.yaml"] = strings.Replace(vale, "  - {name: west, at: [24, 64], radius: 1.6, to: {region: town, gate: to_vale}}\n", "", 1)
+		if _, err := load.Dir(write(t, files)); err == nil || !strings.Contains(err.Error(), "waypoint hamlet is in dale too") {
 			t.Fatalf("error %v", err)
 		}
 	})

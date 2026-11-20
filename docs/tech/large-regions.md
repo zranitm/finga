@@ -523,6 +523,23 @@ Built with step 1, which says who watches a cell.
   - The channel and its cancels don't change.
   - Another region's waypoint is a region change at its end.
   - `TELEPORT_UNKNOWN_WAYPOINT` and `TELEPORT_NOT_FOUND` replace the map refusals.
+- **As built (step 6a), finding and keeping:**
+  - **Data:**
+    - `gamedata.Waypoint` gains `Arrive`, `Yaw` and `Main`.
+    - **The arrival:** the loader picks each waypoint's as the first of eight spots 2 m round its stone that a player fits on in the stone's own area, north first and on clockwise. One arrives there facing away from the stone. A waypoint with no such spot is refused.
+    - **The main town** is the town area holding the region's start; a region with towns must start in one. Its waypoints are `Main`.
+    - **Ids** are unique across every region, so a waypoint is named by its id alone.
+    - `TestEveryShippedRegionCanBeCrossed` starts from each arrival too.
+  - **The stone itself,** its model and its 0.5 m solid, comes with the look (step 6c-2). Until then nothing stands at a waypoint.
+  - **Finding:**
+    - Each instance lists, for each 32 m interest cell, the stones whose 12 m circle reaches into it; an edge cell holds what's past it.
+    - Each tick, after the areas, a living player finds the stones their cell lists within 12 m, the edge counting, that they hadn't found. A match's bots find none.
+    - `WaypointFound{waypoint}`, server message 41, tells them. The find is theirs for good.
+  - **Storage:**
+    - `character_waypoints(character_id, waypoint_id, found_at)` is migration 00015.
+    - The waypoints found travel with the player across hand-offs. Each checkpoint adds those not yet stored, keeping each one's first time, and drops none.
+    - `Welcome.waypoints`, field 13, lists their ids.
+  - **Death:** a region's dead get up at their nearest waypoint's arrival, facing away from the stone, no longer on the stone's spot.
 
 ## 9. The camera
 

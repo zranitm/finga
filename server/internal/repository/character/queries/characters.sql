@@ -75,6 +75,16 @@ WHERE (character_skills.points, character_skills.trait) IS DISTINCT FROM (EXCLUD
 UPDATE characters SET skill_bar = sqlc.arg(skill_bar)::text[], updated_at = sqlc.arg(now)
 WHERE id = sqlc.arg(id) AND account_id = sqlc.arg(account_id);
 
+-- name: ListWaypoints :many
+SELECT waypoint_id, found_at FROM character_waypoints WHERE character_id = $1 ORDER BY waypoint_id;
+
+-- name: SaveWaypoints :exec
+-- A waypoint already found keeps its row as it is, with when it was found.
+INSERT INTO character_waypoints (character_id, waypoint_id, found_at, created_at, updated_at)
+SELECT sqlc.arg(character_id), (sqlc.arg(waypoint_ids)::text[])[k], (sqlc.arg(found_ats)::timestamptz[])[k], sqlc.arg(now), sqlc.arg(now)
+FROM generate_subscripts(sqlc.arg(waypoint_ids)::text[], 1) AS k
+ON CONFLICT (character_id, waypoint_id) DO NOTHING;
+
 -- name: ListSkillTimers :many
 SELECT skill_id, kind, until, points, trait FROM character_skill_timers WHERE character_id = $1 ORDER BY skill_id, kind;
 

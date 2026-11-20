@@ -76,6 +76,11 @@ func (f *fakeService) Timers(_ context.Context, _ kernel.CharacterID) ([]model.S
 	return []model.SkillTimer{{Skill: "iron_body", Kind: model.BuffTimer, Until: end, Points: 3, Trait: "iron_wall"}}, nil
 }
 
+func (f *fakeService) Waypoints(_ context.Context, _ kernel.CharacterID) ([]model.Waypoint, error) {
+	f.read = append(f.read, "waypoints")
+	return []model.Waypoint{{ID: "town", FoundAt: end}}, nil
+}
+
 func (f *fakeService) Own(model.Character) gamedata.Stats { return own }
 
 func (f *fakeService) Derived(model.Character) (progression.Derived, error) {
@@ -131,7 +136,7 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 			t.Fatalf("got %+v, err %v", cs, err)
 		}
 	})
-	t.Run("Load reads the character, then its quests, skills and timers", func(t *testing.T) {
+	t.Run("Load reads the character, then its quests, skills, timers and found waypoints", func(t *testing.T) {
 		f := &fakeService{}
 		l, err := newModule(t, f).Load(ctx, ayla.ID, owner)
 		want := Loaded{
@@ -139,8 +144,9 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 			Quests:    []Quest{{ID: "slime_cleanup", Status: QuestActive, Progress: []int{7}}, {ID: "sticky_samples", Status: QuestFinished, TimesFinished: 2}},
 			Skills:    []SkillPoints{{ID: "strike", Points: 25, Trait: "concussion"}},
 			Timers:    []SkillTimer{{Skill: "iron_body", Kind: BuffTimer, Until: end, Points: 3, Trait: "iron_wall"}},
+			Waypoints: []Waypoint{{ID: "town", FoundAt: end}},
 		}
-		if err != nil || !reflect.DeepEqual(l, want) || !reflect.DeepEqual(f.in, []any{ayla.ID, owner}) || !slices.Equal(f.read, []string{"character", "quests", "skills", "timers"}) {
+		if err != nil || !reflect.DeepEqual(l, want) || !reflect.DeepEqual(f.in, []any{ayla.ID, owner}) || !slices.Equal(f.read, []string{"character", "quests", "skills", "timers", "waypoints"}) {
 			t.Fatalf("got %+v after reading %v, err %v", l, f.read, err)
 		}
 	})

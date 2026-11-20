@@ -149,6 +149,7 @@ type Player struct {
 	Look       Look        // travels with the player too
 	Quests     Quests      // travels with the player too
 	Timers     SkillTimers // travels with the player too, and the checkpoint keeps it
+	Waypoints  Waypoints   // travels with the player too, and the checkpoint keeps it
 	// HandedIn are completions the item module handed in while the world missed the reply; the map's join finishes them.
 	HandedIn []HandedIn
 	// Back is where a player going into a match returns to; nil outside one.
@@ -157,21 +158,22 @@ type Player struct {
 
 // Character is a character as last saved, loaded to join.
 type Character struct {
-	ID      kernel.CharacterID
-	Account kernel.AccountID
-	Name    string
-	Class   kernel.Class
-	Level   int
-	Exp     int64
-	Points  Points
-	Skills  Skills
-	HP      int
-	Energy  int
-	MapID   string
-	X, Y, Z float64 // feet centre, y up
-	Yaw     float32 // the way it faced
-	Quests  Quests
-	Timers  SkillTimers // as the last checkpoint left them; some may have ended since
+	ID        kernel.CharacterID
+	Account   kernel.AccountID
+	Name      string
+	Class     kernel.Class
+	Level     int
+	Exp       int64
+	Points    Points
+	Skills    Skills
+	HP        int
+	Energy    int
+	MapID     string
+	X, Y, Z   float64 // feet centre, y up
+	Yaw       float32 // the way it faced
+	Quests    Quests
+	Timers    SkillTimers // as the last checkpoint left them; some may have ended since
+	Waypoints Waypoints
 }
 
 // View is the joined player's own character, with derived maximums.
@@ -188,9 +190,10 @@ type View struct {
 	MapID  string
 	Sheet  Sheet
 	// JoinSeq rises with each join, across restarts too, so the character's later login has the higher one.
-	JoinSeq uint64
-	Quests  Quests      // a copy of the log the player joined with
-	Timers  SkillTimers // the cooldowns and buffs the player joined with, still running
+	JoinSeq   uint64
+	Quests    Quests      // a copy of the log the player joined with
+	Timers    SkillTimers // the cooldowns and buffs the player joined with, still running
+	Waypoints Waypoints   // a copy of those the player joined having found
 }
 
 // PlayerView is a player as everyone on the map sees it.
@@ -448,19 +451,20 @@ func (MobAttacked) event() {}
 
 // Checkpoint is a character's non-economic state, saved every interval and at once on a level-up, map change or leave.
 type Checkpoint struct {
-	ID      kernel.CharacterID
-	Class   kernel.Class // a promotion changes it
-	MapID   string       // the map it is on, or moving to
-	X, Y, Z float64
-	Yaw     float32
-	HP      int
-	Energy  int
-	Level   int
-	Exp     int64
-	Points  Points
-	Skills  Skills // a copy of the player's
-	Quests  Quests // the whole log, a copy of the player's
-	Timers  SkillTimers
+	ID        kernel.CharacterID
+	Class     kernel.Class // a promotion changes it
+	MapID     string       // the map it is on, or moving to
+	X, Y, Z   float64
+	Yaw       float32
+	HP        int
+	Energy    int
+	Level     int
+	Exp       int64
+	Points    Points
+	Skills    Skills // a copy of the player's
+	Quests    Quests // the whole log, a copy of the player's
+	Timers    SkillTimers
+	Waypoints Waypoints // every one found, a copy of the player's
 }
 
 // InventoryChanged tells the player which slots and equip slots a committed change touched, as they stood at the inventory's Revision.

@@ -51,6 +51,7 @@ func TestSaverSendsEveryFieldOfTheCheckpointInOrder(t *testing.T) {
 			Cooldowns: map[string]time.Time{"iron_body": end.Add(30 * time.Second), "focus": end},
 			Buffs:     map[string]model.BuffTimer{"iron_body": {Until: end, Points: 3}, "anger": {Until: end, Points: 1}},
 		},
+		Waypoints: model.Waypoints{"woods": end, "town": end.Add(-time.Hour)},
 	}
 	if err := adapter.NewSaver(f).SaveCheckpoint(t.Context(), cp); err != nil {
 		t.Fatal(err)
@@ -70,6 +71,7 @@ func TestSaverSendsEveryFieldOfTheCheckpointInOrder(t *testing.T) {
 			{Skill: "anger", Kind: character.BuffTimer, Until: end, Points: 1},
 			{Skill: "iron_body", Kind: character.BuffTimer, Until: end, Points: 3},
 		},
+		Waypoints: []character.Waypoint{{ID: "town", FoundAt: end.Add(-time.Hour)}, {ID: "woods", FoundAt: end}},
 	}
 	if len(f.saved) != 1 || !reflect.DeepEqual(f.saved[0], want) {
 		t.Fatalf("saved %+v\nwant  %+v", f.saved, want)
@@ -102,6 +104,7 @@ func TestSaverKeepsEveryFieldOfTheCheckpoint(t *testing.T) {
 			"Quests.key": "Quests.ID", "Quests.value": "Quests",
 			"Timers.Cooldowns.key": "Timers.Skill", "Timers.Cooldowns.value": "Timers.Until",
 			"Timers.Buffs.key": "Timers.Skill", "Timers.Buffs.value": "Timers",
+			"Waypoints.key": "Waypoints.ID", "Waypoints.value": "Waypoints.FoundAt",
 		},
 		Skip:     map[string]string{"Timers.Buffs.value.Shield": shieldKept, "Timers.Buffs.value.From": giverKept, "Skills.Traits": traitByPoints},
 		Computed: map[string]string{"Skills.Trait": traitByPoints},
@@ -173,6 +176,7 @@ func TestCharactersLoadAsTheWorldJoinsThem(t *testing.T) {
 			{Skill: "focus", Kind: character.BuffTimer, Until: until.Add(-10 * time.Second), Points: 2, Trait: "expose"},
 			{Skill: "odd", Kind: character.TimerKind("odd"), Until: until},
 		},
+		Waypoints: []character.Waypoint{{ID: "town", FoundAt: until}},
 	}}
 	got, err := adapter.NewCharacters(f).Load(t.Context(), id, account)
 	if err != nil {
@@ -188,6 +192,7 @@ func TestCharactersLoadAsTheWorldJoinsThem(t *testing.T) {
 			Cooldowns: map[string]time.Time{"focus": until},
 			Buffs:     map[string]model.BuffTimer{"focus": {Until: until.Add(-10 * time.Second), Points: 2, Trait: "expose"}},
 		},
+		Waypoints: model.Waypoints{"town": until},
 	}
 	if !reflect.DeepEqual(got, want) || f.loadedID != id || f.loadedAc != account {
 		t.Fatalf("got %+v\nwant %+v", got, want)
@@ -214,6 +219,7 @@ func TestCharactersLoadEveryFieldTheWorldKeeps(t *testing.T) {
 				"Loaded.Character.FreeResetUsed": "Points.FreeResetUsed", "Loaded.Character.UnspentSkillPoints": "Skills.Unspent",
 				"Loaded.Skills.ID": "Skills.Points.key", "Loaded.Skills.Points": "Skills.Points.value", "Loaded.Skills.Trait": "Skills.Traits.value",
 				"Loaded.Quests.ID": "Quests.key", "Loaded.Quests": "Quests.value",
+				"Loaded.Waypoints.ID": "Waypoints.key", "Loaded.Waypoints.FoundAt": "Waypoints.value",
 			},
 			Skip: map[string]string{
 				"Loaded.Character.ID":        "the character asked for is the one loaded",

@@ -116,6 +116,7 @@ func TestEveryWorldEventKeepsItsValues(t *testing.T) {
 			m.Renames["Event.Spots.ID"] = "Delivery.Push.Spots.CharacterID"
 			return eventDiff[world.PartySpots](t, model.PartySpots{}, m)
 		},
+		"WaypointFound": func() []string { return eventDiff[world.WaypointFound](t, model.WaypointFound{}, match()) },
 		"Detached": func() []string {
 			m := match()
 			m.Skip["Tick"] = "a detached character is on no map"

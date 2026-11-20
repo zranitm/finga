@@ -106,6 +106,7 @@ message ServerMessage {
     PartySpots party_spots = 38;
     AreaEntered area_entered = 39;
     ArenaBar arena_bar = 40;
+    WaypointFound waypoint_found = 41;
   }
 }
 
@@ -541,6 +542,8 @@ message Welcome {
   repeated QuestState quests = 11;
   // The skills' cooldowns and buffs still running, which a reload or reconnect keeps.
   repeated SkillTimer skill_timers = 12;
+  // The ids of every waypoint the character has found, in any region.
+  repeated string waypoints = 13;
 }
 
 // SkillTimer is the time left on one of a skill's cooldown or buff.
@@ -984,6 +987,11 @@ message AreaEntered {
   FieldBoss field_boss = 2;
   // The area's field boss while it's beaten, with when it's back.
   FieldBossGone field_boss_gone = 3;
+}
+
+// WaypointFound tells the player they found a waypoint, coming within 12 m of its stone: its id across every region, whose name the client reads from the game data. It's theirs for good, and arrives in Welcome after.
+message WaypointFound {
+  string waypoint = 1;
 }
 
 // PartySpots is where the player's party members on their map stand that the frames don't bring, once a second to a player in a party on a map cut by cells, empty when none are out of sight; a member it doesn't list isn't here.

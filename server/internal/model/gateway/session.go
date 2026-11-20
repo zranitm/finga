@@ -64,6 +64,7 @@ type Welcome struct {
 	TickRateHz        int
 	Quests            []QuestState
 	Timers            []SkillTimer
+	Waypoints         []string // the ids of those found
 }
 
 // TimerKind is what a skill timer times.

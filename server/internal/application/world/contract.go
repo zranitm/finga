@@ -55,6 +55,8 @@ type View struct {
 	JoinSeq uint64
 	Quests  map[string]Quest // the log the player joined with, by quest
 	Timers  SkillTimers      // the cooldowns and buffs the player joined with, still running
+	// Waypoints are the ids of those the character has found, in order.
+	Waypoints []string
 	// TickRateHz is the maps' ticks per second, which the client steps by.
 	TickRateHz int
 }
@@ -126,7 +128,7 @@ func viewOf(v model.View) View {
 		ID: v.ID, Name: v.Name, Class: v.Class, Level: v.Level, Exp: v.Exp, Stats: v.Stats,
 		HP: v.HP, MaxHP: v.MaxHP, Energy: v.Energy, MapID: v.MapID,
 		Sheet: sheetOf(v.Sheet), JoinSeq: v.JoinSeq, Quests: make(map[string]Quest, len(v.Quests)),
-		Timers: timersOf(v.Timers),
+		Timers: timersOf(v.Timers), Waypoints: slices.Sorted(maps.Keys(v.Waypoints)),
 	}
 	for id, q := range v.Quests {
 		out.Quests[id] = questOf(q)

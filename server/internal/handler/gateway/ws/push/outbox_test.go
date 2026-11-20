@@ -240,6 +240,7 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 		{model.TeleportCancelled{Reason: model.TeleportMoved}, &clientv1.TeleportCancelled{Reason: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_MOVED}},
 		{model.PartySpots{Spots: []model.PartySpot{{CharacterID: "p-2", X: 140.5, Z: 812.25}}}, &clientv1.PartySpots{Spots: []*clientv1.PartySpot{{CharacterId: "p-2", X: 140.5, Z: 812.25}}}},
 		{model.PartySpots{}, &clientv1.PartySpots{}},
+		{model.WaypointFound{Waypoint: "north"}, &clientv1.WaypointFound{Waypoint: "north"}},
 		{model.TeleportCancelled{Reason: model.TeleportActed}, &clientv1.TeleportCancelled{Reason: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_ACTED}},
 		{model.TeleportCancelled{Reason: model.TeleportHit}, &clientv1.TeleportCancelled{Reason: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_HIT}},
 		{model.TeleportCancelled{Reason: model.TeleportDied}, &clientv1.TeleportCancelled{Reason: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_DIED}},
@@ -384,6 +385,7 @@ func TestWelcomeCarriesTheCharacterItsItemsAtTheirRevisionItsQuestsAndItsSkillTi
 		ServerTime:        at,
 		Quests:            []model.QuestState{{Quest: "a", Status: model.QuestFinished, TimesFinished: 2}},
 		Timers:            []model.SkillTimer{{Skill: "focus", Kind: model.BuffTimer, Left: 1500 * time.Millisecond, Points: 4, Trait: "expose"}},
+		Waypoints:         []string{"town", "west"},
 	})
 	want := &clientv1.Welcome{
 		Token:             "t-2",
@@ -395,6 +397,7 @@ func TestWelcomeCarriesTheCharacterItsItemsAtTheirRevisionItsQuestsAndItsSkillTi
 		ServerTime:        at.UnixMilli(),
 		Quests:            []*clientv1.QuestState{{QuestId: "a", Status: clientv1.QuestStatus_QUEST_STATUS_FINISHED, TimesFinished: 2}},
 		SkillTimers:       []*clientv1.SkillTimer{{Skill: "focus", Kind: clientv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF, LeftMs: 1500, Points: 4, Trait: "expose"}},
+		Waypoints:         []string{"town", "west"},
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()

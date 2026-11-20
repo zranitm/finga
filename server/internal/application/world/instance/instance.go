@@ -95,6 +95,8 @@ type Instance struct {
 	nextSlot uint64               // the sweep tick, mod ticksPer, the next player to join gets
 
 	bosses []*bossSlot // the map's field bosses, up or beaten
+	// stones is, by interest cell, the waypoints whose finding circle reaches into it; nil on a map without any.
+	stones [][]int
 
 	events []model.Event // map-wide events of the current tick
 	later  []model.Event // events raised after a tick's were sent, which open the next tick's
@@ -208,6 +210,7 @@ func New(d Deps, t Tuning) *Instance {
 		i.addBots()
 	}
 	i.bosses = bossSlots(d.Map)
+	i.stones = stonesNear(d.Map.Waypoints, i.interest)
 	for _, s := range i.bosses {
 		i.raise(s) // up from the start, before anyone is here to hear it
 	}
@@ -354,6 +357,7 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.judgeRound()
 	i.teleports()
 	i.trackAreas()
+	i.trackWaypoints(time.Now())
 	i.stepBosses()
 	if n%i.ticksFor(time.Second) == 0 {
 		i.regen()

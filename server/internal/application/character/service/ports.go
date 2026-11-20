@@ -22,6 +22,8 @@ type Store interface {
 	Skills(ctx context.Context, id kernel.CharacterID) ([]model.SkillPoints, error)
 	// Timers is the character's skill timers as the last checkpoint left them.
 	Timers(ctx context.Context, id kernel.CharacterID) ([]model.SkillTimer, error)
+	// Waypoints is the waypoints the character has found.
+	Waypoints(ctx context.Context, id kernel.CharacterID) ([]model.Waypoint, error)
 }
 
 // UnitOfWork is every repository bound to one transaction.

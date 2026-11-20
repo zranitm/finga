@@ -341,6 +341,33 @@ func TestRepository(t *testing.T) {
 		}
 	})
 
+	t.Run("a checkpoint's waypoints are added to those found, each keeping when it was first found, and none dropped", func(t *testing.T) {
+		first := time.Date(2026, 11, 20, 9, 0, 0, 0, time.UTC)
+		save := func(t *testing.T, found ...model.Waypoint) {
+			t.Helper()
+			cp := model.Checkpoint{ID: ayla.ID, MapID: "forest", Level: 2, Waypoints: found}
+			if err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Characters().SaveCheckpoint(ctx, cp) }); err != nil {
+				t.Fatal(err)
+			}
+		}
+		save(t, model.Waypoint{ID: "west", FoundAt: first}, model.Waypoint{ID: "town", FoundAt: first.Add(time.Minute)})
+		save(t, model.Waypoint{ID: "west", FoundAt: first.Add(time.Hour)}, model.Waypoint{ID: "woods", FoundAt: first.Add(2 * time.Hour)})
+		save(t)
+		got, err := store.Waypoints(ctx, ayla.ID)
+		want := []model.Waypoint{{ID: "town", FoundAt: first.Add(time.Minute)}, {ID: "west", FoundAt: first}, {ID: "woods", FoundAt: first.Add(2 * time.Hour)}}
+		if err != nil || len(got) != len(want) {
+			t.Fatalf("waypoints %+v (%v), want %+v", got, err, want)
+		}
+		for k := range want {
+			if got[k].ID != want[k].ID || !got[k].FoundAt.Equal(want[k].FoundAt) {
+				t.Fatalf("waypoints %+v, want %+v", got, want)
+			}
+		}
+		if other, err := store.Waypoints(ctx, kernel.NewCharacterID()); err != nil || len(other) != 0 {
+			t.Fatalf("a character with none has %+v (%v)", other, err)
+		}
+	})
+
 	t.Run("a level-up saved, then loaded, matches and moves updated_at", func(t *testing.T) {
 		before := load(t)
 		lu := model.LevelUp{ID: ayla.ID, Level: 2, Exp: 3, Points: gamedata.Stats{STR: 6, VIT: 4}, HP: 250}
