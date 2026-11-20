@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"finga/internal/shared/regiongen"
 	"finga/internal/shared/sim"
 )
 
@@ -24,6 +25,7 @@ const vectorsDir = "../../../testdata/movement"
 type vector struct {
 	Name        string       `json:"name"`
 	Notes       string       `json:"notes"`
+	Region      string       `json:"region,omitempty"` // a test plan the web client keeps baked: Geometry is its ground, written as the name alone
 	Params      sim.Params   `json:"params"`
 	SpeedFactor float64      `json:"speed_factor,omitempty"` // unset is 1
 	Geometry    sim.Geometry `json:"geometry"`
@@ -89,6 +91,8 @@ var requiredVectors = []string{
 	"region-forest-sprint", "region-wall-slide", "region-steps-on-corners",
 	"deep-walk-stops-at-bank", "deep-jump-stops-in-air", "deep-dash-stops-at-bank", "deep-leap-stops-at-bank", "deep-blink-stops-short",
 	"deep-ford-crosses", "deep-slides-into-ford", "deep-walks-out", "deep-corners-west-bank", "deep-corners-east-bank",
+	"bake-tiny-seam-sprint", "bake-tiny-house-seam", "bake-tiny-river-bank", "bake-tiny-ford", "bake-tiny-blink-seam",
+	"bake-steep-cliff", "bake-steep-cliff-leap", "bake-steep-ring", "bake-steep-off-plateau", "bake-steep-ridge",
 }
 
 // params are §3's starting values in metres.
@@ -508,7 +512,60 @@ func scenarios() []vector {
 	}
 	vs = append(vs, sprintScenarios()...)
 	vs = append(vs, walkScenarios()...)
-	return append(vs, regionScenarios()...)
+	vs = append(vs, regionScenarios()...)
+	return append(vs, bakeScenarios()...)
+}
+
+// baked is test plan name generated as the server generates a region, the ground of the bake the web client keeps of it in web/src/testing/regions.
+func baked(name string) sim.Geometry {
+	read := func(path string) []byte {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			panic(err)
+		}
+		return raw
+	}
+	p, err := regiongen.Decode(read(filepath.Join("../../../cmd/regionbake/testdata", name+".yaml")))
+	if err != nil {
+		panic(err)
+	}
+	k, err := regiongen.DecodeKit(read("../../../data/kit.yaml"))
+	if err != nil {
+		panic(err)
+	}
+	r, err := regiongen.Generate(p, k, params.MaxSlope)
+	if err != nil {
+		panic(err)
+	}
+	return r.Geometry
+}
+
+// bakeScenarios walk the test plans' bakes, which the client reads chunk by chunk: its seams, the solids each chunk carries at the server's indices, deep water, and the steepest ground the wide plan has.
+func bakeScenarios() []vector {
+	tiny, steep := baked("tiny"), baked("steep")
+	on := func(g sim.Geometry, x, z float64) sim.State { return standing(x, g.Terrain.Height(x, z), z) }
+	return []vector{
+		{Name: "bake-tiny-seam-sprint", Notes: "Sprinting east 8 s through the tiny plan's oaks, over the seam between chunks at x 64.",
+			Region: "tiny", Params: sprinting, Geometry: tiny, Start: on(tiny, 34, 44), Inputs: runs(east, 480)},
+		{Name: "bake-tiny-house-seam", Notes: "Walking north-east into the house over the seam at x 64, which only chunk 0_1 carries: the body slides east along its south face, across the seam, and on north-east past its corner.",
+			Region: "tiny", Params: params, Geometry: tiny, Start: on(tiny, 60, 76), Inputs: runs(northEast, 180)},
+		{Name: "bake-tiny-river-bank", Notes: "Walking east at the river: its deep water stops the body at the bank, and a jump east stops in the air and falls back.",
+			Region: "tiny", Params: params, Geometry: tiny, Start: on(tiny, 86, 100), Inputs: runs(east, 120, jumpEast, 1, east, 60)},
+		{Name: "bake-tiny-ford", Notes: "Walking east into the ford at z 30: no deep water stops the body, which crosses the bed to the far bank; that rises 1.45 m in a 2 m cell, steep, so the body stops at its foot.",
+			Region: "tiny", Params: params, Geometry: tiny, Start: on(tiny, 86, 30), Inputs: runs(east, 240)},
+		{Name: "bake-tiny-blink-seam", Notes: "A 10.5 m blink east from chunk 0_0: it stops at x 64, short of an oak just over the seam that only chunk 1_0 carries.",
+			Region: "tiny", Params: params, Geometry: tiny, Start: on(tiny, 56, 40), Inputs: moving(blink(1, 0, 10.5), still, 3)},
+		{Name: "bake-steep-cliff", Notes: "Walking east into the plateau's cliff 12 m high, then north-east along its foot.",
+			Region: "steep", Params: params, Geometry: steep, Start: on(steep, 46, 64), Inputs: runs(east, 120, northEast, 180)},
+		{Name: "bake-steep-cliff-leap", Notes: "An 8 m leap east at the plateau's cliff: the hop stops against it and falls back.",
+			Region: "steep", Params: params, Geometry: steep, Start: on(steep, 50, 60), Inputs: moving(leap(1, 0, 8), still, 40)},
+		{Name: "bake-steep-ring", Notes: "Walking west into the ring's cliff, a step over 40 m, then south-west along its foot.",
+			Region: "steep", Params: params, Geometry: steep, Start: on(steep, 22, 40), Inputs: runs(west, 120, sim.Input{Down: true, Left: true}, 180)},
+		{Name: "bake-steep-off-plateau", Notes: "Walking west off the plateau's top over its cliff: the body falls 12 m and lands.",
+			Region: "steep", Params: params, Geometry: steep, Start: on(steep, 70, 60), Inputs: runs(west, 240)},
+		{Name: "bake-steep-ridge", Notes: "Walking north at the ridge 28 m high: its flank is steep from the foot, so the body stops; then north-east it slides along the foot.",
+			Region: "steep", Params: params, Geometry: steep, Start: on(steep, 40, 84), Inputs: runs(north, 60, northEast, 180)},
+	}
 }
 
 func TestVectors(t *testing.T) {
@@ -518,7 +575,14 @@ func TestVectors(t *testing.T) {
 		names[v.Name] = true
 		t.Run(v.Name, func(t *testing.T) {
 			v.Expected = replay(v)
-			want, err := json.MarshalIndent(v, "", "  ")
+			var written any = v
+			if v.Region != "" {
+				written = struct {
+					vector
+					Geometry *sim.Geometry `json:"geometry,omitempty"` // the bake's, which the client reads
+				}{vector: v}
+			}
+			want, err := json.MarshalIndent(written, "", "  ")
 			if err != nil {
 				t.Fatal(err)
 			}

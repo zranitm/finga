@@ -3,8 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { movement } from '@/gamedata/movement';
 import { indexed } from '@/sim/solids';
 import { terrain } from '@/sim/terrain';
+import { replay, vectors } from '@/testing/movement-vectors';
 import { servePublic } from '@/testing/public-on-disk';
-import { TINY, tinyFile } from '@/testing/region-fixture';
+import { fixtureChunks, fixtureFile, TINY, tinyFile } from '@/testing/region-fixture';
 
 import { loadRegion, readChunk } from './region-bake';
 import type { Region } from './region-bake';
@@ -50,6 +51,21 @@ describe("a region's ground, built from its chunks", () => {
     expect(t.steepZ).toEqual(whole.steepZ);
     expect(whole.steepX.some((s) => s === 1)).toBe(true); // the river's banks
     expect(Array.from(t.deepWater!).filter((d) => d === 1).length).toBeGreaterThan(50);
+  });
+
+  it('holds each solid as its chunk records it, at its index', async () => {
+    const g = await ground();
+    for (const k of KEYS) {
+      const c = readChunk(tinyFile(`chunks/${k}.bin`));
+      c.cylinders.index.forEach((i, j) => {
+        const [x, z, radius, top] = c.cylinders.at.subarray(4 * j, 4 * j + 4);
+        expect(g.geometry.cylinders[i]).toEqual({ x, z, radius, top });
+      });
+      c.boxes.index.forEach((i, j) => {
+        const [x, z, half_w, half_d, ux, uz, top] = c.boxes.at.subarray(7 * j, 7 * j + 7);
+        expect(g.geometry.boxes[i]).toEqual({ x, z, half_w, half_d, ux, uz, top });
+      });
+    }
   });
 
   it('holds every solid at its index once all chunks are in, bucketed as indexing them all at once buckets them, whatever order the chunks come in', async () => {
@@ -132,4 +148,31 @@ describe("a region's ground, built from its chunks", () => {
     g.add(c);
     expect(g.covers(96, 20, 0)).toBe(true);
   });
+});
+
+describe('the movement vectors on a bake', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const baked = vectors.filter((v) => v.region);
+  it('walk both test plans', () => {
+    expect(new Set(baked.map((v) => v.region))).toEqual(new Set(['tiny', 'steep']));
+  });
+
+  for (const v of baked) {
+    it(`${v.name} replays to the bit on the ground its bake's chunks build`, async () => {
+      servePublic();
+      const { region } = await loadRegion({ id: v.region!, hash: 'fixture' });
+      const g = new RegionGround(region, v.params.max_slope);
+      for (const file of fixtureChunks(v.region!)) {
+        g.add(readChunk(fixtureFile(v.region!, file)));
+      }
+      const got = replay(v, g.geometry);
+      expect(got).toHaveLength(v.expected.length);
+      got.forEach((s, i) => {
+        expect(s, `sub-step ${i + 1}`).toEqual(v.expected[i]!);
+      });
+    });
+  }
 });
