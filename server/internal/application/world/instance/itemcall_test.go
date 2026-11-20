@@ -61,3 +61,54 @@ func TestAnUnansweredItemCallIsUnavailableInsideTheGatewaysWait(t *testing.T) {
 		})
 	}
 }
+
+// A command whose item call starts late, the queues and ticks before it having taken most of the gateway's 5 s as a starved box can, still hears the module isn't there before its own deadline: its wait gives up half a second short of it, never with the deadline itself, which the gateway would answer as a fault.
+func TestALateItemCallIsUnavailableBeforeTheCommandsDeadline(t *testing.T) {
+	const left = 2 * time.Second // of the command's 5 s when the world takes it: under callFor
+	for _, tt := range []struct {
+		name string
+		opts func() worldtest.Options // an item module that never answers
+		ask  func(ctx context.Context, inst *instance.Instance, id kernel.CharacterID) error
+	}{
+		{"an equip", func() worldtest.Options {
+			return worldtest.Options{Equipment: &fakeEquipment{gate: make(chan struct{})}}
+		},
+			func(ctx context.Context, inst *instance.Instance, id kernel.CharacterID) error {
+				return inst.Equip(ctx, id, "c1", "k-1", kernel.NewItemID(), "")
+			}},
+		{"an unequip", func() worldtest.Options {
+			return worldtest.Options{Equipment: &fakeEquipment{gate: make(chan struct{})}}
+		},
+			func(ctx context.Context, inst *instance.Instance, id kernel.CharacterID) error {
+				return inst.Unequip(ctx, id, "c1", "k-1", "weapon", nil)
+			}},
+		{"a look", func() worldtest.Options { return worldtest.Options{Looks: &fakeLooks{gate: make(chan struct{})}} },
+			func(ctx context.Context, inst *instance.Instance, id kernel.CharacterID) error {
+				return inst.SetLook(ctx, id, "c1", "k-1", model.Look{Outfit: "knight_plate"})
+			}},
+		{"a potion", func() worldtest.Options { return worldtest.Options{Potions: &fakePotions{gate: make(chan struct{})}} },
+			func(ctx context.Context, inst *instance.Instance, id kernel.CharacterID) error {
+				return inst.UseItem(ctx, id, "c1", "k-1", kernel.NewItemID(), "red_potion")
+			}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				data := worldtest.LoadData(t)
+				opts := tt.opts()
+				opts.ItemCalls = runningPool(t)
+				inst, stop := worldtest.Run(t, data, nil, opts)
+				defer stop()
+				p := atSpawn(data, "Ayla")
+				p.HP, p.Connection = 10, "c1"
+				join(t, inst, p)
+				ctx, cancel := context.WithTimeout(context.Background(), left)
+				defer cancel()
+				began := time.Now()
+				err := tt.ask(ctx, inst, p.ID)
+				if took := time.Since(began); !errors.Is(err, transient.ErrUnavailable) || errors.Is(err, context.DeadlineExceeded) || took != left-500*time.Millisecond {
+					t.Fatalf("%v after %v; want unavailable half a second before the command's %v", err, took, left)
+				}
+			})
+		})
+	}
+}

@@ -12,7 +12,7 @@ import (
 // UseItem drinks a potion and returns once its HP applies, or ctx ends; template is what the client saw in the slot.
 func (i *Instance) UseItem(ctx context.Context, id kernel.CharacterID, conn, key string, item kernel.ItemID, template string) error {
 	m := useMsg{id: id, conn: conn, call: model.UseCall{Key: key, Item: item, Template: template}, done: make(chan error, 1)}
-	return i.ask(ctx, m, m.done)
+	return i.askItem(ctx, m, m.done, "a potion")
 }
 
 // startUse checks the potion would restore something, then has a worker take it from the item module; the player stays on the map until its answer settles.

@@ -20,6 +20,7 @@ import (
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/sim"
+	"finga/pkg/transient"
 )
 
 var errDown = errors.New("item module unavailable")
@@ -533,6 +534,34 @@ func TestAHungItemServiceDelaysTheTake(t *testing.T) {
 		settle(13 * time.Second) // the second try's two timeouts end, then the next goes
 		if items.items() != 2 || len(pouchesIn(s)) != 0 || len(lootOf(s)) != 1 {
 			t.Fatalf("%d items, pouches %v; want both taken once the module answers", items.items(), pouchesIn(s))
+		}
+	})
+}
+
+// A take whose grant starts late, the queues and ticks before it having taken most of the gateway's 5 s, answers each pick unavailable half a second before the command's deadline, never with the deadline, which the gateway would answer as a fault for the whole take; its items stay taken, and come once the module answers.
+func TestALateTakeAnswersEachPickUnavailableBeforeItsDeadline(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		items := newFakeItems()
+		items.hang = true
+		inst, stop := runLootArena(t, data, items, 0.1)
+		defer stop()
+		settle(worldtest.TickInterval)
+		p := warriorAt(nextToSlime)
+		s := join(t, inst, p)
+		killSlime(t, inst, p.ID)
+		pouch := onlyPouch(t, s)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		began := time.Now()
+		got, err := inst.TakeLoot(ctx, p.ID, "", everything(pouch))
+		if took := time.Since(began); err != nil || took != 1500*time.Millisecond || len(got) != len(everything(pouch)) || slices.ContainsFunc(got, func(a model.PickAnswer) bool { return !errors.Is(a.Err, transient.ErrUnavailable) }) {
+			t.Fatalf("%+v, %v after %v; want each pick unavailable at 1.5 s, half a second before the command's 2", got, err, took)
+		}
+		items.set(func(f *fakeItems) { f.hang = false })
+		settle(13 * time.Second) // the grant's two timeouts end, then the next try goes
+		if len(pouchesIn(s)) != 0 || len(lootOf(s)) != 1 {
+			t.Fatalf("pouches %v, loot %v; want the items taken once the module answers", pouchesIn(s), lootOf(s))
 		}
 	})
 }

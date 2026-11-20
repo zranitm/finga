@@ -32,7 +32,7 @@ func (lookedMsg) message() {}
 // SetLook wears a look, checked by the item module against the account's wardrobe and the player's live class, and returns once everyone sees it.
 func (i *Instance) SetLook(ctx context.Context, id kernel.CharacterID, conn, key string, look model.Look) error {
 	m := lookMsg{id: id, conn: conn, call: model.LookCall{Key: key, Look: look}, done: make(chan error, 1)}
-	return i.ask(ctx, m, m.done)
+	return i.askItem(ctx, m, m.done, "a look")
 }
 
 // startLook refuses a dead player, one being promoted or one in combat, then hands the call to a worker with the player's live class.
