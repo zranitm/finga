@@ -1,5 +1,5 @@
 // A map's solids bucketed by 8 m squares, as the server's sim.Indexed buckets them (large-regions.md section 5): a move or a point reads only the buckets it touches.
-import type { Geometry } from './step';
+import type { Box, Cylinder, Geometry } from './step';
 
 /** The side of a solids bucket in metres. */
 const BUCKET_M = 8;
@@ -23,29 +23,65 @@ function cell(v: number, n: number): number {
   return c < 0 ? 0 : c >= n ? n - 1 : c;
 }
 
+/** Solids buckets being filled. */
+export interface FilledSolids extends Solids {
+  readonly boxes: number[][];
+  readonly cylinders: number[][];
+}
+
+/** Empty buckets over a sizeX by sizeZ map. */
+export function solidBuckets(sizeX: number, sizeZ: number): FilledSolids {
+  const nx = buckets(sizeX);
+  const nz = buckets(sizeZ);
+  return {
+    nx,
+    nz,
+    boxes: Array.from({ length: nx * nz }, () => []),
+    cylinders: Array.from({ length: nx * nz }, () => []),
+  };
+}
+
+/** Files solid i in each bucket of list its bounds overlap, each bucket's indices kept ascending. */
+function file(
+  s: FilledSolids,
+  list: number[][],
+  i: number,
+  x0: number,
+  z0: number,
+  x1: number,
+  z1: number,
+) {
+  for (let iz = cell(z0, s.nz); iz <= cell(z1, s.nz); iz++) {
+    for (let ix = cell(x0, s.nx); ix <= cell(x1, s.nx); ix++) {
+      const bucket = list[iz * s.nx + ix]!;
+      let k = bucket.length;
+      while (k > 0 && bucket[k - 1]! > i) {
+        k--;
+      }
+      bucket.splice(k, 0, i);
+    }
+  }
+}
+
+/** Files box i, b, in s by its bounds. */
+export function fileBox(s: FilledSolids, i: number, b: Box): void {
+  const ex = Math.abs(b.ux) * b.half_w + Math.abs(b.uz) * b.half_d + BOUNDS_PAD;
+  const ez = Math.abs(b.uz) * b.half_w + Math.abs(b.ux) * b.half_d + BOUNDS_PAD;
+  file(s, s.boxes, i, b.x - ex, b.z - ez, b.x + ex, b.z + ez);
+}
+
+/** Files cylinder i, c, in s by its bounds. */
+export function fileCylinder(s: FilledSolids, i: number, c: Cylinder): void {
+  const r = c.radius + BOUNDS_PAD;
+  file(s, s.cylinders, i, c.x - r, c.z - r, c.x + r, c.z + r);
+}
+
 /** g with its boxes and cylinders bucketed, which the sim's queries read: they come in their own order, each once, so a result is a full scan's to the bit. */
 export function indexed(g: Geometry): Geometry {
-  const nx = buckets(g.size_x);
-  const nz = buckets(g.size_z);
-  const boxes: number[][] = Array.from({ length: nx * nz }, () => []);
-  const cylinders: number[][] = Array.from({ length: nx * nz }, () => []);
-  const add = (list: number[][], i: number, x0: number, z0: number, x1: number, z1: number) => {
-    for (let iz = cell(z0, nz); iz <= cell(z1, nz); iz++) {
-      for (let ix = cell(x0, nx); ix <= cell(x1, nx); ix++) {
-        list[iz * nx + ix]!.push(i);
-      }
-    }
-  };
-  g.boxes.forEach((b, i) => {
-    const ex = Math.abs(b.ux) * b.half_w + Math.abs(b.uz) * b.half_d + BOUNDS_PAD;
-    const ez = Math.abs(b.uz) * b.half_w + Math.abs(b.ux) * b.half_d + BOUNDS_PAD;
-    add(boxes, i, b.x - ex, b.z - ez, b.x + ex, b.z + ez);
-  });
-  g.cylinders.forEach((c, i) => {
-    const r = c.radius + BOUNDS_PAD;
-    add(cylinders, i, c.x - r, c.z - r, c.x + r, c.z + r);
-  });
-  return { ...g, buckets: { nx, nz, boxes, cylinders } };
+  const s = solidBuckets(g.size_x, g.size_z);
+  g.boxes.forEach((b, i) => fileBox(s, i, b));
+  g.cylinders.forEach((c, i) => fileCylinder(s, i, c));
+  return { ...g, buckets: s };
 }
 
 /** What a query over several buckets gathers, reused: a caller reads it before its next query. */

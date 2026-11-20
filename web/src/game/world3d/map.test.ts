@@ -149,7 +149,9 @@ describe('loadMap', () => {
     expect(region.geometry.boxes.length).toBeGreaterThan(0);
     expect(region.solids).toEqual([]);
     const raw = json('test_region') as { geometry: { terrain: { deep_water: boolean[] } } };
-    expect(region.geometry.terrain.deepWater).toEqual(raw.geometry.terrain.deep_water);
+    expect(Array.from(region.geometry.terrain.deepWater!, Boolean)).toEqual(
+      raw.geometry.terrain.deep_water,
+    );
     expect(raw.geometry.terrain.deep_water.filter(Boolean).length).toBeGreaterThan(1000);
     expect((await loadMap('town')).geometry.terrain.deepWater).toBeUndefined();
     const town = json('town') as { box_models: unknown[] };

@@ -63,7 +63,7 @@ describe('groundPixels', () => {
           t.cell,
           t.nx,
           t.nz,
-          t.heights.map((h) => h + 2),
+          Array.from(t.heights, (h) => h + 2),
           movement.max_slope,
         ),
       },
