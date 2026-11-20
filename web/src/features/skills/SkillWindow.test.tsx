@@ -7,6 +7,7 @@ import { RequestError } from '@/net/socket';
 import { ERR } from '@/protocol/errors';
 import { ResponseSchema, StatsChangedSchema, WelcomeSchema } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
+import { arenaBuild } from '@/state/arena-build';
 import { character } from '@/state/character';
 import { combat } from '@/state/combat';
 import { SKILL_DRAG_TYPE, skillBar } from '@/state/skill-bar';
@@ -371,6 +372,13 @@ describe('SkillWindow', () => {
       'With 10 points: 2.7× physical attack · 2 energy · 4.5s cooldown',
     );
     expect(card('Strike')).toHaveTextContent('A wider, harder swing.');
+  });
+
+  it('closing asks both bars to save their waiting changes at once', () => {
+    const { unmount } = setup();
+    expect(skillBar.getState().saveAsks + arenaBuild.getState().saveAsks).toBe(0);
+    unmount();
+    expect([skillBar.getState().saveAsks, arenaBuild.getState().saveAsks]).toEqual([1, 1]);
   });
 
   it('an active skill drags its ID to the skill bar, hiding its card; a passive one stays put', () => {

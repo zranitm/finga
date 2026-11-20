@@ -202,13 +202,23 @@ func (s *Service) SaveLevelUp(ctx context.Context, lu model.LevelUp) error {
 	})
 }
 
-// SetSkillBar stores which skill sits on each key; each is empty or an active skill in the game data, whether or not the character has learned it, as the world refuses those it hasn't.
+// SetSkillBar stores which skill sits on each key; each is empty or an active skill in the game data, whether or not the character has learned it, as the world refuses those it hasn't, and none a follow-up of the character's class, which rides on its root's key as the client keeps it.
 func (s *Service) SetSkillBar(ctx context.Context, id kernel.CharacterID, account kernel.AccountID, bar []string) error {
 	if len(bar) != model.SkillBarKeys {
 		return model.ErrBadSkillBar
 	}
 	for _, skill := range bar {
 		if sk, ok := s.content.Skill(skill); skill != "" && (!ok || sk.Kind != gamedata.Active) {
+			return model.ErrBadSkillBar
+		}
+	}
+	c, err := s.store.Load(ctx, id, account)
+	if err != nil {
+		return err
+	}
+	class, _ := s.content.Class(c.Class)
+	for _, skill := range bar {
+		if skill != "" && !class.Keyable(skill) {
 			return model.ErrBadSkillBar
 		}
 	}

@@ -1,5 +1,5 @@
 // The skill window (skill-traits.md section 7): a grid of tiles per class, each skill's details in a card beside the pointer, on hover or focus, and under an active one its two traits to choose between. A promoted character's has an Arena tab too (pvp.md section 13): the build PvP matches fight with, every skill full and every trait open, and its arena bar.
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 
 import { Button } from '@/components/Button';
 import { Tabs } from '@/components/Tabs';
@@ -66,6 +66,14 @@ export function SkillWindow({ socket, onClose }: SkillWindowProps) {
   const card = shown && skillById(shown.id);
   const promoted = lineOf(cls).length > 1;
   const [tab, setTab] = useState<SkillTab>('world');
+  // Closing saves both bars' changes at once, as settings do, so a queue straight after fights with them.
+  useEffect(
+    () => () => {
+      skillBar.getState().saveNow();
+      arenaBuild.getState().saveNow();
+    },
+    [],
+  );
   const arena = promoted && tab === 'arena';
   const arenaChoice = useArenaTraits();
   const bar = arenaBuild.use((s) => s.bar);

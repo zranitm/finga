@@ -421,9 +421,10 @@ describe('wiring', () => {
     ]);
     ws.push('welcome', welcome); // a rejoin after is out already, and says nothing more
     expect(said()).toHaveLength(1);
+    toasts.getState().clear(); // gone by the next match
     ws.push('matchState', state('mt-0', 'team', MatchPhase.PREP));
     ws.push('welcome', welcome); // a drop and rejoin mid-match leaves it too
-    expect(said()).toHaveLength(2);
+    expect(said()).toHaveLength(1);
     toasts.getState().clear();
     ws.push('mapChange', { mapId: 'ring' });
     ws.push('matchState', state('mt-2', 'duel', MatchPhase.FIGHT));

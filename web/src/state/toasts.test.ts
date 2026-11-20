@@ -20,6 +20,15 @@ describe('toasts store', () => {
     expect(toasts.getState().toasts).toHaveLength(1);
   });
 
+  it('the same words of the same kind twice at once show once, under the first’s id', () => {
+    const a = toasts.getState().push('Too fast. Wait a moment.');
+    expect(toasts.getState().push('Too fast. Wait a moment.')).toBe(a);
+    const b = toasts.getState().push('Too fast. Wait a moment.', 'info');
+    expect(toasts.getState().toasts.map((t) => t.id)).toEqual([a, b]);
+    toasts.getState().dismiss(a);
+    expect(toasts.getState().push('Too fast. Wait a moment.')).not.toBe(a);
+  });
+
   it('keeps the newest MAX_TOASTS, and clear empties the list', () => {
     for (let i = 0; i < MAX_TOASTS + 2; i++) {
       toasts.getState().push(`t${i}`);

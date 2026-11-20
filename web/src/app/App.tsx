@@ -35,6 +35,7 @@ import { watchArenaBuild } from '@/features/skills/saveArenaBuild';
 import { watchSkillBar } from '@/features/skills/saveSkillBar';
 import { SkillWindow } from '@/features/skills/SkillWindow';
 import type { Character } from '@/net/rest';
+import { ERR, errorText } from '@/protocol/errors';
 import { arenaBuild } from '@/state/arena-build';
 import { character as characterStore } from '@/state/character';
 import { connection } from '@/state/connection';
@@ -207,6 +208,11 @@ function WorldOverlay({
   }, [rest, me, keepSaves]);
   useEffect(() => (me === '' ? undefined : watchPvpProfile(rest, socket, me)), [rest, socket, me]);
   useEffect(() => watchPlaySettings(rest, (text) => toasts.getState().push(text)), [rest]);
+  // Any call a rate limit refused says so, whether its caller tells its own failures or keeps quiet.
+  useEffect(
+    () => rest.onLimited(() => toasts.getState().push(errorText(ERR.RATE_LIMITED))),
+    [rest],
+  );
   return (
     <>
       <Hud />

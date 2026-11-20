@@ -4,7 +4,7 @@ import type { PvpProfile, PvpStanding } from '@/net/rest';
 import { arenaBuild } from '@/state/arena-build';
 import { pvpProfile } from '@/state/pvp-profile';
 
-import { watchPvpProfile } from './watchProfile';
+import { PROFILE_FRESH_MS, watchPvpProfile } from './watchProfile';
 
 function standing(shown: number): PvpStanding {
   return {
@@ -61,17 +61,39 @@ describe('the PvP profile', () => {
     h.stop();
   });
 
-  it('is read again after a match ends, a promotion or an ask, the newest read landing alone', async () => {
+  it('is read again after a match ends or a promotion, even with a read under way, the newest landing alone', async () => {
     const h = harness();
     h.handlers.get('matchEnded')!();
     h.handlers.get('promoted')!();
-    pvpProfile.getState().ask();
-    expect(h.getPvpProfile).toHaveBeenCalledTimes(4);
-    h.reads[3]!.resolve(profile(1700));
+    expect(h.getPvpProfile).toHaveBeenCalledTimes(3);
+    h.reads[2]!.resolve(profile(1700));
     h.reads[0]!.resolve(profile(1000)); // the first, landing last
     await h.settle();
     expect(pvpProfile.getState().standings).toEqual([standing(1700)]);
     h.stop();
+  });
+
+  it('answers an ask with a read only when none is under way or landed in the last 10 s', async () => {
+    const clock = vi.spyOn(performance, 'now').mockReturnValue(1000);
+    const h = harness();
+    pvpProfile.getState().ask(); // the first read is still out
+    expect(h.getPvpProfile).toHaveBeenCalledTimes(1);
+    h.reads[0]!.resolve(profile(1640));
+    await h.settle();
+    clock.mockReturnValue(1000 + PROFILE_FRESH_MS - 1);
+    pvpProfile.getState().ask();
+    expect(h.getPvpProfile).toHaveBeenCalledTimes(1);
+    clock.mockReturnValue(1000 + PROFILE_FRESH_MS);
+    pvpProfile.getState().ask();
+    expect(h.getPvpProfile).toHaveBeenCalledTimes(2);
+    h.reads[1]!.reject(new Error('limited'));
+    await h.settle();
+    pvpProfile.getState().ask(); // a failed read is no fresh one
+    expect(h.getPvpProfile).toHaveBeenCalledTimes(3);
+    h.handlers.get('matchEnded')!(); // a match's end reads whatever the last did
+    expect(h.getPvpProfile).toHaveBeenCalledTimes(4);
+    h.stop();
+    clock.mockRestore();
   });
 
   it('a read that fails keeps the standings it had', async () => {

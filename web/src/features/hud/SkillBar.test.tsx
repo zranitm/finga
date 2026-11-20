@@ -253,6 +253,13 @@ describe('SkillBar', () => {
     const skill = dataTransfer();
     skill.setData(SKILL_DRAG_TYPE, 'strike');
     expect(fireEvent.dragOver(key(3), { dataTransfer: skill })).toBe(true); // not taken: no drop follows
+    fireEvent.drop(key(3), { dataTransfer: skill }); // a drop that comes anyway
+    const moved = dataTransfer();
+    fireEvent.dragStart(key(1), { dataTransfer: moved }); // a drag the worn key doesn't offer
+    fireEvent.drop(key(2), { dataTransfer: moved });
+    fireEvent.drop(document.body, { dataTransfer: moved });
+    fireEvent.dragEnd(key(1), { dataTransfer: moved });
+    expect(skillBar.getState().edits).toBe(0);
     act(() => skillBar.getState().unwear());
     expect(screen.getByRole('list', { name: 'Skill bar' })).not.toHaveAttribute('title');
     expect(key(1)).toHaveAccessibleName(/^Key Q: Strike/);

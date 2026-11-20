@@ -20,7 +20,7 @@ var (
 	ErrSlotsFull        = errors.New("character: account has no free character slot")
 	ErrBadSkill         = errors.New("character: a skill with no ID or one listed twice, unspent skill points below 0, or points below 1")
 	ErrBadQuest         = errors.New("character: a quest with no ID or one listed twice, an unknown status, a negative count, or finished without a completion")
-	ErrBadSkillBar      = errors.New("character: a skill bar without eight keys, or with a key holding a skill that isn't an active one in the game data")
+	ErrBadSkillBar      = errors.New("character: a skill bar without eight keys, or with a key holding a skill that isn't an active one in the game data, or a follow-up of the character's class")
 	ErrBadSkillTimer    = errors.New("character: a skill timer with no skill, an unknown kind, listed twice, or a buff without points")
 	ErrBadWaypoint      = errors.New("character: a found waypoint with no ID, or one listed twice")
 	ErrBadCheckpoint    = errors.New("character: a checkpoint or level-up with a number its column can't hold: a level below 1, a negative count, exp or HP, energy past 32767, or a position that isn't a finite float32")

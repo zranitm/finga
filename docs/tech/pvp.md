@@ -264,6 +264,7 @@ bots:
   - **The save delay** is the skill bar's own.
 - **As built (step 4b):**
   - **A trait** may be any of the class's active skills', not only those on the bar, so a follow-up's can be chosen. A trait for another class's skill is `BAD_PVP_BUILD`.
+  - **A follow-up on a key of its own** is `BAD_PVP_BUILD`, as the client refuses that drop: it rides on its root's key. The world bar's save refuses one too. The copy still leaves one off, for a world bar a promotion's chains would make one in, so a copy is always a build the server would take.
   - **The countdown tells each player their build:** `ArenaBar` carries the bar the match put on, and a `StatsChanged` sent with it carries the traits. So the client shows exactly the bar the match judges, from the same countdown.
 
 ## 7. Match rules
@@ -624,12 +625,14 @@ As built for builds and ranks (step 4b):
   - The class's active skills, each at the kit's points, a follow-up's with its chain mark. No points to spend.
   - Every trait open, chosen with the same diamonds as in the world, and saved with the build. A choice of the default is kept as none, as the world keeps it.
   - The arena bar under the grid: a skill dragged from the grid goes on a key, keys swap, and one dropped off the bar empties. A follow-up dropped on a key is refused, as on the skill bar. Its keys drag apart from the skill bar's, so neither bar takes the other's.
-  - **The save** is the skill bar's: 800 ms after the last change, at once on leaving the world or closing the tab, one at a time. Leaving waits for every save, the skill bar's and the build's both.
+  - **The save** is the skill bar's: 800 ms after the last change, at once on leaving the world, closing the tab or closing the skill window, one at a time. Leaving waits for every save, the skill bar's and the build's both. Closing the window saves the skill bar's change too, so a queue straight after fights with both.
   - The build comes from the profile, and is taken while the player hasn't changed theirs. Once they have, theirs is the newest.
 - **The profile** is read on entering the world, after each `MatchEnded` and promotion, and as the Arena window opens. Only the newest read lands, and a failed one keeps the last.
+  - The window's opening reads only when no read is under way and none landed in the last 10 s, so opening and shutting it in a burst spends one call of the account's REST limit.
+- **A rate limit's refusal,** a 429 on any REST call, shows "Too fast. Wait a moment." as a toast while the player is in the world, whether or not its caller tells its own failures. The same words already showing aren't stacked twice.
 - **The skill bar in a match:** from each countdown it holds the arena bar `ArenaBar` names, and back out of the match the world bar.
   - The world bar stays the player's own: a change waiting as a match starts still saves the world bar, never the match's.
-  - While the arena bar is on, its keys take no drags or drops, and the tooltip points to the Arena tab.
+  - While the arena bar is on, its keys take no drags or drops, and the tooltip points to the Arena tab. A drag or drop that comes anyway, as a script's could, changes nothing.
   - A player whose build didn't reach the match keeps the world bar on screen, and no key of it is refused.
 - **The Arena window:**
   - **Play:** each rated card adds the player's rating and rank, with their place once placed, or "Placing (2 of 5)", and their record. Nothing shows until the profile is read.

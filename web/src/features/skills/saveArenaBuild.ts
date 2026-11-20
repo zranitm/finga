@@ -1,4 +1,4 @@
-// The arena build is saved as the skill bar is: a moment after the player's last change, and at once on leaving the world or closing the tab.
+// The arena build is saved as the skill bar is: a moment after the player's last change, and at once on leaving the world, closing the tab or closing the skill window.
 import { saveQueue } from '@/lib/save-queue';
 import { RestError } from '@/net/rest';
 import type { RestClient } from '@/net/rest';
@@ -26,6 +26,9 @@ export function watchArenaBuild(
   const off = arenaBuild.subscribe((now, before) => {
     if (now.edits !== before.edits) {
       queue.changed();
+    }
+    if (now.saveAsks !== before.saveAsks) {
+      queue.flush();
     }
   });
   return () => {

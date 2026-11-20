@@ -118,9 +118,12 @@ export interface RestClient {
   /** A match the character is in fights with it from its next round's countdown. */
   putArenaBuild(characterId: string, build: ArenaBuild): Promise<ArenaBuild>;
   getLeaderboard(mode: string): Promise<Leaderboard>;
+  /** Calls hear on each answer a rate limit refused, 429, until the returned off. */
+  onLimited(hear: () => void): () => void;
 }
 
 export function createRestClient(): RestClient {
+  const limited = new Set<() => void>();
   async function call<T>(
     method: string,
     path: string,
@@ -148,6 +151,9 @@ export function createRestClient(): RestClient {
         `finga: ${method} ${path} reached no server: ${err instanceof Error ? err.message : String(err)}`,
       );
       throw new RestError(0, 'network', noAnswerText.network);
+    }
+    if (res.status === 429) {
+      limited.forEach((hear) => hear());
     }
     if (res.status === 204) {
       return undefined as T;
@@ -218,6 +224,10 @@ export function createRestClient(): RestClient {
       ),
     getLeaderboard: (mode) =>
       call<Leaderboard>('GET', `/api/pvp/leaderboard?mode=${encodeURIComponent(mode)}`),
+    onLimited: (hear) => {
+      limited.add(hear);
+      return () => limited.delete(hear);
+    },
   };
 }
 

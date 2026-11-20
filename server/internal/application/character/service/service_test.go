@@ -119,7 +119,7 @@ func TestCreate(t *testing.T) {
 	})
 }
 
-// The skill bar holds eight keys, each empty or an active skill in the game data; only the owner sets it.
+// The skill bar holds eight keys, each empty or an active skill in the game data, none a follow-up of the character's class; only the owner sets it.
 func TestSetSkillBar(t *testing.T) {
 	ctx := context.Background()
 	svc, _, _ := newService(t)
@@ -133,12 +133,13 @@ func TestSetSkillBar(t *testing.T) {
 		{"nine keys", []string{"strike", "", "", "", "", "", "", "", ""}},
 		{"a skill the data doesn't have", []string{"fireball", "", "", "", "", "", "", ""}},
 		{"a passive skill", []string{"second_wind", "", "", "", "", "", "", ""}},
+		{"a follow-up, which rides on its root's key", []string{"strike", "", "", "", "", "", "", "lunge"}},
 	} {
 		if err := svc.SetSkillBar(ctx, a.ID, alice, c.bar); !errors.Is(err, model.ErrBadSkillBar) {
 			t.Fatalf("%s: %v, want ErrBadSkillBar", c.name, err)
 		}
 	}
-	bar := []string{"strike", "", "spark", "", "", "throw", "", "lunge"}
+	bar := []string{"strike", "", "spark", "", "", "throw", "", "roll_back"}
 	if err := svc.SetSkillBar(ctx, a.ID, bob, bar); !errors.Is(err, model.ErrNotFound) {
 		t.Fatalf("someone else's: %v, want ErrNotFound", err)
 	}

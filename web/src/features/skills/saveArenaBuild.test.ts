@@ -63,6 +63,19 @@ describe('saving the arena build', () => {
     expect(putArenaBuild).toHaveBeenCalledTimes(2);
   });
 
+  it('an ask to save now, as the skill window closes, saves a change still waiting at once, and nothing when none is', () => {
+    const { putArenaBuild, stop } = watched();
+    arenaBuild.getState().load({ skill_bar: ['strike'], traits: {} });
+    arenaBuild.getState().saveNow();
+    expect(putArenaBuild).not.toHaveBeenCalled();
+    arenaBuild.getState().put(0, 'taunt');
+    arenaBuild.getState().saveNow();
+    expect(putArenaBuild).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(SAVE_DELAY_MS);
+    expect(putArenaBuild).toHaveBeenCalledTimes(1);
+    void stop();
+  });
+
   it('a refusal says the server’s words, no answer says it couldn’t save, and the build stays as the player left it', async () => {
     const answers = [
       () =>
