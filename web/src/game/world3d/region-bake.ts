@@ -1,7 +1,7 @@
 // A region's bake as cmd/regionbake writes it (large-regions.md section 3): region.json, the 8 m overview and the 64 m chunks, all little-endian.
 
 /** The bake format this client reads; any other is refused. */
-export const BAKE_FORMAT = 2;
+export const BAKE_FORMAT = 3;
 
 /** Which bake of which region: its id, and the hash its folder is named by. */
 export interface RegionRef {
@@ -17,6 +17,10 @@ export interface Region {
   readonly cell: number;
   readonly chunk: number;
   readonly chunks: readonly [number, number];
+  /** The region's lowest and highest ground. */
+  readonly heights: readonly [number, number];
+  /** How many cylinders and boxes the region has, which its chunks' solids index into, and the farthest any reaches from its centre, so from the chunk that carries it. */
+  readonly solids: { readonly cylinders: number; readonly boxes: number; readonly reach: number };
   /** Each ground's colour, 0xrrggbb sRGB, by the index chunks and the overview hold. */
   readonly palette: readonly number[];
   /** Each kit model's key, by the index a chunk's props hold. */
@@ -38,14 +42,23 @@ export interface ChunkProps {
   readonly at: Float32Array;
 }
 
-/** One chunk: n samples a side, its edges shared with its neighbours; (n+2)² heights, a border a sample wide round its own; n² colours; and the props whose centres it holds. */
+/** A chunk's solids of one kind: each one's index in the region's list, and its numbers, per of them to a solid. */
+export interface ChunkSolids {
+  readonly index: Uint32Array;
+  readonly at: Float32Array;
+}
+
+/** One chunk: n samples a side, its edges shared with its neighbours; (n+2)² heights, a border a sample wide round its own; n² colours and deep-water marks; and the props and solids whose centres it holds, cylinders as x, z, radius and top, boxes as x, z, half width, half depth, ux, uz and top. */
 export interface Chunk {
   readonly cx: number;
   readonly cz: number;
   readonly n: number;
   readonly heights: Float32Array;
   readonly colours: Uint8Array;
+  readonly deep: Uint8Array;
   readonly props: ChunkProps;
+  readonly cylinders: ChunkSolids;
+  readonly boxes: ChunkSolids;
 }
 
 /** Where a bake's files are served. */
@@ -84,6 +97,8 @@ interface RegionJson {
   readonly cell: number;
   readonly chunk: number;
   readonly chunks: [number, number];
+  readonly heights: [number, number];
+  readonly solids: { readonly cylinders: number; readonly boxes: number; readonly reach: number };
   readonly palette: readonly { readonly name: string; readonly rgb: string }[];
   readonly models: readonly string[];
 }
@@ -99,6 +114,8 @@ function parseRegion(ref: RegionRef, j: RegionJson): Region {
     cell: j.cell,
     chunk: j.chunk,
     chunks: j.chunks,
+    heights: j.heights,
+    solids: j.solids,
     palette: j.palette.map((c) => parseInt(c.rgb.slice(1), 16)),
     models: j.models,
   };
@@ -106,6 +123,9 @@ function parseRegion(ref: RegionRef, j: RegionJson): Region {
 
 /** Reads a file's magic, format and three fields, and refuses another magic or format. */
 function header(buf: ArrayBuffer, magic: string): [number, number, number] {
+  if (buf.byteLength < HEADER) {
+    throw new Error(`not a format ${BAKE_FORMAT} ${magic}: ${buf.byteLength} bytes`);
+  }
   const v = new DataView(buf);
   const got = String.fromCharCode(...new Uint8Array(buf, 0, 4));
   if (got !== magic || v.getUint16(4, true) !== BAKE_FORMAT) {
@@ -129,23 +149,49 @@ export function readOverview(buf: ArrayBuffer, cell: number): Overview {
   };
 }
 
-/** A chunk file: "FRCK", its x, z and samples a side; its bordered heights, its colours padded to 4 bytes, then its props. */
+/** A chunk file: "FRCK", its x, z and samples a side; its bordered heights, its colours and its deep-water marks each padded to 4 bytes, then its props, cylinders and boxes; one that ends early or runs on past them throws. */
 export function readChunk(buf: ArrayBuffer): Chunk {
   const [cx, cz, n] = header(buf, 'FRCK');
   const v = new DataView(buf);
-  const heights = new Float32Array(buf, HEADER, (n + 2) * (n + 2));
-  let at = HEADER + heights.byteLength;
-  const colours = new Uint8Array(buf, at, n * n);
-  at += (n * n + 3) & ~3;
-  const count = v.getUint32(at, true);
-  at += 4;
+  let at = HEADER;
+  /** The offset of the next bytes, taken. */
+  const take = (bytes: number): number => {
+    if (at + bytes > buf.byteLength) {
+      throw new Error(`chunk ${cx}_${cz} ends ${at + bytes - buf.byteLength} bytes early`);
+    }
+    at += bytes;
+    return at - bytes;
+  };
+  const heights = new Float32Array(buf, take(4 * (n + 2) ** 2), (n + 2) ** 2);
+  const colours = new Uint8Array(buf, take((n * n + 3) & ~3), n * n);
+  const deep = new Uint8Array(buf, take((n * n + 3) & ~3), n * n);
+  const count = v.getUint32(take(4), true);
   const models = new Uint16Array(count);
   const placed = new Float32Array(3 * count);
-  for (let i = 0; i < count; i++, at += 16) {
-    models[i] = v.getUint16(at, true);
-    placed[3 * i] = v.getFloat32(at + 4, true);
-    placed[3 * i + 1] = v.getFloat32(at + 8, true);
-    placed[3 * i + 2] = v.getFloat32(at + 12, true);
+  for (let i = 0; i < count; i++) {
+    const p = take(16);
+    models[i] = v.getUint16(p, true);
+    placed[3 * i] = v.getFloat32(p + 4, true);
+    placed[3 * i + 1] = v.getFloat32(p + 8, true);
+    placed[3 * i + 2] = v.getFloat32(p + 12, true);
   }
-  return { cx, cz, n, heights, colours, props: { models, at: placed } };
+  const solids = (per: number): ChunkSolids => {
+    const count = v.getUint32(take(4), true);
+    const index = new Uint32Array(count);
+    const numbers = new Float32Array(per * count);
+    for (let i = 0; i < count; i++) {
+      const p = take(4 + 4 * per);
+      index[i] = v.getUint32(p, true);
+      for (let k = 0; k < per; k++) {
+        numbers[per * i + k] = v.getFloat32(p + 4 + 4 * k, true);
+      }
+    }
+    return { index, at: numbers };
+  };
+  const cylinders = solids(4);
+  const boxes = solids(7);
+  if (at !== buf.byteLength) {
+    throw new Error(`chunk ${cx}_${cz} runs ${buf.byteLength - at} bytes past its end`);
+  }
+  return { cx, cz, n, heights, colours, deep, props: { models, at: placed }, cylinders, boxes };
 }

@@ -13,9 +13,12 @@ export interface ConnectionState {
   readonly rtt: number | null;
   /** The socket is open but the world has sent no frame for a while; the scene holds the player still. */
   readonly worldStalled: boolean;
+  /** The region's ground round the player hasn't come yet; the scene holds their keys. */
+  readonly groundLoading: boolean;
   setConnection(status: ConnectionStatus, extra?: { attempt?: number; kick?: KickReason }): void;
   setRtt(rtt: number | null): void;
   setWorldStalled(stalled: boolean): void;
+  setGroundLoading(loading: boolean): void;
 }
 
 export const connection = defineStore<ConnectionState>((set) => ({
@@ -24,6 +27,7 @@ export const connection = defineStore<ConnectionState>((set) => ({
   kick: null,
   rtt: null,
   worldStalled: false,
+  groundLoading: false,
   setConnection: (status, extra = {}) => {
     set({
       status,
@@ -36,5 +40,8 @@ export const connection = defineStore<ConnectionState>((set) => ({
   },
   setWorldStalled: (worldStalled) => {
     set({ worldStalled });
+  },
+  setGroundLoading: (groundLoading) => {
+    set({ groundLoading });
   },
 }));

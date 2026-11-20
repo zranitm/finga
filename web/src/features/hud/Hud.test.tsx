@@ -290,4 +290,16 @@ describe('ConnectionNotice', () => {
     act(() => connection.getState().setWorldStalled(false));
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
+
+  it('a region’s ground still coming says it loads, after a stall', () => {
+    act(() => connection.getState().setConnection('connected'));
+    render(<ConnectionNotice />);
+    act(() => connection.getState().setGroundLoading(true));
+    expect(screen.getByRole('status')).toHaveTextContent('Loading the ground…');
+    act(() => connection.getState().setWorldStalled(true));
+    expect(screen.getByRole('status')).toHaveTextContent('Waiting for the server…');
+    act(() => connection.getState().setWorldStalled(false));
+    act(() => connection.getState().setGroundLoading(false));
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
 });

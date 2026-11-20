@@ -127,7 +127,10 @@ describe("a region's ground as vertex arrays", () => {
       h((i % (n + 2)) - 1, Math.floor(i / (n + 2)) - 1),
     ),
     colours: new Uint8Array(n * n),
+    deep: new Uint8Array(n * n),
     props: readChunk(tinyFile('chunks/0_0.bin')).props,
+    cylinders: { index: new Uint32Array(0), at: new Float32Array(0) },
+    boxes: { index: new Uint32Array(0), at: new Float32Array(0) },
   });
 
   it('leans each normal by the slope either side of its sample, its border’s too', () => {

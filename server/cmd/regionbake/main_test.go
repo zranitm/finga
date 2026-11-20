@@ -15,10 +15,13 @@ import (
 
 const tinyPlan = "testdata/tiny.yaml"
 
-var update = flag.Bool("update", false, "rewrite the web client's fixture from the tiny bake")
+var update = flag.Bool("update", false, "rewrite the web client's fixtures from the test plans' bakes")
 
-// clientFixture is the tiny bake the web client's tests read, its tiles aside.
-const clientFixture = "../../../web/src/testing/regions/tiny"
+// clientFixtures are the bakes the web client's tests read, their tiles aside, by plan: the tiny one, and one as steep as the wide plan gets for the movement vectors.
+var clientFixtures = map[string]string{
+	tinyPlan:              "../../../web/src/testing/regions/tiny",
+	"testdata/steep.yaml": "../../../web/src/testing/regions/steep",
+}
 
 // A plan's bake lands under <id>/<hash>/, each file as the region bakes it, a tile as its pixels; a stale bake goes and nothing else under out is touched; the preview lands as <id>.png.
 func TestABakeIsWrittenUnderItsHash(t *testing.T) {
@@ -36,7 +39,7 @@ func TestABakeIsWrittenUnderItsHash(t *testing.T) {
 	if err := run("../../data", out, preview, tinyPlan); err != nil {
 		t.Fatal(err)
 	}
-	b := tinyBake(t)
+	b := bakeOf(t, tinyPlan)
 	dir := filepath.Join(out, "tiny", b.Folder())
 	for _, f := range b.Files {
 		raw, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(f.Path)))
@@ -90,9 +93,9 @@ func TestNothingIsWrittenWithoutAPlaceOrWithBadData(t *testing.T) {
 	}
 }
 
-func tinyBake(t *testing.T) regiongen.Bake {
+func bakeOf(t *testing.T, plan string) regiongen.Bake {
 	t.Helper()
-	raw, err := os.ReadFile(tinyPlan)
+	raw, err := os.ReadFile(plan)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,14 +139,20 @@ func TestABakeIsRenamedIntoPlaceWhole(t *testing.T) {
 	if len(left) != 0 {
 		t.Errorf("half-written bakes left: %v", left)
 	}
-	if _, err := os.Stat(filepath.Join(out, "tiny", tinyBake(t).Folder(), "region.json")); err != nil {
+	if _, err := os.Stat(filepath.Join(out, "tiny", bakeOf(t, tinyPlan).Folder(), "region.json")); err != nil {
 		t.Errorf("the bake isn't in place: %v", err)
 	}
 }
 
-// The web client's tests read the bake Go writes, so its reader is checked against these bytes and not a copy of the format: run with -update after a change to the format or the generator.
-func TestTheClientsFixtureIsTheTinyBake(t *testing.T) {
-	b := tinyBake(t)
+// The web client's tests read the bakes Go writes, so its reader is checked against these bytes and not a copy of the format: run with -update after a change to the format or the generator.
+func TestTheClientsFixturesAreTheTestBakes(t *testing.T) {
+	for plan, fixture := range clientFixtures {
+		t.Run(filepath.Base(plan), func(t *testing.T) { checkFixture(t, bakeOf(t, plan), fixture) })
+	}
+}
+
+// checkFixture checks the fixture folder holds b's files but its tiles, byte for byte, and nothing else; -update writes them.
+func checkFixture(t *testing.T, b regiongen.Bake, clientFixture string) {
 	var want []string
 	for _, f := range b.Files {
 		if f.Tile != nil {
@@ -164,7 +173,7 @@ func TestTheClientsFixtureIsTheTinyBake(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !bytes.Equal(raw, f.Data) {
-			t.Errorf("%s differs from the tiny bake's (go test ./cmd/regionbake -run TestTheClientsFixtureIsTheTinyBake -update)", f.Path)
+			t.Errorf("%s differs from its bake's (go test ./cmd/regionbake -run TestTheClientsFixturesAreTheTestBakes -update)", f.Path)
 		}
 	}
 	var got []string

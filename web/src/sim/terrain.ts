@@ -5,37 +5,49 @@ export interface Terrain {
   readonly cell: number;
   readonly nx: number; // samples along x
   readonly nz: number; // samples along z
-  readonly heights: readonly number[]; // row by row from z = 0, each row from x = 0
-  readonly deepWater?: readonly boolean[]; // per sample, as heights: under water too deep to wade; none on a map without water
-  readonly steepX: readonly boolean[]; // per cell: a rise across either of its x edges exceeds max_slope × cell
-  readonly steepZ: readonly boolean[]; // likewise across its z edges
+  readonly heights: readonly number[] | Float32Array; // row by row from z = 0, each row from x = 0
+  readonly deepWater?: Uint8Array; // per sample, as heights, 1 under water too deep to wade; none on a map without water
+  readonly steepX: Uint8Array; // per cell, 1 where a rise across either of its x edges exceeds max_slope × cell
+  readonly steepZ: Uint8Array; // likewise across its z edges
 }
 
-/** The grid with its steep marks for maxSlope, a rise per metre, and its deep water's samples if it has any. */
+/** The grid with its steep marks for maxSlope, a rise per metre. */
 export function terrain(
   cell: number,
   nx: number,
   nz: number,
-  heights: readonly number[],
+  heights: readonly number[] | Float32Array,
   maxSlope: number,
-  deepWater?: readonly boolean[],
 ): Terrain {
-  const limit = maxSlope * cell;
-  const steepX: boolean[] = [];
-  const steepZ: boolean[] = [];
-  for (let iz = 0; iz < nz - 1; iz++) {
-    for (let ix = 0; ix < nx - 1; ix++) {
+  const steepX = new Uint8Array((nx - 1) * (nz - 1));
+  const steepZ = new Uint8Array((nx - 1) * (nz - 1));
+  markSteep(heights, nx, maxSlope * cell, steepX, steepZ, 0, nx - 2, 0, nz - 2);
+  return { cell, nx, nz, heights, steepX, steepZ };
+}
+
+/** Marks cells ix0 to ix1 by iz0 to iz1 of an nx-sample-wide grid steep along x or z where a rise across an edge that way exceeds limit, max_slope × cell. */
+export function markSteep(
+  heights: ArrayLike<number>,
+  nx: number,
+  limit: number,
+  steepX: Uint8Array,
+  steepZ: Uint8Array,
+  ix0: number,
+  ix1: number,
+  iz0: number,
+  iz1: number,
+): void {
+  for (let iz = iz0; iz <= iz1; iz++) {
+    for (let ix = ix0; ix <= ix1; ix++) {
       const h00 = heights[iz * nx + ix]!;
       const h10 = heights[iz * nx + ix + 1]!;
       const h01 = heights[(iz + 1) * nx + ix]!;
       const h11 = heights[(iz + 1) * nx + ix + 1]!;
-      steepX.push(Math.abs(h10 - h00) > limit || Math.abs(h11 - h01) > limit);
-      steepZ.push(Math.abs(h01 - h00) > limit || Math.abs(h11 - h10) > limit);
+      const c = iz * (nx - 1) + ix;
+      steepX[c] = Math.abs(h10 - h00) > limit || Math.abs(h11 - h01) > limit ? 1 : 0;
+      steepZ[c] = Math.abs(h01 - h00) > limit || Math.abs(h11 - h10) > limit ? 1 : 0;
     }
   }
-  return deepWater
-    ? { cell, nx, nz, heights, deepWater, steepX, steepZ }
-    : { cell, nx, nz, heights, steepX, steepZ };
 }
 
 /** The cell holding coordinate v along an axis of n samples, and how far into it v lies, 0 to 1. */
@@ -75,12 +87,12 @@ export function deep(t: Terrain, x: number, z: number): boolean {
   const [ix] = at(t, x, t.nx);
   const [iz] = at(t, z, t.nz);
   const i = iz * t.nx + ix;
-  return w[i]! || w[i + 1]! || w[i + t.nx]! || w[i + t.nx + 1]!;
+  return w[i] === 1 || w[i + 1] === 1 || w[i + t.nx] === 1 || w[i + t.nx + 1] === 1;
 }
 
 /** Whether the cell holding (x, z) is steep along x, or along z when alongZ. */
 export function steep(t: Terrain, x: number, z: number, alongZ: boolean): boolean {
   const [ix] = at(t, x, t.nx);
   const [iz] = at(t, z, t.nz);
-  return (alongZ ? t.steepZ : t.steepX)[iz * (t.nx - 1) + ix]!;
+  return (alongZ ? t.steepZ : t.steepX)[iz * (t.nx - 1) + ix] === 1;
 }

@@ -32,6 +32,7 @@ export function run(
       models: (file) => `${import.meta.env.BASE_URL}models/${file}`,
       chunks: workerChunks(CHUNK_WORKERS),
       now: () => performance.now(),
+      reload: () => location.reload(),
     },
     arriving,
   );

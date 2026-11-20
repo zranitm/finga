@@ -150,17 +150,12 @@ function slim(id: string) {
   };
 }
 
-/** Map id drawn from the tiny region's bake, 128 m square. */
+/** Map id drawn from the tiny region's bake, 128 m square, its ground the bake's as mapjson writes a region, with a gate in its river 3 m below the bank. */
 function regioned(id: string) {
-  const m = bare(id);
   return {
-    ...m,
-    geometry: {
-      ...m.geometry,
-      size_x: 128,
-      size_z: 128,
-      terrain: { cell: 8, nx: 17, nz: 17, heights: Array<number>(17 * 17).fill(0) },
-    },
+    ...bare(id),
+    geometry: undefined,
+    portals: [{ name: 'gate', at: [96, 74], radius: 1.2, to: FLAT }],
     region: TINY,
   };
 }
@@ -228,12 +223,21 @@ interface Playing {
   sent(t: string): Record<string, unknown>[];
   root(file: string): TransformNode | undefined;
   label(key: string): string | null | undefined;
+  /** The veil's opacity: '1' down, '0' lifted. */
+  veil(): string;
+  /** Where label key stands on the screen, its bottom's y in pixels. */
+  labelBottom(key: string): number;
   push: FakeWebSocket['push'];
 }
 
 const open: { world: World; socket: GameSocket; engine: NullEngine; left?: boolean }[] = [];
-/** The chunks worlds asked for, each built here, and how often a world closed its source. */
-const chunkWork = { builds: [] as Promise<unknown>[], closed: 0 };
+/** The chunks worlds asked for, each built here but those whose files failing names part of, as chunks/1_0.bin, how often a world closed its source, and how often one reloaded the page. */
+const chunkWork = {
+  builds: [] as Promise<unknown>[],
+  closed: 0,
+  failing: '',
+  reloads: 0,
+};
 /** A model file served as junk, as a broken download would be. */
 let broken = '';
 
@@ -267,7 +271,10 @@ async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Pr
           : new Uint8Array(readFileSync(path.join(MODELS, file))),
       chunks: {
         build: (req) => {
-          const b = buildChunk(req);
+          const b =
+            chunkWork.failing !== '' && req.url.includes(chunkWork.failing)
+              ? Promise.reject(new Error('gone'))
+              : buildChunk(req);
           chunkWork.builds.push(b);
           return b;
         },
@@ -276,6 +283,7 @@ async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Pr
         },
       },
       now: () => t,
+      reload: () => chunkWork.reloads++,
     },
     arriving,
   );
@@ -310,6 +318,16 @@ async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Pr
     root: (file) =>
       engine.scenes.at(-1)?.transformNodes.find((n) => n.name === file && n.isEnabled()),
     label: (key) => parent.querySelector(`[data-label="${key}"]`)?.textContent,
+    veil: () =>
+      [...parent.querySelectorAll<HTMLElement>('div')].find(
+        (d) => d.style.background === 'rgb(10, 12, 22)',
+      )!.style.opacity,
+    labelBottom: (key) =>
+      Number(
+        /,\s*(-?[\d.]+)px\)$/.exec(
+          parent.querySelector<HTMLElement>(`[data-label="${key}"]`)!.style.transform,
+        )![1],
+      ),
     push: (...args) => ws.push(...args),
   };
   await vi.waitFor(() => expect(p.root(classLook(cls).file)).toBeDefined(), WAIT);
@@ -433,6 +451,7 @@ describe('World', () => {
     }
     document.body.replaceChildren();
     broken = '';
+    chunkWork.failing = '';
     vi.unstubAllGlobals();
     vi.useRealTimers();
     clearToken();
@@ -447,6 +466,94 @@ describe('World', () => {
     p.frames(10);
     expect(p.inputs() - before).toBe(10);
     expect(p.label('me')).toBe('Ayla');
+  });
+
+  it('holds the keys, attacks and skills till the region’s ground round the player comes, saying so, and lifts the veil once the chunks they see are drawn', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const p = await playing(REGIONED, 30, 60);
+    expect([connection.getState().groundLoading, p.veil()]).toEqual([true, '1']);
+    key('ArrowRight', true);
+    const from = p.inputs();
+    p.frames(6);
+    key('KeyX', true);
+    key('KeyX', false);
+    expect(p.inputs()).toBeGreaterThan(from); // an input each tick still, every key let go
+    expect(
+      p
+        .sent('input')
+        .slice(from)
+        .some((d) => d.right === true),
+    ).toBe(false);
+    expect(p.sent('attack')).toEqual([]);
+    await Promise.allSettled(chunkWork.builds);
+    await new Promise<void>((r) => setImmediate(r));
+    p.frames(1);
+    expect(connection.getState().groundLoading).toBe(false);
+    expect(p.veil()).toBe('1'); // two chunks made a frame: half drawn
+    p.frames(1);
+    expect(p.veil()).toBe('0');
+    p.frames(3);
+    expect(p.sent('input').at(-1)?.right).toBe(true); // the key still down walks on
+    key('ArrowRight', false);
+    key('KeyX', true);
+    key('KeyX', false);
+    expect(p.sent('attack')).toHaveLength(1);
+  });
+
+  it('lets the ground’s notice go with a region left while its ground was coming', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const p = await playing(REGIONED, 30, 60);
+    expect(connection.getState().groundLoading).toBe(true);
+    changeMap(p, { mapId: FLAT, x: 4, y: 0, z: 20, yaw: 0 });
+    expect(connection.getState().groundLoading).toBe(false);
+  });
+
+  it('holds the keys near a chunk that won’t come: within the farthest a skill carries a body, its radius, and the region’s widest solid', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    chunkWork.failing = 'chunks/1_0.bin';
+    const held = async (x: number, z: number) => {
+      const p = await playing(REGIONED, x, z);
+      await Promise.allSettled(chunkWork.builds);
+      await new Promise<void>((r) => setImmediate(r));
+      p.frames(1);
+      return connection.getState().groundLoading;
+    };
+    const reach = 10.5 + 0.375 + Math.hypot(3, 3.5); // Shadow Dance's blink, the body's radius, the 6 m by 7 m house
+    expect(await held(64 - reach + 0.01, 30)).toBe(true); // chunk 1_0 starts at x 64
+    expect(await held(64 - reach - 0.01, 30)).toBe(false);
+  });
+
+  it('reloads the page once, saying why, when a region’s chunks have failed every try', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    vi.spyOn(Math, 'random').mockReturnValue(0); // no backoff between tries
+    chunkWork.failing = 'chunks/1_'; // 1_0 and 1_1
+    const p = await playing(REGIONED, 30, 60);
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    const reloads = chunkWork.reloads;
+    for (let i = 0; i < 5; i++) {
+      await Promise.allSettled(chunkWork.builds);
+      await new Promise<void>((r) => setImmediate(r));
+      p.frames(1);
+    }
+    expect(
+      toasts.getState().toasts.filter((t) => t.text === 'The map’s ground didn’t load. Reloading…'),
+    ).toHaveLength(1);
+    vi.advanceTimersByTime(2900);
+    expect(chunkWork.reloads).toBe(reloads); // the notice shows first
+    vi.advanceTimersByTime(100);
+    expect(chunkWork.reloads).toBe(reloads + 1);
+  });
+
+  it('stands a region’s gate label on its ground once the chunk under it comes', async () => {
+    const p = await playing(REGIONED, 86, 70);
+    expect(p.label('portal:gate')).toBe(`To ${maps.find((m) => m.id === FLAT)!.name}`);
+    const below = () => p.labelBottom('portal:gate') - p.labelBottom('me'); // the gate's 6 m off: the camera's easing moves both
+    p.frames(3);
+    const before = below(); // over ground not come, read flat at 0
+    await Promise.allSettled(chunkWork.builds);
+    await new Promise<void>((r) => setImmediate(r));
+    p.frames(1);
+    expect(below()).toBeGreaterThan(before + 10); // down on the river's bed, 2.4 m under the bank the player stands on
   });
 
   it('draws a map whose data names a region from that bake, streaming its chunks round the camera', async () => {
