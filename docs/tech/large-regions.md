@@ -741,6 +741,7 @@ Built with step 1, which says who watches a cell.
 6. **Waypoints and teleport:** finding, storage, `Teleport{waypoint}`, and the map views' waypoints.
 7. **The soak:** cmd/bot on regions, and the budget run. `world.channels.cap` is set.
 8. **The green region:** its design first, then its build.
+   - When regions join the world chart, its party names say each member's channel ("Bo · Ch. 2"), in a picked map's list and under its node. 4b-3b left these two lists alone, as no region was charted.
 9. **The desert,** then **the snow mountains.**
 
 Steps 1–3 change nothing on today's maps that a player sees, so they can land while PvP builds. Step 4 shares on-demand instances with PvP's step 1.
