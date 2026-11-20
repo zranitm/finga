@@ -264,7 +264,7 @@ bots:
   - **The save delay** is the skill bar's own.
 - **As built (step 4b):**
   - **A trait** may be any of the class's active skills', not only those on the bar, so a follow-up's can be chosen. A trait for another class's skill is `BAD_PVP_BUILD`.
-  - **A follow-up on a key of its own** is `BAD_PVP_BUILD`, as the client refuses that drop: it rides on its root's key. The copy leaves one on the world bar off, so a copy is always a build the server would take.
+  - **A follow-up on a key of its own** is `BAD_PVP_BUILD`, as the client refuses that drop: it rides on its root's key. The world bar's save refuses one too. The copy still leaves one off, for a world bar a promotion's chains would make one in, so a copy is always a build the server would take.
   - **The countdown tells each player their build:** `ArenaBar` carries the bar the match put on, and a `StatsChanged` sent with it carries the traits. So the client shows exactly the bar the match judges, from the same countdown.
 
 ## 7. Match rules
