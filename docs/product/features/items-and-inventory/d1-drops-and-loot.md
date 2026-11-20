@@ -10,7 +10,8 @@
 ## Acceptance
 
 - **Pouches:**
-  - A defeated mob drops a pouch about 1 time in 4, and an elite about 1 time in 2. A pouch holds what that kill rolled from its drop list, and currency once F1 exists.
+  - A defeated mob drops a pouch about 1 time in 6, and an elite about 1 time in 3. A pouch holds what that kill rolled from its drop list, and currency once F1 exists.
+  - Mobs come back slowly enough (C1) that a player can take the pouch before the camp refills.
   - An item one of the owner's active quests still needs is rolled at its own chance even when no pouch falls, and comes in a pouch.
 - **A field boss's treasure box:** each player who earned a share of its rewards (C10) gets their own box where it fell, holding their own roll.
 - **Owners:** a pouch belongs to one player from the moment it falls: the killer when hunting alone, or in a party the living member whose turn it is, one pouch each (E3).

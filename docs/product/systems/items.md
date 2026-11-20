@@ -43,7 +43,7 @@ Every item type names its slot. A ring fits either ring slot.
 ## Drops
 
 - Each mob type has a drop list: which items and currency it can drop, and the chance of each.
-- A kill drops a pouch about 1 time in 4, and an elite's about 1 time in 2, holding what that kill rolled. An item the owner's active quest still needs is rolled at its own chance, even without a pouch, and comes in one (D1).
+- A kill drops a pouch about 1 time in 6, and an elite's about 1 time in 3, holding what that kill rolled. An item the owner's active quest still needs is rolled at its own chance, even without a pouch, and comes in one (D1).
 - A field boss leaves each eligible player their own treasure box, holding their own roll (Combat → Field bosses).
 - Every pouch belongs to one player from the moment it falls:
   - hunting alone, the killer;

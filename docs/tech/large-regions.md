@@ -69,7 +69,7 @@ areas:
      boss: {at: [x, z], radius: 6, mob: ...}}
   - {id: ..., name: ..., area: [...], biome: meadow, kind: town}
 camps:
-  - {area: ..., name: ..., at: [x, z], radius: 8, mob: ..., max: 5, respawn: 10s}
+  - {area: ..., name: ..., at: [x, z], radius: 8, mob: ..., max: 5, respawn: 30s}
 waypoints:
   - {id: ..., name: ..., at: [x, z]}
 npcs:
