@@ -32,7 +32,8 @@ type Event interface{ worldEvent() }
 // Snapshot is the whole map, sent to a player on join.
 type Snapshot struct {
 	MapID         string
-	Channel       int // the region's channel, from 1; 0 on any other map
+	Channel       int    // the region's channel, from 1; 0 on any other map
+	Area          string // the region's area the player stands in; empty on any other map
 	Players       []PlayerView
 	Mobs          []MobView
 	Pouches       []PouchView    // the joiner's own
@@ -258,6 +259,11 @@ type PartySpot struct {
 	X, Z float64
 }
 
+// AreaEntered tells the player they stepped into another of the region's areas, by its id.
+type AreaEntered struct {
+	Area string
+}
+
 // TeleportCancel is what ended a teleport channel early.
 type TeleportCancel int
 
@@ -316,6 +322,7 @@ func (Frame) worldEvent()             {}
 func (Teleport) worldEvent()          {}
 func (TeleportCancelled) worldEvent() {}
 func (PartySpots) worldEvent()        {}
+func (AreaEntered) worldEvent()       {}
 func (Detached) worldEvent()          {}
 func (Damage) worldEvent()            {}
 func (Died) worldEvent()              {}
@@ -586,7 +593,7 @@ func frameOf(f *model.Frame, to []model.Recipient) Frame {
 func deliveryOf(e model.Event) Delivery {
 	switch ev := e.(type) {
 	case model.Snapshot:
-		snap := Snapshot{MapID: ev.MapID, Channel: ev.Channel, Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Pouches: pouchViews(ev.Pouches), Boss: mobView(ev.Boss)}
+		snap := Snapshot{MapID: ev.MapID, Channel: ev.Channel, Area: ev.Area, Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Pouches: pouchViews(ev.Pouches), Boss: mobView(ev.Boss)}
 		if b := ev.FieldBoss; b != nil {
 			snap.FieldBoss = &FieldBoss{Mob: b.Mob, Type: b.Type}
 		}
@@ -622,6 +629,8 @@ func deliveryOf(e model.Event) Delivery {
 			spots[k] = PartySpot(s)
 		}
 		return Delivery{Tick: ev.Tick, Event: PartySpots{Spots: spots}}
+	case model.AreaEntered:
+		return Delivery{Tick: ev.Tick, Event: AreaEntered{Area: ev.Area}}
 	case model.LevelUp:
 		return Delivery{Tick: ev.Tick, Event: levelUpOf(ev)}
 	case model.Promoted:

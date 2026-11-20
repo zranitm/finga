@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"finga/internal/shared/nav"
+	"finga/internal/shared/regiongen"
 	"finga/internal/shared/sim"
 )
 
@@ -49,6 +50,20 @@ type BossSpot struct {
 	Radius float64 // it wanders the circle
 }
 
+// Area is one of a region's towns or hunting areas (large-regions.md section 6).
+type Area struct {
+	ID, Name           string
+	Kind               MapKind // Town or Hunting
+	MinLevel, MaxLevel int     // a hunting area's mobs are of these levels; 0 in a town
+	Boss               *BossSpot
+}
+
+// Waypoint is a region's waypoint, where its dead get up.
+type Waypoint struct {
+	ID, Name string
+	At       Point
+}
+
 // Placement is an NPC standing on a map, facing Yaw: radians from north toward east.
 type Placement struct {
 	NPC string
@@ -70,17 +85,37 @@ type Map struct {
 	PlayerSpawn        Point   // where players appear; in towns, the respawn point
 	SpawnYaw           float64 // the way they face there, radians from north toward east
 	NPCs               []Placement
-	Boss               *BossSpot        // a hunting map's; nil in a town
-	Grid               func() *nav.Grid // the walk grid, built at the first call; the world calls every map's as it starts, so no tick waits on one
-	Sides              [2][]Spot        // a pvp map's starting spots, side 1's then side 2's
-	Walled             sim.Geometry     // a pvp map's Geometry with its prep wall standing, before a round starts
-	Bake               string           // a region's bake hash, the first 16 hex digits, naming the folder its client files are in; empty on a map
+	Boss               *BossSpot          // a hunting map's; nil in a town
+	Grid               func() *nav.Grid   // the walk grid, built at the first call; the world calls every map's as it starts, so no tick waits on one
+	Sides              [2][]Spot          // a pvp map's starting spots, side 1's then side 2's
+	Walled             sim.Geometry       // a pvp map's Geometry with its prep wall standing, before a round starts
+	Bake               string             // a region's bake hash, the first 16 hex digits, naming the folder its client files are in; empty on a map
+	Areas              []Area             // a region's, in its plan's order; none on a map
+	AreaGrid           regiongen.AreaGrid // which of Areas holds each 4 m square of a region
+	Waypoints          []Waypoint         // a region's; every town area holds one
 }
 
 // Spot is where a fighter starts, facing Yaw: radians from north toward east.
 type Spot struct {
 	At  Point
 	Yaw float64
+}
+
+// AreaAt is the index in Areas of the area holding (x, z): -1 on a map, or in a region's ring.
+func (m *Map) AreaAt(x, z float64) int {
+	if len(m.Areas) == 0 {
+		return -1
+	}
+	return m.AreaGrid.Holding(x, z)
+}
+
+// TownAt reports whether (x, z) is safe from harm: anywhere on a town map, and in a region's town areas.
+func (m *Map) TownAt(x, z float64) bool { return m.Kind == Town || m.TownAreaAt(x, z) }
+
+// TownAreaAt reports whether (x, z) lies in one of a region's town areas, whose line its mobs never cross.
+func (m *Map) TownAreaAt(x, z float64) bool {
+	a := m.AreaAt(x, z)
+	return a >= 0 && m.Areas[a].Kind == Town
 }
 
 // Holds reports whether feet at (x, y, z) are inside the map and in no solid rising over step above them; NaN never holds.

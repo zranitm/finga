@@ -443,6 +443,14 @@ Built with step 1, which says who watches a cell.
 - **Death:** the player gets back up at the nearest waypoint or town of their region, by the road graph's distance. They don't hand off to a town map. On the old maps still in use, death hands off to the map's town as today.
 - **Level bands** move from `Map.Levels` to areas. The loader checks camps and bosses against their area.
 - **Chat:** `Instance.Chat` already reaches the whole instance, which is now a region's channel. E1 says "region and channel".
+- **As built (step 4b-4a):**
+  - **Data:** `gamedata.Map` carries a region's areas (id, name, kind, levels, boss), its waypoints and its 4 m `AreaGrid`, from the plan. `AreaAt` finds a spot's area; `TownAt` is true on a town map and in a town area, and `TownAreaAt` in a town area alone. The loader adds one rule: every town area holds a waypoint.
+  - **Where a player is:** each tick, after teleports, a player's area is read at their feet. A change sends them a private `AreaEntered{area}` (server message 39), the area's id; `Snapshot.area` (9) names it on every join and map change. The client reads the area's name, kind and levels from region.json's `areas`, and shows its name, with a hunting area's levels, along the top as a map's is.
+  - **A town area is safe:** a player's skills that harm are refused with `NOT_IN_TOWN` and their basic attacks dropped, as on a town map, on both sides; the client holds the lock there too. A mob's blow that lands on a player in a town is dropped with whatever it inflicts, even one already under way, and damage over time does no harm there, running out as it would.
+  - **Movement differs from a town map:** a town area keeps the region's speed, move speed and sprint, so the client's prediction needs no area each step.
+  - **Mobs at the line:** every move of a mob's body goes through one push that stops at a town area's line, to 1/256 of the push, as a wall stops it: walks, chases, leaps, charges, knockbacks, status pushes and drifting apart. A mob doesn't see a player in a town, and one whose target or provoker steps in gives up and walks home, as past its leash. Its spots on a player's rings skip any in a town. There's no loader rule: a camp's leash may reach into a town, as the test region's boars' does by 6 m.
+  - **Death:** a region's dead get up at its waypoint nearest where they fell in a straight line, found or not, a town's among them. The straight line stands in for the road graph's distance until there is one. The lookup reads the player's own instance's map, so a place below (B13) will get up at its own.
+  - **Chat:** a line said on a region reads `[Ch. n]`, its channel when it was heard, in place of `[Map]`.
 
 ## 7. Sprint
 

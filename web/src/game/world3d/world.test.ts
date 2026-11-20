@@ -72,7 +72,7 @@ import { ui } from '@/state/ui';
 import { FakeWebSocket } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
 import { mapJson, servePublic } from '@/testing/public-on-disk';
-import { TINY } from '@/testing/region-fixture';
+import { TINY, tinyFile } from '@/testing/region-fixture';
 import { resetStores } from '@/testing/reset-stores';
 import { builtShaders } from '@/testing/shaders';
 
@@ -160,6 +160,20 @@ function regioned(id: string) {
   };
 }
 
+/** The tiny bake's region.json with a town area besides its field, Market Square: where the server says the player stands is all the client reads of it. */
+function townedTiny(): unknown {
+  const j = JSON.parse(new TextDecoder().decode(tinyFile('region.json'))) as { areas: unknown[] };
+  const square = {
+    id: 'square',
+    name: 'Market Square',
+    area: [],
+    levels: [0, 0],
+    biome: 'meadow',
+    kind: 'town',
+  };
+  return { ...j, areas: [...j.areas, square] };
+}
+
 /** Map id flat and bare, 128 by 64 m: the widest the server sends whole (large-regions.md section 5). */
 function wide(id: string) {
   const m = bare(id);
@@ -180,6 +194,7 @@ const SERVED = {
   [FLAT2]: bare(FLAT2),
   [FLAT3]: bare(FLAT3),
   [REGIONED]: regioned(REGIONED),
+  [`regions/${TINY.id}/${TINY.hash}/region.json`]: townedTiny(),
   [WIDE]: wide(WIDE),
   town: slim('town'),
   ring: { ...bare('ring'), prep_wall: (mapJson('ring') as { prep_wall: unknown }).prep_wall }, // flat, with its own prep wall
@@ -554,6 +569,56 @@ describe('World', () => {
     await new Promise<void>((r) => setImmediate(r));
     p.frames(1);
     expect(below()).toBeGreaterThan(before + 10); // down on the river's bed, 2.4 m under the bank the player stands on
+  });
+
+  it('names the region’s area the player steps into along the top, and in a town area, as a snapshot or a step names it, holds the lock, attacks and skills that harm, as in a town', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const p = await playing(REGIONED, 30, 20);
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: REGIONED,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'warrior',
+          level: 1,
+          hp: 50,
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: { strike: 1 } } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['strike']);
+    await Promise.allSettled(chunkWork.builds);
+    await new Promise<void>((r) => setImmediate(r));
+    const pack = [mob(1, 'green_slime', 33)];
+    const press = (code: string) => {
+      key(code, true);
+      key(code, false);
+    };
+    const held = () => [target.getState().target, p.sent('attack'), p.sent('useSkill')];
+    p.push('snapshot', { players: [standing(30, 20)], mobs: pack, area: 'square' }, { tick: 2 }); // a rejoin in the town
+    frames(p, 3, 6, pack);
+    press('KeyX');
+    press('KeyQ');
+    p.frames(2);
+    expect(held()).toEqual([null, [], []]);
+    p.push('areaEntered', { area: 'field' });
+    frames(p, 7, 8, pack);
+    expect(p.parent.textContent).toContain('Field · Lv 1–2');
+    expect(target.getState().target?.ref).toBe('m:1');
+    press('KeyX');
+    expect(p.sent('attack')).toHaveLength(1);
+    p.live(20); // the swing over
+    p.push('areaEntered', { area: 'square' });
+    frames(p, 29, 30, pack);
+    expect(p.parent.textContent).toContain('Market Square');
+    press('KeyX');
+    press('KeyQ');
+    p.frames(2);
+    expect(held()).toEqual([null, [expect.anything()], []]);
   });
 
   it('draws a map whose data names a region from that bake, streaming its chunks round the camera', async () => {

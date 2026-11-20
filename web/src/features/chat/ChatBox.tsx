@@ -184,6 +184,11 @@ function Lines({ tab, idle }: { readonly tab: ChatTab; readonly idle: boolean })
   );
 }
 
+/** Where a line said on the map was heard: a region's channel, or the map. */
+function where(heardIn: number): string {
+  return heardIn > 0 ? `Ch. ${heardIn}` : 'Map';
+}
+
 // The Party tab shows party lines only; a notice shows in General.
 function ChatLines({ partyOnly, idle }: { readonly partyOnly: boolean; readonly idle: boolean }) {
   const lines = chat.use((s) => s.lines);
@@ -211,7 +216,7 @@ function ChatLines({ partyOnly, idle }: { readonly partyOnly: boolean; readonly 
           className: party ? 'chat-party' : 'chat-map',
           body: (
             <>
-              <span className="chat-tag">[{party ? 'Party' : 'Map'}]</span>{' '}
+              <span className="chat-tag">[{party ? 'Party' : where(l.heardIn)}]</span>{' '}
               <strong>{l.senderName}:</strong> {l.text}
             </>
           ),

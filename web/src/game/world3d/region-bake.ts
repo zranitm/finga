@@ -25,6 +25,17 @@ export interface Region {
   readonly palette: readonly number[];
   /** Each kit model's key, by the index a chunk's props hold. */
   readonly models: readonly string[];
+  /** Its towns and hunting areas, by the ids the server names them by. */
+  readonly areas: readonly RegionArea[];
+}
+
+/** One of a region's areas: a town, or a hunting area of its mobs' levels. */
+export interface RegionArea {
+  readonly id: string;
+  readonly name: string;
+  readonly kind: 'town' | 'hunting';
+  /** A hunting area's lowest and highest mob levels; 0 and 0 in a town. */
+  readonly levels: readonly [number, number];
 }
 
 /** The whole region every few samples: nx by nz heights and colour indices, row by row from the south-west, spacing metres apart. */
@@ -101,6 +112,7 @@ interface RegionJson {
   readonly solids: { readonly cylinders: number; readonly boxes: number; readonly reach: number };
   readonly palette: readonly { readonly name: string; readonly rgb: string }[];
   readonly models: readonly string[];
+  readonly areas: readonly RegionArea[];
 }
 
 function parseRegion(ref: RegionRef, j: RegionJson): Region {
@@ -118,6 +130,7 @@ function parseRegion(ref: RegionRef, j: RegionJson): Region {
     solids: j.solids,
     palette: j.palette.map((c) => parseInt(c.rgb.slice(1), 16)),
     models: j.models,
+    areas: j.areas.map(({ id, name, kind, levels }) => ({ id, name, kind, levels })),
   };
 }
 

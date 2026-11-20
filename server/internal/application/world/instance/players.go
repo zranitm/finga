@@ -93,6 +93,7 @@ type player struct {
 	toMatch      *toMatchMsg // a hand-off to a match waiting for the item calls in flight
 	portalPress  bool        // a portal press waiting for the item calls in flight
 	bot          *bot        // a match's bot's, which presses its keys; nil for a player
+	area         int         // the index in the region's Areas the player stood in as the latest tick ended; -1 off a region
 }
 
 func (i *Instance) add(j *joinMsg) {
@@ -130,7 +131,8 @@ func (i *Instance) add(j *joinMsg) {
 	i.players[p.ID] = p
 	i.order = append(i.order, p.ID)
 	i.count.Add(1)
-	snap := model.Snapshot{Tick: i.tick, MapID: i.m.ID, Channel: i.channel, Pouches: i.ground.Views(j.player.ID)}
+	p.area = i.m.AreaAt(p.state.X, p.state.Z)
+	snap := model.Snapshot{Tick: i.tick, MapID: i.m.ID, Channel: i.channel, Area: i.areaID(p.area), Pouches: i.ground.Views(j.player.ID)}
 	i.watchFrom(p, &snap)
 	switch {
 	case i.boss != nil:

@@ -141,9 +141,35 @@ func TestARegionLoadsAsAMapOfItsPlan(t *testing.T) {
 			t.Error("its walk grid has no room at the start, or room inside the house")
 		}
 	})
-	t.Run("a map has no bake", func(t *testing.T) {
-		if f, _ := d.Map("field"); f.Bake != "" {
-			t.Errorf("field's bake %q", f.Bake)
+	t.Run("its areas and waypoints are its plan's, and a spot's area and safety are read from them", func(t *testing.T) {
+		want := []gamedata.Area{
+			{ID: "hamlet", Name: "Hamlet", Kind: gamedata.Town},
+			{ID: "meadow", Name: "Meadow", Kind: gamedata.Hunting, MinLevel: 1, MaxLevel: 5, Boss: &gamedata.BossSpot{Mob: "slime_lord", At: gamedata.Point{X: 90, Z: 90}, Radius: 4}},
+		}
+		if !reflect.DeepEqual(m.Areas, want) {
+			t.Errorf("areas %+v", m.Areas)
+		}
+		if want := []gamedata.Waypoint{{ID: "hamlet", Name: "Hamlet", At: gamedata.Point{X: 64, Z: 32}}}; !reflect.DeepEqual(m.Waypoints, want) {
+			t.Errorf("waypoints %+v", m.Waypoints)
+		}
+		for _, c := range []struct {
+			x, z float64
+			area int
+			town bool
+		}{{64, 32, 0, true}, {64, 47.9, 0, true}, {64, 48, 1, false}, {100, 100, 1, false}, {8, 64, -1, false}, {120, 120, -1, false}} {
+			if a, town := m.AreaAt(c.x, c.z), m.TownAt(c.x, c.z); a != c.area || town != c.town {
+				t.Errorf("at (%g, %g) area %d, town %v; want %d, %v", c.x, c.z, a, town, c.area, c.town)
+			}
+		}
+	})
+	t.Run("a map has no bake and no areas: a town is safe everywhere, a hunting map nowhere", func(t *testing.T) {
+		f, _ := d.Map("field")
+		town, _ := d.Map("town")
+		if f.Bake != "" || f.Areas != nil || f.Waypoints != nil || f.AreaAt(10, 10) != -1 {
+			t.Errorf("field's bake %q, areas %v, waypoints %v", f.Bake, f.Areas, f.Waypoints)
+		}
+		if f.TownAt(10, 10) || !town.TownAt(10, 10) {
+			t.Errorf("field safe %v, town safe %v", f.TownAt(10, 10), town.TownAt(10, 10))
 		}
 	})
 }
@@ -193,6 +219,7 @@ func TestRegionRejections(t *testing.T) {
 		// The spots.
 		{"a waypoint where a player doesn't fit", file, "at: [64, 32]}", "at: [83, 27]}", []string{file, "waypoint hamlet", "fits"}},
 		{"two waypoints of one id", file, "waypoints:\n", "waypoints:\n  - {id: hamlet, name: Again, at: [40, 32]}\n", []string{file, "two waypoints are hamlet"}},
+		{"a town without a waypoint", file, "at: [64, 32]}", "at: [64, 80]}", []string{file, "town hamlet holds no waypoint"}},
 		{"a waypoint in the ring", file, "at: [64, 32]}", "at: [8, 64]}", []string{file, "waypoint hamlet at [8 64] stands in the ring"}},
 		{"the start in the ring", file, "start: {at: [64, 28]", "start: {at: [64, 4]", []string{file, "the start at [64 4] stands in the ring"}},
 		{"an npc in the ring", file, "start:", "npcs:\n  - {id: guide, at: [120, 64], yaw: 0}\nstart:", []string{file, "NPC guide at [120 64] stands in the ring"}},

@@ -29,6 +29,7 @@ const (
 	rings        = 5                      // rings round a player that chasing mobs take spots on: the contact ring, one at their reach's edge, and outer ones
 	touching     = 1e-3                   // metres between mobs side by side on a ring
 	driftSpeed   = 1.0                    // m/s at which mobs that overlap drift apart
+	townCuts     = 8                      // halvings that find where a push meets a town's line, to 1/256 of it
 )
 
 // walk moves mb up to dist along its path, turning the way it goes; a step it makes under stallShare of drops the path.
@@ -59,10 +60,9 @@ func (a *Arena) walk(mb *mob, dist float64) {
 	}
 }
 
-// move pushes mb (dx, dz) as the sim pushes a body, stopped by blockers, onto the ground there; it returns how far it went.
+// move pushes mb (dx, dz) as the sim pushes a body, stopped by blockers and a town's line, onto the ground there; it returns how far it went.
 func (a *Arena) move(mb *mob, dx, dz float64, blockers *sim.Blockers) float64 {
-	g := a.m.Geometry.Blocking(blockers)
-	s := sim.Push(sim.State{X: mb.x, Y: mb.y, Z: mb.z, OnGround: true}, dx, dz, g, mb.params)
+	s := a.push(mb, dx, dz, a.m.Geometry.Blocking(blockers))
 	moved := nav.Distance(mb.at(), nav.Point{X: s.X, Z: s.Z})
 	if moved > 0 {
 		mb.x, mb.z, mb.changed = s.X, s.Z, true
@@ -71,6 +71,28 @@ func (a *Arena) move(mb *mob, dx, dz float64, blockers *sim.Blockers) float64 {
 	}
 	return moved
 }
+
+// push is where mb ends pushed (dx, dz) through g as the sim pushes a body: short of a town area, by the longest share of the push that stays out, as a wall would stop it.
+func (a *Arena) push(mb *mob, dx, dz float64, g sim.Geometry) sim.State {
+	from := sim.State{X: mb.x, Y: mb.y, Z: mb.z, OnGround: true}
+	s := sim.Push(from, dx, dz, g, mb.params)
+	if !a.inTown(nav.Point{X: s.X, Z: s.Z}) {
+		return s
+	}
+	out, lo, hi := from, 0.0, 1.0
+	for range townCuts {
+		mid := (lo + hi) / 2
+		if t := sim.Push(from, float64(dx*mid), float64(dz*mid), g, mb.params); a.inTown(nav.Point{X: t.X, Z: t.Z}) {
+			hi = mid
+		} else {
+			out, lo = t, mid
+		}
+	}
+	return out
+}
+
+// inTown reports whether at lies in one of the region's town areas, which no mob enters.
+func (a *Arena) inTown(at nav.Point) bool { return a.m.TownAreaAt(at.X, at.Z) }
 
 // pathTo is the way from mb to to within leash, round the cell it last stalled at, ending on to itself; nil if there's none.
 func (a *Arena) pathTo(mb *mob, to nav.Point, leash float64) []nav.Point {
@@ -254,10 +276,10 @@ func (a *Arena) hold(mb *mob, p Body) {
 	}
 }
 
-// free reports whether mb may stand at at: inside its leash, out of portals, fitting, and clear of every place held.
+// free reports whether mb may stand at at: inside its leash, out of portals and towns, fitting, and clear of every place held.
 func (a *Arena) free(mb *mob, at nav.Point) bool {
 	r := mb.def.Radius
-	if nav.Distance(at, mb.home) > a.leash(mb) || !a.offPortals(at, r) || !a.m.Grid().Fits(at, r) {
+	if nav.Distance(at, mb.home) > a.leash(mb) || !a.offPortals(at, r) || a.inTown(at) || !a.m.Grid().Fits(at, r) {
 		return false
 	}
 	for _, h := range a.held {

@@ -62,14 +62,13 @@ func regained(v, carry *int, perSecond float64, most int) bool {
 
 // resolveAttacks swings each queued attack once its player's next attack may start, so one sent a little early is not lost; a town has none, and a status that blocks acting drops it.
 func (i *Instance) resolveAttacks() {
-	town := i.m.Kind == gamedata.Town
 	for _, id := range i.order {
 		p := i.players[id]
 		if !p.attackQueued || p.action.nextStart(attackAction) > i.tick {
 			continue
 		}
 		p.attackQueued = false
-		if town || p.dead || !i.fighting() || p.statuses.Blocks(gamedata.BlocksAct) {
+		if p.dead || i.m.TownAt(p.state.X, p.state.Z) || !i.fighting() || p.statuses.Blocks(gamedata.BlocksAct) {
 			continue
 		}
 		a, power := p.class.Attack, model.PlayerAttacker(p.derived, p.class.Attack.Damage)
@@ -126,7 +125,7 @@ func (i *Instance) mobHits() {
 	front := i.data.Block().Front
 	for _, l := range i.arena.Landings() {
 		for _, h := range l.Hits {
-			if p, ok := i.players[h.Player]; ok && !p.dead && p.nextHit <= i.tick {
+			if p, ok := i.players[h.Player]; ok && !p.dead && p.nextHit <= i.tick && !i.m.TownAt(p.state.X, p.state.Z) { // a town's safe, even from a blow already flying
 				dealt := i.arena.Roll(l, p.ID, p.statuses.Defending(model.PlayerDefender(p.derived)))
 				if p.dodging(i.tick) { // it passes through: no damage, knockback or guard
 					i.events = append(i.events, model.Damage{Tick: dealt.Tick, Source: dealt.Source, Target: dealt.Target, Dodge: true})
@@ -231,9 +230,9 @@ func (i *Instance) deathsAndRespawns() {
 		p.dead = false
 		p.HP = RespawnHP(p.derived.MaxHP)
 		p.changed = true
-		if i.m.Town == i.m.ID { // a town revives its own dead
-			yaw := float32(i.m.SpawnYaw)
-			p.state = i.standing(i.m.PlayerSpawn.X, 0, i.m.PlayerSpawn.Z, yaw)
+		if i.m.Town == i.m.ID { // a town or a region revives its own dead
+			yaw, at := float32(i.m.SpawnYaw), i.getUp(p.state.X, p.state.Z)
+			p.state = i.standing(at.X, 0, at.Z, yaw)
 			i.events = append(i.events, model.Respawned{Tick: i.tick, ID: p.ID, MapID: i.m.ID, X: p.state.X, Y: p.state.Y, Z: p.state.Z, HP: p.HP, Yaw: yaw})
 			i.tellParty(p, i.m.ID, i.channel)
 			p.moved = true

@@ -260,7 +260,8 @@ type Event interface{ event() }
 type Snapshot struct {
 	Tick          uint64
 	MapID         string
-	Channel       int // the region's channel, from 1; 0 on any other map
+	Channel       int    // the region's channel, from 1; 0 on any other map
+	Area          string // the region's area the joiner stands in; empty on any other map
 	Players       []PlayerView
 	Mobs          []MobView
 	Pouches       []PouchView    // the joiner's own

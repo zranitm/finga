@@ -12,7 +12,7 @@ export function mapJson(id: string): unknown {
   return JSON.parse(readFileSync(path.join(PUBLIC, 'maps', `${id}.json`), 'utf8')) as unknown;
 }
 
-/** Stubs fetch so a JSON file under public comes from disk, or maps/<id>.json from served for the ids it names, and a region's bake file from regions/ whatever its hash; vi.unstubAllGlobals takes it back. */
+/** Stubs fetch so a JSON file under public comes from disk, or maps/<id>.json from served for the ids it names, and a region's bake file from served by its path, as regions/<id>/<hash>/region.json, else from regions/ whatever its hash; vi.unstubAllGlobals takes it back. */
 export function servePublic(served: Readonly<Record<string, unknown>> = {}): void {
   vi.stubGlobal('fetch', (url: string) => {
     const file = /(?:^|\/)((?:maps|assets)\/[\w/.-]+\.json)$/.exec(url)?.[1];
@@ -21,6 +21,10 @@ export function servePublic(served: Readonly<Record<string, unknown>> = {}): voi
     try {
       if (baked) {
         const [, id, hash, rel] = baked as unknown as [string, string, string, string];
+        const own = `regions/${id}/${hash}/${rel}`;
+        if (own in served) {
+          return Promise.resolve(Response.json(served[own]));
+        }
         const fixture = path.join(REGIONS, id, rel);
         return Promise.resolve(
           new Response(

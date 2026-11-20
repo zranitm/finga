@@ -43,6 +43,14 @@ type PartySpot struct {
 
 func (PartySpots) event() {}
 
+// AreaEntered tells the player they stepped into another of the region's areas, by its id.
+type AreaEntered struct {
+	Tick uint64
+	Area string
+}
+
+func (AreaEntered) event() {}
+
 // MemberUpdate is what a map saw of a party member, for the social module.
 type MemberUpdate struct {
 	ID      kernel.CharacterID

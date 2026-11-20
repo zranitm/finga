@@ -10,7 +10,7 @@ import (
 func (o *Outbox) body(p model.Push) any {
 	switch p := p.(type) {
 	case model.Snapshot:
-		snap := &clientv1.Snapshot{Channel: uint32(p.Channel), Players: playerViews(p.Players), Mobs: mobViews(p.Mobs), Pouches: pouchViews(p.Pouches), Boss: mobView(p.Boss)}
+		snap := &clientv1.Snapshot{Channel: uint32(p.Channel), Area: p.Area, Players: playerViews(p.Players), Mobs: mobViews(p.Mobs), Pouches: pouchViews(p.Pouches), Boss: mobView(p.Boss)}
 		if p.FieldBoss != nil {
 			snap.FieldBoss = fieldBoss(*p.FieldBoss)
 		}
@@ -34,6 +34,8 @@ func (o *Outbox) body(p model.Push) any {
 			spots[k] = &clientv1.PartySpot{CharacterId: s.CharacterID, X: float32(s.X), Z: float32(s.Z)}
 		}
 		return &clientv1.PartySpots{Spots: spots}
+	case model.AreaEntered:
+		return &clientv1.AreaEntered{Area: p.Area}
 	case model.Damage:
 		return &clientv1.Damage{Source: entityRef(p.Source), Target: entityRef(p.Target), Amount: int32(p.Amount), Crit: p.Crit, Miss: p.Miss, Dodge: p.Dodge, Block: p.Block, StatusId: p.Status, Shielded: int32(p.Shielded)}
 	case model.SkillUsed:

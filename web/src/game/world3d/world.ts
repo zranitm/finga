@@ -126,6 +126,7 @@ import { buildPlace, fade, fogFor } from './place';
 import type { Place } from './place';
 import { PouchMarks } from './pouch';
 import { PrepWall } from './prep-wall';
+import type { RegionArea } from './region-bake';
 import { buildRegion } from './region-place';
 import { ShieldBubbles } from './shield-bubbles';
 import { teleportGlow } from './teleport-glow';
@@ -422,6 +423,7 @@ export class World {
   private retrying: ReturnType<typeof setTimeout> | null = null;
   private bannerEl: { readonly el: HTMLElement; timer: ReturnType<typeof setTimeout> } | null =
     null;
+  private areaId = ''; // the region's area the server last said the player stands in; '' off a region
   private offs: (() => void)[] = [];
   private glow: (() => void) | null = null; // the teleport channel's
   private channel = 0; // the region's channel the latest Snapshot named; 0 off regions
@@ -733,7 +735,10 @@ export class World {
     }
     this.showMarkers();
     this.showPortalLabels();
-    this.banner(map.id);
+    const m = maps.find((x) => x.id === map.id);
+    if (m) {
+      this.banner(m.min_level !== null ? `${m.name} · Lv ${m.min_level}–${m.max_level}` : m.name);
+    }
     this.pouchMarks?.show(pouches.getState().pouches);
     this.offs.push(
       pouches.subscribe((now, before) => {
@@ -781,6 +786,7 @@ export class World {
       socket.on('respawned', (m) => this.onWorld(m)),
       socket.on('welcome', (m) => this.onWelcome(m.d.mapId, m.d.tickRateHz)),
       socket.on('mapChange', (m) => this.onTransition(m)),
+      socket.on('areaEntered', (m) => this.enteredArea(m.d.area)),
       socket.on('damage', (m) => {
         this.combat?.damage(m.d, m.tick);
         this.guardedBy(m.d);
@@ -954,6 +960,7 @@ export class World {
     switch (m.t) {
       case 'snapshot':
         this.channel = m.d.channel;
+        this.areaId = m.d.area;
         this.onSnapshot(m.d.players, m.d.mobs, m.d.boss, this.tickOf(m.tick));
         return;
       case 'delta':
@@ -1501,6 +1508,16 @@ export class World {
     return maps.find((m) => m.id === this.mapId)?.kind ?? 'town';
   }
 
+  /** The region's area the player stands in, from its bake; undefined off a region. */
+  private area(): RegionArea | undefined {
+    return this.map?.region?.region.areas.find((a) => a.id === this.areaId);
+  }
+
+  /** Whether the player stands where nobody fights: a town map, or a region's town area. */
+  private inTown(): boolean {
+    return this.kind() === 'town' || this.area()?.kind === 'town';
+  }
+
   private moveSpeed(): number {
     return character.getState().character?.sheet?.derived?.moveSpeed ?? 0;
   }
@@ -1618,7 +1635,7 @@ export class World {
   private showLock(now: number): void {
     const s = this.predictor?.state;
     const locked =
-      s && this.kind() !== 'town' && this.free() ? this.lock.update(s.x, s.z, this.marks) : null;
+      s && !this.inTown() && this.free() ? this.lock.update(s.x, s.z, this.marks) : null;
     const ref = locked ? parseRef(locked.id) : undefined;
     const view = ref && this.drawnOf(ref);
     const at = view?.at;
@@ -1758,7 +1775,7 @@ export class World {
   /** Tab: locks the next mob or enemy farther than the locked one, on a map with combat while the player may act. */
   private nextTarget(): void {
     const s = this.predictor?.state;
-    if (s && this.kind() !== 'town' && this.free()) {
+    if (s && !this.inTown() && this.free()) {
       this.lock.next(s.x, s.z, this.marks);
     }
   }
@@ -1766,14 +1783,8 @@ export class World {
   /** A fresh press or a held key attacks as soon as an attack may start: at a cancelable skill's cancel point, or as the running action ends; a held key never goes ahead of a press waiting for its moment. */
   private attack(fresh: boolean): void {
     const clock = this.actions;
-    if (
-      this.kind() === 'town' ||
-      this.walledUp ||
-      !this.free() ||
-      !clock ||
-      this.restrained().act
-    ) {
-      return; // the server runs no combat on town maps or before a round, and drops an attack a status stops
+    if (this.inTown() || this.walledUp || !this.free() || !clock || this.restrained().act) {
+      return; // the server runs no combat in towns or before a round, and drops an attack a status stops
     }
     if (fresh) {
       if (!clock.press('attack', () => this.attack(true))) {
@@ -2005,7 +2016,7 @@ export class World {
             }
           : null;
       },
-      inTown: () => this.kind() === 'town',
+      inTown: () => this.inTown(),
       notStarted: () => this.walledUp,
       tickMs: this.timing.tickMs,
       now: this.deps.now,
@@ -2308,14 +2319,20 @@ export class World {
     }
   }
 
-  private banner(mapId: string): void {
-    const m = maps.find((x) => x.id === mapId);
-    if (!m) {
-      return;
+  /** Into another of the region's areas: its banner, its name and a hunting area's levels. */
+  private enteredArea(id: string): void {
+    this.areaId = id;
+    const a = this.area();
+    if (a) {
+      this.banner(a.kind === 'hunting' ? `${a.name} · Lv ${a.levels[0]}–${a.levels[1]}` : a.name);
     }
+  }
+
+  /** The text along the top a while, as a map or an area is entered. */
+  private banner(text: string): void {
     const el = document.createElement('div');
     el.style.cssText = `position:absolute;left:0;right:0;top:28px;text-align:center;color:#f4f4f8;font:600 22px sans-serif;text-shadow:0 0 4px #0a0c16;pointer-events:none;transition:opacity ${2 * FADE_MS}ms`;
-    el.textContent = m.min_level !== null ? `${m.name} · Lv ${m.min_level}–${m.max_level}` : m.name;
+    el.textContent = text;
     this.deps.parent.appendChild(el);
     const banner = {
       el,

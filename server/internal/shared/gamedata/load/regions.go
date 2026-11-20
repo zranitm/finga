@@ -9,6 +9,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -120,7 +121,7 @@ func (l *loader) loadRegion(id string, raw, kitRaw []byte, kit regiongen.Kit) er
 		return err
 	}
 	m := mapfile.Generated(id, regionFile(id, p), geometry, l.movement)
-	bosses, err := l.regionRules(p, m)
+	grid, bosses, err := l.regionRules(p, m)
 	if err != nil {
 		return err
 	}
@@ -128,11 +129,34 @@ func (l *loader) loadRegion(id string, raw, kitRaw []byte, kit regiongen.Kit) er
 		return err
 	}
 	l.maps.add(id, m)
-	if l.bakes == nil {
-		l.bakes = map[string]string{}
+	if l.regions == nil {
+		l.regions = map[string]regionParts{}
 	}
-	l.bakes[id] = folder
+	l.regions[id] = partsOf(p, grid, folder)
 	return nil
+}
+
+// regionParts is what a region adds to its map: its bake folder, its areas and where they lie, and its waypoints.
+type regionParts struct {
+	bake      string
+	areas     []gamedata.Area
+	grid      regiongen.AreaGrid
+	waypoints []gamedata.Waypoint
+}
+
+func partsOf(p regiongen.Plan, grid regiongen.AreaGrid, bake string) regionParts {
+	out := regionParts{bake: bake, grid: grid}
+	for _, a := range p.Areas {
+		area := gamedata.Area{ID: a.ID, Name: a.Name, Kind: gamedata.MapKind(a.Kind), MinLevel: a.Levels[0], MaxLevel: a.Levels[1]}
+		if b := a.Boss; b != nil {
+			area.Boss = &gamedata.BossSpot{Mob: b.Mob, At: gamedata.Point{X: b.At[0], Z: b.At[1]}, Radius: b.Radius}
+		}
+		out.areas = append(out.areas, area)
+	}
+	for _, w := range p.Waypoints {
+		out.waypoints = append(out.waypoints, gamedata.Waypoint{ID: w.ID, Name: w.Name, At: gamedata.Point{X: w.At[0], Z: w.At[1]}})
+	}
+	return out
 }
 
 // regionFile is a region's plan as the map rules read a map's file: its gates are portals, its camps spawns and its start the player spawn, and it's its own town.
@@ -153,16 +177,21 @@ func regionFile(id string, p regiongen.Plan) mapfile.File {
 	return f
 }
 
-// regionRules are a region's areas and what stands in them, and its bosses for the spot checks: every square inside the edge in one area; a hunting area with levels and its own boss, a town with neither; camps wholly in their hunting area, of its levels; waypoints where a player fits; no spot in the ring.
-func (l *loader) regionRules(p regiongen.Plan, m *mapfile.Map) ([]mapfile.Boss, error) {
+// regionRules are a region's areas and what stands in them, with where its areas lie and its bosses for the spot checks: every square inside the edge in one area; a hunting area with levels and its own boss, a town with neither and a waypoint, where its dead get up; camps wholly in their hunting area, of its levels; waypoints where a player fits; no spot in the ring.
+func (l *loader) regionRules(p regiongen.Plan, m *mapfile.Map) (regiongen.AreaGrid, []mapfile.Boss, error) {
+	areas, err := p.AreaGrid()
+	if err != nil {
+		return areas, nil, err
+	}
+	bosses, err := l.regionSpots(p, m, areas)
+	return areas, bosses, err
+}
+
+func (l *loader) regionSpots(p regiongen.Plan, m *mapfile.Map, areas regiongen.AreaGrid) ([]mapfile.Boss, error) {
 	if p.Name == "" {
 		return nil, errors.New("needs a name, the one players see")
 	}
 	if err := uniquePortals(m.Portals); err != nil {
-		return nil, err
-	}
-	areas, err := p.AreaGrid()
-	if err != nil {
 		return nil, err
 	}
 	edge := p.Edge.Width
@@ -237,6 +266,11 @@ func (l *loader) regionRules(p regiongen.Plan, m *mapfile.Map) ([]mapfile.Boss, 
 		seen[w.ID] = true
 		if !nav.FitsAt(m.Geometry, l.movement.Step, mapfile.Point(w.At), l.movement.Radius) {
 			return nil, fmt.Errorf("waypoint %s at %v isn't ground a player fits on", w.ID, w.At)
+		}
+	}
+	for i, a := range p.Areas {
+		if a.Kind == regiongen.Town && !slices.ContainsFunc(p.Waypoints, func(w regiongen.Waypoint) bool { return areas.Holding(w.At[0], w.At[1]) == i }) {
+			return nil, fmt.Errorf("town %s holds no waypoint; the region's dead get up at its waypoints", a.ID)
 		}
 	}
 	return bosses, nil

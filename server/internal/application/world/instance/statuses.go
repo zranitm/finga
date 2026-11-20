@@ -155,6 +155,9 @@ func (i *Instance) runStatuses() {
 		}
 		dots, ended := p.statuses.Tick(i.tick, p.state.X, p.state.Z)
 		p.changed = p.changed || ended
+		if i.m.TownAt(p.state.X, p.state.Z) {
+			continue // a town's safe: its statuses run out there without harm
+		}
 		for _, d := range dots {
 			amount := model.Steady(d.Power, p.statuses.Defending(model.PlayerDefender(p.derived)))
 			if i.match != nil {

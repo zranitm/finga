@@ -31,6 +31,7 @@ describe('a region bake, read as regionbake writes it', () => {
     });
     expect(region.palette).toContain(0x8cc265); // kit.yaml's grass
     expect(region.models).toContain('tree_oak');
+    expect(region.areas).toEqual([{ id: 'field', name: 'Field', kind: 'hunting', levels: [1, 2] }]);
     expect(overview).toMatchObject({ nx: 17, nz: 17, spacing: 8 });
   });
 
