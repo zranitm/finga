@@ -276,10 +276,13 @@ func (l *loader) regionSpots(p regiongen.Plan, m *mapfile.Map, areas regiongen.A
 	return bosses, nil
 }
 
-// areaRules are an area's own: a name, and a hunting area's levels and boss, its circle wholly in it, or a town's none.
+// areaRules are an area's own: a name, its straight edges on the squares' lines, and a hunting area's levels and boss, its circle wholly in it, or a town's none.
 func (l *loader) areaRules(p regiongen.Plan, a regiongen.Area, i int, areas regiongen.AreaGrid) error {
 	if a.Name == "" {
 		return errors.New("needs a name, the one players see")
+	}
+	if e, off := offLines(a.Area); off {
+		return fmt.Errorf("its edge from %v to %v is off the %d m lines its squares play on, so it would play up to a square from where it's drawn", e[0], e[1], regiongen.AreaCell)
 	}
 	if a.Kind == regiongen.Town {
 		if a.Levels != [2]int{} || a.Boss != nil {
@@ -298,6 +301,17 @@ func (l *loader) areaRules(p regiongen.Plan, a regiongen.Area, i int, areas regi
 		return fmt.Errorf("its boss %s: %w", b.Mob, err)
 	}
 	return l.bossRules(mapfile.Boss{At: b.At, Radius: b.Radius, Mob: b.Mob}, a.Levels[1], "area")
+}
+
+// offLines is a polygon's first east-west or north-south edge whose line isn't a multiple of AreaCell.
+func offLines(poly [][2]float64) ([2][2]float64, bool) {
+	on := func(v float64) bool { return math.Mod(v, regiongen.AreaCell) == 0 }
+	for k, a := range poly {
+		if b := poly[(k+1)%len(poly)]; a[0] == b[0] && !on(a[0]) || a[1] == b[1] && !on(a[1]) {
+			return [2][2]float64{a, b}, true
+		}
+	}
+	return [2][2]float64{}, false
 }
 
 // within is nil when the circle of radius r at at lies wholly in area i: every square it overlaps is i's, so none of it reaches another area's band or the ring.

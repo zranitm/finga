@@ -1,6 +1,7 @@
 package regiongen
 
 import (
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -42,6 +43,92 @@ func TestEachSquareIsHeldByTheAreaHoldingItsCorner(t *testing.T) {
 			t.Errorf("(%g, %g) is in %q; want %q", tt.x, tt.z, got, tt.want)
 		}
 	}
+}
+
+// A corner on a slanted line between two areas goes to the area east of it, as one on an east-west line goes north: each square is held once, with no gap.
+func TestACornerOnASlantedLineGoesToTheAreaEastOfIt(t *testing.T) {
+	p := Plan{Size: [2]float64{32, 32}, Areas: []Area{
+		{ID: "sw", Area: [][2]float64{{0, 0}, {32, 0}, {0, 32}}},
+		{ID: "ne", Area: [][2]float64{{32, 0}, {32, 32}, {0, 32}}},
+	}}
+	g, err := p.AreaGrid()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for s, a := range g.Of {
+		ix, iz := s%g.NX, s/g.NX
+		want := 0 // the line x + z = 32 runs through the corners with ix + iz = 8
+		if ix+iz >= 8 {
+			want = 1
+		}
+		if int(a) != want {
+			t.Errorf("the square at [%d %d] is held by %d; want %s", ix*AreaCell, iz*AreaCell, a, p.Areas[want].ID)
+		}
+	}
+}
+
+// Every shipped region plays on its plan's lines: each square is held by the area its centre lies in, but where a slanted edge crosses it.
+func TestEveryShippedAreaPlaysOnItsPlansLines(t *testing.T) {
+	files, err := filepath.Glob("../../../data/regions/*.yaml")
+	if err != nil || len(files) == 0 {
+		t.Fatalf("no shipped region: %v", err)
+	}
+	for _, f := range files {
+		p := plan(t, f)
+		g, err := p.AreaGrid()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for s, a := range g.Of {
+			cx, cz := float64(s%g.NX*AreaCell)+AreaCell/2, float64(s/g.NX*AreaCell)+AreaCell/2
+			want, slanted := -1, false
+			for i, ar := range p.Areas {
+				if inPolygon(ar.Area, cx, cz) {
+					want = i
+				}
+				slanted = slanted || crossedBySlant(ar.Area, cx, cz)
+			}
+			if !slanted && int(a) != want {
+				t.Errorf("%s: the square at [%g %g] plays in %s; its plan puts it in %s", f, cx-AreaCell/2, cz-AreaCell/2, areaName(p, int(a)), areaName(p, want))
+			}
+		}
+	}
+}
+
+func areaName(p Plan, i int) string {
+	if i < 0 {
+		return "none"
+	}
+	return p.Areas[i].ID
+}
+
+// inPolygon is the even-odd test of (x, z) against poly, which a square's centre never lies on when straight edges keep to the squares' lines.
+func inPolygon(poly [][2]float64, x, z float64) bool {
+	in := false
+	for k, a := range poly {
+		b := poly[(k+1)%len(poly)]
+		if (a[1] > z) != (b[1] > z) && x < a[0]+(z-a[1])/(b[1]-a[1])*(b[0]-a[0]) {
+			in = !in
+		}
+	}
+	return in
+}
+
+// crossedBySlant reports whether an edge that's neither east-west nor north-south passes within half a square's diagonal of (x, z).
+func crossedBySlant(poly [][2]float64, x, z float64) bool {
+	for k, a := range poly {
+		b := poly[(k+1)%len(poly)]
+		if a[0] == b[0] || a[1] == b[1] {
+			continue
+		}
+		dx, dz := b[0]-a[0], b[1]-a[1]
+		t := min(max((float64((x-a[0])*dx)+float64((z-a[1])*dz))/(float64(dx*dx)+float64(dz*dz)), 0), 1)
+		ex, ez := a[0]+float64(t*dx)-x, a[1]+float64(t*dz)-z
+		if float64(ex*ex)+float64(ez*ez) < AreaCell*AreaCell/2 { // within half a square's diagonal
+			return true
+		}
+	}
+	return false
 }
 
 // A circle is under the areas of every square it overlaps, each once; -1 for the ring and past the side; a square it meets only at an edge is out.

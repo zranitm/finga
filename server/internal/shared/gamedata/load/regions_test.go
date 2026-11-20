@@ -191,6 +191,7 @@ func TestRegionRejections(t *testing.T) {
 		{"a square inside the edge in no area", file, "[[16, 16], [112, 16], [112, 48], [16, 48]]", "[[16, 16], [100, 16], [100, 48], [16, 48]]", []string{file, "square at [100 16]", "no area"}},
 		{"two areas over one square", file, "[[16, 16], [112, 16], [112, 48], [16, 48]]", "[[16, 16], [112, 16], [112, 52], [16, 52]]", []string{file, "hamlet and meadow", "square at [16 48]"}},
 		{"two areas of one id", file, "id: meadow", "id: hamlet", []string{file, "two areas are hamlet"}},
+		{"an area's straight edge off the squares' lines", file, "[112, 48], [16, 48]], biome: meadow, kind: town}\n  - {id: meadow, name: Meadow, area: [[16, 48], [112, 48]", "[112, 50], [16, 50]], biome: meadow, kind: town}\n  - {id: meadow, name: Meadow, area: [[16, 50], [112, 50]", []string{file, "area hamlet", "from [112 50] to [16 50]", "4 m lines"}},
 		{"an area without a name", file, "name: Meadow", "name: ''", []string{file, "area meadow", "name"}},
 		{"a hunting area's levels out of order", file, "levels: [1, 5]", "levels: [5, 1]", []string{file, "area meadow", "1 <= lowest <= highest"}},
 		{"a hunting area without a boss", file, ", kind: hunting,\n     boss: {at: [90, 90], radius: 4, mob: slime_lord}}", ", kind: hunting}", []string{file, "area meadow", "boss"}},
