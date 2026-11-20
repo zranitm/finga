@@ -17,11 +17,14 @@ export interface MapMarks {
 
 export interface MapViewState extends MapMarks {
   readonly mapId: string | null;
+  readonly channel: number; // the region's channel the player's latest Snapshot named; 0 off regions
   readonly size: readonly [number, number]; // metres east and north
   readonly image: string; // the ground's image URL; '' where none could be drawn
   /** A map loaded: its ground's image, and no marks till the scene places them. */
   showMap(mapId: string, size: readonly [number, number], image: string): void;
   mark(marks: MapMarks): void;
+  /** The player's Snapshot named their channel: one per join and map change. */
+  inChannel(channel: number): void;
   clear(): void;
 }
 
@@ -29,6 +32,7 @@ const NONE: MapMarks = { me: null, party: [], lock: null, boss: null };
 
 export const mapView = defineStore<MapViewState>((set) => ({
   mapId: null,
+  channel: 0,
   size: [0, 0],
   image: '',
   ...NONE,
@@ -38,7 +42,10 @@ export const mapView = defineStore<MapViewState>((set) => ({
   mark: (marks) => {
     set(marks);
   },
+  inChannel: (channel) => {
+    set({ channel });
+  },
   clear: () => {
-    set({ mapId: null, size: [0, 0], image: '', ...NONE });
+    set({ mapId: null, channel: 0, size: [0, 0], image: '', ...NONE });
   },
 }));

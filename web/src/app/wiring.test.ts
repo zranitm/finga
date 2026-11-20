@@ -27,6 +27,7 @@ import { connection } from '@/state/connection';
 import { energy } from '@/state/energy';
 import { fieldBoss } from '@/state/field-boss';
 import { inventory } from '@/state/inventory';
+import { mapView } from '@/state/map-view';
 import { party } from '@/state/party';
 import { pouches } from '@/state/pouches';
 import { pvp } from '@/state/pvp';
@@ -234,7 +235,7 @@ describe('wiring', () => {
     [TeleportCancelReason.DIED, []], // the death screen says it
   ])('a teleport cancelled for reason %i ends the channel and says why', async (reason, said) => {
     const { ws } = await connectedSocket();
-    teleport.getState().start('forest');
+    teleport.getState().start({ map: 'forest' });
     ws.push('teleportCancelled', { reason });
     expect(teleport.getState().to).toBeNull();
     expect(toasts.getState().toasts.map((t) => [t.text, t.kind])).toEqual(
@@ -242,12 +243,30 @@ describe('wiring', () => {
     );
   });
 
+  it('a switch of channels cancelled says so, though the bar went with the key the server cancelled it for', async () => {
+    const { ws } = await connectedSocket();
+    teleport.getState().start({ channel: 2 });
+    teleport.getState().end(); // the movement key ends the bar at once
+    ws.push('teleportCancelled', { reason: TeleportCancelReason.MOVED });
+    expect(toasts.getState().toasts.map((t) => t.text)).toEqual([
+      'Channel switch cancelled: you moved.',
+    ]);
+  });
+
+  it('each Snapshot sets the player’s channel: a region’s number, 0 off regions', async () => {
+    const { ws } = await connectedSocket();
+    ws.push('snapshot', { channel: 2 });
+    expect(mapView.getState().channel).toBe(2);
+    ws.push('snapshot', {});
+    expect(mapView.getState().channel).toBe(0);
+  });
+
   it('a map change, or leaving the character, ends the channel with the old map', async () => {
     const { ws } = await connectedSocket();
-    teleport.getState().start('forest');
+    teleport.getState().start({ map: 'forest' });
     ws.push('mapChange', { mapId: 'forest' });
     expect(teleport.getState().to).toBeNull();
-    teleport.getState().start('cave');
+    teleport.getState().start({ map: 'cave' });
     leaveCharacter();
     expect(teleport.getState().to).toBeNull();
   });

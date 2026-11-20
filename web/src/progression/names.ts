@@ -18,7 +18,12 @@ export function isMatchMap(id: string): boolean {
   return maps.find((m) => m.id === id)?.kind === 'pvp';
 }
 
-/** Where a party member is, as their frame says it: a match's map is "In a match" (pvp.md section 4). */
-export function whereIs(mapId: string): string {
-  return isMatchMap(mapId) ? 'In a match' : mapName(mapId);
+/** Where a party member is, as their frame says it: a match's map is "In a match" (pvp.md section 4), a region's names its channel. */
+export function whereIs(mapId: string, channel: number): string {
+  return isMatchMap(mapId) ? 'In a match' : withChannel(mapName(mapId), channel);
+}
+
+/** name with " · Ch. n" after it for channel n of a region; channel 0, off regions, adds nothing (large-regions.md section 4). */
+export function withChannel(name: string, channel: number): string {
+  return channel > 0 ? `${name} · Ch. ${channel}` : name;
 }

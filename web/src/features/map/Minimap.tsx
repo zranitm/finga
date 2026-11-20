@@ -1,4 +1,5 @@
-// The minimap (map-views.md section 5): 40 m round the player, north up, held inside the map at its edges; it ignores the pointer.
+// The minimap (map-views.md section 5): 40 m round the player, north up, held inside the map at its edges, under the map's name and, in a region, its channel; it ignores the pointer.
+import { mapName, withChannel } from '@/progression/names';
 import { mapView } from '@/state/map-view';
 import { settings } from '@/state/settings';
 
@@ -25,19 +26,23 @@ export function Minimap() {
   const shown = settings.use((s) => s.showMinimap);
   const size = mapView.use((s) => s.size);
   const me = mapView.use((s) => s.me);
-  if (!shown || !me) {
+  const mapId = mapView.use((s) => s.mapId);
+  const channel = mapView.use((s) => s.channel);
+  if (!shown || !me || !mapId) {
     return null;
   }
   return (
-    <svg
-      className="minimap"
-      role="img"
-      aria-label="Minimap"
-      width={MINIMAP_PX}
-      height={MINIMAP_PX}
-      viewBox={viewBoxOf(me.x, me.z, size)}
-    >
-      <MapMarks unit={MINIMAP_M / MINIMAP_PX} />
-    </svg>
+    <div className="minimap">
+      <p className="minimap-name">{withChannel(mapName(mapId), channel)}</p>
+      <svg
+        role="img"
+        aria-label="Minimap"
+        width={MINIMAP_PX}
+        height={MINIMAP_PX}
+        viewBox={viewBoxOf(me.x, me.z, size)}
+      >
+        <MapMarks unit={MINIMAP_M / MINIMAP_PX} />
+      </svg>
+    </div>
   );
 }

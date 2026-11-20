@@ -273,6 +273,16 @@ biomes:
     - a match from a channel going back to it;
     - through the gateway, both messages with their arguments and codes;
     - one e2e through the stack, with two a channel: the third player in channel 2, the list, and a switch landing among channel 2's players, who see the player come.
+- **As built (step 4b-3b, the client):**
+  - **The channel** the latest Snapshot named is kept in `state/map-view.ts`, 0 off regions.
+  - **This map** in a region shows "Channel n" over the open channels. The list is asked for as the tab shows, and every 5 s while it does.
+    - Each channel's load is in words: quiet under half the cap, busy below it, full at it.
+    - Each has a Switch, except the player's own, a full one, and every channel for a dead player.
+  - **A switch** runs on the teleport's bar, "Switching to Channel n". A cancel says "Channel switch cancelled: …", even when the key that cancelled it took the bar down first.
+  - **Its MapChange** names the same region, and the client builds it again under the veil, as for any map change, so the old channel's players and mobs go with it.
+  - **Names:** the minimap is captioned with its map's name, plus "· Ch. n" in a region. The party window says "Test Region · Ch. 2".
+  - **Same map:** a party member in another channel of the region isn't marked on the map views, or counted as hurt for a heal. The party's own word of their channel decides it, before the server's spots do.
+  - **Not done:** the world chart's party names carry no channel, since regions aren't on the chart yet.
 
 ## 5. The server: what each player is sent
 

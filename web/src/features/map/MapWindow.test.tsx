@@ -472,7 +472,131 @@ describe('MapWindow', () => {
     await waitFor(() => {
       expect(onClose).toHaveBeenCalledOnce();
     });
-    expect(teleport.getState().to).toBe('forest');
+    expect(teleport.getState().to).toEqual({ map: 'forest' });
+  });
+
+  describe('in a region’s channel', () => {
+    const LIST = {
+      cap: 150,
+      channels: [
+        { channel: 1, players: 150 },
+        { channel: 2, players: 75 },
+        { channel: 3, players: 74 },
+      ],
+    };
+    /** A socket answering the channel list with LIST and a switch with switched, as pressed during input 42. */
+    const region = (
+      switched: () => Promise<unknown> = () => Promise.resolve({ ok: true, code: 0 }),
+    ) => {
+      const request = vi.fn<(t: string, d: unknown, seq?: number) => Promise<unknown>>((t) =>
+        t === 'channels' ? Promise.resolve({ ok: true, code: 0, channels: LIST }) : switched(),
+      );
+      return { socket: { request, sequence: 42 } as never, request };
+    };
+    const inRegion = () => {
+      onMap('test_region', 124, 80);
+      act(() => mapView.getState().inChannel(2));
+    };
+    const rows = async () => {
+      const list = await screen.findByRole('region', { name: 'Channels' });
+      await within(list).findAllByRole('listitem');
+      return within(list)
+        .getAllByRole('listitem')
+        .map((li) => [
+          li.querySelector('span')!.textContent,
+          li.querySelector('.map-channel-load')!.textContent,
+          within(li).queryByRole('button', { name: 'Switch' }) !== null,
+        ]);
+    };
+
+    it('This map names the player’s channel and lists each open one by how full it is: quiet under half the cap, busy below it, full at it; a switch on each but theirs and a full one', async () => {
+      inRegion();
+      const { socket } = region();
+      render(<MapWindow socket={socket} layoutOf={layoutOf} onClose={vi.fn()} />);
+      expect(await screen.findByText('Channel 2', { selector: 'strong' })).toBeInTheDocument();
+      expect(await rows()).toEqual([
+        ['Channel 1', 'full', false],
+        ['Channel 2', 'busy', false],
+        ['Channel 3', 'quiet', true],
+      ]);
+    });
+
+    it('a switch asks the server with the latest input’s seq; its answer closes the window and starts the channel, the bar naming it', async () => {
+      inRegion();
+      const { socket, request } = region();
+      const onClose = vi.fn();
+      render(<MapWindow socket={socket} layoutOf={layoutOf} onClose={onClose} />);
+      await rows();
+      await user.click(screen.getByRole('button', { name: 'Switch' }));
+      expect(request).toHaveBeenCalledWith('switchChannel', { channel: 3 }, 42);
+      await waitFor(() => {
+        expect(onClose).toHaveBeenCalledOnce();
+      });
+      expect(teleport.getState().to).toEqual({ channel: 3 });
+    });
+
+    it('a refused switch says why as a notice and leaves the window open', async () => {
+      inRegion();
+      const { socket } = region(() => Promise.reject(refusal(ERR.CHANNEL_FULL)));
+      const onClose = vi.fn();
+      render(<MapWindow socket={socket} layoutOf={layoutOf} onClose={onClose} />);
+      await rows();
+      await user.click(screen.getByRole('button', { name: 'Switch' }));
+      await waitFor(() => {
+        expect(toasts.getState().toasts.map((t) => t.text)).toEqual(['That channel is full.']);
+      });
+      expect(screen.getByRole('button', { name: 'Switch' })).toBeEnabled();
+      expect([onClose.mock.calls.length, teleport.getState().to]).toEqual([0, null]);
+    });
+
+    it('asks for the list as it shows and every 5 s while it does, and no more once it goes', async () => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+      try {
+        inRegion();
+        const { socket, request } = region();
+        const { unmount } = render(
+          <MapWindow socket={socket} layoutOf={layoutOf} onClose={vi.fn()} />,
+        );
+        const asked = () => request.mock.calls.filter(([t]) => t === 'channels').length;
+        await rows();
+        expect(asked()).toBe(1);
+        act(() => {
+          vi.advanceTimersByTime(4999);
+        });
+        expect(asked()).toBe(1);
+        act(() => {
+          vi.advanceTimersByTime(1);
+        });
+        act(() => {
+          vi.advanceTimersByTime(5000);
+        });
+        expect(asked()).toBe(3);
+        unmount();
+        act(() => {
+          vi.advanceTimersByTime(20000);
+        });
+        expect(asked()).toBe(3);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('offers no switch to the dead, and no channels off a region', async () => {
+      inRegion();
+      act(() => character.getState().setDead(true));
+      const { socket, request } = region();
+      const { unmount } = render(
+        <MapWindow socket={socket} layoutOf={layoutOf} onClose={vi.fn()} />,
+      );
+      expect((await rows()).map(([, , s]) => s)).toEqual([false, false, false]);
+      unmount();
+      request.mockClear();
+      onMap('forest', 30, 10);
+      act(() => mapView.getState().inChannel(0));
+      render(<MapWindow socket={socket} layoutOf={layoutOf} onClose={vi.fn()} />);
+      expect(screen.queryByRole('region', { name: 'Channels' })).not.toBeInTheDocument();
+      expect(request).not.toHaveBeenCalled();
+    });
   });
 
   it('a refused teleport says why as a notice and leaves the window open', async () => {

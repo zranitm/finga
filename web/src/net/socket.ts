@@ -73,6 +73,8 @@ type RequestType =
   | 'chooseTrait'
   | 'useSkill'
   | 'teleport'
+  | 'switchChannel'
+  | 'channels'
   | 'promote'
   | 'resetPoints'
   | 'talk'

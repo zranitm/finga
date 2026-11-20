@@ -64,6 +64,7 @@ import { statuses as shownStatuses } from '@/state/statuses';
 import { target } from '@/state/target';
 import type { Target } from '@/state/target';
 import { teleport } from '@/state/teleport';
+import type { Destination } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
@@ -423,6 +424,7 @@ export class World {
     null;
   private offs: (() => void)[] = [];
   private glow: (() => void) | null = null; // the teleport channel's
+  private channel = 0; // the region's channel the latest Snapshot named; 0 off regions
   private keysOff: (() => void) | null = null;
   private wheelOff: (() => void) | null = null;
 
@@ -951,6 +953,7 @@ export class World {
     this.feed.heard();
     switch (m.t) {
       case 'snapshot':
+        this.channel = m.d.channel;
         this.onSnapshot(m.d.players, m.d.mobs, m.d.boss, this.tickOf(m.tick));
         return;
       case 'delta':
@@ -1743,7 +1746,7 @@ export class World {
     if (drawn) {
       return { at: drawn, drawn: true };
     }
-    if (!m.online || m.mapId !== this.mapId) {
+    if (!m.online || m.mapId !== this.mapId || m.channel !== this.channel) {
       return null;
     }
     const spots = party.getState().spots;
@@ -2059,7 +2062,7 @@ export class World {
   }
 
   /** The teleport channel's glow round the player, from the Response till the channel ends; a moment past its length, should no MapChange or cancel come. */
-  private channelGlow(fx: Fx, to: string | null): void {
+  private channelGlow(fx: Fx, to: Destination | null): void {
     this.glow?.();
     this.glow =
       to === null
@@ -2104,6 +2107,7 @@ export class World {
           m.characterId !== self &&
           m.online &&
           m.mapId === this.mapId &&
+          m.channel === this.channel &&
           m.hp > 0 &&
           m.hp < m.maxHp,
       )
