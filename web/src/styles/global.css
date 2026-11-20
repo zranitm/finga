@@ -789,7 +789,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: 300px;
+  width: 360px;
 }
 .inventory-tabs {
   display: flex;
@@ -1825,7 +1825,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: 300px;
+  width: 360px;
 }
 .npc-dialog h3 {
   margin: 4px 0 0;
@@ -2009,7 +2009,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: 300px;
+  width: 360px;
 }
 .arena p {
   margin: 0;
@@ -2036,6 +2036,54 @@ body {
   align-self: stretch;
   justify-content: space-between;
   align-items: baseline;
+}
+.arena-standing {
+  display: flex;
+  align-self: stretch;
+  justify-content: space-between;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.arena-board {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.arena-board-scroll {
+  max-height: 320px;
+  overflow-y: auto;
+}
+.arena-board table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.arena-board th {
+  text-align: left;
+  font-weight: normal;
+  opacity: 0.7;
+}
+.arena-board th,
+.arena-board td {
+  padding: 3px 8px 3px 0;
+  vertical-align: top;
+  white-space: nowrap;
+}
+.arena-board td:first-child,
+.arena-board th:first-child {
+  text-align: right;
+}
+.arena-board-sub {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+}
+.arena-board-mine td {
+  color: var(--accent);
+}
+.arena-board-own {
+  padding-top: 6px;
+  border-top: 1px solid var(--panel-border);
 }
 .arena-waiting,
 .queue-tag-time,

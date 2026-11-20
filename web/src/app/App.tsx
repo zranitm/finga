@@ -22,18 +22,23 @@ import { NpcWindow } from '@/features/npc/NpcWindow';
 import { InviteToasts } from '@/features/party/InviteToast';
 import { PartyWindow } from '@/features/party/PartyWindow';
 import { ArenaWindow } from '@/features/pvp/ArenaWindow';
+import { boardReader } from '@/features/pvp/boards';
 import { EnemyFrames, TeamFrames } from '@/features/pvp/MatchFrames';
 import { MatchOffer } from '@/features/pvp/MatchOffer';
 import { MatchResult } from '@/features/pvp/MatchResult';
 import { QueueTag } from '@/features/pvp/QueueTag';
+import { watchPvpProfile } from '@/features/pvp/watchProfile';
 import { QuestLog } from '@/features/quests/QuestLog';
 import { SettingsPanel } from '@/features/settings/SettingsPanel';
 import { loadSettings, watchPlaySettings } from '@/features/shared/settings';
+import { watchArenaBuild } from '@/features/skills/saveArenaBuild';
 import { watchSkillBar } from '@/features/skills/saveSkillBar';
 import { SkillWindow } from '@/features/skills/SkillWindow';
 import type { Character } from '@/net/rest';
+import { arenaBuild } from '@/state/arena-build';
 import { character as characterStore } from '@/state/character';
 import { connection } from '@/state/connection';
+import { pvpProfile } from '@/state/pvp-profile';
 import { session } from '@/state/session';
 import type { Account } from '@/state/session';
 import { skillBar } from '@/state/skill-bar';
@@ -78,11 +83,11 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
   const [playing, setPlaying] = useState<Character | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [joinProblem, setJoinProblem] = useState<string | null>(null);
-  // The world's last saves on leaving, which the character list waits for.
+  // The world's last saves on leaving, every one of them, which the character list waits for.
   const saves = useRef<Promise<void>>(Promise.resolve());
   const afterSaves = useCallback(() => saves.current, []);
   const keepSaves = useCallback((pending: Promise<void>) => {
-    saves.current = pending;
+    saves.current = Promise.all([saves.current, pending]).then(() => undefined);
   }, []);
 
   // Leaving the logged-in screens for any reason (log out, kick) leaves the world too.
@@ -102,6 +107,8 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
             setJoinProblem(null);
             setPlaying(c);
             skillBar.getState().load(c.skill_bar);
+            arenaBuild.reset(); // the profile brings this character's
+            pvpProfile.reset();
             svc.socket.connect(c.id).then(
               (welcome) => {
                 const me = welcome.character ?? c; // always sent, but a message field is optional
@@ -166,7 +173,7 @@ function WorldOverlay({
 }: {
   readonly socket: Services['socket'];
   readonly rest: Services['rest'];
-  /** Takes the saves still running when the world is left. */
+  /** Takes each of the saves still running when the world is left. */
   readonly keepSaves: (pending: Promise<void>) => void;
   readonly onLeave: () => void;
 }) {
@@ -180,6 +187,7 @@ function WorldOverlay({
   const npcOpen = ui.use((s) => s.windows.includes('npc'));
   const lootOpen = ui.use((s) => s.windows.includes('loot'));
   const me = characterStore.use((s) => s.character?.id ?? '');
+  const board = useMemo(() => boardReader(rest), [rest]); // kept while the window closes and opens
   const [settingsOpen, setSettingsOpen] = useState(false);
   // The next entry starts with no window open, whichever way this one ends.
   useEffect(() => () => ui.getState().clear(), []);
@@ -190,6 +198,14 @@ function WorldOverlay({
     const stop = watchSkillBar(rest, me, (text) => toasts.getState().push(text));
     return () => keepSaves(stop());
   }, [rest, me, keepSaves]);
+  useEffect(() => {
+    if (me === '') {
+      return undefined;
+    }
+    const stop = watchArenaBuild(rest, me, (text) => toasts.getState().push(text));
+    return () => keepSaves(stop());
+  }, [rest, me, keepSaves]);
+  useEffect(() => (me === '' ? undefined : watchPvpProfile(rest, socket, me)), [rest, socket, me]);
   useEffect(() => watchPlaySettings(rest, (text) => toasts.getState().push(text)), [rest]);
   return (
     <>
@@ -241,7 +257,11 @@ function WorldOverlay({
           />
         )}
         {arenaOpen && (
-          <ArenaWindow socket={socket} onClose={() => ui.getState().closeWindow('arena')} />
+          <ArenaWindow
+            socket={socket}
+            board={board}
+            onClose={() => ui.getState().closeWindow('arena')}
+          />
         )}
         {npcOpen && <NpcWindow socket={socket} onClose={() => ui.getState().closeWindow('npc')} />}
         {lootOpen && (

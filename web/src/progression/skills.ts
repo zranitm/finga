@@ -204,6 +204,15 @@ export function learnable(cls: string): Skill[] {
   );
 }
 
+/** The points a PvP match's kit gives each of cls's skills (pvp.md section 6): every one at its last stage, at least one; a granted skill's are one, as pointsIn reads them. */
+export function fullPoints(cls: string): Readonly<Record<string, number>> {
+  return Object.fromEntries(
+    learnable(cls)
+      .filter((s) => !s.granted)
+      .map((s) => [s.id, Math.max(s.stages.at(-1)!.at, 1)]),
+  );
+}
+
 /** The block cls is granted with (C21); undefined for a class with none. */
 export function blockOf(cls: string): Skill | undefined {
   return learnable(cls).find((s) => s.effect === 'block');

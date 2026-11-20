@@ -241,6 +241,24 @@ describe('SkillBar', () => {
     expect(skillBar.getState().slots).toEqual(['spark', '', '', '', '', '', '', '']);
   });
 
+  it('in a match it’s the arena bar, which takes no drags or drops and points to the Arena tab; out of it the world bar is back', () => {
+    skillBar.getState().load(['strike', '', '', '', '', '', '', '']);
+    act(() => skillBar.getState().wear(['spark', 'slash_blast', '', '', '', '', '', '']));
+    render(<SkillBar />);
+    const bar = screen.getByRole('list', { name: 'Arena bar' });
+    expect(bar).toHaveAttribute('title', expect.stringContaining('Arena tab'));
+    expect(key(1)).toHaveAccessibleName(/^Key Q: Bolt/);
+    expect(key(1)).toHaveAttribute('draggable', 'false');
+    expect(key(1).title).toContain('a change applies from the next round');
+    const skill = dataTransfer();
+    skill.setData(SKILL_DRAG_TYPE, 'strike');
+    expect(fireEvent.dragOver(key(3), { dataTransfer: skill })).toBe(true); // not taken: no drop follows
+    act(() => skillBar.getState().unwear());
+    expect(screen.getByRole('list', { name: 'Skill bar' })).not.toHaveAttribute('title');
+    expect(key(1)).toHaveAccessibleName(/^Key Q: Strike/);
+    expect(fireEvent.dragOver(key(3), { dataTransfer: skill })).toBe(false);
+  });
+
   it('shows each skill’s icon for its stage in place of its name, which the label and the tooltip carry', () => {
     skillBar.getState().load(['strike', 'spark', '', '', '', '', '', '']);
     render(<SkillBar />);

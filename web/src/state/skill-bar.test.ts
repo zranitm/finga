@@ -24,6 +24,26 @@ describe('skill bar', () => {
     expect(s().edits).toBe(3);
   });
 
+  it('a match puts its arena bar in play over the world bar, which the player still edits, and leaving brings the world bar back', () => {
+    s().load(['strike', 'guard']);
+    s().showLive(['ground_slam', 'guard']);
+    s().wear(['taunt', 'war_cry']);
+    expect(s().slots).toEqual(['taunt', 'war_cry', '', '', '', '', '', '']);
+    expect(s().live).toEqual(s().slots);
+    s().put(2, 'spark');
+    expect(s().slots).toEqual(['taunt', 'war_cry', '', '', '', '', '', '']);
+    expect(s().world).toEqual(['strike', 'guard', 'spark', '', '', '', '', '']);
+    expect(s().edits).toBe(1);
+    s().unwear();
+    expect(s().slots).toEqual(s().world);
+    expect(s().live).toEqual(s().world);
+    expect(s().arena).toBeNull();
+    s().wear(['taunt']);
+    s().load(['strike']);
+    expect(s().arena).toBeNull(); // a character entering the world is out of any match
+    expect(s().slots).toEqual(['strike', '', '', '', '', '', '', '']);
+  });
+
   it('cooldowns start and end per skill', () => {
     s().cool('strike', { from: 0, until: 2000 });
     s().cool('spark', { from: 0, until: 2500 });

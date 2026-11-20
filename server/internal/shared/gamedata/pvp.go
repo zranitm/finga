@@ -124,7 +124,7 @@ type BotBuild struct {
 	Order  []string
 }
 
-// PvpBuildFault is what's wrong with a pvp build for c, nil for none: BarKeys keys, each empty or one of c's active skills and none twice, and each trait one of its own skill's, for a skill on the bar.
+// PvpBuildFault is what's wrong with a pvp build for c, nil for none: BarKeys keys, each empty or one of c's active skills and none twice, and each trait one of its own skill's, for one of c's active skills, on the bar or not, as a follow-up rides on its root's key.
 func PvpBuildFault(c Class, skill func(string) (Skill, bool), bar []string, traits map[string]string) error {
 	if len(bar) != BarKeys {
 		return fmt.Errorf("%d keys, not %d", len(bar), BarKeys)
@@ -142,9 +142,9 @@ func PvpBuildFault(c Class, skill func(string) (Skill, bool), bar []string, trai
 		}
 	}
 	for id, trait := range traits {
-		s, ok := skill(id)
-		if !ok || !slices.Contains(bar, id) {
-			return fmt.Errorf("a trait for %q, no skill on the bar", id)
+		s, _ := skill(id) // an unknown skill is no class's, and a passive has no trait
+		if !c.Learnable(s) {
+			return fmt.Errorf("a trait for %q, no skill of %s", id, c.ID)
 		}
 		if _, ok := s.Trait(trait); !ok {
 			return fmt.Errorf("%s has no trait %q", id, trait)
@@ -153,7 +153,7 @@ func PvpBuildFault(c Class, skill func(string) (Skill, bool), bar []string, trai
 	return nil
 }
 
-// PvpCopy is the pvp build a character of c has before they save one: their world bar and traits, with a block not c's own swapped for c's block, moved there if it stood on another key as a promotion does, and keys c can't use or repeats left empty; the traits are those of the skills it keeps.
+// PvpCopy is the pvp build a character of c has before they save one: their world bar and traits, with a block not c's own swapped for c's block, moved there if it stood on another key as a promotion does, and keys c can't use or repeats left empty; the traits kept are those of c's active skills, a follow-up's off the bar included.
 func PvpCopy(c Class, skill func(string) (Skill, bool), bar []string, traits map[string]string) ([]string, map[string]string) {
 	out := make([]string, BarKeys)
 	copy(out, bar)
@@ -174,7 +174,7 @@ func PvpCopy(c Class, skill func(string) (Skill, bool), bar []string, traits map
 	}
 	kept := map[string]string{}
 	for id, t := range traits {
-		if slices.Contains(out, id) {
+		if s, _ := skill(id); c.Learnable(s) {
 			kept[id] = t
 		}
 	}

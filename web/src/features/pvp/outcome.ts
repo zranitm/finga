@@ -3,7 +3,7 @@ import { MatchOutcome } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import type { RatingChange } from '@/state/pvp';
 
-import { modeName } from './modes';
+import { modeName, rankName } from './modes';
 
 const TITLE: Readonly<Record<MatchOutcome, string>> = {
   [MatchOutcome.UNSPECIFIED]: 'Match over',
@@ -41,9 +41,4 @@ export function leaverLine(d: Data<'matchEnded'>): string {
     }
   }
   return said.join(' ');
-}
-
-/** A rank id as a name: silver is Silver. */
-function rankName(id: string): string {
-  return id.charAt(0).toUpperCase() + id.slice(1);
 }

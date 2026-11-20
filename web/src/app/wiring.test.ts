@@ -319,9 +319,13 @@ describe('wiring', () => {
       'mt-1',
     ]);
     expect(pvp.getState().match?.sent).toEqual({ tick: 4120, endsInMs: 10_000 }); // the world's tick it came at
+    skillBar.getState().load(['strike']);
+    ws.push('arenaBar', { skillBar: ['taunt', 'war_cry', '', '', '', '', '', ''] });
+    expect(skillBar.getState().slots).toEqual(['taunt', 'war_cry', '', '', '', '', '', '']);
     ws.push('matchEnded', { result: MatchOutcome.WIN, wins: [2, 1] });
     ws.push('mapChange', { mapId: 'forest' });
     expect([pvp.getState().match, pvp.getState().outcome?.rounds]).toEqual([null, [2, 1]]);
+    expect(skillBar.getState().slots).toEqual(['strike', '', '', '', '', '', '', '']); // the world bar, back with the world
     ws.push('pvpQueued', { mode: 'duel' });
     ws.push('pvpUnqueued', { reason: PvpUnqueueReason.LEFT });
     ws.push('pvpQueued', { mode: 'duel' });

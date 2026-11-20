@@ -151,6 +151,11 @@ type StatsChanged struct {
 	Timers *SkillTimers // set when they replace every cooldown and buff the player holds: into and out of a match, and at each round's reset
 }
 
+// ArenaBar is the bar a match puts on its player at a countdown: from then, their skills go from its keys alone.
+type ArenaBar struct {
+	Bar []string
+}
+
 // MatchState is a match as its fighters see it, on entry and at each change.
 type MatchState struct {
 	Match  kernel.MatchID
@@ -334,6 +339,7 @@ func (LevelUp) worldEvent()           {}
 func (Promoted) worldEvent()          {}
 func (StatsChanged) worldEvent()      {}
 func (MatchState) worldEvent()        {}
+func (ArenaBar) worldEvent()          {}
 func (SkillUsed) worldEvent()         {}
 func (AttackUsed) worldEvent()        {}
 func (MobAttacked) worldEvent()       {}
@@ -652,6 +658,8 @@ func deliveryOf(e model.Event) Delivery {
 			}
 		}
 		return Delivery{Tick: ev.Tick, Event: st}
+	case model.ArenaBar:
+		return Delivery{Tick: ev.Tick, Event: ArenaBar{Bar: ev.Bar}}
 	case model.Chat:
 		return Delivery{Tick: ev.Tick, Event: Chat{Sender: ev.Sender, SenderName: ev.SenderName, Text: ev.Text}}
 	case model.InventoryChanged:

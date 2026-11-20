@@ -18,6 +18,7 @@ import {
   PvpOfferSchema,
   PvpQueuedSchema,
 } from '@/protocol/messages';
+import { arenaBuild } from '@/state/arena-build';
 import { character } from '@/state/character';
 import { chat } from '@/state/chat';
 import { combatLog } from '@/state/combat-log';
@@ -64,8 +65,13 @@ const welcome = {
   tickRateHz: 30,
 };
 
+/** The server: the script, and a fresh PvP profile for any character, which the world reads as it's entered. */
 function fetching(script: Script): FakeFetch {
-  const ff = fakeFetch(script);
+  const ff = fakeFetch((call) =>
+    call.method === 'GET' && /^\/api\/characters\/[^/]+\/pvp$/.test(call.path)
+      ? { status: 200, body: { standings: [], build: { skill_bar: [], traits: {} } } }
+      : script(call),
+  );
   vi.stubGlobal('fetch', ff.fetch);
   return ff;
 }
@@ -248,7 +254,7 @@ describe('App', () => {
     expect(run).toHaveBeenCalledOnce(); // logging out enters no world
   });
 
-  it('leaving with a skill bar change still unsaved lists the characters only once it saved', async () => {
+  it('leaving with a skill bar or arena build change still unsaved lists the characters only once both saved', async () => {
     let release: () => void = () => undefined;
     const held = new Promise<void>((resolve) => {
       release = resolve;
@@ -261,8 +267,16 @@ describe('App', () => {
         return { status: 200, body: { slots: ['strike', '', '', '', '', '', '', ''] } };
       return { status: 404, body: { code: ERR.NO_SUCH_ENDPOINT, message: 'nope' } };
     });
+    let arenaRelease: () => void = () => undefined;
+    const arenaHeld = new Promise<void>((resolve) => {
+      arenaRelease = resolve;
+    });
     vi.stubGlobal('fetch', (url: string, init: RequestInit) =>
-      init.method === 'PUT' ? held.then(() => ff.fetch(url, init)) : ff.fetch(url, init),
+      init.method !== 'PUT'
+        ? ff.fetch(url, init)
+        : url.endsWith('/pvp-build')
+          ? arenaHeld.then(() => ff.fetch(url, init))
+          : held.then(() => ff.fetch(url, init)),
     );
     render(<App />);
     await logIn();
@@ -273,14 +287,53 @@ describe('App', () => {
     expect(await screen.findByLabelText('Status')).toHaveTextContent('Ayla');
 
     act(() => skillBar.getState().put(0, 'strike'));
-    await user.click(screen.getByRole('button', { name: 'Back to characters' })); // well inside the save's delay
+    act(() => arenaBuild.getState().put(0, 'taunt'));
+    await user.click(screen.getByRole('button', { name: 'Back to characters' })); // well inside the saves' delay
     expect(await screen.findByText("alice's characters")).toBeInTheDocument();
-    expect(ff.of('GET', '/api/characters')).toHaveLength(1); // the list waits for the save
+    expect(ff.of('GET', '/api/characters')).toHaveLength(1); // the list waits for the saves
+    arenaRelease(); // the last save handed over, first to land
+    await waitFor(() => expect(ff.of('PUT', '/api/characters/c-ayla/pvp-build')).toHaveLength(1));
+    expect(ff.of('GET', '/api/characters')).toHaveLength(1); // and for the skill bar's too
     release();
     await waitFor(() => expect(ff.of('GET', '/api/characters')).toHaveLength(2));
     expect(
-      ff.calls.filter((c) => c.path.startsWith('/api/characters')).map((c) => c.method),
-    ).toEqual(['GET', 'PUT', 'GET']);
+      ff.calls
+        .filter(
+          (c) =>
+            (c.path.startsWith('/api/characters') && c.method !== 'GET') ||
+            c.path === '/api/characters',
+        )
+        .map((c) => `${c.method} ${c.path}`),
+    ).toEqual([
+      'GET /api/characters',
+      'PUT /api/characters/c-ayla/pvp-build',
+      'PUT /api/characters/c-ayla/skill-bar',
+      'GET /api/characters',
+    ]);
+  });
+
+  it('a character played next starts from their own arena build, never the one played before', async () => {
+    fetching(({ method, path }) => {
+      if (path === '/api/sessions') return { status: 201, body: { token: 'tok-1' } };
+      if (method === 'PUT') return { status: 200, body: {} };
+      return { status: 200, body: { characters: [sampleCharacter] } };
+    });
+    render(<App />);
+    await logIn();
+    for (const play of [1, 2]) {
+      await user.click(await screen.findByRole('button', { name: 'Play' }));
+      const ws = FakeWebSocket.latest();
+      ws.open();
+      ws.push('welcome', welcome);
+      await waitFor(() =>
+        expect(arenaBuild.getState().bar).toEqual(['', '', '', '', '', '', '', '']),
+      ); // the profile's
+      expect(arenaBuild.getState().edits).toBe(0);
+      if (play === 1) {
+        act(() => arenaBuild.getState().put(0, 'taunt'));
+        await user.click(screen.getByRole('button', { name: 'Back to characters' }));
+      }
+    }
   });
 
   it('a zoom changed in the world is saved as the account’s, at the latest as the player leaves', async () => {

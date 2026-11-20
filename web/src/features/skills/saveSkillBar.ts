@@ -13,7 +13,7 @@ export function watchSkillBar(
   notice: (text: string) => void,
 ): () => Promise<void> {
   const queue = saveQueue(() => {
-    const slots = skillBar.getState().slots; // the bar as it stood when its save was due
+    const slots = skillBar.getState().world; // the bar as it stood when its save was due, never a match's
     return () =>
       rest.putSkillBar(characterId, slots).then(
         () => undefined,

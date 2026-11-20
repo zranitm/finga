@@ -685,7 +685,7 @@ const grounds = Object.fromEntries(
 );
 
 mkdirSync(outDir, { recursive: true });
-// pvp.yaml: each mode the queue takes, with its name, side size, whether it's rated and the rounds a match is best of, none for a battle; the count into a round, which holds everyone still, as the client predicts; and the kit's level. The queue's, rating's and bots' constants stay with the server (pvp.md section 3).
+// pvp.yaml: each mode the queue takes, with its name, side size, whether it's rated and the rounds a match is best of, none for a battle; the count into a round, which holds everyone still, as the client predicts; the kit's level; and the placement matches a rating takes before it shows. The queue's, the rest of the rating's and the bots' constants stay with the server (pvp.md section 3).
 const pvpFile = must(load('pvp.yaml'), isRecord, 'pvp.yaml');
 const pvp = {
   modes: Object.entries(must(pvpFile.modes, isRecord, 'pvp.yaml modes')).map(([id, raw]) => {
@@ -708,6 +708,11 @@ const pvp = {
     must(pvpFile.kit, isRecord, 'pvp.yaml kit').level,
     isNumber,
     'pvp.yaml kit level',
+  ),
+  placement: must(
+    must(pvpFile.rating, isRecord, 'pvp.yaml rating').placement,
+    isNumber,
+    'pvp.yaml rating placement',
   ),
 };
 

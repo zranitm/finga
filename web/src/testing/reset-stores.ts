@@ -1,3 +1,4 @@
+import { arenaBuild } from '@/state/arena-build';
 import { character } from '@/state/character';
 import { chat } from '@/state/chat';
 import { combat } from '@/state/combat';
@@ -13,6 +14,7 @@ import { nearby } from '@/state/nearby';
 import { party } from '@/state/party';
 import { pouches } from '@/state/pouches';
 import { pvp } from '@/state/pvp';
+import { pvpProfile } from '@/state/pvp-profile';
 import { quests } from '@/state/quests';
 import { session } from '@/state/session';
 import { settings } from '@/state/settings';
@@ -49,6 +51,8 @@ export function resetStores(): void {
     pvp,
     fighters,
     pouches,
+    arenaBuild,
+    pvpProfile,
   ]) {
     store.reset();
   }

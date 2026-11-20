@@ -88,6 +88,8 @@ func worldPush(e world.Event) (model.Push, bool) {
 			sc.Retimed, sc.Timers = true, timersLeft(*ev.Timers, time.Now())
 		}
 		return sc, true
+	case world.ArenaBar:
+		return model.ArenaBar{Bar: ev.Bar}, true
 	case world.MatchState:
 		st := model.MatchState{Match: ev.Match.String(), Mode: ev.Mode, Phase: model.MatchPhase(ev.Phase), Round: ev.Round, Wins: ev.Wins, EndsIn: ev.EndsIn}
 		for s, side := range ev.Sides {

@@ -1555,6 +1555,7 @@ type ServerMessage struct {
 	//	*ServerMessage_MatchEnded
 	//	*ServerMessage_PartySpots
 	//	*ServerMessage_AreaEntered
+	//	*ServerMessage_ArenaBar
 	Body          isServerMessage_Body `protobuf_oneof:"body"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1926,6 +1927,15 @@ func (x *ServerMessage) GetAreaEntered() *AreaEntered {
 	return nil
 }
 
+func (x *ServerMessage) GetArenaBar() *ArenaBar {
+	if x != nil {
+		if x, ok := x.Body.(*ServerMessage_ArenaBar); ok {
+			return x.ArenaBar
+		}
+	}
+	return nil
+}
+
 type isServerMessage_Body interface {
 	isServerMessage_Body()
 }
@@ -2070,6 +2080,10 @@ type ServerMessage_AreaEntered struct {
 	AreaEntered *AreaEntered `protobuf:"bytes,39,opt,name=area_entered,json=areaEntered,proto3,oneof"`
 }
 
+type ServerMessage_ArenaBar struct {
+	ArenaBar *ArenaBar `protobuf:"bytes,40,opt,name=arena_bar,json=arenaBar,proto3,oneof"`
+}
+
 func (*ServerMessage_Delta) isServerMessage_Body() {}
 
 func (*ServerMessage_Damage) isServerMessage_Body() {}
@@ -2139,6 +2153,8 @@ func (*ServerMessage_MatchEnded) isServerMessage_Body() {}
 func (*ServerMessage_PartySpots) isServerMessage_Body() {}
 
 func (*ServerMessage_AreaEntered) isServerMessage_Body() {}
+
+func (*ServerMessage_ArenaBar) isServerMessage_Body() {}
 
 // Hello is the first message, within 5 seconds of connecting.
 type Hello struct {
@@ -9672,6 +9688,51 @@ func (x *CapturePoint) GetContested() bool {
 	return false
 }
 
+// ArenaBar is the bar the match puts on this player at a countdown, eight keys, "" for an empty one: from then their skills go from its keys alone, and the client shows it on the skill bar. Its traits come in the StatsChanged sent with it.
+type ArenaBar struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SkillBar      []string               `protobuf:"bytes,1,rep,name=skill_bar,json=skillBar,proto3" json:"skill_bar,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ArenaBar) Reset() {
+	*x = ArenaBar{}
+	mi := &file_client_v1_client_proto_msgTypes[113]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ArenaBar) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ArenaBar) ProtoMessage() {}
+
+func (x *ArenaBar) ProtoReflect() protoreflect.Message {
+	mi := &file_client_v1_client_proto_msgTypes[113]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ArenaBar.ProtoReflect.Descriptor instead.
+func (*ArenaBar) Descriptor() ([]byte, []int) {
+	return file_client_v1_client_proto_rawDescGZIP(), []int{113}
+}
+
+func (x *ArenaBar) GetSkillBar() []string {
+	if x != nil {
+		return x.SkillBar
+	}
+	return nil
+}
+
 // MatchEnded is the match's outcome for this player, as its result phase starts.
 type MatchEnded struct {
 	state  protoimpl.MessageState `protogen:"open.v1"`
@@ -9692,7 +9753,7 @@ type MatchEnded struct {
 
 func (x *MatchEnded) Reset() {
 	*x = MatchEnded{}
-	mi := &file_client_v1_client_proto_msgTypes[113]
+	mi := &file_client_v1_client_proto_msgTypes[114]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9704,7 +9765,7 @@ func (x *MatchEnded) String() string {
 func (*MatchEnded) ProtoMessage() {}
 
 func (x *MatchEnded) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[113]
+	mi := &file_client_v1_client_proto_msgTypes[114]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9717,7 +9778,7 @@ func (x *MatchEnded) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MatchEnded.ProtoReflect.Descriptor instead.
 func (*MatchEnded) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{113}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{114}
 }
 
 func (x *MatchEnded) GetResult() MatchOutcome {
@@ -9778,7 +9839,7 @@ type PvpRatingChange struct {
 
 func (x *PvpRatingChange) Reset() {
 	*x = PvpRatingChange{}
-	mi := &file_client_v1_client_proto_msgTypes[114]
+	mi := &file_client_v1_client_proto_msgTypes[115]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9790,7 +9851,7 @@ func (x *PvpRatingChange) String() string {
 func (*PvpRatingChange) ProtoMessage() {}
 
 func (x *PvpRatingChange) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[114]
+	mi := &file_client_v1_client_proto_msgTypes[115]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9803,7 +9864,7 @@ func (x *PvpRatingChange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PvpRatingChange.ProtoReflect.Descriptor instead.
 func (*PvpRatingChange) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{114}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{115}
 }
 
 func (x *PvpRatingChange) GetBefore() int32 {
@@ -9891,7 +9952,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\ttake_loot\x18& \x01(\v2\x13.client.v1.TakeLootH\x00R\btakeLoot\x12A\n" +
 	"\x0eswitch_channel\x18' \x01(\v2\x18.client.v1.SwitchChannelH\x00R\rswitchChannel\x121\n" +
 	"\bchannels\x18( \x01(\v2\x13.client.v1.ChannelsH\x00R\bchannelsB\x06\n" +
-	"\x04bodyJ\x04\b\x05\x10\x06R\apick_up\"\x80\x10\n" +
+	"\x04bodyJ\x04\b\x05\x10\x06R\apick_up\"\xb4\x10\n" +
 	"\rServerMessage\x12\x10\n" +
 	"\x03req\x18\x01 \x01(\tR\x03req\x12\x12\n" +
 	"\x04tick\x18\x02 \x01(\rR\x04tick\x12(\n" +
@@ -9941,7 +10002,8 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"matchEnded\x128\n" +
 	"\vparty_spots\x18& \x01(\v2\x15.client.v1.PartySpotsH\x00R\n" +
 	"partySpots\x12;\n" +
-	"\farea_entered\x18' \x01(\v2\x16.client.v1.AreaEnteredH\x00R\vareaEnteredB\x06\n" +
+	"\farea_entered\x18' \x01(\v2\x16.client.v1.AreaEnteredH\x00R\vareaEntered\x122\n" +
+	"\tarena_bar\x18( \x01(\v2\x13.client.v1.ArenaBarH\x00R\barenaBarB\x06\n" +
 	"\x04bodyJ\x04\b\x05\x10\x06J\x04\b\x1c\x10\x1dR\n" +
 	"correctionR\fannouncement\"k\n" +
 	"\x05Hello\x12\x14\n" +
@@ -10523,7 +10585,9 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
 	"\x06holder\x18\x02 \x01(\x05R\x06holder\x12\x1a\n" +
 	"\bprogress\x18\x03 \x01(\x01R\bprogress\x12\x1c\n" +
-	"\tcontested\x18\x04 \x01(\bR\tcontested\"\xc3\x01\n" +
+	"\tcontested\x18\x04 \x01(\bR\tcontested\"'\n" +
+	"\bArenaBar\x12\x1b\n" +
+	"\tskill_bar\x18\x01 \x03(\tR\bskillBar\"\xc3\x01\n" +
 	"\n" +
 	"MatchEnded\x12/\n" +
 	"\x06result\x18\x01 \x01(\x0e2\x17.client.v1.MatchOutcomeR\x06result\x12\x12\n" +
@@ -10635,7 +10699,7 @@ func file_client_v1_client_proto_rawDescGZIP() []byte {
 }
 
 var file_client_v1_client_proto_enumTypes = make([]protoimpl.EnumInfo, 15)
-var file_client_v1_client_proto_msgTypes = make([]protoimpl.MessageInfo, 118)
+var file_client_v1_client_proto_msgTypes = make([]protoimpl.MessageInfo, 119)
 var file_client_v1_client_proto_goTypes = []any{
 	(ChatChannel)(0),             // 0: client.v1.ChatChannel
 	(KickReason)(0),              // 1: client.v1.KickReason
@@ -10765,11 +10829,12 @@ var file_client_v1_client_proto_goTypes = []any{
 	(*MatchSide)(nil),            // 125: client.v1.MatchSide
 	(*MatchFighter)(nil),         // 126: client.v1.MatchFighter
 	(*CapturePoint)(nil),         // 127: client.v1.CapturePoint
-	(*MatchEnded)(nil),           // 128: client.v1.MatchEnded
-	(*PvpRatingChange)(nil),      // 129: client.v1.PvpRatingChange
-	nil,                          // 130: client.v1.SpendSkillPoints.PointsEntry
-	nil,                          // 131: client.v1.SkillPoints.InvestedEntry
-	nil,                          // 132: client.v1.SkillPoints.TraitsEntry
+	(*ArenaBar)(nil),             // 128: client.v1.ArenaBar
+	(*MatchEnded)(nil),           // 129: client.v1.MatchEnded
+	(*PvpRatingChange)(nil),      // 130: client.v1.PvpRatingChange
+	nil,                          // 131: client.v1.SpendSkillPoints.PointsEntry
+	nil,                          // 132: client.v1.SkillPoints.InvestedEntry
+	nil,                          // 133: client.v1.SkillPoints.TraitsEntry
 }
 var file_client_v1_client_proto_depIdxs = []int32{
 	18,  // 0: client.v1.ClientMessage.input:type_name -> client.v1.Input
@@ -10841,103 +10906,104 @@ var file_client_v1_client_proto_depIdxs = []int32{
 	122, // 66: client.v1.ServerMessage.pvp_offer:type_name -> client.v1.PvpOffer
 	123, // 67: client.v1.ServerMessage.pvp_offer_gone:type_name -> client.v1.PvpOfferGone
 	124, // 68: client.v1.ServerMessage.match_state:type_name -> client.v1.MatchState
-	128, // 69: client.v1.ServerMessage.match_ended:type_name -> client.v1.MatchEnded
+	129, // 69: client.v1.ServerMessage.match_ended:type_name -> client.v1.MatchEnded
 	99,  // 70: client.v1.ServerMessage.party_spots:type_name -> client.v1.PartySpots
 	98,  // 71: client.v1.ServerMessage.area_entered:type_name -> client.v1.AreaEntered
-	21,  // 72: client.v1.TakeLoot.picks:type_name -> client.v1.LootPick
-	21,  // 73: client.v1.PickAnswer.pick:type_name -> client.v1.LootPick
-	0,   // 74: client.v1.ChatSend.channel:type_name -> client.v1.ChatChannel
-	68,  // 75: client.v1.SetLook.look:type_name -> client.v1.Look
-	53,  // 76: client.v1.SpendPoints.points:type_name -> client.v1.Stats
-	130, // 77: client.v1.SpendSkillPoints.points:type_name -> client.v1.SpendSkillPoints.PointsEntry
-	45,  // 78: client.v1.UseSkill.way:type_name -> client.v1.SkillWay
-	53,  // 79: client.v1.CharacterView.stats:type_name -> client.v1.Stats
-	55,  // 80: client.v1.CharacterView.sheet:type_name -> client.v1.StatSheet
-	53,  // 81: client.v1.StatSheet.primary:type_name -> client.v1.Stats
-	53,  // 82: client.v1.StatSheet.primary_worn:type_name -> client.v1.Stats
-	59,  // 83: client.v1.StatSheet.derived:type_name -> client.v1.DerivedStats
-	59,  // 84: client.v1.StatSheet.derived_worn:type_name -> client.v1.DerivedStats
-	58,  // 85: client.v1.StatSheet.points:type_name -> client.v1.Points
-	53,  // 86: client.v1.StatSheet.primary_skills:type_name -> client.v1.Stats
-	59,  // 87: client.v1.StatSheet.derived_skills:type_name -> client.v1.DerivedStats
-	57,  // 88: client.v1.StatSheet.skills:type_name -> client.v1.SkillPoints
-	56,  // 89: client.v1.StatSheet.buffs:type_name -> client.v1.BuffView
-	131, // 90: client.v1.SkillPoints.invested:type_name -> client.v1.SkillPoints.InvestedEntry
-	132, // 91: client.v1.SkillPoints.traits:type_name -> client.v1.SkillPoints.TraitsEntry
-	53,  // 92: client.v1.Points.spent:type_name -> client.v1.Stats
-	61,  // 93: client.v1.ItemView.stats:type_name -> client.v1.ItemStats
-	60,  // 94: client.v1.EquipSlot.item:type_name -> client.v1.ItemView
-	63,  // 95: client.v1.PartyView.members:type_name -> client.v1.PartyMember
-	54,  // 96: client.v1.Welcome.character:type_name -> client.v1.CharacterView
-	60,  // 97: client.v1.Welcome.inventory:type_name -> client.v1.ItemView
-	64,  // 98: client.v1.Welcome.party:type_name -> client.v1.PartyView
-	62,  // 99: client.v1.Welcome.equipment:type_name -> client.v1.EquipSlot
-	114, // 100: client.v1.Welcome.quests:type_name -> client.v1.QuestState
-	66,  // 101: client.v1.Welcome.skill_timers:type_name -> client.v1.SkillTimer
-	2,   // 102: client.v1.SkillTimer.kind:type_name -> client.v1.SkillTimerKind
-	71,  // 103: client.v1.PlayerView.move:type_name -> client.v1.SkillMove
-	69,  // 104: client.v1.PlayerView.slow:type_name -> client.v1.SlowWalk
-	70,  // 105: client.v1.PlayerView.statuses:type_name -> client.v1.StatusView
-	68,  // 106: client.v1.PlayerView.look:type_name -> client.v1.Look
-	3,   // 107: client.v1.MobView.pose:type_name -> client.v1.MobPose
-	70,  // 108: client.v1.MobView.statuses:type_name -> client.v1.StatusView
-	4,   // 109: client.v1.PouchView.kind:type_name -> client.v1.PouchKind
-	74,  // 110: client.v1.PouchView.items:type_name -> client.v1.PouchItem
-	61,  // 111: client.v1.PouchItem.stats:type_name -> client.v1.ItemStats
-	67,  // 112: client.v1.Snapshot.players:type_name -> client.v1.PlayerView
-	72,  // 113: client.v1.Snapshot.mobs:type_name -> client.v1.MobView
-	73,  // 114: client.v1.Snapshot.pouches:type_name -> client.v1.PouchView
-	76,  // 115: client.v1.Snapshot.field_boss:type_name -> client.v1.FieldBoss
-	77,  // 116: client.v1.Snapshot.field_boss_gone:type_name -> client.v1.FieldBossGone
-	72,  // 117: client.v1.Snapshot.boss:type_name -> client.v1.MobView
-	67,  // 118: client.v1.Delta.players:type_name -> client.v1.PlayerView
-	72,  // 119: client.v1.Delta.mobs:type_name -> client.v1.MobView
-	73,  // 120: client.v1.Delta.pouches:type_name -> client.v1.PouchView
-	79,  // 121: client.v1.Delta.unseen:type_name -> client.v1.Unseen
-	72,  // 122: client.v1.Delta.boss:type_name -> client.v1.MobView
-	54,  // 123: client.v1.LevelUp.character:type_name -> client.v1.CharacterView
-	54,  // 124: client.v1.Promoted.character:type_name -> client.v1.CharacterView
-	60,  // 125: client.v1.InventorySlot.item:type_name -> client.v1.ItemView
-	89,  // 126: client.v1.InventoryChanged.slots:type_name -> client.v1.InventorySlot
-	62,  // 127: client.v1.InventoryChanged.equipment:type_name -> client.v1.EquipSlot
-	5,   // 128: client.v1.Loot.kind:type_name -> client.v1.LootKind
-	92,  // 129: client.v1.Loot.items:type_name -> client.v1.LootItem
-	55,  // 130: client.v1.StatsChanged.sheet:type_name -> client.v1.StatSheet
-	94,  // 131: client.v1.StatsChanged.timers:type_name -> client.v1.SkillTimers
-	66,  // 132: client.v1.SkillTimers.timers:type_name -> client.v1.SkillTimer
-	0,   // 133: client.v1.ChatMessage.channel:type_name -> client.v1.ChatChannel
-	64,  // 134: client.v1.PartyState.party:type_name -> client.v1.PartyView
-	76,  // 135: client.v1.AreaEntered.field_boss:type_name -> client.v1.FieldBoss
-	77,  // 136: client.v1.AreaEntered.field_boss_gone:type_name -> client.v1.FieldBossGone
-	100, // 137: client.v1.PartySpots.spots:type_name -> client.v1.PartySpot
-	22,  // 138: client.v1.Response.picks:type_name -> client.v1.PickAnswer
-	103, // 139: client.v1.Response.channels:type_name -> client.v1.ChannelList
-	104, // 140: client.v1.ChannelList.channels:type_name -> client.v1.ChannelLoad
-	6,   // 141: client.v1.TeleportCancelled.reason:type_name -> client.v1.TeleportCancelReason
-	1,   // 142: client.v1.Kicked.reason:type_name -> client.v1.KickReason
-	111, // 143: client.v1.NpcDialog.gives:type_name -> client.v1.QuestOffer
-	113, // 144: client.v1.NpcDialog.takes:type_name -> client.v1.QuestTurnIn
-	109, // 145: client.v1.NpcDialog.promotion:type_name -> client.v1.PromotionOffer
-	110, // 146: client.v1.PromotionOffer.conditions:type_name -> client.v1.PromotionCondition
-	7,   // 147: client.v1.PromotionCondition.kind:type_name -> client.v1.PromotionConditionKind
-	8,   // 148: client.v1.QuestOffer.state:type_name -> client.v1.QuestOfferState
-	112, // 149: client.v1.QuestOffer.unmet:type_name -> client.v1.QuestConditions
-	9,   // 150: client.v1.QuestState.status:type_name -> client.v1.QuestStatus
-	10,  // 151: client.v1.QuestChanged.change:type_name -> client.v1.QuestChange
-	114, // 152: client.v1.QuestChanged.quest:type_name -> client.v1.QuestState
-	11,  // 153: client.v1.PvpUnqueued.reason:type_name -> client.v1.PvpUnqueueReason
-	12,  // 154: client.v1.PvpOfferGone.reason:type_name -> client.v1.PvpOfferGoneReason
-	13,  // 155: client.v1.MatchState.phase:type_name -> client.v1.MatchPhase
-	125, // 156: client.v1.MatchState.sides:type_name -> client.v1.MatchSide
-	127, // 157: client.v1.MatchState.points:type_name -> client.v1.CapturePoint
-	126, // 158: client.v1.MatchSide.fighters:type_name -> client.v1.MatchFighter
-	14,  // 159: client.v1.MatchEnded.result:type_name -> client.v1.MatchOutcome
-	129, // 160: client.v1.MatchEnded.rating:type_name -> client.v1.PvpRatingChange
-	161, // [161:161] is the sub-list for method output_type
-	161, // [161:161] is the sub-list for method input_type
-	161, // [161:161] is the sub-list for extension type_name
-	161, // [161:161] is the sub-list for extension extendee
-	0,   // [0:161] is the sub-list for field type_name
+	128, // 72: client.v1.ServerMessage.arena_bar:type_name -> client.v1.ArenaBar
+	21,  // 73: client.v1.TakeLoot.picks:type_name -> client.v1.LootPick
+	21,  // 74: client.v1.PickAnswer.pick:type_name -> client.v1.LootPick
+	0,   // 75: client.v1.ChatSend.channel:type_name -> client.v1.ChatChannel
+	68,  // 76: client.v1.SetLook.look:type_name -> client.v1.Look
+	53,  // 77: client.v1.SpendPoints.points:type_name -> client.v1.Stats
+	131, // 78: client.v1.SpendSkillPoints.points:type_name -> client.v1.SpendSkillPoints.PointsEntry
+	45,  // 79: client.v1.UseSkill.way:type_name -> client.v1.SkillWay
+	53,  // 80: client.v1.CharacterView.stats:type_name -> client.v1.Stats
+	55,  // 81: client.v1.CharacterView.sheet:type_name -> client.v1.StatSheet
+	53,  // 82: client.v1.StatSheet.primary:type_name -> client.v1.Stats
+	53,  // 83: client.v1.StatSheet.primary_worn:type_name -> client.v1.Stats
+	59,  // 84: client.v1.StatSheet.derived:type_name -> client.v1.DerivedStats
+	59,  // 85: client.v1.StatSheet.derived_worn:type_name -> client.v1.DerivedStats
+	58,  // 86: client.v1.StatSheet.points:type_name -> client.v1.Points
+	53,  // 87: client.v1.StatSheet.primary_skills:type_name -> client.v1.Stats
+	59,  // 88: client.v1.StatSheet.derived_skills:type_name -> client.v1.DerivedStats
+	57,  // 89: client.v1.StatSheet.skills:type_name -> client.v1.SkillPoints
+	56,  // 90: client.v1.StatSheet.buffs:type_name -> client.v1.BuffView
+	132, // 91: client.v1.SkillPoints.invested:type_name -> client.v1.SkillPoints.InvestedEntry
+	133, // 92: client.v1.SkillPoints.traits:type_name -> client.v1.SkillPoints.TraitsEntry
+	53,  // 93: client.v1.Points.spent:type_name -> client.v1.Stats
+	61,  // 94: client.v1.ItemView.stats:type_name -> client.v1.ItemStats
+	60,  // 95: client.v1.EquipSlot.item:type_name -> client.v1.ItemView
+	63,  // 96: client.v1.PartyView.members:type_name -> client.v1.PartyMember
+	54,  // 97: client.v1.Welcome.character:type_name -> client.v1.CharacterView
+	60,  // 98: client.v1.Welcome.inventory:type_name -> client.v1.ItemView
+	64,  // 99: client.v1.Welcome.party:type_name -> client.v1.PartyView
+	62,  // 100: client.v1.Welcome.equipment:type_name -> client.v1.EquipSlot
+	114, // 101: client.v1.Welcome.quests:type_name -> client.v1.QuestState
+	66,  // 102: client.v1.Welcome.skill_timers:type_name -> client.v1.SkillTimer
+	2,   // 103: client.v1.SkillTimer.kind:type_name -> client.v1.SkillTimerKind
+	71,  // 104: client.v1.PlayerView.move:type_name -> client.v1.SkillMove
+	69,  // 105: client.v1.PlayerView.slow:type_name -> client.v1.SlowWalk
+	70,  // 106: client.v1.PlayerView.statuses:type_name -> client.v1.StatusView
+	68,  // 107: client.v1.PlayerView.look:type_name -> client.v1.Look
+	3,   // 108: client.v1.MobView.pose:type_name -> client.v1.MobPose
+	70,  // 109: client.v1.MobView.statuses:type_name -> client.v1.StatusView
+	4,   // 110: client.v1.PouchView.kind:type_name -> client.v1.PouchKind
+	74,  // 111: client.v1.PouchView.items:type_name -> client.v1.PouchItem
+	61,  // 112: client.v1.PouchItem.stats:type_name -> client.v1.ItemStats
+	67,  // 113: client.v1.Snapshot.players:type_name -> client.v1.PlayerView
+	72,  // 114: client.v1.Snapshot.mobs:type_name -> client.v1.MobView
+	73,  // 115: client.v1.Snapshot.pouches:type_name -> client.v1.PouchView
+	76,  // 116: client.v1.Snapshot.field_boss:type_name -> client.v1.FieldBoss
+	77,  // 117: client.v1.Snapshot.field_boss_gone:type_name -> client.v1.FieldBossGone
+	72,  // 118: client.v1.Snapshot.boss:type_name -> client.v1.MobView
+	67,  // 119: client.v1.Delta.players:type_name -> client.v1.PlayerView
+	72,  // 120: client.v1.Delta.mobs:type_name -> client.v1.MobView
+	73,  // 121: client.v1.Delta.pouches:type_name -> client.v1.PouchView
+	79,  // 122: client.v1.Delta.unseen:type_name -> client.v1.Unseen
+	72,  // 123: client.v1.Delta.boss:type_name -> client.v1.MobView
+	54,  // 124: client.v1.LevelUp.character:type_name -> client.v1.CharacterView
+	54,  // 125: client.v1.Promoted.character:type_name -> client.v1.CharacterView
+	60,  // 126: client.v1.InventorySlot.item:type_name -> client.v1.ItemView
+	89,  // 127: client.v1.InventoryChanged.slots:type_name -> client.v1.InventorySlot
+	62,  // 128: client.v1.InventoryChanged.equipment:type_name -> client.v1.EquipSlot
+	5,   // 129: client.v1.Loot.kind:type_name -> client.v1.LootKind
+	92,  // 130: client.v1.Loot.items:type_name -> client.v1.LootItem
+	55,  // 131: client.v1.StatsChanged.sheet:type_name -> client.v1.StatSheet
+	94,  // 132: client.v1.StatsChanged.timers:type_name -> client.v1.SkillTimers
+	66,  // 133: client.v1.SkillTimers.timers:type_name -> client.v1.SkillTimer
+	0,   // 134: client.v1.ChatMessage.channel:type_name -> client.v1.ChatChannel
+	64,  // 135: client.v1.PartyState.party:type_name -> client.v1.PartyView
+	76,  // 136: client.v1.AreaEntered.field_boss:type_name -> client.v1.FieldBoss
+	77,  // 137: client.v1.AreaEntered.field_boss_gone:type_name -> client.v1.FieldBossGone
+	100, // 138: client.v1.PartySpots.spots:type_name -> client.v1.PartySpot
+	22,  // 139: client.v1.Response.picks:type_name -> client.v1.PickAnswer
+	103, // 140: client.v1.Response.channels:type_name -> client.v1.ChannelList
+	104, // 141: client.v1.ChannelList.channels:type_name -> client.v1.ChannelLoad
+	6,   // 142: client.v1.TeleportCancelled.reason:type_name -> client.v1.TeleportCancelReason
+	1,   // 143: client.v1.Kicked.reason:type_name -> client.v1.KickReason
+	111, // 144: client.v1.NpcDialog.gives:type_name -> client.v1.QuestOffer
+	113, // 145: client.v1.NpcDialog.takes:type_name -> client.v1.QuestTurnIn
+	109, // 146: client.v1.NpcDialog.promotion:type_name -> client.v1.PromotionOffer
+	110, // 147: client.v1.PromotionOffer.conditions:type_name -> client.v1.PromotionCondition
+	7,   // 148: client.v1.PromotionCondition.kind:type_name -> client.v1.PromotionConditionKind
+	8,   // 149: client.v1.QuestOffer.state:type_name -> client.v1.QuestOfferState
+	112, // 150: client.v1.QuestOffer.unmet:type_name -> client.v1.QuestConditions
+	9,   // 151: client.v1.QuestState.status:type_name -> client.v1.QuestStatus
+	10,  // 152: client.v1.QuestChanged.change:type_name -> client.v1.QuestChange
+	114, // 153: client.v1.QuestChanged.quest:type_name -> client.v1.QuestState
+	11,  // 154: client.v1.PvpUnqueued.reason:type_name -> client.v1.PvpUnqueueReason
+	12,  // 155: client.v1.PvpOfferGone.reason:type_name -> client.v1.PvpOfferGoneReason
+	13,  // 156: client.v1.MatchState.phase:type_name -> client.v1.MatchPhase
+	125, // 157: client.v1.MatchState.sides:type_name -> client.v1.MatchSide
+	127, // 158: client.v1.MatchState.points:type_name -> client.v1.CapturePoint
+	126, // 159: client.v1.MatchSide.fighters:type_name -> client.v1.MatchFighter
+	14,  // 160: client.v1.MatchEnded.result:type_name -> client.v1.MatchOutcome
+	130, // 161: client.v1.MatchEnded.rating:type_name -> client.v1.PvpRatingChange
+	162, // [162:162] is the sub-list for method output_type
+	162, // [162:162] is the sub-list for method input_type
+	162, // [162:162] is the sub-list for extension type_name
+	162, // [162:162] is the sub-list for extension extendee
+	0,   // [0:162] is the sub-list for field type_name
 }
 
 func init() { file_client_v1_client_proto_init() }
@@ -11020,6 +11086,7 @@ func file_client_v1_client_proto_init() {
 		(*ServerMessage_MatchEnded)(nil),
 		(*ServerMessage_PartySpots)(nil),
 		(*ServerMessage_AreaEntered)(nil),
+		(*ServerMessage_ArenaBar)(nil),
 	}
 	file_client_v1_client_proto_msgTypes[25].OneofWrappers = []any{}
 	file_client_v1_client_proto_msgTypes[63].OneofWrappers = []any{}
@@ -11029,7 +11096,7 @@ func file_client_v1_client_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_client_v1_client_proto_rawDesc), len(file_client_v1_client_proto_rawDesc)),
 			NumEnums:      15,
-			NumMessages:   118,
+			NumMessages:   119,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -3,6 +3,7 @@ package instance_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -30,11 +31,11 @@ func TestAMatchTakesSkillsFromTheArenaBarAlone(t *testing.T) {
 		ayla, robin := fighterFrom(t, data, "Ayla"), fighterFrom(t, data, "Robin")
 		inst, stop := worldtest.RunMatch(t, data, duel(model.Fighter{Character: ayla.ID}, model.Fighter{Character: robin.ID}), nil, worldtest.Options{Results: &worldtest.Results{}})
 		defer stop()
-		as := &worldtest.Sink{}
+		as, rs := &worldtest.Sink{}, &worldtest.Sink{}
 		for _, j := range []struct {
 			p model.Player
 			s *worldtest.Sink
-		}{{ayla, as}, {robin, &worldtest.Sink{}}} {
+		}{{ayla, as}, {robin, rs}} {
 			if err := inst.Join(context.Background(), j.p, j.s); err != nil {
 				t.Fatal(err)
 			}
@@ -47,7 +48,14 @@ func TestAMatchTakesSkillsFromTheArenaBarAlone(t *testing.T) {
 		if err := inst.SetBuild(ctx, kernel.NewCharacterID(), first); err != nil {
 			t.Fatalf("a build for no fighter of the match: %v", err)
 		}
-		sleep(data.Pvp().Rounds.Prep + data.Pvp().Rounds.Countdown + worldtest.TickInterval)
+		sleep(data.Pvp().Rounds.Prep + worldtest.TickInterval)
+		if bars := worldtest.Of[model.ArenaBar](as); len(bars) != 1 || !slices.Equal(bars[0].Bar, first.Bar) || len(worldtest.Of[model.ArenaBar](rs)) != 0 {
+			t.Fatalf("at round 1's countdown Ayla heard bars %+v and Robin %+v; want hers alone", bars, worldtest.Of[model.ArenaBar](rs))
+		}
+		if c := worldtest.Of[model.StatsChanged](as); len(c) == 0 || c[len(c)-1].Sheet == nil || c[len(c)-1].Sheet.Skills.Traits["strike"] != "concussion" {
+			t.Fatalf("Ayla's last sheet %+v; want her build's traits", c)
+		}
+		sleep(data.Pvp().Rounds.Countdown)
 		uses := []struct {
 			who   model.Player
 			skill string
@@ -87,6 +95,9 @@ func TestAMatchTakesSkillsFromTheArenaBarAlone(t *testing.T) {
 		}
 		if err := fromKey(inst, ayla, "taunt"); err != nil {
 			t.Fatalf("Taunt in round 2: %v", err)
+		}
+		if bars := worldtest.Of[model.ArenaBar](as); len(bars) != 2 || !slices.Equal(bars[1].Bar, next.Bar) {
+			t.Fatalf("Ayla's bars by round 2 %+v; want round 2's the newer build's", bars)
 		}
 		sleep(1500 * time.Millisecond)
 		if err := fromKey(inst, ayla, "strike"); !errors.Is(err, model.ErrNotOnArenaBar) {

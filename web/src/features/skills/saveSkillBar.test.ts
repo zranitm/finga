@@ -37,11 +37,22 @@ describe('saving the skill bar', () => {
     void stop();
   });
 
-  it('a load, a cooldown or a buff is not a change to save', () => {
+  it('a change waiting as a match puts its arena bar on saves the world bar, never the match’s', () => {
+    const { putSkillBar, stop } = watched();
+    skillBar.getState().put(0, 'strike');
+    skillBar.getState().wear(['taunt']);
+    vi.advanceTimersByTime(SAVE_DELAY_MS);
+    expect(putSkillBar.mock.calls).toEqual([['c-ayla', ['strike', '', '', '', '', '', '', '']]]);
+    void stop();
+  });
+
+  it('a load, a cooldown, a buff or an arena bar is not a change to save', () => {
     const { putSkillBar, stop } = watched();
     skillBar.getState().load(['strike']);
     skillBar.getState().cool('strike', { from: 0, until: 1 });
     skillBar.getState().buff({ skill: 'rally', points: 1, trait: '', until: 1 });
+    skillBar.getState().wear(['taunt']);
+    skillBar.getState().unwear();
     vi.advanceTimersByTime(SAVE_DELAY_MS);
     expect(putSkillBar).not.toHaveBeenCalled();
     void stop();

@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"net/http"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 	"finga/test/e2etest"
 )
 
-// I2/I4 (pvp.md sections 6 and 10): a character's profile carries their world bar's copy until they save an arena build, which then fights in their match: a skill off it is refused there, one on it goes. Another account's character is not found, a build not the class's or a Beginner's is refused, and a board lists the placed alone. Every wait is for a message, a minute its bound.
+// I2/I4 (pvp.md sections 6 and 10): a character's profile carries their world bar's copy until they save an arena build, which then fights in their match, told them at the countdown: a skill off it is refused there, one on it goes. Another account's character is not found, a build not the class's or a Beginner's is refused, and a board lists the placed alone. Every wait is for a message, a minute its bound.
 func TestAnArenaBuildIsSavedAndFoughtWith(t *testing.T) {
 	t.Parallel()
 	s := newStackOver(t, e2etest.GameData(t,
@@ -89,6 +90,10 @@ func TestAnArenaBuildIsSavedAndFoughtWith(t *testing.T) {
 	})
 	if !r.GetOk() || fight < 0 {
 		t.Fatalf("accepting: %+v, then %v", r, h.types(from))
+	}
+	worn := h.since(from, 0, func(m wsconn.Message) bool { _, ok := m.Data.(*clientv1.ArenaBar); return ok })
+	if worn < 0 || worn > fight || !slices.Equal(h.got[worn].Data.(*clientv1.ArenaBar).GetSkillBar(), []string{"strike", "war_cry", "", "", "", "", "", ""}) {
+		t.Fatalf("the bar worn before the fight: %v", h.types(from))
 	}
 	if _, r := ask("off", &clientv1.UseSkill{Skill: "taunt"}); r.GetOk() || r.GetCode() != code("NOT_ON_ARENA_BAR") {
 		t.Fatalf("Taunt, on the world bar but off the arena bar, answered %+v", r)

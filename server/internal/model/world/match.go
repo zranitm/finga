@@ -91,6 +91,14 @@ type MatchFighter struct {
 
 func (MatchState) event() {}
 
+// ArenaBar is the bar a match puts on its player at a countdown: from then, their skills go from its keys alone.
+type ArenaBar struct {
+	Tick uint64
+	Bar  []string
+}
+
+func (ArenaBar) event() {}
+
 // MatchResult is a match's outcome, as the world reports it: Winner is 1 or 2, 0 for a draw.
 type MatchResult struct {
 	Match          kernel.MatchID

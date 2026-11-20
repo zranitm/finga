@@ -199,6 +199,11 @@ type StatsChanged struct {
 	Timers    []SkillTimer // each with its time left as the event went out
 }
 
+// ArenaBar is the bar a match puts on its player at a countdown: from then, their skills go from its keys alone.
+type ArenaBar struct {
+	Bar []string
+}
+
 // MatchState is a match as its fighters see it, on entry and at each change.
 type MatchState struct {
 	Match  string
@@ -269,6 +274,7 @@ func (MapChange) push()         {}
 func (TeleportCancelled) push() {}
 func (PartySpots) push()        {}
 func (AreaEntered) push()       {}
+func (ArenaBar) push()          {}
 func (Damage) push()            {}
 func (Died) push()              {}
 func (SkillUsed) push()         {}

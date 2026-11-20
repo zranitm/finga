@@ -105,6 +105,7 @@ message ServerMessage {
     MatchEnded match_ended = 37;
     PartySpots party_spots = 38;
     AreaEntered area_entered = 39;
+    ArenaBar arena_bar = 40;
   }
 }
 
@@ -1284,6 +1285,11 @@ message CapturePoint {
   double progress = 3;
   // Both sides stand in it, so it holds still.
   bool contested = 4;
+}
+
+// ArenaBar is the bar the match puts on this player at a countdown, eight keys, "" for an empty one: from then their skills go from its keys alone, and the client shows it on the skill bar. Its traits come in the StatsChanged sent with it.
+message ArenaBar {
+  repeated string skill_bar = 1;
 }
 
 // MatchEnded is the match's outcome for this player, as its result phase starts.
