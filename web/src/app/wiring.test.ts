@@ -151,15 +151,17 @@ describe('wiring', () => {
       check: () => expect(party.getState().invites[0]?.fromName).toBe('Robin'),
     },
     {
-      name: 'ChatMessage',
-      push: (ws: FakeWebSocket) =>
+      name: 'ChatMessage, heard in the region channel the player is in',
+      push: (ws: FakeWebSocket) => {
+        mapView.getState().inChannel(2);
         ws.push('chatMessage', {
           channel: ChatChannel.MAP,
           sender: 'c-robin',
           senderName: 'Robin',
           text: 'hi',
-        }),
-      check: () => expect(chat.getState().lines[0]?.text).toBe('hi'),
+        });
+      },
+      check: () => expect(chat.getState().lines[0]).toMatchObject({ text: 'hi', heardIn: 2 }),
     },
     {
       name: 'LevelUp',

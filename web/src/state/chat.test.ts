@@ -18,13 +18,13 @@ describe('chat store', () => {
     vi.useRealTimers();
   });
 
-  it('tags map and party lines and notices, and keeps them in order with the time they came', () => {
+  it('tags map and party lines and notices, and keeps them in order with the time they came and the region channel they were heard in', () => {
     vi.setSystemTime(1000);
-    chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Ayla', 'hi'));
+    chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Ayla', 'hi'), 0);
     vi.setSystemTime(1500);
     chat.getState().notice('King Slime has appeared in the Forest!');
     vi.setSystemTime(2000);
-    chat.getState().applyChatMessage(line(ChatChannel.PARTY, 'Robin', 'yo'));
+    chat.getState().applyChatMessage(line(ChatChannel.PARTY, 'Robin', 'yo'), 3);
     expect(chat.getState().lines).toEqual([
       {
         kind: 'said',
@@ -33,6 +33,7 @@ describe('chat store', () => {
         senderName: 'Ayla',
         text: 'hi',
         at: 1000,
+        heardIn: 0,
       },
       { kind: 'notice', text: 'King Slime has appeared in the Forest!', at: 1500 },
       {
@@ -42,13 +43,14 @@ describe('chat store', () => {
         senderName: 'Robin',
         text: 'yo',
         at: 2000,
+        heardIn: 3,
       },
     ]);
   });
 
   it('keeps the last 100 lines', () => {
     for (let k = 0; k < MAX_LINES + 25; k++) {
-      chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Ayla', `line ${k}`));
+      chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Ayla', `line ${k}`), 0);
     }
     const lines = chat.getState().lines;
     expect(lines).toHaveLength(MAX_LINES);
@@ -57,7 +59,7 @@ describe('chat store', () => {
   });
 
   it('clears', () => {
-    chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Ayla', 'now'));
+    chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Ayla', 'now'), 0);
     chat.getState().clear();
     expect(chat.getState().lines).toEqual([]);
   });

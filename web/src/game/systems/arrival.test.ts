@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Received } from '@/net/socket';
 import {
+  AreaEnteredSchema,
   DeltaSchema,
   DiedSchema,
   MapChangeSchema,
@@ -66,6 +67,18 @@ describe('Arrival', () => {
     ]);
   });
 
+  it('a region’s area entered after the Snapshot is held for the scene to name once built; one before it is the old map’s, and is dropped', () => {
+    const f = feed();
+    const a = new Arrival(f, 'vale', 20);
+    f.send(msg('areaEntered', create(AreaEnteredSchema, { area: 'old' }), 9));
+    f.send(snapshot(10));
+    f.send(msg('areaEntered', create(AreaEnteredSchema, { area: 'square' }), 11));
+    expect(a.take().map((m) => [m.t, m.tick])).toEqual([
+      ['snapshot', 10],
+      ['areaEntered', 11],
+    ]);
+  });
+
   it('a Delta before the Snapshot is the old map’s, and is dropped', () => {
     const f = feed();
     const a = new Arrival(f, 'forest', 20);
@@ -118,7 +131,7 @@ describe('Arrival', () => {
   it('take stops holding: nothing more is kept, and the socket is let go', () => {
     const f = feed();
     const a = new Arrival(f, 'forest', 20, { x: 1, y: 0, z: 2, yaw: 0 });
-    expect(f.listeners()).toBe(6);
+    expect(f.listeners()).toBe(7);
     f.send(snapshot(10));
     expect(a.take()).toHaveLength(1);
     expect(f.listeners()).toBe(0);

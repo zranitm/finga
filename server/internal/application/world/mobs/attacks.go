@@ -100,6 +100,10 @@ func (a *Arena) turn(mb *mob, players []Body) {
 		return
 	}
 	target, ok := a.targetOf(mb, players)
+	if ok && a.inTown(target.at()) {
+		a.giveUp(mb) // a town's line holds it as its leash does
+		return
+	}
 	if !ok && mb.spawn == noSpawn && !mb.calm {
 		a.giveUp(mb) // a standing boss with nobody left to fight walks home, and calms there
 		return
@@ -208,9 +212,9 @@ func (a *Arena) take(mb *mob, id kernel.CharacterID) {
 	}
 }
 
-// sees is whether p is within the mob's sight in x and z, which a calm standing boss has none of, their feet from sightBelow under its own to sightAbove over, and they haven't made it lose sight of them; solids hide nobody.
+// sees is whether p is within the mob's sight in x and z, which a calm standing boss has none of, their feet from sightBelow under its own to sightAbove over, out of towns, and they haven't made it lose sight of them; solids hide nobody.
 func (a *Arena) sees(mb *mob, p Body) bool {
-	return !mb.calm && nav.Distance(p.at(), mb.at()) <= a.data.MobRules().Sight && p.Y >= mb.y-sightBelow && p.Y <= mb.y+sightAbove && !mb.lost(p.ID)
+	return !mb.calm && nav.Distance(p.at(), mb.at()) <= a.data.MobRules().Sight && p.Y >= mb.y-sightBelow && p.Y <= mb.y+sightAbove && !mb.lost(p.ID) && !a.inTown(p.at())
 }
 
 // afterBlow is the tick a span d that a blow starts runs out: blows land after the tick's turns, so it counts from the next.
@@ -284,14 +288,13 @@ func (a *Arena) begin(mb *mob, k int, target Body) {
 	})
 }
 
-// ahead is where a move of dist along the mob's yaw ends: stopped by solids and portals as the sim stops a body, short of its leash.
+// ahead is where a move of dist along the mob's yaw ends: stopped by solids, portals and a town's line as a walk is, short of its leash.
 func (a *Arena) ahead(mb *mob, dist float64) nav.Point {
 	ux, uz := model.HeadingOf(mb.yaw)
 	ox, oz := mb.x-mb.home.X, mb.z-mb.home.Z
 	b, c := float64(ux*ox)+float64(uz*oz), float64(ox*ox)+float64(oz*oz)-float64(a.leash(mb)*a.leash(mb))
 	dist = max(0, min(dist, -b+math.Sqrt(max(0, float64(b*b)-c)))) // the line's way out of the leash circle
-	g := a.m.Geometry.Blocking(&a.portalBlocking)
-	s := sim.Push(sim.State{X: mb.x, Y: mb.y, Z: mb.z, OnGround: true}, float64(ux*dist), float64(uz*dist), g, mb.params)
+	s := a.push(mb, float64(ux*dist), float64(uz*dist), a.m.Geometry.Blocking(&a.portalBlocking))
 	return nav.Point{X: s.X, Z: s.Z}
 }
 

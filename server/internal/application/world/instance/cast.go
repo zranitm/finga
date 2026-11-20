@@ -181,7 +181,7 @@ func (i *Instance) usable(m skillMsg, trait string) (use, error) {
 		return use{}, model.ErrSkillNotLearned
 	case s.Kind == gamedata.Passive:
 		return use{}, model.ErrSkillPassive
-	case (s.Effect == gamedata.DamageEffect || s.Effect == gamedata.StatusEffect) && i.m.Kind == gamedata.Town:
+	case (s.Effect == gamedata.DamageEffect || s.Effect == gamedata.StatusEffect) && i.m.TownAt(p.state.X, p.state.Z):
 		return use{}, model.ErrNotInTown
 	case s.BreaksControl && !p.statuses.Hard(): // no slack: a hold that just ended leaves nothing to break
 		return use{}, model.ErrNotControlled

@@ -14,6 +14,7 @@ export interface SaidLine {
   readonly senderName: string;
   readonly text: string;
   readonly at: number; // Unix ms
+  readonly heardIn: number; // the region's channel the line was heard in; 0 off regions
 }
 
 export interface NoticeLine {
@@ -24,7 +25,8 @@ export interface NoticeLine {
 
 export interface ChatState {
   readonly lines: readonly ChatLine[];
-  applyChatMessage(d: Data<'chatMessage'>): void;
+  /** A line heard in heardIn, the region's channel the player was in, 0 off regions. */
+  applyChatMessage(d: Data<'chatMessage'>, heardIn: number): void;
   notice(text: string): void;
   clear(): void;
 }
@@ -36,9 +38,9 @@ export const chat = defineStore<ChatState>((set, get) => {
   };
   return {
     lines: [],
-    applyChatMessage: (d) => {
+    applyChatMessage: (d, heardIn) => {
       const { channel, sender, senderName, text } = d;
-      add({ kind: 'said', channel, sender, senderName, text, at: Date.now() });
+      add({ kind: 'said', channel, sender, senderName, text, at: Date.now(), heardIn });
     },
     notice: (text) => {
       add({ kind: 'notice', text, at: Date.now() });

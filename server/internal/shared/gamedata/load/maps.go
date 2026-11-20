@@ -323,11 +323,12 @@ func fileOf(m *mapfile.Map) string {
 }
 
 // mapOf is a built and checked map as the world reads it, with a region's bake: yaws in radians.
-func mapOf(m *mapfile.Map, bake string) *gamedata.Map {
+func mapOf(m *mapfile.Map, r regionParts) *gamedata.Map {
 	point := func(at [2]float64) gamedata.Point { return gamedata.Point{X: at[0], Z: at[1]} }
 	out := &gamedata.Map{
 		ID: m.ID, Name: m.Name, Kind: gamedata.MapKind(m.Kind), Start: m.Start, Town: m.Town, MinLevel: m.Levels[0], MaxLevel: m.Levels[1],
-		Geometry: m.Geometry, PlayerSpawn: point(m.PlayerSpawn.At), SpawnYaw: radians(m.PlayerSpawn.Yaw), Grid: m.Grid, Bake: bake,
+		Geometry: m.Geometry, PlayerSpawn: point(m.PlayerSpawn.At), SpawnYaw: radians(m.PlayerSpawn.Yaw), Grid: m.Grid,
+		Bake: r.bake, Areas: r.areas, AreaGrid: r.grid, Waypoints: r.waypoints,
 	}
 	for _, p := range m.Portals {
 		out.Portals = append(out.Portals, gamedata.Portal{Name: p.Name, At: point(p.At), Radius: p.Radius, TargetMap: p.To.Map, TargetPortal: p.To.Portal})

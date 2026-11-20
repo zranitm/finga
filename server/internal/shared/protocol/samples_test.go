@@ -132,7 +132,7 @@ func samples() []wsconn.Message {
 			},
 		}},
 		// A map whose field boss is up.
-		{Type: "Snapshot", Tick: 81234, Data: &clientv1.Snapshot{Players: []*clientv1.PlayerView{player()}, Mobs: []*clientv1.MobView{mob(), boss()}, Pouches: []*clientv1.PouchView{pouch()}, FieldBoss: &clientv1.FieldBoss{MobId: 9, Type: "king_slime"}, Channel: 2}},
+		{Type: "Snapshot", Tick: 81234, Data: &clientv1.Snapshot{Players: []*clientv1.PlayerView{player()}, Mobs: []*clientv1.MobView{mob(), boss()}, Pouches: []*clientv1.PouchView{pouch()}, FieldBoss: &clientv1.FieldBoss{MobId: 9, Type: "king_slime"}, Channel: 2, Area: "west"}},
 		{Type: "Delta", Tick: 81235, Data: &clientv1.Delta{AckSeq: 117, Energy: proto.Uint32(8), Players: []*clientv1.PlayerView{player(), hurt, leaping, bot}, Mobs: []*clientv1.MobView{mob()}, Pouches: []*clientv1.PouchView{pouch()}, PouchesGone: []uint32{11}, RemovedPlayers: []string{charC}, RemovedMobs: []uint32{6}}},
 		{Type: "Damage", Tick: 81235, Data: &clientv1.Damage{Source: "p:" + charA, Target: "m:7", Amount: 23, Crit: true}},
 		{Type: "SkillUsed", Tick: 81235, Data: &clientv1.SkillUsed{Caster: charA, Skill: "strike", Stage: 2, Trait: "concussion", Aim: -1.5, Target: "m:7"}},
@@ -183,6 +183,7 @@ func samples() []wsconn.Message {
 		}},
 		{Type: "ChatMessage", Data: &clientv1.ChatMessage{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Sender: charA, SenderName: "Ayla", Text: "hello there"}},
 		{Type: "PartyState", Data: &clientv1.PartyState{Party: party()}},
+		{Type: "AreaEntered", Tick: 81241, Data: &clientv1.AreaEntered{Area: "town"}},
 		{Type: "PartySpots", Tick: 81240, Data: &clientv1.PartySpots{Spots: []*clientv1.PartySpot{{CharacterId: charB, X: 140.5, Z: 812.25}}}},
 		{Type: "PartyInvited", Data: &clientv1.PartyInvited{InviteId: "inv-1", From: charA, FromName: "Ayla"}},
 		// The guide's dialog for a level 1 character with the cleanup under way.

@@ -354,6 +354,7 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.deathsAndRespawns()
 	i.judgeRound()
 	i.teleports()
+	i.trackAreas()
 	i.stepBoss()
 	if n%i.ticksFor(time.Second) == 0 {
 		i.regen()

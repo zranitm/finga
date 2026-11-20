@@ -83,8 +83,11 @@ func (i *Instance) inflicting(p *player, damage gamedata.DamageType, ins []gamed
 	return out
 }
 
-// strike lands p's hit of damage through the arena, from where they stand or round their lock, their statuses' factors on its power: what it inflicts on each mob it lands on is own, then their buffs' on_hit. It credits what it does, and reports whether it reached a mob.
+// strike lands p's hit of damage through the arena, from where they stand or round their lock, their statuses' factors on its power: what it inflicts on each mob it lands on is own, then their buffs' on_hit. It credits what it does, and reports whether it reached a mob. From a town it lands nothing, as when a hit started outside comes due after its player stepped in.
 func (i *Instance) strike(p *player, lock model.EntityRef, s mobs.Strike, damage gamedata.DamageType, own gamedata.Inflict) bool {
+	if i.m.TownAt(p.state.X, p.state.Z) {
+		return false
+	}
 	s.By, s.Target, s.Aim, s.Power = p.ID, lockedMob(lock), i.aimOf(p, s.Shape, lock), p.statuses.Attacking(s.Power)
 	s.Inflicts = i.inflicting(p, damage, append([]gamedata.Inflict{own}, i.onHits(p)...))
 	if i.match != nil { // a match's map has no mobs
@@ -95,8 +98,11 @@ func (i *Instance) strike(p *player, lock model.EntityRef, s mobs.Strike, damage
 	return len(blows) > 0
 }
 
-// afflict lands a status skill's stage, used with points, on every mob its shape reaches: no hit, so no buff's on_hit; its damage over time takes the class's damage type.
+// afflict lands a status skill's stage, used with points, on every mob its shape reaches: no hit, so no buff's on_hit; its damage over time takes the class's damage type. From a town it lands nothing, as strike.
 func (i *Instance) afflict(p *player, st gamedata.Stage, points int, target model.EntityRef) {
+	if i.m.TownAt(p.state.X, p.state.Z) {
+		return
+	}
 	s := mobs.Strike{
 		By: p.ID, Shape: st.Shape, Most: math.MaxInt, Target: lockedMob(target), Aim: i.aimOf(p, st.Shape, target), Push: st.Push,
 		Inflicts: i.inflicting(p, p.class.Attack.Damage, []gamedata.Inflict{st.Status.At(points)}),
@@ -155,6 +161,9 @@ func (i *Instance) runStatuses() {
 		}
 		dots, ended := p.statuses.Tick(i.tick, p.state.X, p.state.Z)
 		p.changed = p.changed || ended
+		if i.m.TownAt(p.state.X, p.state.Z) {
+			continue // a town's safe: its statuses run out there without harm
+		}
 		for _, d := range dots {
 			amount := model.Steady(d.Power, p.statuses.Defending(model.PlayerDefender(p.derived)))
 			if i.match != nil {

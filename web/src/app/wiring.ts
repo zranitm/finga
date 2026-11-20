@@ -157,7 +157,7 @@ export function wireSocket(socket: GameSocket): () => void {
       party.getState().applyPartySpots(m.d);
     }),
     socket.on('chatMessage', (m) => {
-      chat.getState().applyChatMessage(m.d);
+      chat.getState().applyChatMessage(m.d, mapView.getState().channel);
     }),
     socket.on('snapshot', (m) => {
       mapView.getState().inChannel(m.d.channel);

@@ -104,6 +104,7 @@ message ServerMessage {
     MatchState match_state = 36;
     MatchEnded match_ended = 37;
     PartySpots party_spots = 38;
+    AreaEntered area_entered = 39;
   }
 }
 
@@ -728,6 +729,8 @@ message Snapshot {
   MobView boss = 7;
   // The region's channel the player is in, from 1; 0 on any other map. A join and every map change send a snapshot, so the client always knows it.
   uint32 channel = 8;
+  // The region's area the player stands in, by its id in the region's plan; empty on any other map. AreaEntered tells each change after.
+  string area = 9;
 }
 
 // FieldBoss says the map's field boss is up: as it appears, which its map's players hear of, and in the Snapshot of a player joining while it is. It stays until it's beaten.
@@ -971,6 +974,11 @@ message ChatMessage {
 // PartyState is the whole party after any change; party is unset when there is none.
 message PartyState {
   PartyView party = 1;
+}
+
+// AreaEntered tells the player they stepped into another of the region's areas, by its id in the region's plan: the client reads its name, levels and kind from the region's bake.
+message AreaEntered {
+  string area = 1;
 }
 
 // PartySpots is where the player's party members on their map stand that the frames don't bring, once a second to a player in a party on a map cut by cells, empty when none are out of sight; a member it doesn't list isn't here.

@@ -15,7 +15,8 @@ type Push interface{ push() }
 
 // Snapshot is what the player sees of their map, the cells round them; a join waits for it.
 type Snapshot struct {
-	Channel       int // the region's channel, from 1; 0 on any other map
+	Channel       int    // the region's channel, from 1; 0 on any other map
+	Area          string // the region's area the player stands in; empty on any other map
 	Players       []PlayerView
 	Mobs          []MobView
 	Pouches       []PouchView    // the player's own
@@ -89,6 +90,11 @@ type PartySpots struct {
 type PartySpot struct {
 	CharacterID string
 	X, Z        float64
+}
+
+// AreaEntered says the player stepped into another of the region's areas, by its id.
+type AreaEntered struct {
+	Area string
 }
 
 // TeleportCancel is what ended a teleport channel.
@@ -260,6 +266,7 @@ func (Delta) push()             {}
 func (MapChange) push()         {}
 func (TeleportCancelled) push() {}
 func (PartySpots) push()        {}
+func (AreaEntered) push()       {}
 func (Damage) push()            {}
 func (Died) push()              {}
 func (SkillUsed) push()         {}

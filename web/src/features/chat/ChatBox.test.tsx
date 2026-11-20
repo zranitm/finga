@@ -176,9 +176,9 @@ describe('ChatBox', () => {
     beforeEach(() => {
       act(() => {
         for (let i = 1; i <= 5; i++) {
-          chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', `l${i}`));
+          chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', `l${i}`), 0);
         }
-        chat.getState().applyChatMessage(line(ChatChannel.PARTY, 'Ayla', 'go'));
+        chat.getState().applyChatMessage(line(ChatChannel.PARTY, 'Ayla', 'go'), 0);
       });
     });
 
@@ -265,7 +265,7 @@ describe('ChatBox', () => {
     document.head.append(style);
     try {
       setup();
-      act(() => chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'hi')));
+      act(() => chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'hi'), 0));
       const list = screen.getByRole('list');
       expect(getComputedStyle(list)).toMatchObject({ overflowY: 'auto', display: 'block' });
       expect(screen.getByRole('listitem').style.order).toBe('');
@@ -281,8 +281,10 @@ describe('ChatBox', () => {
     try {
       setup({ open: false });
       act(() => {
-        chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'a long line '.repeat(20)));
-        chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'newest'));
+        chat
+          .getState()
+          .applyChatMessage(line(ChatChannel.MAP, 'Robin', 'a long line '.repeat(20)), 0);
+        chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'newest'), 0);
       });
       const list = screen.getByRole('list');
       // jsdom lays nothing out, so this checks the rules the browser draws by.
@@ -303,19 +305,21 @@ describe('ChatBox', () => {
     }
   });
 
-  it('an incoming ChatMessage renders with the right tag, and the open log keeps every line the store does', () => {
+  it('an incoming ChatMessage renders with the right tag, a region channel’s it was heard in for one said there, and the open log keeps every line the store does', () => {
     setup();
     act(() => {
-      chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'hi'));
-      chat.getState().applyChatMessage(line(ChatChannel.PARTY, 'Ayla', 'go'));
+      chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'hi'), 0);
+      chat.getState().applyChatMessage(line(ChatChannel.PARTY, 'Ayla', 'go'), 2);
+      chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Kai', 'yo'), 2);
     });
     const items = screen.getAllByRole('listitem');
     expect(items[0]).toHaveTextContent('[Map] Robin: hi');
     expect(items[1]).toHaveTextContent('[Party] Ayla: go');
+    expect(items[2]).toHaveTextContent('[Ch. 2] Kai: yo');
     expect(items[1]).toHaveClass('chat-party');
     act(() => {
       for (let i = 0; i < MAX_LINES; i++) {
-        chat.getState().applyChatMessage(line(ChatChannel.MAP, 'N', `l${i}`));
+        chat.getState().applyChatMessage(line(ChatChannel.MAP, 'N', `l${i}`), 0);
       }
     });
     expect(shown()).toHaveLength(MAX_LINES);
@@ -325,8 +329,8 @@ describe('ChatBox', () => {
   describe('tabs', () => {
     beforeEach(() => {
       act(() => {
-        chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'hi'));
-        chat.getState().applyChatMessage(line(ChatChannel.PARTY, 'Ayla', 'go'));
+        chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'hi'), 0);
+        chat.getState().applyChatMessage(line(ChatChannel.PARTY, 'Ayla', 'go'), 0);
         combatLog.getState().applyExpGained(create(ExpGainedSchema, { amount: 12n, exp: 40n }));
       });
     });
@@ -355,7 +359,7 @@ describe('ChatBox', () => {
       setup();
       await user.click(tab('Party'));
       act(() => {
-        chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'again'));
+        chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'again'), 0);
         combatLog.getState().applyLoot(loot(LootKind.TAKEN, 'slime_gel', 1));
       });
       expect(tab('Party')).toHaveAttribute('aria-selected', 'true');
