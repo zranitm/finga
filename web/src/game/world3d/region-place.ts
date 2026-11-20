@@ -33,7 +33,7 @@ const LOAD_M = 256; // chunks within this of the camera's target load, nearest f
 const FREE_M = 320; // and go past this
 const DETAIL_M = [64, 128] as const; // every sample within the first, every 2nd within the second, every 4th beyond
 const PROPS_M = 160; // a chunk's props show within this; the fog hides them past it
-const ASKED = 4; // chunks building at once
+const ASKED = 4; // chunks asked at once, past those the veil waits on, which all go together
 const MADE = 2; // chunk meshes made a frame, so streaming never holds one up
 const READY_M = 128; // the chunks within this of an arrival are drawn before the veil lifts
 const TRIES = 5; // a chunk that fails this often breaks the region
@@ -188,8 +188,8 @@ class RegionView implements Place {
     }
     const [ncx, ncz] = this.region.chunks;
     const now = this.hooks.now();
-    for (const { cx, cz } of chunksNear(ncx, ncz, side, x, z, LOAD_M)) {
-      if (this.asked.size >= ASKED) {
+    for (const { cx, cz, d } of chunksNear(ncx, ncz, side, x, z, LOAD_M)) {
+      if (this.asked.size >= ASKED && d > READY_M) {
         break;
       }
       const k = key(cx, cz);
