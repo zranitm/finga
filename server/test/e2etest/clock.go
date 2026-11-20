@@ -3,6 +3,7 @@ package e2etest
 import (
 	"time"
 
+	clientv1 "finga/api/gen/client/v1"
 	"finga/pkg/wsconn"
 )
 
@@ -13,9 +14,12 @@ type Game struct {
 	heard       time.Time // when that count last moved
 }
 
-// Game starts a budget of d of the world's ticks.
+// Game starts a budget of d of the world's ticks from the newest frame come, read or not: frames queued while the test was busy elsewhere are past, not the wait's, so they're held for the next reads and counted as spent before the budget.
 func (p *Player) Game(d time.Duration) *Game {
-	return &Game{p: p, until: p.elapsed + p.ticksIn(d), seen: p.elapsed, heard: time.Now()}
+	for m, ok := p.receive(0); ok; m, ok = p.receive(0) {
+		p.held = append(p.held, m)
+	}
+	return &Game{p: p, until: p.elapsed + p.stepsIn(p.held) + p.ticksIn(d), seen: p.elapsed, heard: time.Now()}
 }
 
 // Left is whether some of the budget is left and a frame has come within Stalled.
@@ -58,12 +62,31 @@ func (p *Player) Reach(tick uint64) {
 
 // step counts a frame of tick read: the ticks since the last on the same map, or one for a new map's first.
 func (p *Player) step(tick uint64) {
-	if p.moved || p.tick == 0 || tick < p.tick {
-		p.elapsed++
-	} else {
-		p.elapsed += tick - p.tick
-	}
+	p.elapsed += stepOf(p.tick, p.moved, tick)
 	p.tick, p.moved = tick, false
+}
+
+// stepsIn is what reading msgs would add to the count.
+func (p *Player) stepsIn(msgs []wsconn.Message) uint64 {
+	tick, moved, n := p.tick, p.moved, uint64(0)
+	for _, m := range msgs {
+		switch m.Data.(type) {
+		case *clientv1.MapChange:
+			moved = true
+		case *clientv1.Delta, *clientv1.Snapshot:
+			n += stepOf(tick, moved, m.Tick)
+			tick, moved = m.Tick, false
+		}
+	}
+	return n
+}
+
+// stepOf is the world's ticks a frame of tick counts after one of last: those between them on one map, or one for a new map's first, a restarted world's, or the first known.
+func stepOf(last uint64, moved bool, tick uint64) uint64 {
+	if moved || last == 0 || tick < last {
+		return 1
+	}
+	return tick - last
 }
 
 // ticksIn is d in the world's ticks.
