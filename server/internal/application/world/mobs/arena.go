@@ -22,6 +22,7 @@ const History = 8
 // framed is the living mobs as one tick's frame left them, as the sim's blockers.
 type framed struct {
 	tick     uint64
+	ids      []uint64 // each blocker's mob
 	blockers []sim.Blocker
 	blocking sim.Blockers // blockers bucketed, for the steps that read them
 }
@@ -564,13 +565,25 @@ func (a *Arena) Changes() (changed []model.MobView, removed []uint64) {
 // Unwatched ends a tick no player saw as Changes does, without its views: it keeps the frame for BlockersAt and clears the marks.
 func (a *Arena) Unwatched() {
 	kept := &a.history[a.tick%History]
-	kept.tick, kept.blockers = a.tick, kept.blockers[:0]
+	kept.tick, kept.ids, kept.blockers = a.tick, kept.ids[:0], kept.blockers[:0]
 	for _, mb := range a.mobs {
-		kept.blockers = append(kept.blockers, mb.blocker())
+		kept.ids, kept.blockers = append(kept.ids, mb.id), append(kept.blockers, mb.blocker())
 		mb.changed, mb.told = false, true
 	}
 	kept.blocking.Set(kept.blockers, a.m.Geometry.SizeX, a.m.Geometry.SizeZ)
 	a.unseen = a.unseen[:0]
+}
+
+// BodyAt is mob id's body as tick t's frame left it, as a sim blocker; false if that frame isn't kept or held no such mob.
+func (a *Arena) BodyAt(t, id uint64) (sim.Blocker, bool) {
+	kept := &a.history[t%History]
+	if kept.tick != t {
+		return sim.Blocker{}, false
+	}
+	if k := slices.Index(kept.ids, id); k >= 0 {
+		return kept.blockers[k], true
+	}
+	return sim.Blocker{}, false
 }
 
 // BlockersAt are the living mobs as tick t's frame left them, as sim blockers; nil past History ticks or before it's sent.

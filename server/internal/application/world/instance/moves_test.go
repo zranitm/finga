@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"finga/internal/application/world/instance"
+	"finga/internal/application/world/mobs"
 	"finga/internal/application/world/worldtest"
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
@@ -16,12 +17,12 @@ import (
 	"finga/internal/shared/sim"
 )
 
-// moveData is skillData with C17's moving skills, the Beginner teaching them: Lunge dashes 4 m in 200 ms, Hop Back leaps and dodges for 10 s, Shadow Step blinks up to 8 m.
+// moveData is skillData with C17's moving skills, the Beginner teaching them: Lunge dashes 4 m in 200 ms, Hop Back leaps and dodges for 10 s, Shadow Step blinks up to 8 m, and Shadow Hop is Shadow Step with no blow, for a town.
 func moveData(t *testing.T) *gamedata.Data {
 	t.Helper()
 	return skillDataWith(t, map[string]func(string) string{
 		"classes.yaml": func(s string) string {
-			return edit(t, "guard, mend]", "guard, mend, test_lunge, hop_back, test_shadow_step, test_disengage]")(s)
+			return edit(t, "guard, mend]", "guard, mend, test_lunge, hop_back, test_shadow_step, test_disengage, test_shadow_hop]")(s)
 		},
 		"skills.yaml": func(s string) string {
 			return s + `  - id: test_lunge
@@ -76,6 +77,16 @@ func moveData(t *testing.T) *gamedata.Data {
     push: {distance: 2}
     stages:
       - {at: 0, name: Disengage, description: "Strikes, then leaps back."}
+  - id: test_shadow_hop
+    icon: lorc/ninja-heroic-stance
+    kind: active
+    effect: move
+    energy: 2
+    cooldown: 1s
+    length: 600ms
+    move: {kind: blink, distance: 8, toward: lock}
+    stages:
+      - {at: 0, name: Shadow Hop, description: "Steps behind the lock, as Shadow Step does, where a town lets it."}
 `
 		},
 	})
@@ -84,7 +95,7 @@ func moveData(t *testing.T) *gamedata.Data {
 // mover is a caster at z with a point in each moving skill.
 func mover(z float64) model.Player {
 	p := caster(z)
-	for _, id := range []string{"test_lunge", "hop_back", "test_shadow_step", "test_disengage"} {
+	for _, id := range []string{"test_lunge", "hop_back", "test_shadow_step", "test_disengage", "test_shadow_hop"} {
 		p.Skills.Points[id] = 1
 	}
 	return p
@@ -282,4 +293,103 @@ func TestAMobsAttackPassesThroughADodge(t *testing.T) {
 		}
 		t.Fatal("no attack landed after the dodge")
 	})
+}
+
+// walled is a town arena whose slime stands still at (arenaX, z), its circle a point, with boxes.
+func walled(t *testing.T, z float64, boxes ...sim.Box) *gamedata.Map {
+	t.Helper()
+	g := worldtest.Flat(40)
+	g.Boxes = boxes
+	return still(worldtest.Gridded(t, &gamedata.Map{
+		ID: "arena", Kind: gamedata.Hunting, Town: "town", Geometry: g,
+		Spawns:      []gamedata.Spawn{{Mob: "green_slime", Max: 1, Respawn: time.Hour, At: gamedata.Point{X: arenaX, Z: z}}},
+		PlayerSpawn: gamedata.Point{X: arenaX, Z: spawnZ},
+	}))
+}
+
+// wallFrom is a wall across the arena whose south face is at z.
+func wallFrom(z float64) sim.Box {
+	return sim.Box{X: arenaX, Z: z + 0.5, HalfW: 5, HalfD: 0.5, UX: 1, Top: 3}
+}
+
+// farSide is where a blink at a slime standing at z lands behind it: just past its far contact ring.
+func farSide(z float64) float64 { return z + touching + 0.05 }
+
+// blinkBehind presses Shadow Hop from (arenaX, from) at the slime on m, locked, the way aimed as the client aims it at the slime drawn miss metres nearer than it stands; it returns where the blink lands.
+func blinkBehind(t *testing.T, m *gamedata.Map, from, miss float64) sim.State {
+	t.Helper()
+	var landed sim.State
+	synctest.Test(t, func(t *testing.T) {
+		inst, stop := worldtest.RunMap(t, moveData(t), m, nil, worldtest.Options{Transfer: &transferRecorder{}})
+		defer stop()
+		tick(1)
+		p := mover(from)
+		s := join(t, inst, p)
+		slime, at := slimeOf(t, s), m.Spawns[0].At
+		if slime.X != at.X || slime.Z != at.Z {
+			t.Fatalf("the slime at (%v, %v); want it still at (%v, %v)", slime.X, slime.Z, at.X, at.Z)
+		}
+		seq := uint32(0)
+		input := func() { // as a client sends it: naming the newest frame it drew
+			seq++
+			_ = inst.Input(p.ID, seq, sim.Input{}, uint32(s.Last().Tick)) //nolint:gosec // a test's ticks are few
+			tick(1)
+		}
+		for range mobs.History + 1 { // the frames a view names kept from here
+			input()
+		}
+		done := make(chan error, 1)
+		go func() {
+			way := sim.Way{Z: 1, Length: min(slime.Z-miss-from+touching, 8)}
+			done <- inst.UseSkill(context.Background(), p.ID, "c1", model.SkillUse{Skill: "test_shadow_hop", Root: "test_shadow_hop", Way: way, Target: model.EntityRef{Mob: slime.ID}}, seq)
+		}()
+		tick(1)
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		input()
+		landed = viewAfter(t, s, p.ID, seq)
+	})
+	return landed
+}
+
+// A blink at the lock lands just past the locked mob's far side, as the frame the player's input names has it, wherever the client drew it. The client's own way, to the far contact ring as it drew the mob, landed in front when the mob stood nearer the world's way than drawn, as lag draws one walking away (the 4b-1 playtest's Shadow Dance), and when its sum rounded a hair short of the ring, as one in ten does from a slime off a whole metre; drawn farther, it landed further behind.
+func TestABlinkAtTheLockLandsBehindIt(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		slime, from float64
+		miss        float64
+	}{
+		{"drawn where it stands", slimeZ, slimeZ - 3.7, 0},
+		{"drawn where it stands, its sum short of the ring", 20.3, 15.97, 0},
+		{"drawn nearer, as one walking away", slimeZ, slimeZ - 3.7, 0.3},
+		{"drawn farther, as one coming", slimeZ, slimeZ - 3.7, -0.3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := blinkBehind(t, walled(t, tc.slime), tc.from, tc.miss); got.X != arenaX || math.Abs(got.Z-farSide(tc.slime)) > 1e-9 {
+				t.Fatalf("landed at (%v, %v); want (%v, %v), just past the slime's far side", got.X, got.Z, arenaX, farSide(tc.slime))
+			}
+		})
+	}
+}
+
+// "Within 8 m" is the foe: a blink at a lock 7.9 m off lands behind it, past the skill's 8 m, where the client's way, held to 8 m, ended in its body and landed in front. A lock past 8 m isn't one it reaches: the blink goes the client's way.
+func TestABlinkAtALockAtTheSkillsRangeLandsBehindIt(t *testing.T) {
+	if got := blinkBehind(t, walled(t, slimeZ), slimeZ-7.9, 0); math.Abs(got.Z-farSide(slimeZ)) > 1e-9 {
+		t.Fatalf("landed at z %v from 7.9 m off; want %v, just past the slime's far side", got.Z, farSide(slimeZ))
+	}
+	if got := blinkBehind(t, walled(t, slimeZ), slimeZ-9, 0); math.Abs(got.Z-(slimeZ-1)) > 1e-9 {
+		t.Fatalf("landed at z %v from 9 m off; want %v, the client's 8 m", got.Z, slimeZ-1)
+	}
+}
+
+// A blink at a lock with a wall behind it lands behind when the body fits there, and in front, at the last point clear of the mob on its way, when it doesn't.
+func TestABlinkAtALockByAWall(t *testing.T) {
+	room := walled(t, slimeZ, wallFrom(farSide(slimeZ)+0.375+0.1))
+	if got := blinkBehind(t, room, slimeZ-4, 0); math.Abs(got.Z-farSide(slimeZ)) > 1e-9 {
+		t.Fatalf("landed at z %v with room behind; want %v, just past the slime's far side", got.Z, farSide(slimeZ))
+	}
+	if got := blinkBehind(t, walled(t, slimeZ, wallFrom(slimeZ+touching+0.1)), slimeZ-4, 0); got.Z > slimeZ-touching {
+		t.Fatalf("landed at z %v with no room behind; want in front, short of the slime's near side at %v", got.Z, slimeZ-touching)
+	}
 }

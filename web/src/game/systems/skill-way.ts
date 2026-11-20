@@ -13,6 +13,9 @@ interface Unit {
   readonly z: number;
 }
 
+/** How far past the lock's far contact ring a blink at it aims, as the world aims it, so it lands clear of the body however the sums round. */
+const PAST_RING = 0.05;
+
 /** The unit way from the feet to the lock's middle, and how far it is; null with none, or with it underfoot. */
 function toLock(s: State, lock: Mark | null): (Unit & { readonly d: number }) | null {
   if (!lock) {
@@ -38,7 +41,7 @@ function keysWay(keys: Input | null): Unit | null {
   return x !== 0 || z !== 0 ? { x, z } : null;
 }
 
-/** Where a moving skill goes from s, with the keys held and the locked mob: at the lock to its near contact ring, or its far one for a blink; away from it, or back from the heading with none; or along the keys, back from the heading with none held. A lock skill with no lock goes along the heading. */
+/** Where a moving skill goes from s, with the keys held and the locked mob: at the lock to its near contact ring, or for a blink just past its far one, beyond the distance if the lock is within it; away from it, or back from the heading with none; or along the keys, back from the heading with none held. A lock skill with no lock goes along the heading. */
 export function wayFor(move: Move, s: State, keys: Input | null, lock: Mark | null): Way {
   const at = toLock(s, lock);
   const back = { x: -s.hx, z: -s.hz };
@@ -53,7 +56,12 @@ export function wayFor(move: Move, s: State, keys: Input | null, lock: Mark | nu
         return along({ x: s.hx, z: s.hz }, move.distance);
       }
       const ring = lock.radius + movement.radius;
-      return along(at, move.kind === 'blink' ? at.d + ring : Math.max(0, at.d - ring));
+      if (move.kind === 'blink') {
+        return at.d <= move.distance
+          ? { x: at.x, z: at.z, length: at.d + ring + PAST_RING }
+          : along(at, move.distance);
+      }
+      return along(at, Math.max(0, at.d - ring));
     }
     case 'back':
       return along(at ? { x: -at.x, z: -at.z } : back, move.distance);
