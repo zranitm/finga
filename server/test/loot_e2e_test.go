@@ -256,18 +256,22 @@ func TestLootAndKeep(t *testing.T) {
 			t.Fatalf("Pia holds %d gels, want the one she took", gels)
 		}
 
-		// Ravi walks into the slimes, which kill him; dead or in town, he gets no turn: Pia's next pouches follow one another.
+		// Ravi walks into the slimes, which kill him; dead or in town, he gets no turn: Pia's next pouches follow one another. A slime keeps the player it's after while it sees them, and among slimes all after Pia, Ravi stood a whole 30 s unhurt: so Pia walks out of their sight as he goes, and they let her go for him.
+		clear := make(chan bool, 1)
+		go func() { clear <- pia.WalkTo(e2etest.ClearOfSlimes, 30*time.Second) }()
 		dead := func(m wsconn.Message) bool {
 			d, ok := m.Data.(*clientv1.Died)
 			return ok && d.GetCharacterId() == ravi.ID
 		}
-		for deadline := time.Now().Add(30 * time.Second); !ravi.Pump(50*time.Millisecond, dead); pia.Pump(10*time.Millisecond, nil) {
-			if time.Now().After(deadline) {
-				t.Fatalf("Ravi never died among the slimes (at %.2f, %.2f, %.2f, %d HP)", ravi.X, ravi.Y, ravi.Z, ravi.HP)
-			}
-			if err := ravi.Chase(); err != nil {
-				t.Fatal(err)
-			}
+		died := ravi.ChaseUntil(30*time.Second, dead)
+		if !<-clear {
+			t.Fatalf("Pia never got clear of the slimes (at %.2f, %.2f)", pia.X, pia.Z)
+		}
+		if !died {
+			t.Fatalf("Ravi never died among the slimes (at %.2f, %.2f, %.2f, %d HP)", ravi.X, ravi.Y, ravi.Z, ravi.HP)
+		}
+		if !pia.WalkTo(e2etest.SlimeField, 30*time.Second) {
+			t.Fatalf("Pia never got back to the slimes (at %.2f, %.2f)", pia.X, pia.Z)
 		}
 		before := len(pia.Seen)
 		if !pia.HuntPouches(30*time.Second, before+2) {

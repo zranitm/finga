@@ -19,6 +19,7 @@ var (
 	SlimeField     = gamedata.Point{X: 13.5, Z: 12} // the forest's west, at the edge of the slimes' circle, which sees it
 	AmongSlimes    = gamedata.Point{X: 20, Z: 12}   // the middle of the slimes' circle, where they're on a player at once
 	OutOfSight     = gamedata.Point{X: 1, Z: 6}     // the forest's south-west corner, farther than any mob of the forest sees
+	ClearOfSlimes  = gamedata.Point{X: 2, Z: 30}    // the forest's north-west, out of the slimes' sight, even of those that chase a player there till they let them go
 	TownPortal     = gamedata.Point{X: 46, Z: 16}   // the town's to_forest
 	ForestFromTown = gamedata.Point{X: 2, Z: 20}    // the forest's way back to the town
 	ForestToCave   = gamedata.Point{X: 70, Z: 20}
@@ -118,6 +119,26 @@ func (l *Looter) Chase() error {
 	}
 	l.heading = in
 	return l.Input(in)
+}
+
+// ChaseUntil chases the nearest live slime, deciding once a frame, until pred meets a message; it gives up once d of the world's ticks pass, or when no frame comes for Stalled.
+func (l *Looter) ChaseUntil(d time.Duration, pred func(wsconn.Message) bool) bool {
+	for start := l.tick; l.tick-start < l.ticksIn(d); {
+		if err := l.Chase(); err != nil {
+			return false
+		}
+		was, met := l.tick, false
+		if !l.Pump(Stalled, func(m wsconn.Message) bool {
+			met = met || pred(m)
+			return met || l.tick != was
+		}) {
+			return false
+		}
+		if met {
+			return true
+		}
+	}
+	return false
 }
 
 // Toward is the keys that walk (dx, dz) metres, one of 8 ways: an axis within a fifth of a metre, under a tick's walk, is left alone.
