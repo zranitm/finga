@@ -18,11 +18,12 @@ import (
 
 // worldModule records the last call: the presence and the rest of its arguments; Join answers with view, and TakeLoot with picks and err.
 type worldModule struct {
-	p     world.Presence
-	args  any
-	view  world.View
-	picks []world.PickAnswer
-	err   error
+	p        world.Presence
+	args     any
+	view     world.View
+	picks    []world.PickAnswer
+	channels world.Channels
+	err      error
 }
 
 // The arguments of each world call after its presence.
@@ -84,6 +85,10 @@ type (
 	teleportArgs struct {
 		MapID string
 		Seq   uint32
+	}
+	switchArgs struct {
+		Channel int
+		Seq     uint32
 	}
 	aimArgs struct {
 		Aim    float32
@@ -164,6 +169,15 @@ func (w *worldModule) UseSkill(_ context.Context, p world.Presence, use world.Sk
 
 func (w *worldModule) Teleport(_ context.Context, p world.Presence, mapID string, seq uint32) error {
 	return w.record(p, teleportArgs{mapID, seq})
+}
+
+func (w *worldModule) SwitchChannel(_ context.Context, p world.Presence, n int, seq uint32) error {
+	return w.record(p, switchArgs{n, seq})
+}
+
+func (w *worldModule) Channels(_ context.Context, p world.Presence) (world.Channels, error) {
+	_ = w.record(p, nil)
+	return w.channels, w.err
 }
 
 func (w *worldModule) Promote(_ context.Context, p world.Presence, npc string, class kernel.Class) error {
@@ -251,6 +265,10 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 			MapID string
 			Seq   uint32
 		}
+		switched struct {
+			Channel int
+			Seq     uint32
+		}
 		aimed struct {
 			Aim    float32
 			Target model.Target
@@ -318,6 +336,15 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 		},
 		"Teleport": func() []string {
 			return worldCall[teleport, teleportArgs](w, nil, func(p model.Presence, in teleport) error { return a.Teleport(ctx, p, in.MapID, in.Seq) })
+		},
+		"SwitchChannel": func() []string {
+			return worldCall[switched, switchArgs](w, nil, func(p model.Presence, in switched) error { return a.SwitchChannel(ctx, p, in.Channel, in.Seq) })
+		},
+		"Channels": func() []string {
+			return worldCall[struct{}, struct{}](w, nil, func(p model.Presence, _ struct{}) error {
+				_, err := a.Channels(ctx, p)
+				return err
+			})
 		},
 		"ResetPoints": func() []string {
 			return worldCall[expected, resetArgs](w, nil, func(p model.Presence, in expected) error { return a.ResetPoints(ctx, p, in.Expected) })
@@ -418,5 +445,19 @@ func TestTheSheetSaysWhetherTheFreeResetIsLeft(t *testing.T) {
 		if got := statSheet(world.Sheet{Points: world.Points{FreeResetUsed: used}}).Points.FreeResetLeft; got != left {
 			t.Errorf("used %v: left %v", used, got)
 		}
+	}
+}
+
+// The channel list the module answers reaches the use cases with every field.
+func TestAChannelListKeepsItsFields(t *testing.T) {
+	if got := copytest.Diff(copytest.Match{}, func(in world.Channels) model.Channels {
+		w := &worldModule{channels: in}
+		out, err := NewWorld(w, slog.New(slog.DiscardHandler), nil).Channels(t.Context(), model.Presence{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}); len(got) > 0 {
+		t.Fatal(got)
 	}
 }

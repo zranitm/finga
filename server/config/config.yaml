@@ -68,6 +68,9 @@ world:
   item_calls:
     workers: 8            # the pool that runs the calls to the item module off the tick
     batch_max: 32         # drops one grant call may carry, at most the item module's 32
+  channels:               # a region's
+    cap: 150              # players a channel takes before joins and gates pass it; a switch's 3 s may push it a few over
+    idle: 5m              # a channel past the first, empty this long, closes
 
 social:
   members:                # a member offline and in no party is forgotten keep after going offline

@@ -16,14 +16,15 @@ const (
 
 // Member is a party member as the others see them, fed by the gateway and the world.
 type Member struct {
-	ID     kernel.CharacterID
-	Name   string
-	Class  kernel.Class
-	Level  int
-	HP     int
-	MaxHP  int
-	MapID  string
-	Online bool
+	ID      kernel.CharacterID
+	Name    string
+	Class   kernel.Class
+	Level   int
+	HP      int
+	MaxHP   int
+	MapID   string
+	Channel int // the region's channel, from 1; 0 off regions
+	Online  bool
 	// Connection is the one the member is online through; an Offline naming another is stale.
 	Connection string
 	// Gateway is the one the member is online through, where their deliveries go.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"time"
 
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
@@ -23,9 +24,21 @@ type teleportMsg struct {
 
 func (teleportMsg) message() {}
 
-// channel is a teleport under way: where to, the input it was pressed during, and the tick it takes the player.
+// switchMsg asks to start a switch to the region's channel n.
+type switchMsg struct {
+	id   kernel.CharacterID
+	conn string
+	n    int
+	seq  uint32
+	done chan error
+}
+
+func (switchMsg) message() {}
+
+// channel is a teleport or a channel switch under way: where to, the input it was pressed during, and the tick it takes the player.
 type channel struct {
 	target *gamedata.Map
+	to     int // a switch's channel of this region; 0 on a teleport
 	seq    uint32
 	end    uint64
 }
@@ -59,6 +72,28 @@ func (i *Instance) startTeleport(m teleportMsg) {
 	}
 }
 
+// SwitchChannel starts a switch to the region's channel n, pressed during input seq, and returns once it has started or been refused; the World has checked n is open with room.
+func (i *Instance) SwitchChannel(ctx context.Context, id kernel.CharacterID, conn string, n int, seq uint32) error {
+	m := switchMsg{id: id, conn: conn, n: n, seq: seq, done: make(chan error, 1)}
+	return i.ask(ctx, m, m.done)
+}
+
+// startSwitch starts the player's switch, a teleport's channel to the same spot in channel n.
+func (i *Instance) startSwitch(m switchMsg) {
+	p, ok := i.players[m.id]
+	switch {
+	case !ok || p.Connection != m.conn:
+		m.done <- fmt.Errorf("%w: the character is not on this map through that connection", transient.ErrUnavailable)
+	case p.dead:
+		m.done <- model.ErrTeleportDead
+	case p.channel != nil:
+		m.done <- model.ErrTeleportBusy
+	default:
+		p.channel = &channel{target: i.m, to: m.n, seq: p.pressedDuring(m.seq), end: i.tick + i.ticksFor(i.data.TeleportChannel())}
+		m.done <- nil
+	}
+}
+
 // cancelTeleport ends the player's channel, if one runs, and tells them why.
 func (i *Instance) cancelTeleport(p *player, why model.TeleportCancel) {
 	if p.channel == nil {
@@ -84,7 +119,7 @@ func (i *Instance) movedOn(p *player) {
 
 func moving(in sim.Input) bool { return in.Left || in.Right || in.Up || in.Down || in.Jump }
 
-// teleports hands off each player whose channel ends this tick to its map's player spawn; an item call in flight settles here first.
+// teleports hands off each player whose channel ends this tick: a teleport's to its map's player spawn, a switch's to where they stand in the other channel; an item call in flight settles here first.
 func (i *Instance) teleports() {
 	for _, id := range slices.Clone(i.order) {
 		p := i.players[id]
@@ -93,6 +128,12 @@ func (i *Instance) teleports() {
 			continue
 		}
 		p.channel = nil
+		if c.to > 0 {
+			moved := p.Player
+			moved.Timers = i.timersOf(p, time.Now())
+			i.leave(p, i.m, p.state.X, p.state.Y, p.state.Z, facing(p.state), moved, Dest{ID: i.m.ID, Channel: c.to, Switch: true})
+			continue
+		}
 		i.handOff(p, c.target, c.target.PlayerSpawn.X, c.target.PlayerSpawn.Z, float32(c.target.SpawnYaw))
 	}
 }

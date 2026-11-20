@@ -151,17 +151,26 @@ func Of[T any](s *Sink) []T {
 	return out
 }
 
-// Observer counts the ticks it sees.
+// Observer counts the ticks it sees, and the channel of the last.
 type Observer struct {
-	mu    sync.Mutex
-	ticks []time.Duration
+	mu      sync.Mutex
+	ticks   []time.Duration
+	channel int
 }
 
 // ObserveTick records how long a tick took.
-func (o *Observer) ObserveTick(_ string, took, _ time.Duration) {
+func (o *Observer) ObserveTick(_ string, channel int, took, _ time.Duration) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.ticks = append(o.ticks, took)
+	o.channel = channel
+}
+
+// Channel is the region's channel the last tick it saw ran, 0 off regions.
+func (o *Observer) Channel() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.channel
 }
 
 // Ticks is how many ticks it saw.
@@ -292,7 +301,7 @@ func worldTraces() *tracing.Provider {
 	return tp
 }
 
-// Options are what a test sets; Fill gives the rest a 50 ms tick, rolls of 0.5, grant calls of up to 32 drops and services that do nothing.
+// Options are what a test sets; Fill gives the rest a 50 ms tick, rolls of 0.5, grant calls of up to 32 drops, region channels of 150 closing after 5 idle minutes, and services that do nothing.
 type Options struct {
 	TickInterval       time.Duration
 	CheckpointInterval time.Duration
@@ -303,6 +312,9 @@ type Options struct {
 	Items              loot.Items
 	Batches            loot.Observer
 	BatchMax           int // drops per grant call
+	ChannelCap         int // a region's channel's players
+	ChannelIdle        time.Duration
+	Channel            int // the region's channel a map run alone is
 	Equipment          instance.Equipment
 	HandIns            instance.HandIns
 	Gifts              instance.Gifts
@@ -317,6 +329,7 @@ type Options struct {
 	Logger             *slog.Logger // the World's
 	Traces             trace.TracerProvider
 	SaveObserver       world.SaveObserver
+	Channels           world.ChannelObserver
 	Results            instance.Results // matches' outcomes
 }
 
@@ -325,6 +338,8 @@ func (o Options) Fill() Options {
 	o.TickInterval = cmp.Or(o.TickInterval, TickInterval)
 	o.CheckpointInterval = cmp.Or(o.CheckpointInterval, 30*time.Second)
 	o.FlushTimeout = cmp.Or(o.FlushTimeout, 10*time.Second)
+	o.ChannelCap = cmp.Or(o.ChannelCap, 150)
+	o.ChannelIdle = cmp.Or(o.ChannelIdle, 5*time.Minute)
 	if o.NewRoll == nil {
 		o.NewRoll = Rolls(0.5)
 	}
@@ -380,6 +395,9 @@ func (o Options) Fill() Options {
 	if o.Traces == nil {
 		o.Traces = Traces
 	}
+	if o.Channels == nil {
+		o.Channels = nobody{}
+	}
 	if o.SaveObserver == nil {
 		o.SaveObserver = nobody{}
 	}
@@ -422,7 +440,7 @@ func NewInstance(m *gamedata.Map, data *gamedata.Data, cps *Checkpoints, o Optio
 	if cps == nil {
 		cps = &Checkpoints{}
 	}
-	return instance.New(instance.Deps{Services: o.Services(), Map: m, Data: data, Saves: cps, Mover: o.Transfer, Logger: o.Logger}, instance.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, BatchMax: o.BatchMax})
+	return instance.New(instance.Deps{Services: o.Services(), Map: m, Data: data, Saves: cps, Mover: o.Transfer, Logger: o.Logger, Channel: o.Channel}, instance.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, BatchMax: o.BatchMax})
 }
 
 // World is a World built for a test, with the item calls pool its maps submit to.
@@ -445,8 +463,11 @@ func NewWorld(data *gamedata.Data, saver world.Saver, o Options) *World {
 	o = o.Fill()
 	return &World{World: world.New(world.Deps{
 		Services: o.Services(), Data: data, Saver: saver, Characters: o.Characters, Starter: o.Starter, Wardrobe: o.Wardrobe, HandedIns: o.HandedIns,
-		Panics: DiscardPanics(), Logger: o.Logger, SaveObserver: o.SaveObserver, Results: o.Results,
-	}, world.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, FlushTimeout: o.FlushTimeout, BatchMax: o.BatchMax}), calls: o.ItemCalls}
+		Panics: DiscardPanics(), Logger: o.Logger, SaveObserver: o.SaveObserver, Channels: o.Channels, Results: o.Results,
+	}, world.Tuning{
+		TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, FlushTimeout: o.FlushTimeout, BatchMax: o.BatchMax,
+		ChannelCap: o.ChannelCap, ChannelIdle: o.ChannelIdle,
+	}), calls: o.ItemCalls}
 }
 
 // Run starts a town map in the synctest bubble; stop waits for Run so nothing outlives it.
@@ -515,11 +536,11 @@ type Moves struct {
 // Move is one hand-off.
 type Move struct {
 	Player model.Player
-	Dest   string
+	Dest   instance.Dest
 }
 
 // Transfer records the hand-off.
-func (m *Moves) Transfer(_ *instance.Instance, p model.Player, _ instance.Sink, dest string) {
+func (m *Moves) Transfer(_ *instance.Instance, p model.Player, _ instance.Sink, dest instance.Dest) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.got = append(m.got, Move{Player: p, Dest: dest})
@@ -553,7 +574,7 @@ var errNobody = errors.New("worldtest: no such service in this test")
 type nobody struct{}
 
 // Transfer moves nobody.
-func (nobody) Transfer(*instance.Instance, model.Player, instance.Sink, string) {}
+func (nobody) Transfer(*instance.Instance, model.Player, instance.Sink, instance.Dest) {}
 
 // Dropped forgets nobody.
 func (nobody) Dropped(*instance.Instance, kernel.CharacterID, string) {}
@@ -578,6 +599,12 @@ func (nobody) Retryable(error) bool { return false }
 
 // SaveDropped counts nothing.
 func (nobody) SaveDropped(string) {}
+
+// ChannelsOpen hears nothing.
+func (nobody) ChannelsOpen(string, int) {}
+
+// ChannelStopped hears nothing.
+func (nobody) ChannelStopped(string, int) {}
 
 // AddMany refuses.
 func (nobody) AddMany(context.Context, model.GrantCall) (model.Granted, error) {

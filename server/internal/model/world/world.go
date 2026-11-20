@@ -66,6 +66,11 @@ var (
 	ErrTeleportSameMap    = errors.New("world: the character is already on that map")
 	ErrTeleportDead       = errors.New("world: a dead character can't teleport")
 	ErrTeleportBusy       = errors.New("world: a teleport is already channelling")
+
+	ErrNotARegion    = errors.New("world: the character isn't in a region, which alone has channels")
+	ErrSameChannel   = errors.New("world: the character is already in that channel")
+	ErrNoSuchChannel = errors.New("world: the region has no such channel open")
+	ErrChannelFull   = errors.New("world: the channel is full")
 )
 
 // Worn is what a character wears as the item module last counted it: each worn item, at the inventory's Revision.
@@ -255,6 +260,7 @@ type Event interface{ event() }
 type Snapshot struct {
 	Tick          uint64
 	MapID         string
+	Channel       int // the region's channel, from 1; 0 on any other map
 	Players       []PlayerView
 	Mobs          []MobView
 	Pouches       []PouchView    // the joiner's own

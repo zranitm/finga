@@ -30,12 +30,13 @@ func (c *echoChat) Send(_ context.Context, from model.Sender, channel model.Chan
 
 // update is UpdateMember's arguments to the party module, by name.
 type update struct {
-	ID    kernel.CharacterID
-	MapID string
-	Class kernel.Class
-	Level int
-	HP    int
-	MaxHP int
+	ID      kernel.CharacterID
+	MapID   string
+	Channel int
+	Class   kernel.Class
+	Level   int
+	HP      int
+	MaxHP   int
 }
 
 // Each conversion between the facade's types and the model's keeps every field, the deliveries the notifier builds too.
@@ -62,7 +63,7 @@ func TestEveryConversionKeepsEveryField(t *testing.T) {
 		}),
 		"UpdateMember": copytest.Diff(copytest.Match{}, func(u MemberUpdate) update {
 			_ = m.UpdateMember(ctx, u)
-			return update{p.got[0].(kernel.CharacterID), p.got[1].(string), p.got[2].(kernel.Class), p.got[3].(int), p.got[4].(int), p.got[5].(int)}
+			return update{p.got[0].(kernel.CharacterID), p.got[1].(string), p.got[2].(int), p.got[3].(kernel.Class), p.got[4].(int), p.got[5].(int), p.got[6].(int)}
 		}),
 		"Chat's line": copytest.Diff(copytest.Match{Renames: map[string]string{"From": "From.ID", "FromName": "From.Name"}}, func(l Line) chatSent {
 			_, _ = m.Chat(ctx, l)

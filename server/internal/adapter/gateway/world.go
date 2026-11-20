@@ -26,6 +26,8 @@ type WorldModule interface {
 	Attack(ctx context.Context, p world.Presence, aim float32, target world.EntityRef) error
 	EnterPortal(ctx context.Context, p world.Presence) error
 	Teleport(ctx context.Context, p world.Presence, mapID string, seq uint32) error
+	SwitchChannel(ctx context.Context, p world.Presence, n int, seq uint32) error
+	Channels(ctx context.Context, p world.Presence) (world.Channels, error)
 	Say(ctx context.Context, p world.Presence, name, text string) error
 	Equip(ctx context.Context, p world.Presence, key string, item kernel.ItemID, equipSlot string) error
 	SetLook(ctx context.Context, p world.Presence, key string, look world.Look) error
@@ -124,6 +126,24 @@ func (w World) EnterPortal(ctx context.Context, p model.Presence) error {
 // Teleport starts a teleport channel to the map; it answers once the channel starts.
 func (w World) Teleport(ctx context.Context, p model.Presence, mapID string, seq uint32) error {
 	return worldErr(w.w.Teleport(ctx, presence(p), mapID, seq))
+}
+
+// SwitchChannel starts a switch to channel n of the player's region; it answers once its channel starts.
+func (w World) SwitchChannel(ctx context.Context, p model.Presence, n int, seq uint32) error {
+	return worldErr(w.w.SwitchChannel(ctx, presence(p), n, seq))
+}
+
+// Channels are the open channels of the player's region and how full each is.
+func (w World) Channels(ctx context.Context, p model.Presence) (model.Channels, error) {
+	got, err := w.w.Channels(ctx, presence(p))
+	if err != nil {
+		return model.Channels{}, worldErr(err)
+	}
+	out := model.Channels{Cap: got.Cap}
+	for _, c := range got.Open {
+		out.Open = append(out.Open, model.ChannelLoad(c))
+	}
+	return out, nil
 }
 
 // Equip wears an item; it answers once the world applied the new stats.

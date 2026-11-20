@@ -23,9 +23,9 @@ func (half) Float64() float64 { return 0.5 }
 
 type quiet struct{}
 
-func (quiet) ObserveTick(string, time.Duration, time.Duration) {}
-func (quiet) CallQueued()                                      {}
-func (quiet) CallDone()                                        {}
+func (quiet) ObserveTick(string, int, time.Duration, time.Duration) {}
+func (quiet) CallQueued()                                           {}
+func (quiet) CallDone()                                             {}
 
 // nothing stands in for the modules this test never reaches: the item, character and save paths.
 type nothing struct{}
@@ -33,6 +33,8 @@ type nothing struct{}
 func (nothing) AddMany(context.Context, model.GrantCall) (model.Granted, error) {
 	return model.Granted{}, errNever
 }
+func (nothing) ChannelsOpen(string, int)                               {}
+func (nothing) ChannelStopped(string, int)                             {}
 func (nothing) Retryable(error) bool                                   { return false }
 func (nothing) Refused(error) bool                                     { return false }
 func (nothing) ObserveBatch(int)                                       {}
@@ -61,7 +63,7 @@ func TestALeaveItsCallerGaveUpOnStillClearsTheRegistry(t *testing.T) {
 		rec := panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
 		w := New(Deps{
 			NewRoll: func() model.Roll { return half{} }, Observer: quiet{}, Parties: alone{}, Items: nothing{}, Batches: nothing{}, ItemCalls: itemcalls.NewPool(itemcalls.Deps{Observer: quiet{}, Panics: rec}, itemcalls.Options{Workers: 1}), Traces: noop.NewTracerProvider(),
-			Data: data, Saver: nothing{}, Characters: nothing{}, Starter: nothing{}, SaveObserver: nothing{}, Panics: rec, Logger: slog.New(slog.DiscardHandler),
+			Data: data, Saver: nothing{}, Characters: nothing{}, Starter: nothing{}, SaveObserver: nothing{}, Channels: nothing{}, Panics: rec, Logger: slog.New(slog.DiscardHandler),
 		}, Tuning{TickInterval: 50 * time.Millisecond, CheckpointInterval: time.Hour, FlushTimeout: time.Second, BatchMax: 32})
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})

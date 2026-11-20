@@ -8,6 +8,13 @@ type World struct {
 	CheckpointInterval time.Duration `mapstructure:"checkpoint_interval" validate:"gt=0"`
 	FlushTimeout       time.Duration `mapstructure:"flush_timeout" validate:"gt=0"`
 	ItemCalls          ItemCalls     `mapstructure:"item_calls"`
+	Channels           Channels      `mapstructure:"channels"`
+}
+
+// Channels are how a region's channels fill and close (docs/tech/large-regions.md section 4).
+type Channels struct {
+	Cap  int           `mapstructure:"cap" validate:"min=1"`
+	Idle time.Duration `mapstructure:"idle" validate:"gt=0"`
 }
 
 // ItemCalls is the worker pool that runs the calls to the item module off the tick, and how many drops one grant call may carry: at most the item module's 32.

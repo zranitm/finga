@@ -26,3 +26,13 @@ func (g *Gateway) EnterPortal(ctx context.Context, s *session.Session) error {
 func (g *Gateway) Teleport(ctx context.Context, s *session.Session, mapID string, seq uint32) error {
 	return g.deps.World.Teleport(ctx, s.Presence(), mapID, seq)
 }
+
+// SwitchChannel starts a switch to channel n of the player's region through the world, which answers once it starts; the MapChange or TeleportCancelled comes on its stream.
+func (g *Gateway) SwitchChannel(ctx context.Context, s *session.Session, n int, seq uint32) error {
+	return g.deps.World.SwitchChannel(ctx, s.Presence(), n, seq)
+}
+
+// Channels are the open channels of the player's region and how full each is.
+func (g *Gateway) Channels(ctx context.Context, s *session.Session) (model.Channels, error) {
+	return g.deps.World.Channels(ctx, s.Presence())
+}

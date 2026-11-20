@@ -182,7 +182,7 @@ func partyOf(p *model.Party) *Party {
 	}
 	out := &Party{Leader: p.Leader, Members: make([]PartyMember, 0, len(p.Members))}
 	for _, m := range p.Members {
-		out.Members = append(out.Members, PartyMember{ID: m.ID, Name: m.Name, Class: m.Class, Level: m.Level, HP: m.HP, MaxHP: m.MaxHP, MapID: m.MapID, Online: m.Online})
+		out.Members = append(out.Members, PartyMember{ID: m.ID, Name: m.Name, Class: m.Class, Level: m.Level, HP: m.HP, MaxHP: m.MaxHP, MapID: m.MapID, Channel: m.Channel, Online: m.Online})
 	}
 	return out
 }

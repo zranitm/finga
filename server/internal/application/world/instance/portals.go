@@ -58,11 +58,11 @@ func (i *Instance) standsIn(portal gamedata.Portal, s sim.State) bool {
 func (i *Instance) handOff(p *player, target *gamedata.Map, x, z float64, yaw float32) {
 	moved := p.Player
 	moved.Timers = i.timersOf(p, time.Now())
-	i.leave(p, target, x, 0, z, yaw, moved, target.ID)
+	i.leave(p, target, x, 0, z, yaw, moved, Dest{ID: target.ID})
 }
 
 // leave sends moved off to dest, on target's ground at (x, z) for feet at y, then tells them first what they'd hear on arriving; it checkpoints them there, but one going into a match here, so a crash lands them where they'd be after it.
-func (i *Instance) leave(p *player, target *gamedata.Map, x, y, z float64, yaw float32, moved model.Player, dest string, first ...model.Event) {
+func (i *Instance) leave(p *player, target *gamedata.Map, x, y, z float64, yaw float32, moved model.Player, dest Dest, first ...model.Event) {
 	i.flush(p)
 	at := standOn(target, i.params, x, y, z, yaw)
 	p.sink.Send(model.Teleport{Tick: i.tick, MapID: target.ID, X: at.X, Y: at.Y, Z: at.Z, Yaw: yaw})
@@ -77,7 +77,7 @@ func (i *Instance) leave(p *player, target *gamedata.Map, x, y, z float64, yaw f
 	} else {
 		i.checkpoint(p)
 	}
-	i.tellParty(p, target.ID)
+	i.tellParty(p, target.ID, 0) // the landing's join tells the channel picked
 	i.detach(p.ID)
 	i.mover.Transfer(i, moved, sink, dest)
 }

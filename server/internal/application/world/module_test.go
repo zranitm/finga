@@ -65,19 +65,21 @@ type idle struct{}
 func (idle) Party(kernel.CharacterID) model.Party { return model.Party{} }
 func (idle) Epoch() uint64                        { return 0 }
 func (idle) Update(model.MemberUpdate)            {}
+func (idle) ChannelsOpen(string, int)             {}
+func (idle) ChannelStopped(string, int)           {}
 func (idle) GrantStarter(context.Context, kernel.AccountID, kernel.CharacterID) error {
 	return nil
 }
 func (idle) AddMany(context.Context, model.GrantCall) (model.Granted, error) {
 	return model.Granted{}, nil
 }
-func (idle) Retryable(error) bool                             { return false }
-func (idle) ObserveBatch(int)                                 {}
-func (idle) ObserveTick(string, time.Duration, time.Duration) {}
-func (idle) CallQueued()                                      {}
-func (idle) CallDone()                                        {}
-func (idle) SaveDropped(string)                               {}
-func (idle) Float64() float64                                 { return 0.5 }
+func (idle) Retryable(error) bool                                  { return false }
+func (idle) ObserveBatch(int)                                      {}
+func (idle) ObserveTick(string, int, time.Duration, time.Duration) {}
+func (idle) CallQueued()                                           {}
+func (idle) CallDone()                                             {}
+func (idle) SaveDropped(string)                                    {}
+func (idle) Float64() float64                                      { return 0.5 }
 
 // capturing hands the test each joined sink, to send events the world rarely sends.
 type capturing struct {
@@ -143,8 +145,8 @@ func newStackWearing(t *testing.T, eq wears) *stack {
 	calls := itemcalls.NewPool(itemcalls.Deps{Observer: idle{}, Panics: rec}, itemcalls.Options{Workers: 1})
 	w := game.New(game.Deps{
 		Data: data, NewRoll: func() model.Roll { return idle{} }, Observer: idle{}, Items: idle{}, Batches: idle{}, Equipment: eq, HandIns: eq, Potions: eq, HandedIns: eq, Wardrobe: eq, ItemCalls: calls, Parties: idle{}, Traces: noop.NewTracerProvider(),
-		Saver: saver{}, Characters: chars, Starter: idle{}, Panics: rec, Logger: slog.New(slog.DiscardHandler), SaveObserver: idle{},
-	}, game.Tuning{TickInterval: tick, CheckpointInterval: time.Minute, FlushTimeout: time.Second, BatchMax: 32})
+		Saver: saver{}, Characters: chars, Starter: idle{}, Panics: rec, Logger: slog.New(slog.DiscardHandler), SaveObserver: idle{}, Channels: idle{},
+	}, game.Tuning{TickInterval: tick, CheckpointInterval: time.Minute, FlushTimeout: time.Second, BatchMax: 32, ChannelCap: 150, ChannelIdle: 5 * time.Minute})
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	var running sync.WaitGroup // the world module's three tasks
 	running.Go(func() { _ = w.Run(ctx) })

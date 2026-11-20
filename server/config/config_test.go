@@ -42,7 +42,8 @@ func TestTheDefaultsLoad(t *testing.T) {
 			IdempotencyKeys: config.IdempotencyKeys{Keep: 24 * time.Hour, PruneEvery: 10 * time.Minute, PruneBatch: 1000, PruneGap: 100 * time.Millisecond},
 			Outbox:          config.Outbox{PublishedKeep: 24 * time.Hour, UnpublishedKeep: 7 * 24 * time.Hour, PruneEvery: 10 * time.Minute, PruneBatch: 1000, PruneGap: 100 * time.Millisecond}},
 		World: config.World{
-			TickRateHz: 20, CheckpointInterval: 30 * time.Second, FlushTimeout: 10 * time.Second, ItemCalls: config.ItemCalls{Workers: 8, BatchMax: 32}},
+			TickRateHz: 20, CheckpointInterval: 30 * time.Second, FlushTimeout: 10 * time.Second, ItemCalls: config.ItemCalls{Workers: 8, BatchMax: 32},
+			Channels: config.Channels{Cap: 150, Idle: 5 * time.Minute}},
 		Social: config.Social{
 			Members: config.Members{Keep: time.Hour, PruneEvery: 5 * time.Minute, PruneBatch: 1000, PruneGap: 100 * time.Millisecond}},
 	}

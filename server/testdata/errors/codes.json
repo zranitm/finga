@@ -600,6 +600,30 @@
     "message": "you're still taking that, or your last pick"
   },
   {
+    "code": 330042,
+    "name": "NOT_A_REGION",
+    "status": 409,
+    "message": "only a region has channels"
+  },
+  {
+    "code": 330043,
+    "name": "SAME_CHANNEL",
+    "status": 409,
+    "message": "you're already in that channel"
+  },
+  {
+    "code": 330044,
+    "name": "NO_SUCH_CHANNEL",
+    "status": 404,
+    "message": "that channel isn't open"
+  },
+  {
+    "code": 330045,
+    "name": "CHANNEL_FULL",
+    "status": 409,
+    "message": "that channel is full"
+  },
+  {
     "code": 440001,
     "name": "NOT_PARTY_LEADER",
     "status": 409,

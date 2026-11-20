@@ -120,6 +120,10 @@ var (
 	PouchGone            = Public{330039, "POUCH_GONE", "that pouch is gone, or the item is already taken"}
 	PouchOutOfReach      = Public{330040, "POUCH_OUT_OF_REACH", "that pouch is too far away"}
 	TakeBusy             = Public{330041, "TAKE_BUSY", "you're still taking that, or your last pick"}
+	NotARegion           = Public{330042, "NOT_A_REGION", "only a region has channels"}
+	SameChannel          = Public{330043, "SAME_CHANNEL", "you're already in that channel"}
+	NoSuchChannel        = Public{330044, "NO_SUCH_CHANNEL", "that channel isn't open"}
+	ChannelFull          = Public{330045, "CHANNEL_FULL", "that channel is full"}
 )
 
 // 44: parties and chat.

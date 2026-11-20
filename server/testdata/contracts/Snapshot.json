@@ -93,6 +93,7 @@
     "field_boss": {
       "mob_id": 9,
       "type": "king_slime"
-    }
+    },
+    "channel": 2
   }
 }

@@ -73,7 +73,7 @@ func (i *Instance) award(p *player, amount int64) {
 		Tick: i.tick, ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, Exp: p.Exp, Stats: s.Own,
 		HP: p.HP, MaxHP: p.derived.MaxHP, Sheet: s.Sheet,
 	})
-	i.tellParty(p, i.m.ID)
+	i.tellParty(p, i.m.ID, i.channel)
 	i.checkpoint(p)
 }
 
@@ -85,11 +85,11 @@ func (i *Instance) retellParties() {
 	}
 	i.epoch = epoch
 	for _, id := range i.order {
-		i.tellParty(i.players[id], i.m.ID)
+		i.tellParty(i.players[id], i.m.ID, i.channel)
 	}
 }
 
-func (i *Instance) tellParty(p *player, mapID string) {
+func (i *Instance) tellParty(p *player, mapID string, channel int) {
 	if p.bot != nil {
 		return
 	}
@@ -97,7 +97,7 @@ func (i *Instance) tellParty(p *player, mapID string) {
 	if p.Back != nil { // a match's kit level isn't theirs
 		level = p.Back.Player.Level
 	}
-	i.deps.Parties.Update(model.MemberUpdate{ID: p.ID, MapID: mapID, Class: p.Class, Level: level, HP: p.HP, MaxHP: p.derived.MaxHP})
+	i.deps.Parties.Update(model.MemberUpdate{ID: p.ID, MapID: mapID, Channel: channel, Class: p.Class, Level: level, HP: p.HP, MaxHP: p.derived.MaxHP})
 	p.toldHP, p.toldMaxHP = p.HP, p.derived.MaxHP
 }
 
@@ -105,7 +105,7 @@ func (i *Instance) tellParty(p *player, mapID string) {
 func (i *Instance) tellHP() {
 	for _, id := range i.order {
 		if p := i.players[id]; p.bot == nil && (p.HP != p.toldHP || p.derived.MaxHP != p.toldMaxHP) {
-			i.tellParty(p, i.m.ID)
+			i.tellParty(p, i.m.ID, i.channel)
 		}
 	}
 }

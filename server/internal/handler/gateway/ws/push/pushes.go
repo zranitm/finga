@@ -10,7 +10,7 @@ import (
 func (o *Outbox) body(p model.Push) any {
 	switch p := p.(type) {
 	case model.Snapshot:
-		snap := &clientv1.Snapshot{Players: playerViews(p.Players), Mobs: mobViews(p.Mobs), Pouches: pouchViews(p.Pouches), Boss: mobView(p.Boss)}
+		snap := &clientv1.Snapshot{Channel: uint32(p.Channel), Players: playerViews(p.Players), Mobs: mobViews(p.Mobs), Pouches: pouchViews(p.Pouches), Boss: mobView(p.Boss)}
 		if p.FieldBoss != nil {
 			snap.FieldBoss = fieldBoss(*p.FieldBoss)
 		}
@@ -94,4 +94,13 @@ func fieldBoss(b model.FieldBoss) *clientv1.FieldBoss {
 
 func bossGone(b model.FieldBossGone) *clientv1.FieldBossGone {
 	return &clientv1.FieldBossGone{MobId: uint32(b.MobID), Type: b.Type, BackInMs: b.BackInMs}
+}
+
+// ChannelList is a region's open channels and how full each is.
+func ChannelList(c model.Channels) *clientv1.ChannelList {
+	out := &clientv1.ChannelList{Cap: uint32(c.Cap)}
+	for _, l := range c.Open {
+		out.Channels = append(out.Channels, &clientv1.ChannelLoad{Channel: uint32(l.Channel), Players: uint32(l.Players)})
+	}
+	return out
 }

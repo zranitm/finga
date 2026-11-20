@@ -183,6 +183,6 @@ func (i *Instance) promoteTo(p *player, class gamedata.Class) {
 		Tick: i.tick, ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, Exp: p.Exp, Stats: s.Own,
 		HP: p.HP, MaxHP: p.derived.MaxHP, Sheet: s.Sheet,
 	})
-	i.tellParty(p, i.m.ID)
+	i.tellParty(p, i.m.ID, i.channel)
 	i.checkpoint(p)
 }

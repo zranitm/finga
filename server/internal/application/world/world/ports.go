@@ -51,3 +51,9 @@ func DropReasons() []string { return []string{DropRefused, DropUnexplained, Drop
 type SaveObserver interface {
 	SaveDropped(reason string)
 }
+
+// ChannelObserver hears how many channels a region has open, as one opens or closes, and when a closed one has run its last tick; it's called under the channels' lock, so it must not block.
+type ChannelObserver interface {
+	ChannelsOpen(region string, open int)
+	ChannelStopped(region string, channel int)
+}

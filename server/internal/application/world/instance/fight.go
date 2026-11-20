@@ -235,7 +235,7 @@ func (i *Instance) deathsAndRespawns() {
 			yaw := float32(i.m.SpawnYaw)
 			p.state = i.standing(i.m.PlayerSpawn.X, 0, i.m.PlayerSpawn.Z, yaw)
 			i.events = append(i.events, model.Respawned{Tick: i.tick, ID: p.ID, MapID: i.m.ID, X: p.state.X, Y: p.state.Y, Z: p.state.Z, HP: p.HP, Yaw: yaw})
-			i.tellParty(p, i.m.ID)
+			i.tellParty(p, i.m.ID, i.channel)
 			p.moved = true
 			continue
 		}

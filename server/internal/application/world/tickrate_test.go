@@ -29,7 +29,7 @@ func built(t *testing.T, hz int) error {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg := config.World{TickRateHz: hz, CheckpointInterval: 30 * time.Second, FlushTimeout: time.Second, ItemCalls: config.ItemCalls{Workers: 1, BatchMax: 32}}
+	cfg := config.World{TickRateHz: hz, CheckpointInterval: 30 * time.Second, FlushTimeout: time.Second, ItemCalls: config.ItemCalls{Workers: 1, BatchMax: 32}, Channels: config.Channels{Cap: 150, Idle: 5 * time.Minute}}
 	_, err = world.New(t.Context(), world.Deps{Module: m, Config: cfg, Data: data, ID: "w",
 		Character: struct{ adapter.CharacterModule }{}, Item: struct{ adapter.ItemModule }{}, Social: struct{ adapter.SocialModule }{}})
 	return err

@@ -169,13 +169,13 @@ func (i *Instance) goToMatch(m toMatchMsg) {
 	}
 	i.cancelTeleport(p, model.TeleportMoved)
 	target, _ := i.data.Map(m.mapID)
-	back := model.Return{MapID: i.m.ID, Player: p.Player}
+	back := model.Return{MapID: i.m.ID, Channel: i.channel, Player: p.Player}
 	back.Player.X, back.Player.Y, back.Player.Z, back.Player.Yaw = p.state.X, p.state.Y, p.state.Z, facing(p.state)
 	back.Player.Timers = i.timersOf(p, time.Now())
 	back.Player.Quests = p.Quests.Clone()
 	moved := back.Player
 	moved.Back = &back
-	i.leave(p, target, m.spot.At.X, 0, m.spot.At.Z, float32(m.spot.Yaw), moved, m.matchID)
+	i.leave(p, target, m.spot.At.X, 0, m.spot.At.Z, float32(m.spot.Yaw), moved, Dest{ID: m.matchID})
 	m.done <- nil
 }
 
@@ -588,7 +588,7 @@ func (i *Instance) goBack(p *player) {
 	target, _ := i.data.Map(back.MapID)
 	moved := back.Player
 	moved.Connection = p.Connection
-	i.leave(p, target, moved.X, moved.Y, moved.Z, moved.Yaw, moved, target.ID, i.worldStats(moved))
+	i.leave(p, target, moved.X, moved.Y, moved.Z, moved.Yaw, moved, Dest{ID: target.ID, Channel: back.Channel}, i.worldStats(moved))
 }
 
 // worldStats is the sheet, HP and timers of pl back on a world map, which replace the match's.

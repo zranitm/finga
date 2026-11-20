@@ -69,10 +69,11 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 			return model.View{}, err
 		}
 	}
-	inst, err := w.mapNamed(c.MapID)
+	inst, landed, err := w.mapNamed(id, c.MapID)
 	if err != nil {
 		return model.View{}, err
 	}
+	defer landed()
 	c = w.placed(ctx, c)
 	log := c.Quests.Clone() // the view's: from the join on, the map's tick changes the player's
 	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Points: c.Points, Skills: c.Skills, HP: c.HP, Energy: c.Energy, X: c.X, Y: c.Y, Z: c.Z, Yaw: c.Yaw, Connection: conn, Worn: worn, Look: look, Quests: c.Quests, Timers: running(c.Timers, now), HandedIn: handedIn}

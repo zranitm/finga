@@ -32,6 +32,7 @@ type Event interface{ worldEvent() }
 // Snapshot is the whole map, sent to a player on join.
 type Snapshot struct {
 	MapID         string
+	Channel       int // the region's channel, from 1; 0 on any other map
 	Players       []PlayerView
 	Mobs          []MobView
 	Pouches       []PouchView    // the joiner's own
@@ -585,7 +586,7 @@ func frameOf(f *model.Frame, to []model.Recipient) Frame {
 func deliveryOf(e model.Event) Delivery {
 	switch ev := e.(type) {
 	case model.Snapshot:
-		snap := Snapshot{MapID: ev.MapID, Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Pouches: pouchViews(ev.Pouches), Boss: mobView(ev.Boss)}
+		snap := Snapshot{MapID: ev.MapID, Channel: ev.Channel, Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Pouches: pouchViews(ev.Pouches), Boss: mobView(ev.Boss)}
 		if b := ev.FieldBoss; b != nil {
 			snap.FieldBoss = &FieldBoss{Mob: b.Mob, Type: b.Type}
 		}

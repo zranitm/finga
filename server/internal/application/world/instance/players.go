@@ -129,7 +129,8 @@ func (i *Instance) add(j *joinMsg) {
 	i.nextSlot = (i.nextSlot + 1) % i.ticksPer // players joining together save on different ticks
 	i.players[p.ID] = p
 	i.order = append(i.order, p.ID)
-	snap := model.Snapshot{Tick: i.tick, MapID: i.m.ID, Pouches: i.ground.Views(j.player.ID)}
+	i.count.Add(1)
+	snap := model.Snapshot{Tick: i.tick, MapID: i.m.ID, Channel: i.channel, Pouches: i.ground.Views(j.player.ID)}
 	i.watchFrom(p, &snap)
 	switch {
 	case i.boss != nil:
@@ -148,7 +149,7 @@ func (i *Instance) add(j *joinMsg) {
 		p.bot = i.botFor(p)
 		i.welcome(p)
 	}
-	i.tellParty(p, i.m.ID) // a join is a map change, and gives the party the member as the world has them
+	i.tellParty(p, i.m.ID, i.channel) // a join is a map change, and gives the party the member as the world has them
 	for _, h := range p.HandedIn {
 		if i.handedIn(p, h) {
 			i.log.Info("a hand-in the world missed finished at the join", "character_id", p.ID, "quest_id", h.Quest, "completion", h.Completion)
@@ -208,6 +209,7 @@ func (i *Instance) detach(id kernel.CharacterID) {
 	}
 	delete(i.players, id)
 	i.order = slices.DeleteFunc(i.order, func(x kernel.CharacterID) bool { return x == id })
+	i.count.Add(-1)
 	i.interest.leave(id, !p.joined)
 	i.arena.DropBy(id) // their damage over time ends with them
 }

@@ -212,11 +212,24 @@ type PartyView struct {
 	Members []PartyMember
 }
 
+// Channels are a region's open channels and how full each is, against the players a channel takes before the next opens.
+type Channels struct {
+	Open []ChannelLoad
+	Cap  int
+}
+
+// ChannelLoad is a channel's number and its players, those on their way included.
+type ChannelLoad struct {
+	Channel int
+	Players int
+}
+
 // PartyMember is one member of a party, online or not.
 type PartyMember struct {
 	CharacterID, Name, Class string
 	Level, HP, MaxHP         int
 	MapID                    string
+	Channel                  int // the region's channel, from 1; 0 off regions
 	Online                   bool
 }
 
