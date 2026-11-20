@@ -122,7 +122,7 @@ func (h *Handler) enterPortal(c *msgContext, _ *clientv1.EnterPortal) (any, erro
 
 // teleport answers once the world started the channel; its MapChange or TeleportCancelled comes on the world's stream.
 func (h *Handler) teleport(c *msgContext, in *clientv1.Teleport) (any, error) {
-	return nil, h.gw.Teleport(c.Ctx, c.Session.session, in.GetMapId(), c.Message.Seq)
+	return nil, h.gw.Teleport(c.Ctx, c.Session.session, in.GetMapId(), in.GetWaypoint(), c.Message.Seq)
 }
 
 // switchChannel answers once the world started the switch; its MapChange or TeleportCancelled comes on the world's stream.

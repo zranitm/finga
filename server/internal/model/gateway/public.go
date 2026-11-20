@@ -179,6 +179,8 @@ var ownErrors = []struct {
 	{kernel.ErrSameChannel, SameChannel},
 	{kernel.ErrNoSuchChannel, NoSuchChannel},
 	{kernel.ErrChannelFull, ChannelFull},
+	{kernel.ErrTeleportUnknownWaypoint, TeleportUnknownWaypoint},
+	{kernel.ErrTeleportNotFound, TeleportNotFound},
 	{kernel.ErrSkillLocked, SkillLocked},
 	{kernel.ErrBadSkillWay, BadSkillWay},
 	{kernel.ErrCantAct, CantAct},

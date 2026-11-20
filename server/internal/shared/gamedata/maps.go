@@ -139,5 +139,15 @@ func (d *Data) Maps() []*Map { return d.p.Maps }
 // Map finds a map by ID (its file name without the extension).
 func (d *Data) Map(id string) (*Map, bool) { return find(d.p.Maps, d.mapIdx, id) }
 
+// Waypoint is the waypoint id and the region it stands in.
+func (d *Data) Waypoint(id string) (*Map, Waypoint, bool) {
+	at, ok := d.waypointIdx[id]
+	if !ok {
+		return nil, Waypoint{}, false
+	}
+	m := d.p.Maps[at.m]
+	return m, m.Waypoints[at.w], true
+}
+
 // StartTown is the town new characters start in, the one map with the property start.
 func (d *Data) StartTown() *Map { return d.p.StartTown }

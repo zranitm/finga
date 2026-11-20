@@ -179,10 +179,12 @@ message PickAnswer {
 // EnterPortal uses the portal the character stands in.
 message EnterPortal {}
 
-// Teleport starts a channel to another map, answered as it starts; at its end a MapChange follows, as for a portal, unless a TeleportCancelled says what ended it first.
+// Teleport starts a channel to a waypoint, or to one of the old maps, answered as it starts; at its end a MapChange follows, as for a portal, unless a TeleportCancelled says what ended it first.
 message Teleport {
-  // The map's ID.
+  // One of the old maps, which have no waypoints, till the last is retired; a region is reached by its waypoints alone. Read only when waypoint is empty.
   string map_id = 1;
+  // A waypoint's id across every region: one the character has found, or one in a region's main town. When set, it's the target.
+  string waypoint = 2;
 }
 
 // SwitchChannel starts a 3-second channel, cancelled as a teleport's is, that moves the player to the same spot in another channel of their region: one open with room, as the Channels list shows. The Response comes once it starts; the MapChange and a Snapshot naming the channel, or a TeleportCancelled, come at its end. It carries the input sequence number.

@@ -256,7 +256,7 @@ biomes:
   - The map window shows "Channel n" with a list. Switching is a 3-second channel, cancelled as a teleport is (B9), to the same spot in the other channel.
   - B4 becomes the region's channels.
 - **Region changes** go through a gate (the talk key in its ring, as a portal) or a teleport to another region's waypoint. Each is a hand-off as today, to the new region's least full channel.
-- **As built (step 4b-1),** a region runs as one instance in `w.instances`, as a map does, until channels come. It's its own town: one who dies in it gets up at its start, in it, and pays the death's EXP, as on a hunting map. A teleport to its id lands at its start.
+- **As built (step 4b-1),** a region runs as one instance in `w.instances`, as a map does, until channels come. It's its own town: one who dies in it gets up at its start, in it, and pays the death's EXP, as on a hunting map. A teleport to its id landed at its start, until step 6b reached a region by its waypoints alone.
 - **As built (step 4b-3a, the server):**
   - **Channel 1** is the region's instance in `w.instances`, and never closes. The World opens the rest as they're needed, under the runner matches use (`opened`), each under its own cancel so one can be shut alone. An instance knows its number (`Instance.Channel`, 0 off regions) and counts its players in an atomic.
   - **The registry** (`world/channels.go`) holds each region's open channels under one mutex, with `pending`: the hand-offs picked for a channel that haven't landed. A channel's load is its players plus its pending, read under the lock, so two hand-offs at once never both take the last place.
@@ -540,6 +540,16 @@ Built with step 1, which says who watches a cell.
     - The waypoints found travel with the player across hand-offs. Each checkpoint adds those not yet stored, keeping each one's first time, and drops none.
     - `Welcome.waypoints`, field 13, lists their ids.
   - **Death:** a region's dead get up at their nearest waypoint's arrival, facing away from the stone, no longer on the stone's spot.
+- **As built (step 6b), teleport:**
+  - **The request:** `Teleport` keeps `map_id` (1) and gains `waypoint` (2) beside it. A `oneof` round both would move field 1 into it, which `buf breaking` refuses even at WIRE. A set waypoint is the target; `map_id` is read only without one.
+  - **`map_id`** is for the old maps alone, until the last is retired. A region's id is `TELEPORT_UNKNOWN_MAP`, as a match's map's is, and the player's own old map `TELEPORT_SAME_MAP`.
+  - **A waypoint** that no region has is `TELEPORT_UNKNOWN_WAYPOINT` (330046, 404). One the player hasn't found, outside a main town, is `TELEPORT_NOT_FOUND` (330047, 409). Dead and busy are refused after these, as before.
+  - **The landing:** at the channel's end, the player is handed off beside the stone, at its arrival, facing away, and checkpointed there.
+    - Into a region, from an old map or another region, the World picks the channel as for any join.
+    - Within their own region, even to the stone they stand by, they go back into their own channel, which takes them even if it filled in the 3 s, as a switch's does. The client hears a `MapChange` and shows the veil, as for any.
+  - **The test region** is reached by its main town's waypoint, `town`.
+  - **The stone lists** now come from the same `interest.of` that files a player: each stone goes in every cell holding a spot of the square 13 m round it. Edges built as `k × 32 m` could disagree with `interest.of` by a rounding on a cell's line.
+  - **Copy rows:** test/rules' `TestEveryEventAndPushHasACopyRow` fails the build for a map event, world stream event or gateway push with no row in its conversion's copy test. `AreaEntered`, `ArenaBar` and `MatchState` had none and gained theirs.
 
 ## 9. The camera
 
@@ -664,7 +674,7 @@ Built with step 1, which says who watches a cell.
    - Interest cells, the indexes and sleep change nothing a player of a small map can see. Their tests run on today's maps.
    - Sprint and zoom ship then too.
 2. **The pipeline:** the plan, the generator, the bake, the preview, the `region` kind, region channels, and a test region built from a small plan. The test region is never linked from the world.
-   - **As built (step 4b-1):** `data/regions/test_region.yaml`, 256 m on the small test plan's ground: a town and four hunting areas of real mobs, levels 1–4, 10–14, 15–18 and 19–20, each with its own boss, and no NPCs and no gates. No portal or gate leads there and the chart doesn't show it: only a teleport to its id reaches it, which the player harness uses. A player can send that teleport by hand, as B9 allows any map but a match's, until step 6's waypoints gate teleports.
+   - **As built (step 4b-1):** `data/regions/test_region.yaml`, 256 m on the small test plan's ground: a town and four hunting areas of real mobs, levels 1–4, 10–14, 15–18 and 19–20, each with its own boss, and no NPCs and no gates. No portal or gate leads there and the chart doesn't show it: only a teleport reaches it. Since step 6b, that's one to its main town's waypoint, `town`, which the player harness uses; anyone may send it by hand, as to every main town.
 3. **The green region:**
    - Designed with the user from previews first: its areas, towns, camps, waypoints and roads.
    - Then built: its NPCs and quests are re-placed, and mob levels are moved to their areas' bands, with the balance harness re-run.

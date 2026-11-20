@@ -2645,12 +2645,12 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 			}
 			h.world.failCasts(nil)
 		})
-		part(t, "Teleport goes to the world as the sender with its map and input seq, answering once its channel started, or with its refusal", func() {
-			c.send(wsconn.Message{Seq: 11, ReqID: "t-1", Data: &clientv1.Teleport{MapId: "forest"}})
+		part(t, "Teleport goes to the world as the sender with its map, its waypoint and input seq, answering once its channel started, or with its refusal", func() {
+			c.send(wsconn.Message{Seq: 11, ReqID: "t-1", Data: &clientv1.Teleport{MapId: "forest", Waypoint: "west"}})
 			if r := c.expect("Response"); r.ReqID != "t-1" || !r.Data.(*clientv1.Response).GetOk() {
 				t.Fatalf("response %+v, want ok to t-1", r)
 			}
-			if got := h.world.teleportCalls(); len(got) != 1 || got[0].p.Character != aylaID || got[0].mapID != "forest" || got[0].seq != 11 {
+			if got := h.world.teleportCalls(); len(got) != 1 || got[0].p.Character != aylaID || got[0].mapID != "forest" || got[0].waypoint != "west" || got[0].seq != 11 {
 				t.Fatalf("teleports %+v", got)
 			}
 			for _, tt := range []struct {
@@ -2661,6 +2661,8 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 				{kernel.ErrTeleportSameMap, model.TeleportSameMap},
 				{kernel.ErrTeleportDead, model.TeleportDead},
 				{kernel.ErrTeleportBusy, model.TeleportBusy},
+				{kernel.ErrTeleportUnknownWaypoint, model.TeleportUnknownWaypoint},
+				{kernel.ErrTeleportNotFound, model.TeleportNotFound},
 			} {
 				time.Sleep(time.Second) // under the teleport limit of 2 a second
 				h.world.failTeleports(refusal(tt.rule))

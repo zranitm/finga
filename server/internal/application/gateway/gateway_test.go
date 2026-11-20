@@ -422,8 +422,8 @@ func (w *world) ChooseTrait(context.Context, model.Presence, model.TraitChoice) 
 func (w *world) UseSkill(context.Context, model.Presence, model.SkillUse, uint32) error {
 	return nil
 }
-func (w *world) Teleport(context.Context, model.Presence, string, uint32) error   { return nil }
-func (w *world) SwitchChannel(context.Context, model.Presence, int, uint32) error { return nil }
+func (w *world) Teleport(context.Context, model.Presence, string, string, uint32) error { return nil }
+func (w *world) SwitchChannel(context.Context, model.Presence, int, uint32) error       { return nil }
 func (w *world) Channels(context.Context, model.Presence) (model.Channels, error) {
 	return model.Channels{}, nil
 }

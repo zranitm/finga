@@ -116,6 +116,8 @@ const texts: Record<ErrorCode, string> = {
   [ERR.SAME_CHANNEL]: 'You’re already in that channel.',
   [ERR.NO_SUCH_CHANNEL]: 'That channel has closed.',
   [ERR.CHANNEL_FULL]: 'That channel is full.',
+  [ERR.TELEPORT_UNKNOWN_WAYPOINT]: 'There’s no such waypoint.',
+  [ERR.TELEPORT_NOT_FOUND]: 'You haven’t found that waypoint yet.',
 
   [ERR.NOT_PARTY_LEADER]: 'Only the party leader can do that.',
   [ERR.PARTY_FULL]: 'The party is full.',

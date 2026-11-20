@@ -45,6 +45,8 @@ var errorTable = facade.Errors{
 	{Model: model.ErrTeleportSameMap, Kernel: kernel.ErrTeleportSameMap},
 	{Model: model.ErrTeleportDead, Kernel: kernel.ErrTeleportDead},
 	{Model: model.ErrTeleportBusy, Kernel: kernel.ErrTeleportBusy},
+	{Model: model.ErrTeleportUnknownWaypoint, Kernel: kernel.ErrTeleportUnknownWaypoint},
+	{Model: model.ErrTeleportNotFound, Kernel: kernel.ErrTeleportNotFound},
 	{Model: model.ErrNotARegion, Kernel: kernel.ErrNotARegion},
 	{Model: model.ErrSameChannel, Kernel: kernel.ErrSameChannel},
 	{Model: model.ErrNoSuchChannel, Kernel: kernel.ErrNoSuchChannel},

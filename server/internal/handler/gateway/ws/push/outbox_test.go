@@ -241,6 +241,28 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 		{model.PartySpots{Spots: []model.PartySpot{{CharacterID: "p-2", X: 140.5, Z: 812.25}}}, &clientv1.PartySpots{Spots: []*clientv1.PartySpot{{CharacterId: "p-2", X: 140.5, Z: 812.25}}}},
 		{model.PartySpots{}, &clientv1.PartySpots{}},
 		{model.WaypointFound{Waypoint: "north"}, &clientv1.WaypointFound{Waypoint: "north"}},
+		{
+			model.AreaEntered{Area: "oasis", FieldBoss: &model.FieldBoss{MobID: 9, Type: "king_slime"}},
+			&clientv1.AreaEntered{Area: "oasis", FieldBoss: &clientv1.FieldBoss{MobId: 9, Type: "king_slime"}},
+		},
+		{
+			model.AreaEntered{Area: "oasis", FieldBossGone: &model.FieldBossGone{MobID: 9, Type: "king_slime", BackInMs: 120000}},
+			&clientv1.AreaEntered{Area: "oasis", FieldBossGone: &clientv1.FieldBossGone{MobId: 9, Type: "king_slime", BackInMs: 120000}},
+		},
+		{model.ArenaBar{Bar: []string{"slash", "", "guard"}}, &clientv1.ArenaBar{SkillBar: []string{"slash", "", "guard"}}},
+		{
+			model.MatchState{
+				Match: "m-1", Mode: "team", Phase: model.PhaseFight, Round: 2, Wins: [2]int{1, 0}, EndsIn: 45 * time.Second,
+				Sides: [2][]model.MatchFighter{{{ID: "p-1", Name: "Robin", Class: "bowman"}}, {{ID: "b-1", Name: "Bot", Class: "warrior", Bot: true}}},
+			},
+			&clientv1.MatchState{
+				Match: "m-1", Mode: "team", Phase: clientv1.MatchPhase_MATCH_PHASE_FIGHT, Round: 2, Wins: []int32{1, 0}, EndsInMs: 45000,
+				Sides: []*clientv1.MatchSide{
+					{Fighters: []*clientv1.MatchFighter{{Id: "p-1", Name: "Robin", Class: "bowman"}}},
+					{Fighters: []*clientv1.MatchFighter{{Id: "b-1", Name: "Bot", Class: "warrior", Bot: true}}},
+				},
+			},
+		},
 		{model.TeleportCancelled{Reason: model.TeleportActed}, &clientv1.TeleportCancelled{Reason: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_ACTED}},
 		{model.TeleportCancelled{Reason: model.TeleportHit}, &clientv1.TeleportCancelled{Reason: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_HIT}},
 		{model.TeleportCancelled{Reason: model.TeleportDied}, &clientv1.TeleportCancelled{Reason: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_DIED}},

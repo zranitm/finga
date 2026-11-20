@@ -67,6 +67,9 @@ var (
 	ErrTeleportDead       = errors.New("world: a dead character can't teleport")
 	ErrTeleportBusy       = errors.New("world: a teleport is already channelling")
 
+	ErrTeleportUnknownWaypoint = errors.New("world: no waypoint has that id to teleport to")
+	ErrTeleportNotFound        = errors.New("world: the character hasn't found that waypoint, and it isn't in a region's main town")
+
 	ErrNotARegion    = errors.New("world: the character isn't in a region, which alone has channels")
 	ErrSameChannel   = errors.New("world: the character is already in that channel")
 	ErrNoSuchChannel = errors.New("world: the region has no such channel open")

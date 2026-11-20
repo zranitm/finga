@@ -35,6 +35,8 @@ var (
 	ErrTeleportSameMap          = NewRule("teleport_same_map")
 	ErrTeleportDead             = NewRule("teleport_dead")
 	ErrTeleportBusy             = NewRule("teleport_busy")
+	ErrTeleportUnknownWaypoint  = NewRule("teleport_unknown_waypoint")
+	ErrTeleportNotFound         = NewRule("teleport_not_found")
 	ErrNotARegion               = NewRule("not_a_region")
 	ErrSameChannel              = NewRule("same_channel")
 	ErrNoSuchChannel            = NewRule("no_such_channel")

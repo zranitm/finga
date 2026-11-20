@@ -24,7 +24,7 @@ type World interface {
 	Input(ctx context.Context, p model.Presence, seq uint32, keys model.Keys, view uint32) error
 	Attack(ctx context.Context, p model.Presence, aim float32, target model.Target) error
 	EnterPortal(ctx context.Context, p model.Presence) error
-	Teleport(ctx context.Context, p model.Presence, mapID string, seq uint32) error
+	Teleport(ctx context.Context, p model.Presence, mapID, waypoint string, seq uint32) error
 	SwitchChannel(ctx context.Context, p model.Presence, n int, seq uint32) error
 	Channels(ctx context.Context, p model.Presence) (model.Channels, error)
 	Say(ctx context.Context, p model.Presence, name, text string) error
