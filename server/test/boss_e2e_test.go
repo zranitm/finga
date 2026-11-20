@@ -141,17 +141,24 @@ func TestFieldBoss(t *testing.T) {
 				t.Fatalf("%s heard the boss gone as %+v; want the king, back in 3 s", l.ID, g)
 			}
 		}
-		// Each sees a box of their own holding a tusk, and none of the other's; each takes theirs.
+		// Each sees a box of their own holding a tusk, and none of the other's; each takes theirs. A pouch from a mushroom killed in the fight is no box, and isn't counted.
 		for _, l := range []*e2etest.Looter{ann, ben} {
 			var box *clientv1.PouchView
-			if !l.Until(5*time.Second, func() bool {
+			found := l.Until(5*time.Second, func() bool {
 				for _, p := range l.Pouches {
 					if p.GetKind() == clientv1.PouchKind_POUCH_KIND_BOX && e2etest.Holds(p, "boar_tusk") {
 						box = p
 					}
 				}
 				return box != nil
-			}) || len(l.Seen) != 1 {
+			})
+			boxes := 0
+			for _, p := range l.Seen {
+				if p.GetKind() == clientv1.PouchKind_POUCH_KIND_BOX {
+					boxes++
+				}
+			}
+			if !found || boxes != 1 {
 				t.Fatalf("%s saw pouches %v; want one box of their own, holding a tusk", l.ID, l.Seen)
 			}
 			if r := l.GoTake(t, box); !r.GetOk() || slices.ContainsFunc(e2etest.Codes(r), func(c int32) bool { return c != 0 }) {
