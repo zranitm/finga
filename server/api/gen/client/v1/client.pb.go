@@ -7904,10 +7904,14 @@ func (x *PartyState) GetParty() *PartyView {
 	return nil
 }
 
-// AreaEntered tells the player they stepped into another of the region's areas, by its id in the region's plan: the client reads its name, levels and kind from the region's bake.
+// AreaEntered tells the player they stepped into another of the region's areas, by its id in the region's plan: the client reads its name, levels and kind from the region's bake. A hunting area's field boss comes with it, as a Snapshot's does, and only those in its area hear of it after.
 type AreaEntered struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Area          string                 `protobuf:"bytes,1,opt,name=area,proto3" json:"area,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Area  string                 `protobuf:"bytes,1,opt,name=area,proto3" json:"area,omitempty"`
+	// The area's field boss, while it is up.
+	FieldBoss *FieldBoss `protobuf:"bytes,2,opt,name=field_boss,json=fieldBoss,proto3" json:"field_boss,omitempty"`
+	// The area's field boss while it's beaten, with when it's back.
+	FieldBossGone *FieldBossGone `protobuf:"bytes,3,opt,name=field_boss_gone,json=fieldBossGone,proto3" json:"field_boss_gone,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7947,6 +7951,20 @@ func (x *AreaEntered) GetArea() string {
 		return x.Area
 	}
 	return ""
+}
+
+func (x *AreaEntered) GetFieldBoss() *FieldBoss {
+	if x != nil {
+		return x.FieldBoss
+	}
+	return nil
+}
+
+func (x *AreaEntered) GetFieldBossGone() *FieldBossGone {
+	if x != nil {
+		return x.FieldBossGone
+	}
+	return nil
 }
 
 // PartySpots is where the player's party members on their map stand that the frames don't bring, once a second to a player in a party on a map cut by cells, empty when none are out of sight; a member it doesn't list isn't here.
@@ -10385,9 +10403,12 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x04text\x18\x04 \x01(\tR\x04text\"8\n" +
 	"\n" +
 	"PartyState\x12*\n" +
-	"\x05party\x18\x01 \x01(\v2\x14.client.v1.PartyViewR\x05party\"!\n" +
+	"\x05party\x18\x01 \x01(\v2\x14.client.v1.PartyViewR\x05party\"\x98\x01\n" +
 	"\vAreaEntered\x12\x12\n" +
-	"\x04area\x18\x01 \x01(\tR\x04area\"8\n" +
+	"\x04area\x18\x01 \x01(\tR\x04area\x123\n" +
+	"\n" +
+	"field_boss\x18\x02 \x01(\v2\x14.client.v1.FieldBossR\tfieldBoss\x12@\n" +
+	"\x0ffield_boss_gone\x18\x03 \x01(\v2\x18.client.v1.FieldBossGoneR\rfieldBossGone\"8\n" +
 	"\n" +
 	"PartySpots\x12*\n" +
 	"\x05spots\x18\x01 \x03(\v2\x14.client.v1.PartySpotR\x05spots\"J\n" +
@@ -10886,35 +10907,37 @@ var file_client_v1_client_proto_depIdxs = []int32{
 	66,  // 132: client.v1.SkillTimers.timers:type_name -> client.v1.SkillTimer
 	0,   // 133: client.v1.ChatMessage.channel:type_name -> client.v1.ChatChannel
 	64,  // 134: client.v1.PartyState.party:type_name -> client.v1.PartyView
-	100, // 135: client.v1.PartySpots.spots:type_name -> client.v1.PartySpot
-	22,  // 136: client.v1.Response.picks:type_name -> client.v1.PickAnswer
-	103, // 137: client.v1.Response.channels:type_name -> client.v1.ChannelList
-	104, // 138: client.v1.ChannelList.channels:type_name -> client.v1.ChannelLoad
-	6,   // 139: client.v1.TeleportCancelled.reason:type_name -> client.v1.TeleportCancelReason
-	1,   // 140: client.v1.Kicked.reason:type_name -> client.v1.KickReason
-	111, // 141: client.v1.NpcDialog.gives:type_name -> client.v1.QuestOffer
-	113, // 142: client.v1.NpcDialog.takes:type_name -> client.v1.QuestTurnIn
-	109, // 143: client.v1.NpcDialog.promotion:type_name -> client.v1.PromotionOffer
-	110, // 144: client.v1.PromotionOffer.conditions:type_name -> client.v1.PromotionCondition
-	7,   // 145: client.v1.PromotionCondition.kind:type_name -> client.v1.PromotionConditionKind
-	8,   // 146: client.v1.QuestOffer.state:type_name -> client.v1.QuestOfferState
-	112, // 147: client.v1.QuestOffer.unmet:type_name -> client.v1.QuestConditions
-	9,   // 148: client.v1.QuestState.status:type_name -> client.v1.QuestStatus
-	10,  // 149: client.v1.QuestChanged.change:type_name -> client.v1.QuestChange
-	114, // 150: client.v1.QuestChanged.quest:type_name -> client.v1.QuestState
-	11,  // 151: client.v1.PvpUnqueued.reason:type_name -> client.v1.PvpUnqueueReason
-	12,  // 152: client.v1.PvpOfferGone.reason:type_name -> client.v1.PvpOfferGoneReason
-	13,  // 153: client.v1.MatchState.phase:type_name -> client.v1.MatchPhase
-	125, // 154: client.v1.MatchState.sides:type_name -> client.v1.MatchSide
-	127, // 155: client.v1.MatchState.points:type_name -> client.v1.CapturePoint
-	126, // 156: client.v1.MatchSide.fighters:type_name -> client.v1.MatchFighter
-	14,  // 157: client.v1.MatchEnded.result:type_name -> client.v1.MatchOutcome
-	129, // 158: client.v1.MatchEnded.rating:type_name -> client.v1.PvpRatingChange
-	159, // [159:159] is the sub-list for method output_type
-	159, // [159:159] is the sub-list for method input_type
-	159, // [159:159] is the sub-list for extension type_name
-	159, // [159:159] is the sub-list for extension extendee
-	0,   // [0:159] is the sub-list for field type_name
+	76,  // 135: client.v1.AreaEntered.field_boss:type_name -> client.v1.FieldBoss
+	77,  // 136: client.v1.AreaEntered.field_boss_gone:type_name -> client.v1.FieldBossGone
+	100, // 137: client.v1.PartySpots.spots:type_name -> client.v1.PartySpot
+	22,  // 138: client.v1.Response.picks:type_name -> client.v1.PickAnswer
+	103, // 139: client.v1.Response.channels:type_name -> client.v1.ChannelList
+	104, // 140: client.v1.ChannelList.channels:type_name -> client.v1.ChannelLoad
+	6,   // 141: client.v1.TeleportCancelled.reason:type_name -> client.v1.TeleportCancelReason
+	1,   // 142: client.v1.Kicked.reason:type_name -> client.v1.KickReason
+	111, // 143: client.v1.NpcDialog.gives:type_name -> client.v1.QuestOffer
+	113, // 144: client.v1.NpcDialog.takes:type_name -> client.v1.QuestTurnIn
+	109, // 145: client.v1.NpcDialog.promotion:type_name -> client.v1.PromotionOffer
+	110, // 146: client.v1.PromotionOffer.conditions:type_name -> client.v1.PromotionCondition
+	7,   // 147: client.v1.PromotionCondition.kind:type_name -> client.v1.PromotionConditionKind
+	8,   // 148: client.v1.QuestOffer.state:type_name -> client.v1.QuestOfferState
+	112, // 149: client.v1.QuestOffer.unmet:type_name -> client.v1.QuestConditions
+	9,   // 150: client.v1.QuestState.status:type_name -> client.v1.QuestStatus
+	10,  // 151: client.v1.QuestChanged.change:type_name -> client.v1.QuestChange
+	114, // 152: client.v1.QuestChanged.quest:type_name -> client.v1.QuestState
+	11,  // 153: client.v1.PvpUnqueued.reason:type_name -> client.v1.PvpUnqueueReason
+	12,  // 154: client.v1.PvpOfferGone.reason:type_name -> client.v1.PvpOfferGoneReason
+	13,  // 155: client.v1.MatchState.phase:type_name -> client.v1.MatchPhase
+	125, // 156: client.v1.MatchState.sides:type_name -> client.v1.MatchSide
+	127, // 157: client.v1.MatchState.points:type_name -> client.v1.CapturePoint
+	126, // 158: client.v1.MatchSide.fighters:type_name -> client.v1.MatchFighter
+	14,  // 159: client.v1.MatchEnded.result:type_name -> client.v1.MatchOutcome
+	129, // 160: client.v1.MatchEnded.rating:type_name -> client.v1.PvpRatingChange
+	161, // [161:161] is the sub-list for method output_type
+	161, // [161:161] is the sub-list for method input_type
+	161, // [161:161] is the sub-list for extension type_name
+	161, // [161:161] is the sub-list for extension extendee
+	0,   // [0:161] is the sub-list for field type_name
 }
 
 func init() { file_client_v1_client_proto_init() }

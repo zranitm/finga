@@ -43,10 +43,12 @@ type PartySpot struct {
 
 func (PartySpots) event() {}
 
-// AreaEntered tells the player they stepped into another of the region's areas, by its id.
+// AreaEntered tells the player they stepped into another of the region's areas, by its id, and of its field boss.
 type AreaEntered struct {
-	Tick uint64
-	Area string
+	Tick          uint64
+	Area          string
+	FieldBoss     *FieldBoss     // while the area's is up
+	FieldBossGone *FieldBossGone // while the area's is beaten
 }
 
 func (AreaEntered) event() {}

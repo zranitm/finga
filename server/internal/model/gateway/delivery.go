@@ -92,9 +92,11 @@ type PartySpot struct {
 	X, Z        float64
 }
 
-// AreaEntered says the player stepped into another of the region's areas, by its id.
+// AreaEntered says the player stepped into another of the region's areas, by its id, and of its field boss.
 type AreaEntered struct {
-	Area string
+	Area          string
+	FieldBoss     *FieldBoss     // while the area's is up
+	FieldBossGone *FieldBossGone // while the area's is beaten
 }
 
 // TeleportCancel is what ended a teleport channel.

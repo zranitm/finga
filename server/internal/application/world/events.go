@@ -259,9 +259,11 @@ type PartySpot struct {
 	X, Z float64
 }
 
-// AreaEntered tells the player they stepped into another of the region's areas, by its id.
+// AreaEntered tells the player they stepped into another of the region's areas, by its id, and of its field boss.
 type AreaEntered struct {
-	Area string
+	Area          string
+	FieldBoss     *FieldBoss     // while the area's is up
+	FieldBossGone *FieldBossGone // while the area's is beaten
 }
 
 // TeleportCancel is what ended a teleport channel early.
@@ -594,12 +596,7 @@ func deliveryOf(e model.Event) Delivery {
 	switch ev := e.(type) {
 	case model.Snapshot:
 		snap := Snapshot{MapID: ev.MapID, Channel: ev.Channel, Area: ev.Area, Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Pouches: pouchViews(ev.Pouches), Boss: mobView(ev.Boss)}
-		if b := ev.FieldBoss; b != nil {
-			snap.FieldBoss = &FieldBoss{Mob: b.Mob, Type: b.Type}
-		}
-		if b := ev.FieldBossGone; b != nil {
-			snap.FieldBossGone = &FieldBossGone{Mob: b.Mob, Type: b.Type, BackIn: b.BackIn}
-		}
+		snap.FieldBoss, snap.FieldBossGone = bossState(ev.FieldBoss, ev.FieldBossGone)
 		return Delivery{Tick: ev.Tick, Event: snap}
 	case model.FieldBoss:
 		return Delivery{Tick: ev.Tick, Event: FieldBoss{Mob: ev.Mob, Type: ev.Type}}
@@ -630,7 +627,8 @@ func deliveryOf(e model.Event) Delivery {
 		}
 		return Delivery{Tick: ev.Tick, Event: PartySpots{Spots: spots}}
 	case model.AreaEntered:
-		return Delivery{Tick: ev.Tick, Event: AreaEntered{Area: ev.Area}}
+		up, down := bossState(ev.FieldBoss, ev.FieldBossGone)
+		return Delivery{Tick: ev.Tick, Event: AreaEntered{Area: ev.Area, FieldBoss: up, FieldBossGone: down}}
 	case model.LevelUp:
 		return Delivery{Tick: ev.Tick, Event: levelUpOf(ev)}
 	case model.Promoted:
@@ -783,4 +781,17 @@ func npcDialogOf(d model.NpcDialog) NpcDialog {
 		}
 	}
 	return out
+}
+
+// bossState is a field boss up or beaten as the module tells it.
+func bossState(up *model.FieldBoss, down *model.FieldBossGone) (*FieldBoss, *FieldBossGone) {
+	var u *FieldBoss
+	var d *FieldBossGone
+	if up != nil {
+		u = &FieldBoss{Mob: up.Mob, Type: up.Type}
+	}
+	if down != nil {
+		d = &FieldBossGone{Mob: down.Mob, Type: down.Type, BackIn: down.BackIn}
+	}
+	return u, d
 }

@@ -11,51 +11,120 @@ import (
 	"finga/internal/shared/kernel"
 )
 
-// fieldBoss is the map's boss while it is up: its mob and the HP each character took from it.
+// bossSlot is one of the map's field bosses: a hunting map's one, or each hunting area's in a region (large-regions.md section 6), up or beaten.
+type bossSlot struct {
+	spot   gamedata.BossSpot
+	area   int        // its hunting area's index in the region's Areas; -1 on a map, whose players all hear it
+	up     *fieldBoss // nil while beaten
+	fallen uint64     // the beaten boss's mob
+	back   uint64     // the tick a beaten boss is back
+}
+
+// fieldBoss is a boss while it is up: its mob and the HP each character took from it.
 type fieldBoss struct {
 	id    uint64
 	def   gamedata.Mob
 	dealt map[kernel.CharacterID]int
 }
 
-// raiseBoss stands the map's boss at its spot.
-func (i *Instance) raiseBoss() {
-	def, _ := i.data.Mob(i.m.Boss.Mob)
-	i.boss = &fieldBoss{id: i.arena.SpawnBoss(def, *i.m.Boss), def: def, dealt: map[kernel.CharacterID]int{}}
+// bossSlots are m's bosses: its own on a hunting map, each hunting area's in a region.
+func bossSlots(m *gamedata.Map) []*bossSlot {
+	if m.Boss != nil {
+		return []*bossSlot{{spot: *m.Boss, area: -1}}
+	}
+	var out []*bossSlot
+	for k, a := range m.Areas {
+		if a.Boss != nil {
+			out = append(out, &bossSlot{spot: *a.Boss, area: k})
+		}
+	}
+	return out
 }
 
-// stepBoss raises a beaten boss again once its respawn is up, which the map hears; a boss never leaves on its own.
-func (i *Instance) stepBoss() {
-	if i.m.Boss == nil || i.boss != nil || i.tick < i.bossBack {
+// raise stands s's boss at its spot.
+func (i *Instance) raise(s *bossSlot) {
+	def, _ := i.data.Mob(s.spot.Mob)
+	s.up = &fieldBoss{id: i.arena.SpawnBoss(def, s.spot), def: def, dealt: map[kernel.CharacterID]int{}}
+}
+
+// stepBosses raises each beaten boss again once its respawn is up, which those who hear it are told; a boss never leaves on its own.
+func (i *Instance) stepBosses() {
+	for _, s := range i.bosses {
+		if s.up == nil && i.tick >= s.back {
+			i.raise(s)
+			i.announce(s, i.bossUp(s))
+		}
+	}
+}
+
+// announce sends s's news to those who hear it: everyone on a map, those in its area in a region.
+func (i *Instance) announce(s *bossSlot, e model.Event) {
+	if s.area < 0 {
+		i.events = append(i.events, e)
 		return
 	}
-	i.raiseBoss()
-	i.events = append(i.events, i.bossUp())
+	for _, id := range i.order {
+		if p := i.players[id]; p.area == s.area {
+			p.private = append(p.private, e)
+		}
+	}
 }
 
-// bossUp is the boss as the map hears of it.
-func (i *Instance) bossUp() model.FieldBoss {
-	return model.FieldBoss{Tick: i.tick, Mob: i.boss.id, Type: i.boss.def.ID}
+// bossOf is the index in bosses of the boss p hears of: their map's, or their area's in a region; -1 for none.
+func (i *Instance) bossOf(p *player) int {
+	return slices.IndexFunc(i.bosses, func(s *bossSlot) bool { return s.area < 0 || s.area == p.area })
 }
 
-// bossDown is the beaten boss as the map hears of it, with the time until it's back from this tick.
-func (i *Instance) bossDown() model.FieldBossGone {
-	return model.FieldBossGone{Tick: i.tick, Mob: i.fallen, Type: i.m.Boss.Mob, BackIn: time.Duration(i.bossBack-i.tick) * i.tuning.TickInterval}
+// bossState is the boss p hears of as they're told on coming to it: up, or beaten with when it's back; neither where there's none.
+func (i *Instance) bossState(p *player) (*model.FieldBoss, *model.FieldBossGone) {
+	k := i.bossOf(p)
+	if k < 0 {
+		return nil, nil
+	}
+	switch s := i.bosses[k]; {
+	case s.up != nil:
+		up := i.bossUp(s)
+		return &up, nil
+	default:
+		down := i.bossDown(s)
+		return nil, &down
+	}
 }
 
-// bossGroup is who a beaten boss pays together, a party's members alive on the map or a player alone, and whose tallies make their damage: the whole party's, wherever its members are.
+// bossUp is s's boss as those who hear it are told.
+func (i *Instance) bossUp(s *bossSlot) model.FieldBoss {
+	return model.FieldBoss{Tick: i.tick, Mob: s.up.id, Type: s.up.def.ID}
+}
+
+// bossDown is s's beaten boss as those who hear it are told, with the time until it's back from this tick.
+func (i *Instance) bossDown(s *bossSlot) model.FieldBossGone {
+	return model.FieldBossGone{Tick: i.tick, Mob: s.fallen, Type: s.spot.Mob, BackIn: time.Duration(s.back-i.tick) * i.tuning.TickInterval}
+}
+
+// bossUpAs is the slot whose boss is up as mob, nil for none.
+func (i *Instance) bossUpAs(mob uint64) *bossSlot {
+	for _, s := range i.bosses {
+		if s.up != nil && s.up.id == mob {
+			return s
+		}
+	}
+	return nil
+}
+
+// bossGroup is who a beaten boss pays together, a party's members there when it fell or a player alone, and whose tallies make their damage: the whole party's, wherever its members are.
 type bossGroup struct {
 	present []*player
 	tallied []kernel.CharacterID
 }
 
-// bossGroups are the players alive on the map, grouped by party in join order.
-func (i *Instance) bossGroups() []bossGroup {
+// bossGroups are those alive there when s's boss fell, grouped by party in join order: everyone on a map; in a region, those in its area or within its leash of its spot, where its fight may have gone over the area's line.
+func (i *Instance) bossGroups(s *bossSlot) []bossGroup {
+	reach := s.spot.Radius + i.data.MobRules().Leash
 	var groups []bossGroup
 	byParty := map[string]int{}
 	for _, id := range i.order {
 		p := i.players[id]
-		if p.dead {
+		if p.dead || s.area >= 0 && p.area != s.area && math.Hypot(p.state.X-s.spot.At.X, p.state.Z-s.spot.At.Z) > reach {
 			continue
 		}
 		party := i.deps.Parties.Party(id)
@@ -76,11 +145,12 @@ func (i *Instance) bossGroups() []bossGroup {
 	return groups
 }
 
-// bossFell pays out a beaten boss: each group's EXP by its share of the boss's HP, and its own drop roll for each player whose group dealt the drop share. Damage of those not here to collect goes to no one, and the killer's kill counts for quests as any does.
-func (i *Instance) bossFell(killer *player, k *mobs.Kill) {
-	b := i.boss
-	i.boss = nil
-	for _, g := range i.bossGroups() {
+// bossFell pays out s's beaten boss: each group's EXP by its share of the boss's HP, and its own drop roll for each player whose group dealt the drop share. Damage of those not there to collect goes to no one, and the killer's kill counts for quests as any does.
+func (i *Instance) bossFell(s *bossSlot, killer *player, k *mobs.Kill) {
+	b := s.up
+	s.up, s.fallen, s.back = nil, b.id, i.tick+i.ticksFor(i.data.FieldBoss().Respawn)
+	i.announce(s, i.bossDown(s)) // its fall, then what it pays
+	for _, g := range i.bossGroups(s) {
 		dealt := 0
 		for _, id := range g.tallied {
 			dealt += b.dealt[id]
@@ -95,6 +165,4 @@ func (i *Instance) bossFell(killer *player, k *mobs.Kill) {
 		}
 	}
 	i.countKill(killer, b.def.ID)
-	i.fallen, i.bossBack = b.id, i.tick+i.ticksFor(i.data.FieldBoss().Respawn)
-	i.events = append(i.events, i.bossDown())
 }

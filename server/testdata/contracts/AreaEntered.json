@@ -1,6 +1,11 @@
 {
   "tick": 81241,
   "area_entered": {
-    "area": "town"
+    "area": "west",
+    "field_boss_gone": {
+      "mob_id": 12,
+      "type": "king_slime",
+      "back_in_ms": "180000"
+    }
   }
 }

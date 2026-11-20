@@ -28,7 +28,7 @@ type interest struct {
 	touched []int
 	changes []int
 	full    []int
-	boss    int
+	boss    []int // each of the map's bosses' part, -1 for none
 
 	part, to, ends []int  // file's, kept to fill again
 	lit            []bool // awake's, by cell
@@ -68,7 +68,7 @@ func newInterest(in gamedata.Interest, sizeX, sizeZ float64) *interest {
 	n := &interest{
 		in: in, nx: nx, nz: nz, whole: in.Whole(nx, nz),
 		where: map[body]int{}, cells: make([][]body, nx*nz), watches: map[kernel.CharacterID]*watch{}, early: map[kernel.CharacterID]struct{}{},
-		changes: make([]int, nx*nz), full: make([]int, nx*nz), boss: -1, lit: make([]bool, nx*nz),
+		changes: make([]int, nx*nz), full: make([]int, nx*nz), lit: make([]bool, nx*nz),
 	}
 	for c := range n.changes {
 		n.changes[c], n.full[c] = -1, -1
@@ -173,7 +173,7 @@ func (n *interest) begin() {
 	for _, c := range n.touched {
 		n.changes[c], n.full[c] = -1, -1
 	}
-	n.touched, n.crossed, n.gone, n.boss = n.touched[:0], n.crossed[:0], n.gone[:0], -1
+	n.touched, n.crossed, n.gone = n.touched[:0], n.crossed[:0], n.gone[:0]
 }
 
 // changesIn is cell c's changes part, made empty the first time.
@@ -188,7 +188,7 @@ func (n *interest) changesIn(f *model.Frame, c int) *model.Part {
 	return &f.Parts[n.changes[c]]
 }
 
-// cut files the tick's changes in the cells they happened in, a part each, a body leaving the map in the cell the last frame left it in, and the field boss in the map's part, which every player is sent.
+// cut files the tick's changes in the cells they happened in, a part each, a body leaving the map in the cell the last frame left it in, and each field boss that changed in a part of its own, which those who hear of it are sent.
 func (i *Instance) cut(players []model.PlayerView, mobs []model.MobView, removedMobs []uint64) *model.Frame {
 	n := i.interest
 	removed := n.departed(i)
@@ -219,11 +219,13 @@ func (i *Instance) cut(players []model.PlayerView, mobs []model.MobView, removed
 	}
 	file(n, f, players, func(v model.PlayerView) (body, float64, float64) { return playerOf(v.ID), v.State.X, v.State.Z }, func(p *model.Part) *[]model.PlayerView { return &p.Players })
 	file(n, f, mobs, func(v model.MobView) (body, float64, float64) { return mobOf(v.ID), v.X, v.Z }, func(p *model.Part) *[]model.MobView { return &p.Mobs })
-	for _, v := range mobs {
-		if i.boss != nil && v.ID == i.boss.id {
-			n.boss = len(f.Parts)
-			f.Parts = append(f.Parts, model.Part{Boss: &v})
+	n.boss = n.boss[:0]
+	for _, s := range i.bosses {
+		k := slices.IndexFunc(mobs, func(v model.MobView) bool { return s.up != nil && v.ID == s.up.id })
+		if k >= 0 {
+			k, f.Parts = len(f.Parts), append(f.Parts, model.Part{Boss: &mobs[k]})
 		}
+		n.boss = append(n.boss, k)
 	}
 	for _, id := range came {
 		leave(id) // placed by its view just now
@@ -342,8 +344,8 @@ func (i *Instance) follow(f *model.Frame, id kernel.CharacterID, all *[]int) ([]
 			w.seen[b] = struct{}{}
 		}
 	}
-	if n.boss >= 0 {
-		*all = append(*all, n.boss)
+	if k := i.bossOf(i.players[id]); k >= 0 && n.boss[k] >= 0 {
+		*all = append(*all, n.boss[k])
 	}
 	w.cell = center
 	return (*all)[start:len(*all):len(*all)], unseenOf(unseen)
@@ -403,8 +405,8 @@ func (i *Instance) watchFrom(p *player, snap *model.Snapshot) {
 			}
 		}
 	}
-	if i.boss != nil {
-		if v, up := i.arena.View(i.boss.id); up {
+	if k := i.bossOf(p); k >= 0 && i.bosses[k].up != nil {
+		if v, up := i.arena.View(i.bosses[k].up.id); up {
 			snap.Boss = &v
 		}
 	}

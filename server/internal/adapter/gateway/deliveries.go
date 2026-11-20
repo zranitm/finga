@@ -37,14 +37,7 @@ func worldPush(e world.Event) (model.Push, bool) {
 	switch ev := e.(type) {
 	case world.Snapshot:
 		snap := model.Snapshot{Channel: ev.Channel, Area: ev.Area, Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Pouches: pouchViews(ev.Pouches), Boss: mobView(ev.Boss)}
-		if ev.FieldBoss != nil {
-			boss := fieldBoss(*ev.FieldBoss)
-			snap.FieldBoss = &boss
-		}
-		if ev.FieldBossGone != nil {
-			gone := bossGone(*ev.FieldBossGone)
-			snap.FieldBossGone = &gone
-		}
+		snap.FieldBoss, snap.FieldBossGone = bossState(ev.FieldBoss, ev.FieldBossGone)
 		return snap, true
 	case world.FieldBoss:
 		return fieldBoss(ev), true
@@ -75,7 +68,8 @@ func worldPush(e world.Event) (model.Push, bool) {
 		}
 		return model.PartySpots{Spots: spots}, true
 	case world.AreaEntered:
-		return model.AreaEntered{Area: ev.Area}, true
+		up, down := bossState(ev.FieldBoss, ev.FieldBossGone)
+		return model.AreaEntered{Area: ev.Area, FieldBoss: up, FieldBossGone: down}, true
 	case world.LevelUp:
 		return model.LevelUp{Character: leveledView(ev)}, true
 	case world.Promoted:
@@ -115,6 +109,21 @@ func worldPush(e world.Event) (model.Push, bool) {
 	case world.Frame, world.Detached:
 	}
 	return nil, false
+}
+
+// bossState is a field boss up or beaten as the gateway sends it.
+func bossState(up *world.FieldBoss, down *world.FieldBossGone) (*model.FieldBoss, *model.FieldBossGone) {
+	var u *model.FieldBoss
+	var d *model.FieldBossGone
+	if up != nil {
+		b := fieldBoss(*up)
+		u = &b
+	}
+	if down != nil {
+		g := bossGone(*down)
+		d = &g
+	}
+	return u, d
 }
 
 func fieldBoss(b world.FieldBoss) model.FieldBoss {

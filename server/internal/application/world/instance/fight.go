@@ -88,14 +88,14 @@ func (i *Instance) resolveAttacks() {
 func (i *Instance) credit(p *player, blows []mobs.Blow) {
 	for _, b := range blows {
 		i.events = append(i.events, b.Damage)
-		boss := i.boss != nil && b.Damage.Target.Mob == i.boss.id
-		if boss {
-			i.boss.dealt[p.ID] += b.Dealt
+		boss := i.bossUpAs(b.Damage.Target.Mob)
+		if boss != nil {
+			boss.up.dealt[p.ID] += b.Dealt
 		}
 		switch k := b.Killed; {
 		case k == nil:
-		case boss:
-			i.bossFell(p, k)
+		case boss != nil:
+			i.bossFell(boss, p, k)
 		default:
 			i.ground.Roll(i.claim(p, k.Mob, k.X, k.Y, k.Z))
 			i.shareExp(p, k.Mob.Exp)

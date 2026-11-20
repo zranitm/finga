@@ -181,3 +181,38 @@ func TestChasersAtATownsLineTakeSpotsOutOfIt(t *testing.T) {
 
 // boarRings are how far from a player's centre a boar's spots stand: touching, at its bite's edge, then a boar's width further out each.
 var boarRings = []float64{playerRadius + 0.875 + 0.05, boarReach - 0.05, playerRadius + 0.875 + 0.05 + 2*0.875, playerRadius + 0.875 + 0.05 + 4*0.875}
+
+// A field boss holds at a town's line as any mob: King Slime, woken by a blow from a player by a town, follows them to its line, and with them in, gives up and walks home. Without the town it follows them on.
+func TestABossHoldsAtATownsLine(t *testing.T) {
+	for _, town := range []bool{true, false} {
+		m := meadow(t, open())
+		if town {
+			m = withTown(m, func(_, z float64) bool { return z < 24 })
+		}
+		a := newArena(t, m, worldtest.FixedRoll{V: 0.5})
+		def, spot := king(t)
+		a.SpawnBoss(def, spot)
+		p := player(30, 24.5)
+		a.Strike(mobs.Strike{By: p.ID, Shape: gamedata.Shape{Kind: gamedata.AreaShape, Radius: 30}, Most: 1, Power: model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 1}, Aim: model.Aim{X: p.X, Z: p.Z}})
+		nearest := math.Inf(1)
+		for n := range uint64(600) {
+			if n == 60 {
+				p.Z = 20 // into the town
+			}
+			a.Step(n+1, []mobs.Body{p}, nil)
+			v := a.Views()[0]
+			if town && v.Z < 24 {
+				t.Fatalf("tick %d: the king at (%.3f, %.3f), in the town", n+1, v.X, v.Z)
+			}
+			nearest = min(nearest, v.Z)
+		}
+		switch v := a.Views()[0]; {
+		case !town && nearest > 23:
+			t.Fatalf("without the town the king came no further south than z %.2f; want it past where the line was", nearest)
+		case town && nearest > 26.5:
+			t.Fatalf("the king came no nearer than z %.2f; want it to have come to the player by the line, touching them", nearest)
+		case town && distance(v, spot.At.X, spot.At.Z) > spot.Radius:
+			t.Fatalf("the king at (%.2f, %.2f) 30 s on; want it home in its circle", v.X, v.Z)
+		}
+	}
+}
