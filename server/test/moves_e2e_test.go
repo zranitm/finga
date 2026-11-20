@@ -148,7 +148,7 @@ func TestAMoveStartsFromTheInputAfterAPressMidSwing(t *testing.T) {
 	}
 	s.Place(t, id, "forest", e2etest.OutOfSight, 134, 0)
 	l := e2etest.NewLooter(s.Join(t, token, id))
-	l.Pump(300*time.Millisecond, nil)
+	l.Await(300*time.Millisecond, nil)
 
 	if err := l.Input(&clientv1.Input{}); err != nil {
 		t.Fatal(err)
@@ -158,7 +158,7 @@ func TestAMoveStartsFromTheInputAfterAPressMidSwing(t *testing.T) {
 		if err := l.Input(&clientv1.Input{}); err != nil {
 			t.Fatal(err)
 		}
-		l.Pump(50*time.Millisecond, nil)
+		l.Await(50*time.Millisecond, nil)
 	}
 	press := l.Seq // pressed two inputs into the swing, before its cancel point
 	l.Send(wsconn.Message{ReqID: "hop", Seq: press, Data: &clientv1.UseSkill{Skill: "hop_back", Way: &clientv1.SkillWay{Z: -1, Length: 1}}})

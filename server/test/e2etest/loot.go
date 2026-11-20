@@ -153,9 +153,6 @@ func (l *Looter) Observe(m wsconn.Message) {
 	}
 }
 
-// Tick is the newest frame's tick, in its map's ticks.
-func (l *Looter) Tick() uint64 { return l.tick }
-
 // Acked is the newest input the world says it applied, as of the newest frame.
 func (l *Looter) Acked() uint32 { return l.ack }
 

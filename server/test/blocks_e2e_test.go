@@ -32,7 +32,7 @@ func TestAGuardBlocksSlimesInFrontAndNotBehind(t *testing.T) {
 	}
 	s.Place(t, id, "forest", e2etest.SlimeField, 134, 0)
 	l := e2etest.NewLooter(s.Join(t, token, id))
-	l.Pump(300*time.Millisecond, nil)
+	l.Await(300*time.Millisecond, nil)
 
 	type use struct {
 		aim      float32

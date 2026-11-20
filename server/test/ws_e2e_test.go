@@ -81,7 +81,7 @@ func TestWalkTogether(t *testing.T) {
 					t.Fatal("no start position for Robin")
 				}
 			}
-			time.Sleep(50 * time.Millisecond)
+			ayla.Reach(ayla.Tick() + 1) // a tick
 		}
 		ayla.Send(wsconn.Message{Seq: ayla.NextSeq(), Data: &clientv1.Input{}})
 		robin.Send(wsconn.Message{Seq: robin.NextSeq(), Data: &clientv1.Input{}})
@@ -110,11 +110,11 @@ func TestWalkTogether(t *testing.T) {
 
 	t.Run("M1/leaving-is-seen", func(t *testing.T) {
 		_ = robin.Conn.Close(websocket.StatusNormalClosure, "bye")
-		deadline := time.Now().Add(3 * time.Second)
-		for time.Now().Before(deadline) {
-			m, ok := ayla.Read(time.Until(deadline))
+		game := ayla.Game(3 * time.Second)
+		for {
+			m, ok := game.Next()
 			if !ok {
-				t.Fatal("Ayla's connection closed")
+				break
 			}
 			if m.Type == "Delta" {
 				if slices.Contains(m.Data.(*clientv1.Delta).RemovedPlayers, robin.ID) {

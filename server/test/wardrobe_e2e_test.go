@@ -96,12 +96,12 @@ func seenIn(views []*clientv1.PlayerView, who string, look *clientv1.Look) bool 
 	return false
 }
 
-// expectSeen waits for a frame of watcher's that shows who in look; 15 s only guards a hang, as Expect's does.
+// expectSeen waits for a frame of watcher's that shows who in look, for up to 15 s of the world's ticks.
 func expectSeen(t *testing.T, watcher *e2etest.Player, who string, look *clientv1.Look) {
 	t.Helper()
-	deadline := time.Now().Add(15 * time.Second)
-	for time.Now().Before(deadline) {
-		m, ok := watcher.Read(time.Until(deadline))
+	game := watcher.Game(15 * time.Second)
+	for {
+		m, ok := game.Next()
 		if !ok {
 			break
 		}

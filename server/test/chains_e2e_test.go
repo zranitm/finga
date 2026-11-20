@@ -65,7 +65,7 @@ func TestAFollowUpGoesFromItsRootsKeyAfterTheRoot(t *testing.T) {
 	}
 	s.Place(t, id, "forest", e2etest.OutOfSight, 134, 0)
 	l := e2etest.NewLooter(s.Join(t, token, id))
-	l.Pump(300*time.Millisecond, nil)
+	l.Await(300*time.Millisecond, nil)
 	use := func(req, skill string) *clientv1.Response {
 		t.Helper()
 		return chained(t, l, req, skill, "strike", 0, 0, nil)
@@ -107,7 +107,7 @@ func TestAWarriorsStrikeKeyChargesThenSlams(t *testing.T) {
 	token, id := chainer(t, s, "Charger", "warrior", "strike", "charge", "ground_slam")
 	s.Place(t, id, "forest", beside(slime, -6), 500, 0)
 	l := e2etest.NewLooter(s.Join(t, token, id))
-	l.Pump(300*time.Millisecond, nil)
+	l.Await(300*time.Millisecond, nil)
 	lock, east := slime.GetId(), float32(math.Pi/2)
 	if r := chained(t, l, "early", "ground_slam", "strike", lock, east, nil); r.GetOk() || r.GetCode() != 330034 {
 		t.Fatalf("Ground Slam from Strike's key on a slime not stunned: %+v, want SKILL_CHAIN_NOT_READY", r)
@@ -151,7 +151,7 @@ func TestABowmansDisengageKeyShootsAfterADodge(t *testing.T) {
 	token, id := chainer(t, s, "Counter", "bowman", "disengage", "power_shot")
 	s.Place(t, id, "forest", beside(slime, -1), 300, 0) // in its bite's reach
 	l := e2etest.NewLooter(s.Join(t, token, id))
-	l.Pump(300*time.Millisecond, nil)
+	l.Await(300*time.Millisecond, nil)
 	if r := chained(t, l, "early", "power_shot", "disengage", 0, 0, nil); r.GetOk() || r.GetCode() != 330034 {
 		t.Fatalf("Power Shot from Disengage's key before any dodge: %+v, want SKILL_CHAIN_NOT_READY", r)
 	}

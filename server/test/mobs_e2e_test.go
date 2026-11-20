@@ -67,13 +67,13 @@ func TestMobsFightBack(t *testing.T) {
 		p.Send(wsconn.Message{Seq: p.NextSeq(), Data: &clientv1.Input{Right: true}})
 		// About 13 ticks to its side, a held input waiting out the world's hold; then a second more for any step past it.
 		furthest := math.Inf(-1)
-		for deadline := time.Now().Add(10 * time.Second); furthest < side-1 && time.Now().Before(deadline); {
-			if v, ok := p.Position(id, time.Until(deadline)); ok {
+		for game := p.Game(10 * time.Second); furthest < side-1 && game.Left(); {
+			if v, ok := p.Position(id, game.Remaining()); ok {
 				furthest = max(furthest, v.GetX())
 			}
 		}
-		for deadline := time.Now().Add(time.Second); time.Now().Before(deadline); {
-			if v, ok := p.Position(id, time.Until(deadline)); ok {
+		for game := p.Game(time.Second); game.Left(); {
+			if v, ok := p.Position(id, game.Remaining()); ok {
 				furthest = max(furthest, v.GetX())
 			}
 		}
@@ -97,31 +97,24 @@ func TestMobsFightBack(t *testing.T) {
 
 		started := p.WindupOf(t, slime.GetId(), 3*time.Second)
 		p.Walk(false, 300*time.Millisecond) // 1.5 m: out of the bite's reach before it lands
-		for {
-			m, ok := p.Read(2 * time.Second)
-			if !ok {
-				t.Fatal("no frame for 2 s")
-			}
+		if !p.Await(5*time.Second, func(m wsconn.Message) bool {
 			if bitten(m) {
 				t.Fatalf("bitten at tick %d after stepping out of the windup from %d", m.Tick, started)
 			}
-			if m.Tick > started+windup+10 {
-				break
-			}
+			return m.Tick > started+windup+10
+		}) {
+			t.Fatalf("no frame past tick %d", started+windup+10)
 		}
 
 		p.Walk(true, 800*time.Millisecond) // back against it
 		started = p.WindupOf(t, slime.GetId(), 3*time.Second)
-		for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); {
-			m, ok := p.Read(time.Until(deadline))
-			if ok && bitten(m) {
-				if m.Tick != started+windup {
-					t.Fatalf("bitten at tick %d; want the windup from %d to land 600 ms on", m.Tick, started)
-				}
-				return
-			}
+		var bit uint64
+		if !p.Await(2*time.Second, func(m wsconn.Message) bool { bit = m.Tick; return bitten(m) }) {
+			t.Fatal("no bite on the player standing against the slime")
 		}
-		t.Fatal("no bite on the player standing against the slime")
+		if bit != started+windup {
+			t.Fatalf("bitten at tick %d; want the windup from %d to land 600 ms on", bit, started)
+		}
 	})
 
 	t.Run("C12/a-mob-a-player-hits-goes-after-them-past-a-nearer-player", func(t *testing.T) {
@@ -156,47 +149,48 @@ func TestMobsFightBack(t *testing.T) {
 		}
 		p.Walk(d > 0, 1200*time.Millisecond)
 		// The slime has until its 5 s provoke runs out, counted in the server's ticks: on a loaded runner they lag the wall clock.
-		for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); {
-			m, ok := p.Read(time.Until(deadline))
-			if !ok {
-				continue
-			}
+		turned := false
+		p.Await(30*time.Second, func(m wsconn.Message) bool {
 			if m.Tick > blow+100 {
-				break
+				return true
 			}
 			if dl, is := m.Data.(*clientv1.Delta); is {
 				for _, mv := range dl.GetMobs() {
-					if mv.GetId() == slime.GetId() && d*(mv.GetX()-at.X) >= 1.25 && d*math.Sin(float64(mv.GetYaw())) > math.Sqrt(0.5) { // turned within 45° of the way the hitter went
-						return
-					}
+					// turned within 45° of the way the hitter went
+					turned = turned || mv.GetId() == slime.GetId() && d*(mv.GetX()-at.X) >= 1.25 && d*math.Sin(float64(mv.GetYaw())) > math.Sqrt(0.5)
 				}
 			}
+			return turned
+		})
+		if turned {
+			return
 		}
 		t.Fatalf("the slime stayed by the near player at %+v; want it gone 1.25 m after the player who hit it within its 5 s provoke", at)
 	})
 }
 
-// settled is where mob stands once it has stopped moving for half a second, as p sees it from snap on: a mob that never moves sends no Delta.
+// settled is where mob stands once it has stopped moving for half a second of the world's ticks, as p sees it from snap on: a mob that never moves sends no Delta.
 func settled(t *testing.T, p *e2etest.Player, snap *clientv1.Snapshot, mob uint32) gamedata.Point {
 	t.Helper()
-	at, since := gamedata.Point{X: math.NaN(), Z: math.NaN()}, time.Now()
+	at, since := gamedata.Point{X: math.NaN(), Z: math.NaN()}, p.Joined // the tick it was last seen to move
 	for _, mv := range snap.GetMobs() {
 		if mv.GetId() == mob {
 			at = gamedata.Point{X: mv.GetX(), Z: mv.GetZ()}
 		}
 	}
-	for deadline := time.Now().Add(6 * time.Second); time.Now().Before(deadline); {
-		m, ok := p.Read(50 * time.Millisecond)
-		if dl, is := m.Data.(*clientv1.Delta); ok && is {
-			for _, mv := range dl.GetMobs() {
-				if now := (gamedata.Point{X: mv.GetX(), Z: mv.GetZ()}); mv.GetId() == mob && now != at {
-					at, since = now, time.Now()
-				}
+	if p.Await(6*time.Second, func(m wsconn.Message) bool {
+		dl, is := m.Data.(*clientv1.Delta)
+		if !is {
+			return false
+		}
+		for _, mv := range dl.GetMobs() {
+			if now := (gamedata.Point{X: mv.GetX(), Z: mv.GetZ()}); mv.GetId() == mob && now != at {
+				at, since = now, m.Tick
 			}
 		}
-		if !math.IsNaN(at.X) && time.Since(since) > 500*time.Millisecond {
-			return at
-		}
+		return !math.IsNaN(at.X) && m.Tick-since > uint64(p.TickHz)/2
+	}) {
+		return at
 	}
 	t.Fatalf("mob %d never settled; last at %+v", mob, at)
 	return gamedata.Point{}

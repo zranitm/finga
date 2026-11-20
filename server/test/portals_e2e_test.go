@@ -18,7 +18,7 @@ func TestTravel(t *testing.T) {
 	token, id := s.CreateCharacter(t, "sam", "Sam", "warrior")
 	p, snap := s.Join(t, token, id)
 	l := e2etest.NewLooter(p, snap)
-	l.Pump(300*time.Millisecond, nil)
+	l.Await(300*time.Millisecond, nil)
 
 	t.Run("the-town-is-safe", func(t *testing.T) {
 		if len(snap.Mobs) != 0 {
@@ -27,7 +27,7 @@ func TestTravel(t *testing.T) {
 		if err := l.Attack(0); err != nil {
 			t.Fatal(err)
 		}
-		l.Pump(500*time.Millisecond, func(m wsconn.Message) bool {
+		l.Await(500*time.Millisecond, func(m wsconn.Message) bool {
 			if m.Type == "Damage" {
 				t.Fatalf("damage in the town: %+v", m.Data)
 			}
@@ -39,7 +39,7 @@ func TestTravel(t *testing.T) {
 		if err := l.EnterPortal(); err != nil {
 			t.Fatal(err)
 		}
-		if l.Pump(500*time.Millisecond, func(m wsconn.Message) bool { return m.Type == "MapChange" }) {
+		if l.Await(500*time.Millisecond, func(m wsconn.Message) bool { return m.Type == "MapChange" }) {
 			t.Fatal("a map change from the town spawn")
 		}
 	})

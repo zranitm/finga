@@ -49,7 +49,7 @@ func TestAnAreaAtTheLockFallsOnTheLockedSlime(t *testing.T) {
 	}
 	s.Place(t, id, "forest", beside(slime, -10), 134, 0)
 	l := e2etest.NewLooter(s.Join(t, token, id))
-	l.Pump(300*time.Millisecond, nil)
+	l.Await(300*time.Millisecond, nil)
 	east := float32(math.Pi / 2)
 	// struck uses Meteor and reports whether it hit the slime, judged by the frames: its hit lands as it's used, and a frame 10 ticks on comes after any damage of that tick.
 	struck := func(req string, target uint32) bool {

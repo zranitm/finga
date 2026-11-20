@@ -32,7 +32,7 @@ func TestASlamStunsAPlayer(t *testing.T) {
 	}
 	s.Place(t, id, "forest", e2etest.SlimeField, 134, 0)
 	l := e2etest.NewLooter(s.Join(t, token, id))
-	l.Pump(300*time.Millisecond, nil)
+	l.Await(300*time.Millisecond, nil)
 
 	var hit, ends uint64 // the slam's tick, and its stun's end
 	var heldAt *clientv1.PlayerView
@@ -97,7 +97,7 @@ func TestAStunnedPlayerBreaksFree(t *testing.T) {
 	token, id := s.CreateCharacter(t, "breaker", "Breaker", "beginner")
 	s.Place(t, id, "forest", e2etest.SlimeField, 134, 0)
 	l := e2etest.NewLooter(s.Join(t, token, id))
-	l.Pump(300*time.Millisecond, nil)
+	l.Await(300*time.Millisecond, nil)
 
 	var press uint32
 	var heldAt, after *clientv1.PlayerView // the player when the press went, and in the first frame acking an input past it

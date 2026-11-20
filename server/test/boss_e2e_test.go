@@ -37,15 +37,15 @@ const kingSlimeDrops = `      - {item: red_potion, chance: 1, min: 2, max: 4}
 // fightBoss has the fighters walk up to the boss's side, within reach metres of its middle across the ground, and attack it until each hears it fall.
 func fightBoss(t *testing.T, boss uint32, reach float64, d time.Duration, fighters, everyone []*e2etest.Looter) {
 	t.Helper()
-	deadline, next := time.Now().Add(d), time.Now()
-	walks := map[*e2etest.Looter]*e2etest.Walk{} // each fighter's while it walks
+	game, next := fighters[0].Game(d), fighters[0].Game(0) // in the first fighter's frames: until the boss must be down, and until the next blows
+	walks := map[*e2etest.Looter]*e2etest.Walk{}           // each fighter's while it walks
 	for slices.ContainsFunc(fighters, func(l *e2etest.Looter) bool { return !l.Beaten(boss) }) {
-		if time.Now().After(deadline) {
+		if !game.Left() {
 			t.Fatalf("the boss still stands after %s", d)
 		}
-		strike := !time.Now().Before(next)
+		strike := !next.Left()
 		if strike {
-			next = time.Now().Add(850 * time.Millisecond)
+			next = fighters[0].Game(850 * time.Millisecond)
 		}
 		for _, l := range fighters {
 			mv, ok := l.Mobs[boss]
@@ -141,17 +141,24 @@ func TestFieldBoss(t *testing.T) {
 				t.Fatalf("%s heard the boss gone as %+v; want the king, back in 3 s", l.ID, g)
 			}
 		}
-		// Each sees a box of their own holding a tusk, and none of the other's; each takes theirs.
+		// Each sees a box of their own holding a tusk, and none of the other's; each takes theirs. A pouch from a mushroom killed in the fight is no box, and isn't counted.
 		for _, l := range []*e2etest.Looter{ann, ben} {
 			var box *clientv1.PouchView
-			if !l.Until(5*time.Second, func() bool {
+			found := l.Until(5*time.Second, func() bool {
 				for _, p := range l.Pouches {
 					if p.GetKind() == clientv1.PouchKind_POUCH_KIND_BOX && e2etest.Holds(p, "boar_tusk") {
 						box = p
 					}
 				}
 				return box != nil
-			}) || len(l.Seen) != 1 {
+			})
+			boxes := 0
+			for _, p := range l.Seen {
+				if p.GetKind() == clientv1.PouchKind_POUCH_KIND_BOX {
+					boxes++
+				}
+			}
+			if !found || boxes != 1 {
 				t.Fatalf("%s saw pouches %v; want one box of their own, holding a tusk", l.ID, l.Seen)
 			}
 			if r := l.GoTake(t, box); !r.GetOk() || slices.ContainsFunc(e2etest.Codes(r), func(c int32) bool { return c != 0 }) {
@@ -185,7 +192,7 @@ func TestFieldBoss(t *testing.T) {
 				t.Fatalf("%s saw the king back as %+v on tick %d; want a new king on tick %d, %d ticks after it fell", l.ID, fb.Msg, fb.Tick, back, back-fell)
 			}
 		}
-		cal.Pump(100*time.Millisecond, nil) // what the town sent meanwhile
+		cal.Await(100*time.Millisecond, nil) // what the town sent meanwhile
 		if len(cal.FieldBosses) != 0 || len(cal.BossesGone) != 0 {
 			t.Fatalf("Cal, in the town, heard of the forest's boss: %v, %v", cal.FieldBosses, cal.BossesGone)
 		}

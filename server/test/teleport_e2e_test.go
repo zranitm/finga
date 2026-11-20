@@ -21,7 +21,7 @@ func TestTeleportFromTheTownToTheForestAndBack(t *testing.T) {
 	}
 	token, id := s.CreateCharacter(t, "tam", "Tam", "warrior")
 	l := e2etest.NewLooter(s.Join(t, token, id))
-	l.Pump(300*time.Millisecond, nil)
+	l.Await(300*time.Millisecond, nil)
 
 	for _, to := range []string{"forest", "town"} {
 		target, _ := data.Map(to)
@@ -71,7 +71,7 @@ func TestAMobsHitCancelsATeleport(t *testing.T) {
 	token, id := s.CreateCharacter(t, "hal", "Hal", "warrior")
 	s.Place(t, id, "forest", e2etest.SlimeField, 134, 0)
 	l := e2etest.NewLooter(s.Join(t, token, id))
-	l.Pump(300*time.Millisecond, nil)
+	l.Await(300*time.Millisecond, nil)
 
 	if r := l.Teleport(t, "tp-town", "town"); !r.GetOk() {
 		t.Fatalf("teleport refused with %d", r.GetCode())

@@ -240,8 +240,8 @@ func (h *heard) since(from int, d time.Duration, match func(wsconn.Message) bool
 			return k
 		}
 	}
-	for deadline := time.Now().Add(d); time.Now().Before(deadline); {
-		m, ok := h.l.Read(time.Until(deadline))
+	for game := h.l.Game(d); ; {
+		m, ok := game.Next()
 		if !ok {
 			return -1
 		}
@@ -251,7 +251,6 @@ func (h *heard) since(from int, d time.Duration, match func(wsconn.Message) bool
 			return len(h.got) - 1
 		}
 	}
-	return -1
 }
 
 // message is the k-th message heard, nil for -1.
