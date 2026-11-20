@@ -65,8 +65,18 @@ func (p *Player) Hello(token string) (*clientv1.Welcome, *clientv1.Snapshot) {
 	var snap *clientv1.Snapshot
 	registered := false
 	deadline := time.Now().Add(5 * time.Second)
+	queue := p.held // what the Welcome's wait took off the connection with it
+	p.held = nil
+	next := func() (wsconn.Message, bool) {
+		if len(queue) > 0 {
+			m := queue[0]
+			queue = queue[1:]
+			return m, true
+		}
+		return p.receive(time.Until(deadline))
+	}
 	for snap == nil || !registered {
-		m, ok := p.receive(time.Until(deadline))
+		m, ok := next()
 		if !ok || time.Now().After(deadline) {
 			p.t.Fatalf("%s: within 5 s of the Welcome, a Snapshot %t and the registration's PartyState %t", p.ID, snap != nil, registered)
 		}
@@ -86,6 +96,7 @@ func (p *Player) Hello(token string) (*clientv1.Welcome, *clientv1.Snapshot) {
 			p.held = append(p.held, m)
 		}
 	}
+	p.held = append(p.held, queue...)
 	return w, snap
 }
 
@@ -183,24 +194,17 @@ func (p *Player) Closed(d time.Duration) bool {
 	}
 }
 
-// Expect waits for a message of msgType; 15 s only guards a hang, as a slow runner's ticks lag the wall clock.
+// Expect waits for a message of msgType, for up to 15 s of the world's ticks.
 func (p *Player) Expect(msgType string) wsconn.Message {
 	p.t.Helper()
-	deadline := time.Now().Add(15 * time.Second)
-	for time.Now().Before(deadline) {
-		m, ok := p.Read(time.Until(deadline))
-		if !ok {
-			break
-		}
-		if m.Type == msgType {
-			return m
-		}
+	var got wsconn.Message
+	if !p.Await(15*time.Second, func(m wsconn.Message) bool { got = m; return m.Type == msgType }) {
+		p.t.Fatalf("no %s within 15 s", msgType)
 	}
-	p.t.Fatalf("no %s within 15 s", msgType)
-	return wsconn.Message{}
+	return got
 }
 
-// Position is the next view of the player of that a Delta brings, within d.
+// Position is the next view of the player of that a Delta brings, within d of the world's ticks.
 func (p *Player) Position(of string, d time.Duration) (*clientv1.PlayerView, bool) {
 	v, _, ok := p.PositionAt(of, d)
 	return v, ok
@@ -208,41 +212,40 @@ func (p *Player) Position(of string, d time.Duration) (*clientv1.PlayerView, boo
 
 // PositionAt is position, with the tick of the frame that carried it.
 func (p *Player) PositionAt(of string, d time.Duration) (*clientv1.PlayerView, uint64, bool) {
-	deadline := time.Now().Add(d)
-	for time.Now().Before(deadline) {
-		m, ok := p.Read(time.Until(deadline))
-		if !ok {
-			return nil, 0, false
-		}
-		if m.Type != "Delta" {
-			continue
-		}
-		for _, v := range m.Data.(*clientv1.Delta).Players {
-			if v.GetId() == of {
-				return v, m.Tick, true
+	var v *clientv1.PlayerView
+	var at uint64
+	ok := p.Await(d, func(m wsconn.Message) bool {
+		if delta, is := m.Data.(*clientv1.Delta); is {
+			for _, pv := range delta.Players {
+				if pv.GetId() == of {
+					v, at = pv, m.Tick
+					return true
+				}
 			}
 		}
-	}
-	return nil, 0, false
+		return false
+	})
+	return v, at, ok
 }
 
-// Moving is the first view of of that walks, past any from before, such as a landing still queued on a busy machine.
+// Moving is the first view of of that walks, past any from before, such as a landing still queued on a busy machine, within d of the world's ticks.
 func (p *Player) Moving(of string, d time.Duration) (*clientv1.PlayerView, bool) {
-	deadline := time.Now().Add(d)
-	for {
-		v, ok := p.Position(of, time.Until(deadline))
-		if !ok || v.GetVx() != 0 {
-			return v, ok
+	var v *clientv1.PlayerView
+	ok := p.Await(d, func(m wsconn.Message) bool {
+		if delta, is := m.Data.(*clientv1.Delta); is {
+			for _, pv := range delta.Players {
+				if pv.GetId() == of && pv.GetVx() != 0 {
+					v = pv
+					return true
+				}
+			}
 		}
-	}
+		return false
+	})
+	return v, ok
 }
 
-// Drain reads and drops what comes for d.
+// Drain reads and drops what comes for d of the world's ticks.
 func (p *Player) Drain(d time.Duration) {
-	deadline := time.Now().Add(d)
-	for time.Now().Before(deadline) {
-		if _, ok := p.Read(time.Until(deadline)); !ok {
-			return
-		}
-	}
+	p.Await(d, nil)
 }

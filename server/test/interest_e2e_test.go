@@ -98,11 +98,11 @@ func (c *client) read() {
 	}
 }
 
-// until reads until done; 15 s only guards a hang, as a slow runner's ticks lag the wall clock.
+// until reads until done, for up to 15 s of the world's ticks.
 func (c *client) until(what string, done func() bool) {
 	c.t.Helper()
-	for deadline := time.Now().Add(15 * time.Second); !done(); c.read() {
-		if time.Now().After(deadline) {
+	for game := c.p.Game(15 * time.Second); !done(); c.read() {
+		if !game.Left() {
 			c.t.Fatalf("%s: no %s", c.id, what)
 		}
 	}
@@ -111,8 +111,8 @@ func (c *client) until(what string, done func() bool) {
 // walk holds key until the player's own view is where done says, then lets go.
 func (c *client) walk(key *clientv1.Input, done func(x float64) bool) {
 	c.t.Helper()
-	for deadline := time.Now().Add(15 * time.Second); !done(c.held[c.id].GetX()); c.read() {
-		if time.Now().After(deadline) {
+	for game := c.p.Game(15 * time.Second); !done(c.held[c.id].GetX()); c.read() {
+		if !game.Left() {
 			c.t.Fatalf("%s never got there, at %v", c.id, c.held[c.id].GetX())
 		}
 		c.p.Send(wsconn.Message{Seq: c.p.NextSeq(), Data: key})

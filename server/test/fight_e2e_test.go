@@ -45,9 +45,9 @@ func TestFightAndGrow(t *testing.T) {
 			t.Fatalf("mob types %v", types)
 		}
 		moved := false
-		deadline := time.Now().Add(3 * time.Second)
-		for !moved && time.Now().Before(deadline) {
-			m, ok := p.Read(time.Until(deadline))
+		game := p.Game(3 * time.Second)
+		for !moved {
+			m, ok := game.Next()
 			if !ok {
 				break
 			}
@@ -91,7 +91,7 @@ func TestFightAndGrow(t *testing.T) {
 		token2, id2 := s.CreateCharacter(t, "ivan", "Ivan", "warrior")
 		s.Place(t, id2, "forest", gamedata.Point{X: e2etest.SlimeField.X - 0.625, Z: e2etest.SlimeField.Z}, 144, 0)
 		watcher, _ := s.Join(t, token2, id2)
-		p.Pump(300*time.Millisecond, nil)
+		p.Await(300*time.Millisecond, nil)
 		var hit *clientv1.Damage
 		ok := p.AttackUntil(20*time.Second, func(m wsconn.Message) bool {
 			if m.Type != "Damage" {
@@ -111,9 +111,9 @@ func TestFightAndGrow(t *testing.T) {
 			t.Fatalf("damage %+v", hit)
 		}
 		seen := false
-		deadline := time.Now().Add(3 * time.Second)
-		for !seen && time.Now().Before(deadline) {
-			m, ok := watcher.Read(time.Until(deadline))
+		game := watcher.Game(3 * time.Second)
+		for !seen {
+			m, ok := game.Next()
 			if !ok {
 				break
 			}
@@ -168,7 +168,7 @@ func TestFightAndGrow(t *testing.T) {
 		token, id := s.CreateCharacter(t, "kim", "Kim", "bowman")
 		s.Place(t, id, "forest", e2etest.SlimeField, 134, 18) // two EXP short of level 2
 		p := e2etest.NewLooter(s.Join(t, token, id))
-		p.Pump(300*time.Millisecond, nil)
+		p.Await(300*time.Millisecond, nil)
 		var lu *clientv1.LevelUp
 		var gained bool
 		ok := p.AttackUntil(40*time.Second, func(m wsconn.Message) bool {
@@ -270,9 +270,9 @@ func TestFightAndGrow(t *testing.T) {
 			t.Fatal(err)
 		}
 		p, _ := s.Join(t, token, id) // the bats see them and come to spit
-		deadline := time.Now().Add(30 * time.Second)
-		for time.Now().Before(deadline) {
-			m, ok := p.Read(time.Until(deadline))
+		game := p.Game(30 * time.Second)
+		for {
+			m, ok := game.Next()
 			if !ok {
 				break
 			}
@@ -370,7 +370,7 @@ func TestFightAndGrow(t *testing.T) {
 		token2, id2 := s.CreateCharacter(t, "omar", "Omar", "beginner")
 		s.Place(t, id2, "forest", gamedata.Point{X: e2etest.SlimeField.X - 0.625, Z: e2etest.SlimeField.Z}, 135, 0)
 		watcher, _ := s.Join(t, token2, id2)
-		p.Pump(300*time.Millisecond, nil)
+		p.Await(300*time.Millisecond, nil)
 
 		use := func(req, skill string, aim float32) {
 			p.Send(wsconn.Message{ReqID: req, Data: &clientv1.UseSkill{Skill: skill, Aim: aim}})
@@ -379,14 +379,14 @@ func TestFightAndGrow(t *testing.T) {
 		refusals := map[string]int32{}
 		var used *clientv1.SkillUsed
 		var hit *clientv1.Damage
-		next, n := time.Now(), 0
-		for deadline := time.Now().Add(60 * time.Second); (hit == nil || refusals["u-1-again"] == 0) && time.Now().Before(deadline); { // a 4.5 s cooldown in the server's ticks
-			if !time.Now().Before(next) {
+		next, n := p.Game(0), 0                                                                            // until the next pair of Throws, in the world's time
+		for game := p.Game(60 * time.Second); (hit == nil || refusals["u-1-again"] == 0) && game.Left(); { // a 4.5 s cooldown in the server's ticks
+			if !next.Left() {
 				aim := p.AimAt(p.Nearest("green_slime"))
 				n++
 				use(fmt.Sprintf("u-%d", n), "throw", aim)
 				use(fmt.Sprintf("u-%d-again", n), "throw", aim) // inside its cooldown
-				next = time.Now().Add(2100 * time.Millisecond)
+				next = p.Game(2100 * time.Millisecond)
 			}
 			m, ok := p.Read(100 * time.Millisecond)
 			if !ok {
@@ -416,8 +416,8 @@ func TestFightAndGrow(t *testing.T) {
 			t.Fatalf("refusals %v; want Second Wind passive and each second Throw cooling down", refusals)
 		}
 		seen := false
-		for deadline := time.Now().Add(3 * time.Second); !seen && time.Now().Before(deadline); {
-			m, ok := watcher.Read(time.Until(deadline))
+		for game := watcher.Game(3 * time.Second); !seen; {
+			m, ok := game.Next()
 			if !ok {
 				break
 			}

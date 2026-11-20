@@ -37,15 +37,15 @@ const kingSlimeDrops = `      - {item: red_potion, chance: 1, min: 2, max: 4}
 // fightBoss has the fighters walk up to the boss's side, within reach metres of its middle across the ground, and attack it until each hears it fall.
 func fightBoss(t *testing.T, boss uint32, reach float64, d time.Duration, fighters, everyone []*e2etest.Looter) {
 	t.Helper()
-	deadline, next := time.Now().Add(d), time.Now()
-	walks := map[*e2etest.Looter]*e2etest.Walk{} // each fighter's while it walks
+	game, next := fighters[0].Game(d), fighters[0].Game(0) // in the first fighter's frames: until the boss must be down, and until the next blows
+	walks := map[*e2etest.Looter]*e2etest.Walk{}           // each fighter's while it walks
 	for slices.ContainsFunc(fighters, func(l *e2etest.Looter) bool { return !l.Beaten(boss) }) {
-		if time.Now().After(deadline) {
+		if !game.Left() {
 			t.Fatalf("the boss still stands after %s", d)
 		}
-		strike := !time.Now().Before(next)
+		strike := !next.Left()
 		if strike {
-			next = time.Now().Add(850 * time.Millisecond)
+			next = fighters[0].Game(850 * time.Millisecond)
 		}
 		for _, l := range fighters {
 			mv, ok := l.Mobs[boss]
@@ -185,7 +185,7 @@ func TestFieldBoss(t *testing.T) {
 				t.Fatalf("%s saw the king back as %+v on tick %d; want a new king on tick %d, %d ticks after it fell", l.ID, fb.Msg, fb.Tick, back, back-fell)
 			}
 		}
-		cal.Pump(100*time.Millisecond, nil) // what the town sent meanwhile
+		cal.Await(100*time.Millisecond, nil) // what the town sent meanwhile
 		if len(cal.FieldBosses) != 0 || len(cal.BossesGone) != 0 {
 			t.Fatalf("Cal, in the town, heard of the forest's boss: %v, %v", cal.FieldBosses, cal.BossesGone)
 		}

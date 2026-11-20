@@ -48,7 +48,7 @@ func TestLootAndKeep(t *testing.T) {
 		s.Place(t, id2, "forest", gamedata.Point{X: e2etest.SlimeField.X - 0.625, Z: e2etest.SlimeField.Z}, 134, 0)
 		wp, wsnap := s.Join(t, token2, id2)
 		watcher := e2etest.NewLooter(wp, wsnap)
-		killer.Pump(300*time.Millisecond, nil)
+		killer.Await(300*time.Millisecond, nil)
 
 		pouch, ok := killer.Hunt(30*time.Second, "")
 		if !ok {

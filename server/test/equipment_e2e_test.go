@@ -86,7 +86,7 @@ func TestEquipment(t *testing.T) {
 		if r := l.GoTake(t, pouch); !r.GetOk() || !slices.Equal(e2etest.Codes(r), []int32{code("EQUIP_TAB_FULL")}) {
 			t.Fatalf("taking the cap answered %+v, want it refused for the full Equip tab", r)
 		}
-		l.Pump(time.Second, nil)
+		l.Await(time.Second, nil)
 		if _, still := l.Pouches[pouch.GetId()]; !still || l.Inventory != 1 || len(l.Loots) != 0 {
 			t.Fatalf("pouches %v, %d InventoryChanged, loot %v; want the cap still in its pouch and nothing taken", l.Pouches, l.Inventory, l.Loots)
 		}
@@ -133,7 +133,7 @@ func TestEquipment(t *testing.T) {
 				t.Fatalf("%T answered %+v, want %s", tt.msg, r, tt.code)
 			}
 		}
-		l.Pump(500*time.Millisecond, nil)
+		l.Await(500*time.Millisecond, nil)
 		if worn := s.Worn(t, id); l.Inventory != 0 || len(worn) != 1 || worn["weapon"] != sword {
 			t.Fatalf("%d InventoryChanged, %v worn; want nothing moved", l.Inventory, worn)
 		}

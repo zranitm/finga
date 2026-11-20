@@ -142,17 +142,8 @@ func TestPlayTogether(t *testing.T) {
 
 	t.Run("E3/a-kill-shares-exp-with-the-members-alive-on-the-map", func(t *testing.T) {
 		// Ann, Ben and Cat share floor(8 × 1.2) = 9, 3 each; Dan, in the town, gets nothing.
-		deadline := time.Now().Add(90 * time.Second)
-		next, before := time.Now(), len(ann.Exp)
-		for len(ann.Exp) == before && time.Now().Before(deadline) { // a swing reads on as it turns: the gain is taken from what Ann heard
-			if !time.Now().Before(next) {
-				if err := ann.Swing(); err != nil {
-					t.Fatal(err)
-				}
-				next = time.Now().Add(850 * time.Millisecond)
-			}
-			ann.Pump(100*time.Millisecond, func(m wsconn.Message) bool { return m.Type == "ExpGained" })
-		}
+		before := len(ann.Exp)
+		ann.HuntUntil(90*time.Second, func() bool { return len(ann.Exp) != before }, nil) // the gain is taken from what Ann heard
 		if got := ann.Exp[before:]; len(got) != 1 || got[0].GetAmount() != 3 {
 			t.Fatalf("the killer gained %v, want 3 once", got)
 		}
@@ -161,7 +152,7 @@ func TestPlayTogether(t *testing.T) {
 				t.Fatalf("%s gained %+v", l.ID, g)
 			}
 		}
-		if dan.Pump(700*time.Millisecond, func(m wsconn.Message) bool { return m.Type == "ExpGained" }) {
+		if dan.Await(700*time.Millisecond, func(m wsconn.Message) bool { return m.Type == "ExpGained" }) {
 			t.Fatal("a member on another map gained EXP")
 		}
 	})

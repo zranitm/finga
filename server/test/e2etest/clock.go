@@ -12,6 +12,7 @@ type Game struct {
 	p           *Player
 	until, seen uint64    // the player's elapsed count the budget runs out at, and as last looked
 	heard       time.Time // when that count last moved
+	wall        time.Time // the end on the wall clock, before the Welcome tells the tick rate: no frames come to count then
 }
 
 // Game starts a budget of d of the world's ticks from the newest frame come, read or not: frames queued while the test was busy elsewhere are past, not the wait's, so they're held for the next reads and counted as spent before the budget.
@@ -19,11 +20,18 @@ func (p *Player) Game(d time.Duration) *Game {
 	for m, ok := p.receive(0); ok; m, ok = p.receive(0) {
 		p.held = append(p.held, m)
 	}
-	return &Game{p: p, until: p.elapsed + p.stepsIn(p.held) + p.ticksIn(d), seen: p.elapsed, heard: time.Now()}
+	g := &Game{p: p, until: p.elapsed + p.stepsIn(p.held) + p.ticksIn(d), seen: p.elapsed, heard: time.Now()}
+	if p.TickHz == 0 {
+		g.wall = time.Now().Add(d)
+	}
+	return g
 }
 
 // Left is whether some of the budget is left and a frame has come within Stalled.
 func (g *Game) Left() bool {
+	if !g.wall.IsZero() {
+		return time.Now().Before(g.wall)
+	}
 	if g.p.elapsed != g.seen {
 		g.seen, g.heard = g.p.elapsed, time.Now()
 	}
@@ -32,25 +40,43 @@ func (g *Game) Left() bool {
 
 // Remaining is what's left of the budget as the world's time, for a wait inside the one it bounds.
 func (g *Game) Remaining() time.Duration {
+	if !g.wall.IsZero() {
+		return max(0, time.Until(g.wall))
+	}
 	if g.p.elapsed >= g.until || g.p.TickHz == 0 {
 		return 0
 	}
 	return time.Duration(g.until-g.p.elapsed) * time.Second / time.Duration(g.p.TickHz)
 }
 
-// Await reads until pred holds for a message; it gives up once d of the world's ticks pass, when no frame comes for Stalled, or when the connection closes.
-func (p *Player) Await(d time.Duration, pred func(wsconn.Message) bool) bool {
-	for game := p.Game(d); game.Left(); {
-		m, ok := p.Read(time.Second)
-		if ok && pred(m) {
-			return true
+// Next reads the next message while the budget lasts; false once it's spent, no frame comes for Stalled, or the connection closes.
+func (g *Game) Next() (wsconn.Message, bool) {
+	for g.Left() {
+		if m, ok := g.p.Read(time.Second); ok {
+			return m, true
 		}
-		if !ok && p.Closed(0) {
-			return false
+		if g.p.Closed(0) {
+			return wsconn.Message{}, false
 		}
 	}
-	return false
+	return wsconn.Message{}, false
 }
+
+// Await reads until pred, when set, holds for a message; it gives up once d of the world's ticks pass, when no frame comes for Stalled, or when the connection closes.
+func (p *Player) Await(d time.Duration, pred func(wsconn.Message) bool) bool {
+	for game := p.Game(d); ; {
+		m, ok := game.Next()
+		if !ok {
+			return false
+		}
+		if pred != nil && pred(m) {
+			return true
+		}
+	}
+}
+
+// Tick is the newest frame's tick, in the player's map's ticks.
+func (p *Player) Tick() uint64 { return p.tick }
 
 // Reach reads until a frame of tick or later, on the player's map, comes.
 func (p *Player) Reach(tick uint64) {
