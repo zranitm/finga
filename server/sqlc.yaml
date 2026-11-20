@@ -68,6 +68,7 @@ sql:
   - engine: postgresql
     schema:
       - internal/migration/00012_pvp.sql
+      - internal/migration/00014_pvp_builds.sql
     queries: internal/repository/pvp/queries
     gen:
       go:

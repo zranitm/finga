@@ -784,5 +784,11 @@
     "name": "PVP_PARTY_CHANGED",
     "status": 409,
     "message": "the party changed while it queued"
+  },
+  {
+    "code": 550013,
+    "name": "NOT_ON_ARENA_BAR",
+    "status": 409,
+    "message": "in a match, only the skills on the arena bar can be used"
   }
 ]

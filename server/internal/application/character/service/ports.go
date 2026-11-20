@@ -14,6 +14,8 @@ type Store interface {
 	List(ctx context.Context, account kernel.AccountID) ([]model.Character, error)
 	// Load returns ErrNotFound for another account's character, so ownership and existence look alike.
 	Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error)
+	// Find is the characters with ids, of any account; one that doesn't exist isn't there.
+	Find(ctx context.Context, ids []kernel.CharacterID) ([]model.Character, error)
 	// Quests is the character's quests, active and finished.
 	Quests(ctx context.Context, id kernel.CharacterID) ([]model.Quest, error)
 	// Skills is the character's skills with points.

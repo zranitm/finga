@@ -15,6 +15,7 @@ import (
 var (
 	ErrInMatch         = errors.New("world: refused in a match")
 	ErrMatchNotStarted = errors.New("world: the round hasn't started")
+	ErrNotOnArenaBar   = errors.New("world: in a match, a skill off the arena bar")
 	ErrNotInMatch      = errors.New("world: the character is in no match")
 	ErrNotPromoted     = errors.New("world: only a promoted character fights")
 )
@@ -42,10 +43,11 @@ type Bot struct {
 	Build Build
 }
 
-// Build is a pvp build: the skill bar's keys, "" for an empty one, and each skill's chosen trait.
+// Build is a pvp build: the skill bar's keys, "" for an empty one, each skill's chosen trait, and a player's revision, which counts their saves; a bot's is 0.
 type Build struct {
-	Bar    []string
-	Traits map[string]string
+	Bar      []string
+	Traits   map[string]string
+	Revision int
 }
 
 // Return is where a player in a match goes back to: their map, and themselves as they were there.

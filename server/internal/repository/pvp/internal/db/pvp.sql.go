@@ -13,6 +13,88 @@ import (
 	"github.com/google/uuid"
 )
 
+const above = `-- name: Above :one
+SELECT count(*) FROM pvp_ratings WHERE mode = $1 AND placed AND shown > $2
+`
+
+type AboveParams struct {
+	Mode  string
+	Shown int32
+}
+
+func (q *Queries) Above(ctx context.Context, arg AboveParams) (int64, error) {
+	row := q.db.QueryRow(ctx, above, arg.Mode, arg.Shown)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const board = `-- name: Board :many
+SELECT character_id, shown, matches, wins, losses, draws FROM pvp_ratings
+WHERE mode = $1 AND placed
+ORDER BY shown DESC, character_id
+LIMIT $2
+`
+
+type BoardParams struct {
+	Mode string
+	Most int32
+}
+
+type BoardRow struct {
+	CharacterID uuid.UUID
+	Shown       int32
+	Matches     int32
+	Wins        int32
+	Losses      int32
+	Draws       int32
+}
+
+// The placed ratings of mode, highest first, read in order from pvp_ratings_board.
+func (q *Queries) Board(ctx context.Context, arg BoardParams) ([]BoardRow, error) {
+	rows, err := q.db.Query(ctx, board, arg.Mode, arg.Most)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []BoardRow
+	for rows.Next() {
+		var i BoardRow
+		if err := rows.Scan(
+			&i.CharacterID,
+			&i.Shown,
+			&i.Matches,
+			&i.Wins,
+			&i.Losses,
+			&i.Draws,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const build = `-- name: Build :one
+SELECT skill_bar, traits, revision FROM pvp_builds WHERE character_id = $1
+`
+
+type BuildRow struct {
+	SkillBar []string
+	Traits   []byte
+	Revision int32
+}
+
+func (q *Queries) Build(ctx context.Context, characterID uuid.UUID) (BuildRow, error) {
+	row := q.db.QueryRow(ctx, build, characterID)
+	var i BuildRow
+	err := row.Scan(&i.SkillBar, &i.Traits, &i.Revision)
+	return i, err
+}
+
 const lockRatings = `-- name: LockRatings :many
 SELECT character_id, mu, sigma, matches, wins, losses, draws FROM pvp_ratings
 WHERE mode = $1 AND character_id = ANY($2::uuid[])
@@ -63,11 +145,38 @@ func (q *Queries) LockRatings(ctx context.Context, arg LockRatingsParams) ([]Loc
 	return items, nil
 }
 
+const putBuild = `-- name: PutBuild :one
+INSERT INTO pvp_builds (character_id, skill_bar, traits, revision, created_at, updated_at)
+VALUES ($1, $2, $3, 1, $4, $4)
+ON CONFLICT (character_id) DO UPDATE SET
+  skill_bar = EXCLUDED.skill_bar, traits = EXCLUDED.traits, revision = pvp_builds.revision + 1, updated_at = EXCLUDED.updated_at
+RETURNING revision
+`
+
+type PutBuildParams struct {
+	CharacterID uuid.UUID
+	SkillBar    []string
+	Traits      []byte
+	Now         dbx.Stamp
+}
+
+func (q *Queries) PutBuild(ctx context.Context, arg PutBuildParams) (int32, error) {
+	row := q.db.QueryRow(ctx, putBuild,
+		arg.CharacterID,
+		arg.SkillBar,
+		arg.Traits,
+		arg.Now,
+	)
+	var revision int32
+	err := row.Scan(&revision)
+	return revision, err
+}
+
 const putRating = `-- name: PutRating :exec
-INSERT INTO pvp_ratings (character_id, mode, mu, sigma, shown, matches, wins, losses, draws, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
+INSERT INTO pvp_ratings (character_id, mode, mu, sigma, shown, placed, matches, wins, losses, draws, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
 ON CONFLICT (character_id, mode) DO UPDATE SET
-  mu = EXCLUDED.mu, sigma = EXCLUDED.sigma, shown = EXCLUDED.shown, matches = EXCLUDED.matches,
+  mu = EXCLUDED.mu, sigma = EXCLUDED.sigma, shown = EXCLUDED.shown, placed = EXCLUDED.placed, matches = EXCLUDED.matches,
   wins = EXCLUDED.wins, losses = EXCLUDED.losses, draws = EXCLUDED.draws, updated_at = EXCLUDED.updated_at
 `
 
@@ -77,6 +186,7 @@ type PutRatingParams struct {
 	Mu          float64
 	Sigma       float64
 	Shown       int32
+	Placed      bool
 	Matches     int32
 	Wins        int32
 	Losses      int32
@@ -91,6 +201,7 @@ func (q *Queries) PutRating(ctx context.Context, arg PutRatingParams) error {
 		arg.Mu,
 		arg.Sigma,
 		arg.Shown,
+		arg.Placed,
 		arg.Matches,
 		arg.Wins,
 		arg.Losses,
@@ -130,6 +241,48 @@ func (q *Queries) Rating(ctx context.Context, arg RatingParams) (RatingRow, erro
 		&i.Draws,
 	)
 	return i, err
+}
+
+const ratings = `-- name: Ratings :many
+SELECT mode, mu, sigma, matches, wins, losses, draws FROM pvp_ratings WHERE character_id = $1
+`
+
+type RatingsRow struct {
+	Mode    string
+	Mu      float64
+	Sigma   float64
+	Matches int32
+	Wins    int32
+	Losses  int32
+	Draws   int32
+}
+
+func (q *Queries) Ratings(ctx context.Context, characterID uuid.UUID) ([]RatingsRow, error) {
+	rows, err := q.db.Query(ctx, ratings, characterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RatingsRow
+	for rows.Next() {
+		var i RatingsRow
+		if err := rows.Scan(
+			&i.Mode,
+			&i.Mu,
+			&i.Sigma,
+			&i.Matches,
+			&i.Wins,
+			&i.Losses,
+			&i.Draws,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const recordFighter = `-- name: RecordFighter :exec

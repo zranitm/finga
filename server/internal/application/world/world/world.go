@@ -41,6 +41,7 @@ type World struct {
 	instances map[string]*instance.Instance
 	order     []string
 	opened    opened // matches and channels, opened on demand
+	fighting  fighting
 	channels  channels
 	tuning    instance.Tuning
 	presences presences

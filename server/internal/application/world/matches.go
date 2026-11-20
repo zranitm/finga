@@ -34,6 +34,13 @@ type Bot struct {
 	Bar   []string
 }
 
+// Build is a player's arena build: eight keys, "" for an empty one, the trait chosen for skills on it, and its revision, which counts its saves.
+type Build struct {
+	Bar      []string
+	Traits   map[string]string
+	Revision int
+}
+
 // MatchResult is a match's outcome: Winner is 1 or 2, 0 for a draw.
 type MatchResult struct {
 	Match          kernel.MatchID
@@ -107,6 +114,13 @@ func (m *Module) CanFight(ctx context.Context, id kernel.CharacterID) (err error
 	ctx, call := m.calls.Start(ctx, "CanFight")
 	defer call.End(&err)
 	return m.svc.CanFight(ctx, id)
+}
+
+// SetBuild hands the character's match their arena build, which it fights with from its next round's countdown; nothing when they're in no match, and an older revision than one it has changes nothing.
+func (m *Module) SetBuild(ctx context.Context, id kernel.CharacterID, b Build) (err error) {
+	ctx, call := m.calls.Start(ctx, "SetBuild")
+	defer call.End(&err)
+	return m.svc.SetBuild(ctx, id, model.Build(b))
 }
 
 // Forfeit takes the character out of their match, back where they came from.

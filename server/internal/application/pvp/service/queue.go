@@ -36,14 +36,15 @@ const (
 
 // Deps are what the service is built from; all are required.
 type Deps struct {
-	Data     *gamedata.Data
-	World    World
-	Social   Social
-	Store    Store
-	Notifier Notifier
-	Logger   *slog.Logger
-	Panics   *panics.Recorder
-	Rand     *rand.Rand // picks bots: their class, name and build
+	Data       *gamedata.Data
+	World      World
+	Social     Social
+	Characters Characters
+	Store      Store
+	Notifier   Notifier
+	Logger     *slog.Logger
+	Panics     *panics.Recorder
+	Rand       *rand.Rand // picks bots: their class, name and build
 }
 
 // Service is the queue: its tickets, the offers made from them, and the matcher that makes them; one mutex orders every change with what it tells.
@@ -54,6 +55,8 @@ type Service struct {
 	tickets map[kernel.CharacterID]*ticket // by each member
 	offers  map[string]*offer
 	opening map[kernel.CharacterID]bool // accepted, while the world opens their match
+	boards  boards
+	lifeCtx context.Context // Run's while it runs: the module's life, which the reads detached from their callers end with
 }
 
 // ticket is a player, or a party from its leader, waiting in a mode's queue: each member's rating there, and when they joined, which a requeue keeps.
@@ -128,7 +131,7 @@ func players(ts []*ticket) int {
 
 // New builds the service; Run runs its matcher.
 func New(d Deps) *Service {
-	return &Service{d: d, rules: d.Data.Pvp(), tickets: map[kernel.CharacterID]*ticket{}, offers: map[string]*offer{}, opening: map[kernel.CharacterID]bool{}}
+	return &Service{d: d, rules: d.Data.Pvp(), tickets: map[kernel.CharacterID]*ticket{}, offers: map[string]*offer{}, opening: map[kernel.CharacterID]bool{}, boards: boards{read: map[string]board{}}, lifeCtx: context.Background()}
 }
 
 // Queue puts the player in a mode's queue, with their party when the mode takes one, which only its leader queues; the world must say each of them can fight.
@@ -440,6 +443,7 @@ func (s *Service) open(ctx context.Context, spec model.Spec, o *offer) {
 	defer cancel()
 	err := s.d.World.OpenMatch(ctx, spec)
 	if err == nil {
+		s.sendBuilds(ctx, spec)
 		return
 	}
 	s.d.Logger.ErrorContext(ctx, "the world didn't open a match", "match_id", spec.ID, "err", err)
@@ -449,8 +453,11 @@ func (s *Service) open(ctx context.Context, spec model.Spec, o *offer) {
 	}
 }
 
-// Run makes matches each second until ctx ends.
+// Run makes matches each second until ctx ends, the module's life.
 func (s *Service) Run(ctx context.Context) error {
+	s.mu.Lock()
+	s.lifeCtx = ctx
+	s.mu.Unlock()
 	tick := time.NewTicker(matchEvery)
 	defer tick.Stop()
 	for {
@@ -797,7 +804,7 @@ func (s *Service) rate(r model.Result, before map[kernel.CharacterID]model.Ratin
 				case Draw:
 					a.Draws++
 				}
-				a.Shown = s.shown(a)
+				a.Shown, a.Placed = s.shown(a), a.Matches >= s.rules.Rating.Placement
 				fr.Before, fr.After = b, a
 				out.After[f.Character] = a
 			}

@@ -45,6 +45,18 @@ type Outcome = service.Outcome
 // RatingChange is a rating's move in a match.
 type RatingChange = service.RatingChange
 
+// Profile is a character's standing in each rated mode, and their arena build.
+type Profile = service.Profile
+
+// Standing is a character in a rated mode.
+type Standing = service.Standing
+
+// Row is a character on a mode's board.
+type Row = service.Row
+
+// Build is a character's arena build.
+type Build = model.Build
+
 // The reasons and outcomes.
 const (
 	UnqueueLeft         = service.UnqueueLeft

@@ -66,6 +66,7 @@ type service interface {
 	HandInQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error
 	OpenMatch(ctx context.Context, spec model.MatchSpec) error
 	CanFight(ctx context.Context, id kernel.CharacterID) error
+	SetBuild(ctx context.Context, id kernel.CharacterID, b model.Build) error
 	Forfeit(ctx context.Context, id kernel.CharacterID, conn string) error
 }
 

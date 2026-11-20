@@ -142,6 +142,8 @@ var ownErrors = []struct {
 	{kernel.ErrPvpPartyTooBig, PvpPartyTooBig},
 	{kernel.ErrPvpPartyNotReady, PvpPartyNotReady},
 	{kernel.ErrPvpPartyChanged, PvpPartyChanged},
+	{kernel.ErrBadPvpBuild, BadPvpBuild},
+	{kernel.ErrNotOnArenaBar, NotOnArenaBar},
 	{kernel.ErrChatEmpty, ChatEmpty},
 	{kernel.ErrChatTooLong, ChatTooLong},
 	{kernel.ErrBadChatChannel, BadChatChannel},
