@@ -547,6 +547,7 @@ Built with step 1, which says who watches a cell.
   - **The landing:** at the channel's end, the player is handed off beside the stone, at its arrival, facing away, and checkpointed there.
     - Into a region, from an old map or another region, the World picks the channel as for any join.
     - Within their own region, even to the stone they stand by, they go back into their own channel, which takes them even if it filled in the 3 s, as a switch's does. The client hears a `MapChange` and shows the veil, as for any.
+    - No same-stone check refuses a teleport to the stone one stands by: it doubles as a way out for anyone wedged near one.
   - **The test region** is reached by its main town's waypoint, `town`.
   - **The stone lists** now come from the same `interest.of` that files a player: each stone goes in every cell holding a spot of the square 13 m round it. Edges built as `k × 32 m` could disagree with `interest.of` by a rounding on a cell's line.
   - **Copy rows:** test/rules' `TestEveryEventAndPushHasACopyRow` fails the build for a map event, world stream event or gateway push with no row in its conversion's copy test. `AreaEntered`, `ArenaBar` and `MatchState` had none and gained theirs.
