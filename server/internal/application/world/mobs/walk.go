@@ -13,21 +13,22 @@ import (
 )
 
 const (
-	repathMoved = 1.0                    // metres a chased player moves before the mob looks for a new way
-	repathEvery = 500 * time.Millisecond // the longest a chaser keeps a path
-	repathSoon  = 100 * time.Millisecond // the soonest a mob looks for another
-	searches    = 4                      // path searches an arena runs a tick at most; the rest wait their turn
-	stallShare  = 0.25                   // a walk making under this share of its step is stalled
-	avoidFor    = 2 * time.Second        // how long a stalled mob routes round the cell it couldn't enter
-	stuckFor    = 3 * time.Second        // a mob getting nowhere this long gives up what it's walking to
-	arrived     = 0.25                   // metres from its spot a chaser counts as there
-	contactGap  = 0.05                   // metres a ring spot keeps clear of the player's body
-	touchStep   = math.Pi / 36           // 5°: how far round a player each try for a mob's way out turns
-	touchTries  = 37                     // tries each way, round to the far side
-	spotTries   = 8                      // random points in its circle a mob tries for a spot that fits
-	rings       = 5                      // rings round a player that chasing mobs take spots on: the contact ring, one at their reach's edge, and outer ones
-	touching    = 1e-3                   // metres between mobs side by side on a ring
-	driftSpeed  = 1.0                    // m/s at which mobs that overlap drift apart
+	repathMoved  = 1.0                    // metres a chased player moves before the mob looks for a new way
+	repathEvery  = 500 * time.Millisecond // the longest a chaser keeps a path
+	repathSoon   = 100 * time.Millisecond // the soonest a mob looks for another
+	searches     = 4                      // path searches an arena runs a tick at most; the rest wait their turn
+	stallShare   = 0.25                   // a walk making under this share of its step is stalled
+	avoidFor     = 2 * time.Second        // how long a stalled mob routes round the cell it couldn't enter
+	stuckFor     = 3 * time.Second        // a mob getting nowhere this long gives up what it's walking to
+	progressStep = 0.5                    // metres a wander or a walk home goes from where it last got somewhere before it gets somewhere again
+	arrived      = 0.25                   // metres from its spot a chaser counts as there
+	contactGap   = 0.05                   // metres a ring spot keeps clear of the player's body
+	touchStep    = math.Pi / 36           // 5°: how far round a player each try for a mob's way out turns
+	touchTries   = 37                     // tries each way, round to the far side
+	spotTries    = 8                      // random points in its circle a mob tries for a spot that fits
+	rings        = 5                      // rings round a player that chasing mobs take spots on: the contact ring, one at their reach's edge, and outer ones
+	touching     = 1e-3                   // metres between mobs side by side on a ring
+	driftSpeed   = 1.0                    // m/s at which mobs that overlap drift apart
 )
 
 // walk moves mb up to dist along its path, turning the way it goes; a step it makes under stallShare of drops the path.
@@ -48,6 +49,9 @@ func (a *Arena) walk(mb *mob, dist float64) {
 			return
 		}
 		mb.movedAt = a.tick
+		if nav.Distance(mb.at(), mb.wentFrom) >= progressStep {
+			mb.setOff(a.tick) // a walk that spread pushes back step for step gets nowhere
+		}
 		dist -= step
 		if nav.Distance(mb.at(), next) < 1e-9 {
 			mb.path = mb.path[1:]
@@ -97,7 +101,7 @@ func (a *Arena) spotIn(mb *mob) (nav.Point, bool) {
 	return nav.Point{}, false
 }
 
-// wander walks a mob to a random spot in its circle at its own pace, pauses a rolled while, and picks another.
+// wander walks a mob to a random spot in its circle at its own pace, pauses a rolled while, and picks another; getting nowhere for stuckFor, it pauses there and picks another.
 func (a *Arena) wander(mb *mob) {
 	if !mb.pathFor.IsZero() {
 		mb.path, mb.pathFor = nil, kernel.CharacterID{}
@@ -105,10 +109,14 @@ func (a *Arena) wander(mb *mob) {
 	if mb.pauseUntil > a.tick {
 		return
 	}
-	if len(mb.path) == 0 {
+	switch {
+	case len(mb.path) == 0:
 		if to, ok := a.spotIn(mb); ok {
 			mb.path = a.pathTo(mb, to, a.leash(mb))
+			mb.setOff(a.tick)
 		}
+	case a.tick > mb.wentAt+a.ticks(stuckFor):
+		mb.path = nil
 	}
 	a.walk(mb, mb.speed()*a.interval.Seconds())
 	if len(mb.path) == 0 {
@@ -129,12 +137,13 @@ func (a *Arena) strayed(mb *mob) bool { return nav.Distance(mb.at(), mb.home) > 
 func (a *Arena) giveUp(mb *mob) {
 	mb.target, mb.provokedUntil, mb.near, mb.waiting, mb.claimFor = kernel.CharacterID{}, 0, false, false, kernel.CharacterID{}
 	mb.path, mb.pathFor, mb.homing, mb.movedAt = nil, kernel.CharacterID{}, true, a.tick
+	mb.setOff(a.tick)
 }
 
-// goHome walks a mob that gave up back into its circle, blind to players; caught on something too long, it stops and wanders. A standing boss caught is put back at its spot, and is calm there unless a blow on the way still provokes it.
+// goHome walks a mob that gave up back into its circle, blind to players; getting nowhere too long, caught on something or pushed back as far as it walks, it stops and wanders. A standing boss caught is put back at its spot, and is calm there unless a blow on the way still provokes it.
 func (a *Arena) goHome(mb *mob) {
 	home := nav.Distance(mb.at(), mb.home) <= mb.homeR
-	if home || a.tick > mb.movedAt+a.ticks(stuckFor) {
+	if home || a.tick > mb.wentAt+a.ticks(stuckFor) {
 		if mb.spawn == noSpawn && !home {
 			a.snapHome(mb)
 		}
@@ -346,6 +355,33 @@ func (a *Arena) offPortals(at nav.Point, r float64) bool {
 	return true
 }
 
+// setOff counts mb's wander or walk home from where it stands at tick.
+func (mb *mob) setOff(tick uint64) { mb.wentAt, mb.wentFrom = tick, mb.at() }
+
+// headed is how far mb's walk to its next point goes along (ux, uz) per metre walked; 0 when it isn't walking.
+func (mb *mob) headed(ux, uz float64) float64 {
+	if len(mb.path) == 0 {
+		return 0
+	}
+	d := nav.Distance(mb.at(), mb.path[0])
+	if d == 0 {
+		return 0
+	}
+	return float64((mb.path[0].X-mb.x)/d*ux) + float64((mb.path[0].Z-mb.z)/d*uz)
+}
+
+// right is the unit way to the right of mb's walk to its next point; zero when it isn't walking.
+func (mb *mob) right() (float64, float64) {
+	if len(mb.path) == 0 {
+		return 0, 0
+	}
+	d := nav.Distance(mb.at(), mb.path[0])
+	if d == 0 {
+		return 0, 0
+	}
+	return (mb.path[0].Z - mb.z) / d, -(mb.path[0].X - mb.x) / d
+}
+
 // way is how readily mb makes way for a mob it overlaps: one standing idle most, then one walking; one mid-attack or staggered not at all.
 func (mb *mob) way() int {
 	switch {
@@ -357,7 +393,7 @@ func (mb *mob) way() int {
 	return 2
 }
 
-// spread drifts mobs that overlap apart, so a crowd that met on a spot ends side by side, and a pile chasing a player doesn't walk on deep in itself, where none may attack. The readier of two alone makes way; two idle ones each give half, and two walking ones half of what's deeper than crowdedBy, so neither is pushed off the end of its walk. Each mob's drifts add up to at most driftSpeed.
+// spread drifts mobs that overlap apart, so a crowd that met on a spot ends side by side, and a pile chasing a player doesn't walk on deep in itself, where none may attack. The readier of two alone makes way; two idle ones each give half, and two walking ones half of what's deeper than crowdedBy, so neither is pushed off the end of its walk; two wandering or going home at each other each also step as far to their right, so a pair met on one line slides past rather than stands, pushed back as far as it walks. Each mob's drifts add up to at most driftSpeed.
 func (a *Arena) spread() {
 	most := driftSpeed * a.interval.Seconds()
 	a.pushes = slices.Grow(a.pushes[:0], len(a.mobs))[:len(a.mobs)]
@@ -373,8 +409,10 @@ func (a *Arena) spread() {
 			dx, dz := other.x-mb.x, other.z-mb.z
 			d := nav.Distance(mb.at(), other.at())
 			overlap := mb.def.Radius + other.def.Radius - d
+			headOn := false
 			if mbWay == 1 && otherWay == 1 {
 				overlap -= crowdedBy
+				headOn = mb.pathFor.IsZero() && other.pathFor.IsZero() && mb.headed(dx, dz) > 0 && other.headed(-dx, -dz) > 0 // a chaser keeps to its claim
 			}
 			if mbWay == 0 && otherWay == 0 || overlap <= 0 || other.y >= mb.y+mb.def.Height || mb.y >= other.y+other.def.Height {
 				continue
@@ -392,6 +430,12 @@ func (a *Arena) spread() {
 			}
 			if otherWay >= mbWay {
 				a.pushes[j].X, a.pushes[j].Z = a.pushes[j].X+ux, a.pushes[j].Z+uz
+			}
+			if headOn {
+				rx, rz := mb.right()
+				ox, oz := other.right()
+				a.pushes[i].X, a.pushes[i].Z = a.pushes[i].X+float64(rx*step), a.pushes[i].Z+float64(rz*step)
+				a.pushes[j].X, a.pushes[j].Z = a.pushes[j].X+float64(ox*step), a.pushes[j].Z+float64(oz*step)
 			}
 		}
 	}

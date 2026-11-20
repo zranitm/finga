@@ -52,6 +52,8 @@ type mob struct {
 	avoid      nav.Point          // the point it last stalled walking to, which its searches route round
 	avoidUntil uint64
 	movedAt    uint64             // the last tick it got anywhere, or had no need to
+	wentAt     uint64             // wandering or going home, the last tick it stood progressStep from where it stood the time before
+	wentFrom   nav.Point          // where it stood then
 	homing     bool               // led past its leash: walking home, blind to players until it's back in its circle
 	calm       bool               // a standing boss nobody has hit since it was last home: it sees no one
 	waiting    bool               // at its spot by its target on its last chase, its target out of its reach
