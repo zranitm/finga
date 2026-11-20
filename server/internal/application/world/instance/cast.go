@@ -114,7 +114,7 @@ func (i *Instance) castSkills() {
 			err = i.chainReady(u, m.in.Root) // judged at the press, not as its turn comes
 		}
 		if err == nil {
-			err = i.onArenaBar(m)
+			err = onArenaBar(u.p, m.in)
 		}
 		switch {
 		case err != nil:

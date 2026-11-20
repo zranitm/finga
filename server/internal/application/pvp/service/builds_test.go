@@ -5,6 +5,7 @@ import (
 	"errors"
 	"maps"
 	"slices"
+	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -24,6 +25,22 @@ func (f fixture) warrior(account kernel.AccountID, bar []string, traits map[stri
 	defer f.chars.mu.Unlock()
 	f.chars.of[id] = model.Character{Account: account, Class: "warrior", Bar: bar, Traits: traits}
 	return id
+}
+
+// of is a character of account and class, their world bar Strike alone.
+func (f fixture) of(account kernel.AccountID, class kernel.Class) kernel.CharacterID {
+	id := f.warrior(account, arenaKeys("strike"), nil)
+	f.chars.mu.Lock()
+	defer f.chars.mu.Unlock()
+	ch := f.chars.of[id]
+	ch.Class = class
+	f.chars.of[id] = ch
+	return id
+}
+
+// arenaKeys are eight keys holding skills, the rest empty.
+func arenaKeys(skills ...string) []string {
+	return append(skills, make([]string, 8-len(skills))...)
 }
 
 // pvp.md section 6: a build is saved once it's the class's, each save a revision past the last, and sent to the world for the player's match; one that isn't the class's, or a character not the account's, is refused, nothing saved or sent.
@@ -54,6 +71,8 @@ func TestABuildIsSavedOnceItsTheClasssAndSentToTheMatch(t *testing.T) {
 		{"a trait not its skill's", ayla, warriorBar, map[string]string{"strike": "fury"}, model.ErrBadBuild},
 		{"a trait for a skill off the bar", ayla, warriorBar, map[string]string{"slash_blast": "wide"}, model.ErrBadBuild},
 		{"another account's character", f.warrior(kernel.NewAccountID(), warriorBar, nil), warriorBar, nil, model.ErrNoCharacter},
+		{"a Beginner's", f.of(account, "beginner"), arenaKeys("strike"), nil, model.ErrNotPromoted},
+		{"an unknown class's", f.of(account, "jester"), arenaKeys(), nil, model.ErrNotPromoted},
 		{"no such character", kernel.NewCharacterID(), warriorBar, nil, model.ErrNoCharacter},
 	}
 	for _, tt := range tests {
@@ -118,6 +137,41 @@ func TestAProfileGivesEachRatedModeAndTheBuild(t *testing.T) {
 	if _, err := f.svc.Profile(ctx, kernel.NewAccountID(), ayla); !errors.Is(err, model.ErrNoCharacter) {
 		t.Fatalf("another account's profile: %v", err)
 	}
+	if p, err := f.svc.Profile(ctx, account, f.of(account, "jester")); err != nil || !same(p.Build, model.Build{Bar: arenaKeys(), Traits: map[string]string{}}) {
+		t.Fatalf("an unknown class's profile %+v, %v; want an empty copy, no skill being its", p, err)
+	}
+}
+
+// A board's read is bounded: one that hangs ends after 5 s, every caller sharing it hearing so, and the next asks again; the module stopping ends one at once.
+func TestABoardsReadIsBounded(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newFixture(t)
+		ctx, stop := context.WithCancel(context.Background())
+		var running sync.WaitGroup
+		running.Go(func() { _ = f.svc.Run(ctx) })
+		synctest.Wait()
+		f.store.hang = true
+		var errs [2]error
+		var ended [2]time.Duration
+		start := time.Now()
+		var asking sync.WaitGroup
+		for k := range 2 {
+			asking.Go(func() {
+				_, errs[k] = f.svc.Leaderboard(context.Background(), "duel")
+				ended[k] = time.Since(start)
+			})
+		}
+		asking.Wait()
+		if !errors.Is(errs[0], context.DeadlineExceeded) || !errors.Is(errs[1], context.DeadlineExceeded) || ended[0] != 5*time.Second || ended[1] != 5*time.Second || f.store.boards != 1 {
+			t.Fatalf("two callers of a hung read: %v and %v, at %v, %d reads; want both out of time at 5 s, one read", errs[0], errs[1], ended, f.store.boards)
+		}
+		start = time.Now()
+		go func() { time.Sleep(time.Second); stop() }()
+		if _, err := f.svc.Leaderboard(context.Background(), "duel"); !errors.Is(err, context.Canceled) || time.Since(start) != time.Second || f.store.boards != 2 {
+			t.Fatalf("the next read, the module stopping a second in: %v at %v, %d reads", err, time.Since(start), f.store.boards)
+		}
+		running.Wait()
+	})
 }
 
 // pvp.md section 10: the board lists a rated mode's placed characters highest first, a tie sharing its place, with their names; one read serves 30 s.
@@ -220,4 +274,51 @@ func TestAnOpenedMatchIsSentEachPlayersBuild(t *testing.T) {
 
 func same(a, b model.Build) bool {
 	return slices.Equal(a.Bar, b.Bar) && maps.Equal(a.Traits, b.Traits) && a.Revision == b.Revision
+}
+
+// Each player's build is read on its own, apart from the call that opened the match: one whose read hangs leaves the other's sent at once, and gives up after 5 s, or as the module stops.
+func TestEachPlayersBuildIsReadOnItsOwn(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		stopAt time.Duration // when the module stops, 0 for not
+		lasted time.Duration
+	}{
+		{"its own bound", 0, 5 * time.Second},
+		{"the module stopping", time.Second, time.Second},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				f := newFixture(t)
+				lifeCtx, stop := context.WithCancel(context.Background())
+				var running sync.WaitGroup
+				running.Go(func() { _ = f.svc.Run(lifeCtx) })
+				defer func() { stop(); running.Wait() }()
+				ctx := context.Background()
+				account := kernel.NewAccountID()
+				ayla, robin := f.warrior(account, warriorBar, nil), f.warrior(account, warriorBar, nil)
+				f.store.stall[ayla] = true
+				for _, id := range []kernel.CharacterID{ayla, robin} {
+					if err := f.svc.Queue(ctx, model.Player{ID: id, Class: "warrior"}, "duel"); err != nil {
+						t.Fatal(err)
+					}
+				}
+				wait(time.Second)
+				f.open(t, model.Player{ID: ayla}, model.Player{ID: robin})
+				synctest.Wait()
+				if len(f.world.sent(robin)) != 1 || len(f.world.sent(ayla)) != 0 {
+					t.Fatalf("with Ayla's read hung, sent Robin %+v and Ayla %+v; want Robin's", f.world.sent(robin), f.world.sent(ayla))
+				}
+				if c.stopAt > 0 {
+					wait(c.stopAt)
+					stop()
+				}
+				wait(5 * time.Second)
+				f.store.mu.Lock()
+				defer f.store.mu.Unlock()
+				if got, ok := f.store.stalled[ayla]; !ok || got != c.lasted {
+					t.Fatalf("Ayla's hung read lasted %v (ended %v); want %v", got, ok, c.lasted)
+				}
+			})
+		})
+	}
 }

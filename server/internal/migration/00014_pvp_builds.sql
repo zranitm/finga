@@ -13,8 +13,6 @@ CREATE TABLE pvp_builds (
 
 -- placed is written with shown, by pvp.yaml's placement: the board lists placed ratings alone, read in order from this index, and a place counts those above by it.
 ALTER TABLE pvp_ratings ADD COLUMN placed boolean NOT NULL DEFAULT false;
-UPDATE pvp_ratings SET placed = matches >= 5; -- pvp.yaml's placement as this was written
-ALTER TABLE pvp_ratings ALTER COLUMN placed DROP DEFAULT;
 DROP INDEX pvp_ratings_board;
 CREATE INDEX pvp_ratings_board ON pvp_ratings (mode, shown DESC, character_id) WHERE placed;
 

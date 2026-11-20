@@ -75,11 +75,14 @@ type store struct {
 	modes    map[string]map[kernel.CharacterID]model.Rating
 	builds   map[kernel.CharacterID]model.Build
 	buildErr error
-	boards   int // the boards read
+	boards   int                                  // the boards read
+	stall    map[kernel.CharacterID]bool          // whose build reads hang till their ctx ends
+	stalled  map[kernel.CharacterID]time.Duration // how long each hung read lasted
+	hang     bool                                 // board reads hang till their ctx ends
 }
 
 func newStore() *store {
-	return &store{ratings: map[kernel.CharacterID]model.Rating{}, matches: map[kernel.MatchID]model.Rated{}, hold: map[kernel.MatchID]chan struct{}{}, modes: map[string]map[kernel.CharacterID]model.Rating{}, builds: map[kernel.CharacterID]model.Build{}}
+	return &store{ratings: map[kernel.CharacterID]model.Rating{}, matches: map[kernel.MatchID]model.Rated{}, hold: map[kernel.MatchID]chan struct{}{}, modes: map[string]map[kernel.CharacterID]model.Rating{}, builds: map[kernel.CharacterID]model.Build{}, stall: map[kernel.CharacterID]bool{}, stalled: map[kernel.CharacterID]time.Duration{}}
 }
 
 func (s *store) Ratings(_ context.Context, id kernel.CharacterID) (map[string]model.Rating, error) {
@@ -94,10 +97,17 @@ func (s *store) Ratings(_ context.Context, id kernel.CharacterID) (map[string]mo
 	return out, nil
 }
 
-func (s *store) Board(_ context.Context, mode string, most int) ([]model.Ranked, error) {
+func (s *store) Board(ctx context.Context, mode string, most int) ([]model.Ranked, error) {
+	s.mu.Lock()
+	s.boards++
+	hang := s.hang
+	s.mu.Unlock()
+	if hang {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.boards++
 	var out []model.Ranked
 	for id, r := range s.modes[mode] {
 		if r.Placed {
@@ -122,7 +132,18 @@ func (s *store) Above(_ context.Context, mode string, shown int) (int, error) {
 	return n, nil
 }
 
-func (s *store) Build(_ context.Context, id kernel.CharacterID) (model.Build, bool, error) {
+func (s *store) Build(ctx context.Context, id kernel.CharacterID) (model.Build, bool, error) {
+	s.mu.Lock()
+	stall := s.stall[id]
+	s.mu.Unlock()
+	if stall {
+		start := time.Now()
+		<-ctx.Done()
+		s.mu.Lock()
+		s.stalled[id] = time.Since(start)
+		s.mu.Unlock()
+		return model.Build{}, false, ctx.Err()
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	b, ok := s.builds[id]

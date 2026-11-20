@@ -134,7 +134,7 @@ paths:
   /api/characters/{id}/pvp-build:
     put:
       summary: Save a character's arena build
-      description: Eight keys, each empty or one of the class's active skills, none twice, and a trait of its own for skills on it (pvp.md section 6). A match the character is in fights with it from its next round's countdown.
+      description: Eight keys, each empty or one of the class's active skills, none twice, and a trait of its own for skills on it (pvp.md section 6); only a promoted character has one. A match the character is in fights with it from its next round's countdown.
       security: [{ bearer: [] }]
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -152,6 +152,7 @@ paths:
         "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
   /api/pvp/leaderboard:
     get:
       summary: A rated mode's leaderboard

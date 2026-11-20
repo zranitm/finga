@@ -11,7 +11,7 @@ import (
 	"finga/test/e2etest"
 )
 
-// I2/I4 (pvp.md sections 6 and 10): a character's profile carries their world bar's copy until they save an arena build, which then fights in their match: a skill off it is refused there, one on it goes. Another account's character is not found, a build not the class's is refused, and a board lists the placed alone. Every wait is for a message, a minute its bound.
+// I2/I4 (pvp.md sections 6 and 10): a character's profile carries their world bar's copy until they save an arena build, which then fights in their match: a skill off it is refused there, one on it goes. Another account's character is not found, a build not the class's or a Beginner's is refused, and a board lists the placed alone. Every wait is for a message, a minute its bound.
 func TestAnArenaBuildIsSavedAndFoughtWith(t *testing.T) {
 	t.Parallel()
 	s := newStackOver(t, e2etest.GameData(t,
@@ -52,6 +52,10 @@ func TestAnArenaBuildIsSavedAndFoughtWith(t *testing.T) {
 	bad := map[string]any{"skill_bar": []any{"fire_arrow", "", "", "", "", "", "", ""}, "traits": map[string]any{}}
 	if got := s.Call("PUT", path, token, bad); got.Status != http.StatusBadRequest || got.Body["code"] != float64(code("BAD_PVP_BUILD")) {
 		t.Fatalf("a magician's skill on a warrior's bar answered %d %v", got.Status, got.Body)
+	}
+	novice, nid := s.CreateCharacter(t, "novice", "Novice", "beginner")
+	if got := s.Call("PUT", "/api/characters/"+nid+"/pvp-build", novice, map[string]any{"skill_bar": []any{"strike", "", "", "", "", "", "", ""}, "traits": map[string]any{}}); got.Status != http.StatusConflict || got.Body["code"] != float64(code("PVP_NOT_PROMOTED")) {
+		t.Fatalf("a Beginner's build answered %d %v", got.Status, got.Body)
 	}
 	board := s.Call("GET", "/api/pvp/leaderboard?mode=duel", token, nil)
 	if board.Status != http.StatusOK || !reflect.DeepEqual(board.Body["rows"], []any{}) {

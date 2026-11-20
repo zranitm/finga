@@ -34,17 +34,19 @@ func inputTicksAt(interval time.Duration) inputTicks {
 
 type player struct {
 	model.Player
-	sink    Sink
-	state   sim.State
-	held    sim.Input
-	view    uint32     // the held input's
-	pending []inputMsg // unapplied inputs, by sequence number
-	lastSeq uint32
-	starved int // ticks in a row with no queued input
-	deep    int // ticks in a row its queue held more than inputKeep
-	moved   bool
-	joined  bool
-	slot    uint64 // checkpointed on the ticks equal to it mod ticksPer
+	// arenaBar is the bar a match's player fights with once their build is worn, a skill's key on it; nil, refusing nothing, before and elsewhere.
+	arenaBar []string
+	sink     Sink
+	state    sim.State
+	held     sim.Input
+	view     uint32     // the held input's
+	pending  []inputMsg // unapplied inputs, by sequence number
+	lastSeq  uint32
+	starved  int // ticks in a row with no queued input
+	deep     int // ticks in a row its queue held more than inputKeep
+	moved    bool
+	joined   bool
+	slot     uint64 // checkpointed on the ticks equal to it mod ticksPer
 
 	class        gamedata.Class
 	derived      progression.Derived

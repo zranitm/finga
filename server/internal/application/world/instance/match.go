@@ -55,8 +55,6 @@ type fighter struct {
 	// standsFor is the team fighter whose place a stand-in bot took when they left.
 	standsFor kernel.CharacterID
 	arrived   bool
-	// bar is the arena bar a skill's key must be on; nil for a player whose build hasn't come, of whom no key is refused, and for a bot, which keeps to its own.
-	bar []string
 	// next is the newest build a player was sent, put on them at the next countdown; sent and revision say which they have.
 	next     *model.Build
 	sent     bool
@@ -160,20 +158,16 @@ func (i *Instance) wearBuilds() {
 		if f.next == nil {
 			continue
 		}
-		f.bar = f.next.Bar
 		if p, ok := i.players[id]; ok {
-			p.Skills.Traits = maps.Clone(f.next.Traits)
+			p.arenaBar, p.Skills.Traits = f.next.Bar, maps.Clone(f.next.Traits)
 		}
 		f.next = nil
 	}
 }
 
-// onArenaBar refuses, in a match, a skill pressed on a key its fighter's arena bar doesn't hold: the key of a chain's root, or the skill's own.
-func (i *Instance) onArenaBar(m skillMsg) error {
-	if i.match == nil {
-		return nil
-	}
-	if bar := i.match.fighters[m.id].bar; bar != nil && !slices.Contains(bar, cmp.Or(m.in.Root, m.in.Skill)) {
+// onArenaBar refuses a skill pressed on a key p's arena bar doesn't hold: the key of a chain's root, or the skill's own. Only a match's player wearing a build has one.
+func onArenaBar(p *player, in model.SkillUse) error {
+	if p.arenaBar != nil && !slices.Contains(p.arenaBar, cmp.Or(in.Root, in.Skill)) {
 		return model.ErrNotOnArenaBar
 	}
 	return nil

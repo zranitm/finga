@@ -110,3 +110,25 @@ func TestOutOfAMatchNoBarIsJudged(t *testing.T) {
 		}
 	})
 }
+
+// A build sent to a fighter who never came is put on no one: the countdown wears the others' and the match plays on.
+func TestABuildForAFighterWhoNeverCameIsDropped(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		ayla, bea, robin := fighterFrom(t, data, "Ayla"), fighterFrom(t, data, "Bea"), fighterFrom(t, data, "Robin")
+		spec := team([2][]model.Fighter{{{Character: ayla.ID}, {Character: bea.ID}}, {{Character: robin.ID}}}, "novice")
+		inst, stop := worldtest.RunMatch(t, data, spec, nil, worldtest.Options{Results: &worldtest.Results{}})
+		defer stop()
+		joinAll(t, inst, ayla, robin)
+		ctx := context.Background()
+		for _, id := range []kernel.CharacterID{ayla.ID, bea.ID} {
+			if err := inst.SetBuild(ctx, id, model.Build{Bar: arenaBar("strike"), Traits: map[string]string{}, Revision: 1}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		sleep(data.Pvp().Rounds.Prep + data.Pvp().Rounds.Countdown + worldtest.TickInterval)
+		if err := fromKey(inst, ayla, "taunt"); !errors.Is(err, model.ErrNotOnArenaBar) {
+			t.Fatalf("Ayla's Taunt, off her build, with Bea never come: %v", err)
+		}
+	})
+}

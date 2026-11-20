@@ -247,6 +247,7 @@ bots:
   - A build saved while the player is in a match goes to the world too, through `SetBuild`. It applies from the next round's start.
   - **In a match, a skill goes only from a key on the arena bar.** A follow-up goes from its root's key. Any other is `NOT_ON_ARENA_BAR`. Out of a match, no bar is judged.
 - **As built (step 4a):**
+  - **Only a promoted class has a build,** as only it fights in PvP. A Beginner's save is `PVP_NOT_PROMOTED`.
   - **The copy:** `gamedata.PvpCopy` makes it from the world bar and traits, which the character module holds.
     - A block that isn't the class's own takes the class's block, moved there if it stood on another key.
     - Keys the class can't use, and repeats, are left empty.
@@ -257,7 +258,7 @@ bots:
     2. pvp then reads each player's build, the saved one or the copy, and sends it with `SetBuild`.
     3. A save from then on finds the match through the same index.
     - The match keeps the newest revision it's sent, so an older read landing late doesn't undo a newer save.
-  - **If a read fails:** the reads and sends run on their own goroutine, with a 5 s bound, after the match is open, so they never hold it. A player whose build doesn't come fights with no bar check, on their world traits. Their client still shows the bar they chose.
+  - **If a read fails:** the reads and sends run after the match is open, so they never hold it. Each player's runs on its own, bounded to 5 s, and ends as the server stops. A player whose build doesn't come fights with no bar check, on their world traits. Their client still shows the bar they chose.
   - **When a build applies:** the match wears each build it was sent at the next countdown: its bar, and its traits from then on. That's round 1's countdown for a build sent during prep.
   - **Bots** are never judged, as they keep to their own bars.
   - **The save delay** is the skill bar's own.
@@ -495,7 +496,7 @@ bots:
   - `GET /api/pvp/leaderboard?mode=duel|team` lists the top 100 by `shown`, among players past `placement`.
   - It's cached 30 s.
   - It includes the caller's own place: those above them, plus one.
-  - As built (step 4a), the caller's own place comes in their profile instead, so the board is the same for every caller and one read serves them all. A tie shares its place. Names come from the character module by ID, as the modules share no tables.
+  - As built (step 4a), a read is bounded to 5 s, and the callers waiting on one share it. The caller's own place comes in their profile instead, so the board is the same for every caller and one read serves them all. A tie shares its place. Names come from the character module by ID, as the modules share no tables.
 - **Profile:** `GET /api/characters/{id}/pvp` gives each mode's shown rating, rank, placement matches left, wins, losses and draws. As built (step 4a), it also gives the place, 0 before placement, and the arena build, the saved one or the copy.
 
 ## 11. Protocol

@@ -21,6 +21,7 @@ var (
 	ErrPartyChanged  = errors.New("pvp: the party changed while it queued")
 	ErrBadBuild      = errors.New("pvp: an arena build that isn't the class's")
 	ErrNoCharacter   = errors.New("pvp: no such character of the account")
+	ErrNotPromoted   = errors.New("pvp: only a promoted class has an arena build")
 )
 
 // Player is a character as they queue: the name is theirs in a match, which no bot there takes.
