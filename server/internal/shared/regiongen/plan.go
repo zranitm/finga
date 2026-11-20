@@ -269,8 +269,8 @@ func (p Plan) check(k Kit) error {
 		return fmt.Errorf("ground noise scale %g: its finest octave, half as wide for each after the first, at least a cell across, and the scale at most %d m", n.Scale, maxSide)
 	case !within(n.Amplitude, 0, maxHeight):
 		return fmt.Errorf("ground noise amplitude %g: 0 to %d m", n.Amplitude, maxHeight)
-	case !within(p.Edge.Width, p.Cell, min(p.Size[0], p.Size[1])/2):
-		return fmt.Errorf("edge width %g: a cell to half the region's shorter side", p.Edge.Width)
+	case !within(p.Edge.Width, AreaCell, min(p.Size[0], p.Size[1])/2) || !whole(p.Edge.Width/AreaCell):
+		return fmt.Errorf("edge width %g: whole %d m area squares, so the ring's face lies on their lines, up to half the region's shorter side", p.Edge.Width, AreaCell)
 	case !within(p.Edge.Height[0], -maxHeight, maxHeight) || !within(p.Edge.Height[1], p.Edge.Height[0], maxHeight):
 		return fmt.Errorf("edge heights %v: low to high, within ±%d m", p.Edge.Height, maxHeight)
 	case !reach(p.Colour.Slope, maxHeight) || !within(p.Colour.High, -maxHeight, maxHeight):

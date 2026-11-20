@@ -170,7 +170,9 @@ func TestRegionRejections(t *testing.T) {
 		{"a hunting area without a boss", file, ", kind: hunting,\n     boss: {at: [90, 90], radius: 4, mob: slime_lord}}", ", kind: hunting}", []string{file, "area meadow", "boss"}},
 		{"a town with levels", file, "biome: meadow, kind: town}", "levels: [1, 2], biome: meadow, kind: town}", []string{file, "area hamlet", "town"}},
 		{"a town with a boss", file, "biome: meadow, kind: town}", "biome: meadow, kind: town, boss: {at: [30, 30], radius: 4, mob: slime_lord}}", []string{file, "area hamlet", "town"}},
-		{"a boss standing outside its area", file, "at: [90, 90], radius: 4", "at: [90, 40], radius: 4", []string{file, "area meadow", "slime_lord", "outside"}},
+		{"a boss standing outside its area", file, "at: [90, 90], radius: 4", "at: [90, 40], radius: 4", []string{file, "area meadow", "slime_lord", "reaches area hamlet, outside area meadow"}},
+		{"a boss circle across its area's edge", file, "at: [90, 90], radius: 4", "at: [90, 50], radius: 4", []string{file, "slime_lord", "[90 50], 4 m round, reaches area hamlet, outside area meadow"}},
+		{"a boss circle into the ring", file, "at: [90, 90], radius: 4", "at: [110, 90], radius: 4", []string{file, "slime_lord", "reaches the ring, outside area meadow"}},
 		{"a boss that isn't one", file, "radius: 4, mob: slime_lord", "radius: 4, mob: green_slime", []string{file, "area meadow", "green_slime", "boss"}},
 		{"a boss below its area's top level", file, "levels: [1, 5]", "levels: [1, 6]", []string{file, "area meadow", "slime_lord", "level"}},
 		{"a boss circle narrower than its body", file, "at: [90, 90], radius: 4", "at: [90, 90], radius: 1", []string{file, "area meadow", "slime_lord", "narrower"}},
@@ -180,7 +182,9 @@ func TestRegionRejections(t *testing.T) {
 		// The camps.
 		{"a camp of no area", file, "area: meadow, name: slimes", "area: marsh, name: slimes", []string{file, "camp \"slimes\"", "marsh"}},
 		{"a camp in a town", file, "area: meadow, name: slimes, at: [40, 80]", "area: hamlet, name: slimes, at: [40, 30]", []string{file, "camp \"slimes\"", "town"}},
-		{"a camp standing in another area", file, "name: slimes, at: [40, 80]", "name: slimes, at: [40, 30]", []string{file, "camp \"slimes\"", "isn't in area meadow"}},
+		{"a camp standing in another area", file, "name: slimes, at: [40, 80]", "name: slimes, at: [40, 30]", []string{file, "camp \"slimes\"", "reaches area hamlet, outside area meadow"}},
+		{"a camp across the town's edge", file, "name: slimes, at: [40, 80]", "name: slimes, at: [40, 50]", []string{file, "camp \"slimes\"", "[40 50], 5 m round, reaches area hamlet, outside area meadow"}},
+		{"a camp into the ring", file, "name: slimes, at: [40, 80]", "name: slimes, at: [20, 80]", []string{file, "camp \"slimes\"", "reaches the ring, outside area meadow"}},
 		{"a camp's mob outside its area's levels", file, "levels: [1, 5]", "levels: [2, 5]", []string{file, "area meadow", "green_slime", "levels"}},
 		{"a camp of a boss", file, "mob: green_slime", "mob: slime_lord", []string{file, "area meadow", "slimes", "boss"}},
 		{"a camp of none", file, "max: 3", "max: 0", []string{file, "area meadow", "slimes", "max"}},
@@ -189,6 +193,9 @@ func TestRegionRejections(t *testing.T) {
 		// The spots.
 		{"a waypoint where a player doesn't fit", file, "at: [64, 32]}", "at: [83, 27]}", []string{file, "waypoint hamlet", "fits"}},
 		{"two waypoints of one id", file, "waypoints:\n", "waypoints:\n  - {id: hamlet, name: Again, at: [40, 32]}\n", []string{file, "two waypoints are hamlet"}},
+		{"a waypoint in the ring", file, "at: [64, 32]}", "at: [8, 64]}", []string{file, "waypoint hamlet at [8 64] stands in the ring"}},
+		{"the start in the ring", file, "start: {at: [64, 28]", "start: {at: [64, 4]", []string{file, "the start at [64 4] stands in the ring"}},
+		{"an npc in the ring", file, "start:", "npcs:\n  - {id: guide, at: [120, 64], yaw: 0}\nstart:", []string{file, "NPC guide at [120 64] stands in the ring"}},
 		{"a start where a player doesn't fit", file, "start: {at: [64, 28]", "start: {at: [83, 27]", []string{file, "player_spawn", "fits"}},
 		{"an npc of no npcs.yaml", file, "start:", "npcs:\n  - {id: stranger, at: [70, 40], yaw: 0}\nstart:", []string{file, "stranger"}},
 		{"an npc already on a map", file, "start:", "npcs:\n  - {id: guide, at: [70, 40], yaw: 0}\nstart:", []string{"regions/vale.yaml", "guide", "already stands on"}},
@@ -197,6 +204,9 @@ func TestRegionRejections(t *testing.T) {
 		{"two gates of one name", file, "gates:\n", "gates:\n  - {name: west, at: [24, 90], radius: 1.6, to: {region: town, gate: to_vale}}\n", []string{file, "duplicate", "west"}},
 		{"a gate to no region", file, "to: {region: town, gate: to_vale}", "to: {region: marsh, gate: to_vale}", []string{file, "west", "marsh"}},
 		{"a gate to a portal leading elsewhere", "maps/town.yaml", "to: {map: vale, portal: west}", "to: {map: field, portal: from_town}", []string{file, "gate \"west\"", "not back"}},
+		{"a portal to a gate leading elsewhere", "maps/field.yaml", "portals:\n", "portals:\n  - {name: to_vale, at: [2, 3], radius: 1.2, to: {map: vale, portal: west}}\n", []string{"maps/field.yaml", "portal \"to_vale\" leads to vale's \"west\", which leads to town's \"to_vale\", not back"}},
+		{"a gate leading to itself", file, "to: {region: town, gate: to_vale}", "to: {region: vale, gate: west}", []string{file, "portal \"west\" leads to itself"}},
+		{"a gate in the ring", file, "name: west, at: [24, 64]", "name: west, at: [12, 64]", []string{file, "gate west at [12 64] stands in the ring"}},
 
 		// Across files.
 		{"a place for a region", "world.yaml", "  field: [60, 50]\n", "  field: [60, 50]\n  vale: [10, 10]\n", []string{"world.yaml", "vale", "region"}},

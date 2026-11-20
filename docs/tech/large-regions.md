@@ -56,7 +56,7 @@ cell: 1                 # terrain samples a metre apart, dividing the overview's
 seed: 11
 look: {sky: day}
 ground: {noise: {scale: 220, amplitude: 7, octaves: 4}}
-edge: {width: 70, height: [35, 60], biome: peaks}   # the ring of mountains, coloured as its own biome: a cliff, then rising by these
+edge: {width: 72, height: [35, 60], biome: peaks}   # the ring of mountains, coloured as its own biome: a cliff, then rising by these
 colour: {slope: 0.25, high: 30}               # where flat ground's colour turns to slope's, and the height high's starts
 features:                                     # applied in order
   - {ridge:   {path: [[x, z], ...], width: 60, height: 30}}
@@ -97,10 +97,11 @@ biomes:
   - Every area, waypoint, NPC and gate can be reached from the start: the reachability test of today (`TestEveryShippedMapCanBeCrossed`) is run over the region's nav.
 - **As built (step 4b-1),** `load/regions.go` generates each plan in `data/regions` at load and reads it as a map of kind `region`: its gates are portals, its camps spawns and its start the player spawn, so the maps' spot and link rules apply to it. On top of them:
   - **Areas** are judged on 4 m squares (`regiongen.AreaCell`), each held by the area holding its south-west corner, by the generator's rule for a sample in a polygon. Two areas over one square are refused, and so is a square inside the edge in none. `AreaGrid.Holding` is the lookup step 4b-4's areas read.
-  - **Areas' own:** ids unique and a name each. A hunting area has levels, 1 ≤ lowest ≤ highest, and a boss mob standing in it, at or above its top level, its circle as wide as its body and on ground it fits. A town has no levels, no boss and no camps. Each area has its own boss; a region's bosses aren't checked against the maps', since the test region shares theirs.
-  - **Camps** name a hunting area and stand in it. Their mobs are known, no boss, in its band, an elite only beside a normal mob, as on a map.
-  - **Waypoints** have unique ids and stand where a player fits. Gates, NPCs and the start are checked as portals, NPCs and the player spawn are.
-  - **Gates** lead to a map's portal or a region's gate that leads back to them.
+  - **The edge** is whole 4 m squares wide, so the ring's face lies on their lines and no square is half inside. A region's size is whole 128 m tiles, so whole squares too.
+  - **Areas' own:** ids unique and a name each. A hunting area has levels, 1 ≤ lowest ≤ highest, and a boss mob, at or above its top level, its circle as wide as its body, on ground it fits, and wholly in the area: every square the circle overlaps is the area's (`AreaGrid.Under`), so a boss never wanders into a town, another band or the ring. A town has no levels, no boss and no camps. Each area has its own boss; a region's bosses aren't checked against the maps', since the test region shares theirs.
+  - **Camps** name a hunting area, their circles wholly in it as a boss's is, so no mob spawns past its band. Their mobs are known, no boss, in its band, an elite only beside a normal mob, as on a map.
+  - **Waypoints** have unique ids and stand where a player fits. Gates, NPCs and the start are checked as portals, NPCs and the player spawn are. None of them, nor a waypoint, stands in the ring.
+  - **Gates** lead to a map's portal or a region's gate, never to themselves, and the two lead to each other, judged from both sides.
   - **The region** isn't named as a map is, has a name, and isn't one block holds (`gamedata.Interest.Whole`, which the instances read too).
   - Every waypoint, gate, NPC, camp and area boss is reached from the start and each gate, at every speed: `TestEveryShippedRegionCanBeCrossed`.
 - **`world.yaml`:**
@@ -551,7 +552,7 @@ Built with step 1, which says who watches a cell.
    - Interest cells, the indexes and sleep change nothing a player of a small map can see. Their tests run on today's maps.
    - Sprint and zoom ship then too.
 2. **The pipeline:** the plan, the generator, the bake, the preview, the `region` kind, region channels, and a test region built from a small plan. The test region is never linked from the world.
-   - **As built (step 4b-1):** `data/regions/test_region.yaml`, 256 m on the small test plan's ground: a town and four hunting areas of real mobs, levels 1–4, 10–14, 15–18 and 19–20, each with its own boss, and no NPCs and no gates. No portal or gate leads there and the chart doesn't show it: only a teleport to its id reaches it, which the player harness uses.
+   - **As built (step 4b-1):** `data/regions/test_region.yaml`, 256 m on the small test plan's ground: a town and four hunting areas of real mobs, levels 1–4, 10–14, 15–18 and 19–20, each with its own boss, and no NPCs and no gates. No portal or gate leads there and the chart doesn't show it: only a teleport to its id reaches it, which the player harness uses. A player can send that teleport by hand, as B9 allows any map but a match's, until step 6's waypoints gate teleports.
 3. **The green region:**
    - Designed with the user from previews first: its areas, towns, camps, waypoints and roads.
    - Then built: its NPCs and quests are re-placed, and mob levels are moved to their areas' bands, with the balance harness re-run.
@@ -584,7 +585,7 @@ Built with step 1, which says who watches a cell.
   - reachability over the nav.
   - As built (step 4b-1):
     - a 128 m region of the fixture's mobs, read as a map: its spots, an NPC placed on it, its geometry the generator's, its walk grid, and its bake named as the bake's folder;
-    - each rule refused by a one-line change to the plan, a map or world.yaml, 36 cases in all;
+    - each rule refused by a one-line change to the plan, a map or world.yaml, 46 cases in all;
     - the area grid: each square held by the area holding its corner, a shared side going to the area north or east of it, and two areas over one square refused;
     - the test region reached by nothing, its JSON with no models and its bake's name, and on no chart or link;
     - the ring a cliff over the highest ground inside, which a river and a ridge reaching into it neither cut nor raise.

@@ -5,7 +5,7 @@ cell: 1
 seed: 7
 look: {sky: day}
 ground: {noise: {scale: 220, amplitude: 7, octaves: 4}}
-edge: {width: 70, height: [35, 60], biome: peaks}
+edge: {width: 72, height: [35, 60], biome: peaks}
 colour: {slope: 0.25, high: 30}
 features:
   - {ridge: {path: [[120, 820], [300, 860], [450, 840]], width: 60, height: 22}}

@@ -238,23 +238,35 @@ func (l *loader) spots(m *mapfile.Map, bosses []mapfile.Boss) error {
 	return nil
 }
 
-// linkMaps checks across maps and regions: portals and gates lead somewhere, a gate's way back to it, each boss and NPC is on one map, towns are towns, and one town is the start.
+// linkMaps checks across maps and regions: portals and gates lead somewhere other than themselves, a gate and what it leads to lead to each other, each boss and NPC is on one map, towns are towns, and one town is the start.
 func (l *loader) linkMaps() error {
 	bossOn, npcOn := map[string]string{}, map[string]string{}
 	start := ""
 	for _, m := range l.maps.list {
-		file := fileOf(m)
 		for _, p := range m.Portals {
 			target, ok := l.maps.get(p.To.Map)
 			if !ok {
-				return fmt.Errorf("%s: portal %q: target map %q does not exist", file, p.Name, p.To.Map)
+				return fmt.Errorf("%s: portal %q: target map %q does not exist", fileOf(m), p.Name, p.To.Map)
 			}
+			if !slices.ContainsFunc(target.Portals, func(q mapfile.Portal) bool { return q.Name == p.To.Portal }) {
+				return fmt.Errorf("%s: portal %q: target portal %q not in map %q", fileOf(m), p.Name, p.To.Portal, p.To.Map)
+			}
+			if p.To == (mapfile.Target{Map: m.ID, Portal: p.Name}) {
+				return fmt.Errorf("%s: portal %q leads to itself", fileOf(m), p.Name)
+			}
+		}
+	}
+	for _, m := range l.maps.list {
+		file := fileOf(m)
+		for _, p := range m.Portals {
+			target, _ := l.maps.get(p.To.Map)
 			k := slices.IndexFunc(target.Portals, func(q mapfile.Portal) bool { return q.Name == p.To.Portal })
-			if k < 0 {
-				return fmt.Errorf("%s: portal %q: target portal %q not in map %q", file, p.Name, p.To.Portal, p.To.Map)
+			here, what := mapfile.Target{Map: m.ID, Portal: p.Name}, "portal"
+			if m.Kind == string(gamedata.Region) {
+				what = "gate"
 			}
-			if back := target.Portals[k].To; m.Kind == string(gamedata.Region) && back != (mapfile.Target{Map: m.ID, Portal: p.Name}) {
-				return fmt.Errorf("%s: gate %q leads to %s's %q, which leads to %s's %q, not back", file, p.Name, p.To.Map, p.To.Portal, back.Map, back.Portal)
+			if back := target.Portals[k].To; (m.Kind == string(gamedata.Region) || target.Kind == string(gamedata.Region)) && back != here { // a gate and the portal or gate it leads to lead to each other
+				return fmt.Errorf("%s: %s %q leads to %s's %q, which leads to %s's %q, not back", file, what, p.Name, p.To.Map, p.To.Portal, back.Map, back.Portal)
 			}
 		}
 		switch gamedata.MapKind(m.Kind) {

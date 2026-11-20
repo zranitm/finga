@@ -178,9 +178,9 @@ func flatRegion() regiongen.Plan {
 	return regiongen.Plan{
 		Name: "Flat", Size: [2]float64{128, 128}, Cell: 1, Seed: 1, Look: regiongen.Look{Sky: "day"},
 		Ground: regiongen.Ground{Noise: regiongen.Noise{Scale: 50, Amplitude: 0, Octaves: 1}},
-		Edge:   regiongen.Edge{Width: 10, Height: [2]float64{4, 8}, Biome: "meadow"},
+		Edge:   regiongen.Edge{Width: 12, Height: [2]float64{4, 8}, Biome: "meadow"},
 		Colour: regiongen.Colour{Slope: 0.25, High: 100},
-		Areas:  []regiongen.Area{{ID: "all", Area: [][2]float64{{10, 10}, {118, 10}, {118, 118}, {10, 118}}, Levels: [2]int{1, 1}, Biome: "meadow", Kind: regiongen.Hunting}},
+		Areas:  []regiongen.Area{{ID: "all", Area: [][2]float64{{12, 12}, {116, 12}, {116, 116}, {12, 116}}, Levels: [2]int{1, 1}, Biome: "meadow", Kind: regiongen.Hunting}},
 		Start:  regiongen.Place{At: [2]float64{64, 64}},
 		Biomes: map[string]regiongen.Biome{"meadow": {Colours: regiongen.Colours{Flat: "grass", Slope: "dirt", Steep: "stone", High: "snow"}}},
 	}

@@ -41,20 +41,30 @@ func generate(p regiongen.Plan, raw, kitRaw []byte, kit regiongen.Kit, maxSlope 
 		h.Write(binary.LittleEndian.AppendUint64(nil, uint64(len(part))))
 		h.Write(part)
 	}
-	shared, _ := generated.LoadOrStore([sha256.Size]byte(h.Sum(nil)), &generation{})
-	g := shared.(*generation)
-	g.once.Do(func() {
+	return shared([sha256.Size]byte(h.Sum(nil)), func() (sim.Geometry, string, error) {
 		r, err := regiongen.Generate(p, kit, maxSlope)
 		if err != nil {
-			g.err = err
-			return
+			return sim.Geometry{}, "", err
 		}
 		b, err := r.Bake()
 		if err != nil {
-			g.err = err
-			return
+			return sim.Geometry{}, "", err
 		}
-		g.geometry, g.folder = r.Geometry, b.Folder()
+		return r.Geometry, b.Folder(), nil
+	})
+}
+
+// shared is build's ground and folder for key, built once in the process; a panic in build is its error, for that load and every later one.
+func shared(key [sha256.Size]byte, build func() (sim.Geometry, string, error)) (sim.Geometry, string, error) {
+	v, _ := generated.LoadOrStore(key, &generation{})
+	g := v.(*generation)
+	g.once.Do(func() {
+		defer func() {
+			if r := recover(); r != nil {
+				g.err = fmt.Errorf("generating it panicked: %v", r)
+			}
+		}()
+		g.geometry, g.folder, g.err = build()
 	})
 	return g.geometry, g.folder, g.err
 }
@@ -143,7 +153,7 @@ func regionFile(id string, p regiongen.Plan) mapfile.File {
 	return f
 }
 
-// regionRules are a region's areas and what stands in them, and its bosses for the spot checks: every square inside the edge in one area; a hunting area with levels and its own boss, a town with neither; camps in their hunting area, of its levels; waypoints where a player fits.
+// regionRules are a region's areas and what stands in them, and its bosses for the spot checks: every square inside the edge in one area; a hunting area with levels and its own boss, a town with neither; camps wholly in their hunting area, of its levels; waypoints where a player fits; no spot in the ring.
 func (l *loader) regionRules(p regiongen.Plan, m *mapfile.Map) ([]mapfile.Boss, error) {
 	if p.Name == "" {
 		return nil, errors.New("needs a name, the one players see")
@@ -170,7 +180,7 @@ func (l *loader) regionRules(p regiongen.Plan, m *mapfile.Map) ([]mapfile.Boss, 
 			return nil, fmt.Errorf("two areas are %s", a.ID)
 		}
 		index[a.ID] = i
-		if err := l.areaRules(a, i, areas); err != nil {
+		if err := l.areaRules(p, a, i, areas); err != nil {
 			return nil, fmt.Errorf("area %s: %w", a.ID, err)
 		}
 		if b := a.Boss; b != nil {
@@ -189,14 +199,34 @@ func (l *loader) regionRules(p regiongen.Plan, m *mapfile.Map) ([]mapfile.Boss, 
 			return nil, fmt.Errorf("camp %q: no area %s", c.Name, c.Area)
 		case p.Areas[i].Kind != regiongen.Hunting:
 			return nil, fmt.Errorf("camp %q: area %s is a town, which has no camps", c.Name, c.Area)
-		case areas.Holding(c.At[0], c.At[1]) != i:
-			return nil, fmt.Errorf("camp %q: its centre %v isn't in area %s", c.Name, c.At, c.Area)
+		}
+		if err := within(p, areas, c.At, c.Radius, i); err != nil {
+			return nil, fmt.Errorf("camp %q: %w", c.Name, err)
 		}
 		camps[i] = append(camps[i], m.Spawns[k])
 	}
 	for i, a := range p.Areas {
 		if err := l.spawnRules(camps[i], a.Levels, "area"); err != nil {
 			return nil, fmt.Errorf("area %s: %w", a.ID, err)
+		}
+	}
+	type spot struct {
+		what string
+		at   [2]float64
+	}
+	spots := []spot{{"the start", p.Start.At}}
+	for _, w := range p.Waypoints {
+		spots = append(spots, spot{"waypoint " + w.ID, w.At})
+	}
+	for _, n := range p.NPCs {
+		spots = append(spots, spot{"NPC " + n.ID, n.At})
+	}
+	for _, g := range p.Gates {
+		spots = append(spots, spot{"gate " + g.Name, g.At})
+	}
+	for _, s := range spots {
+		if areas.Holding(s.at[0], s.at[1]) < 0 {
+			return nil, fmt.Errorf("%s at %v stands in the ring, which no player reaches", s.what, s.at)
 		}
 	}
 	seen := map[string]bool{}
@@ -212,8 +242,8 @@ func (l *loader) regionRules(p regiongen.Plan, m *mapfile.Map) ([]mapfile.Boss, 
 	return bosses, nil
 }
 
-// areaRules are an area's own: a name, and a hunting area's levels and boss, standing in it, or a town's none.
-func (l *loader) areaRules(a regiongen.Area, i int, areas regiongen.AreaGrid) error {
+// areaRules are an area's own: a name, and a hunting area's levels and boss, its circle wholly in it, or a town's none.
+func (l *loader) areaRules(p regiongen.Plan, a regiongen.Area, i int, areas regiongen.AreaGrid) error {
 	if a.Name == "" {
 		return errors.New("needs a name, the one players see")
 	}
@@ -229,8 +259,22 @@ func (l *loader) areaRules(a regiongen.Area, i int, areas regiongen.AreaGrid) er
 		return fmt.Errorf("levels %v: a hunting area's mob levels need 1 <= lowest <= highest", a.Levels)
 	case b == nil:
 		return errors.New("a hunting area has a boss")
-	case areas.Holding(b.At[0], b.At[1]) != i:
-		return fmt.Errorf("its boss %s stands at %v, outside it", b.Mob, b.At)
+	}
+	if err := within(p, areas, b.At, b.Radius, i); err != nil {
+		return fmt.Errorf("its boss %s: %w", b.Mob, err)
 	}
 	return l.bossRules(mapfile.Boss{At: b.At, Radius: b.Radius, Mob: b.Mob}, a.Levels[1], "area")
+}
+
+// within is nil when the circle of radius r at at lies wholly in area i: every square it overlaps is i's, so none of it reaches another area's band or the ring.
+func within(p regiongen.Plan, areas regiongen.AreaGrid, at [2]float64, r float64, i int) error {
+	for _, a := range areas.Under(at[0], at[1], r) {
+		switch {
+		case a < 0:
+			return fmt.Errorf("its circle at %v, %g m round, reaches the ring, outside area %s", at, r, p.Areas[i].ID)
+		case a != i:
+			return fmt.Errorf("its circle at %v, %g m round, reaches area %s, outside area %s", at, r, p.Areas[a].ID, p.Areas[i].ID)
+		}
+	}
+	return nil
 }
