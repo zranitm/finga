@@ -748,6 +748,17 @@ As built in slice PR 7:
       - `effects/looks.test.ts`: in a frame with a mob's red area, the lock ring and a warrior's swing set farther from the camera, the areas draw first, then the ring, then the swing.
       - `world3d/see-through.test.ts` and `world3d/place.test.ts`: a ghost takes its mesh's alpha index, and the apron clears the mark and isn't cut.
       - **Each fault fails a test:** decals dropped again, faint at 0, areas or a ghost drawn by distance, the ring back in group 1, the apron's old material.
+  - **A cut shows a model's inside, not its ink,** as built in the hollow insides PR, after a live test in the test region:
+    - **What it found:** a glow slime in a round bush in the woods showed in a black box. The bush opened round it, and through the hole showed the far side of the bush's ink, drawn as the back faces of a hull 3 cm out, since the bush's own back faces were culled. The forest's pines showed the same at their trunks' cut tops.
+    - **The rule:** a kit model or stand-in drawn whole also draws its back faces, in its colour in the shade band at 0.6 (`INSIDE` in `world3d/toon.ts`). It draws them only where an opening shows them: where the chest's or a mob's hole would drop a fragment in front, by the same share and noise, at any height. Elsewhere they go, so every silhouette stays as it was.
+      - **Facing** comes from the triangle's winding (`gl_FrontFacing`, which counts the other way under Babylon's clockwise front faces), not the normal. A smooth normal turns away near a silhouette, and judging by it dropped silhouette fragments.
+      - **Why at any height:** the camera looks down 50°, so a line through a mob's hole, over 1.5 m up, meets the far wall lower.
+      - **Faded steps aren't hollow:** a faded model is drawn single-sided as before. The palette keys hollow materials apart, `hollow` after `cut` in their names.
+    - **Pixels:** in the two live views, every pixel that changed lies in the bush's box, 2,433 and 2,655, and none outside it. A second render of the same build changes none.
+    - **Cost:** on a profile page at 960×540 on an M3, every frame waited on the GPU, three to eight alternating rounds:
+      - **40 players in town:** no change, 9.30 and 9.26 ms in the quietest rounds.
+      - **The test region's woods at zoom 1:** about 0.25 ms more by the median, 3.2–3.4 against 2.9–3.1 ms, as every thin-instanced tree and bush rasterizes its back faces before they go.
+    - **The test** (`world3d/toon.test.ts`, `world3d/place.test.ts`): a hollow toon draws both faces and carries the back faces' discard, and a faded, uncut or plain one doesn't. Every solid in the town and the forest is drawn hollow while whole.
   - **Ruled out:**
     - **Easing the camera in:** it would have to come within a median 1.6 m of the chest, from 16 m.
     - **Tilting it up:** a median 61° and up to 77°, from 50°, at every south bank. The view ahead would narrow from 13.6 m to as little as 7.7 m.

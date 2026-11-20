@@ -415,7 +415,7 @@ function standInSolid(
   const add = (mesh: Mesh, color: number) => {
     mesh.parent ??= node;
     const base = { texture: null, color: linearOf(color) };
-    const steps = STEPS.map((a) => palette.toon(base, a, true));
+    const steps = STEPS.map((a) => palette.toon(base, a, true, true));
     mesh.material = steps[0]!;
     mesh.receiveShadows = true;
     shadows.addShadowCaster(mesh, false);
@@ -550,7 +550,7 @@ export async function kitParts(
     mesh.rotation.setAll(0);
     mesh.scaling.setAll(1);
     mesh.refreshBoundingInfo();
-    const steps = STEPS.map((a) => palette.toon(base, a, true));
+    const steps = STEPS.map((a) => palette.toon(base, a, true, true));
     mesh.material = steps[0]!;
     mesh.receiveShadows = true;
     shadows?.addShadowCaster(mesh, false);

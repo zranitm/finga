@@ -137,6 +137,19 @@ function inked(m: AbstractMesh): boolean {
 }
 
 describe('a map drawn', () => {
+  it('draws each solid hollow while whole, so an opening shows its inside, not its ink', async () => {
+    for (const id of ['town', 'forest']) {
+      const map = await mapOf(id);
+      const place = await buildPlace(scene, map, lighting, new Models(scene, source));
+      for (const s of map.solids) {
+        const m = drawn().find((d) => d.name === s.model)!;
+        expect(m.material?.name, s.model).toMatch(/ cut hollow$/);
+        expect(m.material?.backFaceCulling, s.model).toBe(false);
+      }
+      place.dispose();
+    }
+  });
+
   it('stands each solid on its collision shape, toon-drawn and inked', async () => {
     for (const id of ['town', 'forest']) {
       const map = await mapOf(id);

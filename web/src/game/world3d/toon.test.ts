@@ -84,3 +84,22 @@ it('draws a ground in its vertices’ colours, in a material of its own', () => 
   expect(ground.getBlockByName('vertexColor')).not.toBeNull();
   expect(plain.getBlockByName('vertexColor')).toBeNull();
 });
+
+// From a live test: a slime in a round bush showed in a black box, the far side of the bush's ink through the hole the place opened, with the bush's own back faces culled.
+it('makes a toon hollow only while whole and cut: both faces drawn, the back ones gone but where an opening shows them', () => {
+  const palette = new Palette(scene);
+  const base = { texture: null, color: new Color3(0.2, 0.5, 0.2) };
+  const hollow = palette.toon(base, 1, true, true);
+  expect(hollow.name).toMatch(/ cut hollow$/);
+  expect(hollow.backFaceCulling).toBe(false);
+  expect(hollow.getBlockByName('cutBack')).not.toBeNull();
+  for (const [m, why] of [
+    [palette.toon(base, 0.3, true, true), 'faded'],
+    [palette.toon(base, 1, false, true), 'uncut'],
+    [palette.toon(base, 1, true), 'not hollow'],
+  ] as const) {
+    expect(m.name, why).not.toMatch(/hollow/);
+    expect(m.backFaceCulling, why).toBe(true);
+    expect(m.getBlockByName('cutBack'), why).toBeNull();
+  }
+});

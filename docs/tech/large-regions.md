@@ -735,6 +735,7 @@ Built with step 1, which says who watches a cell.
    - 5c: label and bar limits, and tiles for the map views.
 6. **Waypoints and teleport:** finding, storage, `Teleport{waypoint}`, and the map views' waypoints.
 7. **The soak:** cmd/bot on regions, and the budget run. `world.channels.cap` is set.
+   - Hollow cut models (3d-world.md section 10) cost about 0.25 ms on a dense woods view. If regions run tight, the per-instance swap is the fix: only the instances an opening shows draw hollow.
 8. **The green region:** its design first, then its build.
 9. **The desert,** then **the snow mountains.**
 
