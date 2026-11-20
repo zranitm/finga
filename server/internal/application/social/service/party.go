@@ -32,7 +32,7 @@ func NewPartyService(deps PartyDeps) *PartyService {
 	return &PartyService{store: deps.Store, notifier: deps.Notifier}
 }
 
-// Online records a character as connected, routes their deliveries there and tells them their party, keeping what the world reported through the same connection; one from an older join than theirs is an ended tab's late registration and changes nothing, deliveries included.
+// Online records a character as connected, routes their deliveries there and tells them their party; one from an older join than theirs is an ended tab's late registration and changes nothing, deliveries included. The world owns the map, channel, class, level and HP: the login's own values stand only where the world hasn't reported since the member last went offline, through another connection.
 func (s *PartyService) Online(ctx context.Context, m model.Member) error {
 	m.Online = true
 	return s.update(ctx, func(tx PartyTx, n *notes) error {
@@ -41,7 +41,7 @@ func (s *PartyService) Online(ctx context.Context, m model.Member) error {
 				return nil
 			}
 			m.JoinOrder = old.JoinOrder
-			if old.Connection == m.Connection || old.Connection == "" && time.Since(old.ReportedAt) < reportKept {
+			if old.Connection == m.Connection || old.ReportedAt.After(old.OfflineAt) || old.Connection == "" && time.Since(old.ReportedAt) < reportKept {
 				m.Class, m.Level, m.HP, m.MaxHP, m.MapID, m.Channel, m.ReportedAt = old.Class, old.Level, old.HP, old.MaxHP, old.MapID, old.Channel, old.ReportedAt
 			}
 		}

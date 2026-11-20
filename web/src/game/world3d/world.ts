@@ -960,6 +960,7 @@ export class World {
     switch (m.t) {
       case 'snapshot':
         this.channel = m.d.channel;
+        mapView.getState().inChannel(m.d.channel); // with the map it's of, which a teardown cleared
         this.enteredArea(m.d.area);
         this.onSnapshot(m.d.players, m.d.mobs, m.d.boss, this.tickOf(m.tick));
         return;

@@ -571,6 +571,36 @@ describe('World', () => {
     expect(below()).toBeGreaterThan(before + 10); // down on the river's bed, 2.4 m under the bank the player stands on
   });
 
+  it.each([
+    ['while the old map fades', true],
+    ['once it has gone', false],
+  ])(
+    'takes a region’s channel from the Snapshot of the map it lands on, one coming %s too, never showing it with the old map',
+    async (_, early) => {
+      vi.spyOn(console, 'info').mockImplementation(() => undefined);
+      const p = await playing(REGIONED, 30, 20);
+      p.push('snapshot', { players: [standing(30, 20)], channel: 2 }, { tick: 2 });
+      expect(mapView.getState()).toMatchObject({ mapId: REGIONED, channel: 2 });
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      p.push('mapChange', { mapId: REGIONED, x: 30, y: 0, z: 20, yaw: 0 }, { tick: 3 }); // a switch to channel 3
+      const snapshot = () =>
+        p.push('snapshot', { players: [standing(30, 20)], channel: 3 }, { tick: 4 });
+      if (early) {
+        snapshot();
+        expect(mapView.getState().channel).toBe(2); // the old channel's map still shows
+      }
+      vi.runOnlyPendingTimers();
+      vi.useRealTimers();
+      if (!early) {
+        snapshot();
+      }
+      await vi.waitFor(
+        () => expect(mapView.getState()).toMatchObject({ mapId: REGIONED, channel: 3 }),
+        WAIT,
+      );
+    },
+  );
+
   it('names the region’s area a Snapshot lands the player in along the top, and holds an area entered while the region was building till it stands', async () => {
     vi.spyOn(console, 'info').mockImplementation(() => undefined);
     const p = await playing(FLAT, 4, 20);

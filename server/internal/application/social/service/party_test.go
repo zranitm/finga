@@ -407,6 +407,32 @@ func TestRegisteringAgainKeepsWhatTheWorldReported(t *testing.T) {
 	}
 }
 
+// A login through a new connection keeps what the world reported of the member since they went offline, their channel too, as that came with this login's join; a report from before, their last session's, gives way to the login's own values.
+func TestALoginKeepsWhatTheWorldReportedSinceTheMemberWentOffline(t *testing.T) {
+	for _, since := range []bool{true, false} {
+		synctest.Test(t, func(t *testing.T) {
+			f := newFixture(t, "Ayla", "Robin")
+			f.invite(t, "Ayla", "Robin")
+			robin := f.id("Robin")
+			if !since {
+				must(t, f.svc.Update(f.ctx, robin, "test_region", 2, "magician", 9, 40, 300))
+			}
+			time.Sleep(time.Second)
+			must(t, f.svc.Offline(f.ctx, robin, "c-Robin"))
+			time.Sleep(time.Second)
+			if since {
+				must(t, f.svc.Update(f.ctx, robin, "test_region", 2, "magician", 9, 40, 300)) // the new login's join, ahead of its Online
+			}
+			f.rec.reset()
+			must(t, f.svc.Online(f.ctx, model.Member{ID: robin, Name: "Robin", Class: "magician", Level: 9, HP: 300, MaxHP: 300, MapID: "test_region", Connection: "c-Robin-2", JoinSeq: 2}))
+			m := f.rec.last().party.Members[1]
+			if want := map[bool]int{true: 2, false: 0}[since]; !m.Online || m.Channel != want || m.MapID != "test_region" || m.HP != map[bool]int{true: 40, false: 300}[since] {
+				t.Fatalf("reported since going offline %v: Robin logged in as %+v; want online, channel %d", since, m, want)
+			}
+		})
+	}
+}
+
 // A connection that closes after the player reconnected through another one does not take them offline.
 func TestAnOfflineFromAReplacedConnectionChangesNothing(t *testing.T) {
 	f := newFixture(t, "Ayla", "Robin")
