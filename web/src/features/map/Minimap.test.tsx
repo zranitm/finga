@@ -77,6 +77,18 @@ describe('Minimap', () => {
     ]).toEqual([['34', '28'], ['28', '26'], true]);
   });
 
+  it('is named for its map, and in a region for the channel too', () => {
+    render(<Minimap />);
+    at(30, 10);
+    expect(document.querySelector('.minimap-name')).toHaveTextContent(/^Forest$/);
+    act(() => {
+      mapView.getState().showMap('test_region', [256, 256], '');
+      mapView.getState().inChannel(2);
+    });
+    at(124, 80);
+    expect(document.querySelector('.minimap-name')).toHaveTextContent(/^Test Region · Ch\. 2$/);
+  });
+
   it('hides when the setting says so', () => {
     render(<Minimap />);
     at(30, 10);

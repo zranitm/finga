@@ -164,7 +164,7 @@ describe('App', () => {
         .getState()
         .applyFieldBoss(create(FieldBossSchema, { mobId: 9, type: 'king_slime' }));
       fieldBoss.getState().setHp({ hp: 3100, maxHp: 4260 });
-      teleport.getState().start('forest');
+      teleport.getState().start({ map: 'forest' });
       character.getState().setDead(true);
     });
     for (const shown of ['Leave the queue', 'Walk mode', 'Stun']) {

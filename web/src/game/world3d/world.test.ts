@@ -2293,7 +2293,7 @@ describe('World', () => {
     const glowing = () =>
       meshesOn(p, 'ring').filter((m) => m.isEnabled() && m.visibility > 0).length;
     const channel = () => {
-      teleport.getState().start('cave');
+      teleport.getState().start({ map: 'cave' });
       p.live(1);
       expect(glowing()).toBe(2);
     };
@@ -2304,7 +2304,7 @@ describe('World', () => {
     };
     channel();
     p.live(10);
-    expect([teleport.getState().to, glowing()]).toEqual(['cave', 2]);
+    expect([teleport.getState().to, glowing()]).toEqual([{ map: 'cave' }, 2]);
     key('ArrowRight', true);
     ended();
     key('ArrowRight', false);
@@ -2533,11 +2533,11 @@ describe('World', () => {
 
   it('leaves a teleport channelling at the attack key in a town, which starts no attack', async () => {
     const p = await playing('town', 14, 16);
-    teleport.getState().start('forest');
+    teleport.getState().start({ map: 'forest' });
     key('KeyX', true);
     key('KeyX', false);
     p.frames(2);
-    expect([p.sent('attack'), teleport.getState().to]).toEqual([[], 'forest']);
+    expect([p.sent('attack'), teleport.getState().to]).toEqual([[], { map: 'forest' }]);
   });
 
   it('in a match’s prep the wall across the ring stands, drawn and walked against, and attacks and skills wait; the round takes it down', async () => {
@@ -2743,6 +2743,37 @@ describe('World', () => {
       spots([50, 30]);
       frames(2);
       expect(seen()).toEqual({ marked: [['c-robin', 50, 30]], statuses: { 'c-robin': null } });
+    });
+
+    it('drops off the map views at once when the party says they’re in another of the region’s channels', async () => {
+      const p = await playing(REGIONED, 10, 20);
+      p.push('snapshot', { players: [standing(10, 20)], channel: 2 }, { tick: 2 });
+      const robinIn = (channel: number) =>
+        party.getState().applyPartyState(
+          create(PartyStateSchema, {
+            party: create(PartyViewSchema, {
+              leader: ME,
+              members: [
+                { characterId: ME, name: 'Ayla', mapId: REGIONED, online: true, channel: 2 },
+                { characterId: 'c-robin', name: 'Robin', mapId: REGIONED, online: true, channel },
+              ],
+            }),
+          }),
+        );
+      robinIn(2);
+      let tick = 2;
+      const frames = (n: number, d: ServerInit<'delta'> = {}) => {
+        for (let i = 0; i < n; i++) {
+          p.push('delta', i === 0 ? d : {}, { tick: ++tick });
+          p.frames(1);
+        }
+      };
+      frames(7, { players: [standing(16, 22, 'c-robin', 'thief')] });
+      frames(5, { unseen: { players: ['c-robin'] } });
+      expect(seen().marked).toEqual([['c-robin', 16, 22]]); // where last drawn
+      robinIn(3); // switched, before the server's spots say anything
+      frames(2);
+      expect(seen()).toEqual({ marked: [], statuses: {} });
     });
 
     it('drops off a map sent whole, where everyone on it is drawn', async () => {
@@ -3465,6 +3496,68 @@ describe('World', () => {
       outlined(p, 'quaternius/Blob_Dog.glb'),
     ]).toEqual([false, true]);
   });
+
+  it.each([
+    ['the player’s', 2, 1],
+    ['another', 3, 0],
+  ])(
+    'opens the heal key to a hurt party member not yet drawn in %s channel of the region, the world to decide, and no other',
+    async (_, channel, sent) => {
+      const p = await playing(REGIONED, 10, 20, 'magician');
+      p.push('snapshot', { players: [standing(10, 20, ME, 'magician')], channel: 2 }, { tick: 2 });
+      character.getState().applyWelcome(
+        create(WelcomeSchema, {
+          token: 'tok-1',
+          mapId: REGIONED,
+          character: {
+            id: ME,
+            name: 'Ayla',
+            class: 'magician',
+            level: 10,
+            hp: 50,
+            maxHp: 50,
+            sheet: { skills: { unspent: 0, invested: { heal: 1 } } },
+          },
+        }),
+      );
+      party.getState().applyPartyState(
+        create(PartyStateSchema, {
+          party: create(PartyViewSchema, {
+            leader: ME,
+            members: [
+              {
+                characterId: ME,
+                name: 'Ayla',
+                mapId: REGIONED,
+                online: true,
+                channel: 2,
+                hp: 50,
+                maxHp: 50,
+              },
+              {
+                characterId: 'c-robin',
+                name: 'Robin',
+                mapId: REGIONED,
+                online: true,
+                channel,
+                hp: 20,
+                maxHp: 50,
+              },
+            ],
+          }),
+        }),
+      );
+      energy.getState().welcome(10);
+      skillBar.getState().load(['heal']);
+      frames(p, 3, 4, []);
+      await Promise.allSettled(chunkWork.builds); // the ground holds the player till it comes
+      await new Promise<void>((r) => setImmediate(r));
+      frames(p, 5, 10, []);
+      key('KeyQ', true);
+      key('KeyQ', false);
+      expect(p.sent('useSkill')).toHaveLength(sent);
+    },
+  );
 
   it('heals along the heading, aiming at no mob, not even one its body overlaps', async () => {
     const p = await playing(FLAT, 4, 20, 'magician');

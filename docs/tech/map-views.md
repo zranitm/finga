@@ -75,6 +75,7 @@ The minimap and the This map tab both draw from this one image. Neither redraws 
   - the lock, as a gold dot;
   - the field boss while it's up, as a red crown;
   - the player, as a white arrow along the heading.
+- **Its name** (from large-regions.md step 4b-3b): over the square, the map's name, and in a region its channel, "Test Region · Ch. 2".
 - **Settings:** `showMinimap` (on by default) hides it. It's saved with the account's settings, as chat's pin is.
 - **As built:**
   - **SVG, not a canvas.** The marks are SVG in metres, so the This map tab draws them with the same component (`MapMarks`), and tests read them without a canvas. The browser redraws only the marks that moved.

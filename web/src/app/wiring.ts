@@ -27,6 +27,7 @@ import { connection } from '@/state/connection';
 import { energy } from '@/state/energy';
 import { fieldBoss } from '@/state/field-boss';
 import { inventory } from '@/state/inventory';
+import { mapView } from '@/state/map-view';
 import { party } from '@/state/party';
 import { pouches } from '@/state/pouches';
 import { pvp, runsOn } from '@/state/pvp';
@@ -159,6 +160,7 @@ export function wireSocket(socket: GameSocket): () => void {
       chat.getState().applyChatMessage(m.d);
     }),
     socket.on('snapshot', (m) => {
+      mapView.getState().inChannel(m.d.channel);
       fieldBoss.getState().applySnapshot(m.d.fieldBoss, m.d.fieldBossGone);
       energy.getState().joined();
       pouches.getState().applySnapshot(m.d.pouches);
@@ -225,8 +227,14 @@ export function wireSocket(socket: GameSocket): () => void {
     socket.on('teleportCancelled', (m) => {
       teleport.getState().end();
       const why = CANCELLED[m.d.reason];
+      const last = teleport.getState().last;
       if (why) {
-        toasts.getState().push(`Teleport cancelled: ${why}.`, 'info');
+        toasts
+          .getState()
+          .push(
+            `${last && 'channel' in last ? 'Channel switch' : 'Teleport'} cancelled: ${why}.`,
+            'info',
+          );
       }
     }),
     socket.on('mapChange', (m) => {

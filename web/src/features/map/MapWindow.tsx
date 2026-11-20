@@ -1,4 +1,4 @@
-// The map window (map-views.md sections 6 and 12): This map, the whole map with its marks named, and World, every map on the chart linked by its portals, any of which opens its layout.
+// The map window (map-views.md sections 6 and 12): This map, the whole map with its marks named and, in a region, its channels (large-regions.md section 4), and World, every map on the chart linked by its portals, any of which opens its layout.
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 
@@ -14,6 +14,7 @@ import type { TagBox } from '@/lib/tags';
 import type { GameSocket } from '@/net/socket';
 import { mobById } from '@/progression/mobs';
 import { mobName } from '@/progression/names';
+import type { ChannelList } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { fieldBoss } from '@/state/field-boss';
 import type { BossDown } from '@/state/field-boss';
@@ -29,6 +30,7 @@ import { MapMarks, useNpcMarkers } from './MapMarks';
 type MapData = (typeof maps)[number];
 type Tab = 'here' | 'world';
 
+const CHANNELS_EVERY_MS = 5000; // a region's channel list, asked for again while This map shows it
 const VIEW_W = 480; // This map's largest size, in pixels
 const VIEW_H = 320;
 const LABEL_PX = 12;
@@ -256,10 +258,91 @@ function Plan({ map, layout }: { readonly map: MapData; readonly layout?: MapLay
   );
 }
 
-function ThisMap() {
+function ThisMap({ socket, onClose }: Pick<WorldProps, 'socket' | 'onClose'>) {
   const mapId = mapView.use((s) => s.mapId);
+  const channel = mapView.use((s) => s.channel);
   const map = maps.find((m) => m.id === mapId);
-  return map ? <Plan map={map} /> : <p className="muted">No map yet.</p>;
+  if (!map) {
+    return <p className="muted">No map yet.</p>;
+  }
+  return (
+    <>
+      {channel > 0 && <Channels socket={socket} onClose={onClose} />}
+      <Plan map={map} />
+    </>
+  );
+}
+
+/** How full a channel is, in words: quiet under half the cap, busy below it, full at it. */
+function load(players: number, cap: number): 'quiet' | 'busy' | 'full' {
+  if (players >= cap) {
+    return 'full';
+  }
+  return players < cap / 2 ? 'quiet' : 'busy';
+}
+
+/** A region's channels: the player's own, and each open one with how full it is and, but for the player's own and a full one, a switch to it, which channels as a teleport does. The list is asked for as it shows and every CHANNELS_EVERY_MS. */
+function Channels({ socket, onClose }: Pick<WorldProps, 'socket' | 'onClose'>) {
+  const mine = mapView.use((s) => s.channel);
+  const dead = character.use((s) => s.dead);
+  const [list, setList] = useState<ChannelList | null>(null);
+  const [asking, setAsking] = useState(false);
+  useEffect(() => {
+    let on = true;
+    const ask = () => {
+      socket.request('channels', {}).then(
+        (r) => on && r.channels && setList(r.channels),
+        () => undefined, // the next ask tries again
+      );
+    };
+    ask();
+    const every = setInterval(ask, CHANNELS_EVERY_MS);
+    return () => {
+      on = false;
+      clearInterval(every);
+    };
+  }, [socket]);
+  const go = (n: number) => {
+    setAsking(true);
+    socket.request('switchChannel', { channel: n }, socket.sequence).then(
+      () => {
+        teleport.getState().start({ channel: n });
+        onClose();
+      },
+      (err: unknown) => {
+        setAsking(false);
+        toasts.getState().push(problemOf(err));
+      },
+    );
+  };
+  return (
+    <section className="map-channels" aria-label="Channels">
+      <strong>Channel {mine}</strong>
+      {list && (
+        <ul>
+          {list.channels.map((c) => {
+            const word = load(c.players, list.cap);
+            return (
+              <li key={c.channel} data-channel={c.channel}>
+                <span>Channel {c.channel}</span>
+                <span className={`map-channel-load map-channel-${word}`}>{word}</span>
+                {c.channel !== mine && word !== 'full' && !dead && (
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={asking}
+                    onClick={() => go(c.channel)}
+                  >
+                    Switch
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
 }
 
 /** What the World tab needs from the app: each map's layout, the socket a teleport goes by, and closing the window. */
@@ -284,7 +367,7 @@ function Picked({
     setAsking(true);
     socket.request('teleport', { mapId: map.id }, socket.sequence).then(
       () => {
-        teleport.getState().start(map.id);
+        teleport.getState().start({ map: map.id });
         onClose();
       },
       (err: unknown) => {
@@ -508,7 +591,7 @@ export function MapWindow({ socket, layoutOf, onClose }: WorldProps) {
           ))}
         </div>
         {tab === 'here' ? (
-          <ThisMap />
+          <ThisMap socket={socket} onClose={onClose} />
         ) : (
           <World socket={socket} layoutOf={layoutOf} onClose={onClose} />
         )}

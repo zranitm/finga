@@ -16,7 +16,7 @@ describe('TeleportBar', () => {
     render(<TeleportBar />);
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
     act(() => {
-      teleport.getState().start('forest');
+      teleport.getState().start({ map: 'forest' });
     });
     const bar = screen.getByRole('status');
     expect(bar).toHaveTextContent('Teleporting to Forest');
@@ -28,15 +28,23 @@ describe('TeleportBar', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
+  it('names the channel a switch takes the player to (large-regions.md section 4)', () => {
+    render(<TeleportBar />);
+    act(() => {
+      teleport.getState().start({ channel: 3 });
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('Switching to Channel 3');
+  });
+
   it('draws a new channel’s fill afresh, from empty', () => {
     render(<TeleportBar />);
     act(() => {
-      teleport.getState().start('forest');
+      teleport.getState().start({ map: 'forest' });
     });
     const first = document.querySelector('.teleport-bar-fill');
     act(() => {
       teleport.getState().end();
-      teleport.getState().start('cave');
+      teleport.getState().start({ map: 'cave' });
     });
     expect(screen.getByRole('status')).toHaveTextContent('Teleporting to Cave');
     expect(document.querySelector('.teleport-bar-fill')).not.toBe(first);

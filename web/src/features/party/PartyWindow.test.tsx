@@ -16,7 +16,14 @@ import { MAX_PARTY, PartyWindow } from './PartyWindow';
 const member = (
   id: string,
   name: string,
-  extra: Partial<{ level: number; class: string; hp: number; online: boolean; mapId: string }> = {},
+  extra: Partial<{
+    level: number;
+    class: string;
+    hp: number;
+    online: boolean;
+    mapId: string;
+    channel: number;
+  }> = {},
 ) => ({
   characterId: id,
   name,
@@ -102,10 +109,12 @@ describe('PartyWindow', () => {
             member('c-ayla', 'Ayla', { level: 12, class: 'warrior', mapId: 'dune_road' }),
             member('c-robin', 'Robin', { mapId: 'town', online: false }),
             member('c-jade', 'Jade', { mapId: 'ring' }),
+            member('c-bo', 'Bo', { mapId: 'test_region', channel: 2 }),
           ]),
         ),
     );
     expect(screen.getByText('Lv. 12 · Warrior · Dune Road')).toBeInTheDocument(); // as the world chart names it
+    expect(screen.getByText('Lv. 1 · Beginner · Test Region · Ch. 2')).toBeInTheDocument();
     expect(screen.getByText('Lv. 1 · Beginner · Town · offline')).toBeInTheDocument();
     expect(screen.getByText('Lv. 1 · Beginner · In a match')).toBeInTheDocument();
   });

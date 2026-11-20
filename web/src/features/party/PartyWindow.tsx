@@ -54,7 +54,7 @@ export function PartyWindow({ socket, me, onClose }: PartyWindowProps) {
                     {m.characterId === current.leader ? ' (leader)' : ''}
                   </strong>
                   <span>
-                    Lv. {m.level} · {className(m.class)} · {whereIs(m.mapId)}
+                    Lv. {m.level} · {className(m.class)} · {whereIs(m.mapId, m.channel)}
                     {m.online ? '' : ' · offline'}
                   </span>
                 </div>
