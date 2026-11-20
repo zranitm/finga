@@ -2,6 +2,7 @@ package instance
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	model "finga/internal/model/world"
@@ -22,7 +23,7 @@ func (i *Instance) Unequip(ctx context.Context, id kernel.CharacterID, conn, key
 
 func (i *Instance) askEquip(ctx context.Context, m equipMsg) error {
 	m.done = make(chan error, 1)
-	return i.ask(ctx, m, m.done)
+	return i.askItem(ctx, m, m.done, "an equip")
 }
 
 // ask posts m and waits for its outcome on done, ctx's end, or the map stopping.
@@ -38,6 +39,17 @@ func (i *Instance) ask(ctx context.Context, m message, done <-chan error) error 
 	case <-i.stopped:
 		return model.ErrStopped
 	}
+}
+
+// askItem is ask for a command whose outcome waits on an item call: it gives up answerRoom before the command's deadline as unavailable, so the command hears why while the gateway and the client still listen; the call settles on the tick whenever it answers.
+func (i *Instance) askItem(ctx context.Context, m message, done <-chan error, what string) error {
+	ctx, cancel := answering(ctx, what)
+	defer cancel()
+	err := i.ask(ctx, m, done)
+	if err != nil && ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+		return context.Cause(ctx)
+	}
+	return err
 }
 
 // startEquip hands the call to a worker with the player's live level, class and own stats; the player stays on the map until its result settles.

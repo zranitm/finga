@@ -44,7 +44,7 @@ func (giftedMsg) message()  {}
 // Promote moves the character to the class the NPC trains, once the trainer's weapon is given, and returns once it applies.
 func (i *Instance) Promote(ctx context.Context, id kernel.CharacterID, conn, npc string, class kernel.Class) error {
 	m := promoteMsg{id: id, conn: conn, npc: npc, class: class, done: make(chan error, 1)}
-	return i.ask(ctx, m, m.done)
+	return i.askItem(ctx, m, m.done, "a promotion's gifts")
 }
 
 // promote checks the promotion can go, then has a worker ask the item module for the trainer's weapon, whose answer the tick applies.

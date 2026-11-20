@@ -69,7 +69,8 @@ func (i *Instance) AbandonQuest(ctx context.Context, id kernel.CharacterID, conn
 
 // HandInQuest hands a ready quest in to the NPC within reach, and returns once the item module's answer applies.
 func (i *Instance) HandInQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error {
-	return i.askQuest(ctx, questMsg{action: handInQuest, id: id, conn: conn, npc: npc, quest: quest})
+	m := questMsg{action: handInQuest, id: id, conn: conn, npc: npc, quest: quest, done: make(chan error, 1)}
+	return i.askItem(ctx, m, m.done, "a hand-in")
 }
 
 func (i *Instance) askQuest(ctx context.Context, m questMsg) error {
