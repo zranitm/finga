@@ -400,18 +400,41 @@ describe('a region drawn from its bake', () => {
     expect(scene.meshes).toEqual([]);
   });
 
-  it('asks for four chunks at a time, nearest first, in a region with more in reach', async () => {
+  // From the regions playtest on Fast 3G: four at a time, the loading screen waited on its chunks in turns.
+  it('asks for every chunk the loading screen waits on at once, then the rest four at a time, nearest first', async () => {
     const disk = globalThis.fetch;
     vi.stubGlobal('fetch', async (url: string) => {
       const r = await disk(url);
       return url.endsWith('region.json')
-        ? Response.json({ ...(await r.json()), chunks: [4, 4] })
+        ? Response.json({ ...(await r.json()), chunks: [8, 8] })
         : r;
-    }); // the tiny bake, said to be 4 by 4 chunks
-    await built(); // none answered
+    }); // the tiny bake, said to be 8 by 8 chunks
+    await built((url) => !/chunks\/[01]_[01]\.bin$/.test(url)); // the bake's own four come, the rest aren't in it
     place!.follow(100, 100);
     place!.follow(100, 100);
-    expect(asked).toEqual(['chunks/1_1.bin', 'chunks/2_1.bin', 'chunks/1_2.bin', 'chunks/1_0.bin']); // 0, 28, 28 and 36 m off
+    expect(asked).toEqual(
+      [
+        '1_1',
+        '2_1',
+        '1_2',
+        '1_0',
+        '0_1',
+        '2_2',
+        '2_0',
+        '0_2',
+        '0_0',
+        '3_1',
+        '1_3',
+        '3_2',
+        '2_3',
+        '3_0',
+        '0_3',
+      ].map((k) => `chunks/${k}.bin`),
+    ); // 0 to 99 m off, all within 128 m; 3_3, 130 m off, waits
+    asked.length = 0;
+    await source.answer();
+    place!.follow(100, 100);
+    expect(asked).toEqual(['chunks/3_3.bin', 'chunks/4_1.bin', 'chunks/1_4.bin', 'chunks/4_2.bin']); // 130, 156, 156 and 158 m off
   });
 
   it('drops a chunk that comes after it went out of reach, and one that comes after the region went', async () => {

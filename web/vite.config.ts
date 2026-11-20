@@ -10,12 +10,27 @@ const server = 'http://localhost:8080';
 const BABYLON = /[\\/]@babylonjs[\\/]/;
 const GLSL = /[\\/]@babylonjs[\\/]core[\\/]Shaders[\\/]/; // WebGL's shaders, each imported as a material first needs it; ShadersWGSL is WebGPU's
 const WORLD = /[\\/]src[\\/]game[\\/]world3d[\\/]run\.ts$/; // the 3D world, imported on entering it (world3d/handle.ts)
+// What a model load imports, each a round trip after the last: the glTF loader, its extras, the one extension the models use, PBR and animation.
+const MODELS = [
+  'loaders/glTF/2.0/glTFLoader.pure.js',
+  'loaders/glTF/2.0/glTFLoaderAnimation.pure.js',
+  'loaders/glTF/2.0/pbrMaterialLoadingAdapter.js',
+  'loaders/glTF/2.0/Extensions/ExtrasAsMetadata.pure.js',
+  'loaders/glTF/2.0/Extensions/KHR_mesh_quantization.pure.js',
+  'core/Materials/PBR/pbrMaterial.pure.js',
+  'core/Animations/animationGroup.pure.js',
+  'core/Meshes/instancedMesh.pure.js',
+].map((f) => `/@babylonjs/${f}`);
+const model = (id: string) => MODELS.some((f) => id.replaceAll('\\', '/').endsWith(f));
 
-/** Babylon in two files where rolldown made about 130: the world's up-front imports and the GLSL shaders; a slow line pays a round trip a file. */
-function babylonChunks(): Plugin & { upFront: (id: string) => boolean } {
+/** Babylon in three files where rolldown made about 130: the world's up-front imports, the GLSL shaders and what a model load imports; a slow line pays a round trip a file. */
+function babylonChunks(): Plugin & {
+  upFront: (id: string) => boolean;
+  models: (id: string) => boolean;
+} {
   const imports = new Map<string, readonly string[]>();
   const entries: string[] = [];
-  let world: Set<string> | null = null;
+  let groups: { world: Set<string>; models: Set<string> } | null = null;
   const reach = (from: readonly string[]) => {
     const seen = new Set<string>();
     for (const todo = [...from]; todo.length > 0;) {
@@ -27,13 +42,27 @@ function babylonChunks(): Plugin & { upFront: (id: string) => boolean } {
     }
     return seen;
   };
+  const sets = () => {
+    if (!groups) {
+      const page = reach(entries);
+      const from = (roots: (id: string) => boolean, not = new Set<string>()) =>
+        new Set(
+          [...reach([...imports.keys()].filter(roots))].filter(
+            (m) => BABYLON.test(m) && !page.has(m) && !not.has(m),
+          ),
+        );
+      const world = from((m) => WORLD.test(m));
+      groups = { world, models: from(model, world) };
+    }
+    return groups;
+  };
   return {
     name: 'babylon-chunks',
     apply: 'build',
     buildStart() {
       imports.clear();
       entries.length = 0;
-      world = null;
+      groups = null;
     },
     moduleParsed(info) {
       imports.set(info.id, info.importedIds);
@@ -41,16 +70,14 @@ function babylonChunks(): Plugin & { upFront: (id: string) => boolean } {
         entries.push(info.id);
       }
     },
-    // Asked once chunking starts, when every module is parsed: Babylon the world imports up front and the page doesn't.
+    // Asked once chunking starts, when every module is parsed: Babylon the world imports up front and the page doesn't, then what models import besides.
     upFront(id) {
-      if (!world) {
-        const page = reach(entries);
-        const all = reach([...imports.keys()].filter((m) => WORLD.test(m)));
-        world = new Set([...all].filter((m) => BABYLON.test(m) && !page.has(m)));
-      }
-      return world.has(id);
+      return sets().world.has(id);
     },
-    // The page never loads Babylon, and the world loads its own code and Babylon's one file up front.
+    models(id) {
+      return sets().models.has(id);
+    },
+    // The page never loads Babylon, the world loads its own code and Babylon's one file up front, and every model import is in it or babylon-gltf.
     generateBundle(_, bundle) {
       const chunks = new Map(
         Object.values(bundle).flatMap((c) =>
@@ -86,6 +113,13 @@ function babylonChunks(): Plugin & { upFront: (id: string) => boolean } {
           `Babylon's chunks: the page loads ${babylon.join(', ') || 'none'} up front and the world ${extra.join(', ') || 'nothing'}; want none, and babylon alone`,
         );
       }
+      const held = [...chunks.values()]
+        .filter((c) => c.name === 'babylon' || c.name === 'babylon-gltf')
+        .flatMap((c) => c.moduleIds.map((m) => m.replaceAll('\\', '/')));
+      const missed = MODELS.filter((f) => !held.some((m) => m.endsWith(f)));
+      if (missed.length > 0) {
+        this.error(`Babylon's chunks: neither babylon nor babylon-gltf holds ${missed.join(', ')}`);
+      }
     },
   };
 }
@@ -112,6 +146,12 @@ export default defineConfig({
             {
               name: 'babylon',
               test: babylon.upFront,
+              priority: 1,
+              includeDependenciesRecursively: false,
+            },
+            {
+              name: 'babylon-gltf',
+              test: babylon.models,
               priority: 1,
               includeDependenciesRecursively: false,
             },

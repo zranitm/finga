@@ -7,6 +7,7 @@ import type { Arrival } from '../systems/arrival';
 import type { WorldEntry } from '../view';
 
 import { workerChunks } from './chunk-workers';
+import { fetchLoader } from './models';
 import { World } from './world';
 
 const READOUT_MS = 500;
@@ -19,6 +20,7 @@ export function run(
   arriving: Arrival,
   socket: GameSocket,
 ): () => void {
+  fetchLoader();
   const canvas = document.createElement('canvas');
   canvas.style.cssText = 'display:block;width:100%;height:100%;outline:none';
   parent.appendChild(canvas);

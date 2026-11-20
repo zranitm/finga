@@ -14,6 +14,11 @@ export type ModelSource = (file: string) => string | ArrayBufferView;
 
 let loadersRegistered = false;
 
+/** Starts fetching what a model load imports (vite.config.ts's babylon-gltf) as the world opens, not once its map names a model; a failure shows when one loads. */
+export function fetchLoader(): void {
+  import('@babylonjs/loaders/glTF/2.0/glTFLoader.pure').catch(() => undefined);
+}
+
 /** Loads files into scene from source, each once however often it's asked for. */
 export class Models {
   private readonly containers = new Map<string, Promise<AssetContainer>>();
