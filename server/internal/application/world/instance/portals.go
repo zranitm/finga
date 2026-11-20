@@ -56,9 +56,14 @@ func (i *Instance) standsIn(portal gamedata.Portal, s sim.State) bool {
 
 // handOff checkpoints the player on the target map before detaching, so a crash still lands them there, on the ground at (x, z).
 func (i *Instance) handOff(p *player, target *gamedata.Map, x, z float64, yaw float32) {
+	i.handOffTo(p, target, x, z, yaw, Dest{ID: target.ID})
+}
+
+// handOffTo is handOff to dest, which may name a region's channel.
+func (i *Instance) handOffTo(p *player, target *gamedata.Map, x, z float64, yaw float32, dest Dest) {
 	moved := p.Player
 	moved.Timers = i.timersOf(p, time.Now())
-	i.leave(p, target, x, 0, z, yaw, moved, Dest{ID: target.ID})
+	i.leave(p, target, x, 0, z, yaw, moved, dest)
 }
 
 // leave sends moved off to dest, on target's ground at (x, z) for feet at y, then tells them first what they'd hear on arriving; it checkpoints them there, but one going into a match here, so a crash lands them where they'd be after it.

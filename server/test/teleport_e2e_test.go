@@ -26,7 +26,7 @@ func TestTeleportFromTheTownToTheForestAndBack(t *testing.T) {
 	for _, to := range []string{"forest", "town"} {
 		target, _ := data.Map(to)
 		sent := time.Now() // the channel starts on the first tick to drain the request, after this
-		if r := l.Teleport(t, "tp-"+to, to); !r.GetOk() {
+		if r := l.Teleport(t, "tp-"+to, &clientv1.Teleport{MapId: to}); !r.GetOk() {
 			t.Fatalf("teleport to %s refused with %d", to, r.GetCode())
 		}
 		var mc *clientv1.MapChange
@@ -73,7 +73,7 @@ func TestAMobsHitCancelsATeleport(t *testing.T) {
 	l := e2etest.NewLooter(s.Join(t, token, id))
 	l.Await(300*time.Millisecond, nil)
 
-	if r := l.Teleport(t, "tp-town", "town"); !r.GetOk() {
+	if r := l.Teleport(t, "tp-town", &clientv1.Teleport{MapId: "town"}); !r.GetOk() {
 		t.Fatalf("teleport refused with %d", r.GetCode())
 	}
 	var hit uint64

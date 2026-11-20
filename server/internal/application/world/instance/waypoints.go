@@ -1,37 +1,24 @@
 package instance
 
 import (
-	"math"
 	"time"
 
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 )
 
-// stonesNear lists, for each interest cell, the waypoints whose finding circle reaches into it, so a tick reads only the player's cell's (large-regions.md section 8). An edge cell holds what's past it, as interest.of does.
+// stonesNear lists, for each interest cell, the waypoints whose finding circle may reach into it, so a tick reads only the player's cell's (large-regions.md section 8). A stone goes in every cell interest.of files a spot of the square round it in, a metre past reach so rounding never leaves one out; the find itself is exact.
 func stonesNear(waypoints []gamedata.Waypoint, n *interest) [][]int {
 	if len(waypoints) == 0 {
 		return nil
 	}
-	from := func(k int) float64 { // a cell's start along an axis, unbounded at the map's first
-		if k == 0 {
-			return math.Inf(-1)
-		}
-		return float64(k) * n.in.Cell
-	}
-	to := func(k, last int) float64 { // its end, unbounded at the last
-		if k == last {
-			return math.Inf(1)
-		}
-		return float64(k+1) * n.in.Cell
-	}
 	out := make([][]int, n.nx*n.nz)
-	for c := range out {
-		col, row := c%n.nx, c/n.nx
-		x0, x1, z0, z1 := from(col), to(col, n.nx-1), from(row), to(row, n.nz-1)
-		for k, w := range waypoints {
-			if reaches(max(x0-w.At.X, 0, w.At.X-x1), max(z0-w.At.Z, 0, w.At.Z-z1)) {
-				out[c] = append(out[c], k)
+	r := gamedata.WaypointReach + 1.0
+	for k, w := range waypoints {
+		from, to := n.of(w.At.X-r, w.At.Z-r), n.of(w.At.X+r, w.At.Z+r)
+		for row := from / n.nx; row <= to/n.nx; row++ {
+			for col := from % n.nx; col <= to%n.nx; col++ {
+				out[row*n.nx+col] = append(out[row*n.nx+col], k)
 			}
 		}
 	}

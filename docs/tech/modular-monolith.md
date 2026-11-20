@@ -259,6 +259,7 @@ social: {...}
   - **error tables:** every model error has a row in its facade's table, and every kernel error a gateway `PublicOf` row.
   - **no unrecovered goroutine:** a `go` statement appears only in `pkg/panics` and `pkg/runner`, and every other goroutine a binary starts is a reviewed site (section 2).
   - **ctx names, stamping, timestamps and docs:** unchanged.
+  - **copy rows** (since large regions step 6b): every map event, world stream event and gateway push has a row in its conversion's copy test.
 - **Unit tests** move with their code. Each facade gets table-driven tests of its conversion and error table.
 
 ## 11. When things fail

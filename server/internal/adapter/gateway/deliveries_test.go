@@ -117,6 +117,12 @@ func TestEveryWorldEventKeepsItsValues(t *testing.T) {
 			return eventDiff[world.PartySpots](t, model.PartySpots{}, m)
 		},
 		"WaypointFound": func() []string { return eventDiff[world.WaypointFound](t, model.WaypointFound{}, match()) },
+		"AreaEntered": func() []string {
+			m := match()
+			with(m.Renames, map[string]string{"Event.FieldBoss.Mob": "Delivery.Push.FieldBoss.MobID", "Event.FieldBossGone.Mob": "Delivery.Push.FieldBossGone.MobID", "Event.FieldBossGone.BackIn": "Delivery.Push.FieldBossGone.BackInMs"})
+			return eventDiff[world.AreaEntered](t, model.AreaEntered{}, m)
+		},
+		"ArenaBar": func() []string { return eventDiff[world.ArenaBar](t, model.ArenaBar{}, match()) },
 		"Detached": func() []string {
 			m := match()
 			m.Skip["Tick"] = "a detached character is on no map"

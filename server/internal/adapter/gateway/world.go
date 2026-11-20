@@ -25,7 +25,7 @@ type WorldModule interface {
 	Input(ctx context.Context, p world.Presence, seq uint32, in sim.Input, view uint32) error
 	Attack(ctx context.Context, p world.Presence, aim float32, target world.EntityRef) error
 	EnterPortal(ctx context.Context, p world.Presence) error
-	Teleport(ctx context.Context, p world.Presence, mapID string, seq uint32) error
+	Teleport(ctx context.Context, p world.Presence, mapID, waypoint string, seq uint32) error
 	SwitchChannel(ctx context.Context, p world.Presence, n int, seq uint32) error
 	Channels(ctx context.Context, p world.Presence) (world.Channels, error)
 	Say(ctx context.Context, p world.Presence, name, text string) error
@@ -123,9 +123,9 @@ func (w World) EnterPortal(ctx context.Context, p model.Presence) error {
 	return worldErr(w.w.EnterPortal(ctx, presence(p)))
 }
 
-// Teleport starts a teleport channel to the map; it answers once the channel starts.
-func (w World) Teleport(ctx context.Context, p model.Presence, mapID string, seq uint32) error {
-	return worldErr(w.w.Teleport(ctx, presence(p), mapID, seq))
+// Teleport starts a teleport channel to the waypoint, or else the old map; it answers once the channel starts.
+func (w World) Teleport(ctx context.Context, p model.Presence, mapID, waypoint string, seq uint32) error {
+	return worldErr(w.w.Teleport(ctx, presence(p), mapID, waypoint, seq))
 }
 
 // SwitchChannel starts a switch to channel n of the player's region; it answers once its channel starts.

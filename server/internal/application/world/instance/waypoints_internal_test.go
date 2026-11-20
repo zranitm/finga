@@ -2,6 +2,7 @@ package instance
 
 import (
 	"maps"
+	"math"
 	"slices"
 	"testing"
 	"time"
@@ -26,6 +27,11 @@ func TestACellListsEveryStoneAScanFindsInReach(t *testing.T) {
 		stones := stonesNear(ws, n)
 		for range 50 {
 			x, z := rapid.Float64Range(-30, sx+30).Draw(t, "px"), rapid.Float64Range(-30, sz+30).Draw(t, "pz")
+			if rapid.Bool().Draw(t, "near the edge of reach") { // where a cell's line can part a spot from its stone's list
+				w := ws[rapid.IntRange(0, len(ws)-1).Draw(t, "stone")]
+				a, d := rapid.Float64Range(0, 2*math.Pi).Draw(t, "angle"), rapid.Float64Range(gamedata.WaypointReach-1, gamedata.WaypointReach).Draw(t, "distance")
+				x, z = w.At.X+d*math.Sin(a), w.At.Z+d*math.Cos(a)
+			}
 			listed := stones[n.of(x, z)]
 			for k, w := range ws {
 				if reaches(x-w.At.X, z-w.At.Z) && !slices.Contains(listed, k) {

@@ -24,9 +24,9 @@ func eventKeepsItsFields[E model.Event](t *testing.T) {
 		if _, ok := reflect.TypeFor[E]().FieldByName("Tick"); ok {
 			m.Skip["Tick"] = "the delivery carries it"
 		}
-		if name == "Snapshot" {
-			m.Skip["FieldBoss.Tick"] = "a snapshot's boss is as of the snapshot"
-			m.Skip["FieldBossGone.Tick"] = "a snapshot's beaten boss is as of the snapshot"
+		if name == "Snapshot" || name == "AreaEntered" {
+			m.Skip["FieldBoss.Tick"] = "the area's boss is as of the snapshot or the step in"
+			m.Skip["FieldBossGone.Tick"] = "the area's beaten boss is as of the snapshot or the step in"
 		}
 		got := copytest.Diff(m, func(e E) Event {
 			d := deliveryOf(e)
@@ -58,7 +58,8 @@ func TestEveryModelEventKeepsItsFields(t *testing.T) {
 		eventKeepsItsFields[model.Promoted], eventKeepsItsFields[model.StatsChanged], eventKeepsItsFields[model.Chat],
 		eventKeepsItsFields[model.InventoryChanged], eventKeepsItsFields[model.Loot], eventKeepsItsFields[model.Detached],
 		eventKeepsItsFields[model.NpcDialog], eventKeepsItsFields[model.QuestChanged], eventKeepsItsFields[model.TeleportCancelled],
-		eventKeepsItsFields[model.PartySpots], eventKeepsItsFields[model.WaypointFound],
+		eventKeepsItsFields[model.PartySpots], eventKeepsItsFields[model.WaypointFound], eventKeepsItsFields[model.AreaEntered],
+		eventKeepsItsFields[model.ArenaBar], eventKeepsItsFields[model.MatchState],
 	} {
 		check(t)
 	}

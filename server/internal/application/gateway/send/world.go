@@ -22,9 +22,9 @@ func (g *Gateway) EnterPortal(ctx context.Context, s *session.Session) error {
 	return g.deps.World.EnterPortal(ctx, s.Presence())
 }
 
-// Teleport starts a teleport channel to the map through the world, which answers once it starts; the MapChange or TeleportCancelled comes on its stream.
-func (g *Gateway) Teleport(ctx context.Context, s *session.Session, mapID string, seq uint32) error {
-	return g.deps.World.Teleport(ctx, s.Presence(), mapID, seq)
+// Teleport starts a teleport channel to the waypoint, or else the old map, through the world, which answers once it starts; the MapChange or TeleportCancelled comes on its stream.
+func (g *Gateway) Teleport(ctx context.Context, s *session.Session, mapID, waypoint string, seq uint32) error {
+	return g.deps.World.Teleport(ctx, s.Presence(), mapID, waypoint, seq)
 }
 
 // SwitchChannel starts a switch to channel n of the player's region through the world, which answers once it starts; the MapChange or TeleportCancelled comes on its stream.

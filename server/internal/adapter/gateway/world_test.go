@@ -83,8 +83,9 @@ type (
 		Seq    uint32
 	}
 	teleportArgs struct {
-		MapID string
-		Seq   uint32
+		MapID    string
+		Waypoint string
+		Seq      uint32
 	}
 	switchArgs struct {
 		Channel int
@@ -167,8 +168,8 @@ func (w *worldModule) UseSkill(_ context.Context, p world.Presence, use world.Sk
 	return w.record(p, skillArgs{use.Skill, use.Root, use.Aim, use.Target, use.Way, seq})
 }
 
-func (w *worldModule) Teleport(_ context.Context, p world.Presence, mapID string, seq uint32) error {
-	return w.record(p, teleportArgs{mapID, seq})
+func (w *worldModule) Teleport(_ context.Context, p world.Presence, mapID, waypoint string, seq uint32) error {
+	return w.record(p, teleportArgs{mapID, waypoint, seq})
 }
 
 func (w *worldModule) SwitchChannel(_ context.Context, p world.Presence, n int, seq uint32) error {
@@ -262,8 +263,9 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 			Seq       uint32
 		}
 		teleport struct {
-			MapID string
-			Seq   uint32
+			MapID    string
+			Waypoint string
+			Seq      uint32
 		}
 		switched struct {
 			Channel int
@@ -335,7 +337,7 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 			})
 		},
 		"Teleport": func() []string {
-			return worldCall[teleport, teleportArgs](w, nil, func(p model.Presence, in teleport) error { return a.Teleport(ctx, p, in.MapID, in.Seq) })
+			return worldCall[teleport, teleportArgs](w, nil, func(p model.Presence, in teleport) error { return a.Teleport(ctx, p, in.MapID, in.Waypoint, in.Seq) })
 		},
 		"SwitchChannel": func() []string {
 			return worldCall[switched, switchArgs](w, nil, func(p model.Presence, in switched) error { return a.SwitchChannel(ctx, p, in.Channel, in.Seq) })

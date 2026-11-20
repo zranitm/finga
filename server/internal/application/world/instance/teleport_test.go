@@ -3,6 +3,7 @@ package instance_test
 import (
 	"context"
 	"errors"
+	"math"
 	"reflect"
 	"strings"
 	"testing"
@@ -33,17 +34,17 @@ func channelTicks(data *gamedata.Data) int {
 	return int(model.TicksIn(data.TeleportChannel(), worldtest.TickInterval)) //nolint:gosec // a few hundred ticks
 }
 
-// teleportAsync asks for a teleport to mapID pressed during input seq, on its own goroutine, and returns where its answer lands.
-func teleportAsync(inst *instance.Instance, id kernel.CharacterID, mapID string, seq uint32) <-chan error {
+// teleportAsync asks for a teleport to the waypoint, or with none to mapID, pressed during input seq, on its own goroutine, and returns where its answer lands.
+func teleportAsync(inst *instance.Instance, id kernel.CharacterID, mapID, waypoint string, seq uint32) <-chan error {
 	done := make(chan error, 1)
-	go func() { done <- inst.Teleport(context.Background(), id, "c1", mapID, seq) }()
+	go func() { done <- inst.Teleport(context.Background(), id, "c1", mapID, waypoint, seq) }()
 	return done
 }
 
 // teleport starts a channel to mapID on the next tick and returns that tick.
 func teleport(t *testing.T, inst *instance.Instance, s *worldtest.Sink, id kernel.CharacterID, mapID string, seq uint32) uint64 {
 	t.Helper()
-	done := teleportAsync(inst, id, mapID, seq)
+	done := teleportAsync(inst, id, mapID, "", seq)
 	tick(1)
 	if err := <-done; err != nil {
 		t.Fatalf("teleport to %s: %v", mapID, err)
@@ -99,13 +100,17 @@ func TestATeleportTakesThePlayerToTheMapsSpawnAtTheChannelsEnd(t *testing.T) {
 
 func TestATeleportIsRefused(t *testing.T) {
 	for _, tt := range []struct {
-		name  string
-		mapID string
-		want  error
+		name            string
+		mapID, waypoint string
+		want            error
 	}{
-		{"to a map that isn't one", "atlantis", model.ErrTeleportUnknownMap},
-		{"to a match's map, which a match alone reaches", "ring", model.ErrTeleportUnknownMap},
-		{"to the player's own map", "town", model.ErrTeleportSameMap},
+		{"to a map that isn't one", "atlantis", "", model.ErrTeleportUnknownMap},
+		{"to a match's map, which a match alone reaches", "ring", "", model.ErrTeleportUnknownMap},
+		{"to a region by its map id, which its waypoints alone reach", "test_region", "", model.ErrTeleportUnknownMap},
+		{"to the player's own map", "town", "", model.ErrTeleportSameMap},
+		{"to a waypoint that isn't one", "", "atlantis", model.ErrTeleportUnknownWaypoint},
+		{"to a waypoint that isn't one, beside a map that is", "forest", "atlantis", model.ErrTeleportUnknownWaypoint},
+		{"to a waypoint not found, outside a main town", "", "west", model.ErrTeleportNotFound},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
@@ -115,7 +120,7 @@ func TestATeleportIsRefused(t *testing.T) {
 				p := atSpawn(data, "Ayla")
 				p.Connection = "c1"
 				join(t, inst, p)
-				done := teleportAsync(inst, p.ID, tt.mapID, 0)
+				done := teleportAsync(inst, p.ID, tt.mapID, tt.waypoint, 0)
 				tick(1)
 				if err := <-done; !errors.Is(err, tt.want) {
 					t.Fatalf("err = %v, want %v", err, tt.want)
@@ -133,7 +138,7 @@ func TestATeleportIsRefused(t *testing.T) {
 			p.Connection = "c1"
 			s := join(t, inst, p)
 			start := teleport(t, inst, s, p.ID, "forest", 0)
-			done := teleportAsync(inst, p.ID, "cave", 0)
+			done := teleportAsync(inst, p.ID, "cave", "", 0)
 			tick(1)
 			if err := <-done; !errors.Is(err, model.ErrTeleportBusy) {
 				t.Fatalf("err = %v, want ErrTeleportBusy", err)
@@ -152,13 +157,82 @@ func TestATeleportIsRefused(t *testing.T) {
 			p := warriorAt(nextToSlime)
 			p.HP, p.Connection = 1, "c1"
 			untilDead(t, join(t, inst, p), p.ID)
-			done := teleportAsync(inst, p.ID, "forest", 0)
+			done := teleportAsync(inst, p.ID, "forest", "", 0)
 			tick(1)
 			if err := <-done; !errors.Is(err, model.ErrTeleportDead) {
 				t.Fatalf("err = %v, want ErrTeleportDead", err)
 			}
 		})
 	})
+}
+
+// housedWest is the shipped data with a house over the north and north-east of the test region's west field stone, so its arrival faces east; every shipped one faces north.
+func housedWest(t *testing.T) *gamedata.Data {
+	t.Helper()
+	data := worldtest.LoadDataWith(t, map[string]func(string) string{"regions/test_region.yaml": func(s string) string {
+		if !strings.Contains(s, "pieces:\n") {
+			t.Fatal("test_region.yaml has no pieces to add a house to")
+		}
+		return strings.Replace(s, "pieces:\n", "pieces:\n  - {house: {area: [56, 86.5, 8, 3], height: 4, model: house_small}}\n", 1)
+	}})
+	if _, w, _ := data.Waypoint("west"); w.Arrive != (gamedata.Point{X: 62, Z: 85}) || w.Yaw != math.Pi/2 {
+		t.Fatalf("west's arrival is %+v facing %v; want east of the stone, facing east", w.Arrive, w.Yaw)
+	}
+	return data
+}
+
+// Large regions section 8: a teleport to a waypoint lands beside its stone, facing away, checkpointed there; from an old map into its region, or within the region back into the player's own channel. A waypoint named beside a map id is the target.
+func TestATeleportToAWaypointLandsBesideIt(t *testing.T) {
+	for _, c := range []struct {
+		name            string
+		from            string
+		channel         int
+		mapID, waypoint string
+		found           bool
+		want            instance.Dest
+	}{
+		{"from an old map to its region's main town, unfound", "town", 0, "", "town", false, instance.Dest{ID: "test_region"}},
+		{"from an old map to one found", "town", 0, "", "west", true, instance.Dest{ID: "test_region"}},
+		{"named beside a map id", "town", 0, "forest", "west", true, instance.Dest{ID: "test_region"}},
+		{"within the region, back into the player's channel", "test_region", 2, "", "west", true, instance.Dest{ID: "test_region", Channel: 2, Switch: true}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				data := housedWest(t)
+				from, _ := data.Map(c.from)
+				region, w, _ := data.Waypoint(c.waypoint)
+				cps := &worldtest.Checkpoints{}
+				tr := &transferRecorder{}
+				inst, stop := worldtest.RunMap(t, data, from, cps, worldtest.Options{Transfer: tr, CheckpointInterval: time.Hour, Channel: c.channel})
+				defer stop()
+				tick(1)
+				p := worldtest.NewPlayer("Ayla", from.PlayerSpawn.X, from.PlayerSpawn.Z)
+				p.Connection = "c1"
+				if c.found {
+					p.Waypoints = model.Waypoints{c.waypoint: time.Now()}
+				}
+				s := join(t, inst, p)
+				cps.Drain()
+				done := teleportAsync(inst, p.ID, c.mapID, c.waypoint, 0)
+				tick(1)
+				if err := <-done; err != nil {
+					t.Fatal(err)
+				}
+				tick(channelTicks(data))
+				got := worldtest.Of[model.Teleport](s)
+				if len(got) != 1 || got[0].MapID != region.ID || got[0].X != w.Arrive.X || got[0].Z != w.Arrive.Z || got[0].Yaw != float32(w.Yaw) {
+					t.Fatalf("teleports %+v; want one to %s beside %s, at %+v facing %v", got, region.ID, w.ID, w.Arrive, w.Yaw)
+				}
+				if tr.mu.Lock(); !reflect.DeepEqual(tr.dests, []instance.Dest{c.want}) {
+					t.Errorf("handed off to %+v, want %+v", tr.dests, c.want)
+				}
+				tr.mu.Unlock()
+				if cp := cps.Drain(); len(cp) != 1 || cp[0].MapID != region.ID || cp[0].X != w.Arrive.X || cp[0].Z != w.Arrive.Z {
+					t.Errorf("checkpoints %+v, want one on %s beside %s", cp, region.ID, w.ID)
+				}
+			})
+		})
+	}
 }
 
 // cancelled checks the player heard one cancel, for why, on tick at, and that the channel's end took them nowhere.

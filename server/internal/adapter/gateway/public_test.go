@@ -154,6 +154,8 @@ func TestEachKernelErrorReachesTheClientByName(t *testing.T) {
 		{kernel.ErrSameChannel, "SAME_CHANNEL", none},
 		{kernel.ErrNoSuchChannel, "NO_SUCH_CHANNEL", none},
 		{kernel.ErrChannelFull, "CHANNEL_FULL", none},
+		{kernel.ErrTeleportUnknownWaypoint, "TELEPORT_UNKNOWN_WAYPOINT", none},
+		{kernel.ErrTeleportNotFound, "TELEPORT_NOT_FOUND", none},
 		{kernel.ErrSkillLocked, "SKILL_LOCKED", none},
 		{kernel.ErrBadSkillWay, "BAD_SKILL_WAY", none},
 		{kernel.ErrCantAct, "CANT_ACT", none},

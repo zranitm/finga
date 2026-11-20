@@ -64,7 +64,12 @@ type Data struct {
 	pieceIdx  map[string]int
 	// pieceItemIdx files each piece with an item under its item.
 	pieceItemIdx map[string]int
+	// waypointIdx files each region's waypoints by id, their ids unique across every region.
+	waypointIdx map[string]waypointAt
 }
+
+// waypointAt is where a waypoint is: its map's index in Maps, and its own in the map's Waypoints.
+type waypointAt struct{ m, w int }
 
 // New indexes parts by ID; they must already be checked, as load.Dir does.
 func New(p Parts) *Data {
@@ -80,7 +85,19 @@ func New(p Parts) *Data {
 		questIdx:     index(p.Quests, func(q Quest) string { return q.ID }),
 		pieceIdx:     index(p.Pieces, func(p Piece) string { return p.ID }),
 		pieceItemIdx: pieceItems(p.Pieces),
+		waypointIdx:  waypointsOf(p.Maps),
 	}
+}
+
+// waypointsOf files every map's waypoints by id.
+func waypointsOf(maps []*Map) map[string]waypointAt {
+	idx := map[string]waypointAt{}
+	for m, mp := range maps {
+		for w, wp := range mp.Waypoints {
+			idx[wp.ID] = waypointAt{m, w}
+		}
+	}
+	return idx
 }
 
 // pieceItems files each piece an item holds under the item.

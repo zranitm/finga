@@ -624,6 +624,18 @@
     "message": "that channel is full"
   },
   {
+    "code": 330046,
+    "name": "TELEPORT_UNKNOWN_WAYPOINT",
+    "status": 404,
+    "message": "there's no such waypoint"
+  },
+  {
+    "code": 330047,
+    "name": "TELEPORT_NOT_FOUND",
+    "status": 409,
+    "message": "you haven't found that waypoint yet"
+  },
+  {
     "code": 440001,
     "name": "NOT_PARTY_LEADER",
     "status": 409,

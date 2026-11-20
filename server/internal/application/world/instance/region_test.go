@@ -323,31 +323,6 @@ func TestTheTestRegionsBoarsStopAtItsTownsLine(t *testing.T) {
 	})
 }
 
-// The test region is reached by a teleport to its id, which lands at its start (large-regions.md section 12).
-func TestATeleportToTheTestRegionLandsAtItsStart(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		data := worldtest.LoadData(t)
-		tr := &transferRecorder{}
-		inst, stop := worldtest.Run(t, data, &worldtest.Checkpoints{}, worldtest.Options{Transfer: tr, CheckpointInterval: time.Hour})
-		defer stop()
-		p := atSpawn(data, "Ayla")
-		p.Connection = "c1"
-		s := join(t, inst, p)
-		teleport(t, inst, s, p.ID, "test_region", 0)
-		tick(channelTicks(data))
-		region, _ := data.Map("test_region")
-		got := eventsOf[model.Teleport](s)
-		if len(got) != 1 || got[0].MapID != "test_region" || got[0].X != region.PlayerSpawn.X || got[0].Z != region.PlayerSpawn.Z || region.Kind != gamedata.Region {
-			t.Fatalf("teleports %+v; want one to the test region's start %+v", got, region.PlayerSpawn)
-		}
-		tr.mu.Lock()
-		defer tr.mu.Unlock()
-		if len(tr.to) != 1 || tr.to[0] != "test_region" {
-			t.Errorf("moved to %v", tr.to)
-		}
-	})
-}
-
 // One going into a match from a region's channel keeps it as their way back, and goes back to it (large-regions.md section 4): the World then lands them there while it has room.
 func TestAMatchFromARegionsChannelGoesBackToIt(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
