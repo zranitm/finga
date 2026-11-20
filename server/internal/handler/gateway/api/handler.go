@@ -18,6 +18,7 @@ import (
 	model "finga/internal/model/gateway"
 	"finga/internal/shared/kernel"
 	"finga/pkg/panics"
+	"finga/pkg/ratelimit"
 )
 
 const (
@@ -34,6 +35,8 @@ type Dependencies struct {
 	Panics *panics.Recorder
 	// Traces starts each request's trace.
 	Traces trace.TracerProvider
+	// Limit holds each account's REST calls to its bucket, keyed by account ID.
+	Limit ratelimit.Limiter
 }
 
 type api struct {
@@ -53,7 +56,7 @@ func Mount(d Dependencies) func(e *gin.Engine) {
 		rest.POST("/accounts", h.register)
 		rest.POST("/sessions", h.login)
 
-		authed := rest.Group("", requireAuth(d.Lobby))
+		authed := rest.Group("", requireAuth(d.Lobby), limitAccount(d.Limit))
 		authed.DELETE("/sessions/current", h.logout)
 		authed.DELETE("/sessions", h.logoutEverywhere)
 		authed.GET("/characters", h.listCharacters)

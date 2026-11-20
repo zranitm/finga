@@ -59,6 +59,28 @@ func newStackOver(t *testing.T, data string) *e2etest.Stack {
 
 func TestAcceptance(t *testing.T) {
 	t.Parallel()
+	// The web client's REST calls over a measured session (login's two reads, a first character, Settings with each switch saved as flipped, back to the characters): all ten at once fit the default bucket.
+	t.Run("A1/the-clients-own-calls-stay-under-an-accounts-rest-limit", func(t *testing.T) {
+		t.Parallel()
+		s := newStack(t)
+		s.MustStatus(s.Call("POST", "/api/accounts", "", map[string]string{"username": "dora", "password": "correct horse"}), http.StatusCreated)
+		login := s.Call("POST", "/api/sessions", "", map[string]string{"username": "dora", "password": "correct horse"})
+		s.MustStatus(login, http.StatusCreated)
+		token, _ := login.Body["token"].(string)
+		s.MustStatus(s.Call("GET", "/api/characters", token, nil), http.StatusOK)
+		s.MustStatus(s.Call("GET", "/api/settings", token, nil), http.StatusOK)
+		made := s.Call("POST", "/api/characters", token, map[string]string{"name": "Dora"})
+		s.MustStatus(made, http.StatusCreated)
+		s.MustStatus(s.Call("GET", "/api/characters", token, nil), http.StatusOK)
+		id, _ := made.Body["id"].(string)
+		p, _ := s.Join(t, token, id)
+		token = p.Token // the Hello rotates it; the bucket is the account's
+		s.MustStatus(s.Call("GET", "/api/settings", token, nil), http.StatusOK)
+		for k := range 4 {
+			s.MustStatus(s.Call("PUT", "/api/settings", token, map[string]any{"chat_pinned": k%2 == 0, "hide_minimap": k >= 1 && k <= 2}), http.StatusOK)
+		}
+		s.MustStatus(s.Call("GET", "/api/characters", token, nil), http.StatusOK)
+	})
 	t.Run("A1/sign-up-and-log-in", func(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
