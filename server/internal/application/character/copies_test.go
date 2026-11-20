@@ -16,6 +16,7 @@ type stored struct {
 	Quests    []model.Quest
 	Skills    []model.SkillPoints
 	Timers    []model.SkillTimer
+	Waypoints []model.Waypoint
 }
 
 // filledService answers with a filled character and its rows; the own stats and maximums stay the fake's.
@@ -47,6 +48,10 @@ func (f *filledService) Skills(context.Context, kernel.CharacterID) ([]model.Ski
 
 func (f *filledService) Timers(context.Context, kernel.CharacterID) ([]model.SkillTimer, error) {
 	return f.rows.Timers, nil
+}
+
+func (f *filledService) Waypoints(context.Context, kernel.CharacterID) ([]model.Waypoint, error) {
+	return f.rows.Waypoints, nil
 }
 
 // worked out are the character's fields the service derives rather than stores, below prefix.

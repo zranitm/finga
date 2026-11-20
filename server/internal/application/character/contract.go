@@ -30,12 +30,19 @@ type Character struct {
 	SkillBar           []string // the skill on each key, "" for none
 }
 
-// Loaded is a character as the world joins it: with its quests, skills and running skill timers.
+// Loaded is a character as the world joins it: with its quests, skills, running skill timers and found waypoints.
 type Loaded struct {
 	Character Character
 	Quests    []Quest
 	Skills    []SkillPoints
 	Timers    []SkillTimer
+	Waypoints []Waypoint
+}
+
+// Waypoint is a waypoint the character found, by its id across every region, and when.
+type Waypoint struct {
+	ID      string
+	FoundAt time.Time
 }
 
 // SkillPoints are the points invested in one skill, and its chosen trait, "" for its default.
@@ -98,6 +105,7 @@ type Checkpoint struct {
 	UnspentSkillPoints int
 	Skills             []SkillPoints // every skill with points; a stored one not listed keeps its own
 	Timers             []SkillTimer  // every cooldown and buff still running; a stored one not listed goes
+	Waypoints          []Waypoint    // every waypoint found; a stored one not listed stays
 }
 
 // LevelUp is saved right away when a character gains a level.
@@ -138,6 +146,9 @@ func (cp Checkpoint) model() model.Checkpoint {
 	}
 	for _, t := range cp.Timers {
 		out.Timers = append(out.Timers, t.model())
+	}
+	for _, w := range cp.Waypoints {
+		out.Waypoints = append(out.Waypoints, model.Waypoint(w))
 	}
 	return out
 }

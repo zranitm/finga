@@ -331,6 +331,22 @@ func TestSaves(t *testing.T) {
 		}
 	})
 
+	t.Run("a checkpoint's waypoints add to those found, and one with no id or listed twice saves nothing", func(t *testing.T) {
+		at := time.Now().UTC()
+		cp := model.Checkpoint{ID: c.ID, Class: "beginner", MapID: "town", Level: 1, Waypoints: []model.Waypoint{{ID: "town", FoundAt: at}}}
+		if err := svc.SaveCheckpoint(ctx, cp); err != nil {
+			t.Fatal(err)
+		}
+		for _, bad := range [][]model.Waypoint{{{FoundAt: at}}, {{ID: "west", FoundAt: at}, {ID: "west", FoundAt: at}}} {
+			if err := svc.SaveCheckpoint(ctx, model.Checkpoint{ID: c.ID, Class: "beginner", MapID: "cave", Level: 1, Waypoints: bad}); !errors.Is(err, model.ErrBadWaypoint) {
+				t.Fatalf("%+v: %v", bad, err)
+			}
+		}
+		if got, err := svc.Waypoints(ctx, c.ID); err != nil || !reflect.DeepEqual(got, cp.Waypoints) || store.chars[c.ID].MapID != "town" {
+			t.Fatalf("waypoints %+v (%v) on %s; want the town's alone, the refused ones moving nothing", got, err, store.chars[c.ID].MapID)
+		}
+	})
+
 	t.Run("a checkpoint with a class the game data lacks saves nothing", func(t *testing.T) {
 		before := store.chars[c.ID]
 		for _, class := range []kernel.Class{"", "paladin"} {

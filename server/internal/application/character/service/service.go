@@ -142,7 +142,12 @@ func (s *Service) Timers(ctx context.Context, id kernel.CharacterID) ([]model.Sk
 	return s.store.Timers(ctx, id)
 }
 
-// SaveCheckpoint persists position, HP, energy, the whole progression, every quest, every skill and every skill timer, in one transaction.
+// Waypoints is a loaded character's found waypoints; the world reads them at join, while it is the only writer.
+func (s *Service) Waypoints(ctx context.Context, id kernel.CharacterID) ([]model.Waypoint, error) {
+	return s.store.Waypoints(ctx, id)
+}
+
+// SaveCheckpoint persists position, HP, energy, the whole progression, every quest, every skill, every skill timer and every waypoint found, in one transaction.
 func (s *Service) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	if _, ok := s.content.Class(cp.Class); !ok {
 		return model.ErrClassUnavailable
@@ -171,6 +176,13 @@ func (s *Service) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
 			return model.ErrBadSkillTimer
 		}
 		timed[key] = true
+	}
+	found := make(map[string]bool, len(cp.Waypoints))
+	for _, w := range cp.Waypoints {
+		if w.ID == "" || found[w.ID] {
+			return model.ErrBadWaypoint
+		}
+		found[w.ID] = true
 	}
 	if !cp.Fits() {
 		return model.ErrBadCheckpoint

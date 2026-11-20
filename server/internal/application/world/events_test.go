@@ -58,7 +58,7 @@ func TestEveryModelEventKeepsItsFields(t *testing.T) {
 		eventKeepsItsFields[model.Promoted], eventKeepsItsFields[model.StatsChanged], eventKeepsItsFields[model.Chat],
 		eventKeepsItsFields[model.InventoryChanged], eventKeepsItsFields[model.Loot], eventKeepsItsFields[model.Detached],
 		eventKeepsItsFields[model.NpcDialog], eventKeepsItsFields[model.QuestChanged], eventKeepsItsFields[model.TeleportCancelled],
-		eventKeepsItsFields[model.PartySpots],
+		eventKeepsItsFields[model.PartySpots], eventKeepsItsFields[model.WaypointFound],
 	} {
 		check(t)
 	}
@@ -76,7 +76,11 @@ func TestEveryModelEventKeepsItsFields(t *testing.T) {
 
 // A join answers with the character's every field as the map joined it, and the maps' tick rate.
 func TestAJoinsViewKeepsItsFields(t *testing.T) {
-	m := copytest.Match{Computed: map[string]string{"TickRateHz": "the module's tick rate, which every join in module_test checks"}}
+	m := copytest.Match{
+		Computed: map[string]string{"TickRateHz": "the module's tick rate, which every join in module_test checks"},
+		Renames:  map[string]string{"Waypoints.key": "Waypoints"},
+		Skip:     map[string]string{"Waypoints.value": "the client needs which waypoints were found, not when"},
+	}
 	for _, problem := range copytest.Diff(m, viewOf) {
 		t.Error(problem)
 	}

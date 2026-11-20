@@ -10,6 +10,7 @@ var (
 	ErrBadQuest           = NewRule("bad_quest")
 	ErrBadSkill           = NewRule("bad_skill")
 	ErrBadSkillTimer      = NewRule("bad_skill_timer")
+	ErrBadWaypoint        = NewRule("bad_waypoint")
 	ErrBadSkillBar        = NewRule("bad_skill_bar")
 	ErrBadCheckpoint      = NewRule("bad_checkpoint")
 )

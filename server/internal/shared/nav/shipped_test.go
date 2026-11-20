@@ -166,7 +166,7 @@ func TestEveryShippedMapCanBeCrossed(t *testing.T) {
 	}
 }
 
-// The reach check on every shipped region (large-regions.md section 3): from its start and each gate, players get to every waypoint, gate, NPC, camp and area boss at every speed, on the walk grid the server builds.
+// The reach check on every shipped region (large-regions.md section 3): from its start, each gate and beside each waypoint, where teleports land and the dead get up, players get to every waypoint, gate, NPC, camp and area boss at every speed, on the walk grid the server builds.
 func TestEveryShippedRegionCanBeCrossed(t *testing.T) {
 	data := gamedatatest.Shipped(t)
 	p := shipped(t).params
@@ -187,8 +187,9 @@ func TestEveryShippedRegionCanBeCrossed(t *testing.T) {
 				starts = append(starts, spot{what: "gate " + g.Name, at: g.At})
 				targets = append(targets, spot{"gate " + g.Name, g.At, g.Radius})
 			}
-			for _, w := range plan.Waypoints {
-				targets = append(targets, spot{"waypoint " + w.ID, w.At, p.Radius})
+			for _, w := range m.Waypoints {
+				starts = append(starts, spot{what: "beside waypoint " + w.ID, at: [2]float64{w.Arrive.X, w.Arrive.Z}})
+				targets = append(targets, spot{"waypoint " + w.ID, [2]float64{w.At.X, w.At.Z}, p.Radius})
 			}
 			for _, n := range plan.NPCs {
 				targets = append(targets, spot{"npc " + n.ID, n.At, data.TalkReach()})

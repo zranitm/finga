@@ -10,6 +10,7 @@ type Joined struct {
 	JoinSeq    uint64 // rises with each join, so the character's later login has the higher one
 	Quests     []QuestState
 	Timers     []SkillTimer // the cooldowns and buffs still running, which a fresh join keeps
+	Waypoints  []string     // the ids of those found
 }
 
 // WorldEvent is what the world's delivery stream brings.

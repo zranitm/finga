@@ -271,6 +271,11 @@ type AreaEntered struct {
 	FieldBossGone *FieldBossGone // while the area's is beaten
 }
 
+// WaypointFound tells the player they found a waypoint, by its id across every region.
+type WaypointFound struct {
+	Waypoint string
+}
+
 // TeleportCancel is what ended a teleport channel early.
 type TeleportCancel int
 
@@ -330,6 +335,7 @@ func (Teleport) worldEvent()          {}
 func (TeleportCancelled) worldEvent() {}
 func (PartySpots) worldEvent()        {}
 func (AreaEntered) worldEvent()       {}
+func (WaypointFound) worldEvent()     {}
 func (Detached) worldEvent()          {}
 func (Damage) worldEvent()            {}
 func (Died) worldEvent()              {}
@@ -635,6 +641,8 @@ func deliveryOf(e model.Event) Delivery {
 	case model.AreaEntered:
 		up, down := bossState(ev.FieldBoss, ev.FieldBossGone)
 		return Delivery{Tick: ev.Tick, Event: AreaEntered{Area: ev.Area, FieldBoss: up, FieldBossGone: down}}
+	case model.WaypointFound:
+		return Delivery{Tick: ev.Tick, Event: WaypointFound{Waypoint: ev.Waypoint}}
 	case model.LevelUp:
 		return Delivery{Tick: ev.Tick, Event: levelUpOf(ev)}
 	case model.Promoted:

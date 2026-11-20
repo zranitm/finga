@@ -48,6 +48,7 @@ func TestEachKernelErrorReachesTheClientByName(t *testing.T) {
 		{kernel.ErrBadQuest, "INTERNAL", none},
 		{kernel.ErrBadSkill, "INTERNAL", none},
 		{kernel.ErrBadSkillTimer, "INTERNAL", none},
+		{kernel.ErrBadWaypoint, "INTERNAL", none},
 		{kernel.ErrBadSkillBar, "BAD_SKILL_BAR", none},
 		{kernel.ErrBadCheckpoint, "INTERNAL", none},
 		// item

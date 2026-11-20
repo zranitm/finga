@@ -114,6 +114,9 @@ func (i *Instance) add(j *joinMsg) {
 	if j.player.Quests == nil {
 		j.player.Quests = model.Quests{}
 	}
+	if j.player.Waypoints == nil {
+		j.player.Waypoints = model.Waypoints{}
+	}
 	p := &player{
 		Player: j.player,
 		sink:   j.sink,
@@ -367,10 +370,10 @@ func (i *Instance) checkpointOn(p *player, mapID string) {
 	}
 	if b := p.Back; b != nil { // in a match, where they go back to
 		c := b.Player
-		i.saves.Put(model.Checkpoint{ID: c.ID, Class: c.Class, MapID: b.MapID, X: c.X, Y: c.Y, Z: c.Z, Yaw: c.Yaw, HP: c.HP, Energy: c.Energy, Level: c.Level, Exp: c.Exp, Points: c.Points, Skills: c.Skills.Clone(), Quests: c.Quests.Clone(), Timers: c.Timers.Clone()})
+		i.saves.Put(model.Checkpoint{ID: c.ID, Class: c.Class, MapID: b.MapID, X: c.X, Y: c.Y, Z: c.Z, Yaw: c.Yaw, HP: c.HP, Energy: c.Energy, Level: c.Level, Exp: c.Exp, Points: c.Points, Skills: c.Skills.Clone(), Quests: c.Quests.Clone(), Timers: c.Timers.Clone(), Waypoints: c.Waypoints.Clone()})
 		return
 	}
-	cp := model.Checkpoint{ID: p.ID, Class: p.Class, MapID: mapID, X: p.state.X, Y: p.state.Y, Z: p.state.Z, Yaw: facing(p.state), HP: p.HP, Energy: p.Energy, Level: p.Level, Exp: p.Exp, Points: p.Points, Skills: p.Skills.Clone(), Quests: p.Quests.Clone(), Timers: i.timersOf(p, time.Now())}
+	cp := model.Checkpoint{ID: p.ID, Class: p.Class, MapID: mapID, X: p.state.X, Y: p.state.Y, Z: p.state.Z, Yaw: facing(p.state), HP: p.HP, Energy: p.Energy, Level: p.Level, Exp: p.Exp, Points: p.Points, Skills: p.Skills.Clone(), Quests: p.Quests.Clone(), Timers: i.timersOf(p, time.Now()), Waypoints: p.Waypoints.Clone()}
 	if p.dead { // the respawn it is owed; the death penalty is already taken
 		town := i.town()
 		at := standOn(town, i.params, town.PlayerSpawn.X, 0, town.PlayerSpawn.Z, float32(town.SpawnYaw))

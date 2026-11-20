@@ -71,7 +71,7 @@ func (w World) Join(ctx context.Context, gateway, conn string, account kernel.Ac
 			HP: v.HP, MaxHP: v.MaxHP, Energy: v.Energy, Sheet: statSheet(v.Sheet),
 		},
 		MapID: v.MapID, TickRateHz: v.TickRateHz, JoinSeq: v.JoinSeq,
-		Quests: questLog(v.Quests), Timers: timersLeft(v.Timers, time.Now()),
+		Quests: questLog(v.Quests), Timers: timersLeft(v.Timers, time.Now()), Waypoints: v.Waypoints,
 	}, nil
 }
 

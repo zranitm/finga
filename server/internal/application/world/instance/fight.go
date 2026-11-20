@@ -231,7 +231,7 @@ func (i *Instance) deathsAndRespawns() {
 		p.HP = RespawnHP(p.derived.MaxHP)
 		p.changed = true
 		if i.m.Town == i.m.ID { // a town or a region revives its own dead
-			yaw, at := float32(i.m.SpawnYaw), i.getUp(p.state.X, p.state.Z)
+			at, yaw := i.getUp(p.state.X, p.state.Z)
 			p.state = i.standing(at.X, 0, at.Z, yaw)
 			i.events = append(i.events, model.Respawned{Tick: i.tick, ID: p.ID, MapID: i.m.ID, X: p.state.X, Y: p.state.Y, Z: p.state.Z, HP: p.HP, Yaw: yaw})
 			i.tellParty(p, i.m.ID, i.channel)

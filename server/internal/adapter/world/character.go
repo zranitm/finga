@@ -26,12 +26,13 @@ type Saver struct{ c CharacterModule }
 // NewSaver adapts the character module.
 func NewSaver(c CharacterModule) Saver { return Saver{c: c} }
 
-// SaveCheckpoint saves position, HP, energy, the whole progression, the whole quest log and the skills' timers.
+// SaveCheckpoint saves position, HP, energy, the whole progression, the whole quest log, the skills' timers and the waypoints found.
 func (s Saver) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	return s.c.SaveCheckpoint(ctx, character.Checkpoint{
 		ID: cp.ID, Class: cp.Class, MapID: cp.MapID, X: cp.X, Y: cp.Y, Z: cp.Z, Yaw: cp.Yaw, HP: cp.HP, Energy: cp.Energy, Level: cp.Level, Exp: cp.Exp,
 		Points: cp.Points.Spent, UnspentPoints: cp.Points.Unspent, FreeResetUsed: cp.Points.FreeResetUsed,
 		Quests: questsOf(cp.Quests), UnspentSkillPoints: cp.Skills.Unspent, Skills: skillsOf(cp.Skills), Timers: timersOf(cp.Timers),
+		Waypoints: waypointsOf(cp.Waypoints),
 	})
 }
 
@@ -115,8 +116,26 @@ func (l Characters) Load(ctx context.Context, id kernel.CharacterID, account ker
 		Points: model.Points{Spent: ch.Points, Unspent: ch.UnspentPoints, FreeResetUsed: ch.FreeResetUsed},
 		Skills: skills,
 		HP:     ch.HP, Energy: ch.Energy, MapID: ch.MapID, X: ch.X, Y: ch.Y, Z: ch.Z, Yaw: ch.Yaw, Quests: log,
-		Timers: timersFrom(loaded.Timers),
+		Timers: timersFrom(loaded.Timers), Waypoints: waypointsFrom(loaded.Waypoints),
 	}, nil
+}
+
+// waypointsFrom is the waypoints found as loaded.
+func waypointsFrom(found []character.Waypoint) model.Waypoints {
+	out := make(model.Waypoints, len(found))
+	for _, w := range found {
+		out[w.ID] = w.FoundAt
+	}
+	return out
+}
+
+// waypointsOf is every waypoint found, for the character module, by id.
+func waypointsOf(found model.Waypoints) []character.Waypoint {
+	out := make([]character.Waypoint, 0, len(found))
+	for _, id := range slices.Sorted(maps.Keys(found)) {
+		out = append(out, character.Waypoint{ID: id, FoundAt: found[id]})
+	}
+	return out
 }
 
 // logOf is the quest log as loaded; a status this build doesn't know fails the join.

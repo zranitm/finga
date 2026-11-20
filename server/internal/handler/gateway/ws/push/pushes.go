@@ -32,6 +32,8 @@ func (o *Outbox) body(p model.Push) any {
 	case model.AreaEntered:
 		up, down := bossState(p.FieldBoss, p.FieldBossGone)
 		return &clientv1.AreaEntered{Area: p.Area, FieldBoss: up, FieldBossGone: down}
+	case model.WaypointFound:
+		return &clientv1.WaypointFound{Waypoint: p.Waypoint}
 	case model.Damage:
 		return &clientv1.Damage{Source: entityRef(p.Source), Target: entityRef(p.Target), Amount: int32(p.Amount), Crit: p.Crit, Miss: p.Miss, Dodge: p.Dodge, Block: p.Block, StatusId: p.Status, Shielded: int32(p.Shielded)}
 	case model.SkillUsed:

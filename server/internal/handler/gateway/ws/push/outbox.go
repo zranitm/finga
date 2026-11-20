@@ -45,6 +45,7 @@ func (o *Outbox) Welcome(w model.Welcome) {
 	msg := &clientv1.Welcome{
 		Token: w.Token, Character: characterView(w.Character), Inventory: itemViews(w.Inventory), Equipment: equipment(w.Equipment), InventoryRevision: w.InventoryRevision, MapId: w.MapID,
 		ServerTime: w.ServerTime.UnixMilli(), TickRateHz: uint32(w.TickRateHz), Quests: questStates(w.Quests), SkillTimers: skillTimers(w.Timers),
+		Waypoints: w.Waypoints,
 	}
 	kind := "login"
 	if w.Token == "" {

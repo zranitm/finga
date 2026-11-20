@@ -70,6 +70,8 @@ func worldPush(e world.Event) (model.Push, bool) {
 	case world.AreaEntered:
 		up, down := bossState(ev.FieldBoss, ev.FieldBossGone)
 		return model.AreaEntered{Area: ev.Area, FieldBoss: up, FieldBossGone: down}, true
+	case world.WaypointFound:
+		return model.WaypointFound{Waypoint: ev.Waypoint}, true
 	case world.LevelUp:
 		return model.LevelUp{Character: leveledView(ev)}, true
 	case world.Promoted:

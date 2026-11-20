@@ -43,6 +43,7 @@ sql:
       - internal/migration/00006_character_z_and_yaw.sql
       - internal/migration/00010_character_skill_traits.sql
       - internal/migration/00011_character_skill_bar_eight.sql
+      - internal/migration/00015_character_waypoints.sql
     queries: internal/repository/character/queries
     gen:
       go:

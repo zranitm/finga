@@ -67,3 +67,11 @@ type CharacterSkillTimer struct {
 	UpdatedAt   dbx.Stamp
 	Trait       string
 }
+
+type CharacterWaypoint struct {
+	CharacterID uuid.UUID
+	WaypointID  string
+	FoundAt     time.Time
+	CreatedAt   dbx.Stamp
+	UpdatedAt   dbx.Stamp
+}

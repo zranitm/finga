@@ -121,6 +121,19 @@ func (p *Postgres) Timers(ctx context.Context, id kernel.CharacterID) ([]model.S
 	return out, nil
 }
 
+// Waypoints is the waypoints the character has found, by id.
+func (p *Postgres) Waypoints(ctx context.Context, id kernel.CharacterID) ([]model.Waypoint, error) {
+	rows, err := p.q.ListWaypoints(ctx, uuid.UUID(id))
+	if err != nil {
+		return nil, failures.Classify(err)
+	}
+	out := make([]model.Waypoint, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, model.Waypoint{ID: r.WaypointID, FoundAt: r.FoundAt})
+	}
+	return out, nil
+}
+
 func toCharacter(r db.Character) model.Character {
 	return model.Character{
 		ID: kernel.CharacterID(r.ID), AccountID: kernel.AccountID(r.AccountID), Name: r.Name, Class: kernel.Class(r.Class),
@@ -221,7 +234,15 @@ func (r repo) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	if err := r.q.SaveSkillTimers(ctx, t); err != nil {
 		return err
 	}
-	return r.q.DropOtherSkillTimers(ctx, db.DropOtherSkillTimersParams{CharacterID: uuid.UUID(cp.ID), SkillIds: t.SkillIds, Kinds: t.Kinds})
+	if err := r.q.DropOtherSkillTimers(ctx, db.DropOtherSkillTimersParams{CharacterID: uuid.UUID(cp.ID), SkillIds: t.SkillIds, Kinds: t.Kinds}); err != nil {
+		return err
+	}
+	w := db.SaveWaypointsParams{CharacterID: uuid.UUID(cp.ID), WaypointIds: []string{}, FoundAts: []time.Time{}, Now: r.now}
+	for _, found := range cp.Waypoints {
+		w.WaypointIds = append(w.WaypointIds, found.ID)
+		w.FoundAts = append(w.FoundAts, found.FoundAt)
+	}
+	return r.q.SaveWaypoints(ctx, w)
 }
 
 // SaveLevelUp updates level, EXP, points and HP; no row is pgx.ErrNoRows.

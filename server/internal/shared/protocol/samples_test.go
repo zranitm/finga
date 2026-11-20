@@ -130,6 +130,7 @@ func samples() []wsconn.Message {
 				{Skill: "iron_body", Kind: clientv1.SkillTimerKind_SKILL_TIMER_KIND_COOLDOWN, LeftMs: 41200},
 				{Skill: "iron_body", Kind: clientv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF, LeftMs: 11200, Points: 3, Trait: "iron_wall"},
 			},
+			Waypoints: []string{"town", "west"},
 		}},
 		// A map whose field boss is up.
 		{Type: "Snapshot", Tick: 81234, Data: &clientv1.Snapshot{Players: []*clientv1.PlayerView{player()}, Mobs: []*clientv1.MobView{mob(), boss()}, Pouches: []*clientv1.PouchView{pouch()}, FieldBoss: &clientv1.FieldBoss{MobId: 9, Type: "king_slime"}, Channel: 2, Area: "west"}},
@@ -185,6 +186,7 @@ func samples() []wsconn.Message {
 		{Type: "PartyState", Data: &clientv1.PartyState{Party: party()}},
 		{Type: "ArenaBar", Tick: 2810, Data: &clientv1.ArenaBar{SkillBar: []string{"strike", "war_cry", "", "", "", "", "", "taunt"}}},
 		{Type: "AreaEntered", Tick: 81241, Data: &clientv1.AreaEntered{Area: "west", FieldBossGone: &clientv1.FieldBossGone{MobId: 12, Type: "king_slime", BackInMs: 180000}}},
+		{Type: "WaypointFound", Tick: 81242, Data: &clientv1.WaypointFound{Waypoint: "north"}},
 		{Type: "PartySpots", Tick: 81240, Data: &clientv1.PartySpots{Spots: []*clientv1.PartySpot{{CharacterId: charB, X: 140.5, Z: 812.25}}}},
 		{Type: "PartyInvited", Data: &clientv1.PartyInvited{InviteId: "inv-1", From: charA, FromName: "Ayla"}},
 		// The guide's dialog for a level 1 character with the cleanup under way.

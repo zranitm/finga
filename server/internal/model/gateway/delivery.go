@@ -99,6 +99,11 @@ type AreaEntered struct {
 	FieldBossGone *FieldBossGone // while the area's is beaten
 }
 
+// WaypointFound says the player found a waypoint, by its id across every region.
+type WaypointFound struct {
+	Waypoint string
+}
+
 // TeleportCancel is what ended a teleport channel.
 type TeleportCancel int
 
@@ -275,6 +280,7 @@ func (TeleportCancelled) push() {}
 func (PartySpots) push()        {}
 func (AreaEntered) push()       {}
 func (ArenaBar) push()          {}
+func (WaypointFound) push()     {}
 func (Damage) push()            {}
 func (Died) push()              {}
 func (SkillUsed) push()         {}

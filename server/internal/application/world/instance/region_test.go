@@ -33,25 +33,25 @@ func vale(t *testing.T, more ...gamedata.Waypoint) *gamedata.Map {
 	}
 	m.AreaGrid = grid
 	m.Areas = []gamedata.Area{{ID: "town", Name: "Vale Town", Kind: gamedata.Town}, {ID: "field", Name: "Vale Field", Kind: gamedata.Hunting, MinLevel: 1, MaxLevel: 5}}
-	m.Waypoints = append([]gamedata.Waypoint{{ID: "town", Name: "Vale Town", At: gamedata.Point{X: arenaX, Z: 6}}}, more...)
+	m.Waypoints = append([]gamedata.Waypoint{{ID: "town", Name: "Vale Town", At: gamedata.Point{X: arenaX, Z: 6}, Arrive: gamedata.Point{X: arenaX + 2, Z: 6}, Yaw: math.Pi / 2, Main: true}}, more...)
 	return m
 }
 
-// A region is its own town (large-regions.md section 6): one who dies in it gets up at its nearest waypoint in a straight line, found or not, in it and in their channel, with no hand-off, having paid the death's EXP as on a hunting map.
+// A region is its own town (large-regions.md section 6): one who dies in it gets up beside its nearest waypoint in a straight line, found or not, facing away from it, in it and in their channel, with no hand-off, having paid the death's EXP as on a hunting map.
 func TestAPlayerWhoDiesInARegionGetsUpAtItsNearestWaypoint(t *testing.T) {
 	for _, c := range []struct {
 		name  string
 		field float64 // the field's waypoint's z; the death is at nextToSlime, 12.5 m from the town's
 		want  gamedata.Point
 	}{
-		{"the town's", 34, gamedata.Point{X: arenaX, Z: 6}},
-		{"the field's", 28, gamedata.Point{X: arenaX, Z: 28}},
+		{"the town's", 34, gamedata.Point{X: arenaX + 2, Z: 6}},
+		{"the field's", 28, gamedata.Point{X: arenaX + 2, Z: 28}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				data := worldtest.LoadData(t)
-				m := vale(t, gamedata.Waypoint{ID: "field", Name: "Vale Field", At: gamedata.Point{X: arenaX, Z: c.field}})
-				m.SpawnYaw = 1.5
+				m := vale(t, gamedata.Waypoint{ID: "field", Name: "Vale Field", At: gamedata.Point{X: arenaX, Z: c.field}, Arrive: gamedata.Point{X: arenaX + 2, Z: c.field}, Yaw: math.Pi / 2})
+				m.SpawnYaw = 1.5 // the spawn's, which a getting up beside a waypoint doesn't take
 				tr := &transferRecorder{}
 				inst, stop := worldtest.RunMap(t, data, m, &worldtest.Checkpoints{}, worldtest.Options{Transfer: tr, Channel: 2})
 				defer stop()
@@ -63,7 +63,7 @@ func TestAPlayerWhoDiesInARegionGetsUpAtItsNearestWaypoint(t *testing.T) {
 				time.Sleep(3 * time.Second)
 				synctest.Wait()
 				got := eventsOf[model.Respawned](s)
-				if len(got) != 1 || got[0].MapID != "vale" || got[0].X != c.want.X || got[0].Z != c.want.Z || got[0].Yaw != 1.5 {
+				if len(got) != 1 || got[0].MapID != "vale" || got[0].X != c.want.X || got[0].Z != c.want.Z || got[0].Yaw != math.Pi/2 {
 					t.Fatalf("respawned %+v; want once in vale at %v", got, c.want)
 				}
 				if v, ok := s.Own(p.ID); !ok || v.Dead || v.State.X != c.want.X || v.State.Z != c.want.Z {
@@ -409,6 +409,35 @@ func TestARegionsChannelReachesThePartyAndTheTicks(t *testing.T) {
 		tick(channelTicks(data) + 1)
 		if got := parties.updated(); got[len(got)-1].MapID != "forest" || got[len(got)-1].Channel != 0 {
 			t.Fatalf("the hand-off told %+v; want the forest, with no channel", got[len(got)-1])
+		}
+	})
+}
+
+// Step 6a (large-regions.md section 8): one who comes within 12 m of a region's stone finds it, told once; the checkpoint keeps it, and a hand-off carries it to the next map.
+func TestAWaypointFoundIsToldOnceKeptAndCarried(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		cps := &worldtest.Checkpoints{}
+		tr := &transferRecorder{}
+		inst, stop := worldtest.RunMap(t, data, vale(t), cps, worldtest.Options{Transfer: tr, CheckpointInterval: time.Hour})
+		defer stop()
+		tick(1)
+		p := warriorAt(8) // 2 m north of the town's stone
+		p.Connection = "c1"
+		s := join(t, inst, p)
+		tick(5)
+		if got := eventsOf[model.WaypointFound](s); len(got) != 1 || got[0].Waypoint != "town" {
+			t.Fatalf("found %+v; want the town's once", got)
+		}
+		teleport(t, inst, s, p.ID, "forest", 0)
+		tick(channelTicks(data) + 1)
+		tr.mu.Lock()
+		defer tr.mu.Unlock()
+		if len(tr.moved) != 1 || len(tr.moved[0].Waypoints) != 1 || tr.moved[0].Waypoints["town"].IsZero() {
+			t.Fatalf("handed off %+v; want one carrying the town's", tr.moved)
+		}
+		if cp := cps.Drain(); len(cp) != 1 || len(cp[0].Waypoints) != 1 || !cp[0].Waypoints["town"].Equal(tr.moved[0].Waypoints["town"]) {
+			t.Fatalf("checkpoints %+v; want the hand-off's, keeping the town's as found", cp)
 		}
 	})
 }
