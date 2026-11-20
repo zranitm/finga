@@ -4,6 +4,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"finga/internal/shared/gamedata/gamedatatest"
@@ -23,11 +24,7 @@ func TestEveryFordIsCrossedBothWays(t *testing.T) {
 			continue
 		}
 		t.Run(id, func(t *testing.T) {
-			r, err := regiongen.Generate(plan, shippedKit(t), p.MaxSlope)
-			if err != nil {
-				t.Fatal(err)
-			}
-			grid := nav.New(r.Geometry, p.Step)
+			r, grid := generated(t, id, plan, p)
 			var f nav.Finder
 			for _, river := range rivers {
 				for _, at := range river.Fords {
@@ -110,7 +107,7 @@ func fordedRivers(plan regiongen.Plan) []*regiongen.River {
 	return rivers
 }
 
-// A river is crossed only at its fords and causeways (from 4b-2b's playtest, where a player walked round both its ends along the ring's cliff): in every shipped region and test plan, with those crossings gone, a player reaches nothing past the river from beside any of its fords, and with them, the other side.
+// A river is crossed only at its fords and causeways (from 4b-2b's playtest, where a player walked round both its ends along the ring's cliff): in every shipped region and test plan, a player beside its first ford reaches the other side, walking and jumping; with its crossings taken out, a flood from there reaches one side alone beside each of its fords.
 func TestARiverIsCrossedOnlyAtItsFordsAndCauseways(t *testing.T) {
 	data := gamedatatest.Shipped(t)
 	p := data.Movement()
@@ -121,17 +118,7 @@ func TestARiverIsCrossedOnlyAtItsFordsAndCauseways(t *testing.T) {
 			continue
 		}
 		t.Run(id, func(t *testing.T) {
-			r, err := regiongen.Generate(plan, shippedKit(t), p.MaxSlope)
-			if err != nil {
-				t.Fatal(err)
-			}
-			grid := nav.New(r.Geometry, p.Step)
-			var roads []*regiongen.Road
-			for _, f := range plan.Features {
-				if f.Road != nil {
-					roads = append(roads, f.Road)
-				}
-			}
+			r, grid := generated(t, id, plan, p)
 			k := 0
 			for _, f := range plan.Features {
 				if f.River == nil {
@@ -139,30 +126,15 @@ func TestARiverIsCrossedOnlyAtItsFordsAndCauseways(t *testing.T) {
 				}
 				river, water := f.River, r.Rivers[k]
 				k++
-				fordR := river.Width/2 + min(river.Width/4, 2)
-				crossing := func(at nav.Point) bool {
-					for _, ford := range river.Fords {
-						if math.Hypot(at.X-ford[0], at.Z-ford[1]) <= fordR+0.5 { // its shallows, a cell's width over
-							return true
-						}
-					}
-					if fromPath(water.Path, at) > river.Width/2+1 {
-						return false
-					}
-					for _, road := range roads {
-						if fromPath(road.Path, at) <= road.Width/2+3 { // its causeway, past the smoothing of its path
-							return true
-						}
-					}
-					return false
+				a, b := banks(t, r.Geometry, p, river, river.Fords[0])
+				if !grid.Reach([]nav.Point{a}, p.Radius, rise).Has(b) {
+					t.Fatalf("from %v beside the ford at %v, %v across it isn't reached", a, river.Fords[0], b)
 				}
+				got := grid.ReachWithout([]nav.Point{a}, p.Radius, rise, crossingsOf(plan, river, water))
 				for _, at := range river.Fords {
 					a, b := banks(t, r.Geometry, p, river, at)
-					if !grid.Reach([]nav.Point{a}, p.Radius, rise).Has(b) {
-						t.Fatalf("from %v beside the ford at %v, %v across it isn't reached", a, at, b)
-					}
-					if grid.ReachWithout([]nav.Point{a}, p.Radius, rise, crossing).Has(b) {
-						t.Errorf("from %v beside the ford at %v, %v across the river is reached with its fords and causeways gone", a, at, b)
+					if got.Has(a) == got.Has(b) {
+						t.Errorf("beside the ford at %v, with the river's crossings gone, %v is reached %v and %v across it %v; want one side alone", at, a, got.Has(a), b, got.Has(b))
 					}
 					checked++
 				}
@@ -172,6 +144,70 @@ func TestARiverIsCrossedOnlyAtItsFordsAndCauseways(t *testing.T) {
 	if checked < 4 {
 		t.Fatalf("%d fords checked; the test plans and shipped regions have at least 4", checked)
 	}
+}
+
+// crossingsOf are river's ways across: its fords' shallows and its causeways, a road's way over it, as a test of a walk grid cell's centre (0.5 m cells) against a mask made once.
+func crossingsOf(plan regiongen.Plan, river *regiongen.River, water regiongen.RiverWater) func(nav.Point) bool {
+	const cell = 0.5 // the walk grid's
+	nx, nz := int(plan.Size[0]/cell), int(plan.Size[1]/cell)
+	gone := make([]bool, nx*nz)
+	mark := func(x0, z0, x1, z1 float64, in func(nav.Point) bool) {
+		for iz := max(int(z0/cell), 0); iz <= min(int(z1/cell), nz-1); iz++ {
+			for ix := max(int(x0/cell), 0); ix <= min(int(x1/cell), nx-1); ix++ {
+				if in(nav.Point{X: (float64(ix) + 0.5) * cell, Z: (float64(iz) + 0.5) * cell}) {
+					gone[iz*nx+ix] = true
+				}
+			}
+		}
+	}
+	shallows := river.Width/2 + min(river.Width/4, 2) + cell // a ford's, a cell's width over
+	for _, at := range river.Fords {
+		mark(at[0]-shallows, at[1]-shallows, at[0]+shallows, at[1]+shallows, func(c nav.Point) bool {
+			return math.Hypot(c.X-at[0], c.Z-at[1]) <= shallows
+		})
+	}
+	for _, f := range plan.Features {
+		if f.Road == nil {
+			continue
+		}
+		reach := f.Road.Width/2 + 3 // past the smoothing of its path
+		for i := 1; i < len(f.Road.Path); i++ {
+			a, b := f.Road.Path[i-1], f.Road.Path[i]
+			leg := [][2]float64{a, b}
+			mark(min(a[0], b[0])-reach, min(a[1], b[1])-reach, max(a[0], b[0])+reach, max(a[1], b[1])+reach, func(c nav.Point) bool {
+				return fromPath(leg, c) <= reach && fromPath(water.Path, c) <= river.Width/2+1
+			})
+		}
+	}
+	return func(c nav.Point) bool { return gone[int(c.Z/cell)*nx+int(c.X/cell)] }
+}
+
+var (
+	builtMu sync.Mutex
+	built   = map[string]struct {
+		r    *regiongen.Region
+		grid *nav.Grid
+	}{}
+)
+
+// generated is plan's region and its walk grid, built once a test run however many tests ask.
+func generated(t *testing.T, id string, plan regiongen.Plan, p sim.Params) (*regiongen.Region, *nav.Grid) {
+	t.Helper()
+	builtMu.Lock()
+	defer builtMu.Unlock()
+	if b, ok := built[id]; ok {
+		return b.r, b.grid
+	}
+	r, err := regiongen.Generate(plan, shippedKit(t), p.MaxSlope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	grid := nav.New(r.Geometry, p.Step)
+	built[id] = struct {
+		r    *regiongen.Region
+		grid *nav.Grid
+	}{r, grid}
+	return r, grid
 }
 
 // fromPath is how far at lies from path.
