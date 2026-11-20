@@ -12,6 +12,7 @@ import (
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
+	"finga/pkg/panics"
 	"finga/pkg/transient"
 )
 
@@ -20,11 +21,11 @@ const channelSweep = 10 * time.Second
 
 // channels are each region's channels (large-regions.md section 4): its first, a fixed map's instance that never closes, and those opened as the rest fill.
 type channels struct {
-	mu      sync.Mutex
-	cap     int           // players a channel takes before a pick passes it; a switch may go past it
-	idle    time.Duration // how long a channel past the first stays open empty
-	regions map[string]*region
-	observe func(region string, open int)
+	mu       sync.Mutex
+	cap      int           // players a channel takes before a pick passes it; a switch may go past it
+	idle     time.Duration // how long a channel past the first stays open empty
+	regions  map[string]*region
+	observer ChannelObserver
 }
 
 // region is a region's open channels, by number.
@@ -87,7 +88,7 @@ func (cs *channels) pick(r *region, want int, over bool, party map[int]int, open
 		}
 		r.open = append(r.open, c)
 		slices.SortFunc(r.open, func(a, b *channel) int { return cmp.Compare(a.n, b.n) })
-		cs.observe(r.m.ID, len(r.open))
+		cs.observer.ChannelsOpen(r.m.ID, len(r.open))
 		to = c
 	}
 	to.pending++
@@ -102,17 +103,23 @@ func (cs *channels) release(c *channel) {
 	c.pending--
 }
 
-// touch restarts channel n of r's idle clock, so a switch to it finds it open; false when it isn't open, or has no room.
-func (cs *channels) touch(r *region, n int) (open, room bool) {
+// has reports whether channel n of r is open, and has room.
+func (cs *channels) has(r *region, n int) (open, room bool) {
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
-	for _, c := range r.open {
-		if c.n == n {
-			c.empty = time.Time{}
-			return true, c.load() < cs.cap
-		}
+	if i := slices.IndexFunc(r.open, func(c *channel) bool { return c.n == n }); i >= 0 {
+		return true, r.open[i].load() < cs.cap
 	}
 	return false, false
+}
+
+// touch restarts channel n of r's idle clock, if it's open, so a switch to it finds it open at its end.
+func (cs *channels) touch(r *region, n int) {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	if i := slices.IndexFunc(r.open, func(c *channel) bool { return c.n == n }); i >= 0 {
+		r.open[i].empty = time.Time{}
+	}
 }
 
 // sweep takes off the channels past the first found empty for idle by now, and gives their ids in opened to shut; none can be picked once taken off.
@@ -135,10 +142,19 @@ func (cs *channels) sweep(now time.Time) []string {
 			return false
 		})
 		if len(r.open) != was {
-			cs.observe(r.m.ID, len(r.open))
+			cs.observer.ChannelsOpen(r.m.ID, len(r.open))
 		}
 	}
 	return shut
+}
+
+// stopped tells the observer channel n of region m has run its last tick, unless a channel n has opened again since, so an old one's end says nothing of the new.
+func (cs *channels) stopped(m *gamedata.Map, n int) {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	if !slices.ContainsFunc(cs.regions[m.ID].open, func(c *channel) bool { return c.n == n }) {
+		cs.observer.ChannelStopped(m.ID, n)
+	}
 }
 
 // loads are r's open channels' numbers and players, on their way included.
@@ -155,7 +171,7 @@ func (cs *channels) loads(r *region) model.Channels {
 // channelID is channel n of region m's id in opened.
 func channelID(m *gamedata.Map, n int) string { return fmt.Sprintf("%s/%d", m.ID, n) }
 
-// SwitchChannel starts a switch to channel n of the character's region, pressed during input seq, once n is open with room, and restarts n's idle clock so it stays open for it; the switch then channels as a teleport does, and lands past the cap if n filled meanwhile.
+// SwitchChannel starts a switch to channel n of the character's region, pressed during input seq, once n is open with room, and once the map takes it restarts n's idle clock so it stays open for it; the switch then channels as a teleport does, and lands past the cap if n filled meanwhile.
 func (w *World) SwitchChannel(ctx context.Context, id kernel.CharacterID, conn string, n int, seq uint32) error {
 	return w.wait(id, conn, func(i *instance.Instance) error {
 		r, ok := w.channels.regions[i.MapID()]
@@ -165,13 +181,17 @@ func (w *World) SwitchChannel(ctx context.Context, id kernel.CharacterID, conn s
 		if n == i.Channel() {
 			return model.ErrSameChannel
 		}
-		switch open, room := w.channels.touch(r, n); {
+		switch open, room := w.channels.has(r, n); {
 		case !open:
 			return model.ErrNoSuchChannel
 		case !room:
 			return model.ErrChannelFull
 		}
-		return i.SwitchChannel(ctx, id, conn, n, seq)
+		if err := i.SwitchChannel(ctx, id, conn, n, seq); err != nil {
+			return err
+		}
+		w.channels.touch(r, n)
+		return nil
 	})
 }
 
@@ -207,13 +227,13 @@ func (w *World) pickChannel(id kernel.CharacterID, r *region, want int, over boo
 func (w *World) openChannel(m *gamedata.Map, n int) (*channel, error) {
 	inst := instance.New(instance.Deps{Services: w.deps.Services, Map: m, Data: w.data, Saves: w.saves, Mover: w, Logger: w.deps.Logger, Channel: n}, w.tuning)
 	id := channelID(m, n)
-	if err := w.opened.run(id, inst); err != nil {
+	if err := w.opened.run(id, inst, func() { w.channels.stopped(m, n) }); err != nil {
 		return nil, err
 	}
 	return &channel{n: n, inst: inst, id: id}, nil
 }
 
-// closeIdleChannels shuts, every channelSweep until the World stops, the channels past the first left empty for the idle time.
+// closeIdleChannels shuts, every channelSweep until the World stops, the channels past the first left empty for the idle time; a pass that panics is recorded, and the next runs.
 func (w *World) closeIdleChannels() {
 	t := time.NewTicker(channelSweep)
 	defer t.Stop()
@@ -222,9 +242,11 @@ func (w *World) closeIdleChannels() {
 		case <-w.jobsCtx.Done():
 			return
 		case now := <-t.C:
-			for _, id := range w.channels.sweep(now) {
-				w.opened.shut(id)
-			}
+			w.deps.Panics.Do(w.jobsCtx, panics.FlowJob, func() {
+				for _, id := range w.channels.sweep(now) {
+					w.opened.shut(id)
+				}
+			}, "job", "close idle channels")
 		}
 	}
 }

@@ -2,6 +2,7 @@ package world
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
 	"sync"
@@ -29,14 +30,37 @@ func testRegion(pending map[int]int, ns ...int) *region {
 	return r
 }
 
-// channelsOf are channels over r, and the open counts they told.
-func channelsOf(capacity int, idle time.Duration, r *region) (*channels, *[]int) {
-	heard := &[]int{}
-	return &channels{cap: capacity, idle: idle, regions: map[string]*region{"vale": r}, observe: func(region string, open int) {
-		if region == "vale" {
-			*heard = append(*heard, open)
-		}
-	}}, heard
+// told records what channels tell their observer: vale's open counts, and every channel stopped, by its id.
+type told struct {
+	mu      sync.Mutex
+	open    []int
+	stopped []string
+}
+
+func (o *told) ChannelsOpen(region string, open int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if region == "vale" {
+		o.open = append(o.open, open)
+	}
+}
+
+func (o *told) ChannelStopped(region string, n int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.stopped = append(o.stopped, fmt.Sprintf("%s/%d", region, n))
+}
+
+func (o *told) stops() []string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return slices.Clone(o.stopped)
+}
+
+// channelsOf are channels over r, and what they told.
+func channelsOf(capacity int, idle time.Duration, r *region) (*channels, *told) {
+	heard := &told{}
+	return &channels{cap: capacity, idle: idle, regions: map[string]*region{"vale": r}, observer: heard}, heard
 }
 
 // opens makes channels as the World does, recording their numbers.
@@ -95,8 +119,8 @@ func TestAPickFollowsTheChannelRules(t *testing.T) {
 			if got.pending != c.pending[got.n]+1 {
 				t.Errorf("%d on their way to it; want one more than %d", got.pending, c.pending[got.n])
 			}
-			if len(c.made) > 0 && !slices.Equal(*heard, []int{len(c.open) + 1}) {
-				t.Errorf("heard %v open; want %d", *heard, len(c.open)+1)
+			if len(c.made) > 0 && !slices.Equal(heard.open, []int{len(c.open) + 1}) {
+				t.Errorf("heard %v open; want %d", heard.open, len(c.open)+1)
 			}
 			if !slices.IsSorted(numbers(r)) {
 				t.Errorf("open %v, out of order", numbers(r))
@@ -134,9 +158,13 @@ func TestAChannelPastTheFirstClosesOnceIdle(t *testing.T) {
 	}
 	cs.release(two) // the one on their way to 2 landed, and left
 	sweep(10 * time.Second)
-	if ok, room := cs.touch(r, 3); !ok || !room {
+	if ok, room := cs.has(r, 3); !ok || !room {
 		t.Fatal("3 isn't open with room")
 	}
+	if shut := sweep(15 * time.Second); len(shut) != 0 || !three.empty.Equal(t0) {
+		t.Fatalf("a look at 3 restarted its clock: empty since %v", three.empty)
+	}
+	cs.touch(r, 3)
 	sweep(20 * time.Second)
 	if shut := sweep(10*time.Second + idle - time.Nanosecond); len(shut) != 0 {
 		t.Fatalf("shut %v a nanosecond early", shut)
@@ -150,12 +178,18 @@ func TestAChannelPastTheFirstClosesOnceIdle(t *testing.T) {
 	if shut := sweep(24 * time.Hour); len(shut) != 0 || !slices.Equal(numbers(r), []int{1}) {
 		t.Fatalf("shut %v; the first channel never closes", shut)
 	}
-	if !slices.Equal(*heard, []int{2, 1}) {
-		t.Errorf("heard %v open; want 2 then 1", *heard)
+	if !slices.Equal(heard.open, []int{2, 1}) {
+		t.Errorf("heard %v open; want 2 then 1", heard.open)
 	}
-	if ok, _ := cs.touch(r, 2); ok {
-		t.Error("touched channel 2 after it closed")
+	cs.stopped(r.m, 3)
+	cs.stopped(r.m, 1) // still open
+	if !slices.Equal(heard.stops(), []string{"vale/3"}) {
+		t.Errorf("heard %v stopped; want vale/3 alone", heard.stops())
 	}
+	if ok, _ := cs.has(r, 2); ok {
+		t.Error("channel 2 open after it closed")
+	}
+	cs.touch(r, 2) // closed: nothing to restart
 	if got := cs.loads(r); !slices.Equal(got.Open, []model.ChannelLoad{{Channel: 1}}) || got.Cap != 2 {
 		t.Errorf("loads %+v", got)
 	}
@@ -180,15 +214,16 @@ func (s *stall) ObserveTick(_ string, channel int, _, _ time.Duration) {
 	}
 }
 
-// A channel's number opens again the moment its sweep shut it, its old instance still winding down: a pick with every other channel full takes it, and the old one's end forgets nothing of the new.
+// A channel's number opens again the moment its sweep shut it, its old instance still winding down: a pick with every other channel full takes it, and the old one's end forgets nothing of the new, nor drops its tick series.
 func TestAShutChannelsNumberOpensAgainAtOnce(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := gamedatatest.Shipped(t)
 		rec := panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
 		ticks := &stall{hold: make(chan struct{})}
+		heard := &told{}
 		w := New(Deps{
 			NewRoll: func() model.Roll { return half{} }, Observer: ticks, Parties: alone{}, Items: nothing{}, Batches: nothing{}, ItemCalls: itemcalls.NewPool(itemcalls.Deps{Observer: quiet{}, Panics: rec}, itemcalls.Options{Workers: 1}), Traces: noop.NewTracerProvider(),
-			Data: data, Saver: nothing{}, Characters: nothing{}, Starter: nothing{}, SaveObserver: nothing{}, Channels: nothing{}, Panics: rec, Logger: slog.New(slog.DiscardHandler),
+			Data: data, Saver: nothing{}, Characters: nothing{}, Starter: nothing{}, SaveObserver: nothing{}, Channels: heard, Panics: rec, Logger: slog.New(slog.DiscardHandler),
 		}, Tuning{TickInterval: 50 * time.Millisecond, CheckpointInterval: time.Hour, FlushTimeout: time.Second, BatchMax: 32, ChannelCap: 1, ChannelIdle: time.Minute})
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
@@ -228,6 +263,9 @@ func TestAShutChannelsNumberOpensAgainAtOnce(t *testing.T) {
 		synctest.Wait() // the old one has ended
 		if got, ok := w.opened.get("test_region/2"); !ok || got != inst || got == old || inst.Channel() != 2 {
 			t.Fatalf("open under test_region/2: %p (%v); want the new channel %p, not the old %p", got, ok, inst, old)
+		}
+		if got := heard.stops(); len(got) != 0 {
+			t.Fatalf("heard %v stopped; the old channel 2's end says nothing of the new one's ticks", got)
 		}
 	})
 }

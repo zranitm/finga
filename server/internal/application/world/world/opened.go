@@ -28,8 +28,8 @@ func (o *opened) start(ctx context.Context, fail context.CancelCauseFunc) {
 	o.by, o.close, o.ctx, o.fail = map[string]*instance.Instance{}, map[string]context.CancelFunc{}, ctx, fail
 }
 
-// run starts inst under id; ErrStopped when the World isn't running.
-func (o *opened) run(id string, inst *instance.Instance) error {
+// run starts inst under id, and calls ended, if any, once it has stopped; ErrStopped when the World isn't running.
+func (o *opened) run(id string, inst *instance.Instance, ended func()) error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.ctx == nil || o.ctx.Err() != nil {
@@ -46,18 +46,26 @@ func (o *opened) run(id string, inst *instance.Instance) error {
 			defer panics.Capture(&err)
 			return inst.Run(ctx)
 		}()
-		o.mu.Lock()
-		defer o.mu.Unlock()
-		if o.by[id] == inst { // shut forgets it at once, and its id may be open again
-			delete(o.by, id)
-			delete(o.close, id)
-		}
-		if err != nil && o.err == nil {
-			o.err = fmt.Errorf("instance %s: %w", id, err)
-			o.fail(o.err)
+		o.forget(id, inst, err)
+		if ended != nil {
+			ended() // outside o.mu: the channels' lock comes first
 		}
 	})
 	return nil
+}
+
+// forget drops inst, run under id, once it has stopped, unless shut has already, and keeps the first failure, stopping the World.
+func (o *opened) forget(id string, inst *instance.Instance, err error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.by[id] == inst { // shut forgets it at once, and its id may be open again
+		delete(o.by, id)
+		delete(o.close, id)
+	}
+	if err != nil && o.err == nil {
+		o.err = fmt.Errorf("instance %s: %w", id, err)
+		o.fail(o.err)
+	}
 }
 
 // get is the open instance id.

@@ -47,6 +47,17 @@ func TestWorldMetrics(t *testing.T) {
 	if got := promtest.Sample(t, reg, "finga_channels_open", "region", "vale"); got != 2 {
 		t.Fatalf("vale's channels open %v, want 2", got)
 	}
+	m.ObserveTick("vale", 3, 10*time.Millisecond, 50*time.Millisecond)
+	m.ChannelStopped("vale", 2)
+	if _, ok := promtest.Series(t, reg, "finga_tick_overruns_total", "map", "vale", "channel", "2"); ok {
+		t.Fatal("a stopped channel's overruns stay")
+	}
+	if _, ok := promtest.Series(t, reg, "finga_tick_duration_seconds", "map", "vale", "channel", "2"); ok {
+		t.Fatal("a stopped channel's ticks stay")
+	}
+	if got := promtest.Sample(t, reg, "finga_tick_duration_seconds", "map", "vale", "channel", "3"); got != 1 {
+		t.Fatalf("channel 3's ticks %v after 2 stopped, want 1", got)
+	}
 	if got := promtest.Sample(t, reg, "finga_item_calls_inflight"); got != 1 {
 		t.Fatalf("finga_item_calls_inflight = %v, want 1", got)
 	}

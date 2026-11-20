@@ -34,6 +34,7 @@ func (nothing) AddMany(context.Context, model.GrantCall) (model.Granted, error) 
 	return model.Granted{}, errNever
 }
 func (nothing) ChannelsOpen(string, int)                               {}
+func (nothing) ChannelStopped(string, int)                             {}
 func (nothing) Retryable(error) bool                                   { return false }
 func (nothing) Refused(error) bool                                     { return false }
 func (nothing) ObserveBatch(int)                                       {}

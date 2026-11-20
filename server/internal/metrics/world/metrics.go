@@ -71,6 +71,13 @@ func (m *Metrics) ChannelsOpen(region string, open int) {
 	m.channelsOpen.WithLabelValues(region).Set(float64(open))
 }
 
+// ChannelStopped drops the tick series of region's channel, its instance stopped, so a closed channel leaves none behind.
+func (m *Metrics) ChannelStopped(region string, channel int) {
+	ch := strconv.Itoa(channel)
+	m.tickDuration.DeleteLabelValues(region, ch)
+	m.tickOverruns.DeleteLabelValues(region, ch)
+}
+
 // CallQueued counts a call to the item module queued for a worker.
 func (m *Metrics) CallQueued() { m.itemCalls.Inc() }
 

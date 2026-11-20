@@ -2525,6 +2525,51 @@ func (*EnterPortal) Descriptor() ([]byte, []int) {
 }
 
 // Teleport starts a channel to another map, answered as it starts; at its end a MapChange follows, as for a portal, unless a TeleportCancelled says what ended it first.
+type Teleport struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The map's ID.
+	MapId         string `protobuf:"bytes,1,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Teleport) Reset() {
+	*x = Teleport{}
+	mi := &file_client_v1_client_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Teleport) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Teleport) ProtoMessage() {}
+
+func (x *Teleport) ProtoReflect() protoreflect.Message {
+	mi := &file_client_v1_client_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Teleport.ProtoReflect.Descriptor instead.
+func (*Teleport) Descriptor() ([]byte, []int) {
+	return file_client_v1_client_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *Teleport) GetMapId() string {
+	if x != nil {
+		return x.MapId
+	}
+	return ""
+}
+
 // SwitchChannel starts a 3-second channel, cancelled as a teleport's is, that moves the player to the same spot in another channel of their region: one open with room, as the Channels list shows. The Response comes once it starts; the MapChange and a Snapshot naming the channel, or a TeleportCancelled, come at its end. It carries the input sequence number.
 type SwitchChannel struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -2535,7 +2580,7 @@ type SwitchChannel struct {
 
 func (x *SwitchChannel) Reset() {
 	*x = SwitchChannel{}
-	mi := &file_client_v1_client_proto_msgTypes[9]
+	mi := &file_client_v1_client_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2547,7 +2592,7 @@ func (x *SwitchChannel) String() string {
 func (*SwitchChannel) ProtoMessage() {}
 
 func (x *SwitchChannel) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[9]
+	mi := &file_client_v1_client_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2560,7 +2605,7 @@ func (x *SwitchChannel) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SwitchChannel.ProtoReflect.Descriptor instead.
 func (*SwitchChannel) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{9}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *SwitchChannel) GetChannel() uint32 {
@@ -2579,7 +2624,7 @@ type Channels struct {
 
 func (x *Channels) Reset() {
 	*x = Channels{}
-	mi := &file_client_v1_client_proto_msgTypes[10]
+	mi := &file_client_v1_client_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2591,7 +2636,7 @@ func (x *Channels) String() string {
 func (*Channels) ProtoMessage() {}
 
 func (x *Channels) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[10]
+	mi := &file_client_v1_client_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2604,52 +2649,7 @@ func (x *Channels) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Channels.ProtoReflect.Descriptor instead.
 func (*Channels) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{10}
-}
-
-type Teleport struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The map's ID.
-	MapId         string `protobuf:"bytes,1,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Teleport) Reset() {
-	*x = Teleport{}
-	mi := &file_client_v1_client_proto_msgTypes[11]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Teleport) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Teleport) ProtoMessage() {}
-
-func (x *Teleport) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[11]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Teleport.ProtoReflect.Descriptor instead.
-func (*Teleport) Descriptor() ([]byte, []int) {
 	return file_client_v1_client_proto_rawDescGZIP(), []int{11}
-}
-
-func (x *Teleport) GetMapId() string {
-	if x != nil {
-		return x.MapId
-	}
-	return ""
 }
 
 // ChatSend is a chat line, up to chat.yaml's line_max characters after cleaning.
@@ -9879,13 +9879,13 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"PickAnswer\x12'\n" +
 	"\x04pick\x18\x01 \x01(\v2\x13.client.v1.LootPickR\x04pick\x12\x12\n" +
 	"\x04code\x18\x02 \x01(\x05R\x04code\"\r\n" +
-	"\vEnterPortal\")\n" +
+	"\vEnterPortal\"!\n" +
+	"\bTeleport\x12\x15\n" +
+	"\x06map_id\x18\x01 \x01(\tR\x05mapId\")\n" +
 	"\rSwitchChannel\x12\x18\n" +
 	"\achannel\x18\x01 \x01(\rR\achannel\"\n" +
 	"\n" +
-	"\bChannels\"!\n" +
-	"\bTeleport\x12\x15\n" +
-	"\x06map_id\x18\x01 \x01(\tR\x05mapId\"P\n" +
+	"\bChannels\"P\n" +
 	"\bChatSend\x120\n" +
 	"\achannel\x18\x01 \x01(\x0e2\x16.client.v1.ChatChannelR\achannel\x12\x12\n" +
 	"\x04text\x18\x02 \x01(\tR\x04text\"0\n" +
@@ -10566,9 +10566,9 @@ var file_client_v1_client_proto_goTypes = []any{
 	(*LootPick)(nil),             // 21: client.v1.LootPick
 	(*PickAnswer)(nil),           // 22: client.v1.PickAnswer
 	(*EnterPortal)(nil),          // 23: client.v1.EnterPortal
-	(*SwitchChannel)(nil),        // 24: client.v1.SwitchChannel
-	(*Channels)(nil),             // 25: client.v1.Channels
-	(*Teleport)(nil),             // 26: client.v1.Teleport
+	(*Teleport)(nil),             // 24: client.v1.Teleport
+	(*SwitchChannel)(nil),        // 25: client.v1.SwitchChannel
+	(*Channels)(nil),             // 26: client.v1.Channels
 	(*ChatSend)(nil),             // 27: client.v1.ChatSend
 	(*PartyInvite)(nil),          // 28: client.v1.PartyInvite
 	(*PartyRespond)(nil),         // 29: client.v1.PartyRespond
@@ -10702,7 +10702,7 @@ var file_client_v1_client_proto_depIdxs = []int32{
 	44,  // 23: client.v1.ClientMessage.use_skill:type_name -> client.v1.UseSkill
 	46,  // 24: client.v1.ClientMessage.promote:type_name -> client.v1.Promote
 	37,  // 25: client.v1.ClientMessage.inventory_discard_many:type_name -> client.v1.InventoryDiscardMany
-	26,  // 26: client.v1.ClientMessage.teleport:type_name -> client.v1.Teleport
+	24,  // 26: client.v1.ClientMessage.teleport:type_name -> client.v1.Teleport
 	43,  // 27: client.v1.ClientMessage.choose_trait:type_name -> client.v1.ChooseTrait
 	115, // 28: client.v1.ClientMessage.pvp_queue:type_name -> client.v1.PvpQueue
 	116, // 29: client.v1.ClientMessage.pvp_leave_queue:type_name -> client.v1.PvpLeaveQueue
@@ -10711,8 +10711,8 @@ var file_client_v1_client_proto_depIdxs = []int32{
 	35,  // 32: client.v1.ClientMessage.add_to_wardrobe:type_name -> client.v1.AddToWardrobe
 	36,  // 33: client.v1.ClientMessage.set_look:type_name -> client.v1.SetLook
 	20,  // 34: client.v1.ClientMessage.take_loot:type_name -> client.v1.TakeLoot
-	24,  // 35: client.v1.ClientMessage.switch_channel:type_name -> client.v1.SwitchChannel
-	25,  // 36: client.v1.ClientMessage.channels:type_name -> client.v1.Channels
+	25,  // 35: client.v1.ClientMessage.switch_channel:type_name -> client.v1.SwitchChannel
+	26,  // 36: client.v1.ClientMessage.channels:type_name -> client.v1.Channels
 	78,  // 37: client.v1.ServerMessage.delta:type_name -> client.v1.Delta
 	80,  // 38: client.v1.ServerMessage.damage:type_name -> client.v1.Damage
 	106, // 39: client.v1.ServerMessage.pong:type_name -> client.v1.Pong

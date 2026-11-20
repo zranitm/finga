@@ -31,7 +31,7 @@ func (w *World) OpenMatch(ctx context.Context, spec model.MatchSpec) error {
 		Services: w.deps.Services, Map: m, Data: w.data, Saves: w.saves, Mover: w, Logger: w.deps.Logger,
 		Match: &instance.Match{Spec: spec, Mode: mode, Results: w.deps.Results},
 	}, w.tuning)
-	if err := w.opened.run(id, inst); err != nil {
+	if err := w.opened.run(id, inst, nil); err != nil {
 		return err
 	}
 	for s, side := range spec.Sides {

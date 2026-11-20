@@ -177,6 +177,11 @@ message PickAnswer {
 message EnterPortal {}
 
 // Teleport starts a channel to another map, answered as it starts; at its end a MapChange follows, as for a portal, unless a TeleportCancelled says what ended it first.
+message Teleport {
+  // The map's ID.
+  string map_id = 1;
+}
+
 // SwitchChannel starts a 3-second channel, cancelled as a teleport's is, that moves the player to the same spot in another channel of their region: one open with room, as the Channels list shows. The Response comes once it starts; the MapChange and a Snapshot naming the channel, or a TeleportCancelled, come at its end. It carries the input sequence number.
 message SwitchChannel {
   uint32 channel = 1;
@@ -184,11 +189,6 @@ message SwitchChannel {
 
 // Channels asks for the open channels of the player's region; the Response carries them.
 message Channels {}
-
-message Teleport {
-  // The map's ID.
-  string map_id = 1;
-}
 
 // ChatSend is a chat line, up to chat.yaml's line_max characters after cleaning.
 message ChatSend {

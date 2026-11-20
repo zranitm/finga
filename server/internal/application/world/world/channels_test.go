@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -15,10 +16,26 @@ import (
 	"finga/internal/shared/sim"
 )
 
-// opens records the open counts the World tells, by region.
+// opens records the open counts and stopped channels the World tells, by region.
 type opens struct {
-	mu    sync.Mutex
-	heard map[string][]int
+	mu      sync.Mutex
+	heard   map[string][]int
+	stopped map[string][]int
+}
+
+func (o *opens) ChannelStopped(region string, n int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.stopped == nil {
+		o.stopped = map[string][]int{}
+	}
+	o.stopped[region] = append(o.stopped[region], n)
+}
+
+func (o *opens) stops(region string) []int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return slices.Clone(o.stopped[region])
 }
 
 func (o *opens) ChannelsOpen(region string, open int) {
@@ -34,6 +51,19 @@ func (o *opens) of(region string) []int {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return slices.Clone(o.heard[region])
+}
+
+// panicky is opens that panics once, when armed, at the next open count told.
+type panicky struct {
+	opens
+	armed atomic.Bool
+}
+
+func (p *panicky) ChannelsOpen(region string, open int) {
+	if p.armed.CompareAndSwap(true, false) {
+		panic("an observer's bug")
+	}
+	p.opens.ChannelsOpen(region, open)
 }
 
 // parties are fixed parties, each a list of members.
@@ -186,10 +216,11 @@ func TestATeleportIntoARegionIsPicked(t *testing.T) {
 	})
 }
 
-// A channel past the first closes once empty for the idle time, and its number is opened again when needed; the first stays open.
+// A channel past the first closes once empty for the idle time, its stop told once its instance ends, and its number is opened again when needed; the first stays open.
 func TestAnIdleChannelCloses(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		w := channelWorld(t, worldtest.Options{ChannelCap: 1, ChannelIdle: 5 * time.Minute})
+		heard := &opens{}
+		w := channelWorld(t, worldtest.Options{ChannelCap: 1, ChannelIdle: 5 * time.Minute, Channels: heard})
 		ayla, _ := w.enterRegion(t, "Ayla")
 		kai, sk := w.enterRegion(t, "Kai")
 		if channelOf(t, sk) != 2 {
@@ -211,6 +242,9 @@ func TestAnIdleChannelCloses(t *testing.T) {
 		}
 		if w.Opened("test_region/2") != nil {
 			t.Fatal("channel 2's instance still runs")
+		}
+		if got := heard.stops("test_region"); !slices.Equal(got, []int{2}) {
+			t.Fatalf("heard %v stopped; want 2, so its tick series go", got)
 		}
 		if _, s := w.enterRegion(t, "Mira"); channelOf(t, s) != 2 || w.Opened("test_region/2") == two {
 			t.Fatalf("Mira joined %d; want a new channel 2", channelOf(t, s))
@@ -354,6 +388,61 @@ func TestASwitchKeepsItsChannelOpen(t *testing.T) {
 		synctest.Wait()
 		if got := w.open(t, ayla); len(got) != 1 {
 			t.Fatalf("5:30 after the switch started: %+v; want channel 2 closed", got)
+		}
+	})
+}
+
+// A switch the map refuses, its player already channelling, leaves the channel it named to close on time: only a switch taken restarts the idle clock.
+func TestARefusedSwitchKeepsNoChannelOpen(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := channelWorld(t, worldtest.Options{ChannelCap: 1, ChannelIdle: 5 * time.Minute})
+		ayla, _ := w.enterRegion(t, "Ayla")
+		kai, _ := w.enterRegion(t, "Kai")
+		ctx := context.Background()
+		if err := w.Leave(ctx, kai.ID, "c-Kai"); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(4 * time.Minute)
+		synctest.Wait()
+		if err := w.Teleport(ctx, ayla.ID, "c-Ayla", "town", 1); err != nil {
+			t.Fatal(err)
+		}
+		if err := w.SwitchChannel(ctx, ayla.ID, "c-Ayla", 2, 1); !errors.Is(err, model.ErrTeleportBusy) {
+			t.Fatalf("a switch while teleporting: %v; want refused as busy", err)
+		}
+		time.Sleep(90 * time.Second)
+		synctest.Wait()
+		if w.Opened("test_region/2") != nil {
+			t.Fatal("5:30 after channel 2 emptied, 1:30 after a refused switch to it: still open")
+		}
+	})
+}
+
+// A sweep that panics is recorded, and the next one runs: channels keep closing.
+func TestASweepThatPanicsKeepsSweeping(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		heard := &panicky{}
+		w := channelWorld(t, worldtest.Options{ChannelCap: 1, ChannelIdle: 5 * time.Minute, Channels: heard})
+		w.enterRegion(t, "Ayla")
+		kai, _ := w.enterRegion(t, "Kai")
+		bo, _ := w.enterRegion(t, "Bo")
+		ctx := context.Background()
+		heard.armed.Store(true)
+		if err := w.Leave(ctx, kai.ID, "c-Kai"); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(6 * time.Minute)
+		synctest.Wait()
+		if heard.armed.Load() {
+			t.Fatal("channel 2 closed telling no one")
+		}
+		if err := w.Leave(ctx, bo.ID, "c-Bo"); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(6 * time.Minute)
+		synctest.Wait()
+		if w.Opened("test_region/3") != nil {
+			t.Fatal("channel 3 open 6 minutes after it emptied: the sweep stopped at the panic")
 		}
 	})
 }

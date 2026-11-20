@@ -603,6 +603,9 @@ func (nobody) SaveDropped(string) {}
 // ChannelsOpen hears nothing.
 func (nobody) ChannelsOpen(string, int) {}
 
+// ChannelStopped hears nothing.
+func (nobody) ChannelStopped(string, int) {}
+
 // AddMany refuses.
 func (nobody) AddMany(context.Context, model.GrantCall) (model.Granted, error) {
 	return model.Granted{}, errNobody

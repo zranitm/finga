@@ -66,6 +66,7 @@ func (idle) Party(kernel.CharacterID) model.Party { return model.Party{} }
 func (idle) Epoch() uint64                        { return 0 }
 func (idle) Update(model.MemberUpdate)            {}
 func (idle) ChannelsOpen(string, int)             {}
+func (idle) ChannelStopped(string, int)           {}
 func (idle) GrantStarter(context.Context, kernel.AccountID, kernel.CharacterID) error {
 	return nil
 }

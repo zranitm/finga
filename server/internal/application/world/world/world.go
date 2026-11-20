@@ -92,7 +92,7 @@ func New(d Deps, t Tuning) *World {
 		data: data, deps: d, instances: map[string]*instance.Instance{}, presences: newPresences(), locks: keylock.New[kernel.CharacterID](),
 		saves:        coalesce.New(func(cp model.Checkpoint) kernel.CharacterID { return cp.ID }),
 		flushTimeout: t.FlushTimeout, tick: t.TickInterval,
-		channels: channels{cap: t.ChannelCap, idle: t.ChannelIdle, regions: map[string]*region{}, observe: d.Channels.ChannelsOpen},
+		channels: channels{cap: t.ChannelCap, idle: t.ChannelIdle, regions: map[string]*region{}, observer: d.Channels},
 	}
 	w.mapsCtx, w.mapsStopped = context.WithCancel(context.Background())
 	w.jobsCtx, w.stopBackground = context.WithCancel(context.Background())
@@ -137,9 +137,7 @@ func (w *World) Run(ctx context.Context) error {
 	defer fail(nil)
 	w.opened.start(runCtx, fail)
 	if len(w.channels.regions) > 0 {
-		w.background.Go(func() {
-			w.deps.Panics.Do(w.jobsCtx, panics.FlowJob, w.closeIdleChannels, "job", "close idle channels")
-		})
+		w.background.Go(w.closeIdleChannels)
 	}
 	g, gctx := errgroup.WithContext(runCtx)
 	for _, id := range w.order {
