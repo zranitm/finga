@@ -58,6 +58,8 @@ func (o *Outbox) body(p model.Push) any {
 		return statsChanged(p)
 	case model.MatchState:
 		return matchState(p)
+	case model.ArenaBar:
+		return &clientv1.ArenaBar{SkillBar: p.Bar}
 	case model.PvpQueued:
 		return &clientv1.PvpQueued{Mode: p.Mode, SinceMs: uint32(p.Since.Milliseconds()), Members: p.Members} //nolint:gosec // a wait of minutes
 	case model.PvpUnqueued:

@@ -251,7 +251,7 @@ bots:
   - **The copy:** `gamedata.PvpCopy` makes it from the world bar and traits, which the character module holds.
     - A block that isn't the class's own takes the class's block, moved there if it stood on another key.
     - Keys the class can't use, and repeats, are left empty.
-    - The traits kept are those of the skills on it.
+    - The traits kept are those of the class's active skills, on the bar or not (step 4b): a follow-up rides on its root's key, so its trait has to stand apart from the bar.
   - **The rows:** `pvp_builds` (migration 00014) has `revision`, which counts the saves.
   - **Into a match:**
     1. `OpenMatch` registers the match's players in the world's index of who is in which match, before it returns.
@@ -262,6 +262,9 @@ bots:
   - **When a build applies:** the match wears each build it was sent at the next countdown: its bar, and its traits from then on. That's round 1's countdown for a build sent during prep.
   - **Bots** are never judged, as they keep to their own bars.
   - **The save delay** is the skill bar's own.
+- **As built (step 4b):**
+  - **A trait** may be any of the class's active skills', not only those on the bar, so a follow-up's can be chosen. A trait for another class's skill is `BAD_PVP_BUILD`.
+  - **The countdown tells each player their build:** `ArenaBar` carries the bar the match put on, and a `StatsChanged` sent with it carries the traits. So the client shows exactly the bar the match judges, from the same countdown.
 
 ## 7. Match rules
 
@@ -517,12 +520,13 @@ bots:
 | `PlayerView.team`, `PlayerView.bot` | server | The side, 0 outside a match, and the bot flag |
 | `SkillUsed.target` | server | Becomes a ref |
 | `StatsChanged.timers` | server | Set when it replaces every cooldown and buff the client holds: into a match, at each round's reset, and back out |
+| `ArenaBar{skill_bar}` | server | At a countdown, the arena bar the match puts on this player (step 4b, as built); its traits come in the `StatsChanged` sent with it |
 
 | REST | What |
 | --- | --- |
 | `GET /api/characters/{id}/pvp` | Ratings, ranks, records and the arena build |
 | `PUT /api/characters/{id}/pvp-build` | Save the arena build |
-| `GET /api/pvp/leaderboard?mode=` | The top 100 and the caller's place |
+| `GET /api/pvp/leaderboard?mode=` | The top 100; the caller's place is in their profile (step 4a, as built) |
 
 ## 12. Failures
 
@@ -613,6 +617,24 @@ As built for 3v3 (build step 5, the client):
   - **Enemies** show in a team mode under the match bar: one row of compact frames, wrapping before it reaches the corner's frames. The bar then leaves their names to the frames; in 1v1 it still names the enemy.
   - A mode the client doesn't know has no rounds, so the party frames stay the party, as they will in 15v15.
 - **Party members:** the queue tag and the offer card say who is queued with the player ("with Robin and Jade"), from `PvpQueued`'s members, named as their party names them.
+
+As built for builds and ranks (step 4b):
+
+- **The skill window's Arena tab,** for a promoted character, beside its Skills tab:
+  - The class's active skills, each at the kit's points, a follow-up's with its chain mark. No points to spend.
+  - Every trait open, chosen with the same diamonds as in the world, and saved with the build. A choice of the default is kept as none, as the world keeps it.
+  - The arena bar under the grid: a skill dragged from the grid goes on a key, keys swap, and one dropped off the bar empties. A follow-up dropped on a key is refused, as on the skill bar. Its keys drag apart from the skill bar's, so neither bar takes the other's.
+  - **The save** is the skill bar's: 800 ms after the last change, at once on leaving the world or closing the tab, one at a time. Leaving waits for every save, the skill bar's and the build's both.
+  - The build comes from the profile, and is taken while the player hasn't changed theirs. Once they have, theirs is the newest.
+- **The profile** is read on entering the world, after each `MatchEnded` and promotion, and as the Arena window opens. Only the newest read lands, and a failed one keeps the last.
+- **The skill bar in a match:** from each countdown it holds the arena bar `ArenaBar` names, and back out of the match the world bar.
+  - The world bar stays the player's own: a change waiting as a match starts still saves the world bar, never the match's.
+  - While the arena bar is on, its keys take no drags or drops, and the tooltip points to the Arena tab.
+  - A player whose build didn't reach the match keeps the world bar on screen, and no key of it is refused.
+- **The Arena window:**
+  - **Play:** each rated card adds the player's rating and rank, with their place once placed, or "Placing (2 of 5)", and their record. Nothing shows until the profile is read.
+  - **Leaderboard:** 1v1 or 3v3, the top 100 with the player's own row marked. Under it is the player's own place when they're past the top 100, or how far their placement is.
+  - **One read per mode per 30 s,** as the server serves it. A read under way is shared, and a failed one is tried again at the next ask. So flipping between the modes spends no calls under the per-account REST limit.
 
 As built after the 3v3 playtest:
 

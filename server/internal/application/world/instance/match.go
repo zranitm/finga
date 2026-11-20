@@ -152,7 +152,7 @@ func (i *Instance) setBuild(m buildMsg) {
 	m.done <- nil
 }
 
-// wearBuilds puts on each player the build they were sent since the last countdown: its bar and its traits, from this round.
+// wearBuilds puts on each player the build they were sent since the last countdown, its bar and its traits from this round, and tells them both.
 func (i *Instance) wearBuilds() {
 	for id, f := range i.match.fighters {
 		if f.next == nil {
@@ -160,6 +160,8 @@ func (i *Instance) wearBuilds() {
 		}
 		if p, ok := i.players[id]; ok {
 			p.arenaBar, p.Skills.Traits = f.next.Bar, maps.Clone(f.next.Traits)
+			p.private = append(p.private, model.ArenaBar{Tick: i.tick, Bar: f.next.Bar})
+			i.restat(p)
 		}
 		f.next = nil
 	}

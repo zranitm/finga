@@ -72,8 +72,9 @@ function unqueued(d: Data<'pvpUnqueued'>): string | null {
 
 const QUIT = 'You left the match: it counts as a loss. Your rating updates when the match ends.';
 
-/** The player is out of the match's map: one who left it under way, in a match that runs on, hears at once what it costs them. */
+/** The player is out of the match's map, their world bar back: one who left it under way, in a match that runs on, hears at once what it costs them. */
 function leaveMatch(): void {
+  skillBar.getState().unwear();
   if (pvp.getState().leftMatch()) {
     toasts.getState().push(QUIT, 'info');
   }
@@ -269,6 +270,9 @@ export function wireSocket(socket: GameSocket): () => void {
     }),
     socket.on('matchState', (m) => {
       pvp.getState().applyMatchState(m.d, m.tick);
+    }),
+    socket.on('arenaBar', (m) => {
+      skillBar.getState().wear(m.d.skillBar);
     }),
     socket.on('matchEnded', (m) => {
       if (m.d.left && runsOn(m.d.mode)) {

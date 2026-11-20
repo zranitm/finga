@@ -47,6 +47,25 @@ const character = {
   map_id: 'town',
 };
 
+const profile = {
+  standings: [
+    {
+      mode: 'duel',
+      shown: 1640,
+      rank: 'gold',
+      placement_left: 0,
+      wins: 6,
+      losses: 2,
+      draws: 0,
+      place: 12,
+    },
+  ],
+  build: {
+    skill_bar: ['strike', 'war_cry', '', '', '', '', '', ''],
+    traits: { strike: 'concussion' },
+  },
+};
+
 describe('rest client', () => {
   afterEach(() => {
     clearToken();
@@ -104,6 +123,36 @@ describe('rest client', () => {
       want: { slots: ['strike', '', '', '', '', 'spark', '', ''] },
     },
     {
+      name: 'get a PvP profile',
+      run: (c: RestClient) => c.getPvpProfile('c 1'),
+      status: 200,
+      body: profile,
+      method: 'GET',
+      path: '/api/characters/c%201/pvp',
+      sent: undefined,
+      want: profile,
+    },
+    {
+      name: 'put an arena build',
+      run: (c: RestClient) => c.putArenaBuild('c 1', profile.build),
+      status: 200,
+      body: profile.build,
+      method: 'PUT',
+      path: '/api/characters/c%201/pvp-build',
+      sent: profile.build,
+      want: profile.build,
+    },
+    {
+      name: 'get a leaderboard',
+      run: (c: RestClient) => c.getLeaderboard('duel'),
+      status: 200,
+      body: { mode: 'duel', rows: [] },
+      method: 'GET',
+      path: '/api/pvp/leaderboard?mode=duel',
+      sent: undefined,
+      want: { mode: 'duel', rows: [] },
+    },
+    {
       name: 'put settings',
       run: (c: RestClient) => c.putSettings({ chat_pinned: true }),
       status: 200,
@@ -133,12 +182,13 @@ describe('rest client', () => {
     },
   );
 
-  it('a skill bar save asks to outlive the page, so one made as the tab closes still goes', async () => {
+  it('a skill bar or arena build save asks to outlive the page, so one made as the tab closes still goes', async () => {
     const { fetch, calls } = fakeFetch(() => ({ status: 200, body: { slots: [] } }));
     const client = restClientOn(fetch);
     await client.putSkillBar('c1', []);
+    await client.putArenaBuild('c1', profile.build);
     await client.listCharacters().catch(() => undefined);
-    expect(calls.map((c) => c.init.keepalive)).toEqual([true, undefined]);
+    expect(calls.map((c) => c.init.keepalive)).toEqual([true, true, undefined]);
   });
 
   it('login keeps the token, every later call carries it, and logout forgets it', async () => {

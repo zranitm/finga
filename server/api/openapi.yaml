@@ -314,7 +314,7 @@ components:
           maxItems: 8
         traits:
           type: object
-          description: The trait chosen for skills on the bar, by skill; one left out is the skill's default
+          description: The trait chosen by skill, for any of the class's active skills, a follow-up's off the bar too; one left out is the skill's default
           additionalProperties: { type: string }
     PvpStanding:
       type: object

@@ -46,6 +46,50 @@ export interface Settings {
   readonly keys?: Readonly<Record<string, string>>;
 }
 
+/** A character's arena build (pvp.md section 6): eight keys, '' for an empty one, and the trait chosen by skill, one left out the skill's default. */
+export interface ArenaBuild {
+  readonly skill_bar: readonly string[];
+  readonly traits: Readonly<Record<string, string>>;
+}
+
+/** A character's standing in a rated mode. */
+export interface PvpStanding {
+  readonly mode: string;
+  readonly shown: number;
+  readonly rank: string;
+  /** Placement matches still to play, 0 once placed. */
+  readonly placement_left: number;
+  readonly wins: number;
+  readonly losses: number;
+  readonly draws: number;
+  /** One past those placed above, 0 before placement. */
+  readonly place: number;
+}
+
+/** A character's PvP profile: each rated mode, in pvp.yaml's order, and their arena build, the saved one or the world bar's copy. */
+export interface PvpProfile {
+  readonly standings: readonly PvpStanding[];
+  readonly build: ArenaBuild;
+}
+
+export interface LeaderboardRow {
+  readonly place: number;
+  readonly character_id: string;
+  readonly name: string;
+  readonly class: string;
+  readonly shown: number;
+  readonly rank: string;
+  readonly wins: number;
+  readonly losses: number;
+  readonly draws: number;
+}
+
+/** A rated mode's top 100 placed, highest first, a tie sharing its place. */
+export interface Leaderboard {
+  readonly mode: string;
+  readonly rows: readonly LeaderboardRow[];
+}
+
 export class RestError extends Error {
   constructor(
     readonly status: number,
@@ -70,6 +114,10 @@ export interface RestClient {
   putSettings(settings: Settings): Promise<Settings>;
   /** Six skill IDs, '' for an empty key; the server keeps them for the character. */
   putSkillBar(characterId: string, slots: readonly string[]): Promise<{ slots: string[] }>;
+  getPvpProfile(characterId: string): Promise<PvpProfile>;
+  /** A match the character is in fights with it from its next round's countdown. */
+  putArenaBuild(characterId: string, build: ArenaBuild): Promise<ArenaBuild>;
+  getLeaderboard(mode: string): Promise<Leaderboard>;
 }
 
 export function createRestClient(): RestClient {
@@ -158,6 +206,18 @@ export function createRestClient(): RestClient {
         { slots },
         { keepalive: true },
       ),
+    getPvpProfile: (characterId) =>
+      call<PvpProfile>('GET', `/api/characters/${encodeURIComponent(characterId)}/pvp`),
+    // keepalive, as the skill bar's
+    putArenaBuild: (characterId, build) =>
+      call<ArenaBuild>(
+        'PUT',
+        `/api/characters/${encodeURIComponent(characterId)}/pvp-build`,
+        build,
+        { keepalive: true },
+      ),
+    getLeaderboard: (mode) =>
+      call<Leaderboard>('GET', `/api/pvp/leaderboard?mode=${encodeURIComponent(mode)}`),
   };
 }
 

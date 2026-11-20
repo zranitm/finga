@@ -49,7 +49,7 @@ func TestABuildIsSavedOnceItsTheClasssAndSentToTheMatch(t *testing.T) {
 	ctx := context.Background()
 	account := kernel.NewAccountID()
 	ayla := f.warrior(account, warriorBar, nil)
-	traits := map[string]string{"strike": "concussion", "war_cry": "fury"}
+	traits := map[string]string{"strike": "concussion", "war_cry": "fury", "iron_body": "iron_wall"} // Iron Body, War Cry's follow-up, off the bar
 	for k := range 2 {
 		if err := f.svc.SetBuild(ctx, account, ayla, warriorBar, traits); err != nil {
 			t.Fatal(err)
@@ -69,7 +69,7 @@ func TestABuildIsSavedOnceItsTheClasssAndSentToTheMatch(t *testing.T) {
 		{"another class's skill", ayla, []string{"fire_arrow", "", "", "", "", "", "", ""}, nil, model.ErrBadBuild},
 		{"seven keys", ayla, warriorBar[:7], nil, model.ErrBadBuild},
 		{"a trait not its skill's", ayla, warriorBar, map[string]string{"strike": "fury"}, model.ErrBadBuild},
-		{"a trait for a skill off the bar", ayla, warriorBar, map[string]string{"slash_blast": "wide"}, model.ErrBadBuild},
+		{"a trait for another class's skill", ayla, warriorBar, map[string]string{"fire_arrow": "flame"}, model.ErrBadBuild},
 		{"another account's character", f.warrior(kernel.NewAccountID(), warriorBar, nil), warriorBar, nil, model.ErrNoCharacter},
 		{"a Beginner's", f.of(account, "beginner"), arenaKeys("strike"), nil, model.ErrNotPromoted},
 		{"an unknown class's", f.of(account, "jester"), arenaKeys(), nil, model.ErrNotPromoted},
@@ -104,7 +104,7 @@ func TestAProfileGivesEachRatedModeAndTheBuild(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 	account := kernel.NewAccountID()
-	ayla := f.warrior(account, []string{"guard", "strike", "", "", "", "", "", ""}, map[string]string{"strike": "swift", "taunt": "goad"})
+	ayla := f.warrior(account, []string{"guard", "strike", "", "", "", "", "", ""}, map[string]string{"strike": "swift", "taunt": "goad", "fire_arrow": "flame"})
 	p, err := f.svc.Profile(ctx, account, ayla)
 	if err != nil {
 		t.Fatal(err)
@@ -113,7 +113,7 @@ func TestAProfileGivesEachRatedModeAndTheBuild(t *testing.T) {
 		{Mode: "duel", Shown: 1000, Rank: "bronze", PlacementLeft: 5},
 		{Mode: "team", Shown: 1000, Rank: "bronze", PlacementLeft: 5},
 	}
-	copied := model.Build{Bar: []string{"bastion", "strike", "", "", "", "", "", ""}, Traits: map[string]string{"strike": "swift"}}
+	copied := model.Build{Bar: []string{"bastion", "strike", "", "", "", "", "", ""}, Traits: map[string]string{"strike": "swift", "taunt": "goad"}} // another class's trait left off
 	if !slices.Equal(p.Standings, fresh) || !same(p.Build, copied) {
 		t.Fatalf("a new fighter's profile %+v; want %+v, built %+v", p, fresh, copied)
 	}

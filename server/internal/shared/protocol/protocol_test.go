@@ -134,7 +134,7 @@ func TestCatalogueCoversPage4(t *testing.T) {
 	want := map[string][]string{
 		"client": {"AbandonQuest", "AcceptQuest", "AddToWardrobe", "Attack", "Channels", "ChatSend", "ChooseTrait", "EnterPortal", "Equip", "HandInQuest", "Hello", "Input", "InventoryDiscard", "InventoryDiscardMany", "InventoryMove",
 			"PartyInvite", "PartyKick", "PartyLeave", "PartyPromote", "PartyRespond", "Ping", "Promote", "PvpAnswer", "PvpForfeit", "PvpLeaveQueue", "PvpQueue", "ResetPoints", "SetLook", "SpendPoints", "SpendSkillPoints", "SwitchChannel", "TakeLoot", "Talk", "Teleport", "Unequip", "UseItem", "UseSkill"},
-		"server": {"AreaEntered", "AttackUsed", "ChatMessage", "Damage", "Delta", "Died", "ExpGained", "FieldBoss", "FieldBossGone", "InventoryChanged", "Kicked",
+		"server": {"AreaEntered", "ArenaBar", "AttackUsed", "ChatMessage", "Damage", "Delta", "Died", "ExpGained", "FieldBoss", "FieldBossGone", "InventoryChanged", "Kicked",
 			"LevelUp", "Loot", "MapChange", "MatchEnded", "MatchState", "MobAttacked", "NpcDialog", "PartyInvited", "PartySpots", "PartyState", "Pong", "Promoted", "PvpOffer", "PvpOfferGone", "PvpQueued", "PvpUnqueued", "QuestChanged", "Respawned", "Response", "SkillUsed", "Snapshot", "StatsChanged", "TeleportCancelled", "Welcome"},
 	}
 	if got := clientMessages; !slices.Equal(got, want["client"]) {

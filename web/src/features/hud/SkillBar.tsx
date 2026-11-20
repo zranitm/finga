@@ -1,5 +1,6 @@
 // The bar's eight keys, each labelled with the key it's bound to: a skill dragged from the skill window goes on a key, dragging a key onto another swaps them, and dropping it off the bar empties it.
 // A key holds a chain's root or a skill in no chain, and shows what it offers now: a live follow-up in a frame glowing its colour (skill-chains.md section 5).
+// In a match, from its countdown, the keys are the arena bar the match put on, which changes in the skill window's Arena tab alone (pvp.md section 13).
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent } from 'react';
 
@@ -16,18 +17,22 @@ import type { Cooldown } from '@/state/skill-bar';
 /** What a key carries when dragged: its index. */
 const KEY_TYPE = 'application/x-finga-skill-key';
 
+/** What the bar says in a match, where it holds the arena bar. */
+const ARENA_BAR_HELP =
+  'Your arena bar. Change it in the skill window’s Arena tab: a change applies from the next round.';
+
 /** How long a key flashes red at a follow-up dropped on it. */
 const REFUSED_MS = 400;
 
-/** While key index is dragged, the whole page takes it, so a drop anywhere off the bar empties the key; Esc drops nowhere and keeps it. Returns the end of that. */
-function takeDropsOff(index: number): () => void {
+/** While a key is dragged, the whole page takes it, so a drop anywhere off the bar matching bar empties it by clear; Esc drops nowhere and keeps it. Returns the end of that. */
+export function takeDropsOff(bar: string, clear: () => void): () => void {
   const over = (e: globalThis.DragEvent) => {
     e.preventDefault();
   };
   const drop = (e: globalThis.DragEvent) => {
     e.preventDefault();
-    if (!(e.target instanceof Element && e.target.closest('.skill-bar'))) {
-      skillBar.getState().clear(index);
+    if (!(e.target instanceof Element && e.target.closest(bar))) {
+      clear();
     }
   };
   document.addEventListener('dragover', over);
@@ -42,6 +47,7 @@ export function SkillBar() {
   const slots = skillBar.use((s) => s.slots);
   const live = skillBar.use((s) => s.live);
   const cooldowns = skillBar.use((s) => s.cooldowns);
+  const worn = skillBar.use((s) => s.arena !== null);
   const cls = character.use((s) => s.character?.class ?? '');
   const [refused, setRefused] = useState<{ readonly key: number; readonly n: number } | null>(null);
   useEffect(() => {
@@ -64,7 +70,11 @@ export function SkillBar() {
     }
   };
   return (
-    <ol className="skill-bar" aria-label="Skill bar">
+    <ol
+      className="skill-bar"
+      aria-label={worn ? 'Arena bar' : 'Skill bar'}
+      title={worn ? ARENA_BAR_HELP : undefined}
+    >
       {slots.map((root, key) => {
         const id = live[key] === '' ? root : (live[key] ?? root);
         return (
@@ -76,6 +86,7 @@ export function SkillBar() {
             skill={id}
             cooldown={cooldowns[id]}
             refused={refused?.key === key ? refused.n : 0}
+            worn={worn}
             onDrop={onDrop}
           />
         );
@@ -99,6 +110,7 @@ function SkillKey({
   skill,
   cooldown,
   refused,
+  worn,
   onDrop,
 }: {
   readonly index: number;
@@ -109,6 +121,8 @@ function SkillKey({
   readonly cooldown: Cooldown | undefined;
   /** Counts the follow-ups dropped on it and refused while it flashes red, 0 for none. */
   readonly refused: number;
+  /** A match's arena bar is on: the key takes no drags or drops. */
+  readonly worn: boolean;
   readonly onDrop: (e: DragEvent, key: number) => void;
 }) {
   const invested = character.use((s) => s.character?.sheet?.skills?.invested);
@@ -143,22 +157,27 @@ function SkillKey({
       style={style}
       aria-label={label}
       title={
-        stage
-          ? label
-          : `${label}. Drag a skill here from the skill window (${keys.name('skills')}).`
+        worn
+          ? `${label}. ${ARENA_BAR_HELP}`
+          : stage
+            ? label
+            : `${label}. Drag a skill here from the skill window (${keys.name('skills')}).`
       }
-      draggable={stage !== undefined}
+      draggable={!worn && stage !== undefined}
       onDragStart={(e) => {
         e.dataTransfer.setData(KEY_TYPE, String(index));
         e.dataTransfer.effectAllowed = 'move';
         dragTile(e);
-        dragging.current = takeDropsOff(index);
+        dragging.current = takeDropsOff('.skill-bar', () => skillBar.getState().clear(index));
       }}
       onDragEnd={() => {
         dragging.current?.();
         dragging.current = null;
       }}
       onDragOver={(e) => {
+        if (worn) {
+          return; // no drop
+        }
         e.preventDefault();
         // A drop needs an effect the drag allows: the skill window's rows copy, a key moves.
         e.dataTransfer.dropEffect = e.dataTransfer.types.includes(SKILL_DRAG_TYPE)
