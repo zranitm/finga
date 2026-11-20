@@ -12,6 +12,7 @@ import { TextureBlock } from '@babylonjs/core/Materials/Node/Blocks/Dual/texture
 import { DiscardBlock } from '@babylonjs/core/Materials/Node/Blocks/Fragment/discardBlock';
 import { FragCoordBlock } from '@babylonjs/core/Materials/Node/Blocks/Fragment/fragCoordBlock';
 import { FragmentOutputBlock } from '@babylonjs/core/Materials/Node/Blocks/Fragment/fragmentOutputBlock';
+import { FrontFacingBlock } from '@babylonjs/core/Materials/Node/Blocks/Fragment/frontFacingBlock';
 import { InputBlock } from '@babylonjs/core/Materials/Node/Blocks/Input/inputBlock';
 import { LengthBlock } from '@babylonjs/core/Materials/Node/Blocks/lengthBlock';
 import { LerpBlock } from '@babylonjs/core/Materials/Node/Blocks/lerpBlock';
@@ -50,6 +51,8 @@ import { clearsMark, GHOST, markOthers, onPlace } from './see-through';
 /** The light bands a surface steps through: shade, mid and lit; in shade it keeps this share of its colour, a cool grey. */
 const BANDS = 3;
 const SHADE = new Color3(0.5, 0.5, 0.58).toLinearSpace();
+/** A hollow model's inside, which a cut shows: its colour in the shade band, darkened this much again, unlit. */
+const INSIDE = 0.6;
 /** The ink line's width in metres, pushed out after skinning, and its colour. */
 const OUTLINE_M = 0.03;
 const INK = new Color3(0.07, 0.06, 0.09);
@@ -149,7 +152,11 @@ function constant(name: string, v: number): InputBlock {
 function cutShare(
   s: Skinned,
   cut: Cut,
-): { share: NodeMaterialConnectionPoint; noise: NodeMaterialConnectionPoint } {
+): {
+  share: NodeMaterialConnectionPoint;
+  seen: NodeMaterialConnectionPoint;
+  noise: NodeMaterialConnectionPoint;
+} {
   const view = s.system('view', NodeMaterialSystemValues.View);
   const fragment = new TransformBlock('cutFragment');
   s.worldPos.output.connectTo(fragment.vector);
@@ -198,6 +205,10 @@ function cutShare(
   s.worldPos.output.connectTo(world.xyzw);
   const edgeBy = constant('cutEdgeBy', CUT_EDGE);
   let most: NodeMaterialConnectionPoint = share.output;
+  const chestSeen = new MultiplyBlock('cutChestSeen'); // the chest's share wherever the fragment stands
+  open.output.connectTo(chestSeen.left);
+  on.output.connectTo(chestSeen.right);
+  let seen: NodeMaterialConnectionPoint = chestSeen.output;
   for (let i = 0; i < CUT_MOBS; i++) {
     const name = `cutMob${i}`;
     const slot = new InputBlock(name, undefined, NodeMaterialBlockConnectionPointTypes.Vector4);
@@ -243,6 +254,10 @@ function cutShare(
     most.connectTo(more.left);
     mobShare.output.connectTo(more.right);
     most = more.output;
+    const moreSeen = new MaxBlock(`cutSeen${i}`); // at any height: a ray down through a front cut above it meets the far wall lower
+    seen.connectTo(moreSeen.left);
+    mobOpen.output.connectTo(moreSeen.right);
+    seen = moreSeen.output;
   }
 
   // interleaved gradient noise on the pixel, from 0 up to 1: a pixel goes where it falls under the share to drop
@@ -262,16 +277,30 @@ function cutShare(
   const noise = new ModBlock('cutNoise');
   spread.output.connectTo(noise.left);
   one.output.connectTo(noise.right);
-  return { share: most, noise: noise.output };
+  return { share: most, seen, noise: noise.output };
 }
 
-/** Drops the fragments cut opens: the place's. */
-function cutAway(s: Skinned, cut: Cut): DiscardBlock {
-  const { share, noise } = cutShare(s, cut);
+/** Drops the fragments cut opens: the place's; and with facing, a hollow model's back faces but where an opening shows them, so its silhouettes stay as they were. */
+function cutAway(s: Skinned, cut: Cut, facing: NodeMaterialConnectionPoint | null): DiscardBlock[] {
+  const { share, seen, noise } = cutShare(s, cut);
   const discard = new DiscardBlock('cut');
   noise.connectTo(discard.value);
   share.connectTo(discard.cutoff);
-  return discard;
+  if (!facing) {
+    return [discard];
+  }
+  const hidden = new StepBlock('cutHidden'); // 1 where no opening would drop a fragment nearer than this one
+  noise.connectTo(hidden.value);
+  seen.connectTo(hidden.edge);
+  const shown = new OneMinusBlock('cutShown');
+  hidden.output.connectTo(shown.input);
+  const kept = new AddBlock('cutBackKept'); // 0 only on a back face no opening shows
+  facing.connectTo(kept.left);
+  shown.output.connectTo(kept.right);
+  const back = new DiscardBlock('cutBack');
+  kept.output.connectTo(back.value);
+  constant('cutBackKeep', 0.5).output.connectTo(back.cutoff);
+  return [discard, back];
 }
 
 /** 1 where cut keeps a fragment, GHOST where it drops it: a decal's strength, so its part on opened place shows as faintly as its ghost does where the place hides it. */
@@ -349,6 +378,7 @@ function built(
   alpha = 1,
   cut: Cut | null = null,
   place = cut !== null,
+  facing: NodeMaterialConnectionPoint | null = null,
 ) {
   const fog = new FogBlock('fog');
   s.worldPos.output.connectTo(fog.worldPosition);
@@ -372,7 +402,9 @@ function built(
   m.addOutputNode(s.vertex);
   m.addOutputNode(fragment);
   if (cut) {
-    m.addOutputNode(cutAway(s, cut));
+    for (const d of cutAway(s, cut, facing)) {
+      m.addOutputNode(d);
+    }
   }
   if (place) {
     clearsMark(m);
@@ -388,6 +420,7 @@ function toonMaterial(
   alpha: number,
   cut: Cut | null,
   place = cut !== null,
+  hollow = false,
 ): NodeMaterial {
   const s = new Skinned();
   s.place(s.worldPos.output);
@@ -444,14 +477,43 @@ function toonMaterial(
   const shaded = new MultiplyBlock('shaded');
   albedo.output.connectTo(shaded.left);
   tone.output.connectTo(shaded.right);
-  return built(
-    new NodeMaterial(name, scene, { emitComments: false }),
-    s,
-    base.glow ? rimmed(s, albedo.output, lit.output) : shaded.output,
-    alpha,
-    cut,
-    place,
-  );
+  const m = new NodeMaterial(name, scene, { emitComments: false });
+  let rgb = base.glow ? rimmed(s, albedo.output, lit.output) : shaded.output;
+  let facing: NodeMaterialConnectionPoint | null = null;
+  if (hollow) {
+    facing = facesCamera();
+    rgb = inside(facing, albedo.output, shade.output, rgb);
+    m.backFaceCulling = false;
+  }
+  return built(m, s, rgb, alpha, cut, place, facing);
+}
+
+/** 1 on a face turned to the camera, 0 on one turned away, by the triangle's winding, as culling judges it: exact at a silhouette, where a smooth normal can already turn away; gl_FrontFacing counts the other way under Babylon's clockwise front faces. */
+function facesCamera(): NodeMaterialConnectionPoint {
+  const gl = new FrontFacingBlock('glFrontFacing');
+  const front = new OneMinusBlock('front');
+  gl.output.connectTo(front.input);
+  return front.output;
+}
+
+/** A hollow model's colour: rgb on the faces turned to the camera, and on those turned away, its inside an opening shows, albedo in the shade band darkened by INSIDE. */
+function inside(
+  facing: NodeMaterialConnectionPoint,
+  albedo: NodeMaterialConnectionPoint,
+  shade: NodeMaterialConnectionPoint,
+  rgb: NodeMaterialConnectionPoint,
+): NodeMaterialConnectionPoint {
+  const shaded = new MultiplyBlock('insideShaded');
+  albedo.connectTo(shaded.left);
+  shade.connectTo(shaded.right);
+  const dark = new ScaleBlock('inside');
+  shaded.output.connectTo(dark.input);
+  constant('insideBy', INSIDE).output.connectTo(dark.factor);
+  const out = new LerpBlock('insideOrOut');
+  dark.output.connectTo(out.left);
+  rgb.connectTo(out.right);
+  facing.connectTo(out.gradient);
+  return out.output;
 }
 
 /** A glow's colour: albedo in the lit band whatever the light, with white added toward the edges the camera sees side-on. */
@@ -579,13 +641,22 @@ export class Palette {
     markOthers(scene);
   }
 
-  /** The toon material for base, drawn at alpha: 1, or less for a solid faded out of the camera's way; cut for the place, which opens round the player. */
-  toon(base: ToonBase, alpha = 1, cut = false): NodeMaterial {
+  /** The toon material for base, drawn at alpha: 1, or less for a solid faded out of the camera's way; cut for the place, which opens round the player; a hollow one, a model the place stands, shows a dark inside where it's cut whole. */
+  toon(base: ToonBase, alpha = 1, cut = false, hollow = false): NodeMaterial {
     const color = base.color.clampToRef(0, 1, new Color3());
-    const key = `${base.texture?.uniqueId ?? '-'} ${color.toHexString()}${base.glow ? ' glow' : ''}${base.vertexColors ? ' vertex' : ''}${cut ? ' cut' : ''}${alpha < 1 ? ` ${alpha}` : ''}`;
+    const inside = hollow && cut && alpha === 1;
+    const key = `${base.texture?.uniqueId ?? '-'} ${color.toHexString()}${base.glow ? ' glow' : ''}${base.vertexColors ? ' vertex' : ''}${cut ? ' cut' : ''}${inside ? ' hollow' : ''}${alpha < 1 ? ` ${alpha}` : ''}`;
     let m = this.made.get(key);
     if (!m) {
-      m = toonMaterial(`toon ${key}`, this.scene, { ...base, color }, alpha, cut ? this.cut : null);
+      m = toonMaterial(
+        `toon ${key}`,
+        this.scene,
+        { ...base, color },
+        alpha,
+        cut ? this.cut : null,
+        cut,
+        inside,
+      );
       this.made.set(key, m);
     }
     return m;
