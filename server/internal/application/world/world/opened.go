@@ -48,8 +48,10 @@ func (o *opened) run(id string, inst *instance.Instance) error {
 		}()
 		o.mu.Lock()
 		defer o.mu.Unlock()
-		delete(o.by, id)
-		delete(o.close, id)
+		if o.by[id] == inst { // shut forgets it at once, and its id may be open again
+			delete(o.by, id)
+			delete(o.close, id)
+		}
 		if err != nil && o.err == nil {
 			o.err = fmt.Errorf("instance %s: %w", id, err)
 			o.fail(o.err)
@@ -66,12 +68,14 @@ func (o *opened) get(id string) (*instance.Instance, bool) {
 	return inst, ok
 }
 
-// shut stops the open instance id, as its World's stop would.
+// shut stops the open instance id, as its World's stop would, and forgets it at once, so its id can open again while it winds down.
 func (o *opened) shut(id string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if cancel, ok := o.close[id]; ok {
 		cancel()
+		delete(o.by, id)
+		delete(o.close, id)
 	}
 }
 

@@ -1,13 +1,23 @@
 package world
 
 import (
+	"context"
+	"log/slog"
 	"slices"
+	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
+	"go.opentelemetry.io/otel/trace/noop"
+
 	"finga/internal/application/world/instance"
+	"finga/internal/application/world/itemcalls"
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
+	"finga/internal/shared/gamedata/gamedatatest"
+	"finga/internal/shared/kernel"
+	"finga/pkg/panics"
 )
 
 // testRegion is a region whose channels are numbered ns, each with pending players on its way: an instance never run has none in it.
@@ -149,4 +159,75 @@ func TestAChannelPastTheFirstClosesOnceIdle(t *testing.T) {
 	if got := cs.loads(r); !slices.Equal(got.Open, []model.ChannelLoad{{Channel: 1}}) || got.Cap != 2 {
 		t.Errorf("loads %+v", got)
 	}
+}
+
+// stall holds channel 2's next tick, once armed, until hold closes: an instance caught winding down.
+type stall struct {
+	mu    sync.Mutex
+	armed bool
+	hold  chan struct{}
+}
+
+func (s *stall) ObserveTick(_ string, channel int, _, _ time.Duration) {
+	s.mu.Lock()
+	held := s.armed && channel == 2
+	if held {
+		s.armed = false
+	}
+	s.mu.Unlock()
+	if held {
+		<-s.hold
+	}
+}
+
+// A channel's number opens again the moment its sweep shut it, its old instance still winding down: a pick with every other channel full takes it, and the old one's end forgets nothing of the new.
+func TestAShutChannelsNumberOpensAgainAtOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := gamedatatest.Shipped(t)
+		rec := panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
+		ticks := &stall{hold: make(chan struct{})}
+		w := New(Deps{
+			NewRoll: func() model.Roll { return half{} }, Observer: ticks, Parties: alone{}, Items: nothing{}, Batches: nothing{}, ItemCalls: itemcalls.NewPool(itemcalls.Deps{Observer: quiet{}, Panics: rec}, itemcalls.Options{Workers: 1}), Traces: noop.NewTracerProvider(),
+			Data: data, Saver: nothing{}, Characters: nothing{}, Starter: nothing{}, SaveObserver: nothing{}, Channels: nothing{}, Panics: rec, Logger: slog.New(slog.DiscardHandler),
+		}, Tuning{TickInterval: 50 * time.Millisecond, CheckpointInterval: time.Hour, FlushTimeout: time.Second, BatchMax: 32, ChannelCap: 1, ChannelIdle: time.Minute})
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
+		go func() { defer close(done); _ = w.Run(ctx) }()
+		defer func() { cancel(); <-done }()
+		release := sync.OnceFunc(func() { close(ticks.hold) })
+		defer release() // first, on any failure, so the World can stop
+		time.Sleep(50 * time.Millisecond)
+		synctest.Wait()
+
+		r := w.channels.regions["test_region"]
+		r.open[0].pending = 1 // channel 1 full
+		_, landed, err := w.pickChannel(kernel.NewCharacterID(), r, 0, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		landed()
+		old, _ := w.opened.get("test_region/2")
+		ticks.mu.Lock()
+		ticks.armed = true
+		ticks.mu.Unlock()
+		time.Sleep(50 * time.Millisecond)
+		synctest.Wait() // channel 2 is held inside a tick
+		now := time.Now()
+		w.channels.sweep(now)
+		shut := w.channels.sweep(now.Add(time.Minute))
+		if !slices.Equal(shut, []string{"test_region/2"}) {
+			t.Fatalf("shut %v", shut)
+		}
+		w.opened.shut(shut[0])
+		inst, landed, err := w.pickChannel(kernel.NewCharacterID(), r, 0, false)
+		if err != nil {
+			t.Fatalf("channel 2 opening again while the old one winds down: %v", err)
+		}
+		landed()
+		release()
+		synctest.Wait() // the old one has ended
+		if got, ok := w.opened.get("test_region/2"); !ok || got != inst || got == old || inst.Channel() != 2 {
+			t.Fatalf("open under test_region/2: %p (%v); want the new channel %p, not the old %p", got, ok, inst, old)
+		}
+	})
 }
