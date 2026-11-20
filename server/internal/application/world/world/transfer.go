@@ -11,10 +11,10 @@ import (
 )
 
 // Transfer marks the player in transit from the calling instance and lands them on another, a map's or a match's, on its own goroutine, so the calling tick never waits nor takes the character's lock.
-func (w *World) Transfer(from *instance.Instance, p model.Player, sink instance.Sink, dest string) {
-	target, ok := w.instanceAt(dest)
+func (w *World) Transfer(from *instance.Instance, p model.Player, sink instance.Sink, dest instance.Dest) {
+	target, ok := w.instanceAt(dest.ID)
 	if !ok { // a match that closed meanwhile: the gateway joins them again, where they came from
-		w.deps.Logger.Error("transfer to no open instance", "character_id", p.ID, "to", dest)
+		w.deps.Logger.Error("transfer to no open instance", "character_id", p.ID, "to", dest.ID)
 		w.presences.forgetThrough(p.ID, p.Connection)
 		sink.Send(model.Detached{})
 		return
@@ -24,7 +24,7 @@ func (w *World) Transfer(from *instance.Instance, p model.Player, sink instance.
 		return // a newer join took the presence, or a leave took it off
 	}
 	w.background.Go(func() {
-		w.deps.Panics.Do(w.jobsCtx, panics.FlowJob, func() { w.land(p, sink, at) }, "job", "transfer", "character_id", p.ID, "to", dest)
+		w.deps.Panics.Do(w.jobsCtx, panics.FlowJob, func() { w.land(p, sink, at) }, "job", "transfer", "character_id", p.ID, "to", dest.ID)
 	})
 }
 

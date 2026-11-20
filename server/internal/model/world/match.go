@@ -50,8 +50,9 @@ type Build struct {
 
 // Return is where a player in a match goes back to: their map, and themselves as they were there.
 type Return struct {
-	MapID  string
-	Player Player
+	MapID   string
+	Channel int // the region's channel they left, which they go back to while it has room
+	Player  Player
 }
 
 // MatchPhase is where a match stands.

@@ -40,7 +40,7 @@ type World struct {
 	deps      Deps
 	instances map[string]*instance.Instance
 	order     []string
-	matches   matches // opened on demand
+	opened    opened // matches and channels, opened on demand
 	tuning    instance.Tuning
 	presences presences
 	locks     *keylock.Locks[kernel.CharacterID] // every presence change of a character but the tick's, one at a time
@@ -119,7 +119,7 @@ func (w *World) Run(ctx context.Context) error {
 	defer w.mapsStopped() // no more checkpoints can arrive
 	runCtx, fail := context.WithCancelCause(ctx)
 	defer fail(nil)
-	w.matches.start(runCtx, fail)
+	w.opened.start(runCtx, fail)
 	g, gctx := errgroup.WithContext(runCtx)
 	for _, id := range w.order {
 		inst := w.instances[id]
@@ -134,8 +134,8 @@ func (w *World) Run(ctx context.Context) error {
 		})
 	}
 	err := g.Wait()
-	fail(nil) // the matches stop with the maps
-	err = cmp.Or(err, w.matches.stop())
+	fail(nil) // the matches and channels stop with the maps
+	err = cmp.Or(err, w.opened.stop())
 	w.stopBackground()
 	w.background.Wait()
 	return err

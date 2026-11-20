@@ -52,7 +52,8 @@ func facingSouth(yaw float32) bool { return math.Abs(math.Abs(float64(yaw))-math
 type transferRecorder struct {
 	mu      sync.Mutex
 	moved   []model.Player
-	to      []string
+	to      []string // each hand-off's dest's id
+	dests   []instance.Dest
 	dropped []string // "<character> <connection>"
 }
 
@@ -62,11 +63,12 @@ func (r *transferRecorder) Dropped(_ *instance.Instance, id kernel.CharacterID, 
 	r.dropped = append(r.dropped, id.String()+" "+conn)
 }
 
-func (r *transferRecorder) Transfer(_ *instance.Instance, p model.Player, _ instance.Sink, mapID string) {
+func (r *transferRecorder) Transfer(_ *instance.Instance, p model.Player, _ instance.Sink, dest instance.Dest) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.moved = append(r.moved, p)
-	r.to = append(r.to, mapID)
+	r.to = append(r.to, dest.ID)
+	r.dests = append(r.dests, dest)
 }
 
 func ofType(s *worldtest.Sink, want func(any) bool) []any {

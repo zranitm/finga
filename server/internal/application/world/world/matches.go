@@ -4,85 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 
 	"finga/internal/application/world/instance"
 	model "finga/internal/model/world"
 	"finga/internal/shared/kernel"
-	"finga/pkg/panics"
 	"finga/pkg/transient"
 )
-
-// matches are the instances the World opens on demand and that close themselves, each on its own goroutine under the World's run: a match's now.
-type matches struct {
-	mu   sync.Mutex
-	by   map[string]*instance.Instance
-	ctx  context.Context // Run's while it runs: nil before, and done after
-	fail context.CancelCauseFunc
-	runs sync.WaitGroup
-	err  error // the first failure, a panic, which stops the World as a map's does
-}
-
-// start lets instances open under ctx until it's done; fail stops the World.
-func (ms *matches) start(ctx context.Context, fail context.CancelCauseFunc) {
-	ms.mu.Lock()
-	defer ms.mu.Unlock()
-	ms.by, ms.ctx, ms.fail = map[string]*instance.Instance{}, ctx, fail
-}
-
-// run starts inst under id; ErrStopped when the World isn't running.
-func (ms *matches) run(id string, inst *instance.Instance) error {
-	ms.mu.Lock()
-	defer ms.mu.Unlock()
-	if ms.ctx == nil || ms.ctx.Err() != nil {
-		return model.ErrStopped
-	}
-	if _, dup := ms.by[id]; dup {
-		return fmt.Errorf("world: instance %s is open already", id)
-	}
-	ms.by[id] = inst
-	ctx := ms.ctx
-	ms.runs.Go(func() {
-		err := func() (err error) {
-			defer panics.Capture(&err)
-			return inst.Run(ctx)
-		}()
-		ms.mu.Lock()
-		defer ms.mu.Unlock()
-		delete(ms.by, id)
-		if err != nil && ms.err == nil {
-			ms.err = fmt.Errorf("instance %s: %w", id, err)
-			ms.fail(ms.err)
-		}
-	})
-	return nil
-}
-
-// get is the open instance id.
-func (ms *matches) get(id string) (*instance.Instance, bool) {
-	ms.mu.Lock()
-	defer ms.mu.Unlock()
-	inst, ok := ms.by[id]
-	return inst, ok
-}
-
-// stop opens no more, and waits for those open to stop; it returns the first failure.
-func (ms *matches) stop() error {
-	ms.mu.Lock()
-	ms.ctx = nil
-	ms.mu.Unlock()
-	ms.runs.Wait()
-	ms.mu.Lock()
-	defer ms.mu.Unlock()
-	return ms.err
-}
 
 // instanceAt is a map's instance or an open match's, by id.
 func (w *World) instanceAt(id string) (*instance.Instance, bool) {
 	if inst, ok := w.instances[id]; ok {
 		return inst, true
 	}
-	return w.matches.get(id)
+	return w.opened.get(id)
 }
 
 // OpenMatch opens spec's match on its mode's map and hands each of its characters to it from where they are; one who can't go counts as gone once the match's prep ends.
@@ -97,7 +31,7 @@ func (w *World) OpenMatch(ctx context.Context, spec model.MatchSpec) error {
 		Services: w.deps.Services, Map: m, Data: w.data, Saves: w.saves, Mover: w, Logger: w.deps.Logger,
 		Match: &instance.Match{Spec: spec, Mode: mode, Results: w.deps.Results},
 	}, w.tuning)
-	if err := w.matches.run(id, inst); err != nil {
+	if err := w.opened.run(id, inst); err != nil {
 		return err
 	}
 	for s, side := range spec.Sides {

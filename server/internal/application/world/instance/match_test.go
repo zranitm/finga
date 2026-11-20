@@ -112,7 +112,7 @@ func TestAMatchAgainstABotRunsToItsEnd(t *testing.T) {
 			t.Fatal("the second round's reset sent no Respawned for each fighter")
 		}
 		mv := moves.All()
-		if len(mv) != 1 || mv[0].Dest != data.StartTown().ID || mv[0].Player.Level != 5 || mv[0].Player.HP != 150 || mv[0].Player.Back != nil {
+		if len(mv) != 1 || mv[0].Dest.ID != data.StartTown().ID || mv[0].Player.Level != 5 || mv[0].Player.HP != 150 || mv[0].Player.Back != nil {
 			t.Fatalf("hand-offs %+v, want Ayla back in town as she was", mv)
 		}
 		if _, running := mv[0].Player.Timers.Cooldowns["war_cry"]; !running {
@@ -162,7 +162,7 @@ func TestAForfeitLosesAndGoesBack(t *testing.T) {
 		if len(got) != 1 || got[0].Winner != 2 || !got[0].Sides[0][0].Left {
 			t.Fatalf("outcomes %+v, want the bot's, Ayla gone", got)
 		}
-		if mv := moves.All(); len(mv) != 1 || mv[0].Dest != data.StartTown().ID {
+		if mv := moves.All(); len(mv) != 1 || mv[0].Dest.ID != data.StartTown().ID {
 			t.Fatalf("hand-offs %+v, want Ayla back in town", mv)
 		}
 		if err := inst.Forfeit(context.Background(), ayla.ID, ayla.Connection); !errors.Is(err, model.ErrNotInMatch) {
@@ -499,7 +499,7 @@ func TestAForfeitBetweenRoundsLoses(t *testing.T) {
 		if len(got) != 1 || got[0].Winner != 1 || !got[0].Sides[1][0].Left || got[0].Sides[0][0].Left {
 			t.Fatalf("outcomes %+v, want Ayla's, Robin gone", got)
 		}
-		if mv := moves.All(); len(mv) != 1 || mv[0].Player.ID != robin.ID || mv[0].Dest != data.StartTown().ID {
+		if mv := moves.All(); len(mv) != 1 || mv[0].Player.ID != robin.ID || mv[0].Dest.ID != data.StartTown().ID {
 			t.Fatalf("hand-offs %+v, want Robin back in town", mv)
 		}
 	})

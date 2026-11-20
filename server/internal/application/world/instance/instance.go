@@ -53,12 +53,13 @@ type Services struct {
 // Deps are one map's: the map, where its checkpoints go and who takes its players to other maps, with the shared services; all are required.
 type Deps struct {
 	Services
-	Map    *gamedata.Map
-	Data   *gamedata.Data
-	Saves  Checkpoints
-	Mover  Mover
-	Logger *slog.Logger // the map's log: for the tick, such as a rescued fall, and for work off it with no one else to tell, such as a grant call
-	Match  *Match       // a match's instance has one; a world map's is nil
+	Map     *gamedata.Map
+	Data    *gamedata.Data
+	Saves   Checkpoints
+	Mover   Mover
+	Logger  *slog.Logger // the map's log: for the tick, such as a rescued fall, and for work off it with no one else to tell, such as a grant call
+	Match   *Match       // a match's instance has one; a world map's is nil
+	Channel int          // a region's channel number, from 1; 0 on any other map
 }
 
 // Instance is one map's actor; only its tick goroutine touches its state.
@@ -78,7 +79,9 @@ type Instance struct {
 	stopped  chan struct{} // closed once Run has returned: nothing drains the inbox
 	cancel   context.CancelFunc
 	ended    atomic.Bool // the instance closed itself, as a match does at its end
-	match    *match      // nil on a world map
+	channel  int
+	count    atomic.Int32 // players on it, for the World's channel picks
+	match    *match       // nil on a world map
 	saves    Checkpoints
 	arena    *mobs.Arena
 	ground   *loot.Ground
@@ -200,6 +203,7 @@ func New(d Deps, t Tuning) *Instance {
 		ticksPer: max(uint64(t.CheckpointInterval/t.TickInterval), 1),
 		roll:     roll,
 		interest: newInterest(d.Data.Interest(), d.Map.Geometry.SizeX, d.Map.Geometry.SizeZ),
+		channel:  d.Channel,
 	}
 	if d.Match != nil {
 		i.match = newMatch(*d.Match, d.Data.Pvp(), i.ticksFor)
@@ -216,6 +220,12 @@ func New(d Deps, t Tuning) *Instance {
 
 // MapID is the map the instance runs.
 func (i *Instance) MapID() string { return i.m.ID }
+
+// Channel is the region's channel the instance runs, from 1; 0 on any other map.
+func (i *Instance) Channel() int { return i.channel }
+
+// Players is how many players are on the instance, read from any goroutine.
+func (i *Instance) Players() int { return int(i.count.Load()) }
 
 // Ended reports whether the instance closed itself, as a match does once it's over, rather than stopping with the world.
 func (i *Instance) Ended() bool { return i.ended.Load() }

@@ -25,9 +25,16 @@ type Checkpoints interface {
 	Put(cp model.Checkpoint)
 }
 
-// Mover moves a player to another instance, a map's or a match's by its id; it must not block the calling tick.
+// Dest is where a hand-off goes: a map's, a region's or a match's instance by its id. In a region it's channel Channel when that's open with room, else the World's pick; a switch lands in Channel past its cap, as it checked the room when it began.
+type Dest struct {
+	ID      string
+	Channel int // a region's; 0, the World picks
+	Switch  bool
+}
+
+// Mover moves a player to another instance; it must not block the calling tick.
 type Mover interface {
-	Transfer(from *Instance, p model.Player, sink Sink, dest string)
+	Transfer(from *Instance, p model.Player, sink Sink, dest Dest)
 	// Dropped tells of a player the map removed because its sink failed.
 	Dropped(from *Instance, id kernel.CharacterID, conn string)
 }

@@ -11,6 +11,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"finga/internal/application/world/instance"
 	"finga/internal/application/world/itemcalls"
 	"finga/internal/application/world/worldtest"
 	model "finga/internal/model/world"
@@ -79,7 +80,7 @@ func TestATransferRetriesWhileTheMapIsBusy(t *testing.T) {
 		fillInbox(w, bo.ID, "c-bo")
 		moved := at(t, "Ayla", "forest")
 		moved.ID, moved.Connection = ayla.ID, "c-1"
-		w.Transfer(w.MapActor("town"), moved, s, "forest")
+		w.Transfer(w.MapActor("town"), moved, s, instance.Dest{ID: "forest"})
 		time.Sleep(time.Second)
 		synctest.Wait()
 		if snaps := worldtest.Of[model.Snapshot](s); len(snaps) != 2 || snaps[1].MapID != "forest" {
@@ -96,7 +97,7 @@ func TestAFailedTransferDetachesTheConnection(t *testing.T) {
 		w.enter(t, ayla, "town", "c-1", s)
 		moved := at(t, "Ayla", "forest")
 		moved.ID, moved.Connection, moved.Class = ayla.ID, "c-1", kernel.Class("nobody")
-		w.Transfer(w.MapActor("town"), moved, s, "forest")
+		w.Transfer(w.MapActor("town"), moved, s, instance.Dest{ID: "forest"})
 		time.Sleep(time.Second)
 		synctest.Wait()
 		if n := detached(s); n != 1 {
@@ -118,7 +119,7 @@ func TestATransferStopsOnceANewerJoinTakesTheCharacter(t *testing.T) {
 		fillInbox(w, bo.ID, "c-bo")
 		moved := at(t, "Ayla", "forest")
 		moved.ID, moved.Connection = ayla.ID, "c-1"
-		w.Transfer(w.MapActor("town"), moved, s, "forest")
+		w.Transfer(w.MapActor("town"), moved, s, instance.Dest{ID: "forest"})
 		synctest.Wait()
 		w.enter(t, ayla, "town", "c-2", &worldtest.Sink{})
 		time.Sleep(time.Second)
@@ -183,7 +184,7 @@ func TestATransferIntoAMapThatStoppedFirstIsNoFailure(t *testing.T) {
 		synctest.Wait()
 		moved := at(t, "Ayla", "forest")
 		moved.ID, moved.Connection = ayla.ID, "c-1"
-		w.Transfer(w.MapActor("town"), moved, s, "forest")
+		w.Transfer(w.MapActor("town"), moved, s, instance.Dest{ID: "forest"})
 		synctest.Wait()
 		close(release)
 		<-done
@@ -206,7 +207,7 @@ func TestAFailedLoginElsewhereMidPortalDetachesTheOlderConnection(t *testing.T) 
 		fillInbox(w, bo.ID, "c-bo") // the transfer waits at the forest
 		moved := at(t, "Ayla", "forest")
 		moved.ID, moved.Account, moved.Connection = ayla.ID, ayla.Account, "c-1"
-		w.Transfer(w.MapActor("town"), moved, s, "forest")
+		w.Transfer(w.MapActor("town"), moved, s, instance.Dest{ID: "forest"})
 		synctest.Wait()
 		delete(w.chars.chars, ayla.ID) // the login elsewhere fails on the load
 		if _, err := w.Join(context.Background(), ayla.Account, ayla.ID, "c-2", &worldtest.Sink{}); err == nil {

@@ -515,11 +515,11 @@ type Moves struct {
 // Move is one hand-off.
 type Move struct {
 	Player model.Player
-	Dest   string
+	Dest   instance.Dest
 }
 
 // Transfer records the hand-off.
-func (m *Moves) Transfer(_ *instance.Instance, p model.Player, _ instance.Sink, dest string) {
+func (m *Moves) Transfer(_ *instance.Instance, p model.Player, _ instance.Sink, dest instance.Dest) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.got = append(m.got, Move{Player: p, Dest: dest})
@@ -553,7 +553,7 @@ var errNobody = errors.New("worldtest: no such service in this test")
 type nobody struct{}
 
 // Transfer moves nobody.
-func (nobody) Transfer(*instance.Instance, model.Player, instance.Sink, string) {}
+func (nobody) Transfer(*instance.Instance, model.Player, instance.Sink, instance.Dest) {}
 
 // Dropped forgets nobody.
 func (nobody) Dropped(*instance.Instance, kernel.CharacterID, string) {}
