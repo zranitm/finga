@@ -336,6 +336,24 @@ describe('App', () => {
     }
   });
 
+  it('a call the rate limit refuses in the world says so in a toast, though its caller keeps quiet', async () => {
+    vi.stubGlobal(
+      'fetch',
+      fakeFetch(({ path }) => {
+        if (path === '/api/sessions') return { status: 201, body: { token: 'tok-1' } };
+        if (path.endsWith('/pvp')) return { status: 429, body: { code: ERR.RATE_LIMITED } };
+        return { status: 200, body: { characters: [sampleCharacter] } };
+      }).fetch,
+    );
+    render(<App />);
+    await logIn();
+    await user.click(await screen.findByRole('button', { name: 'Play' }));
+    const ws = FakeWebSocket.latest();
+    ws.open();
+    ws.push('welcome', welcome);
+    expect(await screen.findByRole('button', { name: 'Too fast. Wait a moment.' })).toBeVisible();
+  });
+
   it('a zoom changed in the world is saved as the account’s, at the latest as the player leaves', async () => {
     const ff = fetching(({ path }) => {
       if (path === '/api/sessions') return { status: 201, body: { token: 'tok-1' } };

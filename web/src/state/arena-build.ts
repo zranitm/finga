@@ -9,6 +9,8 @@ export interface ArenaBuildState {
   readonly traits: Readonly<Record<string, string>>;
   /** Counts the player's own changes, which are saved; a load is not one. */
   readonly edits: number;
+  /** Counts the asks to save a change still waiting at once, as the skill window closes. */
+  readonly saveAsks: number;
   /** The server's build, taken while the player hasn't changed theirs: once they have, theirs is the newest. */
   load(build: {
     readonly skill_bar: readonly string[];
@@ -20,6 +22,7 @@ export interface ArenaBuildState {
   clear(key: number): void;
   /** Chooses the skill's trait, '' for its default. */
   choose(skill: string, trait: string): void;
+  saveNow(): void;
 }
 
 function barOf(slots: readonly string[]): string[] {
@@ -35,6 +38,7 @@ export const arenaBuild = defineStore<ArenaBuildState>((set, get) => {
     bar: null,
     traits: {},
     edits: 0,
+    saveAsks: 0,
     load: (build) => {
       if (get().edits === 0) {
         set({ bar: barOf(build.skill_bar), traits: { ...build.traits } });
@@ -58,6 +62,9 @@ export const arenaBuild = defineStore<ArenaBuildState>((set, get) => {
     choose: (skill, trait) => {
       const rest = Object.fromEntries(Object.entries(get().traits).filter(([s]) => s !== skill));
       edited(own(), trait === '' ? rest : { ...rest, [skill]: trait });
+    },
+    saveNow: () => {
+      set({ saveAsks: get().saveAsks + 1 });
     },
   };
 });

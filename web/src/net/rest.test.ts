@@ -294,6 +294,31 @@ describe('rest client', () => {
     );
   });
 
+  it('a rate limit’s 429 tells each listener till it’s off, whatever the call, and no other answer does', async () => {
+    const { fetch } = fakeFetch((c) =>
+      c.url.endsWith('/api/settings')
+        ? { status: 429, body: { code: ERR.RATE_LIMITED } }
+        : { status: 429 },
+    );
+    const client = restClientOn(fetch);
+    let heard = 0;
+    const off = client.onLimited(() => heard++);
+    const err = (await client.getSettings().catch((e: unknown) => e)) as RestError;
+    expect(err.code).toBe(ERR.RATE_LIMITED);
+    await client.getPvpProfile('c1').catch(() => undefined); // a 429 with no body
+    expect(heard).toBe(2);
+    off();
+    await client.getSettings().catch(() => undefined);
+    expect(heard).toBe(2);
+    const refused = restClientOn(
+      fakeFetch(() => ({ status: 409, body: { code: ERR.PVP_NOT_PROMOTED } })).fetch,
+    );
+    let refusedHeard = 0;
+    refused.onLimited(() => refusedHeard++);
+    await refused.getPvpProfile('c1').catch(() => undefined);
+    expect(refusedHeard).toBe(0);
+  });
+
   it('a body that is not JSON, as a proxy’s page while the gateway restarts, is malformed', async () => {
     const { fetch } = fakeFetch(() => ({ status: 502 }));
     const client = restClientOn(fetch);

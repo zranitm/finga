@@ -139,6 +139,8 @@ func PvpBuildFault(c Class, skill func(string) (Skill, bool), bar []string, trai
 			return fmt.Errorf("key %d: %q is no active skill of %s", i+1, id, c.ID)
 		case slices.Contains(bar[:i], id):
 			return fmt.Errorf("key %d: %s is on another key too", i+1, id)
+		case !c.Keyable(id):
+			return fmt.Errorf("key %d: %s is a follow-up, which rides on its root's key", i+1, id)
 		}
 	}
 	for id, trait := range traits {
@@ -153,7 +155,7 @@ func PvpBuildFault(c Class, skill func(string) (Skill, bool), bar []string, trai
 	return nil
 }
 
-// PvpCopy is the pvp build a character of c has before they save one: their world bar and traits, with a block not c's own swapped for c's block, moved there if it stood on another key as a promotion does, and keys c can't use or repeats left empty; the traits kept are those of c's active skills, a follow-up's off the bar included.
+// PvpCopy is the pvp build a character of c has before they save one: their world bar and traits, with a block not c's own swapped for c's block, moved there if it stood on another key as a promotion does, and keys c can't use, follow-ups or repeats left empty; the traits kept are those of c's active skills, a follow-up's off the bar included.
 func PvpCopy(c Class, skill func(string) (Skill, bool), bar []string, traits map[string]string) ([]string, map[string]string) {
 	out := make([]string, BarKeys)
 	copy(out, bar)
@@ -168,7 +170,7 @@ func PvpCopy(c Class, skill func(string) (Skill, bool), bar []string, traits map
 		}
 	}
 	for k, id := range out {
-		if s, ok := skill(id); id != "" && (!ok || s.Kind != Active || !c.Learnable(s) || slices.Contains(out[:k], id)) {
+		if s, ok := skill(id); id != "" && (!ok || s.Kind != Active || !c.Learnable(s) || !c.Keyable(id) || slices.Contains(out[:k], id)) {
 			out[k] = ""
 		}
 	}

@@ -31,6 +31,8 @@ export interface SkillBarState {
   readonly live: readonly string[];
   /** Counts the player's own changes, which are saved; a load is not one. */
   readonly edits: number;
+  /** Counts the asks to save a change still waiting at once, as the skill window closes. */
+  readonly saveAsks: number;
   readonly cooldowns: Readonly<Record<string, Cooldown>>;
   readonly buffs: readonly ActiveBuff[];
   /** The world's tick, which every cooldown is rounded up to whole ones of. */
@@ -44,6 +46,7 @@ export interface SkillBarState {
   showLive(live: readonly string[]): void;
   /** Puts the skill on the world bar's key; on another key already, it leaves that one. */
   put(key: number, skill: string): void;
+  saveNow(): void;
   swap(a: number, b: number): void;
   clear(key: number): void;
   cool(skill: string, cooldown: Cooldown | null): void;
@@ -75,6 +78,7 @@ export const skillBar = defineStore<SkillBarState>((set, get) => {
     arena: null,
     live: barOf([]),
     edits: 0,
+    saveAsks: 0,
     cooldowns: {},
     buffs: [],
     tickMs: 50,
@@ -94,6 +98,9 @@ export const skillBar = defineStore<SkillBarState>((set, get) => {
       if (bar.some((s, k) => s !== get().live[k])) {
         set({ live: bar });
       }
+    },
+    saveNow: () => {
+      set({ saveAsks: get().saveAsks + 1 });
     },
     put: (key, skill) => {
       const world = get().world.map((s) => (s === skill ? '' : s));

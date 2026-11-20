@@ -107,6 +107,18 @@ describe('saving the skill bar', () => {
     expect(putSkillBar).toHaveBeenCalledTimes(1);
   });
 
+  it('an ask to save now, as the skill window closes, saves a change still waiting at once, and nothing when none is', () => {
+    const { putSkillBar, stop } = watched();
+    skillBar.getState().saveNow();
+    expect(putSkillBar).not.toHaveBeenCalled();
+    skillBar.getState().put(0, 'strike');
+    skillBar.getState().saveNow();
+    expect(putSkillBar).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(SAVE_DELAY_MS);
+    expect(putSkillBar).toHaveBeenCalledTimes(1);
+    void stop();
+  });
+
   it('a refusal or no answer keeps the bar and says so', async () => {
     const { notice, stop } = watched(() =>
       Promise.reject(new RestError(400, 120007, 'That can’t go on the skill bar.')),

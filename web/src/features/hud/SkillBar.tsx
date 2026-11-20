@@ -59,6 +59,9 @@ export function SkillBar() {
   }, [refused]);
   const onDrop = (e: DragEvent, key: number) => {
     e.preventDefault();
+    if (worn) {
+      return; // dragover takes no drop while the arena bar is on, and a drop that comes anyway changes nothing
+    }
     const skill = e.dataTransfer.getData(SKILL_DRAG_TYPE);
     const from = e.dataTransfer.getData(KEY_TYPE);
     if (skill !== '' && !keyable(cls, skill)) {
@@ -165,6 +168,10 @@ function SkillKey({
       }
       draggable={!worn && stage !== undefined}
       onDragStart={(e) => {
+        if (worn) {
+          e.preventDefault(); // a worn key isn't draggable, and one that's dragged anyway takes nothing off
+          return;
+        }
         e.dataTransfer.setData(KEY_TYPE, String(index));
         e.dataTransfer.effectAllowed = 'move';
         dragTile(e);
