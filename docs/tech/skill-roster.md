@@ -39,7 +39,7 @@
 - **A stage may change any of these,** as stages change other fields today. Traits will lean on that.
 - **Since C19's PR A** ([Abnormal statuses](./statuses.md) section 10), `control` is `status` and `push`, `poison` is `on_hit`, and the `control` effect is `status`. The table above is current; the PR 1 notes below keep their first names.
 - **As built (PR 1), with the calls made then:**
-  - **Blink toward the lock:** allowed, despite the list above. It ends at the far contact ring, behind the mob, which is Shadow Step's "behind". A dash or leap toward the lock stops at the near ring. A blink refuses `time` and `stop` instead.
+  - **Blink toward the lock:** allowed, despite the list above. It ends just past the far contact ring, behind the mob, which is Shadow Step's "behind". A dash or leap toward the lock stops at the near ring. A blink refuses `time` and `stop` instead.
   - **Two new active effects** for the skills that hit nothing:
     - `control`: a shape and a `control`, with no power or damage type. Taunt and Smoke Bomb.
     - `move`: a `move`, with `dodge` allowed and no shape. Roll Back and Blink.
@@ -72,7 +72,12 @@ The client sends it, the server bounds it, and both sims step it the same:
 - **The wire:** `UseSkill` carries the move as a unit vector `(mx, mz)` and a length, worked out by the client as it starts the skill.
   - The world clamps the length to `distance`, and refuses a vector more than 1e-6 from unit length.
   - It takes the rest as sent. Walking lets a player face any way, and the length is bounded, so this gives nothing a client couldn't otherwise reach.
-  - Shadow Step's "behind the lock" is `toward: lock`, with the length running past the mob to its far contact ring. The world checks that the end stands within `distance` and is a point the sim allows.
+  - Shadow Step's "behind the lock" is `toward: lock`, and the world aims it itself, judging the lock where the world has it:
+    - **The aim:** from the locked mob's body in the frame the player's input names, the one whose bodies the move meets, to 0.05 m past its far contact ring. The margin keeps the landing clear of the body however the sums round.
+    - **Lag:** the client's drawn mob trails the world's, and a way aimed at it landed in front of a mob walking away. Aimed by the world, it lands behind.
+    - **Range:** "within `distance`" is the mob. A mob within it is blinked behind even when that lands past `distance`, by up to the mob's ring and the margin.
+    - **The client's way** is taken, held to `distance`, for a mob past `distance` or one that frame doesn't hold.
+    - The end is a point the sim allows. With a wall too close behind the mob, the blink stops at the wall and lands in front, at the last point clear of the body.
 
 ### The sim
 
@@ -123,9 +128,9 @@ Both sims (`server/internal/sim`, `web/src/sim`) gain a scripted move:
 - **The way:**
   - UseSkill's `SkillWay` holds `x, z, length` as doubles, so both sims get the same bits.
   - The world refuses a vector more than 1e-6 off unit length, or a negative or NaN length, as `BAD_SKILL_WAY` (330031, a 400). It holds the length to `distance`, and a skill that doesn't move ignores its way.
-  - The client holds the length to `distance` too, so its prediction matches.
+  - The client holds the length to `distance` too, but for a blink at a lock within it, so its prediction matches.
 - **`toward` on the client** (`systems/skill-way.ts`):
-  - **lock:** to the near contact ring for a dash or leap, or the far one for a blink. With no lock, along the heading the player faces.
+  - **lock:** to the near contact ring for a dash or leap, or 0.05 m past the far one for a blink, as the world aims it. With no lock, along the heading the player faces.
   - **back:** away from the lock, or back from the heading.
   - **heading:** along the keys held, as the sim heads them, or back from the heading while standing.
 - **The start:**

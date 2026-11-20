@@ -37,6 +37,8 @@ const wayTolerance = 1e-6
 type moveMark struct {
 	after  uint32
 	way    sim.Way
+	lock   uint64            // a blink at the locked mob's: the mob, which the world aims it behind as the frame the player saw left it
+	reach  float64           // and the skill's distance, within which the mob must stand
 	kind   gamedata.MoveKind // none for a break-free that only ends the hold
 	steps  int               // a dash's or leap's sub-steps
 	mobs   sim.Mobs
@@ -49,6 +51,19 @@ func (m moveMark) start(s sim.State, g sim.Geometry, p sim.Params) sim.State {
 		return sim.Blink(s, m.way, g, p)
 	}
 	return sim.Dash(s, m.way, m.steps, m.mobs, m.kind == gamedata.LeapMove, p)
+}
+
+// pastRing is how far past the locked mob's far contact ring a blink at it aims, so it lands clear of the body behind it however the sums round.
+const pastRing = 0.05
+
+// behind is a blink's way from s to pastRing beyond b's far side, b the locked mob's body, when it stands within reach of s; else way, as the client sent it. A foe within reach may put the landing past it.
+func behind(s sim.State, b sim.Blocker, radius, reach float64, way sim.Way) sim.Way {
+	dx, dz := b.X-s.X, b.Z-s.Z
+	d := math.Hypot(dx, dz)
+	if d == 0 || d > reach {
+		return way
+	}
+	return sim.Way{X: dx / d, Z: dz / d, Length: d + b.Radius + radius + pastRing}
 }
 
 // mobsOf is how mv meets mobs' bodies.
@@ -223,6 +238,9 @@ func (i *Instance) cast(u use, start uint64) {
 			after += uint32(i.ticksFor(mv.Delay)) //nolint:gosec // a delay's ticks are few
 		}
 		p.moveMark = &moveMark{after: after, way: u.way, kind: mv.Kind, steps: int(i.ticksFor(mv.Time)) * i.subSteps, mobs: mobsOf(mv), breaks: s.BreaksControl} //nolint:gosec // a move's ticks are few
+		if mv.Kind == gamedata.BlinkMove && mv.Toward == gamedata.TowardLock && u.target.Player.IsZero() {
+			p.moveMark.lock, p.moveMark.reach = u.target.Mob, mv.Distance
+		}
 	}
 	if st.Dodge > 0 {
 		p.dodgeFrom, p.dodgeUntil = start, start+i.ticksFor(st.Dodge)

@@ -290,6 +290,11 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 					p.state.Held = 0
 				}
 				if m.kind != "" && p.state.Held == 0 { // a held body starts no move
+					if m.lock != 0 {
+						if b, ok := i.arena.BodyAt(i.seen(p.view), m.lock); ok {
+							m.way = behind(p.state, b, moves.Radius, m.reach, m.way) // where the frame g holds has it, however the client's drawn one lagged
+						}
+					}
 					p.state = m.start(p.state, g, moves)
 				}
 			}

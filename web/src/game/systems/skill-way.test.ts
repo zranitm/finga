@@ -56,11 +56,22 @@ describe('wayFor', () => {
     expect(wayFor(move('lock'), facingEast, noKeys, lockAt(10.5, 10)).length).toBe(0); // already touching
   });
 
-  it('blinks at the lock to its far contact ring, behind it', () => {
+  it('blinks at the lock just past its far contact ring, behind it, as the world aims it', () => {
     expect(wayFor(move('lock', 'blink', 8), facingEast, noKeys, lockAt(13, 14))).toEqual({
       x: 0.6,
       z: 0.8,
-      length: 5 + ring,
+      length: 5 + ring + 0.05,
+    });
+  });
+
+  it('blinks behind a lock within the distance past the distance, and the distance at one beyond it', () => {
+    expect(wayFor(move('lock', 'blink', 8), facingEast, noKeys, lockAt(10, 17.5)).length).toBe(
+      7.5 + ring + 0.05,
+    );
+    expect(wayFor(move('lock', 'blink', 8), facingEast, noKeys, lockAt(10, 19))).toEqual({
+      x: 0,
+      z: 1,
+      length: 8,
     });
   });
 
