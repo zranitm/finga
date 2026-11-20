@@ -117,7 +117,7 @@ func TestAWarriorsStrikeKeyChargesThenSlams(t *testing.T) {
 		t.Fatalf("Charge from Strike's key at the slime 6 m off refused with %d", r.GetCode())
 	}
 	stunned := false // an input a tick, as a client sends them, carries the dash to the slime
-	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline) && !stunned; {
+	for game := l.Game(10 * time.Second); game.Left() && !stunned; {
 		if err := l.Input(&clientv1.Input{}); err != nil {
 			t.Fatal(err)
 		}
@@ -160,7 +160,7 @@ func TestABowmansDisengageKeyShootsAfterADodge(t *testing.T) {
 		t.Fatalf("Disengage refused with %d", r.GetCode())
 	}
 	dodged := false
-	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline) && !dodged; {
+	for game := l.Game(10 * time.Second); game.Left() && !dodged; {
 		if err := l.Input(&clientv1.Input{}); err != nil {
 			t.Fatal(err)
 		}

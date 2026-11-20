@@ -52,8 +52,8 @@ func TestASlimesAttackPassesThroughADodge(t *testing.T) {
 
 	var now, first uint64 // the newest frame's tick, and the first's
 	bitten := false
-	for deadline := time.Now().Add(60 * time.Second); !bitten; { // the clock only guards against a world gone quiet
-		if first > 0 && now >= first+ticks(30*time.Second) || time.Now().After(deadline) {
+	for game := l.Game(30 * time.Second); !bitten; {
+		if !game.Left() {
 			t.Fatalf("no slime attacked the player in ticks %d to %d", first, now)
 		}
 		if err := l.Input(&clientv1.Input{}); err != nil {
@@ -85,8 +85,8 @@ func TestASlimesAttackPassesThroughADodge(t *testing.T) {
 	var dodged []*clientv1.Damage
 	window := ticks(10 * time.Second) // the dodge's
 	done := func() bool { return answered && leapt && dodging && len(dodged) >= 2 }
-	for deadline := time.Now().Add(60 * time.Second); !done(); {
-		if used == 0 && now >= pressed+ticks(2*time.Second) || used > 0 && now >= used+window || time.Now().After(deadline) {
+	for game := l.Game(time.Minute); !done(); { // the budget only guards against a world gone quiet: the ticks below end it sooner
+		if used == 0 && now >= pressed+ticks(2*time.Second) || used > 0 && now >= used+window || !game.Left() {
 			break
 		}
 		if err := l.Input(&clientv1.Input{}); err != nil {
@@ -166,7 +166,7 @@ func TestAMoveStartsFromTheInputAfterAPressMidSwing(t *testing.T) {
 	var answered bool
 	var after *clientv1.PlayerView // the player in the first frame acking an input past the press
 	var afterAck uint32
-	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline) && (after == nil || !answered); {
+	for game := l.Game(10 * time.Second); game.Left() && (after == nil || !answered); {
 		if err := l.Input(&clientv1.Input{}); err != nil {
 			t.Fatal(err)
 		}

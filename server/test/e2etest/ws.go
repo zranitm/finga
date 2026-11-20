@@ -28,6 +28,9 @@ type Player struct {
 	Seq         uint32
 	attackTicks uint64 // the basic attack's length in the world's ticks, from the Welcome
 	TickHz      uint32 // the world's ticks a second, from the Welcome
+	tick        uint64 // the newest frame read, Delta or Snapshot, in its map's ticks
+	elapsed     uint64 // the world's ticks the frames read have stepped through, across maps
+	moved       bool   // a MapChange was read: the next frame is on the new map's clock
 	Joined      uint64 // the tick of the Snapshot it joined to, in its map's ticks
 	MapID       string // the map it's on, from the Welcome and each MapChange read
 	stack       *Stack // whose game data a walk paths on
@@ -70,7 +73,7 @@ func (p *Player) Hello(token string) (*clientv1.Welcome, *clientv1.Snapshot) {
 		switch d := m.Data.(type) {
 		case *clientv1.Snapshot:
 			if snap == nil {
-				snap, p.Joined = d, m.Tick
+				snap, p.Joined, p.tick = d, m.Tick, m.Tick // a wait's first frame counts from the join, not from the map's start
 				continue
 			}
 		case *clientv1.PartyState:
@@ -136,8 +139,11 @@ func (p *Player) Read(d time.Duration) (wsconn.Message, bool) {
 	} else {
 		m, ok = p.receive(d)
 	}
-	if mc, is := m.Data.(*clientv1.MapChange); is {
-		p.MapID = mc.GetMapId()
+	switch d := m.Data.(type) {
+	case *clientv1.MapChange:
+		p.MapID, p.moved = d.GetMapId(), true
+	case *clientv1.Delta, *clientv1.Snapshot:
+		p.step(m.Tick)
 	}
 	return m, ok
 }

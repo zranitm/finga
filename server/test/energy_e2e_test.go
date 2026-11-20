@@ -25,15 +25,12 @@ func TestEnergyIsEarnedSpentAndKept(t *testing.T) {
 		t.Fatalf("a new character joins with %d energy, want none", w.GetCharacter().GetEnergy())
 	}
 
-	// until reads until pick says done; 15 s only guards a hang, as a slow runner's ticks lag the wall clock.
+	// until reads until pick says done, for up to 15 s of the world's ticks.
 	until := func(what string, pick func(wsconn.Message) bool) {
 		t.Helper()
-		for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline); {
-			if m, ok := p.Read(time.Until(deadline)); ok && pick(m) {
-				return
-			}
+		if !p.Await(15*time.Second, pick) {
+			t.Fatalf("no %s within 15 s of the world's ticks", what)
 		}
-		t.Fatalf("no %s within 15 s", what)
 	}
 	// told is the energy a message tells, or -1 when it tells none.
 	told := func(m wsconn.Message) int {
@@ -149,15 +146,12 @@ func TestASkillWaitingForItsAttacksGainCutsIt(t *testing.T) {
 	p, _ := s.Join(t, token, id)
 	p.Drain(300 * time.Millisecond) // past the join's Delta telling no energy
 
-	// until reads until pick says done; 15 s only guards a hang, as a slow runner's ticks lag the wall clock.
+	// until reads until pick says done, for up to 15 s of the world's ticks.
 	until := func(what string, pick func(wsconn.Message) bool) {
 		t.Helper()
-		for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline); {
-			if m, ok := p.Read(time.Until(deadline)); ok && pick(m) {
-				return
-			}
+		if !p.Await(15*time.Second, pick) {
+			t.Fatalf("no %s within 15 s of the world's ticks", what)
 		}
-		t.Fatalf("no %s within 15 s", what)
 	}
 
 	p.Send(wsconn.Message{Seq: p.NextSeq(), Data: &clientv1.Attack{Aim: east}})

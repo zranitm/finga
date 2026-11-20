@@ -30,7 +30,7 @@ func TestTeleportFromTheTownToTheForestAndBack(t *testing.T) {
 			t.Fatalf("teleport to %s refused with %d", to, r.GetCode())
 		}
 		var mc *clientv1.MapChange
-		l.Pump(data.TeleportChannel()+3*time.Second, func(m wsconn.Message) bool {
+		l.Await(data.TeleportChannel()+3*time.Second, func(m wsconn.Message) bool {
 			mc, _ = m.Data.(*clientv1.MapChange)
 			return mc != nil
 		})
@@ -79,7 +79,7 @@ func TestAMobsHitCancelsATeleport(t *testing.T) {
 	var hit uint64
 	var cancel *clientv1.TeleportCancelled
 	var at uint64
-	l.Pump(12*time.Second, func(m wsconn.Message) bool {
+	l.Await(12*time.Second, func(m wsconn.Message) bool {
 		switch d := m.Data.(type) {
 		case *clientv1.Damage:
 			if d.GetTarget() == "p:"+id && !d.GetMiss() && hit == 0 {

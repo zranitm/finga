@@ -92,18 +92,18 @@ func TestATraitOpensAtTheLastStageAndWaitsOutAFight(t *testing.T) {
 
 	// Into the slimes: Crushing Blow at the nearest, again once it's ready if it missed, then a change mid-fight.
 	var strikes []string
-	var next time.Time
+	var next uint64                             // the frame by which Concussion's cooldown has surely ended
 	trail := []gamedata.Point{{X: l.X, Z: l.Z}} // where the chase went, to walk back along
-	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline) && (!stunned || used == "" || answers["fight"] == nil); {
+	for game := l.Game(30 * time.Second); game.Left() && (!stunned || used == "" || answers["fight"] == nil); {
 		if err := l.Chase(); err != nil {
 			t.Fatal(err)
 		}
 		if last := trail[len(trail)-1]; math.Hypot(l.X-last.X, l.Z-last.Z) > 1 {
 			trail = append(trail, gamedata.Point{X: l.X, Z: l.Z})
 		}
-		if m := l.Nearest("green_slime"); !stunned && !time.Now().Before(next) && m != nil && math.Hypot(m.GetX()-l.X, m.GetZ()-l.Z) < 2 {
+		if m := l.Nearest("green_slime"); !stunned && frame >= next && m != nil && math.Hypot(m.GetX()-l.X, m.GetZ()-l.Z) < 2 {
 			req := fmt.Sprintf("strike-%d", len(strikes))
-			strikes, next = append(strikes, req), time.Now().Add(7500*time.Millisecond) // Concussion's 7 s cooldown
+			strikes, next = append(strikes, req), frame+150 // Concussion's 7 s cooldown and half a second, at 20 ticks a second
 			l.Send(wsconn.Message{ReqID: req, Seq: l.Seq, Data: &clientv1.UseSkill{Skill: "strike", ChainRoot: "strike", Aim: l.AimAt(m), Target: e2etest.MobRef(m.GetId())}})
 		}
 		if stunned && used != "" && answers["fight"] == nil {
@@ -130,7 +130,7 @@ func TestATraitOpensAtTheLastStageAndWaitsOutAFight(t *testing.T) {
 
 	// Back out of the slimes' sight along the chase's trail, each point walked to as WalkTo walks, then a change every 600 ms until one goes through.
 	var w e2etest.Walk
-	for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline) && len(trail) > 0; {
+	for game := l.Game(15 * time.Second); game.Left() && len(trail) > 0; {
 		to := trail[len(trail)-1]
 		if math.Hypot(to.X-l.X, to.Z-l.Z) < 0.5 {
 			trail, w = trail[:len(trail)-1], e2etest.Walk{}
@@ -146,7 +146,7 @@ func TestATraitOpensAtTheLastStageAndWaitsOutAFight(t *testing.T) {
 	}
 	sentAfter := map[string]uint64{} // each try's req, and the frame it went after
 	var through string
-	for k, deadline := 0, time.Now().Add(15*time.Second); time.Now().Before(deadline) && through == ""; k++ {
+	for k, game := 0, l.Game(15*time.Second); game.Left() && through == ""; k++ {
 		req := fmt.Sprintf("out-%d", k)
 		sentAfter[req] = frame
 		r := ask(req, &clientv1.ChooseTrait{Skill: "strike", Trait: "swift"})
@@ -158,7 +158,7 @@ func TestATraitOpensAtTheLastStageAndWaitsOutAFight(t *testing.T) {
 		case sentAfter[req] >= lastFight+combatTicks:
 			t.Fatalf("%s refused IN_COMBAT, sent after frame %d, 5 s of ticks past the last fight event at %d", req, sentAfter[req], lastFight)
 		}
-		l.Pump(600*time.Millisecond, func(m wsconn.Message) bool { watch(m); return false })
+		l.Await(600*time.Millisecond, func(m wsconn.Message) bool { watch(m); return false })
 	}
 	if through == "" || !l.Pump(5*time.Second, func(m wsconn.Message) bool { watch(m); return sheetWith("") }) {
 		t.Fatalf("no change went through within 15 s of leaving; the last fight event at tick %d, the latest frame %d", lastFight, frame)

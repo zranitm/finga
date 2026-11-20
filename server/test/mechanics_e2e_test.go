@@ -57,7 +57,7 @@ func TestAnAreaAtTheLockFallsOnTheLockedSlime(t *testing.T) {
 		l.Send(wsconn.Message{ReqID: req, Seq: l.Seq, Data: &clientv1.UseSkill{Skill: "test_meteor", Aim: east, Target: e2etest.MobRef(target)}})
 		var used uint64
 		hit, past := false, false
-		l.Pump(10*time.Second, func(m wsconn.Message) bool {
+		l.Await(10*time.Second, func(m wsconn.Message) bool {
 			switch d := m.Data.(type) {
 			case *clientv1.Response:
 				if m.ReqID == req && !d.GetOk() {

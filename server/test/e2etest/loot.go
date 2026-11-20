@@ -46,7 +46,6 @@ type Looter struct {
 	onGround   bool
 	vx, vy, vz float64
 	ack        uint32
-	tick       uint64 // the newest frame's, in this map's ticks
 
 	// Recorded for the social rows, consumed by their helpers.
 	Responses   []Reply
@@ -70,7 +69,7 @@ type Ticked[T any] struct {
 
 // NewLooter follows p from the Snapshot it joined to.
 func NewLooter(p *Player, snap *clientv1.Snapshot) *Looter {
-	l := &Looter{Player: p, tick: p.Joined} // a wait's first frame counts from the join, not from the map's start
+	l := &Looter{Player: p}
 	l.enter(snap)
 	return l
 }
@@ -101,7 +100,7 @@ func (l *Looter) see(v *clientv1.PlayerView) {
 func (l *Looter) Observe(m wsconn.Message) {
 	switch d := m.Data.(type) {
 	case *clientv1.Delta:
-		l.ack, l.tick = d.GetAckSeq(), m.Tick
+		l.ack = d.GetAckSeq()
 		for _, v := range d.Players {
 			l.see(v)
 		}
@@ -122,7 +121,6 @@ func (l *Looter) Observe(m wsconn.Message) {
 			delete(l.Pouches, id)
 		}
 	case *clientv1.Snapshot:
-		l.tick = m.Tick
 		l.enter(d)
 	case *clientv1.InventoryChanged:
 		l.Inventory++
@@ -169,12 +167,12 @@ type Reply struct {
 
 // Await reads until pred holds for a message; it gives up once d of the world's ticks pass, or when no frame comes for Stalled.
 func (l *Looter) Await(d time.Duration, pred func(wsconn.Message) bool) bool {
-	return l.during(d, pred, nil, nil)
+	return l.During(d, pred, nil, nil)
 }
 
 // Until reads until pick finds (and consumes) what it wants, asking after every message; it gives up once d of the world's ticks pass, or when no frame comes for Stalled.
 func (l *Looter) Until(d time.Duration, pick func() bool) bool {
-	return l.during(d, func(wsconn.Message) bool { return pick() }, pick, nil)
+	return l.During(d, func(wsconn.Message) bool { return pick() }, pick, nil)
 }
 
 // Pump reads and observes messages for up to d, until one meets pred.
@@ -268,13 +266,13 @@ func (l *Looter) nearestPouch(template string) *clientv1.PouchView {
 // Hunt swings every swingEvery until a pouch of its own holding the template appears; it gives up once d of the world's ticks pass.
 func (l *Looter) Hunt(d time.Duration, template string) (*clientv1.PouchView, bool) {
 	var found *clientv1.PouchView
-	ok := l.during(d, nil, func() bool { found = l.nearestPouch(template); return found != nil }, l.swings())
+	ok := l.During(d, nil, func() bool { found = l.nearestPouch(template); return found != nil }, l.swings())
 	return found, ok
 }
 
 // HuntPouches swings every swingEvery until n pouches of its own have been seen on the map; it gives up once d of the world's ticks pass.
 func (l *Looter) HuntPouches(d time.Duration, n int) bool {
-	return l.during(d, nil, func() bool { return len(l.Seen) >= n }, l.swings())
+	return l.During(d, nil, func() bool { return len(l.Seen) >= n }, l.swings())
 }
 
 // All are the picks of every item in the pouch.
@@ -313,11 +311,11 @@ func (l *Looter) GoTake(t *testing.T, p *clientv1.PouchView) *clientv1.Response 
 
 // Farm hunts for d of the world's ticks: it swings every swingEvery, and walks to each pouch of its own and takes all it holds, one take at a time without waiting on it; it returns the InventoryChanged seen.
 func (l *Looter) Farm(d time.Duration) int {
-	nextAttack := l.tick
+	nextAttack := l.elapsed
 	walking := false
 	var w Walk
 	var toward uint32 // the pouch w walks to
-	l.during(d, nil, nil, func() error {
+	l.During(d, nil, nil, func() error {
 		switch p := l.nearestPouch(""); {
 		case p != nil && l.taking == "" && math.Hypot(p.GetX()-l.X, p.GetZ()-l.Z) <= 1:
 			if walking {
@@ -337,12 +335,12 @@ func (l *Looter) Farm(d time.Duration) int {
 			}
 			walking = true
 			return l.Step(&w, gamedata.Point{X: p.GetX(), Z: p.GetZ()})
-		case l.tick >= nextAttack:
+		case l.elapsed >= nextAttack:
 			if walking {
 				_ = l.Input(&clientv1.Input{})
 				walking = false
 			}
-			nextAttack = l.tick + l.ticksIn(swingEvery)
+			nextAttack = l.elapsed + l.ticksIn(swingEvery)
 			return l.Swing()
 		}
 		return nil
@@ -368,8 +366,7 @@ func (l *Looter) Clear(d time.Duration) bool {
 	}) {
 		return false
 	}
-	start := l.tick
-	for l.timeLeft(start, d) > 0 {
+	for game := l.Game(d); game.Left(); {
 		p := l.nearestPouch("")
 		if p == nil && l.taking == "" {
 			return l.Until(Stalled, func() bool { return l.tick > by+2 }) // a take's InventoryChanged and Loot follow its frame
@@ -380,7 +377,7 @@ func (l *Looter) Clear(d time.Duration) bool {
 			}
 			continue
 		}
-		if !l.WalkTo(gamedata.Point{X: p.GetX(), Z: p.GetZ()}, l.timeLeft(start, d)) {
+		if !l.WalkTo(gamedata.Point{X: p.GetX(), Z: p.GetZ()}, game.Remaining()) {
 			return false
 		}
 		l.takes++
@@ -388,7 +385,7 @@ func (l *Looter) Clear(d time.Duration) bool {
 		if l.trySend(wsconn.Message{ReqID: req, Data: &clientv1.TakeLoot{Picks: All(p)}}) != nil {
 			return false
 		}
-		if !l.Until(l.timeLeft(start, d), func() bool { _, gone := l.Pouches[p.GetId()]; return !gone || l.answered(req) }) {
+		if !l.Until(game.Remaining(), func() bool { _, gone := l.Pouches[p.GetId()]; return !gone || l.answered(req) }) {
 			return false
 		}
 		by = l.tick

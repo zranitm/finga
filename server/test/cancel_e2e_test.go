@@ -41,30 +41,36 @@ func TestAChainLandsSoonerThanOneAtATime(t *testing.T) {
 	// hit is the tick of the player's next blow, a MISS included.
 	hit := func() uint64 {
 		t.Helper()
-		for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
-			m, ok := p.Read(100 * time.Millisecond)
-			if d, isDamage := m.Data.(*clientv1.Damage); ok && isDamage && d.GetSource() == "p:"+id {
-				return m.Tick
+		var at uint64
+		if !p.Await(5*time.Second, func(m wsconn.Message) bool {
+			switch d := m.Data.(type) {
+			case *clientv1.Damage:
+				at = m.Tick
+				return d.GetSource() == "p:"+id
+			case *clientv1.Response:
+				if !d.GetOk() {
+					t.Fatalf("%s refused: %+v", m.ReqID, d)
+				}
 			}
-			if r, isResponse := m.Data.(*clientv1.Response); ok && isResponse && !r.GetOk() {
-				t.Fatalf("%s refused: %+v", m.ReqID, r)
-			}
+			return false
+		}) {
+			t.Fatal("no blow in 5 s of the world's ticks")
 		}
-		t.Fatal("no blow in 5 s")
-		return 0
+		return at
 	}
+	ticks := func(d time.Duration) uint64 { return uint64(d / s.Cfg.World.TickInterval()) } //nolint:gosec // seconds of ticks
 
-	// One at a time: each sent once the last has ended, the Beginner's attack 1050 ms and Strike 1000 ms.
+	// One at a time: each sent once the last has ended, the Beginner's attack 1050 ms and Strike 1000 ms, counted in the world's ticks from the blow before.
 	attack()
 	first := hit()
-	time.Sleep(1200 * time.Millisecond)
+	p.Reach(first + ticks(1200*time.Millisecond))
 	strike("one")
-	hit()
-	time.Sleep(1150 * time.Millisecond)
+	p.Reach(hit() + ticks(1150*time.Millisecond))
 	attack()
-	apart := hit() - first
+	last := hit()
+	apart := last - first
 
-	time.Sleep(1200 * time.Millisecond) // the attack ends, and Strike's cooldown with it
+	p.Reach(last + ticks(1200*time.Millisecond)) // the attack ends, and Strike's cooldown with it
 	// Chained: Strike and the attack sent as the first attack lands; the world holds each to the chain.
 	attack()
 	first = hit()

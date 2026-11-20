@@ -15,15 +15,14 @@ func (l *Looter) Hop(t *testing.T, at gamedata.Point, wantMap string, want gamed
 	t.Helper()
 	var mc *clientv1.MapChange
 	var hp int32
-	const tries = 30 * time.Second
-	presses, next, start := 0, time.Now(), l.tick
+	presses, next, game := 0, time.Now(), l.Game(30*time.Second)
 	for mc == nil {
-		if l.timeLeft(start, tries) <= 0 {
+		if !game.Left() {
 			t.Fatalf("no MapChange after %d presses of EnterPortal at (%.2f, %.2f)", presses, l.X, l.Z)
 		}
 		// Portals are 1.2 m round: within 0.75 m of the middle, standing still on the ground, the player is inside one.
 		away := func() bool { return math.Hypot(at.X-l.X, at.Z-l.Z) >= 0.75 }
-		if away() && !l.WalkTo(at, l.timeLeft(start, tries)) {
+		if away() && !l.WalkTo(at, game.Remaining()) {
 			t.Fatalf("could not reach (%v, %v) (at %.2f, %.2f)", at.X, at.Z, l.X, l.Z)
 		}
 		l.Pump(time.Until(next), nil) // the gateway takes 2 presses a second, by the wall clock
@@ -39,7 +38,7 @@ func (l *Looter) Hop(t *testing.T, at gamedata.Point, wantMap string, want gamed
 			t.Fatal(err)
 		}
 		after := l.Seq
-		l.during(l.timeLeft(start, tries), func(m wsconn.Message) bool {
+		l.During(game.Remaining(), func(m wsconn.Message) bool {
 			if change, ok := m.Data.(*clientv1.MapChange); ok {
 				mc, hp = change, l.HP // as the last frame before it left them: the press is taken before the tick's mob hits
 				return true

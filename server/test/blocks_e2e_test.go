@@ -57,14 +57,14 @@ func TestAGuardBlocksSlimesInFrontAndNotBehind(t *testing.T) {
 	}
 	const east, west = float32(math.Pi / 2), float32(-math.Pi / 2)
 	guard(east)
-	for deadline := time.Now().Add(25 * time.Second); time.Now().Before(deadline); {
+guarding:
+	for game := l.Game(25 * time.Second); game.Left(); {
 		last := uses[len(uses)-1]
 		switch {
 		case last.aim == east && last.blocked > 0 && last.from > 0 && now >= last.from+guardTicks:
 			guard(west) // blocked from the front: now turn away
 		case last.aim == west && last.landed > 0:
-			deadline = time.Now()
-			continue
+			break guarding
 		case last.from > 0 && now >= last.from+guardTicks:
 			guard(last.aim) // no blow fell in it: again
 		}

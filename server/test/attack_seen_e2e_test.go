@@ -24,11 +24,7 @@ func TestOthersSeeAPlayersAttacks(t *testing.T) {
 
 	p.Send(wsconn.Message{Seq: p.NextSeq(), Data: &clientv1.Attack{Aim: 1.25}})
 	attacked, aimed := false, false
-	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline) && (!attacked || !aimed); {
-		m, ok := w.Read(time.Until(deadline))
-		if !ok {
-			break
-		}
+	w.Await(5*time.Second, func(m wsconn.Message) bool {
 		switch d := m.Data.(type) {
 		case *clientv1.AttackUsed:
 			if d.GetAttacker() == id {
@@ -42,7 +38,8 @@ func TestOthersSeeAPlayersAttacks(t *testing.T) {
 				aimed = aimed || v.GetId() == id && v.GetAim() == 1.25
 			}
 		}
-	}
+		return attacked && aimed
+	})
 	if !attacked || !aimed {
 		t.Fatalf("the watcher saw the attack %v and the attacker's view aimed %v; want both", attacked, aimed)
 	}

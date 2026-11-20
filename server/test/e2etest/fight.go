@@ -76,7 +76,7 @@ func (s *Stack) Join(t *testing.T, token, id string) (*Player, *clientv1.Snapsho
 func (l *Looter) DieAmongSlimes(t *testing.T) {
 	t.Helper()
 	var hits, misses int
-	died := l.during(30*time.Second, func(m wsconn.Message) bool {
+	died := l.During(30*time.Second, func(m wsconn.Message) bool {
 		switch d := m.Data.(type) {
 		case *clientv1.Died:
 			return d.GetCharacterId() == l.ID
@@ -110,7 +110,7 @@ func (l *Looter) Chase() error {
 
 // ChaseUntil chases the nearest live slime, deciding once a frame, until pred meets a message; it gives up once d of the world's ticks pass, or when no frame comes for Stalled.
 func (l *Looter) ChaseUntil(d time.Duration, pred func(wsconn.Message) bool) bool {
-	return l.during(d, pred, nil, l.Chase)
+	return l.During(d, pred, nil, l.Chase)
 }
 
 // Toward is the keys that walk (dx, dz) metres, one of 8 ways: an axis within a fifth of a metre, under a tick's walk, is left alone.
@@ -129,10 +129,10 @@ const swingEvery = 850 * time.Millisecond
 func (l *Looter) swings() func() error {
 	next, started := uint64(0), false
 	return func() error {
-		if started && l.tick < next {
+		if started && l.elapsed < next {
 			return nil
 		}
-		next, started = l.tick+l.ticksIn(swingEvery), true
+		next, started = l.elapsed+l.ticksIn(swingEvery), true
 		return l.Swing()
 	}
 }
@@ -140,7 +140,7 @@ func (l *Looter) swings() func() error {
 // HuntUntil swings at the nearest mob every swingEvery until done holds, calling also, when set, once a frame, as to read another player alongside; it gives up once d of the world's ticks pass, or when no frame comes for Stalled.
 func (l *Looter) HuntUntil(d time.Duration, done func() bool, also func()) bool {
 	swing := l.swings()
-	return l.during(d, nil, done, func() error {
+	return l.During(d, nil, done, func() error {
 		if also != nil {
 			also()
 		}
@@ -150,5 +150,5 @@ func (l *Looter) HuntUntil(d time.Duration, done func() bool, also func()) bool 
 
 // AttackUntil swings at the nearest mob every swingEvery until pred sees a message; it gives up once d of the world's ticks pass, or when no frame comes for Stalled.
 func (l *Looter) AttackUntil(d time.Duration, pred func(wsconn.Message) bool) bool {
-	return l.during(d, pred, nil, l.swings())
+	return l.During(d, pred, nil, l.swings())
 }
