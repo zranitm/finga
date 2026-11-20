@@ -2,9 +2,10 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { create } from '@bufbuild/protobuf';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { SETTINGS_SAVE_DELAY_MS } from '@/features/shared/useSettingsSaves';
 import { isTyping } from '@/input/typing';
 import type { Settings } from '@/net/rest';
 import {
@@ -61,11 +62,11 @@ const isOpen = () => screen.queryByRole('tablist', { name: 'Chat tabs' }) !== nu
 function setup({ open = true } = {}) {
   const send = vi.fn(() => true);
   const putSettings = vi.fn((s: Settings) => Promise.resolve(s));
-  render(<ChatBox socket={{ send } as never} rest={{ putSettings }} />);
+  const { unmount } = render(<ChatBox socket={{ send } as never} rest={{ putSettings }} />);
   if (open) {
     act(() => ui.getState().openChat());
   }
-  return { send, putSettings, input: () => screen.getByLabelText('Chat message') };
+  return { send, putSettings, unmount, input: () => screen.getByLabelText('Chat message') };
 }
 
 describe('ChatBox', () => {
@@ -207,13 +208,21 @@ describe('ChatBox', () => {
 
   describe('pin', () => {
     const pin = () => screen.getByRole('button', { name: 'Pin' });
+    const settle = () => act(() => vi.advanceTimersByTimeAsync(SETTINGS_SAVE_DELAY_MS));
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
 
     it('keeps the chat open after Escape and after sending, with the keys back to the game, and is saved', async () => {
+      vi.useFakeTimers();
       const { send, putSettings, input } = setup();
-      await user.click(pin());
+      fireEvent.click(pin());
       expect(pin()).toHaveAttribute('aria-pressed', 'true');
       expect(input()).toHaveFocus();
       expect(settings.getState().chatPinned).toBe(true);
+      await settle();
+      vi.useRealTimers(); // typing below runs on userEvent, which waits on real timers
       expect(putSettings).toHaveBeenCalledWith({
         auto_assign_points: false,
         chat_pinned: true,
@@ -236,26 +245,40 @@ describe('ChatBox', () => {
     });
 
     it('the account’s pinned chat is open from the start, and unpinning it closes it', async () => {
+      vi.useFakeTimers();
       act(() => settings.getState().setChatPinned(true));
       const { putSettings } = setup({ open: false });
       expect(isOpen()).toBe(true);
       expect(chatInput()).not.toHaveFocus();
-      await user.click(pin());
+      fireEvent.click(pin());
       expect(isOpen()).toBe(false);
+      await settle();
       expect(putSettings).toHaveBeenCalledWith(expect.objectContaining({ chat_pinned: false }));
     });
 
     it('a pin that fails to save says so, and stays for now', async () => {
+      vi.useFakeTimers();
       const { putSettings } = setup();
       putSettings.mockRejectedValueOnce(new Error('offline'));
-      await user.click(pin());
-      await waitFor(() =>
-        expect(toasts.getState().toasts.map((t) => t.text)).toEqual([
-          'Could not save the setting.',
-        ]),
-      );
+      fireEvent.click(pin());
+      await settle();
+      expect(toasts.getState().toasts.map((t) => t.text)).toEqual(['Could not save the setting.']);
       expect(settings.getState().chatPinned).toBe(true);
       expect(isOpen()).toBe(true);
+    });
+
+    it('fast clicks save once, the pin as it ended, and a click just before the chat goes is saved as it goes', async () => {
+      vi.useFakeTimers();
+      const { putSettings, unmount } = setup();
+      for (let k = 0; k < 5; k++) {
+        fireEvent.click(pin());
+      }
+      await settle();
+      expect(putSettings.mock.calls.map(([s]) => s.chat_pinned)).toEqual([true]);
+      fireEvent.click(pin());
+      expect(putSettings).toHaveBeenCalledTimes(1);
+      unmount();
+      expect(putSettings.mock.calls.map(([s]) => s.chat_pinned)).toEqual([true, false]);
     });
   });
 

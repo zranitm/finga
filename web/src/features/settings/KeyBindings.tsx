@@ -1,18 +1,15 @@
 // The key-binding window (key-bindings.md section 4): every action's key, rebound by a click and a key press, applied at once and saved to the account a moment after the last change.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/Button';
-import { holdReadsFor, saveSettings } from '@/features/shared/settings';
 import { useKeys } from '@/features/shared/useKeys';
+import { useSettingsSaves } from '@/features/shared/useSettingsSaves';
 import type { Action } from '@/input/actions';
 import { fixedActions, keyName, rebind, reservedKeys } from '@/input/bindings';
 import type { KeyTable } from '@/input/bindings';
-import { saveQueue } from '@/lib/save-queue';
 import type { RestClient } from '@/net/rest';
 import { keyboardLayout } from '@/state/keyboard-layout';
 import { settings } from '@/state/settings';
-
-export const KEYS_SAVE_DELAY_MS = 500;
 
 /** How long a refused key shakes its chip. */
 const REFUSED_MS = 400;
@@ -120,26 +117,7 @@ export function KeyBindings({ rest, onBack }: KeyBindingsProps) {
   const [confirming, setConfirming] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const bound = useRef<string | null>(null); // the key just bound, whose key up the game mustn't see
-  const queue = useMemo(
-    () =>
-      saveQueue(
-        () => () =>
-          saveSettings(rest).then((p) => {
-            setProblem(p);
-          }),
-        KEYS_SAVE_DELAY_MS,
-      ),
-    [rest],
-  );
-  useEffect(() => {
-    window.addEventListener('pagehide', queue.flush);
-    const held = holdReadsFor(queue);
-    return () => {
-      held();
-      window.removeEventListener('pagehide', queue.flush);
-      queue.flush(); // leaving the window saves a change still waiting
-    };
-  }, [queue]);
+  const save = useSettingsSaves(rest, setProblem);
 
   useEffect(() => {
     const up = (e: KeyboardEvent) => {
@@ -191,7 +169,7 @@ export function KeyBindings({ rest, onBack }: KeyBindingsProps) {
       }
       const next = rebind(settings.getState().keys, listening, e.code);
       settings.getState().setKeys(next.changes);
-      queue.changed();
+      save();
       const now = `${keyName(e.code, printed)} is now ${names[listening]}`;
       setLine(
         next.moved ? `${now}; ${names[next.moved]} moved to ${keyName(old, printed)}.` : `${now}.`,
@@ -214,12 +192,12 @@ export function KeyBindings({ rest, onBack }: KeyBindingsProps) {
       window.removeEventListener('keyup', up, { capture: true });
       window.removeEventListener('pointerdown', away, { capture: true });
     };
-  }, [listening, keys.table, printed, queue]);
+  }, [listening, keys.table, printed, save]);
 
   const reset = () => {
     setConfirming(false);
     settings.getState().setKeys({});
-    queue.changed();
+    save();
     setLine('Every key is back on its default.');
   };
 

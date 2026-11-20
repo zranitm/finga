@@ -3,7 +3,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 
 import { itemName, starClass, starMarks } from '@/features/shared/items';
-import { saveSettings } from '@/features/shared/settings';
+import { useSettingsSaves } from '@/features/shared/useSettingsSaves';
 import { article } from '@/features/shared/words';
 import { limits } from '@/gamedata/limits';
 import type { RestClient } from '@/net/rest';
@@ -96,12 +96,14 @@ export function ChatBox({ socket, rest }: ChatBoxProps) {
     input.current?.blur();
   };
 
-  const togglePin = async () => {
-    settings.getState().setChatPinned(!pinned);
-    const problem = await saveSettings(rest);
+  const pinChanged = useSettingsSaves(rest, (problem) => {
     if (problem) {
       toasts.getState().push(problem);
     }
+  });
+  const togglePin = () => {
+    settings.getState().setChatPinned(!pinned);
+    pinChanged();
   };
 
   if (!open && !pinned) {
@@ -143,7 +145,7 @@ export function ChatBox({ socket, rest }: ChatBoxProps) {
           aria-pressed={pinned}
           title="Keep the chat open while you play"
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => void togglePin()}
+          onClick={togglePin}
         >
           Pin
         </button>

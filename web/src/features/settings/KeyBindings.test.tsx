@@ -3,13 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Modal } from '@/components/Modal';
 import { loadSettings } from '@/features/shared/settings';
+import { SETTINGS_SAVE_DELAY_MS } from '@/features/shared/useSettingsSaves';
 import { RestError } from '@/net/rest';
 import type { Settings } from '@/net/rest';
 import { keyboardLayout } from '@/state/keyboard-layout';
 import { settings } from '@/state/settings';
 import { resetStores } from '@/testing/reset-stores';
 
-import { KEYS_SAVE_DELAY_MS, KeyBindings } from './KeyBindings';
+import { KeyBindings } from './KeyBindings';
 
 const chip = (name: RegExp | string) => screen.getByRole('button', { name });
 const press = (code: string, init: KeyboardEventInit = {}) =>
@@ -214,7 +215,7 @@ describe('KeyBindings', () => {
     press('KeyX');
     expect(chip('Attack: X')).toHaveAttribute('aria-pressed', 'false');
     expect(screen.queryByRole('status')).toBeNull();
-    await act(() => vi.advanceTimersByTimeAsync(KEYS_SAVE_DELAY_MS));
+    await act(() => vi.advanceTimersByTimeAsync(SETTINGS_SAVE_DELAY_MS));
     expect(putSettings).not.toHaveBeenCalled();
   });
 
@@ -225,7 +226,7 @@ describe('KeyBindings', () => {
     press('KeyB');
     listen('Jump');
     press('KeyG');
-    await act(() => vi.advanceTimersByTimeAsync(KEYS_SAVE_DELAY_MS - 1));
+    await act(() => vi.advanceTimersByTimeAsync(SETTINGS_SAVE_DELAY_MS - 1));
     expect(putSettings).not.toHaveBeenCalled();
     await act(() => vi.advanceTimersByTimeAsync(1));
     expect(putSettings.mock.calls).toEqual([
@@ -257,7 +258,7 @@ describe('KeyBindings', () => {
     setup(() => Promise.reject(new RestError(500, 'network', 'Could not reach the server.')));
     listen('Attack');
     press('KeyB');
-    await act(() => vi.advanceTimersByTimeAsync(KEYS_SAVE_DELAY_MS));
+    await act(() => vi.advanceTimersByTimeAsync(SETTINGS_SAVE_DELAY_MS));
     expect(screen.getByRole('alert')).toHaveTextContent('Could not reach the server.');
     expect(chip('Attack: B')).toBeInTheDocument();
   });

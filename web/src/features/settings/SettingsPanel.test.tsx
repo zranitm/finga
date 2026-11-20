@@ -1,7 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { watchPlaySettings } from '@/features/shared/settings';
+import { SETTINGS_SAVE_DELAY_MS } from '@/features/shared/useSettingsSaves';
 import { ERR } from '@/protocol/errors';
 import { settings } from '@/state/settings';
 import { fakeFetch, restClientOn } from '@/testing/fake-fetch';
@@ -10,10 +11,17 @@ import { user } from '@/testing/user';
 
 import { SettingsPanel } from './SettingsPanel';
 
+/** The switches' saves wait out their moment; a test's timers turn fake once the account's settings are in. */
+const settle = (ms = SETTINGS_SAVE_DELAY_MS) => act(() => vi.advanceTimersByTimeAsync(ms));
+
 describe('SettingsPanel', () => {
   beforeEach(() => {
     localStorage.clear();
     resetStores();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('opened inside a switch’s save, it saves the switch first and keeps it, in the store and the account', async () => {
@@ -58,9 +66,11 @@ describe('SettingsPanel', () => {
     expect(auto).not.toBeChecked();
     await waitFor(() => expect(auto).toBeChecked());
     expect(settings.getState().autoAssignPoints).toBe(true);
-    await user.click(auto);
+    vi.useFakeTimers();
+    fireEvent.click(auto);
     expect(settings.getState().autoAssignPoints).toBe(false);
-    await waitFor(() => expect(ff.of('PUT', '/api/settings')).toHaveLength(1));
+    await settle();
+    expect(ff.of('PUT', '/api/settings')).toHaveLength(1);
     expect(ff.of('PUT', '/api/settings')[0]?.body).toEqual({
       auto_assign_points: false,
       chat_pinned: false,
@@ -97,8 +107,10 @@ describe('SettingsPanel', () => {
     render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
     await waitFor(() => expect(settings.getState().zoom).toBe(0.625));
     expect(settings.getState().walk).toBe(true);
-    await user.click(screen.getByLabelText('Show the minimap'));
-    await waitFor(() => expect(ff.of('PUT', '/api/settings')).toHaveLength(1));
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByLabelText('Show the minimap'));
+    await settle();
+    expect(ff.of('PUT', '/api/settings')).toHaveLength(1);
     expect(ff.of('PUT', '/api/settings')[0]?.body).toMatchObject({
       hide_minimap: true,
       zoom: 0.625,
@@ -114,9 +126,11 @@ describe('SettingsPanel', () => {
     await waitFor(() => expect(ff.of('GET', '/api/settings')).toHaveLength(1));
     const minimap = screen.getByLabelText('Show the minimap');
     expect(minimap).toBeChecked();
-    await user.click(minimap);
+    vi.useFakeTimers();
+    fireEvent.click(minimap);
     expect(settings.getState().showMinimap).toBe(false);
-    await waitFor(() => expect(ff.of('PUT', '/api/settings')).toHaveLength(1));
+    await settle();
+    expect(ff.of('PUT', '/api/settings')).toHaveLength(1);
     expect(ff.of('PUT', '/api/settings')[0]?.body).toEqual({
       auto_assign_points: false,
       chat_pinned: false,
@@ -135,8 +149,10 @@ describe('SettingsPanel', () => {
     );
     render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
     await waitFor(() => expect(settings.getState().chatPinned).toBe(true));
-    await user.click(screen.getByLabelText('Show the minimap'));
-    await waitFor(() => expect(ff.of('PUT', '/api/settings')).toHaveLength(1));
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByLabelText('Show the minimap'));
+    await settle();
+    expect(ff.of('PUT', '/api/settings')).toHaveLength(1);
     expect(ff.of('PUT', '/api/settings')[0]?.body).toMatchObject({ chat_pinned: true });
   });
 
@@ -149,12 +165,53 @@ describe('SettingsPanel', () => {
     );
     render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={onClose} />);
     await waitFor(() => expect(ff.of('GET', '/api/settings')).toHaveLength(1));
-    await user.click(screen.getByLabelText('Show the minimap'));
-    expect(await screen.findByRole('alert')).toHaveTextContent(
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByLabelText('Show the minimap'));
+    await settle();
+    expect(screen.getByRole('alert')).toHaveTextContent(
       'Something went wrong on the server. Try again.',
     );
     expect(settings.getState().showMinimap).toBe(false);
-    await user.click(screen.getByRole('button', { name: 'Done' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // From the REST limit (#361): each flip was its own PUT, so a run of them spent an account's burst.
+  it('ten fast flips save once, a moment after the last, with the switches as they ended', async () => {
+    const ff = fakeFetch(() => ({ status: 200, body: {} }));
+    render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
+    await waitFor(() => expect(ff.of('GET', '/api/settings')).toHaveLength(1));
+    vi.useFakeTimers();
+    for (let k = 0; k < 5; k++) {
+      fireEvent.click(screen.getByLabelText(/Auto-assign at every level-up/));
+      fireEvent.click(screen.getByLabelText('Show the minimap'));
+    }
+    await settle(SETTINGS_SAVE_DELAY_MS - 1);
+    expect(ff.of('PUT', '/api/settings')).toHaveLength(0);
+    await settle(1);
+    expect(ff.of('PUT', '/api/settings').map((c) => c.body)).toEqual([
+      {
+        auto_assign_points: true,
+        chat_pinned: false,
+        hide_minimap: true,
+        zoom: 0,
+        walk: false,
+        keys: {},
+      },
+    ]);
+  });
+
+  it('a flip just before the window closes is saved as it closes', async () => {
+    const ff = fakeFetch(() => ({ status: 200, body: {} }));
+    const { unmount } = render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
+    await waitFor(() => expect(ff.of('GET', '/api/settings')).toHaveLength(1));
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByLabelText('Show the minimap'));
+    expect(ff.of('PUT', '/api/settings')).toHaveLength(0);
+    unmount();
+    await act(() => Promise.resolve());
+    expect(ff.of('PUT', '/api/settings').map((c) => c.body)).toMatchObject([
+      { hide_minimap: true },
+    ]);
   });
 });
