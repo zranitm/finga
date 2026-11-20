@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { backoff } from './backoff';
 
-const opts = { baseMs: 500, capMs: 10_000 };
+const full = { baseMs: 500, capMs: 10_000, jitter: 'full' } as const;
+const equal = { ...full, jitter: 'equal' } as const;
 
 describe('backoff', () => {
   afterEach(() => {
@@ -15,23 +16,33 @@ describe('backoff', () => {
     { name: 'the window doubles each attempt', attempt: 2, random: 0.5, want: 1000 },
     { name: 'the window is capped', attempt: 10, random: 0.999, want: 9990 },
     { name: 'the cap holds for any later attempt', attempt: 40, random: 0.5, want: 5000 },
-  ])('$name', ({ attempt, random, want }) => {
+  ])('full jitter: $name', ({ attempt, random, want }) => {
     vi.spyOn(Math, 'random').mockReturnValue(random);
-    expect(backoff(attempt, opts)).toBe(want);
+    expect(backoff(attempt, full)).toBe(want);
   });
 
-  it('never leaves the jitter window with the real random source', () => {
+  it.each([
+    { name: 'the first retry at the bottom, half its window', attempt: 0, random: 0, want: 250 },
+    { name: 'the first retry at the top', attempt: 0, random: 0.999, want: 499 },
+    { name: 'the window doubles each attempt', attempt: 2, random: 0.5, want: 1500 },
+    { name: 'the cap holds, and half of it', attempt: 40, random: 0, want: 5000 },
+  ])('equal jitter: $name', ({ attempt, random, want }) => {
+    vi.spyOn(Math, 'random').mockReturnValue(random);
+    expect(backoff(attempt, equal)).toBe(want);
+  });
+
+  it.each([full, equal])('never leaves its window with the real random source: %o', (opts) => {
     for (let attempt = 0; attempt < 8; attempt++) {
       const bound = Math.min(opts.capMs, opts.baseMs * 2 ** attempt);
       for (let k = 0; k < 200; k++) {
         const d = backoff(attempt, opts);
-        expect(d).toBeGreaterThanOrEqual(0);
+        expect(d).toBeGreaterThanOrEqual(opts.jitter === 'equal' ? bound / 2 : 0);
         expect(d).toBeLessThan(bound);
       }
     }
   });
 
   it.each([-1, 1.5])('refuses attempt %s', (attempt) => {
-    expect(() => backoff(attempt, opts)).toThrow(RangeError);
+    expect(() => backoff(attempt, full)).toThrow(RangeError);
   });
 });
