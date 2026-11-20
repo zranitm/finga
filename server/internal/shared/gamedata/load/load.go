@@ -27,7 +27,7 @@ func Dir(dir string) (*gamedata.Data, error) {
 	}
 	maps := make([]*gamedata.Map, len(l.maps.list))
 	for i, m := range l.maps.list {
-		maps[i] = mapOf(m)
+		maps[i] = mapOf(m, l.bakes[m.ID])
 	}
 	return gamedata.New(gamedata.Parts{
 		Movement:        l.movement,
@@ -81,7 +81,8 @@ type loader struct {
 	items           byID[string, gamedata.Item]
 	slots           []gamedata.EquipSlot
 	mobs            byID[string, gamedata.Mob]
-	maps            byID[string, *mapfile.Map]
+	maps            byID[string, *mapfile.Map] // the regions too, after the maps
+	bakes           map[string]string          // each region's bake folder
 	start           string
 	npcs            byID[string, gamedata.NPC]
 	talkReach       float64

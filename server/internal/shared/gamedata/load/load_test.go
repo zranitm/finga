@@ -434,7 +434,7 @@ func TestValidDataLoads(t *testing.T) {
 	})
 	t.Run("the most active quests and the longest chat line", func(t *testing.T) {
 		in := gamedata.Interest{Cell: 32, Behind: 1, Ahead: 3, Side: 3}
-		if d.MaxActiveQuests() != 20 || d.ChatLineMax() != 120 || d.TeleportChannel() != 2500*time.Millisecond || d.InterestCell() != 32 || d.Interest() != in {
+		if d.MaxActiveQuests() != 20 || d.ChatLineMax() != 120 || d.TeleportChannel() != 2500*time.Millisecond || d.Interest() != in {
 			t.Fatalf("max active %d, chat line %d, teleport channel %v, interest %+v", d.MaxActiveQuests(), d.ChatLineMax(), d.TeleportChannel(), d.Interest())
 		}
 	})
@@ -1303,6 +1303,9 @@ func TestABosssAttackMayBeUnblockable(t *testing.T) {
 }
 
 // The real content is checked on every run, so a broken reference fails CI.
+// testRegion is data/regions' region for trying regions out, linked from nothing (large-regions.md section 12).
+const testRegion = "test_region"
+
 func TestRealDataLoads(t *testing.T) {
 	d, err := load.Dir("../../../../data")
 	if err != nil {
@@ -1555,9 +1558,9 @@ func TestRealDataLoads(t *testing.T) {
 			}
 		}
 	})
-	t.Run("every map can be walked to from the start town, and every hunting map back to its town; a match's map, which a match alone reaches, aside", func(t *testing.T) {
+	t.Run("every map can be walked to from the start town, and every hunting map back to its town; a match's map, which a match alone reaches, and the test region aside", func(t *testing.T) {
 		for _, m := range d.Maps() {
-			if m.Kind == gamedata.Pvp {
+			if m.Kind == gamedata.Pvp || m.ID == testRegion {
 				continue
 			}
 			if !reaches(d, d.StartTown().ID, m.ID) {
@@ -1585,10 +1588,23 @@ func TestRealDataLoads(t *testing.T) {
 			}
 		}
 	})
+	t.Run("the test region is a region nothing leads to: a teleport to its id alone reaches it", func(t *testing.T) {
+		r, ok := d.Map(testRegion)
+		if !ok || r.Kind != gamedata.Region || len(r.Portals) > 0 {
+			t.Fatalf("test region %+v", r)
+		}
+		for _, m := range d.Maps() {
+			for _, p := range m.Portals {
+				if p.TargetMap == testRegion {
+					t.Errorf("%s's %s leads to it", m.ID, p.Name)
+				}
+			}
+		}
+	})
 	t.Run("every hunting map's portals lead somewhere and back", func(t *testing.T) {
 		for _, m := range d.Maps() {
-			if m.Kind == gamedata.Pvp {
-				continue // a match's map has no portals
+			if m.Kind == gamedata.Pvp || m.ID == testRegion {
+				continue // a match's map and the test region have no portals
 			}
 			if len(m.Portals) == 0 {
 				t.Fatalf("map %s has no portals", m.ID)

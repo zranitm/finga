@@ -43,6 +43,9 @@ func (l *loader) loadMaps(dir string) error {
 	if len(l.maps.list) == 0 {
 		return fmt.Errorf("%s: no %s maps", mapsDir, mapExt)
 	}
+	if err := l.loadRegions(dir); err != nil {
+		return err
+	}
 	return l.linkMaps()
 }
 
@@ -54,7 +57,11 @@ func (l *loader) loadMap(id string, f mapfile.File) (*mapfile.Map, error) {
 	if err := l.mapRules(m); err != nil {
 		return nil, err
 	}
-	if err := l.spots(m); err != nil {
+	var bosses []mapfile.Boss
+	if m.Boss != nil {
+		bosses = append(bosses, *m.Boss)
+	}
+	if err := l.spots(m, bosses); err != nil {
 		return nil, err
 	}
 	return m, nil
@@ -103,21 +110,40 @@ func (l *loader) mapRules(m *mapfile.Map) error {
 	default:
 		return fmt.Errorf("unknown kind %q", m.Kind)
 	}
-	for i, p := range m.Portals {
-		if slices.ContainsFunc(m.Portals[:i], func(q mapfile.Portal) bool { return q.Name == p.Name }) {
+	if err := uniquePortals(m.Portals); err != nil {
+		return err
+	}
+	if err := l.spawnRules(m.Spawns, m.Levels, "map"); err != nil {
+		return err
+	}
+	if b := m.Boss; b != nil {
+		return l.bossRules(*b, m.Levels[1], "map")
+	}
+	return nil
+}
+
+// uniquePortals is an error for two portals of a name.
+func uniquePortals(portals []mapfile.Portal) error {
+	for i, p := range portals {
+		if slices.ContainsFunc(portals[:i], func(q mapfile.Portal) bool { return q.Name == p.Name }) {
 			return fmt.Errorf("duplicate portal %q", p.Name)
 		}
 	}
+	return nil
+}
+
+// spawnRules are the mobs spawning on a map or in an area, of its levels: known, no boss, and an elite only beside a normal mob.
+func (l *loader) spawnRules(spawns []mapfile.Spawn, levels [2]int, where string) error {
 	normal, elite := false, ""
-	for _, s := range m.Spawns {
+	for _, s := range spawns {
 		mob, ok := l.mobs.get(s.Mob)
 		switch {
 		case !ok:
 			return fmt.Errorf("spawn %q: unknown mob %q", s.Name, s.Mob)
 		case mob.Boss:
-			return fmt.Errorf("spawn %q: %s is a field boss, which stands at the map's boss spot", s.Name, s.Mob)
-		case mob.Level < m.Levels[0] || mob.Level > m.Levels[1]:
-			return fmt.Errorf("spawn %q: %s is level %d, outside the map's levels %d to %d", s.Name, s.Mob, mob.Level, m.Levels[0], m.Levels[1])
+			return fmt.Errorf("spawn %q: %s is a field boss, which stands at the %s's boss spot", s.Name, s.Mob, where)
+		case mob.Level < levels[0] || mob.Level > levels[1]:
+			return fmt.Errorf("spawn %q: %s is level %d, outside the %s's levels %d to %d", s.Name, s.Mob, mob.Level, where, levels[0], levels[1])
 		case s.Max < 1 || s.Respawn < 0:
 			return fmt.Errorf("spawn %q: max must be positive and respawn not negative", s.Name)
 		case mob.Elite:
@@ -127,24 +153,27 @@ func (l *loader) mapRules(m *mapfile.Map) error {
 		}
 	}
 	if elite != "" && !normal {
-		return fmt.Errorf("elite %s needs a normal mob on its map to stand out from", elite)
-	}
-	if b := m.Boss; b != nil {
-		boss, ok := l.mobs.get(b.Mob)
-		switch {
-		case !ok || !boss.Boss:
-			return fmt.Errorf("boss %q is not a boss in %s", b.Mob, mobsFile)
-		case boss.Level < m.Levels[1]:
-			return fmt.Errorf("boss %s is level %d, below the map's top level %d", b.Mob, boss.Level, m.Levels[1])
-		case b.Radius < boss.Radius:
-			return fmt.Errorf("boss %s: its circle's radius %g is narrower than its body's %g", b.Mob, b.Radius, boss.Radius)
-		}
+		return fmt.Errorf("elite %s needs a normal mob on its %s to stand out from", elite, where)
 	}
 	return nil
 }
 
-// spots checks every spot stands on ground a body fits on inside the map, and that mobs keep off portals.
-func (l *loader) spots(m *mapfile.Map) error {
+// bossRules are a map's or an area's boss: a boss mob of its top level or above, its circle as wide as its body.
+func (l *loader) bossRules(b mapfile.Boss, top int, where string) error {
+	boss, ok := l.mobs.get(b.Mob)
+	switch {
+	case !ok || !boss.Boss:
+		return fmt.Errorf("boss %q is not a boss in %s", b.Mob, mobsFile)
+	case boss.Level < top:
+		return fmt.Errorf("boss %s is level %d, below the %s's top level %d", b.Mob, boss.Level, where, top)
+	case b.Radius < boss.Radius:
+		return fmt.Errorf("boss %s: its circle's radius %g is narrower than its body's %g", b.Mob, b.Radius, boss.Radius)
+	}
+	return nil
+}
+
+// spots checks every spot stands on ground a body fits on inside the map, its bosses' among them, and that mobs keep off portals.
+func (l *loader) spots(m *mapfile.Map, bosses []mapfile.Boss) error {
 	player := l.movement.Radius
 	circle := func(what string, at [2]float64, radius, body float64) error {
 		if !(radius > 0) || at[0]-radius < 0 || at[1]-radius < 0 || at[0]+radius > m.Size[0] || at[1]+radius > m.Size[1] {
@@ -178,7 +207,7 @@ func (l *loader) spots(m *mapfile.Map) error {
 			return err
 		}
 	}
-	if b := m.Boss; b != nil {
+	for _, b := range bosses {
 		boss, _ := l.mobs.get(b.Mob)
 		what := "boss " + b.Mob
 		if err := circle(what, b.At, b.Radius, boss.Radius); err != nil {
@@ -209,23 +238,31 @@ func (l *loader) spots(m *mapfile.Map) error {
 	return nil
 }
 
-// linkMaps checks across maps: portals lead somewhere, each boss and NPC is on one map, towns are towns, and one town is the start.
+// linkMaps checks across maps and regions: portals and gates lead somewhere, a gate's way back to it, each boss and NPC is on one map, towns are towns, and one town is the start.
 func (l *loader) linkMaps() error {
 	bossOn, npcOn := map[string]string{}, map[string]string{}
 	start := ""
 	for _, m := range l.maps.list {
-		file := mapsDir + "/" + m.ID + mapExt
+		file := fileOf(m)
 		for _, p := range m.Portals {
 			target, ok := l.maps.get(p.To.Map)
 			if !ok {
 				return fmt.Errorf("%s: portal %q: target map %q does not exist", file, p.Name, p.To.Map)
 			}
-			if !slices.ContainsFunc(target.Portals, func(q mapfile.Portal) bool { return q.Name == p.To.Portal }) {
+			k := slices.IndexFunc(target.Portals, func(q mapfile.Portal) bool { return q.Name == p.To.Portal })
+			if k < 0 {
 				return fmt.Errorf("%s: portal %q: target portal %q not in map %q", file, p.Name, p.To.Portal, p.To.Map)
 			}
+			if back := target.Portals[k].To; m.Kind == string(gamedata.Region) && back != (mapfile.Target{Map: m.ID, Portal: p.Name}) {
+				return fmt.Errorf("%s: gate %q leads to %s's %q, which leads to %s's %q, not back", file, p.Name, p.To.Map, p.To.Portal, back.Map, back.Portal)
+			}
 		}
-		if town, ok := l.maps.get(m.Town); m.Kind != string(gamedata.Pvp) && (!ok || town.Kind != string(gamedata.Town)) {
-			return fmt.Errorf("%s: town %q is not a town", file, m.Town)
+		switch gamedata.MapKind(m.Kind) {
+		case gamedata.Pvp, gamedata.Region: // a match's map has no town, and a region is its own
+		default:
+			if town, ok := l.maps.get(m.Town); !ok || town.Kind != string(gamedata.Town) {
+				return fmt.Errorf("%s: town %q is not a town", file, m.Town)
+			}
 		}
 		if m.Boss != nil {
 			if other, ok := bossOn[m.Boss.Mob]; ok {
@@ -265,12 +302,20 @@ func (l *loader) linkMaps() error {
 	return nil
 }
 
-// mapOf is a built and checked map as the world reads it: yaws in radians.
-func mapOf(m *mapfile.Map) *gamedata.Map {
+// fileOf is the data file m was read from.
+func fileOf(m *mapfile.Map) string {
+	if m.Kind == string(gamedata.Region) {
+		return regionsDir + "/" + m.ID + mapExt
+	}
+	return mapsDir + "/" + m.ID + mapExt
+}
+
+// mapOf is a built and checked map as the world reads it, with a region's bake: yaws in radians.
+func mapOf(m *mapfile.Map, bake string) *gamedata.Map {
 	point := func(at [2]float64) gamedata.Point { return gamedata.Point{X: at[0], Z: at[1]} }
 	out := &gamedata.Map{
 		ID: m.ID, Name: m.Name, Kind: gamedata.MapKind(m.Kind), Start: m.Start, Town: m.Town, MinLevel: m.Levels[0], MaxLevel: m.Levels[1],
-		Geometry: m.Geometry, PlayerSpawn: point(m.PlayerSpawn.At), SpawnYaw: radians(m.PlayerSpawn.Yaw), Grid: m.Grid,
+		Geometry: m.Geometry, PlayerSpawn: point(m.PlayerSpawn.At), SpawnYaw: radians(m.PlayerSpawn.Yaw), Grid: m.Grid, Bake: bake,
 	}
 	for _, p := range m.Portals {
 		out.Portals = append(out.Portals, gamedata.Portal{Name: p.Name, At: point(p.At), Radius: p.Radius, TargetMap: p.To.Map, TargetPortal: p.To.Portal})

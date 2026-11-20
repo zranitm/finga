@@ -32,6 +32,9 @@ type Bake struct {
 	Hash  string // hex SHA-256 of each file's path and bytes, a tile's by its pixels
 }
 
+// Folder is the first 16 hex digits of the bake's hash, naming the folder it's served from: the server names the one it built, so a client never reads a bake older than its region.
+func (b Bake) Folder() string { return b.Hash[:16] }
+
 // Bake is r's files.
 func (r *Region) Bake() (Bake, error) {
 	meta, err := r.meta()

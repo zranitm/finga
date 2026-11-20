@@ -131,6 +131,19 @@ describe('loadMap', () => {
     }
   });
 
+  it('reads a region with its solids for the sim and no models, its bake drawing them; a map still needs a model for each solid', async () => {
+    const region = await loadMap('test_region');
+    expect(region.region?.id).toBe('test_region');
+    expect(region.region?.hash).toMatch(/^[0-9a-f]{16}$/);
+    expect(region.geometry.cylinders.length).toBeGreaterThan(100);
+    expect(region.geometry.boxes.length).toBeGreaterThan(0);
+    expect(region.solids).toEqual([]);
+    const town = json('town') as { box_models: unknown[] };
+    await expect(read({ ...town, box_models: town.box_models.slice(1) })).rejects.toThrow(
+      'map town: its models and solids differ in number',
+    );
+  });
+
   it('loads a map by its id from the page’s maps folder, and one not there throws', async () => {
     expect((await loadMap('cave')).sky).toBe('cave');
     await expect(loadMap('nowhere')).rejects.toThrow('map nowhere: 404');

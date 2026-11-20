@@ -63,10 +63,9 @@ type watch struct {
 }
 
 func newInterest(in gamedata.Interest, sizeX, sizeZ float64) *interest {
-	nx := max(1, int(math.Ceil(sizeX/in.Cell)))
-	nz := max(1, int(math.Ceil(sizeZ/in.Cell)))
+	nx, nz := in.Cells(sizeX, sizeZ)
 	n := &interest{
-		in: in, nx: nx, nz: nz, whole: nx-1 <= in.Side && nz-1 <= min(in.Behind, in.Ahead),
+		in: in, nx: nx, nz: nz, whole: in.Whole(nx, nz),
 		where: map[body]int{}, cells: make([][]body, nx*nz), watches: map[kernel.CharacterID]*watch{},
 		changes: make([]int, nx*nz), full: make([]int, nx*nz), boss: -1, lit: make([]bool, nx*nz),
 	}

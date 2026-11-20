@@ -26,9 +26,6 @@ func main() {
 	}
 }
 
-// hashLen is how much of a bake's hash names its folder: a client never reads a bake older than the region the server built.
-const hashLen = 16
-
 // run builds each plan with the kit and the sim's rules from dataDir, and writes its bake under out and its preview under preview; out's stale bakes go first.
 func run(dataDir, out, preview, plan string) error {
 	if out == "" && preview == "" {
@@ -118,7 +115,7 @@ func build(path, id string, kit regiongen.Kit, maxSlope float64, out, preview st
 	if err != nil {
 		return err
 	}
-	dir := filepath.Join(out, id, b.Hash[:hashLen])
+	dir := filepath.Join(out, id, b.Folder())
 	part := dir + partSuffix
 	for _, f := range b.Files {
 		to := filepath.Join(part, filepath.FromSlash(f.Path))

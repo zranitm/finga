@@ -90,7 +90,6 @@ func Generate(p Plan, k Kit, maxSlope float64) (*Region, error) {
 	}
 	b.areas()
 	b.ground()
-	b.edge()
 	for _, f := range p.Features {
 		switch {
 		case f.Ridge != nil:
@@ -106,6 +105,7 @@ func Generate(p Plan, k Kit, maxSlope float64) (*Region, error) {
 		}
 	}
 	b.towns()
+	b.edge()
 	lo, hi := math.Inf(1), math.Inf(-1)
 	for i, v := range b.h {
 		b.h[i] = f32(v)
@@ -159,20 +159,32 @@ func (b *builder) ground() {
 	}
 }
 
-// edge raises the ring of mountains: from nothing Width in to between its heights at the sides, noise choosing where along them.
+// edgeCliff is how far the ring of mountains' inner face rises over the highest ground inside it: past a jump from a tree's top with a leap at its peak, so nobody gets onto the ring.
+const edgeCliff = 10
+
+// edge raises the ring of mountains last, so no feature or town opens it: a cliff edgeCliff over the highest ground inside it at its inner face, rising by between its heights to the sides, noise choosing where along them.
 func (b *builder) edge() {
 	e := b.p.Edge
-	n := newNoise(int64(b.p.Seed) + 100)
-	for iz := range b.g.nz {
-		for ix := range b.g.nx {
-			x, z := b.g.x(ix), b.g.x(iz)
-			d := min(x, z, b.p.Size[0]-x, b.p.Size[1]-z)
-			if d >= e.Width {
-				continue
-			}
-			pick := min(max((n.at(x/e.Width, z/e.Width)/0.87+1)/2, 0), 1)
-			b.h[b.g.index(ix, iz)] += float64(smoothstep(1-d/e.Width) * lerp(e.Height[0], e.Height[1], pick))
+	side := func(s int) float64 {
+		x, z := b.g.x(s%b.g.nx), b.g.x(s/b.g.nx)
+		return min(x, z, b.p.Size[0]-x, b.p.Size[1]-z)
+	}
+	top := math.Inf(-1)
+	for s, h := range b.h {
+		if side(s) >= e.Width {
+			top = max(top, h)
 		}
+	}
+	n := newNoise(int64(b.p.Seed) + 100)
+	for s := range b.h {
+		d := side(s)
+		if d >= e.Width {
+			continue
+		}
+		x, z := b.g.x(s%b.g.nx), b.g.x(s/b.g.nx)
+		pick := min(max((n.at(x/e.Width, z/e.Width)/0.87+1)/2, 0), 1)
+		b.h[s] = top + edgeCliff + float64(smoothstep(1-d/e.Width)*lerp(e.Height[0], e.Height[1], pick))
+		b.r.Wet[s] = false
 	}
 }
 

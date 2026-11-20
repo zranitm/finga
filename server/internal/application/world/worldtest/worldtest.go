@@ -180,13 +180,17 @@ func LoadData(t testing.TB) *gamedata.Data {
 	return gamedatatest.Shipped(t)
 }
 
-// LoadDataWith is the game data the server ships, each file named in edits changed by its function first; tests making the same edits share it.
+// LoadDataWith is the game data the server ships, each file named in edits changed by its function first, or left out where it's nil; tests making the same edits share it.
 func LoadDataWith(t testing.TB, edits map[string]func(string) string) *gamedata.Data {
 	t.Helper()
 	src := gamedatatest.Dir()
 	texts := map[string]string{}
 	var key strings.Builder
 	for _, name := range slices.Sorted(maps.Keys(edits)) {
+		if edits[name] == nil {
+			key.WriteString(name + "\x01")
+			continue
+		}
 		raw, err := os.ReadFile(filepath.Join(src, name))
 		if err != nil {
 			t.Fatal(err)
@@ -201,6 +205,13 @@ func LoadDataWith(t testing.TB, edits map[string]func(string) string) *gamedata.
 	if err := os.CopyFS(dst, os.DirFS(src)); err != nil {
 		t.Fatal(err)
 	}
+	for name, edit := range edits {
+		if edit == nil {
+			if err := os.Remove(filepath.Join(dst, name)); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 	for name, text := range texts {
 		if err := os.WriteFile(filepath.Join(dst, name), []byte(text), 0o600); err != nil {
 			t.Fatal(err)
@@ -212,6 +223,19 @@ func LoadDataWith(t testing.TB, edits map[string]func(string) string) *gamedata.
 	}
 	shared, _ := edited.LoadOrStore(key.String(), d)
 	return shared.(*gamedata.Data)
+}
+
+// WithoutRegions is edits leaving out every region the data ships too, for an interest block one would fit in, which the loader refuses.
+func WithoutRegions(t testing.TB, edits map[string]func(string) string) map[string]func(string) string {
+	t.Helper()
+	plans, err := filepath.Glob(filepath.Join(gamedatatest.Dir(), "regions", "*.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range plans {
+		edits[filepath.Join("regions", filepath.Base(p))] = nil
+	}
+	return edits
 }
 
 // TownSpawn is where players appear in the town, x and z.

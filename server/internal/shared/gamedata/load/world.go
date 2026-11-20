@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"finga/internal/shared/gamedata"
+	"finga/internal/shared/mapfile"
 )
 
 const (
@@ -52,14 +53,19 @@ func (l *loader) loadWorld(dir string) error {
 		return fmt.Errorf("%s: %s reaches %g m, past the %g m the rows behind a player cover (interest.behind × cell)", worldFile, what, far, float64(in.Behind)*in.Cell)
 	}
 	l.interest = gamedata.Interest{Cell: in.Cell, Behind: in.Behind, Ahead: in.Ahead, Side: in.Side}
+	for _, m := range l.maps.list {
+		if m.Kind == string(gamedata.Region) && l.interest.Whole(l.interest.Cells(m.Size[0], m.Size[1])) {
+			return fmt.Errorf("%s: one interest block holds it from every cell, so it would be sent whole; a region is wider than %s's block", fileOf(m), worldFile)
+		}
+	}
 	ids := make([]string, 0, len(y.Places))
 	for id, p := range y.Places {
 		m, ok := l.maps.get(id)
 		if !ok {
 			return fmt.Errorf("%s: a place for %s, which is no map", worldFile, id)
 		}
-		if m.Kind == string(gamedata.Pvp) {
-			return fmt.Errorf("%s: a place for %s, a pvp map, which no chart shows", worldFile, id)
+		if !charted(m) {
+			return fmt.Errorf("%s: a place for %s, a %s map, which no chart shows", worldFile, id, m.Kind)
 		}
 		if p[0] < 0 || p[0] > chartSize || p[1] < 0 || p[1] > chartSize {
 			return fmt.Errorf("%s: %s's place %v is off the chart, 0 to %g", worldFile, id, p, chartSize)
@@ -67,7 +73,7 @@ func (l *loader) loadWorld(dir string) error {
 		ids = append(ids, id)
 	}
 	for _, m := range l.maps.list {
-		if _, ok := y.Places[m.ID]; !ok && m.Kind != string(gamedata.Pvp) {
+		if _, ok := y.Places[m.ID]; !ok && charted(m) {
 			return fmt.Errorf("%s: map %s has no place", worldFile, m.ID)
 		}
 	}
@@ -130,4 +136,9 @@ func shapeReach(s gamedata.Shape) float64 {
 		return s.Radius + s.Reach
 	}
 	return 0
+}
+
+// charted is whether m has a place on the world chart: a town or a hunting map, not a match's map or a region.
+func charted(m *mapfile.Map) bool {
+	return m.Kind == string(gamedata.Town) || m.Kind == string(gamedata.Hunting)
 }

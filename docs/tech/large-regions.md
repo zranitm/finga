@@ -56,7 +56,7 @@ cell: 1                 # terrain samples a metre apart, dividing the overview's
 seed: 11
 look: {sky: day}
 ground: {noise: {scale: 220, amplitude: 7, octaves: 4}}
-edge: {width: 70, height: [35, 60], biome: peaks}   # the ring of mountains, coloured as its own biome
+edge: {width: 70, height: [35, 60], biome: peaks}   # the ring of mountains, coloured as its own biome: a cliff, then rising by these
 colour: {slope: 0.25, high: 30}               # where flat ground's colour turns to slope's, and the height high's starts
 features:                                     # applied in order
   - {ridge:   {path: [[x, z], ...], width: 60, height: 30}}
@@ -94,10 +94,19 @@ biomes:
   - Every camp's mob level lies in its area's band.
   - Every waypoint, NPC, gate and the start stand on walkable ground.
   - Every gate links both ways.
-  - Every area, waypoint, NPC and gate can be reached from the start: the reachability test of today (`TestEveryPortalSpawnAndBossCanBeReached`) is run over the region's nav.
+  - Every area, waypoint, NPC and gate can be reached from the start: the reachability test of today (`TestEveryShippedMapCanBeCrossed`) is run over the region's nav.
+- **As built (step 4b-1),** `load/regions.go` generates each plan in `data/regions` at load and reads it as a map of kind `region`: its gates are portals, its camps spawns and its start the player spawn, so the maps' spot and link rules apply to it. On top of them:
+  - **Areas** are judged on 4 m squares (`regiongen.AreaCell`), each held by the area holding its south-west corner, by the generator's rule for a sample in a polygon. Two areas over one square are refused, and so is a square inside the edge in none. `AreaGrid.Holding` is the lookup step 4b-4's areas read.
+  - **Areas' own:** ids unique and a name each. A hunting area has levels, 1 ≤ lowest ≤ highest, and a boss mob standing in it, at or above its top level, its circle as wide as its body and on ground it fits. A town has no levels, no boss and no camps. Each area has its own boss; a region's bosses aren't checked against the maps', since the test region shares theirs.
+  - **Camps** name a hunting area and stand in it. Their mobs are known, no boss, in its band, an elite only beside a normal mob, as on a map.
+  - **Waypoints** have unique ids and stand where a player fits. Gates, NPCs and the start are checked as portals, NPCs and the player spawn are.
+  - **Gates** lead to a map's portal or a region's gate that leads back to them.
+  - **The region** isn't named as a map is, has a name, and isn't one block holds (`gamedata.Interest.Whole`, which the instances read too).
+  - Every waypoint, gate, NPC, camp and area boss is reached from the start and each gate, at every speed: `TestEveryShippedRegionCanBeCrossed`.
 - **`world.yaml`:**
   - `places` goes for regions: the World tab is a chart of three regions, by `regions: [{id, at}]`.
   - The old maps keep their places until they're retired.
+  - As built (step 4b-1), a place for a region is refused, and none is asked for: no region is charted yet.
 - **Quests, NPCs and bosses** name an area where they named a map: kill objectives count kills in an area, and `npc.MapID` becomes the region with its spot.
 - **As built (step 4a),** the generator checks what it needs to build a plan, strictly as every data file is read: an unknown key is an error. The rules above, which judge how the parts fit together, come with the loader in step 4b.
   - **Limits,** so a bad plan is refused before it can run out of memory or reach a float-to-int conversion that CPUs disagree on. Each error names its limit.
@@ -127,13 +136,16 @@ biomes:
 
 - **Deterministic from the plan and its seed.** The steps:
   1. **Ground:** OpenSimplex noise, with octaves.
-  2. **Edge:** the mountain ring, a smooth rise with noise.
-  3. **Features,** in order:
+  2. **Features,** in order:
      - ridges along their paths;
      - plateaus with cliff or ramp edges;
      - rivers and lakes carved, with fords left shallow;
      - roads flattened to their mean height along a smoothed path.
-  4. **Towns:** each town area flattened toward its mean.
+  3. **Towns:** each town area flattened toward its mean.
+  4. **Edge:** the mountain ring, raised last so no feature or town opens it: a cliff 10 m over the highest ground inside the ring at its inner face, then rising smoothly by between its heights to the sides, noise choosing where.
+     - **As built (step 4b-1):** the ring was a smooth rise added before the features. Where its noise picked its lower height, the whole slope stayed under the walkable 0.7, and from the test region's start a player reached 21,700 m² of the ring, up to the border.
+     - **Why 10 m:** the highest a player gets is about 6.7 m above the ground: 4.5 m up a pillar, the kit's tallest solid that jumps from one top to the next climb to, then a jump and a 300 ms leap at its peak. A blink, a dash or a leap alone adds no height. The cliff is measured from the highest ground inside, so a ridge or plateau beside the ring can't beat it.
+     - **Tests:** nothing the walk grid reaches from the start lies in the ring (`TestNoPlayerReachesARegionsRing`). On each side of every region, and of a flat one whose ground is all as high as at its face, a body at the face fires a jump and every skill's move, from the ground and the climbed 4.5 m, now or at a jump's peak, and gets no farther in than the cliff's own cell (`TestNoMoveGetsOntoARegionsRing`). A 6 m cliff fails it.
   5. **Steepness,** as `sim.Terrain` marks it today.
   6. **Colours:** each sample gets a biome colour, by its area and its height and slope: flat, slope, steep and high. Roads take dirt, river and lake beds sand.
   7. **Pieces** are added as placed.
@@ -196,6 +208,8 @@ biomes:
   - **This reverses the plan** (section 15, call 11), which had both sides read one bake. Generating on the server needs no artifact to build and ship with it, and the server can't run on a bake older than its plan. Generation is cheap, and the exactness was needed anyway, for the golden hashes to match on arm64.
 - **Where it's built:** `npm run maps` and the web image's build write it to `web/public/regions/<id>/<hash>/`, a build artifact, not committed.
   - `<hash>` is the first 16 hex digits of the bake's hash. From step 4b the server names the hash it built, so a client never reads a bake older than its region.
+    - **As built (step 4b-1):** the loader bakes each region it generates and keeps the folder's name as `gamedata.Map.Bake` (`regiongen.Bake.Folder`, which regionbake names its folder by too). `cmd/mapjson` writes a region's JSON from it: the server's geometry, its sky and gates, and `region: {id, hash}`, with no models, since the bake draws its solids and props.
+    - **Measured** on the reference Mac at 1 km: generating takes 0.32–0.38 s and baking every file 46–48 ms, so the full hash is named at boot. The 256 m test region takes 12 ms and 2 ms, and its walk grid 68 ms, built as the world starts.
   - A new bake clears the old ones. Each is written to `<hash>.part` and renamed whole, so a crash leaves nothing that looks complete. The next run clears it.
 - **The files,** all little-endian. A run of float32s starts on a 4-byte boundary, so a reader can view it in place:
 
@@ -230,6 +244,7 @@ biomes:
   - The map window shows "Channel n" with a list. Switching is a 3-second channel, cancelled as a teleport is (B9), to the same spot in the other channel.
   - B4 becomes the region's channels.
 - **Region changes** go through a gate (the talk key in its ring, as a portal) or a teleport to another region's waypoint. Each is a hand-off as today, to the new region's least full channel.
+- **As built (step 4b-1),** a region runs as one instance in `w.instances`, as a map does, until channels come. It's its own town: one who dies in it gets up at its start, in it, and pays the death's EXP, as on a hunting map. A teleport to its id lands at its start.
 
 ## 5. The server: what each player is sent
 
@@ -380,7 +395,7 @@ Built with step 1, which says who watches a cell.
   - In a town area, damage is refused as in a town map today (`usable` reads the area in place of `Map.Kind`).
   - A mob's chase and leash stop at a town's edge.
 - **Field bosses,** one per hunting area:
-  - Kills in an area count toward its boss.
+  - Its boss stands at its circle from the channel's start and comes back 5 minutes after it's beaten, as [Loot pouches and timed bosses](./loot-pouches.md) made the maps' bosses. No kills count toward it: `kills` is gone from the plan's boss and the map file's (step 4b-1).
   - Its bar goes to players in the area, and rewards go to those in the area when it falls.
   - `instance/boss.go` keeps a slice of bosses by area, in place of one.
 - **Death:** the player gets back up at the nearest waypoint or town of their region, by the road graph's distance. They don't hand off to a town map. On the old maps still in use, death hands off to the map's town as today.
@@ -536,6 +551,7 @@ Built with step 1, which says who watches a cell.
    - Interest cells, the indexes and sleep change nothing a player of a small map can see. Their tests run on today's maps.
    - Sprint and zoom ship then too.
 2. **The pipeline:** the plan, the generator, the bake, the preview, the `region` kind, region channels, and a test region built from a small plan. The test region is never linked from the world.
+   - **As built (step 4b-1):** `data/regions/test_region.yaml`, 256 m on the small test plan's ground: a town and four hunting areas of real mobs, levels 1–4, 10–14, 15–18 and 19–20, each with its own boss, and no NPCs and no gates. No portal or gate leads there and the chart doesn't show it: only a teleport to its id reaches it, which the player harness uses.
 3. **The green region:**
    - Designed with the user from previews first: its areas, towns, camps, waypoints and roads.
    - Then built: its NPCs and quests are re-placed, and mob levels are moved to their areas' bands, with the balance harness re-run.
@@ -566,6 +582,12 @@ Built with step 1, which says who watches a cell.
   - towns without camps;
   - gates both ways;
   - reachability over the nav.
+  - As built (step 4b-1):
+    - a 128 m region of the fixture's mobs, read as a map: its spots, an NPC placed on it, its geometry the generator's, its walk grid, and its bake named as the bake's folder;
+    - each rule refused by a one-line change to the plan, a map or world.yaml, 36 cases in all;
+    - the area grid: each square held by the area holding its corner, a shared side going to the area north or east of it, and two areas over one square refused;
+    - the test region reached by nothing, its JSON with no models and its bake's name, and on no chart or link;
+    - the ring a cliff over the highest ground inside, which a river and a ridge reaching into it neither cut nor raise.
 - **Server:**
   - **Interest:** what a player is sent at a cell's edge; entities coming into and out of view; events reaching only watchers; and the concatenated frame decoding to the union of its parts.
     - As built (step 1a):
@@ -636,6 +658,8 @@ Built with step 1, which says who watches a cell.
 4. **The pipeline,** in two PRs:
    - 4a: `regiongen`, the kit and the bake, and the preview;
    - 4b: the `region` kind and its loader rules, region channels, areas, towns, area bosses and respawn, and a test region. The client's sim walks a region's ground from its bake, and the loading screen holds for the near chunks. The loader refuses a region one block would hold, so none is ever sent whole.
+     - As built, in four PRs: 4b-1 the region kind, the loader, the ring's cliff and the test region; 4b-2 the client's sim on the bake's chunks, the loading screen's hold and deep water as walls; 4b-3 channels; 4b-4 areas, towns, area bosses and respawn.
+     - From step 8, every shipped region's hunting areas also pass the maps' three design tests: no mob sees an arrival, each mob reaches a player anywhere in its leash, and no solid leaves a gap by steep ground only a player fits. The generator then needs a scatter rule keeping solids off cliffs. Run through them once in 4b-1, the test region, a fixture, passes the first after one camp moved and fails the other two: mobs miss a few spots, some in a riverbed that 4b-2's deep water closes, and trees at the foot of cliffs, the ring's included, leave gaps only a player fits.
 5. **The client for regions,** in three PRs:
    - 5a: the overview, chunk streaming and detail, and props per chunk;
    - 5b: the looks grid, cascaded shadows and water;

@@ -165,7 +165,7 @@ describe('MapWindow', () => {
 
   it('puts every spawn label on one of its own mob’s circles, on every map', () => {
     const off = maps
-      .filter((m) => m.spawns.length > 0)
+      .filter((m) => m.spawns.length > 0 && m.kind !== 'region') // a region's view pans and zooms its tiles (large-regions.md section 10)
       .flatMap((m) =>
         spawnLabels(m.id)
           .filter((l) => !on(m.id, l.mob, l.x, l.z))
@@ -187,7 +187,7 @@ describe('MapWindow', () => {
 
   it('gives every spawn circle a label of its own mob on it or within 8 m of its edge, on every map', () => {
     const far = maps
-      .filter((m) => m.spawns.length > 0)
+      .filter((m) => m.spawns.length > 0 && m.kind !== 'region') // a region's view pans and zooms its tiles (large-regions.md section 10)
       .flatMap((m) =>
         [...new Set(m.spawns.map((s) => s.mob))].flatMap((mob) =>
           fromLabels(m.id, mob)
@@ -229,15 +229,17 @@ describe('MapWindow', () => {
     expect(you.bottom).toBeLessThanOrEqual(name.bottom - name.h - 2);
   });
 
-  it('World draws every map but a match’s at its place, a line for each pair of maps a portal joins, and a house for a town with no levels', async () => {
+  it('World draws every map but a match’s and a region’s at its place, a line for each pair of maps a portal joins, and a house for a town with no levels', async () => {
     onMap('forest', 30, 10);
     render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
     await user.click(screen.getByRole('tab', { name: 'World' }));
     const chart = screen.getByRole('group', { name: 'World' });
     expect(chart.querySelectorAll('.map-node')).toHaveLength(
-      maps.filter((m) => m.kind !== 'pvp').length,
+      maps.filter((m) => m.kind !== 'pvp' && m.kind !== 'region').length,
     );
     expect(chart.querySelector('.map-node[data-map="ring"]')).toBeNull(); // only a match reaches it
+    expect(map('test_region').kind).toBe('region');
+    expect(chart.querySelector('.map-node[data-map="test_region"]')).toBeNull(); // only a teleport to its id reaches it, so nothing on the chart picks it
     expect(
       [...chart.querySelectorAll('.map-link')].map((l) => l.getAttribute('data-link')).sort(),
     ).toEqual(mapLinks.map(([a, b]) => `${a}-${b}`).sort());

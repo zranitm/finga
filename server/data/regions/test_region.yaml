@@ -1,0 +1,60 @@
+# The test region: never linked from the world, reached by a teleport to its id alone, for trying the region path end to end (large-regions.md section 12).
+name: Test Region
+size: [256, 256]
+cell: 1
+seed: 11
+look: {sky: day}
+ground: {noise: {scale: 90, amplitude: 3, octaves: 3}}
+edge: {width: 24, height: [14, 22], biome: peaks}
+colour: {slope: 0.25, high: 12}
+features:
+  - {ridge: {path: [[40, 200], [120, 214]], width: 24, height: 8}}
+  - {plateau: {area: [[160, 150], [205, 150], [205, 190], [160, 190]], height: 5, edge: cliff}}
+  - {plateau: {area: [[36, 36], [76, 36], [76, 66], [36, 66]], height: 3, edge: ramp}}
+  - {river: {path: [[30, 136], [90, 131], [150, 134], [226, 126]], width: 10, depth: 2.5, fords: [[118, 132]]}}
+  - {lake: {area: [[182, 40], [215, 46], [210, 80], [176, 74]], depth: 3}}
+  - {road: {path: [[120, 30], [120, 100], [116, 160], [100, 226]], width: 4}}
+areas:
+  - {id: town, name: Test Town, area: [[90, 60], [150, 60], [150, 110], [90, 110]], biome: meadow, kind: town}
+  - {id: west, name: West Field, area: [[24, 24], [90, 24], [90, 232], [24, 232]], levels: [1, 4], biome: meadow, kind: hunting,
+     boss: {at: [45, 110], radius: 5, mob: king_slime}}
+  - {id: south, name: South Field, area: [[90, 24], [150, 24], [150, 60], [90, 60]], levels: [10, 14], biome: meadow, kind: hunting,
+     boss: {at: [125, 48], radius: 5, mob: vampire_bat}}
+  - {id: north, name: North Field, area: [[90, 110], [150, 110], [150, 232], [90, 232]], levels: [15, 18], biome: meadow, kind: hunting,
+     boss: {at: [120, 175], radius: 5, mob: spore_mother}}
+  - {id: woods, name: East Woods, area: [[150, 24], [232, 24], [232, 232], [150, 232]], levels: [19, 20], biome: woods, kind: hunting,
+     boss: {at: [200, 210], radius: 5, mob: moth_empress}}
+camps:
+  - {area: west, name: slimes, at: [56, 50], radius: 6, mob: green_slime, max: 4, respawn: 8s}
+  - {area: west, name: mushrooms, at: [75, 115], radius: 5, mob: orange_mushroom, max: 3, respawn: 12s}
+  - {area: south, name: boars, at: [102, 45], radius: 5, mob: wild_boar, max: 3, respawn: 12s}
+  - {area: south, name: bats, at: [140, 32], radius: 4, mob: cave_bat, max: 2, respawn: 15s}
+  - {area: north, name: spore_slimes, at: [100, 155], radius: 5, mob: spore_slime, max: 3, respawn: 10s}
+  - {area: north, name: moths, at: [140, 150], radius: 5, mob: dust_moth, max: 2, respawn: 10s}
+  - {area: woods, name: glow_slimes, at: [215, 100], radius: 6, mob: glow_slime, max: 3, respawn: 10s}
+  - {area: woods, name: snail, at: [170, 100], radius: 4, mob: elder_snail, max: 1, respawn: 15s}
+waypoints:
+  - {id: town, name: Test Town, at: [124, 85]}
+  - {id: west, name: West Field, at: [60, 85]}
+  - {id: north, name: North Field, at: [118, 150]}
+  - {id: woods, name: East Woods, at: [190, 100]}
+pieces:
+  - {model: well, at: [130, 75], yaw: 0}
+  - {model: shop, at: [140, 95], yaw: 30}
+  - {house: {area: [95, 92, 6.1, 7.4], height: 13.6, model: house_small}}
+start: {at: [124, 80], yaw: 0}
+biomes:
+  meadow:
+    colours: {flat: grass, slope: dirt, steep: stone, high: stone}
+    scatter:
+      - {model: tree_oak, spacing: 9, slope: 0.4, away: {road: 4, water: 1, camp: 3, town: 2, waypoint: 2}}
+      - {model: rock_small, spacing: 14}
+  woods:
+    colours: {flat: grass, slope: dirt, steep: stone, high: snow}
+    scatter:
+      - {model: tree_pine, spacing: 5, away: {road: 3, water: 1, camp: 3}}
+      - {model: bush_round, spacing: 6}
+  peaks:
+    colours: {flat: stone, slope: stone, steep: stone, high: snow}
+    scatter:
+      - {model: boulder, spacing: 20}

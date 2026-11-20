@@ -94,6 +94,11 @@ func Build(id string, f File, p sim.Params) (*Map, error) {
 	return &Map{ID: id, File: f, Geometry: g, Walled: walled, params: p}, nil
 }
 
+// Generated is a map whose ground and solids were built elsewhere, as a region's are from its plan: f holds its spots, and g its geometry, indexed.
+func Generated(id string, f File, g sim.Geometry, p sim.Params) *Map {
+	return &Map{ID: id, File: f, Geometry: g, params: p}
+}
+
 // terrain adds each hill, then each mesa, in file order at the grid points it reaches, so every build sums them alike; a point it doesn't reach would add 0.
 func terrain(t Terrain, size [2]float64, maxSlope float64) (sim.Terrain, error) {
 	nx, okX := samples(size[0], t.Cell)

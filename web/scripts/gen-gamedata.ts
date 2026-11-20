@@ -1,5 +1,5 @@
 // Node runs this file directly (type stripping), so it may use only erasable TypeScript.
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -565,8 +565,63 @@ for (const file of readdirSync(join(dataDir, 'maps'))
     })(),
     place: pvp ? null : pair(places[id], `world.yaml place of ${id}`),
   });
-  for (const raw of m.npcs === undefined ? [] : must(m.npcs, isArray, `${file} npcs`)) {
-    const n = must(raw, isRecord, `a ${file} npc`);
+  placeNpcs(file, id, m.npcs);
+}
+// regions/*.yaml: each region on the map list as a map of kind region, its own town and on no chart, so no link either: its name and sky, its camps as spawns, its gates as portals; its bake draws its ground (large-regions.md section 4).
+const regionsDir = join(dataDir, 'regions');
+for (const file of existsSync(regionsDir)
+  ? readdirSync(regionsDir)
+      .filter((f) => f.endsWith('.yaml'))
+      .sort()
+  : []) {
+  const id = file.replace('.yaml', '');
+  const r = must(load(join('regions', file)), isRecord, file);
+  maps.push({
+    id,
+    name: must(r.name, isString, `${file} name`),
+    kind: 'region',
+    town: id,
+    start: false,
+    ground: null,
+    sky: must(must(r.look, isRecord, `${file} look`).sky, isString, `${file} look.sky`),
+    min_level: null,
+    max_level: null,
+    spawns: (r.camps === undefined ? [] : must(r.camps, isArray, `${file} camps`)).map((raw) => {
+      const c = must(raw, isRecord, `a ${file} camp`);
+      const [x, z] = pair(c.at, `${file} camp ${String(c.name)} at`);
+      return {
+        mob: must(c.mob, isString, `${file} camp ${String(c.name)} mob`),
+        x,
+        z,
+        radius: must(c.radius, isNumber, `${file} camp ${String(c.name)} radius`),
+      };
+    }),
+    portals: (r.gates === undefined ? [] : must(r.gates, isArray, `${file} gates`)).map((raw) => {
+      const g = must(raw, isRecord, `a ${file} gate`);
+      const name = must(g.name, isString, `a ${file} gate name`);
+      const [x, z] = pair(g.at, `${file} gate ${name} at`);
+      return {
+        name,
+        x,
+        z,
+        radius: must(g.radius, isNumber, `${file} gate ${name} radius`),
+        to: must(
+          must(g.to, isRecord, `${file} gate ${name} to`).region,
+          isString,
+          `${file} gate ${name} to region`,
+        ),
+      };
+    }),
+    boss: null,
+    place: null,
+  });
+  placeNpcs(file, id, r.npcs);
+}
+
+/** Places each NPC that file, of map or region id, stands: at x east and z north, facing its yaw in radians. */
+function placeNpcs(file: string, id: string, raw: unknown) {
+  for (const entry of raw === undefined ? [] : must(raw, isArray, `${file} npcs`)) {
+    const n = must(entry, isRecord, `a ${file} npc`);
     const at = must(n.at, isArray, `${file} npc ${String(n.id)} at`);
     placed.set(must(n.id, isString, `a ${file} npc id`), {
       map: id,

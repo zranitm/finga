@@ -80,6 +80,39 @@ func near(t *testing.T, what string, got, want float64) {
 	}
 }
 
+// The ring of mountains rises over everything inside it: its inner face a cliff edgeCliff over the highest ground inside, too steep to walk, then up by its heights toward the sides; a river and a ridge reaching into it neither cut nor raise it.
+func TestTheRingIsACliffOverTheHighestGroundInside(t *testing.T) {
+	p := flat()
+	p.Edge = Edge{Width: 10, Height: [2]float64{4, 4}, Biome: "meadow"}
+	p.Features = []Feature{
+		{Plateau: &Plateau{Area: [][2]float64{{50, 50}, {70, 50}, {70, 70}, {50, 70}}, Height: 5, Edge: Cliff}},
+		{River: &River{Path: [][2]float64{{64, 30}, {125, 30}}, Width: 6, Depth: 2}},
+		{Ridge: &Ridge{Path: [][2]float64{{64, 100}, {125, 100}}, Width: 10, Height: 3}},
+	}
+	r := build(t, p)
+	near(t, "the plateau, the highest ground inside", r.at(60, 60), 5)
+	for z := range 129 {
+		for x := range 129 {
+			d := min(x, z, 128-x, 128-z)
+			if d >= 10 {
+				continue
+			}
+			want := f32(5 + edgeCliff + float64(smoothstep(1-float64(d)/10)*4))
+			if got := r.at(x, z); got != want {
+				t.Fatalf("the ring at (%d, %d), %d m in: %v; want %v", x, z, 10-d, got, want)
+			}
+			if r.Wet[z*129+x] {
+				t.Fatalf("the ring at (%d, %d) is under water", x, z)
+			}
+		}
+	}
+	for _, z := range []int{30, 64, 100} {
+		if !r.steepBetween(118, z, false) || !r.steepBetween(9, z, false) {
+			t.Errorf("the inner face by z = %d isn't steep both sides", z)
+		}
+	}
+}
+
 // A ridge is (1 − d²/r²)² of its height at d from its path, r half its width, and nothing past it or past its ends.
 func TestARidgeFallsSmoothlyFromItsPath(t *testing.T) {
 	p := flat()

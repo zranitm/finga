@@ -2,6 +2,7 @@
 package gamedata
 
 import (
+	"math"
 	"time"
 
 	"finga/internal/shared/kernel"
@@ -126,8 +127,13 @@ type Interest struct {
 	Behind, Ahead, Side int     // rows south and north of the player's cell, as the camera faces north, and columns to each side
 }
 
-// InterestCell is the side in metres of the squares a map's bodies are bucketed in (large-regions.md section 5).
-func (d *Data) InterestCell() float64 { return d.p.Interest.Cell }
+// Cells is how many interest cells a map sizeX by sizeZ is across and up.
+func (in Interest) Cells(sizeX, sizeZ float64) (nx, nz int) {
+	return max(1, int(math.Ceil(sizeX/in.Cell))), max(1, int(math.Ceil(sizeZ/in.Cell)))
+}
+
+// Whole is whether one block holds a map nx by nz cells from every cell of it, so the map is sent whole (large-regions.md section 5).
+func (in Interest) Whole(nx, nz int) bool { return nx-1 <= in.Side && nz-1 <= min(in.Behind, in.Ahead) }
 
 // Interest is the cells and the block of them each player is sent.
 func (d *Data) Interest() Interest { return d.p.Interest }

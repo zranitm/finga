@@ -107,11 +107,14 @@ function parseMap(json: unknown): WorldMap {
   }
   const boxes = m.geometry.boxes ?? [];
   const cylinders = m.geometry.cylinders ?? [];
-  if (boxes.length !== m.box_models.length || cylinders.length !== m.cylinder_models.length) {
-    throw new Error(`map ${m.id}: its models and solids differ in number`);
-  }
   if (m.region && (typeof m.region.id !== 'string' || typeof m.region.hash !== 'string')) {
     throw new Error(`map ${m.id}: its region names no bake`);
+  }
+  if (
+    !m.region &&
+    (boxes.length !== m.box_models.length || cylinders.length !== m.cylinder_models.length)
+  ) {
+    throw new Error(`map ${m.id}: its models and solids differ in number`);
   }
   const geometry = indexed({
     size_x: m.geometry.size_x,
@@ -125,17 +128,19 @@ function parseMap(json: unknown): WorldMap {
     ground: m.ground,
     sky: m.sky,
     geometry,
-    solids: [
-      ...boxes.map((box, i): Solid => {
-        const { model, yaw } = m.box_models[i]!;
-        return { kind: 'box', box, model, yaw };
-      }),
-      ...cylinders.map((cylinder, i): Solid => ({
-        kind: 'cylinder',
-        cylinder,
-        model: m.cylinder_models[i]!,
-      })),
-    ],
+    solids: m.region // a region's bake draws its solids
+      ? []
+      : [
+          ...boxes.map((box, i): Solid => {
+            const { model, yaw } = m.box_models[i]!;
+            return { kind: 'box', box, model, yaw };
+          }),
+          ...cylinders.map((cylinder, i): Solid => ({
+            kind: 'cylinder',
+            cylinder,
+            model: m.cylinder_models[i]!,
+          })),
+        ],
     props: m.props.flatMap(expand),
     portals: m.portals.map((p) => ({
       name: p.name,

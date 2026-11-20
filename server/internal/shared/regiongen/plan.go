@@ -130,12 +130,11 @@ const (
 	Town    = "town"
 )
 
-// Boss is an area's boss, summoned at At after Kills in the area.
+// Boss is an area's boss, standing at its circle's centre and wandering it.
 type Boss struct {
 	At     [2]float64 `yaml:"at,flow" json:"at"`
 	Radius float64    `yaml:"radius" json:"radius"`
 	Mob    string     `yaml:"mob" json:"mob"`
-	Kills  int        `yaml:"kills" json:"kills"`
 }
 
 // Camp is a spawn: up to Max of Mob within Radius of At.

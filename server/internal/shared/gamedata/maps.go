@@ -15,7 +15,8 @@ type MapKind string
 const (
 	Town    MapKind = "town"
 	Hunting MapKind = "hunting"
-	Pvp     MapKind = "pvp" // a match's map: no portal, teleport or world chart reaches it
+	Pvp     MapKind = "pvp"    // a match's map: no portal, teleport or world chart reaches it
+	Region  MapKind = "region" // generated from its plan in data/regions, of towns and hunting areas (large-regions.md section 4)
 )
 
 // Point is a spot on a map: x east and z north, in metres. What stands there stands on the ground under it.
@@ -61,8 +62,8 @@ type Map struct {
 	Name               string // what players see, as the banner on entering
 	Kind               MapKind
 	Start              bool   // new characters start here; exactly one town has it
-	Town               string // the town its players respawn in; a town names itself
-	MinLevel, MaxLevel int    // a hunting map's mobs are of these levels; 0 for a town
+	Town               string // the town its players respawn in; a town names itself, and so does a region, whose players get up at its start
+	MinLevel, MaxLevel int    // a hunting map's mobs are of these levels; 0 for a town or a region, whose areas have their own
 	Geometry           sim.Geometry
 	Portals            []Portal
 	Spawns             []Spawn
@@ -73,6 +74,7 @@ type Map struct {
 	Grid               func() *nav.Grid // the walk grid, built at the first call; the world calls every map's as it starts, so no tick waits on one
 	Sides              [2][]Spot        // a pvp map's starting spots, side 1's then side 2's
 	Walled             sim.Geometry     // a pvp map's Geometry with its prep wall standing, before a round starts
+	Bake               string           // a region's bake hash, the first 16 hex digits, naming the folder its client files are in; empty on a map
 }
 
 // Spot is where a fighter starts, facing Yaw: radians from north toward east.
