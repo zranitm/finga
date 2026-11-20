@@ -160,7 +160,6 @@ export function wireSocket(socket: GameSocket): () => void {
       chat.getState().applyChatMessage(m.d, mapView.getState().channel);
     }),
     socket.on('snapshot', (m) => {
-      mapView.getState().inChannel(m.d.channel);
       fieldBoss.getState().applySnapshot(m.d.fieldBoss, m.d.fieldBossGone);
       energy.getState().joined();
       pouches.getState().applySnapshot(m.d.pouches);

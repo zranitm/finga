@@ -272,14 +272,6 @@ describe('wiring', () => {
     ]);
   });
 
-  it('each Snapshot sets the player’s channel: a region’s number, 0 off regions', async () => {
-    const { ws } = await connectedSocket();
-    ws.push('snapshot', { channel: 2 });
-    expect(mapView.getState().channel).toBe(2);
-    ws.push('snapshot', {});
-    expect(mapView.getState().channel).toBe(0);
-  });
-
   it('a map change, or leaving the character, ends the channel with the old map', async () => {
     const { ws } = await connectedSocket();
     teleport.getState().start({ map: 'forest' });
