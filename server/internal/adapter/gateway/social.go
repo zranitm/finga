@@ -136,7 +136,7 @@ func partyView(p *social.Party) *model.PartyView {
 	v := &model.PartyView{Leader: p.Leader.String(), Members: make([]model.PartyMember, 0, len(p.Members))}
 	for _, m := range p.Members {
 		v.Members = append(v.Members, model.PartyMember{
-			CharacterID: m.ID.String(), Name: m.Name, Class: m.Class.String(), Level: m.Level, HP: m.HP, MaxHP: m.MaxHP, MapID: m.MapID, Online: m.Online,
+			CharacterID: m.ID.String(), Name: m.Name, Class: m.Class.String(), Level: m.Level, HP: m.HP, MaxHP: m.MaxHP, MapID: m.MapID, Channel: m.Channel, Online: m.Online,
 		})
 	}
 	return v

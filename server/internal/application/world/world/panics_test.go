@@ -19,7 +19,7 @@ type panicsOn struct {
 	armed atomic.Bool
 }
 
-func (p *panicsOn) ObserveTick(mapID string, _, _ time.Duration) {
+func (p *panicsOn) ObserveTick(mapID string, _ int, _, _ time.Duration) {
 	if mapID == p.mapID && p.armed.Load() {
 		panic("corrupt " + mapID)
 	}

@@ -149,7 +149,7 @@ func (i *Instance) add(j *joinMsg) {
 		p.bot = i.botFor(p)
 		i.welcome(p)
 	}
-	i.tellParty(p, i.m.ID) // a join is a map change, and gives the party the member as the world has them
+	i.tellParty(p, i.m.ID, i.channel) // a join is a map change, and gives the party the member as the world has them
 	for _, h := range p.HandedIn {
 		if i.handedIn(p, h) {
 			i.log.Info("a hand-in the world missed finished at the join", "character_id", p.ID, "quest_id", h.Quest, "completion", h.Completion)

@@ -15,6 +15,27 @@ import (
 	"finga/internal/shared/sim"
 )
 
+// opens records the open counts the World tells, by region.
+type opens struct {
+	mu    sync.Mutex
+	heard map[string][]int
+}
+
+func (o *opens) ChannelsOpen(region string, open int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.heard == nil {
+		o.heard = map[string][]int{}
+	}
+	o.heard[region] = append(o.heard[region], open)
+}
+
+func (o *opens) of(region string) []int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return slices.Clone(o.heard[region])
+}
+
 // parties are fixed parties, each a list of members.
 type parties struct {
 	mu  sync.Mutex
@@ -77,7 +98,8 @@ func (w *testWorld) open(t *testing.T, p model.Player) []model.ChannelLoad {
 // Joins fill a region's channels (large-regions.md section 4): the least full with room, a new one once all are full, and the list says how full each is.
 func TestJoinsFillARegionsChannels(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		w := channelWorld(t, worldtest.Options{ChannelCap: 2})
+		heard := &opens{}
+		w := channelWorld(t, worldtest.Options{ChannelCap: 2, Channels: heard})
 		var in []int
 		var ayla model.Player
 		for _, name := range []string{"Ayla", "Bo", "Cy", "Dee", "Eli"} {
@@ -89,6 +111,9 @@ func TestJoinsFillARegionsChannels(t *testing.T) {
 		}
 		if !slices.Equal(in, []int{1, 1, 2, 2, 3}) {
 			t.Fatalf("joined channels %v; want two to 1, two to 2, then 3", in)
+		}
+		if got := heard.of("test_region"); !slices.Equal(got, []int{1, 2, 3}) {
+			t.Fatalf("open channels told %v; want 1 at the start, then 2 and 3", got)
 		}
 		want := []model.ChannelLoad{{Channel: 1, Players: 2}, {Channel: 2, Players: 2}, {Channel: 3, Players: 1}}
 		if got, err := w.Channels(ayla.ID, "c-Ayla"); err != nil || !slices.Equal(got.Open, want) || got.Cap != 2 {
@@ -238,7 +263,7 @@ func TestADeathInAChannelGetsUpInIt(t *testing.T) {
 	})
 }
 
-// A switch (large-regions.md section 4) is refused off a region, to the channel the player is in, to one not open and to a full one; else it channels as a teleport does and lands at the same spot in the other channel, or is cancelled as a teleport is.
+// A switch (large-regions.md section 4) is refused off a region, to the channel the player is in, to one not open and to a full one; else it channels as a teleport does and lands at the same spot in the other channel, past its cap if it filled meanwhile, or is cancelled as a teleport is.
 func TestASwitchMovesToTheSameSpotInAnotherChannel(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
@@ -280,6 +305,9 @@ func TestASwitchMovesToTheSameSpotInAnotherChannel(t *testing.T) {
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		_ = w.Input(bo.ID, "c-Bo", 2, sim.Input{Up: true}, 0)
+		if _, s := w.enterRegion(t, "Eve"); channelOf(t, s) != 2 { // channel 1 still holds Ayla, so 2 fills under her switch
+			t.Fatalf("Eve joined %d", channelOf(t, s))
+		}
 		time.Sleep(data.TeleportChannel() + 3*worldtest.TickInterval)
 		synctest.Wait()
 		tel, snaps := worldtest.Of[model.Teleport](sa), worldtest.Of[model.Snapshot](sa)
@@ -295,8 +323,8 @@ func TestASwitchMovesToTheSameSpotInAnotherChannel(t *testing.T) {
 		if cancelled := worldtest.Of[model.TeleportCancelled](sb); len(cancelled) != 1 || cancelled[0].Reason != model.TeleportMoved || channelOf(t, sb) != 1 {
 			t.Fatalf("Bo's switch: cancelled %+v, in channel %d; want it cancelled by the move, in 1", cancelled, channelOf(t, sb))
 		}
-		if got := w.open(t, ayla); !slices.Equal(got, []model.ChannelLoad{{Channel: 1, Players: 1}, {Channel: 2, Players: 2}}) {
-			t.Fatalf("channels %+v; want Bo alone in 1, Ayla and Cy in 2", got)
+		if got := w.open(t, ayla); !slices.Equal(got, []model.ChannelLoad{{Channel: 1, Players: 1}, {Channel: 2, Players: 3}}) {
+			t.Fatalf("channels %+v; want Bo alone in 1, and Ayla in 2 past its cap with Cy and Eve", got)
 		}
 	})
 }

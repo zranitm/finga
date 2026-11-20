@@ -508,6 +508,8 @@ message PartyMember {
   string map_id = 6;
   bool online = 7;
   string class = 8;
+  // The region's channel, from 1, so the party frame says who's in another; 0 off regions.
+  uint32 channel = 9;
 }
 
 message PartyView {

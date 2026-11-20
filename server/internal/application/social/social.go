@@ -39,7 +39,7 @@ type parties interface {
 	Leave(ctx context.Context, who kernel.CharacterID) error
 	Kick(ctx context.Context, leader, target kernel.CharacterID) error
 	Promote(ctx context.Context, leader, target kernel.CharacterID) error
-	Update(ctx context.Context, id kernel.CharacterID, mapID string, class kernel.Class, level, hp, maxHP int) error
+	Update(ctx context.Context, id kernel.CharacterID, mapID string, channel int, class kernel.Class, level, hp, maxHP int) error
 	Memberships(ctx context.Context, visit func(party model.PartyID, members []kernel.CharacterID)) error
 	Of(ctx context.Context, id kernel.CharacterID) (model.Party, bool, error)
 }
@@ -155,7 +155,7 @@ func (m *Module) Chat(ctx context.Context, l Line) (_ Message, err error) {
 func (m *Module) UpdateMember(ctx context.Context, u MemberUpdate) (err error) {
 	ctx, call := m.calls.Start(ctx, "UpdateMember")
 	defer call.End(&err)
-	return m.parties.Update(ctx, u.ID, u.MapID, u.Class, u.Level, u.HP, u.MaxHP)
+	return m.parties.Update(ctx, u.ID, u.MapID, u.Channel, u.Class, u.Level, u.HP, u.MaxHP)
 }
 
 // PartyOf is the character's party as its members see it, nil without one.

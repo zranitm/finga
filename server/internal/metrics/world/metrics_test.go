@@ -21,9 +21,12 @@ func TestWorldMetrics(t *testing.T) {
 			t.Fatalf("before any drop, reason %s is %v (present %v); want 0, so its first drop shows as an increase", reason, v, ok)
 		}
 	}
-	m.ObserveTick("town", 10*time.Millisecond, 50*time.Millisecond)
-	m.ObserveTick("town", 50*time.Millisecond, 50*time.Millisecond)
-	m.ObserveTick("town", 51*time.Millisecond, 50*time.Millisecond)
+	m.ObserveTick("town", 0, 10*time.Millisecond, 50*time.Millisecond)
+	m.ObserveTick("town", 0, 50*time.Millisecond, 50*time.Millisecond)
+	m.ObserveTick("town", 0, 51*time.Millisecond, 50*time.Millisecond)
+	m.ObserveTick("vale", 2, 60*time.Millisecond, 50*time.Millisecond)
+	m.ChannelsOpen("vale", 1)
+	m.ChannelsOpen("vale", 2)
 	m.CallQueued()
 	m.CallQueued()
 	m.CallDone()
@@ -32,11 +35,17 @@ func TestWorldMetrics(t *testing.T) {
 	if got := promtest.Sample(t, reg, "finga_saves_dropped_total", "reason", "unexplained"); got != 1 {
 		t.Fatalf("saves dropped %v, want 1", got)
 	}
-	if got := promtest.Sample(t, reg, "finga_tick_duration_seconds", "map", "town"); got != 3 {
+	if got := promtest.Sample(t, reg, "finga_tick_duration_seconds", "map", "town", "channel", "0"); got != 3 {
 		t.Fatalf("ticks observed %v, want 3", got)
 	}
-	if got := promtest.Sample(t, reg, "finga_tick_overruns_total", "map", "town"); got != 1 {
+	if got := promtest.Sample(t, reg, "finga_tick_overruns_total", "map", "town", "channel", "0"); got != 1 {
 		t.Fatalf("overruns %v, want only the one past the budget", got)
+	}
+	if got := promtest.Sample(t, reg, "finga_tick_overruns_total", "map", "vale", "channel", "2"); got != 1 {
+		t.Fatalf("channel 2's overruns %v, want 1", got)
+	}
+	if got := promtest.Sample(t, reg, "finga_channels_open", "region", "vale"); got != 2 {
+		t.Fatalf("vale's channels open %v, want 2", got)
 	}
 	if got := promtest.Sample(t, reg, "finga_item_calls_inflight"); got != 1 {
 		t.Fatalf("finga_item_calls_inflight = %v, want 1", got)

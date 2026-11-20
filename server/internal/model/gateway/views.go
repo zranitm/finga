@@ -229,6 +229,7 @@ type PartyMember struct {
 	CharacterID, Name, Class string
 	Level, HP, MaxHP         int
 	MapID                    string
+	Channel                  int // the region's channel, from 1; 0 off regions
 	Online                   bool
 }
 

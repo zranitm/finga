@@ -2,6 +2,7 @@
 package world
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -17,8 +18,9 @@ var batchBuckets = []float64{1, 2, 4, 8, 16, 32}
 
 // Metrics are the world's: its maps' ticks, its calls to the item module and its dropped saves.
 type Metrics struct {
-	tickDuration *prometheus.HistogramVec // by map
-	tickOverruns *prometheus.CounterVec   // by map
+	tickDuration *prometheus.HistogramVec // by map and channel
+	tickOverruns *prometheus.CounterVec   // by map and channel
+	channelsOpen *prometheus.GaugeVec     // by region
 	itemCalls    prometheus.Gauge
 	batchSize    prometheus.Histogram
 	savesDropped *prometheus.CounterVec // by reason
@@ -28,11 +30,14 @@ type Metrics struct {
 func New(reg prometheus.Registerer, dropReasons []string) (*Metrics, error) {
 	m := &Metrics{
 		tickDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Namespace: metrics.Namespace, Name: "tick_duration_seconds", Help: "Processing time of one map instance tick.", Buckets: tickBuckets,
-		}, []string{"map"}),
+			Namespace: metrics.Namespace, Name: "tick_duration_seconds", Help: "Processing time of one map instance tick: a region's by channel, 0 off regions.", Buckets: tickBuckets,
+		}, []string{"map", "channel"}),
 		tickOverruns: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: metrics.Namespace, Name: "tick_overruns_total", Help: "Ticks that took longer than the tick interval.",
-		}, []string{"map"}),
+			Namespace: metrics.Namespace, Name: "tick_overruns_total", Help: "Ticks that took longer than the tick interval: a region's by channel, 0 off regions.",
+		}, []string{"map", "channel"}),
+		channelsOpen: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: metrics.Namespace, Name: "channels_open", Help: "A region's open channels.",
+		}, []string{"region"}),
 		itemCalls: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: metrics.Namespace, Name: "item_calls_inflight", Help: "Calls to the item module waiting for a worker or running.",
 		}),
@@ -46,18 +51,24 @@ func New(reg prometheus.Registerer, dropReasons []string) (*Metrics, error) {
 	for _, reason := range dropReasons {
 		m.savesDropped.WithLabelValues(reason)
 	}
-	return m, metrics.Register(reg, m.tickDuration, m.tickOverruns, m.itemCalls, m.batchSize, m.savesDropped)
+	return m, metrics.Register(reg, m.tickDuration, m.tickOverruns, m.channelsOpen, m.itemCalls, m.batchSize, m.savesDropped)
 }
 
 // SaveDropped counts a checkpoint given up on.
 func (m *Metrics) SaveDropped(reason string) { m.savesDropped.WithLabelValues(reason).Inc() }
 
-// ObserveTick records one tick of mapID, counting an overrun when took exceeds budget.
-func (m *Metrics) ObserveTick(mapID string, took, budget time.Duration) {
-	m.tickDuration.WithLabelValues(mapID).Observe(took.Seconds())
+// ObserveTick records one tick of mapID's channel, 0 off regions, counting an overrun when took exceeds budget.
+func (m *Metrics) ObserveTick(mapID string, channel int, took, budget time.Duration) {
+	ch := strconv.Itoa(channel)
+	m.tickDuration.WithLabelValues(mapID, ch).Observe(took.Seconds())
 	if took > budget {
-		m.tickOverruns.WithLabelValues(mapID).Inc()
+		m.tickOverruns.WithLabelValues(mapID, ch).Inc()
 	}
+}
+
+// ChannelsOpen sets how many channels region has open.
+func (m *Metrics) ChannelsOpen(region string, open int) {
+	m.channelsOpen.WithLabelValues(region).Set(float64(open))
 }
 
 // CallQueued counts a call to the item module queued for a worker.

@@ -16,13 +16,14 @@ func ParseInviteID(s string) (InviteID, error) { return model.ParseInviteID(s) }
 
 // Member is a character as their party sees them.
 type Member struct {
-	ID    kernel.CharacterID
-	Name  string
-	Class kernel.Class
-	Level int
-	HP    int
-	MaxHP int
-	MapID string
+	ID      kernel.CharacterID
+	Name    string
+	Class   kernel.Class
+	Level   int
+	HP      int
+	MaxHP   int
+	MapID   string
+	Channel int // the region's channel, from 1; 0 off regions
 }
 
 // Presence is a character online through one connection of a gateway, which the world's join of sequence JoinSeq is behind.
@@ -35,12 +36,13 @@ type Presence struct {
 
 // MemberUpdate is what the world saw of a member.
 type MemberUpdate struct {
-	ID    kernel.CharacterID
-	MapID string
-	Class kernel.Class
-	Level int
-	HP    int
-	MaxHP int
+	ID      kernel.CharacterID
+	MapID   string
+	Channel int
+	Class   kernel.Class
+	Level   int
+	HP      int
+	MaxHP   int
 }
 
 // Channel is where a chat line goes.
@@ -70,7 +72,7 @@ type Message struct {
 
 func (p Presence) model() model.Member {
 	m := p.Member
-	return model.Member{ID: m.ID, Name: m.Name, Class: m.Class, Level: m.Level, HP: m.HP, MaxHP: m.MaxHP, MapID: m.MapID, Connection: p.Connection, Gateway: p.Gateway, JoinSeq: p.JoinSeq}
+	return model.Member{ID: m.ID, Name: m.Name, Class: m.Class, Level: m.Level, HP: m.HP, MaxHP: m.MaxHP, MapID: m.MapID, Channel: m.Channel, Connection: p.Connection, Gateway: p.Gateway, JoinSeq: p.JoinSeq}
 }
 
 func messageOf(m model.Message) Message {

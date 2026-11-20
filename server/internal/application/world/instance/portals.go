@@ -77,7 +77,7 @@ func (i *Instance) leave(p *player, target *gamedata.Map, x, y, z float64, yaw f
 	} else {
 		i.checkpoint(p)
 	}
-	i.tellParty(p, target.ID)
+	i.tellParty(p, target.ID, 0) // the landing's join tells the channel picked
 	i.detach(p.ID)
 	i.mover.Transfer(i, moved, sink, dest)
 }

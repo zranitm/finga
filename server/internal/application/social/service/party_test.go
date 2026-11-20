@@ -337,11 +337,11 @@ func TestInvitesExpireAndNeedTheSameMap(t *testing.T) {
 			t.Fatalf("at 29 s: %v", err)
 		}
 		// Cass is on another map: not invitable; back on the forest she is.
-		must(t, f.svc.Update(f.ctx, f.id("Cass"), "town", "warrior", 3, 50, 100))
+		must(t, f.svc.Update(f.ctx, f.id("Cass"), "town", 0, "warrior", 3, 50, 100))
 		if _, err := f.svc.Invite(f.ctx, f.id("Ayla"), f.id("Cass")); !errors.Is(err, model.ErrNotHere) {
 			t.Fatalf("another map: %v", err)
 		}
-		must(t, f.svc.Update(f.ctx, f.id("Cass"), "forest", "warrior", 3, 50, 100))
+		must(t, f.svc.Update(f.ctx, f.id("Cass"), "forest", 0, "warrior", 3, 50, 100))
 		if _, err := f.svc.Invite(f.ctx, f.id("Ayla"), f.id("Cass")); err != nil {
 			t.Fatalf("same map: %v", err)
 		}
@@ -374,7 +374,7 @@ func TestMembersStayThroughDisconnectsAndStateFollowsThem(t *testing.T) {
 	if m := last.party.Members[1]; !m.Online || m.Level != 5 || m.MapID != "cave" || m.HP != 10 || m.MaxHP != 300 {
 		t.Fatalf("after Robin came back: %+v", m)
 	}
-	must(t, f.svc.Update(f.ctx, f.id("Ayla"), "cave", "warrior", 2, 250, 250))
+	must(t, f.svc.Update(f.ctx, f.id("Ayla"), "cave", 0, "warrior", 2, 250, 250))
 	if m := f.rec.last().party.Members[0]; m.Level != 2 || m.Class != "warrior" || m.MapID != "cave" || m.HP != 250 {
 		t.Fatalf("after Ayla's update: %+v", m)
 	}
@@ -382,7 +382,7 @@ func TestMembersStayThroughDisconnectsAndStateFollowsThem(t *testing.T) {
 	if f.membersOf(t, cass) != nil || f.sameParty(t, f.id("Ayla"), cass) {
 		t.Fatal("a stranger has a party")
 	}
-	must(t, f.svc.Update(f.ctx, cass, "cave", "warrior", 1, 1, 1)) // unknown: ignored
+	must(t, f.svc.Update(f.ctx, cass, "cave", 0, "warrior", 1, 1, 1)) // unknown: ignored
 	must(t, f.svc.Offline(f.ctx, cass, "c-cass"))
 }
 
@@ -390,7 +390,7 @@ func TestMembersStayThroughDisconnectsAndStateFollowsThem(t *testing.T) {
 func TestRegisteringAgainKeepsWhatTheWorldReported(t *testing.T) {
 	f := newFixture(t, "Ayla", "Robin")
 	f.invite(t, "Ayla", "Robin")
-	must(t, f.svc.Update(f.ctx, f.id("Robin"), "cave", "magician", 9, 40, 300))
+	must(t, f.svc.Update(f.ctx, f.id("Robin"), "cave", 0, "magician", 9, 40, 300))
 	atHello := model.Member{ID: f.id("Robin"), Name: "Robin", Class: "beginner", Level: 2, HP: 100, MaxHP: 100, MapID: "forest", Connection: "c-Robin"}
 	for _, step := range []struct {
 		name    string
@@ -449,7 +449,7 @@ func TestWhatTheWorldReportsBeforeALoginLandsIsKept(t *testing.T) {
 	f := newFixture(t, "Ayla")
 	id := kernel.NewCharacterID()
 	f.ids["Bruno"], f.name[id] = id, "Bruno"
-	must(t, f.svc.Update(f.ctx, id, "forest", "bowman", 7, 120, 300))
+	must(t, f.svc.Update(f.ctx, id, "forest", 0, "bowman", 7, 120, 300))
 	must(t, f.svc.Online(f.ctx, model.Member{ID: id, Name: "Bruno", Class: "beginner", Level: 5, HP: 300, MaxHP: 300, MapID: "town", Connection: "c-Bruno"}))
 	f.invite(t, "Ayla", "Bruno") // on Ayla's map, the forest, as the world reported
 	if m := f.rec.last().party.Members[1]; !m.Online || m.Class != "bowman" || m.Level != 7 || m.HP != 120 || m.MapID != "forest" || m.Name != "Bruno" {
@@ -461,7 +461,7 @@ func TestWhatTheWorldReportsBeforeALoginLandsIsKept(t *testing.T) {
 func TestAnInviteFromAPlayerNotYetRegisteredIsRefused(t *testing.T) {
 	f := newFixture(t, "Ayla")
 	bruno := kernel.NewCharacterID()
-	must(t, f.svc.Update(f.ctx, bruno, "forest", "warrior", 7, 120, 300))
+	must(t, f.svc.Update(f.ctx, bruno, "forest", 0, "warrior", 7, 120, 300))
 	if _, err := f.svc.Invite(f.ctx, bruno, f.id("Ayla")); !errors.Is(err, model.ErrNotHere) {
 		t.Fatalf("invite from a reported player not registered yet: %v", err)
 	}
@@ -591,7 +591,7 @@ func TestRegisteringTellsTheMemberTheirParty(t *testing.T) {
 func TestMembersOfflineWithoutAPartyAreForgotten(t *testing.T) {
 	f := newFixture(t, "Ayla", "Robin", "Cass", "Dee")
 	f.invite(t, "Ayla", "Robin")
-	must(t, f.svc.Update(f.ctx, f.id("Cass"), "forest", "warrior", 9, 50, 300))
+	must(t, f.svc.Update(f.ctx, f.id("Cass"), "forest", 0, "warrior", 9, 50, 300))
 	for _, n := range []string{"Robin", "Cass", "Dee"} {
 		must(t, f.svc.Offline(f.ctx, f.id(n), "c-"+n))
 	}

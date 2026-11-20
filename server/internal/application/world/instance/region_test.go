@@ -113,3 +113,27 @@ func TestAMatchFromARegionsChannelGoesBackToIt(t *testing.T) {
 		}
 	})
 }
+
+// A region's channel reaches the party frame and the tick metrics: a join tells the party the channel, and a hand-off off the region tells none, as the map it lands on tells its own.
+func TestARegionsChannelReachesThePartyAndTheTicks(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		m := arena(t, time.Hour)
+		m.ID, m.Kind, m.Town = "vale", gamedata.Region, "vale"
+		parties, ticks := &fakeParties{}, &worldtest.Observer{}
+		inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{Parties: parties, Observer: ticks, Transfer: &transferRecorder{}, Channel: 2})
+		defer stop()
+		p := warriorAt(outOfSight)
+		p.Connection = "c1"
+		s := join(t, inst, p)
+		tick(1)
+		if got := parties.updated(); len(got) == 0 || got[0].MapID != "vale" || got[0].Channel != 2 || ticks.Channel() != 2 {
+			t.Fatalf("party updates %+v, ticks of channel %d; want vale's channel 2 for both", got, ticks.Channel())
+		}
+		teleport(t, inst, s, p.ID, "forest", 0)
+		tick(channelTicks(data) + 1)
+		if got := parties.updated(); got[len(got)-1].MapID != "forest" || got[len(got)-1].Channel != 0 {
+			t.Fatalf("the hand-off told %+v; want the forest, with no channel", got[len(got)-1])
+		}
+	})
+}

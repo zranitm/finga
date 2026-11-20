@@ -92,7 +92,7 @@ func (i *Instance) putOn(p *player, eq model.Equipped) {
 	p.Worn = eq.Worn
 	p.private = append(p.private, model.InventoryChanged{Tick: i.tick, Revision: eq.Worn.Revision, Slots: eq.Slots, Equipment: eq.Equipment})
 	i.restat(p)
-	i.tellParty(p, i.m.ID)
+	i.tellParty(p, i.m.ID, i.channel)
 }
 
 // derive is the player's derived stats, from their class, level, points and what they wear.

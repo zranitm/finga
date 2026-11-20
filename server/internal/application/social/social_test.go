@@ -53,8 +53,8 @@ func (f *fakeParties) Promote(_ context.Context, leader, target kernel.Character
 	return f.record(leader, target)
 }
 
-func (f *fakeParties) Update(_ context.Context, id kernel.CharacterID, mapID string, class kernel.Class, level, hp, maxHP int) error {
-	return f.record(id, mapID, class, level, hp, maxHP)
+func (f *fakeParties) Update(_ context.Context, id kernel.CharacterID, mapID string, channel int, class kernel.Class, level, hp, maxHP int) error {
+	return f.record(id, mapID, channel, class, level, hp, maxHP)
 }
 
 func (f *fakeParties) Memberships(_ context.Context, visit func(model.PartyID, []kernel.CharacterID)) error {
@@ -124,8 +124,8 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 	t.Run("Kick", func(t *testing.T) { same(t, m.Kick(ctx, ann, bo), p.got, []any{ann, bo}) })
 	t.Run("Promote", func(t *testing.T) { same(t, m.Promote(ctx, ann, bo), p.got, []any{ann, bo}) })
 	t.Run("UpdateMember", func(t *testing.T) {
-		err := m.UpdateMember(ctx, MemberUpdate{ID: ann, MapID: "town", Class: "mage", Level: 4, HP: 80, MaxHP: 110})
-		same(t, err, p.got, []any{ann, "town", kernel.Class("mage"), 4, 80, 110})
+		err := m.UpdateMember(ctx, MemberUpdate{ID: ann, MapID: "town", Channel: 2, Class: "mage", Level: 4, HP: 80, MaxHP: 110})
+		same(t, err, p.got, []any{ann, "town", 2, kernel.Class("mage"), 4, 80, 110})
 	})
 	t.Run("Memberships", func(t *testing.T) {
 		var got []any

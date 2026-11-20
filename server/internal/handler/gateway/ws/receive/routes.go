@@ -28,8 +28,8 @@ var (
 	attacks   = limit{group: "attack", perSecond: 10, burst: 10}
 	skills    = limit{group: "skill", perSecond: 5, burst: 8} // eight bar keys at once; each skill's cooldown bounds it further
 	portals   = limit{group: "portal", perSecond: 2, burst: 2}
-	teleports = limit{group: "teleport", perSecond: 2, burst: 2} // teleports and channel switches together
-	channels  = limit{group: "channels", perSecond: 1, burst: 3} // the map window asks every 5 s while open
+	teleports = limit{group: "teleport", perSecond: 2, burst: 2}  // teleports and channel switches together
+	channels  = limit{group: "channels", perSecond: 1, burst: 3}  // the map window asks every 5 s while open
 	inventory = limit{group: "inventory", perSecond: 5, burst: 5} // moves, discards, equips and unequips together
 	potions   = limit{group: "potion", perSecond: 5, burst: 5}    // potions have no cooldown, so this is the only bound on drinking
 	party     = limit{group: "party", perSecond: 2, burst: 5}     // the five party commands together; a leader may use each at once

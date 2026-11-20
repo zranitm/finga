@@ -5020,15 +5020,17 @@ func (x *EquipSlot) GetItem() *ItemView {
 }
 
 type PartyMember struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CharacterId   string                 `protobuf:"bytes,1,opt,name=character_id,json=characterId,proto3" json:"character_id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Level         int32                  `protobuf:"varint,3,opt,name=level,proto3" json:"level,omitempty"`
-	Hp            int32                  `protobuf:"varint,4,opt,name=hp,proto3" json:"hp,omitempty"`
-	MaxHp         int32                  `protobuf:"varint,5,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
-	MapId         string                 `protobuf:"bytes,6,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
-	Online        bool                   `protobuf:"varint,7,opt,name=online,proto3" json:"online,omitempty"`
-	Class         string                 `protobuf:"bytes,8,opt,name=class,proto3" json:"class,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	CharacterId string                 `protobuf:"bytes,1,opt,name=character_id,json=characterId,proto3" json:"character_id,omitempty"`
+	Name        string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Level       int32                  `protobuf:"varint,3,opt,name=level,proto3" json:"level,omitempty"`
+	Hp          int32                  `protobuf:"varint,4,opt,name=hp,proto3" json:"hp,omitempty"`
+	MaxHp       int32                  `protobuf:"varint,5,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
+	MapId       string                 `protobuf:"bytes,6,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
+	Online      bool                   `protobuf:"varint,7,opt,name=online,proto3" json:"online,omitempty"`
+	Class       string                 `protobuf:"bytes,8,opt,name=class,proto3" json:"class,omitempty"`
+	// The region's channel, from 1, so the party frame says who's in another; 0 off regions.
+	Channel       uint32 `protobuf:"varint,9,opt,name=channel,proto3" json:"channel,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5117,6 +5119,13 @@ func (x *PartyMember) GetClass() string {
 		return x.Class
 	}
 	return ""
+}
+
+func (x *PartyMember) GetChannel() uint32 {
+	if x != nil {
+		return x.Channel
+	}
+	return 0
 }
 
 type PartyView struct {
@@ -10064,7 +10073,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\tEquipSlot\x12\x1d\n" +
 	"\n" +
 	"equip_slot\x18\x01 \x01(\tR\tequipSlot\x12'\n" +
-	"\x04item\x18\x02 \x01(\v2\x13.client.v1.ItemViewR\x04item\"\xc6\x01\n" +
+	"\x04item\x18\x02 \x01(\v2\x13.client.v1.ItemViewR\x04item\"\xe0\x01\n" +
 	"\vPartyMember\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
@@ -10073,7 +10082,8 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x06max_hp\x18\x05 \x01(\x05R\x05maxHp\x12\x15\n" +
 	"\x06map_id\x18\x06 \x01(\tR\x05mapId\x12\x16\n" +
 	"\x06online\x18\a \x01(\bR\x06online\x12\x14\n" +
-	"\x05class\x18\b \x01(\tR\x05class\"U\n" +
+	"\x05class\x18\b \x01(\tR\x05class\x12\x18\n" +
+	"\achannel\x18\t \x01(\rR\achannel\"U\n" +
 	"\tPartyView\x12\x16\n" +
 	"\x06leader\x18\x01 \x01(\tR\x06leader\x120\n" +
 	"\amembers\x18\x02 \x03(\v2\x16.client.v1.PartyMemberR\amembers\"\xf4\x03\n" +

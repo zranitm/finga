@@ -977,6 +977,14 @@ func scrape(url string) ([]byte, error) {
 	return io.ReadAll(res.Body)
 }
 
+// series names a tick series: its map, and a region's channel after it.
+func series(labels map[string]string) string {
+	if c := labels["channel"]; c != "" && c != "0" {
+		return labels["map"] + "/" + c
+	}
+	return labels["map"]
+}
+
 func report(ops string) error {
 	raw, err := scrape(ops + "/metrics")
 	if err != nil {
@@ -990,20 +998,20 @@ func report(ops string) error {
 		switch {
 		case strings.HasPrefix(line, "finga_tick_duration_seconds_bucket"):
 			labels, value := parseLine(line)
-			h := byMap[labels["map"]]
+			h := byMap[series(labels)]
 			if h == nil {
 				h = newHist()
-				byMap[labels["map"]] = h
+				byMap[series(labels)] = h
 			}
 			h.bucket(labels, value)
 		case strings.HasPrefix(line, "finga_tick_duration_seconds_count"):
 			labels, value := parseLine(line)
-			if h := byMap[labels["map"]]; h != nil {
+			if h := byMap[series(labels)]; h != nil {
 				h.count = value
 			}
 		case strings.HasPrefix(line, "finga_tick_overruns_total"):
 			labels, value := parseLine(line)
-			overruns[labels["map"]] = value
+			overruns[series(labels)] = value
 		case strings.HasPrefix(line, "finga_item_calls_batch_size_bucket"):
 			batches.bucket(parseLine(line))
 		case strings.HasPrefix(line, "finga_item_calls_batch_size_count"):

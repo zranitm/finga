@@ -100,12 +100,16 @@ func TestAnUnsentOutboxRowStaysWithTheTTLOff(t *testing.T) {
 	}
 }
 
-// The world's metrics show on the game's ops page: each map's tick, and every reason a save is dropped for, at 0 from the start.
+// The world's metrics show on the game's ops page: each map's tick, a region's by its channel, a region's open channels, and every reason a save is dropped for, at 0 from the start.
 func TestTheOpsPageShowsTheWorldFromItsStart(t *testing.T) {
 	t.Parallel()
 	s := newStack(t)
-	runnertest.GetUntil(t, s.Ops+"/metrics", `finga_tick_duration_seconds_count{map="town"}`)
+	runnertest.GetUntil(t, s.Ops+"/metrics", `finga_tick_duration_seconds_count{channel="0",map="town"}`)
+	runnertest.GetUntil(t, s.Ops+"/metrics", `finga_tick_duration_seconds_count{channel="1",map="test_region"}`)
 	_, body := runnertest.Get(t, s.Ops+"/metrics")
+	if want := `finga_channels_open{region="test_region"} 1`; !strings.Contains(body, want) {
+		t.Errorf("the ops page lacks %s", want)
+	}
 	for _, reason := range []string{"refused", "unexplained", "shutdown"} {
 		if want := `finga_saves_dropped_total{reason="` + reason + `"} 0`; !strings.Contains(body, want) {
 			t.Errorf("the ops page lacks %s", want)

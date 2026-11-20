@@ -73,7 +73,7 @@ type Results interface {
 
 // TickObserver sees each tick's duration against its budget.
 type TickObserver interface {
-	ObserveTick(mapID string, took, budget time.Duration)
+	ObserveTick(mapID string, channel int, took, budget time.Duration)
 }
 
 // Parties answers party questions from inside a tick, and takes what the map saw of a member.

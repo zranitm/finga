@@ -178,7 +178,10 @@ func TestOnlineKeepsItsFields(t *testing.T) {
 		Player        model.Player
 		MapID         string
 	}
-	match := copytest.Match{Renames: map[string]string{"Conn": "Connection", "Player": "Member", "MapID": "Member.MapID"}}
+	match := copytest.Match{
+		Renames:  map[string]string{"Conn": "Connection", "Player": "Member", "MapID": "Member.MapID"},
+		Computed: map[string]string{"Member.Channel": "the world's report of the member names it, and social keeps a report over an older login's values"},
+	}
 	got := copytest.Diff(match, func(o online) social.Presence {
 		if err := s.Online(t.Context(), o.Gateway, o.Conn, o.JoinSeq, o.Player, o.MapID); err != nil {
 			t.Fatal(err)

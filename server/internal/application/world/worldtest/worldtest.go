@@ -151,17 +151,26 @@ func Of[T any](s *Sink) []T {
 	return out
 }
 
-// Observer counts the ticks it sees.
+// Observer counts the ticks it sees, and the channel of the last.
 type Observer struct {
-	mu    sync.Mutex
-	ticks []time.Duration
+	mu      sync.Mutex
+	ticks   []time.Duration
+	channel int
 }
 
 // ObserveTick records how long a tick took.
-func (o *Observer) ObserveTick(_ string, took, _ time.Duration) {
+func (o *Observer) ObserveTick(_ string, channel int, took, _ time.Duration) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.ticks = append(o.ticks, took)
+	o.channel = channel
+}
+
+// Channel is the region's channel the last tick it saw ran, 0 off regions.
+func (o *Observer) Channel() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.channel
 }
 
 // Ticks is how many ticks it saw.
@@ -320,6 +329,7 @@ type Options struct {
 	Logger             *slog.Logger // the World's
 	Traces             trace.TracerProvider
 	SaveObserver       world.SaveObserver
+	Channels           world.ChannelObserver
 	Results            instance.Results // matches' outcomes
 }
 
@@ -384,6 +394,9 @@ func (o Options) Fill() Options {
 	}
 	if o.Traces == nil {
 		o.Traces = Traces
+	}
+	if o.Channels == nil {
+		o.Channels = nobody{}
 	}
 	if o.SaveObserver == nil {
 		o.SaveObserver = nobody{}
@@ -450,7 +463,7 @@ func NewWorld(data *gamedata.Data, saver world.Saver, o Options) *World {
 	o = o.Fill()
 	return &World{World: world.New(world.Deps{
 		Services: o.Services(), Data: data, Saver: saver, Characters: o.Characters, Starter: o.Starter, Wardrobe: o.Wardrobe, HandedIns: o.HandedIns,
-		Panics: DiscardPanics(), Logger: o.Logger, SaveObserver: o.SaveObserver, Results: o.Results,
+		Panics: DiscardPanics(), Logger: o.Logger, SaveObserver: o.SaveObserver, Channels: o.Channels, Results: o.Results,
 	}, world.Tuning{
 		TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, FlushTimeout: o.FlushTimeout, BatchMax: o.BatchMax,
 		ChannelCap: o.ChannelCap, ChannelIdle: o.ChannelIdle,
@@ -586,6 +599,9 @@ func (nobody) Retryable(error) bool { return false }
 
 // SaveDropped counts nothing.
 func (nobody) SaveDropped(string) {}
+
+// ChannelsOpen hears nothing.
+func (nobody) ChannelsOpen(string, int) {}
 
 // AddMany refuses.
 func (nobody) AddMany(context.Context, model.GrantCall) (model.Granted, error) {

@@ -237,7 +237,7 @@ func (i *Instance) Run(ctx context.Context) error {
 	defer i.cancel()
 	mapID := i.m.ID
 	err := tick.Run(ctx, i.tuning.TickInterval, i, tick.WithObserver(func(_ uint64, took, interval time.Duration) {
-		i.deps.Observer.ObserveTick(mapID, took, interval)
+		i.deps.Observer.ObserveTick(mapID, i.channel, took, interval)
 	}))
 	for _, id := range i.order {
 		i.checkpoint(i.players[id])

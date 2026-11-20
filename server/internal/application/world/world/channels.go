@@ -24,6 +24,7 @@ type channels struct {
 	cap     int           // players a channel takes before a pick passes it; a switch may go past it
 	idle    time.Duration // how long a channel past the first stays open empty
 	regions map[string]*region
+	observe func(region string, open int)
 }
 
 // region is a region's open channels, by number.
@@ -86,6 +87,7 @@ func (cs *channels) pick(r *region, want int, over bool, party map[int]int, open
 		}
 		r.open = append(r.open, c)
 		slices.SortFunc(r.open, func(a, b *channel) int { return cmp.Compare(a.n, b.n) })
+		cs.observe(r.m.ID, len(r.open))
 		to = c
 	}
 	to.pending++
@@ -119,6 +121,7 @@ func (cs *channels) sweep(now time.Time) []string {
 	defer cs.mu.Unlock()
 	var shut []string
 	for _, r := range cs.regions {
+		was := len(r.open)
 		r.open = slices.DeleteFunc(r.open, func(c *channel) bool {
 			switch {
 			case c.n == 1 || c.load() > 0:
@@ -131,6 +134,9 @@ func (cs *channels) sweep(now time.Time) []string {
 			}
 			return false
 		})
+		if len(r.open) != was {
+			cs.observe(r.m.ID, len(r.open))
+		}
 	}
 	return shut
 }

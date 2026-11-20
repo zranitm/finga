@@ -45,10 +45,11 @@ func (PartySpots) event() {}
 
 // MemberUpdate is what a map saw of a party member, for the social module.
 type MemberUpdate struct {
-	ID    kernel.CharacterID
-	MapID string
-	Class kernel.Class
-	Level int
-	HP    int
-	MaxHP int
+	ID      kernel.CharacterID
+	MapID   string
+	Channel int // the region's channel, from 1; 0 off regions, and while a hand-off is under way
+	Class   kernel.Class
+	Level   int
+	HP      int
+	MaxHP   int
 }

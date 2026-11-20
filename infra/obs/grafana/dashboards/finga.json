@@ -283,8 +283,8 @@
             "type": "prometheus",
             "uid": "mimir"
           },
-          "expr": "histogram_quantile(0.99, sum by (le, map) (rate(finga_tick_duration_seconds_bucket[$__rate_interval])))",
-          "legendFormat": "{{map}}"
+          "expr": "histogram_quantile(0.99, sum by (le, map, channel) (rate(finga_tick_duration_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "{{map}} {{channel}}"
         }
       ]
     },
@@ -330,8 +330,8 @@
             "type": "prometheus",
             "uid": "mimir"
           },
-          "expr": "sum by (map) (rate(finga_tick_overruns_total[$__rate_interval]))",
-          "legendFormat": "{{map}}"
+          "expr": "sum by (map, channel) (rate(finga_tick_overruns_total[$__rate_interval]))",
+          "legendFormat": "{{map}} {{channel}}"
         }
       ]
     },

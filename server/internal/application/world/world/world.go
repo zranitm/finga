@@ -71,6 +71,7 @@ type Deps struct {
 	Panics       *panics.Recorder // a transfer's panic
 	Logger       *slog.Logger
 	SaveObserver SaveObserver
+	Channels     ChannelObserver
 	Results      instance.Results // where matches' outcomes go
 }
 
@@ -91,7 +92,7 @@ func New(d Deps, t Tuning) *World {
 		data: data, deps: d, instances: map[string]*instance.Instance{}, presences: newPresences(), locks: keylock.New[kernel.CharacterID](),
 		saves:        coalesce.New(func(cp model.Checkpoint) kernel.CharacterID { return cp.ID }),
 		flushTimeout: t.FlushTimeout, tick: t.TickInterval,
-		channels: channels{cap: t.ChannelCap, idle: t.ChannelIdle, regions: map[string]*region{}},
+		channels: channels{cap: t.ChannelCap, idle: t.ChannelIdle, regions: map[string]*region{}, observe: d.Channels.ChannelsOpen},
 	}
 	w.mapsCtx, w.mapsStopped = context.WithCancel(context.Background())
 	w.jobsCtx, w.stopBackground = context.WithCancel(context.Background())
@@ -111,6 +112,7 @@ func New(d Deps, t Tuning) *World {
 		w.order = append(w.order, m.ID)
 		if m.Kind == gamedata.Region {
 			w.channels.regions[m.ID] = &region{m: m, open: []*channel{{n: 1, inst: w.instances[m.ID], id: m.ID}}}
+			d.Channels.ChannelsOpen(m.ID, 1)
 		}
 	}
 	return w

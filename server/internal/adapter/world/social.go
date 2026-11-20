@@ -55,7 +55,7 @@ func ids(in []kernel.CharacterID) []kernel.CharacterID {
 
 // UpdateMember tells the social module what a map saw of a member.
 func (s Social) UpdateMember(ctx context.Context, u model.MemberUpdate) error {
-	return s.s.UpdateMember(ctx, social.MemberUpdate{ID: u.ID, MapID: u.MapID, Class: u.Class, Level: u.Level, HP: u.HP, MaxHP: u.MaxHP})
+	return s.s.UpdateMember(ctx, social.MemberUpdate{ID: u.ID, MapID: u.MapID, Channel: u.Channel, Class: u.Class, Level: u.Level, HP: u.HP, MaxHP: u.MaxHP})
 }
 
 // Retryable is a failure the social module may yet get past; any other would be retried forever.

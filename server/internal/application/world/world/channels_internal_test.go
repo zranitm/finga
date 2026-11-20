@@ -19,6 +19,16 @@ func testRegion(pending map[int]int, ns ...int) *region {
 	return r
 }
 
+// channelsOf are channels over r, and the open counts they told.
+func channelsOf(capacity int, idle time.Duration, r *region) (*channels, *[]int) {
+	heard := &[]int{}
+	return &channels{cap: capacity, idle: idle, regions: map[string]*region{"vale": r}, observe: func(region string, open int) {
+		if region == "vale" {
+			*heard = append(*heard, open)
+		}
+	}}, heard
+}
+
 // opens makes channels as the World does, recording their numbers.
 func opens(made *[]int) func(*gamedata.Map, int) (*channel, error) {
 	return func(m *gamedata.Map, n int) (*channel, error) {
@@ -63,7 +73,7 @@ func TestAPickFollowsTheChannelRules(t *testing.T) {
 	} {
 		t.Run(c.what, func(t *testing.T) {
 			r := testRegion(c.pending, c.open...)
-			cs := &channels{cap: 2, regions: map[string]*region{"vale": r}}
+			cs, heard := channelsOf(2, 0, r)
 			var made []int
 			got, err := cs.pick(r, c.want, c.over, c.party, opens(&made))
 			if err != nil {
@@ -74,6 +84,9 @@ func TestAPickFollowsTheChannelRules(t *testing.T) {
 			}
 			if got.pending != c.pending[got.n]+1 {
 				t.Errorf("%d on their way to it; want one more than %d", got.pending, c.pending[got.n])
+			}
+			if len(c.made) > 0 && !slices.Equal(*heard, []int{len(c.open) + 1}) {
+				t.Errorf("heard %v open; want %d", *heard, len(c.open)+1)
 			}
 			if !slices.IsSorted(numbers(r)) {
 				t.Errorf("open %v, out of order", numbers(r))
@@ -89,7 +102,7 @@ func TestAPickFollowsTheChannelRules(t *testing.T) {
 // One on its way counts: two picks before either lands don't both take the last place.
 func TestAPickCountsThoseOnTheirWay(t *testing.T) {
 	r := testRegion(map[int]int{1: 1}, 1)
-	cs := &channels{cap: 2, regions: map[string]*region{"vale": r}}
+	cs, _ := channelsOf(2, 0, r)
 	var made []int
 	a, _ := cs.pick(r, 0, false, nil, opens(&made))
 	b, _ := cs.pick(r, 0, false, nil, opens(&made))
@@ -103,7 +116,7 @@ func TestAChannelPastTheFirstClosesOnceIdle(t *testing.T) {
 	const idle = 5 * time.Minute
 	t0 := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
 	r := testRegion(map[int]int{2: 1, 3: 0}, 1, 2, 3)
-	cs := &channels{cap: 2, idle: idle, regions: map[string]*region{"vale": r}}
+	cs, heard := channelsOf(2, idle, r)
 	two, three := r.open[1], r.open[2]
 	sweep := func(at time.Duration) []string { return cs.sweep(t0.Add(at)) }
 	if shut := sweep(0); len(shut) != 0 || !two.empty.IsZero() || !three.empty.Equal(t0) {
@@ -126,6 +139,9 @@ func TestAChannelPastTheFirstClosesOnceIdle(t *testing.T) {
 	}
 	if shut := sweep(24 * time.Hour); len(shut) != 0 || !slices.Equal(numbers(r), []int{1}) {
 		t.Fatalf("shut %v; the first channel never closes", shut)
+	}
+	if !slices.Equal(*heard, []int{2, 1}) {
+		t.Errorf("heard %v open; want 2 then 1", *heard)
 	}
 	if ok, _ := cs.touch(r, 2); ok {
 		t.Error("touched channel 2 after it closed")

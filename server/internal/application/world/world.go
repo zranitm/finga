@@ -156,6 +156,7 @@ func New(_ context.Context, d Deps) (*Module, error) {
 		Panics:       rec,
 		Logger:       log,
 		SaveObserver: meters,
+		Channels:     meters,
 		Results:      outcomes,
 	}, game.Tuning{
 		TickInterval: cfg.TickInterval(), CheckpointInterval: cfg.CheckpointInterval, FlushTimeout: cfg.FlushTimeout, BatchMax: cfg.ItemCalls.BatchMax,
