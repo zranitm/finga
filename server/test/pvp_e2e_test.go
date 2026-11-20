@@ -66,9 +66,17 @@ func TestADuelAgainstABotRunsToItsEnd(t *testing.T) {
 	if ended < 0 {
 		t.Fatalf("no outcome; heard %v", h.types(into))
 	}
+	// The phases come in the ring's frames and the outcome from the pvp module, two ways to the client, so either may come first.
+	shown := h.since(into, time.Minute, func(m wsconn.Message) bool {
+		st, ok := m.Data.(*clientv1.MatchState)
+		return ok && st.GetPhase() == clientv1.MatchPhase_MATCH_PHASE_RESULT
+	})
+	if shown < 0 {
+		t.Fatalf("no result phase; heard %v", h.types(into))
+	}
 	var phases []clientv1.MatchPhase
 	var kit *clientv1.StatsChanged
-	for _, m := range h.got[into:ended] {
+	for _, m := range h.got[into : shown+1] {
 		switch d := m.Data.(type) {
 		case *clientv1.MatchState:
 			phases = append(phases, d.GetPhase())
