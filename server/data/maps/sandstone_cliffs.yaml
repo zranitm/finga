@@ -60,15 +60,15 @@ portals:
   - {name: from_dune, at: [2, 18], radius: 1.2, to: {map: dune_road, portal: to_cliffs}}
   - {name: to_ruins, at: [78, 18], radius: 1.2, to: {map: sunken_ruins, portal: from_cliffs}}
 spawns:
-  - {name: west_vultures, at: [22, 19], radius: 5, mob: dust_vulture, max: 3, respawn: 9s}
-  - {name: south_vultures, at: [32, 8.5], radius: 5, mob: dust_vulture, max: 2, respawn: 9s}
-  - {name: north_vultures, at: [40, 27.5], radius: 4.5, mob: dust_vulture, max: 2, respawn: 10s}
-  - {name: east_vultures, at: [52, 20], radius: 5, mob: dust_vulture, max: 2, respawn: 10s}
-  - {name: spur_vulture, at: [60, 25], radius: 4, mob: dust_vulture, max: 1, respawn: 10s}
-  - {name: gate_vulture, at: [63, 12], radius: 3.5, mob: dust_vulture, max: 1, respawn: 10s}
-  - {name: west_slime, at: [24.5, 9], radius: 3, mob: sun_slime, max: 1, respawn: 12s}
-  - {name: mesa_slime, at: [43, 15], radius: 3.5, mob: sun_slime, max: 1, respawn: 12s}
-  - {name: slope_slime, at: [47, 9], radius: 4, mob: sun_slime, max: 1, respawn: 12s}
-  - {name: east_slime, at: [58, 18], radius: 3.5, mob: sun_slime, max: 1, respawn: 12s}
+  - {name: west_vultures, at: [22, 19], radius: 5, mob: dust_vulture, max: 3, respawn: 27s}
+  - {name: south_vultures, at: [32, 8.5], radius: 5, mob: dust_vulture, max: 2, respawn: 27s}
+  - {name: north_vultures, at: [40, 27.5], radius: 4.5, mob: dust_vulture, max: 2, respawn: 30s}
+  - {name: east_vultures, at: [52, 20], radius: 5, mob: dust_vulture, max: 2, respawn: 30s}
+  - {name: spur_vulture, at: [60, 25], radius: 4, mob: dust_vulture, max: 1, respawn: 30s}
+  - {name: gate_vulture, at: [63, 12], radius: 3.5, mob: dust_vulture, max: 1, respawn: 30s}
+  - {name: west_slime, at: [24.5, 9], radius: 3, mob: sun_slime, max: 1, respawn: 36s}
+  - {name: mesa_slime, at: [43, 15], radius: 3.5, mob: sun_slime, max: 1, respawn: 36s}
+  - {name: slope_slime, at: [47, 9], radius: 4, mob: sun_slime, max: 1, respawn: 36s}
+  - {name: east_slime, at: [58, 18], radius: 3.5, mob: sun_slime, max: 1, respawn: 36s}
 player_spawn: {at: [4.5, 18], yaw: 90}
 boss: {at: [40, 18], radius: 5, mob: cliff_reaper}

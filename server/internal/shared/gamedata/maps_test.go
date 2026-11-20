@@ -3,8 +3,10 @@ package gamedata_test
 import (
 	"math"
 	"testing"
+	"time"
 
 	"finga/internal/shared/gamedata"
+	"finga/internal/shared/gamedata/gamedatatest"
 	"finga/internal/shared/sim"
 )
 
@@ -31,5 +33,22 @@ func TestAMapHoldsFeetClearOfSolidsOverAStep(t *testing.T) {
 		if got := m.Holds(tt.x, tt.y, tt.z, step); got != tt.want {
 			t.Errorf("%s: holds %v, want %v", tt.name, got, tt.want)
 		}
+	}
+}
+
+// Every camp on the shipped maps and regions refills no sooner than 24 s, so a player has the time to loot a kill's pouch before the next mob comes (loot-pouches.md); test maps keep their own short times.
+func TestEveryShippedCampWaitsToRefill(t *testing.T) {
+	const least = 24 * time.Second
+	camps := 0
+	for _, m := range gamedatatest.Shipped(t).Maps() {
+		for _, s := range m.Spawns {
+			camps++
+			if s.Respawn < least {
+				t.Errorf("%s: the %s camp at (%v, %v) refills in %v; want %v or more", m.ID, s.Mob, s.At.X, s.At.Z, s.Respawn, least)
+			}
+		}
+	}
+	if camps == 0 {
+		t.Fatal("no camps on the shipped maps")
 	}
 }

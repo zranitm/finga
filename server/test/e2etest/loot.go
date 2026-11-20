@@ -505,7 +505,7 @@ func LootRules(chance float64, pouchLife string) DataEdit {
 func QuickSlimes() []DataEdit {
 	return []DataEdit{
 		{"mobs.yaml", "    name: Green Slime\n    level: 1\n    hp: 34\n", "    name: Green Slime\n    level: 1\n    hp: 1\n"},
-		{"maps/forest.yaml", "respawn: 8s}", "respawn: 1s}"}, // the slimes' circle
+		{"maps/forest.yaml", "respawn: 24s}", "respawn: 1s}"}, // the slimes' circle
 	}
 }
 

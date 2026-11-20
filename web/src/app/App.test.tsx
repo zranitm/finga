@@ -39,8 +39,21 @@ import { user } from '@/testing/user';
 
 import { App } from './App';
 import { socketUrl } from './services';
+import type { Services } from './services';
 
 vi.mock('@/game/world3d/run', () => ({ run: vi.fn() }));
+const made = vi.hoisted(() => new Set<Services>()); // each App's, whose socket a test may leave mid-join or in the world
+vi.mock('./services', async (importOriginal) => {
+  const real = await importOriginal<{ createServices: () => Services }>();
+  return {
+    ...real,
+    createServices: () => {
+      const s = real.createServices();
+      made.add(s);
+      return s;
+    },
+  };
+});
 
 const { id, name, level, hp } = sampleCharacter;
 const welcome = {
@@ -84,6 +97,10 @@ describe('App', () => {
     document.body.appendChild(parent);
   });
   afterEach(() => {
+    for (const s of made) {
+      s.socket.close(); // as leaving does: no Welcome wait, ping or retry outlives the test to log into another's console spy
+    }
+    made.clear();
     clearToken();
     parent.remove();
   });

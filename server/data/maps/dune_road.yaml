@@ -68,14 +68,14 @@ portals:
   - {name: from_crossroads, at: [2, 18], radius: 1.2, to: {map: crossroads, portal: to_dune}}
   - {name: to_cliffs, at: [78, 18], radius: 1.2, to: {map: sandstone_cliffs, portal: from_dune}}
 spawns:
-  - {name: west_mice, at: [19.5, 10.5], radius: 5, mob: sand_mouse, max: 2, respawn: 9s}
-  - {name: dune_mice, at: [30, 12], radius: 5, mob: sand_mouse, max: 2, respawn: 9s}
-  - {name: basin_mice, at: [44, 9], radius: 4.5, mob: sand_mouse, max: 2, respawn: 9s}
-  - {name: east_mice, at: [62, 20], radius: 4.5, mob: sand_mouse, max: 2, respawn: 9s}
-  - {name: rock_mice, at: [18.5, 25], radius: 4, mob: sand_mouse, max: 2, respawn: 10s}
-  - {name: ridge_mice, at: [52, 25], radius: 4.5, mob: sand_mouse, max: 2, respawn: 10s}
-  - {name: pillar_scarab, at: [60, 10], radius: 5, mob: shellback_scarab, max: 1, respawn: 12s}
-  - {name: dune_scarab, at: [64, 24], radius: 3.5, mob: shellback_scarab, max: 1, respawn: 12s}
-  - {name: gate_scarab, at: [66, 7.5], radius: 4, mob: shellback_scarab, max: 1, respawn: 12s}
+  - {name: west_mice, at: [19.5, 10.5], radius: 5, mob: sand_mouse, max: 2, respawn: 27s}
+  - {name: dune_mice, at: [30, 12], radius: 5, mob: sand_mouse, max: 2, respawn: 27s}
+  - {name: basin_mice, at: [44, 9], radius: 4.5, mob: sand_mouse, max: 2, respawn: 27s}
+  - {name: east_mice, at: [62, 20], radius: 4.5, mob: sand_mouse, max: 2, respawn: 27s}
+  - {name: rock_mice, at: [18.5, 25], radius: 4, mob: sand_mouse, max: 2, respawn: 30s}
+  - {name: ridge_mice, at: [52, 25], radius: 4.5, mob: sand_mouse, max: 2, respawn: 30s}
+  - {name: pillar_scarab, at: [60, 10], radius: 5, mob: shellback_scarab, max: 1, respawn: 36s}
+  - {name: dune_scarab, at: [64, 24], radius: 3.5, mob: shellback_scarab, max: 1, respawn: 36s}
+  - {name: gate_scarab, at: [66, 7.5], radius: 4, mob: shellback_scarab, max: 1, respawn: 36s}
 player_spawn: {at: [4.5, 18], yaw: 90}
 boss: {at: [46, 18.5], radius: 6, mob: dune_baron}

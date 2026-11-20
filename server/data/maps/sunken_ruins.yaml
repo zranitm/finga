@@ -55,15 +55,15 @@ props:
 portals:
   - {name: from_cliffs, at: [2, 18], radius: 1.2, to: {map: sandstone_cliffs, portal: to_ruins}}
 spawns:
-  - {name: ramp_rats, at: [20, 12], radius: 4, mob: tomb_rat, max: 2, respawn: 9s}
-  - {name: bank_rats, at: [22, 27], radius: 4, mob: tomb_rat, max: 2, respawn: 9s}
-  - {name: south_aisle_rats, at: [40, 7.5], radius: 3, mob: tomb_rat, max: 2, respawn: 9s}
-  - {name: north_aisle_rats, at: [43.5, 27.5], radius: 3, mob: tomb_rat, max: 2, respawn: 9s}
-  - {name: hall_rats, at: [30, 18], radius: 4, mob: tomb_rat, max: 2, respawn: 10s}
-  - {name: court_rats, at: [56, 18], radius: 5, mob: tomb_rat, max: 2, respawn: 10s}
-  - {name: north_wisp, at: [35, 27], radius: 3, mob: ruin_wisp, max: 1, respawn: 12s}
-  - {name: hall_wisp, at: [44, 18], radius: 4, mob: ruin_wisp, max: 1, respawn: 12s}
-  - {name: south_wisp, at: [52, 8], radius: 4, mob: ruin_wisp, max: 1, respawn: 12s}
-  - {name: court_wisp, at: [60, 25.5], radius: 5, mob: ruin_wisp, max: 1, respawn: 12s}
+  - {name: ramp_rats, at: [20, 12], radius: 4, mob: tomb_rat, max: 2, respawn: 27s}
+  - {name: bank_rats, at: [22, 27], radius: 4, mob: tomb_rat, max: 2, respawn: 27s}
+  - {name: south_aisle_rats, at: [40, 7.5], radius: 3, mob: tomb_rat, max: 2, respawn: 27s}
+  - {name: north_aisle_rats, at: [43.5, 27.5], radius: 3, mob: tomb_rat, max: 2, respawn: 27s}
+  - {name: hall_rats, at: [30, 18], radius: 4, mob: tomb_rat, max: 2, respawn: 30s}
+  - {name: court_rats, at: [56, 18], radius: 5, mob: tomb_rat, max: 2, respawn: 30s}
+  - {name: north_wisp, at: [35, 27], radius: 3, mob: ruin_wisp, max: 1, respawn: 36s}
+  - {name: hall_wisp, at: [44, 18], radius: 4, mob: ruin_wisp, max: 1, respawn: 36s}
+  - {name: south_wisp, at: [52, 8], radius: 4, mob: ruin_wisp, max: 1, respawn: 36s}
+  - {name: court_wisp, at: [60, 25.5], radius: 5, mob: ruin_wisp, max: 1, respawn: 36s}
 player_spawn: {at: [4.5, 18], yaw: 90}
 boss: {at: [66, 18], radius: 5, mob: crypt_warden}

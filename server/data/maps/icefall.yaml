@@ -66,15 +66,15 @@ portals:
   - {name: from_frost, at: [2, 18], radius: 1.2, to: {map: frost_trail, portal: to_icefall}}
   - {name: to_peak, at: [73, 18], radius: 1.2, to: {map: glacier_peak, portal: from_icefall}}
 spawns:
-  - {name: basin_wings, at: [17, 9], radius: 4, mob: icewing, max: 3, respawn: 9s}
-  - {name: drift_wings, at: [19, 26], radius: 4, mob: icewing, max: 2, respawn: 10s}
-  - {name: shelf_wings_s, at: [31, 9.5], radius: 4, mob: icewing, max: 2, respawn: 10s}
-  - {name: falls_wing, at: [30, 25.5], radius: 3.5, mob: icewing, max: 1, respawn: 10s}
-  - {name: shelf_wings_n, at: [46, 26], radius: 4, mob: icewing, max: 2, respawn: 10s}
-  - {name: rock_wing, at: [46, 10], radius: 3.5, mob: icewing, max: 1, respawn: 10s}
-  - {name: upper_snail_s, at: [59, 9.5], radius: 3.5, mob: glacier_snail, max: 1, respawn: 12s}
-  - {name: upper_snail_n, at: [59, 26.5], radius: 3.5, mob: glacier_snail, max: 1, respawn: 12s}
-  - {name: step_snail, at: [56, 18], radius: 3, mob: glacier_snail, max: 1, respawn: 12s}
-  - {name: shelf_snail, at: [28, 18], radius: 3, mob: glacier_snail, max: 1, respawn: 12s}
+  - {name: basin_wings, at: [17, 9], radius: 4, mob: icewing, max: 3, respawn: 27s}
+  - {name: drift_wings, at: [19, 26], radius: 4, mob: icewing, max: 2, respawn: 30s}
+  - {name: shelf_wings_s, at: [31, 9.5], radius: 4, mob: icewing, max: 2, respawn: 30s}
+  - {name: falls_wing, at: [30, 25.5], radius: 3.5, mob: icewing, max: 1, respawn: 30s}
+  - {name: shelf_wings_n, at: [46, 26], radius: 4, mob: icewing, max: 2, respawn: 30s}
+  - {name: rock_wing, at: [46, 10], radius: 3.5, mob: icewing, max: 1, respawn: 30s}
+  - {name: upper_snail_s, at: [59, 9.5], radius: 3.5, mob: glacier_snail, max: 1, respawn: 36s}
+  - {name: upper_snail_n, at: [59, 26.5], radius: 3.5, mob: glacier_snail, max: 1, respawn: 36s}
+  - {name: step_snail, at: [56, 18], radius: 3, mob: glacier_snail, max: 1, respawn: 36s}
+  - {name: shelf_snail, at: [28, 18], radius: 3, mob: glacier_snail, max: 1, respawn: 36s}
 player_spawn: {at: [3.5, 18], yaw: 90}
 boss: {at: [38.5, 18], radius: 5, mob: blizzard_wing}
