@@ -218,7 +218,7 @@ The steps of large-regions.md section 3, with these added. Everything keeps the 
 
   - **The levels are provisional,** set with the shrine's layout (B13 step 6). If the layout moves them, only the levels change; the stats follow `mobs.yaml`'s rule.
   - **Stats** sit with the cave's boar at like levels: below level 15 the balance harness only logs, as for the forest and the cave. The Goblin Shark takes about 2.5 times the Piranha's hits and gives 2.5 times its EXP. The Anglerfish takes 2.7 to 3.4 minutes alone, with its cooldowns the Vampire Bat's (spit 4.25 s, slam 8.25 s), the smallest that keep a melee player within 30 red potions.
-  - **The four fish ship in `mobs.yaml` unplaced.** The Anglerfish's entry waits for step 6, since every boss needs a map that places it. Step 6's map brings them all under the balance tests.
+  - **The four fish ship in `mobs.yaml` unplaced.** The Anglerfish's entry waits for step 6, since every boss needs a map that places it. Its tuned entry is in #333's description, and it's added with the shrine. Step 6's map brings them all under the balance tests.
   - **Each drops its own material:** a Piranha Tooth, a Lionfish Spine, a Swordfish Bill and a Goblin Shark Jaw. Each also drops red potions and the cave's band of gear, the boar's, with the next band rarely.
 - **No new mechanic.** If a sea mob needs one, it stops and is brought back for a decision.
 - **Stats** follow `mobs.yaml`'s rule for their area's levels, checked by the balance harness.
