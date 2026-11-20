@@ -12,8 +12,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-
-	"finga/internal/shared/sim"
 )
 
 var update = flag.Bool("update", false, "rewrite testdata/regions/bakes.sha256 from the test plan and the shipped regions")
@@ -60,12 +58,13 @@ func fileOf(t *testing.T, b Bake, path string) File {
 	return b.Files[i]
 }
 
-// Read back as the client will, every chunk holds its square's heights and colours, its edges shared with its neighbours, its heights with a border a sample wide held to the region, and the props and solids whose centres it holds, each once; the overview holds every 8th sample.
+// Read back as the client will, every chunk holds its square's heights, colours and deep water, its edges shared with its neighbours, its heights with a border a sample wide held to the region, and the props and solids whose centres it holds, each once, each solid at its index in the region's list; the overview holds every 8th sample.
 func TestTheBakeReadsBackAsTheRegion(t *testing.T) {
 	r, b := smallRegion(t), smallBake(t)
 	tr := r.Geometry.Terrain
 	ncx, ncz := r.chunks()
 	props, cyls, boxes := 0, 0, 0
+	seenCyl, seenBox := map[int]bool{}, map[int]bool{}
 	for cz := range ncz {
 		for cx := range ncx {
 			rd := &reader{t, fileOf(t, b, fmt.Sprintf("chunks/%d_%d.bin", cx, cz)).Data}
@@ -88,6 +87,14 @@ func TestTheBakeReadsBackAsTheRegion(t *testing.T) {
 				}
 			}
 			rd.take(3) // 65² colours, padded to 4 bytes
+			for iz := range 65 {
+				for ix := range 65 {
+					if got, want := rd.take(1)[0] == 1, tr.DeepWater[(cz*64+iz)*tr.NX+cx*64+ix]; got != want {
+						t.Fatalf("chunk %d_%d's deep water at (%d, %d) is %v; want %v", cx, cz, ix, iz, got, want)
+					}
+				}
+			}
+			rd.take(3)
 			inChunk := func(x, z float64) {
 				if gx, gz := r.chunkOf(x, z); gx != cx || gz != cz {
 					t.Fatalf("(%v, %v) in chunk %d_%d; its centre is in %d_%d", x, z, cx, cz, gx, gz)
@@ -103,22 +110,25 @@ func TestTheBakeReadsBackAsTheRegion(t *testing.T) {
 				props++
 			}
 			for range rd.u32() {
-				x, z, rad, top := rd.f32(), rd.f32(), rd.f32(), rd.f32()
+				i, x, z, rad, top := rd.u32(), rd.f32(), rd.f32(), rd.f32(), rd.f32()
 				inChunk(x, z)
-				if !slices.ContainsFunc(r.Geometry.Cylinders, func(c sim.Cylinder) bool { return c.X == x && c.Z == z && c.Radius == rad && c.Top == top }) {
-					t.Fatalf("chunk %d_%d holds a cylinder the region hasn't", cx, cz)
+				if c := r.Geometry.Cylinders[i]; c.X != x || c.Z != z || c.Radius != rad || c.Top != top || seenCyl[i] {
+					t.Fatalf("chunk %d_%d holds a cylinder that isn't the region's %d, or is again", cx, cz, i)
 				}
+				seenCyl[i] = true
 				cyls++
 			}
 			for range rd.u32() {
+				i := rd.u32()
 				var v [7]float64
-				for i := range v {
-					v[i] = rd.f32()
+				for k := range v {
+					v[k] = rd.f32()
 				}
 				inChunk(v[0], v[1])
-				if !slices.ContainsFunc(r.Geometry.Boxes, func(o sim.Box) bool { return [7]float64{o.X, o.Z, o.HalfW, o.HalfD, o.UX, o.UZ, o.Top} == v }) {
-					t.Fatalf("chunk %d_%d holds a box the region hasn't", cx, cz)
+				if o := r.Geometry.Boxes[i]; [7]float64{o.X, o.Z, o.HalfW, o.HalfD, o.UX, o.UZ, o.Top} != v || seenBox[i] {
+					t.Fatalf("chunk %d_%d holds a box that isn't the region's %d, or is again", cx, cz, i)
 				}
+				seenBox[i] = true
 				boxes++
 			}
 			if len(rd.b) != 0 {
@@ -147,13 +157,14 @@ func TestTheBakeReadsBackAsTheRegion(t *testing.T) {
 	}
 }
 
-// region.json names the palette and models the chunks index, and carries the plan's places and the water.
+// region.json names the palette and models the chunks index, counts the solids they index into, and carries the plan's places and the water.
 func TestRegionJSONIndexesTheChunks(t *testing.T) {
 	r, b := smallRegion(t), smallBake(t)
 	var m struct {
 		Format  int
 		Chunks  [2]int
 		Heights [2]float64
+		Solids  struct{ Cylinders, Boxes int }
 		Palette []struct{ Name, RGB string }
 		Models  []string
 		Rivers  []struct{ Levels []float64 }
@@ -164,6 +175,9 @@ func TestRegionJSONIndexesTheChunks(t *testing.T) {
 		t.Fatal(err)
 	}
 	k := shippedKit(t)
+	if m.Solids.Cylinders != len(r.Geometry.Cylinders) || m.Solids.Boxes != len(r.Geometry.Boxes) || m.Solids.Cylinders == 0 || m.Solids.Boxes == 0 {
+		t.Errorf("solids %+v; want the region's %d cylinders and %d boxes", m.Solids, len(r.Geometry.Cylinders), len(r.Geometry.Boxes))
+	}
 	if m.Format != Format || m.Chunks != [2]int{4, 4} || m.Heights != r.Heights || !slices.Equal(m.Models, r.Models) || len(m.Areas) != 5 || m.Start.At != [2]float64{124, 80} {
 		t.Errorf("region.json %+v", m)
 	}

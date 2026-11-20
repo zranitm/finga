@@ -13,8 +13,8 @@ import (
 	"strings"
 )
 
-// Format is the bake's version, in every file; a reader refuses another. 2: a chunk's heights carry a border.
-const Format = 2
+// Format is the bake's version, in every file; a reader refuses another. 2: a chunk's heights carry a border. 3: a chunk carries its deep water and each solid's index in the region's lists.
+const Format = 3
 
 // tileM is a map tile's side; tiles are drawn at 1 and 4 metres a pixel.
 const tileM = 128
@@ -100,7 +100,7 @@ func (w *writer) header(magic string, a, b, c int) {
 	w.u16(c)
 }
 
-// chunk is one 64 m square: "FRCK", the format, its x and z, and its samples a side n (its edges shared with its neighbours); then (n+2)² heights, its own with a border one sample wide, held to the region at its edges, so a client takes an edge's normal from the same numbers on both sides; then n² colours, row by row from the south-west, and the props, cylinders and boxes whose centres it holds.
+// chunk is one 64 m square: "FRCK", the format, its x and z, and its samples a side n (its edges shared with its neighbours); then (n+2)² heights, its own with a border one sample wide, held to the region at its edges, so a client takes an edge's normal from the same numbers on both sides; then n² colours and n² deep-water marks, 1 or 0, row by row from the south-west; and the props, cylinders and boxes whose centres it holds, each solid with its index in the region's list, so a client visits them in the server's order.
 func (r *Region) chunk(cx, cz int) []byte {
 	t := r.Geometry.Terrain
 	per := int(chunkM / t.Cell)
@@ -115,6 +115,15 @@ func (r *Region) chunk(cx, cz int) []byte {
 	for iz := range per + 1 {
 		for ix := range per + 1 {
 			w.b = append(w.b, r.Colours[(cz*per+iz)*t.NX+cx*per+ix])
+		}
+	}
+	w.pad()
+	for iz := range per + 1 {
+		for ix := range per + 1 {
+			w.b = append(w.b, 0)
+			if t.DeepWater[(cz*per+iz)*t.NX+cx*per+ix] {
+				w.b[len(w.b)-1] = 1
+			}
 		}
 	}
 	w.pad()
@@ -145,6 +154,7 @@ func (r *Region) chunk(cx, cz int) []byte {
 	w.u32(len(cyls))
 	for _, i := range cyls {
 		c := r.Geometry.Cylinders[i]
+		w.u32(i)
 		for _, v := range [...]float64{c.X, c.Z, c.Radius, c.Top} {
 			w.f32(v)
 		}
@@ -158,6 +168,7 @@ func (r *Region) chunk(cx, cz int) []byte {
 	w.u32(len(boxes))
 	for _, i := range boxes {
 		b := r.Geometry.Boxes[i]
+		w.u32(i)
 		for _, v := range [...]float64{b.X, b.Z, b.HalfW, b.HalfD, b.UX, b.UZ, b.Top} {
 			w.f32(v)
 		}
@@ -201,6 +212,10 @@ func (r *Region) meta() ([]byte, error) {
 		Area  [][2]float64 `json:"area"`
 		Level float64      `json:"level"`
 	}
+	type solids struct {
+		Cylinders int `json:"cylinders"`
+		Boxes     int `json:"boxes"`
+	}
 	m := struct {
 		Format    int        `json:"format"`
 		Name      string     `json:"name"`
@@ -211,6 +226,7 @@ func (r *Region) meta() ([]byte, error) {
 		Chunks    [2]int     `json:"chunks"`
 		Overview  float64    `json:"overview"`
 		Heights   [2]float64 `json:"heights"`
+		Solids    solids     `json:"solids"` // how many of each the chunks index into
 		Palette   []colour   `json:"palette"`
 		Models    []string   `json:"models"`
 		Rivers    []river    `json:"rivers"`
@@ -223,6 +239,7 @@ func (r *Region) meta() ([]byte, error) {
 		Start     Place      `json:"start"`
 	}{
 		Format: Format, Name: p.Name, Sky: p.Look.Sky, Size: p.Size, Cell: p.Cell, Chunk: chunkM, Overview: overviewM, Heights: r.Heights,
+		Solids: solids{len(r.Geometry.Cylinders), len(r.Geometry.Boxes)},
 		Models: r.Models, Areas: nonNil(p.Areas), Camps: nonNil(p.Camps), Waypoints: nonNil(p.Waypoints), NPCs: nonNil(p.NPCs), Gates: nonNil(p.Gates), Start: p.Start,
 		Rivers: []river{}, Lakes: []lake{},
 	}
