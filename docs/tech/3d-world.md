@@ -610,6 +610,16 @@ As built in slice PR 6, every field above is added, and nothing is removed yet:
 - **Packages:** `@babylonjs/core` and `@babylonjs/loaders`, pinned to an exact version (9.36.0). Imports are per file, not barrels, so the bundle shakes.
   - Spike 1 measured what entering the 3D world downloads: about 530 kB of JavaScript gzipped (2.0 MB raw), loaded only then, beside Phaser's 357 kB, which slice PRs 4 and 5 removed.
   - About 71 kB of that is the glTF loader's PBR material and its BRDF table, which the toon material replaces. Making the toon material in the loader would save it.
+  - **In few files,** as built after the regions playtest timed a first load on Fast 3G: rolldown split Babylon into about 130 files where its lazy imports share modules. A slow line pays a round trip a file, six at a time, so the files cost more than their bytes. The build (`vite.config.ts`) groups two:
+    - **`babylon`:** every Babylon module the world's entry (`world3d/run.ts`) imports up front and the page doesn't, found from each module's own imports. The world then loads its code and this file up front: 63 and 380 kB gzipped, against 56 files and about 470 kB before.
+    - **`babylon-glsl`:** WebGL's shaders, which Babylon imports one at a time as a material first needs one. All of them gzip to 106 kB in one file; a region's first load had fetched 66 of them, 119 kB with their headers.
+    - **The rest stays lazy,** split as rolldown splits it: the glTF loader and its extensions, the PBR material, WebGPU's shaders.
+    - **The groups take only what they name.** A captured module's own imports would pull in the page's modules too, as Vite's preload helper, and the page would then load Babylon.
+    - **The build checks it:** it fails if the page loads a Babylon file up front, or the world anything but `babylon`.
+    - **Measured** on Chrome's Fast 3G preset (562.5 ms latency, 180 kB/s down), fresh and uncached, from Play to the loading screen lifting, on the production image (nginx, HTTP/1.1, gzip -9), three rounds each, every round within 0.1 s:
+      - **town:** 14.6 → 9.4 s, 146 → 37 files;
+      - **the test region:** 21.8 → 13.7 s, 175 → 64 files;
+      - **unthrottled:** unchanged, 0.39–0.44 against 0.42–0.45 s in town, 0.61–0.78 against 0.65–0.72 s in the region.
 - **Loading:** every glTF loads with `alwaysComputeSkeletonRootNode`. Quaternius's skins name a joint that isn't their joints' common root, and without it Babylon skins those models lying down at 100 times their size.
 - **At rest:** every glTF loads with no clip started (`animationStartMode` none). The loader plays a file's first clip by default, and every body cloned from the file copied that clip's pose of the moment and was sized from it. A redraw then grew or shrank a player by up to 8%, as the outfits playtest found.
 - **Engine:** WebGL2. WebGPU is a later option.
