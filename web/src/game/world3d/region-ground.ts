@@ -65,12 +65,21 @@ export class RegionGround {
     };
   }
 
-  /** Fills chunk c's samples, the cells between them and the solids it holds; a chunk in already is left. */
+  /** Fills chunk c's samples, the cells between them and the solids it holds; a chunk in already is left, and one that doesn't fit the region throws before it changes anything. */
   add(c: ChunkGround): void {
+    const name = `chunk ${c.cx}_${c.cz}`;
+    if (c.cx >= this.ncx || c.cz >= this.ncz) {
+      throw new Error(`${name} is outside the region's ${this.ncx} by ${this.ncz}`);
+    }
+    if (c.n !== this.per + 1) {
+      throw new Error(`${name} has ${c.n} samples a side; the region's have ${this.per + 1}`);
+    }
     const k = c.cz * this.ncx + c.cx;
     if (this.filled[k]) {
       return;
     }
+    unheld(`${name}'s cylinder`, c.cylinders.index, this.cylinders);
+    unheld(`${name}'s box`, c.boxes.index, this.boxes);
     const t = this.terrain;
     const x0 = c.cx * this.per;
     const z0 = c.cz * this.per;
@@ -119,5 +128,16 @@ export class RegionGround {
       }
     }
     return true;
+  }
+}
+
+/** Throws unless each of indices is within the region's list had, held by no chunk yet, and named once. */
+function unheld(what: string, indices: Uint32Array, had: readonly unknown[]): void {
+  const seen = new Set<number>();
+  for (const i of indices) {
+    if (i >= had.length || had[i] !== undefined || seen.has(i)) {
+      throw new Error(`${what} ${i} is past the region's ${had.length}, or held twice`);
+    }
+    seen.add(i);
   }
 }

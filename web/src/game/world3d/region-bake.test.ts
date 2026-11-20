@@ -118,6 +118,18 @@ describe('a region bake, read as regionbake writes it', () => {
     expect(deepAt(40, 40)).toBe(false);
   });
 
+  it('refuses a chunk that ends early or runs on past its boxes', () => {
+    const chunk = bakeFile('chunks/0_1.bin');
+    expect(() => readChunk(chunk.slice(0, chunk.byteLength - 1))).toThrow(
+      'chunk 0_1 ends 1 bytes early',
+    );
+    expect(() => readChunk(chunk.slice(0, 100))).toThrow(/chunk 0_1 ends \d+ bytes early/);
+    const longer = new Uint8Array(chunk.byteLength + 4);
+    longer.set(new Uint8Array(chunk));
+    expect(() => readChunk(longer.buffer)).toThrow('chunk 0_1 runs 4 bytes past its end');
+    expect(() => readChunk(chunk.slice(0, 8))).toThrow('not a format 3 FRCK: 8 bytes');
+  });
+
   it('refuses a file of another format or kind, and says which bake failed to come', async () => {
     const chunk = bakeFile('chunks/0_0.bin');
     const old = chunk.slice(0);

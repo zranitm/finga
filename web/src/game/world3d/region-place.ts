@@ -209,7 +209,7 @@ class RegionView implements Place {
     this.scene.fogMode = Scene.FOGMODE_NONE;
   }
 
-  /** Asks for chunk (cx, cz); its ground goes to the sim as it comes, and it's made a later frame, unless it went out of reach meanwhile. One that fails isn't asked again: the overview stands in for it. */
+  /** Asks for chunk (cx, cz); its ground goes to the sim as it comes, and it's made a later frame, unless it went out of reach meanwhile. One that fails, or whose ground doesn't fit the region, isn't asked again: the overview stands in for it. */
   private ask(cx: number, cz: number): void {
     const k = key(cx, cz);
     this.asked.add(k);
@@ -225,20 +225,27 @@ class RegionView implements Place {
           if (this.gone) {
             return;
           }
-          this.ground.add(b.sim);
+          try {
+            this.ground.add(b.sim);
+          } catch (err) {
+            this.fail(k, err);
+            return;
+          }
           this.landed();
           if (this.asked.delete(k)) {
             this.ready.push(b);
           }
         },
-        (err: unknown) => {
-          this.asked.delete(k);
-          this.failed.add(k);
-          console.info(
-            `finga: chunk ${k} of ${this.region.ref.id} didn't load: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        },
+        (err: unknown) => this.fail(k, err),
       );
+  }
+
+  private fail(k: string, err: unknown): void {
+    this.asked.delete(k);
+    this.failed.add(k);
+    console.info(
+      `finga: chunk ${k} of ${this.region.ref.id} didn't load: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 
   /** Draws a built chunk: its ground at the farthest detail till the next follow sets it, and its props as their models load. */

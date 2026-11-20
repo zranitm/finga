@@ -42,6 +42,7 @@ class Held implements ChunkSource {
   constructor(
     private readonly asked: string[],
     private readonly fails: (url: string) => boolean,
+    private readonly alter: (b: BuiltChunk) => BuiltChunk = (b) => b,
   ) {}
 
   build(req: ChunkRequest): Promise<BuiltChunk> {
@@ -59,7 +60,7 @@ class Held implements ChunkSource {
       if (this.fails(req.url)) {
         reject(new Error('gone'));
       } else {
-        const b = await buildChunk(req);
+        const b = this.alter(await buildChunk(req));
         this.built.push(b);
         resolve(b);
       }
@@ -121,8 +122,11 @@ describe('a region drawn from its bake', () => {
     (props(k)?.getChildMeshes(true) ?? []).filter((m): m is Mesh => m instanceof Mesh);
   const overview = (name = 'overview') => scene.getMeshByName(name) as Mesh;
 
-  async function built(fails: (url: string) => boolean = () => false): Promise<void> {
-    source = new Held(asked, fails);
+  async function built(
+    fails: (url: string) => boolean = () => false,
+    alter?: (b: BuiltChunk) => BuiltChunk,
+  ): Promise<void> {
+    source = new Held(asked, fails, alter);
     models = new Loading(scene, (f) => new Uint8Array(readFileSync(path.join(MODELS, f))));
     const { region, overview } = await loadRegion(TINY);
     ground = new RegionGround(region, movement.max_slope);
@@ -261,6 +265,20 @@ describe('a region drawn from its bake', () => {
     }
     expect(said).toHaveBeenCalledWith(expect.stringContaining('chunk 1_1 of tiny'));
     said.mockRestore();
+  });
+
+  it('takes a chunk whose ground doesn’t fit the region as one that didn’t come', async () => {
+    await built(undefined, (b) =>
+      b.cx === 1 && b.cz === 1 ? { ...b, sim: { ...b.sim, n: 17 } } : b,
+    );
+    const said = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    await settle(30, 60);
+    place!.follow(30, 60);
+    expect(chunkNames()).toEqual(['chunk 0_0', 'chunk 0_1', 'chunk 1_0']);
+    expect([landed, ground.covers(32, 32, 0), ground.covers(96, 96, 0)]).toEqual([3, true, false]);
+    expect(said).toHaveBeenCalledWith(
+      "finga: chunk 1_1 of tiny didn't load: chunk 1_1 has 17 samples a side; the region's have 33",
+    );
   });
 
   it('makes no chunk that was built while the target went out of its reach', async () => {

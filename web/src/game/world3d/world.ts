@@ -2195,7 +2195,6 @@ export class World {
     );
   }
 
-  /** Each NPC's name, and over it the marker of what it has for the player. */
   /** Stands the NPCs, their marks and the portals' labels on a region's ground that came after they were placed. */
   private landed(): void {
     const map = this.map;
@@ -2209,6 +2208,7 @@ export class World {
     this.showPortalLabels();
   }
 
+  /** Each portal's label, over its ground, naming the map it leads to. */
   private showPortalLabels(): void {
     const map = this.map!;
     for (const p of map.portals) {
@@ -2224,6 +2224,7 @@ export class World {
     }
   }
 
+  /** Each NPC's name, and over it the marker of what it has for the player. */
   private showMarkers(): void {
     const player = questPlayer();
     for (const { npc, y } of this.npcViews.values()) {

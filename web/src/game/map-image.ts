@@ -98,8 +98,8 @@ function regionPixels({ region, overview: o }: RegionMap): Pixels {
   const rows = Math.round(sz * REGION_PX_PER_M);
   const [low, high] = region.heights;
   const span = high - low;
-  const linear = region.palette.map((c) =>
-    [(c >> 16) & 0xff, (c >> 8) & 0xff, c & 0xff].map(toLinear),
+  const linear = Float32Array.from(
+    region.palette.flatMap((c) => [(c >> 16) & 0xff, (c >> 8) & 0xff, c & 0xff].map(toLinear)),
   );
   const data = new Uint8ClampedArray(width * rows * 4);
   for (let r = 0; r < rows; r++) {
@@ -110,25 +110,31 @@ function regionPixels({ region, overview: o }: RegionMap): Pixels {
       const fx = Math.min((c + 0.5) / REGION_PX_PER_M / o.spacing, o.nx - 1);
       const ix = Math.min(Math.floor(fx), o.nx - 2);
       const tx = fx - ix;
-      let h = 0;
-      const rgb = [0, 0, 0];
-      for (const [s, w] of [
-        [iz * o.nx + ix, (1 - tx) * (1 - tz)],
-        [iz * o.nx + ix + 1, tx * (1 - tz)],
-        [(iz + 1) * o.nx + ix, (1 - tx) * tz],
-        [(iz + 1) * o.nx + ix + 1, tx * tz],
-      ] as const) {
-        h += w * o.heights[s]!;
-        const col = linear[o.colours[s]!]!;
-        for (let k = 0; k < 3; k++) {
-          rgb[k]! += w * col[k]!;
-        }
-      }
+      const s00 = iz * o.nx + ix;
+      const s01 = s00 + o.nx;
+      const w00 = (1 - tx) * (1 - tz);
+      const w10 = tx * (1 - tz);
+      const w01 = (1 - tx) * tz;
+      const w11 = tx * tz;
+      const h =
+        w00 * o.heights[s00]! +
+        w10 * o.heights[s00 + 1]! +
+        w01 * o.heights[s01]! +
+        w11 * o.heights[s01 + 1]!;
       const shade = span > 0 ? LOW + ((HIGH - LOW) * (h - low)) / span : 1;
+      const c00 = 3 * o.colours[s00]!;
+      const c10 = 3 * o.colours[s00 + 1]!;
+      const c01 = 3 * o.colours[s01]!;
+      const c11 = 3 * o.colours[s01 + 1]!;
       const i = (r * width + c) * 4;
-      data[i] = toSrgb(rgb[0]! * shade);
-      data[i + 1] = toSrgb(rgb[1]! * shade);
-      data[i + 2] = toSrgb(rgb[2]! * shade);
+      for (let k = 0; k < 3; k++) {
+        const v =
+          w00 * linear[c00 + k]! +
+          w10 * linear[c10 + k]! +
+          w01 * linear[c01 + k]! +
+          w11 * linear[c11 + k]!;
+        data[i + k] = toSrgb(v * shade);
+      }
       data[i + 3] = 255;
     }
   }

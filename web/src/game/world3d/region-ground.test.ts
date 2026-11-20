@@ -92,4 +92,44 @@ describe("a region's ground, built from its chunks", () => {
     expect(g.covers(56, 20, 16)).toBe(true);
     expect(g.covers(127, 127, 0)).toBe(false);
   });
+
+  it('refuses a chunk that doesn’t fit the region, changing nothing', async () => {
+    const g = await ground(['0_0']);
+    const t = g.geometry.terrain;
+    const before = [Float32Array.from(t.heights), Uint8Array.from(t.steepX)];
+    const c = readChunk(tinyFile('chunks/1_0.bin'));
+    const own = c.cylinders.index[0]!;
+    const theirs = readChunk(tinyFile('chunks/0_0.bin')).cylinders.index[0]!;
+    const solids = (index: number[]) => ({
+      index: Uint32Array.from(index),
+      at: new Float32Array(4 * index.length),
+    });
+    for (const [bad, refusal] of [
+      [{ ...c, cx: 2 }, "chunk 2_0 is outside the region's 2 by 2"],
+      [{ ...c, cz: 2 }, "chunk 1_2 is outside the region's 2 by 2"],
+      [{ ...c, n: 17 }, "chunk 1_0 has 17 samples a side; the region's have 33"],
+      [
+        { ...c, cylinders: solids([89]) },
+        "chunk 1_0's cylinder 89 is past the region's 89, or held twice",
+      ],
+      [
+        { ...c, cylinders: solids([own, own]) },
+        `chunk 1_0's cylinder ${own} is past the region's 89, or held twice`,
+      ],
+      [
+        { ...c, cylinders: solids([theirs]) },
+        `chunk 1_0's cylinder ${theirs} is past the region's 89, or held twice`,
+      ],
+      [
+        { ...c, boxes: { index: Uint32Array.of(2), at: new Float32Array(7) } },
+        "chunk 1_0's box 2 is past the region's 2, or held twice",
+      ],
+    ] as const) {
+      expect(() => g.add(bad), refusal).toThrow(refusal);
+    }
+    expect([Float32Array.from(t.heights), Uint8Array.from(t.steepX)]).toEqual(before);
+    expect(g.covers(96, 20, 0)).toBe(false);
+    g.add(c);
+    expect(g.covers(96, 20, 0)).toBe(true);
+  });
 });

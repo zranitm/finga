@@ -123,6 +123,9 @@ function parseRegion(ref: RegionRef, j: RegionJson): Region {
 
 /** Reads a file's magic, format and three fields, and refuses another magic or format. */
 function header(buf: ArrayBuffer, magic: string): [number, number, number] {
+  if (buf.byteLength < HEADER) {
+    throw new Error(`not a format ${BAKE_FORMAT} ${magic}: ${buf.byteLength} bytes`);
+  }
   const v = new DataView(buf);
   const got = String.fromCharCode(...new Uint8Array(buf, 0, 4));
   if (got !== magic || v.getUint16(4, true) !== BAKE_FORMAT) {
@@ -146,41 +149,49 @@ export function readOverview(buf: ArrayBuffer, cell: number): Overview {
   };
 }
 
-/** A chunk file: "FRCK", its x, z and samples a side; its bordered heights, its colours and its deep-water marks each padded to 4 bytes, then its props, cylinders and boxes. */
+/** A chunk file: "FRCK", its x, z and samples a side; its bordered heights, its colours and its deep-water marks each padded to 4 bytes, then its props, cylinders and boxes; one that ends early or runs on past them throws. */
 export function readChunk(buf: ArrayBuffer): Chunk {
   const [cx, cz, n] = header(buf, 'FRCK');
   const v = new DataView(buf);
-  const heights = new Float32Array(buf, HEADER, (n + 2) * (n + 2));
-  let at = HEADER + heights.byteLength;
-  const colours = new Uint8Array(buf, at, n * n);
-  at += (n * n + 3) & ~3;
-  const deep = new Uint8Array(buf, at, n * n);
-  at += (n * n + 3) & ~3;
-  const count = v.getUint32(at, true);
-  at += 4;
+  let at = HEADER;
+  /** The offset of the next bytes, taken. */
+  const take = (bytes: number): number => {
+    if (at + bytes > buf.byteLength) {
+      throw new Error(`chunk ${cx}_${cz} ends ${at + bytes - buf.byteLength} bytes early`);
+    }
+    at += bytes;
+    return at - bytes;
+  };
+  const heights = new Float32Array(buf, take(4 * (n + 2) ** 2), (n + 2) ** 2);
+  const colours = new Uint8Array(buf, take((n * n + 3) & ~3), n * n);
+  const deep = new Uint8Array(buf, take((n * n + 3) & ~3), n * n);
+  const count = v.getUint32(take(4), true);
   const models = new Uint16Array(count);
   const placed = new Float32Array(3 * count);
-  for (let i = 0; i < count; i++, at += 16) {
-    models[i] = v.getUint16(at, true);
-    placed[3 * i] = v.getFloat32(at + 4, true);
-    placed[3 * i + 1] = v.getFloat32(at + 8, true);
-    placed[3 * i + 2] = v.getFloat32(at + 12, true);
+  for (let i = 0; i < count; i++) {
+    const p = take(16);
+    models[i] = v.getUint16(p, true);
+    placed[3 * i] = v.getFloat32(p + 4, true);
+    placed[3 * i + 1] = v.getFloat32(p + 8, true);
+    placed[3 * i + 2] = v.getFloat32(p + 12, true);
   }
   const solids = (per: number): ChunkSolids => {
-    const count = v.getUint32(at, true);
-    at += 4;
+    const count = v.getUint32(take(4), true);
     const index = new Uint32Array(count);
     const numbers = new Float32Array(per * count);
     for (let i = 0; i < count; i++) {
-      index[i] = v.getUint32(at, true);
+      const p = take(4 + 4 * per);
+      index[i] = v.getUint32(p, true);
       for (let k = 0; k < per; k++) {
-        numbers[per * i + k] = v.getFloat32(at + 4 + 4 * k, true);
+        numbers[per * i + k] = v.getFloat32(p + 4 + 4 * k, true);
       }
-      at += 4 + 4 * per;
     }
     return { index, at: numbers };
   };
   const cylinders = solids(4);
   const boxes = solids(7);
+  if (at !== buf.byteLength) {
+    throw new Error(`chunk ${cx}_${cz} runs ${buf.byteLength - at} bytes past its end`);
+  }
   return { cx, cz, n, heights, colours, deep, props: { models, at: placed }, cylinders, boxes };
 }
