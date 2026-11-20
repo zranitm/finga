@@ -19,7 +19,8 @@ type interest struct {
 	where   map[body]int
 	cells   [][]body
 	watches map[kernel.CharacterID]*watch
-	leavers []kernel.CharacterID // the players who left since the last cut
+	leavers []kernel.CharacterID            // the players who left since the last cut
+	early   map[kernel.CharacterID]struct{} // on a map sent whole, those who joined since the last cut that a snapshot showed
 
 	// The frame being cut: the bodies that came to a cell, those that left the map from theirs, and each cell's parts, -1 for none.
 	crossed []body
@@ -66,7 +67,7 @@ func newInterest(in gamedata.Interest, sizeX, sizeZ float64) *interest {
 	nx, nz := in.Cells(sizeX, sizeZ)
 	n := &interest{
 		in: in, nx: nx, nz: nz, whole: in.Whole(nx, nz),
-		where: map[body]int{}, cells: make([][]body, nx*nz), watches: map[kernel.CharacterID]*watch{},
+		where: map[body]int{}, cells: make([][]body, nx*nz), watches: map[kernel.CharacterID]*watch{}, early: map[kernel.CharacterID]struct{}{},
 		changes: make([]int, nx*nz), full: make([]int, nx*nz), boss: -1, lit: make([]bool, nx*nz),
 	}
 	for c := range n.changes {
@@ -372,7 +373,11 @@ func (i *Instance) watchFrom(p *player, snap *model.Snapshot) {
 	if n.whole {
 		n.watches[p.ID] = &watch{}
 		for _, id := range i.order {
-			snap.Players = append(snap.Players, i.view(i.players[id]))
+			o := i.players[id]
+			snap.Players = append(snap.Players, i.view(o))
+			if o.joined && id != p.ID {
+				n.early[id] = struct{}{}
+			}
 		}
 		snap.Mobs = i.arena.Views()
 		return
@@ -420,10 +425,10 @@ func (n *interest) refile(i *Instance) {
 	}
 }
 
-// leave ends p's watch as they leave the map, and has the next cut take them off it if a frame ever brought them.
+// leave ends p's watch as they leave the map, and has the next cut take them off it if a frame ever brought them, or a snapshot showed them.
 func (n *interest) leave(id kernel.CharacterID, framed bool) {
 	delete(n.watches, id)
-	if framed {
+	if _, shown := n.early[id]; framed || shown {
 		n.leavers = append(n.leavers, id)
 	}
 }
@@ -437,11 +442,15 @@ func (n *interest) departed(i *Instance) []kernel.CharacterID {
 		}
 	}
 	n.leavers = n.leavers[:0]
+	clear(n.early) // this cut's frame brings them
 	return out
 }
 
 // rest forgets the leavers of a map nobody is on, as nobody is left to tell.
-func (n *interest) rest() { n.leavers = n.leavers[:0] }
+func (n *interest) rest() {
+	n.leavers = n.leavers[:0]
+	clear(n.early)
+}
 
 // place is where an event happens, for those who hear it: the cells of its source and target, either -1 when it has none; anywhere for one the whole map hears.
 type place struct {

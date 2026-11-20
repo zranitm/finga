@@ -886,6 +886,54 @@ func TestReplayMatchesSim(t *testing.T) {
 
 func near(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
 
+// One who joins and leaves in the tick another joins is never left on the joiner's screen, on the town, sent whole, or on a region, cut into cells: whoever the joiner is shown, they're told went (from a module test's flake, where a whole map's snapshot showed her and no frame took her off).
+func TestOneWhoLeavesInTheTickAnotherJoinsIsntLeftOnTheirScreen(t *testing.T) {
+	data := worldtest.LoadData(t)
+	region, _ := data.Map("test_region")
+	for _, m := range []*gamedata.Map{data.StartTown(), region} {
+		t.Run(m.ID, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				x, z := 124.0, 80.0
+				if m != region {
+					x, z = worldtest.TownSpawn(t, data)
+				}
+				inst, cancel := worldtest.RunMap(t, data, m, nil, worldtest.Options{})
+				defer cancel()
+				ayla, robin := worldtest.NewPlayer("Ayla", x, z), worldtest.NewPlayer("Robin", x+3, z)
+				ayla.Connection = "c-1"
+				sr := &worldtest.Sink{}
+				joins := make(chan error, 2)
+				go func() { joins <- inst.Join(context.Background(), ayla, &worldtest.Sink{}) }()
+				synctest.Wait()
+				go func() { joins <- inst.Join(context.Background(), robin, sr) }()
+				synctest.Wait()
+				_ = inst.Leave(ayla.ID, "c-1", nil) // all three in the next tick's inbox
+				time.Sleep(3 * worldtest.TickInterval)
+				synctest.Wait()
+				for range 2 {
+					if err := <-joins; err != nil {
+						t.Fatal(err)
+					}
+				}
+				isAyla := func(v model.PlayerView) bool { return v.ID == ayla.ID }
+				shown, gone := false, false
+				for _, e := range sr.All() {
+					switch e := e.(type) {
+					case model.Snapshot:
+						shown = shown || slices.ContainsFunc(e.Players, isAyla)
+					case worldtest.Delta:
+						shown = shown || slices.ContainsFunc(e.Players, isAyla)
+						gone = gone || slices.Contains(e.Removed, ayla.ID)
+					}
+				}
+				if shown && !gone {
+					t.Fatal("Robin was shown Ayla, who left in the tick he joined, and never told she went")
+				}
+			})
+		})
+	}
+}
+
 // A Leave and a rejoin in one tick leave the player on everyone's screen: the Delta lists them, not as removed.
 func TestALeaveAndARejoinInOneTickKeepThePlayerShown(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
