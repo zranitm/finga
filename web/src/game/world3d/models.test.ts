@@ -26,6 +26,16 @@ afterEach(() => {
 });
 
 describe('Models', () => {
+  it('lists every model in LICENSES.md, for its licence and credit', () => {
+    const files = readdirSync(MODELS, { recursive: true, encoding: 'utf8' })
+      .filter((f) => f.endsWith('.glb'))
+      .sort();
+    const licences = readFileSync(path.join(MODELS, 'LICENSES.md'), 'utf8');
+    const listed = [...licences.matchAll(/^\| `(\S+\.glb)` /gm)].map((m) => m[1]).sort();
+    expect(files.length).toBeGreaterThan(0);
+    expect(listed).toEqual(files);
+  });
+
   it('loads each file once however often it is asked for', async () => {
     const asked: string[] = [];
     const models = new Models(scene, (file) => {

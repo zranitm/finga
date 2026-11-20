@@ -43,14 +43,16 @@ describe('Credits', () => {
     }
   });
 
-  it('thanks each maker public/models/LICENSES.md lists', () => {
+  it('thanks each maker public/models/LICENSES.md lists, our own work aside', () => {
     render(<Credits />);
     const table = readFileSync(path.resolve(process.cwd(), 'public/models/LICENSES.md'), 'utf8');
     const makers = new Set(
       table
         .split('\n')
         .filter((l) => l.startsWith('| ') && l.includes('.glb'))
-        .map((l) => l.split('|')[3]!.trim()),
+        .map((l) => l.split('|').map((c) => c.trim()))
+        .filter((c) => c[4] !== 'Own work')
+        .map((c) => c[3]!),
     );
     expect(makers.size).toBeGreaterThan(0);
     for (const m of makers) {
