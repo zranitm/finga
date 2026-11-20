@@ -394,6 +394,11 @@ func (p Plan) checkFeature(f Feature) error {
 				return fmt.Errorf("a river's ford at %v is off it: more than half its width from its smoothed path", at)
 			}
 		}
+		for _, end := range [][2]float64{r.Path[0], r.Path[len(r.Path)-1]} {
+			if in := min(end[0], end[1], p.Size[0]-end[0], p.Size[1]-end[1]) - p.Edge.Width; in >= 0 {
+				return fmt.Errorf("a river's end at %v is %g m inside the ring's face: both ends lie in the ring, so its water meets the cliff and it's crossed only at its fords and causeways", end, in)
+			}
+		}
 	case f.Lake != nil:
 		if !p.path(f.Lake.Area, 3) || !reach(f.Lake.Depth, maxHeight) {
 			return fmt.Errorf("a lake needs an area in the region and a depth up to %d m", maxHeight)

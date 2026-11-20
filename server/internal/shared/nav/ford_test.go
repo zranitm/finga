@@ -16,32 +16,9 @@ import (
 func TestEveryFordIsCrossedBothWays(t *testing.T) {
 	data := gamedatatest.Shipped(t)
 	p := data.Movement()
-	plans := shippedRegions(t)
-	for _, glob := range []string{"../regiongen/testdata/*.yaml", "../../../cmd/regionbake/testdata/*.yaml"} {
-		files, err := filepath.Glob(glob)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, file := range files {
-			raw, err := os.ReadFile(file)
-			if err != nil {
-				t.Fatal(err)
-			}
-			plan, err := regiongen.Decode(raw)
-			if err != nil {
-				t.Fatalf("%s: %v", file, err)
-			}
-			plans[filepath.Base(file)] = plan
-		}
-	}
 	fords := 0
-	for id, plan := range plans {
-		var rivers []*regiongen.River
-		for _, f := range plan.Features {
-			if f.River != nil && len(f.River.Fords) > 0 {
-				rivers = append(rivers, f.River)
-			}
-		}
+	for id, plan := range everyPlan(t) {
+		rivers := fordedRivers(plan)
 		if len(rivers) == 0 {
 			continue
 		}
@@ -96,4 +73,115 @@ func banks(t *testing.T, g sim.Geometry, p sim.Params, river *regiongen.River, a
 		return nav.Point{}
 	}
 	return side(1), side(-1)
+}
+
+// everyPlan is every shipped region's plan and every test plan, by name.
+func everyPlan(t *testing.T) map[string]regiongen.Plan {
+	t.Helper()
+	plans := shippedRegions(t)
+	for _, glob := range []string{"../regiongen/testdata/*.yaml", "../../../cmd/regionbake/testdata/*.yaml"} {
+		files, err := filepath.Glob(glob)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, file := range files {
+			raw, err := os.ReadFile(file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			plan, err := regiongen.Decode(raw)
+			if err != nil {
+				t.Fatalf("%s: %v", file, err)
+			}
+			plans[filepath.Base(file)] = plan
+		}
+	}
+	return plans
+}
+
+// fordedRivers are plan's rivers with a ford.
+func fordedRivers(plan regiongen.Plan) []*regiongen.River {
+	var rivers []*regiongen.River
+	for _, f := range plan.Features {
+		if f.River != nil && len(f.River.Fords) > 0 {
+			rivers = append(rivers, f.River)
+		}
+	}
+	return rivers
+}
+
+// A river is crossed only at its fords and causeways (from 4b-2b's playtest, where a player walked round both its ends along the ring's cliff): in every shipped region and test plan, with those crossings gone, a player reaches nothing past the river from beside any of its fords, and with them, the other side.
+func TestARiverIsCrossedOnlyAtItsFordsAndCauseways(t *testing.T) {
+	data := gamedatatest.Shipped(t)
+	p := data.Movement()
+	rise := fastRise(data, p)
+	checked := 0
+	for id, plan := range everyPlan(t) {
+		if len(fordedRivers(plan)) == 0 {
+			continue
+		}
+		t.Run(id, func(t *testing.T) {
+			r, err := regiongen.Generate(plan, shippedKit(t), p.MaxSlope)
+			if err != nil {
+				t.Fatal(err)
+			}
+			grid := nav.New(r.Geometry, p.Step)
+			var roads []*regiongen.Road
+			for _, f := range plan.Features {
+				if f.Road != nil {
+					roads = append(roads, f.Road)
+				}
+			}
+			k := 0
+			for _, f := range plan.Features {
+				if f.River == nil {
+					continue
+				}
+				river, water := f.River, r.Rivers[k]
+				k++
+				fordR := river.Width/2 + min(river.Width/4, 2)
+				crossing := func(at nav.Point) bool {
+					for _, ford := range river.Fords {
+						if math.Hypot(at.X-ford[0], at.Z-ford[1]) <= fordR+0.5 { // its shallows, a cell's width over
+							return true
+						}
+					}
+					if fromPath(water.Path, at) > river.Width/2+1 {
+						return false
+					}
+					for _, road := range roads {
+						if fromPath(road.Path, at) <= road.Width/2+3 { // its causeway, past the smoothing of its path
+							return true
+						}
+					}
+					return false
+				}
+				for _, at := range river.Fords {
+					a, b := banks(t, r.Geometry, p, river, at)
+					if !grid.Reach([]nav.Point{a}, p.Radius, rise).Has(b) {
+						t.Fatalf("from %v beside the ford at %v, %v across it isn't reached", a, at, b)
+					}
+					if grid.ReachWithout([]nav.Point{a}, p.Radius, rise, crossing).Has(b) {
+						t.Errorf("from %v beside the ford at %v, %v across the river is reached with its fords and causeways gone", a, at, b)
+					}
+					checked++
+				}
+			}
+		})
+	}
+	if checked < 4 {
+		t.Fatalf("%d fords checked; the test plans and shipped regions have at least 4", checked)
+	}
+}
+
+// fromPath is how far at lies from path.
+func fromPath(path [][2]float64, at nav.Point) float64 {
+	best := math.Inf(1)
+	for i := 1; i < len(path); i++ {
+		a, b := path[i-1], path[i]
+		dx, dz := b[0]-a[0], b[1]-a[1]
+		s := min(max(((at.X-a[0])*dx+(at.Z-a[1])*dz)/(dx*dx+dz*dz), 0), 1)
+		best = min(best, math.Hypot(a[0]+s*dx-at.X, a[1]+s*dz-at.Z))
+	}
+	return best
 }
