@@ -34,6 +34,9 @@ gateway:
   sessions:
     join_timeout: 5s      # a Hello's or a rejoin's whole join, retries included
     check_interval: 1m    # how often every session is checked with the account module
+  rest:                   # each account's REST calls once logged in, past which they answer 429 rate_limited; the edge limits each address besides
+    per_second: 2         # the bucket's refill
+    burst: 10             # its size: the client's busiest moment, settings opened and every switch flipped, sends 5 at once
 
 account:
   password:               # the Argon2id cost of a password hash; raise it as the hardware allows, and each account follows at its next login

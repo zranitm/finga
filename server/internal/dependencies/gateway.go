@@ -16,6 +16,7 @@ import (
 	"finga/internal/handler/gateway/ws/receive"
 	metrics "finga/internal/metrics/gateway"
 	"finga/internal/shared/host"
+	"finga/pkg/ratelimit"
 	"finga/pkg/uuidv7"
 )
 
@@ -71,7 +72,10 @@ func buildGateway(ctx context.Context, h *host.Host, cfg config.Gateway, public 
 		Traces:   h.Traces,
 	}, push.Options{SessionCheckInterval: cfg.Sessions.CheckInterval})
 	h.Serve(httpListener, public.Addr, handler.NewRouter(handler.Routes{
-		API: api.Mount(api.Dependencies{Lobby: lobby, Logger: log, CORSOrigins: public.CORSOrigins, Panics: rec, Traces: h.Traces}),
+		API: api.Mount(api.Dependencies{
+			Lobby: lobby, Logger: log, CORSOrigins: public.CORSOrigins, Panics: rec, Traces: h.Traces,
+			Limit: ratelimit.NewBuckets(cfg.REST.PerSecond, cfg.REST.Burst),
+		}),
 		Gateway: ws.New(sendFlow, ws.Options{
 			Origins: public.CORSOrigins, HelloTimeout: cfg.WS.HelloTimeout, CommandQueue: cfg.WS.CommandQueue,
 			Observer: meters, Logger: log, Panics: rec, Traces: h.Traces,

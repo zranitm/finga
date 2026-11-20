@@ -31,6 +31,7 @@ import (
 	"finga/internal/shared/kernel"
 	"finga/pkg/observability/tracing"
 	"finga/pkg/panics"
+	"finga/pkg/ratelimit"
 	"finga/pkg/transient"
 )
 
@@ -67,8 +68,13 @@ type harness struct {
 	handler    http.Handler
 }
 
-// newHarness wires the lobby over the modules as the gateway's build does, with fakes for the modules.
+// newHarness wires the lobby over the modules as the gateway's build does, with fakes for the modules, and a REST limit these tests never reach.
 func newHarness(origins ...string) *harness {
+	return newLimitedHarness(ratelimit.NewBuckets(1e6, 1e6), origins...)
+}
+
+// newLimitedHarness is newHarness holding each account's calls to limit.
+func newLimitedHarness(limit ratelimit.Limiter, origins ...string) *harness {
 	h := &harness{
 		accounts:   &fakeAccounts{token: goodToken, principal: principal},
 		characters: &fakeCharacters{},
@@ -80,7 +86,7 @@ func newHarness(origins ...string) *harness {
 	log := slog.New(slog.NewJSONHandler(h.logs, nil))
 	api.Mount(api.Dependencies{
 		Lobby:  application.NewLobby(application.LobbyDeps{Accounts: adapter.NewAccounts(h.accounts), Characters: adapter.NewCharacters(h.characters), Sessions: adapter.NewGuard(h.accounts), Wardrobes: adapter.NewItems(h.items), Arena: adapter.NewArena(h.arena)}),
-		Logger: log, CORSOrigins: origins, Panics: panics.NewRecorder(log, nil), Traces: traces,
+		Logger: log, CORSOrigins: origins, Panics: panics.NewRecorder(log, nil), Traces: traces, Limit: limit,
 	})(e)
 	h.handler = e
 	return h

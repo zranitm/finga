@@ -34,7 +34,8 @@ func TestTheDefaultsLoad(t *testing.T) {
 		Database:      database,
 		DataDir:       "data",
 		Gateway: config.Gateway{
-			WS: config.WS{HelloTimeout: 5 * time.Second, CommandQueue: 64}, Sessions: config.GatewaySessions{JoinTimeout: 5 * time.Second, CheckInterval: time.Minute}},
+			WS: config.WS{HelloTimeout: 5 * time.Second, CommandQueue: 64}, Sessions: config.GatewaySessions{JoinTimeout: 5 * time.Second, CheckInterval: time.Minute},
+			REST: config.GatewayREST{PerSecond: 2, Burst: 10}},
 		Account: config.Account{
 			Password: config.Password{Time: 1, MemoryKiB: 64 * 1024, Threads: 4, Concurrent: 4, Wait: time.Second},
 			Sessions: config.AccountSessions{Keep: 30 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000, PruneGap: 100 * time.Millisecond}},
@@ -96,6 +97,19 @@ func TestAKeysRetentionIsAtLeastAnHour(t *testing.T) {
 			t.Setenv("FINGA_ITEM_IDEMPOTENCY_KEYS_KEEP", keep)
 			if _, err := load(); (err == nil) != valid {
 				t.Fatalf("keep %s: %v", keep, err)
+			}
+		})
+	}
+}
+
+// Each account's REST bucket refills and holds at least one call, so every account can be served.
+func TestAnAccountsRESTBucketRefillsAndHoldsACall(t *testing.T) {
+	for key, valid := range map[string]bool{"PER_SECOND=0.5": true, "PER_SECOND=0": false, "BURST=1": true, "BURST=0": false} {
+		t.Run(key, func(t *testing.T) {
+			name, value, _ := strings.Cut(key, "=")
+			t.Setenv("FINGA_GATEWAY_REST_"+name, value)
+			if _, err := load(); (err == nil) != valid {
+				t.Fatalf("%s: %v", key, err)
 			}
 		})
 	}

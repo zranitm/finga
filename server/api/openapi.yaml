@@ -13,6 +13,11 @@ info:
     then four for the case. The client words each code itself; the message
     is for developers. testdata/errors/codes.json lists every code with its
     name, status and message. Authenticated calls send `Authorization: Bearer TOKEN`.
+    Each account's authenticated calls draw on one bucket, whichever route
+    and token: by default 10 at once, refilled 2 a second (config.yaml's
+    gateway.rest). Past it, a call answers 429 RATE_LIMITED. The web client's
+    busiest moment sends 5 at once, and a whole session of its calls fits the
+    bucket with none refilled. Logging in has its own limit, per username.
 servers:
   - url: http://localhost:8080
 paths:
@@ -58,6 +63,7 @@ paths:
       responses:
         "204": { description: Every session revoked }
         "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
   /api/sessions/current:
     delete:
       summary: Log out
@@ -65,6 +71,7 @@ paths:
       responses:
         "204": { description: Session revoked }
         "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
   /api/characters:
     get:
       summary: List my characters
@@ -76,6 +83,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Characters" }
         "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
     post:
       summary: Create a character
       description: Name 3 to 12 characters (letters and digits, starting with a letter), unique ignoring case. Every new character is a Beginner, and picks a class later at a trainer. At most 3 characters per account in Stage 1.
@@ -93,6 +101,7 @@ paths:
               schema: { $ref: "#/components/schemas/Character" }
         "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
   /api/characters/{id}/skill-bar:
     put:
@@ -114,6 +123,7 @@ paths:
               schema: { $ref: "#/components/schemas/SkillBar" }
         "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
   /api/characters/{id}/pvp:
     get:
@@ -130,6 +140,7 @@ paths:
               schema: { $ref: "#/components/schemas/PvpProfile" }
         "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
   /api/characters/{id}/pvp-build:
     put:
@@ -151,6 +162,7 @@ paths:
               schema: { $ref: "#/components/schemas/ArenaBuild" }
         "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
   /api/pvp/leaderboard:
@@ -168,6 +180,7 @@ paths:
               schema: { $ref: "#/components/schemas/Leaderboard" }
         "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
   /api/wardrobe:
     get:
       summary: The account's wardrobe
@@ -180,6 +193,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Wardrobe" }
         "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
   /api/settings:
     get:
       summary: Read settings
@@ -191,6 +205,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Settings" }
         "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
     put:
       summary: Save settings
       description: Replaces every setting; a flag left out is false, and keys left out are the defaults. No key may hold two actions.
@@ -208,6 +223,7 @@ paths:
               schema: { $ref: "#/components/schemas/Settings" }
         "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
 components:
   securitySchemes:
     bearer:

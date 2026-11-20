@@ -17,6 +17,7 @@ import (
 	application "finga/internal/application/gateway"
 	model "finga/internal/model/gateway"
 	"finga/pkg/panics"
+	"finga/pkg/ratelimit"
 )
 
 const principalKey = "finga.principal"
@@ -77,6 +78,18 @@ func requireAuth(lobby *application.Lobby) gin.HandlerFunc {
 			return
 		}
 		c.Set(principalKey, p)
+		c.Next()
+	}
+}
+
+// limitAccount answers 429 rate_limited to an account past its REST bucket, keyed by the principal requireAuth set.
+func limitAccount(limit ratelimit.Limiter) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !limit.Allow(principalFrom(c).AccountID.String()) {
+			writePublic(c, model.RateLimited)
+			c.Abort()
+			return
+		}
 		c.Next()
 	}
 }

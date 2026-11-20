@@ -99,6 +99,7 @@ func NewStackBuilt(t *testing.T, data string, build host.Build[config.Config], e
 		Gateway: config.Gateway{
 			WS:       config.WS{HelloTimeout: 5 * time.Second, CommandQueue: 64},
 			Sessions: config.GatewaySessions{JoinTimeout: 5 * time.Second, CheckInterval: time.Minute},
+			REST:     config.GatewayREST{PerSecond: 2, Burst: 10}, // config.yaml's, which TestTheDefaultsLoad pins
 		},
 		Account: config.Account{Password: cheapPasswords, Sessions: config.AccountSessions{Keep: 30 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}},
 		Item:    ItemConfig,

@@ -173,7 +173,7 @@ at `admin.addr` (127.0.0.1:9200) when `admin.enabled` is set; `database.max_conn
 
 | Section     | Keys                                                                              |
 |-------------|-----------------------------------------------------------------------------------|
-| `gateway`   | `ws.hello_timeout` (5s), `ws.command_queue` (64); `sessions.join_timeout` (5s), `sessions.check_interval` (1m). It serves players at the shared `http.addr` and `http.cors_origins` |
+| `gateway`   | `ws.hello_timeout` (5s), `ws.command_queue` (64); `sessions.join_timeout` (5s), `sessions.check_interval` (1m); `rest.per_second` (2), `rest.burst` (10), each account's REST bucket. It serves players at the shared `http.addr` and `http.cors_origins` |
 | `account`   | `password` (`time`, `memory_kib`, `threads`, `concurrent`, `wait`), the Argon2id cost; `sessions` (`keep` 720h, `prune_*`) |
 | `item`      | `idempotency_keys` (`keep` 24h, `prune_*`); `outbox` (`published_keep` 24h, `unpublished_keep` 168h, `prune_*`) |
 | `world`     | `tick_rate_hz` (20), `checkpoint_interval` (30s), `flush_timeout` (10s), `item_calls.workers` (8), `item_calls.batch_max` (32, at most the item module's 32) |
@@ -228,7 +228,8 @@ Compose and the deploy run that one binary:
   `server/api/proto/client/v1/` and generated for Go and TypeScript, with an
   example of each in `server/testdata/contracts/`). It
   holds no database and no game rules: the Hello handshake, one connection
-  per account, token rotation, per-account rate limits, and a command queue
+  per account, token rotation, per-account rate limits on the REST API and on
+  each kind of WebSocket message, and a command queue
   per connection whose goroutine calls the module that owns each message,
   with the identity taken from the connection, never from the message. The
   WebSocket handler is built like the REST one: each message type is one
