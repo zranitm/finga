@@ -94,9 +94,7 @@ type Instance struct {
 	ticksPer uint64               // ticks between a player's checkpoints
 	nextSlot uint64               // the sweep tick, mod ticksPer, the next player to join gets
 
-	boss     *fieldBoss // the map's field boss while it is up
-	bossBack uint64     // the tick a beaten boss is back; 0 until one is beaten
-	fallen   uint64     // the beaten boss's mob, while it is down
+	bosses []*bossSlot // the map's field bosses, up or beaten
 
 	events []model.Event // map-wide events of the current tick
 	later  []model.Event // events raised after a tick's were sent, which open the next tick's
@@ -209,8 +207,9 @@ func New(d Deps, t Tuning) *Instance {
 		i.match = newMatch(*d.Match, d.Data.Pvp(), i.ticksFor)
 		i.addBots()
 	}
-	if d.Map.Boss != nil {
-		i.raiseBoss() // up from the start, before anyone is here to hear it
+	i.bosses = bossSlots(d.Map)
+	for _, s := range i.bosses {
+		i.raise(s) // up from the start, before anyone is here to hear it
 	}
 	i.ground = loot.NewGround(loot.Deps{
 		MapID: d.Map.ID, Items: d.Items, ItemCalls: d.ItemCalls, Observer: d.Batches, Traces: d.Traces, Roll: roll, Data: d.Data, Rest: i.rest, Collects: i.collects, Logger: d.Logger, Settle: i.settled,
@@ -355,7 +354,7 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.judgeRound()
 	i.teleports()
 	i.trackAreas()
-	i.stepBoss()
+	i.stepBosses()
 	if n%i.ticksFor(time.Second) == 0 {
 		i.regen()
 		i.tellSpots()

@@ -451,6 +451,12 @@ Built with step 1, which says who watches a cell.
   - **Mobs at the line:** every move of a mob's body goes through one push that stops at a town area's line, to 1/256 of the push, as a wall stops it: walks, chases, leaps, charges, knockbacks, status pushes and drifting apart. The line holds one way, so a mob somehow inside a town walks out. The push judges where a move ends. A body moves a tick's step at a time, well under a metre, so it can't step over a town; only a leap's or charge's planned end, judged whole, could pass over a town narrower than its move, at most 6 m, and towns are tens of metres across. A mob doesn't see a player in a town, and one whose target or provoker steps in gives up and walks home, as past its leash. Its spots on a player's rings skip any in a town. There's no loader rule: a camp's leash may reach into a town, as the test region's boars' does by 6 m.
   - **Death:** a region's dead get up at its waypoint nearest where they fell in a straight line, found or not, a town's among them. The straight line stands in for the road graph's distance until there is one. The lookup reads the player's own instance's map, so a place below (B13) will get up at its own.
   - **Chat:** a line said on a region reads `[Ch. n]`, its channel when it was heard, in place of `[Map]`.
+- **As built (step 4b-4b), the field bosses:**
+  - **One per hunting area:** `instance/boss.go` keeps a slot per boss, a hunting map's one or each hunting area's in a region, all raised as the channel starts, each back its own 5 minutes after it falls.
+  - **Who hears of one:** on a map, everyone, as before. In a region, only those in its area: its `FieldBoss` as it comes back, its `FieldBossGone` as it falls, and its bar in the frame's part of its own, however far from it they stand. A Snapshot names the area's boss, and `AreaEntered` brings the boss of the area stepped into, up or beaten with its time back, so stepping in raises no "has appeared!"; a town brings none, and the client's boss state clears.
+  - **Who it pays:** those alive when it falls, in its area or within its leash of its spot, as its fight may go over the area's line; a party's damage still counts all its members' tallies. Its fall is told before what it pays.
+  - **The town line:** a boss holds at it as any mob does, through the one push.
+  - This map's crowns for each area's boss, with their time back on request, come with step 5c's map views.
 
 ## 7. Sprint
 
@@ -745,12 +751,13 @@ Built with step 1, which says who watches a cell.
 4. **The pipeline,** in two PRs:
    - 4a: `regiongen`, the kit and the bake, and the preview;
    - 4b: the `region` kind and its loader rules, region channels, areas, towns, area bosses and respawn, and a test region. The client's sim walks a region's ground from its bake, and the loading screen holds for the near chunks. The loader refuses a region one block would hold, so none is ever sent whole.
-     - As built, in six PRs: 4b-1 the region kind, the loader, the ring's cliff and the test region (#332); 4b-2a deep water as walls (#334); 4b-2b the client's sim on the bake's chunks, the hold while the ground round the player comes, and the loading screen's hold (section 10, #337); 4b-3 channels, in two PRs: 4b-3a the server (section 4), 4b-3b the client; 4b-4 areas, towns, area bosses and respawn.
+     - As built, in six PRs: 4b-1 the region kind, the loader, the ring's cliff and the test region (#332); 4b-2a deep water as walls (#334); 4b-2b the client's sim on the bake's chunks, the hold while the ground round the player comes, and the loading screen's hold (section 10, #337); 4b-3 channels, in two PRs: 4b-3a the server (section 4), 4b-3b the client; 4b-4 in two: 4b-4a areas, towns and respawn (#354), and 4b-4b the area bosses.
      - From step 8, every shipped region's hunting areas also pass the maps' three design tests: no mob sees an arrival, each mob reaches a player anywhere in its leash, and no solid leaves a gap by steep ground only a player fits. The generator then needs a scatter rule keeping solids off cliffs. Run through them once in 4b-1, the test region, a fixture, passes the first after one camp moved and fails the other two: mobs miss a few spots, some in a riverbed that 4b-2a's deep water closes, and trees at the foot of cliffs, the ring's included, leave gaps only a player fits.
 5. **The client for regions,** in three PRs:
    - 5a: the overview, chunk streaming and detail, and props per chunk;
    - 5b: the looks grid, cascaded shadows and water;
    - 5c: label and bar limits, and tiles for the map views.
+     - In a region, This map crowns each area's boss: its spot from the generated map data, and its time back from a `bosses` query, asked for as This map shows, as the channels are.
 6. **Waypoints and teleport:** finding, storage, `Teleport{waypoint}`, and the map views' waypoints.
 7. **The soak:** cmd/bot on regions, and the budget run. `world.channels.cap` is set.
    - Hollow cut models (3d-world.md section 10) cost about 0.25 ms on a dense woods view. If regions run tight, the per-instance swap is the fix: only the instances an opening shows draw hollow.

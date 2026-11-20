@@ -183,7 +183,7 @@ func samples() []wsconn.Message {
 		}},
 		{Type: "ChatMessage", Data: &clientv1.ChatMessage{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Sender: charA, SenderName: "Ayla", Text: "hello there"}},
 		{Type: "PartyState", Data: &clientv1.PartyState{Party: party()}},
-		{Type: "AreaEntered", Tick: 81241, Data: &clientv1.AreaEntered{Area: "town"}},
+		{Type: "AreaEntered", Tick: 81241, Data: &clientv1.AreaEntered{Area: "west", FieldBossGone: &clientv1.FieldBossGone{MobId: 12, Type: "king_slime", BackInMs: 180000}}},
 		{Type: "PartySpots", Tick: 81240, Data: &clientv1.PartySpots{Spots: []*clientv1.PartySpot{{CharacterId: charB, X: 140.5, Z: 812.25}}}},
 		{Type: "PartyInvited", Data: &clientv1.PartyInvited{InviteId: "inv-1", From: charA, FromName: "Ayla"}},
 		// The guide's dialog for a level 1 character with the cleanup under way.

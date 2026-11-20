@@ -24,7 +24,8 @@ func (i *Instance) trackAreas() {
 		p := i.players[id]
 		if a := i.m.AreaAt(p.state.X, p.state.Z); a != p.area {
 			p.area = a
-			p.private = append(p.private, model.AreaEntered{Tick: i.tick, Area: i.areaID(a)})
+			up, down := i.bossState(p)
+			p.private = append(p.private, model.AreaEntered{Tick: i.tick, Area: i.areaID(a), FieldBoss: up, FieldBossGone: down})
 		}
 	}
 }

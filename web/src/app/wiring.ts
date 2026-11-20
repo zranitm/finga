@@ -179,6 +179,9 @@ export function wireSocket(socket: GameSocket): () => void {
     socket.on('fieldBossGone', (m) => {
       fieldBoss.getState().applyGone(m.d);
     }),
+    socket.on('areaEntered', (m) => {
+      fieldBoss.getState().applySnapshot(m.d.fieldBoss, m.d.fieldBossGone); // a region's area's own, up, beaten, or none in a town
+    }),
     socket.on('levelUp', (m) => {
       character.getState().applyLevelUp(m.d);
       combatLog.getState().applyLevelUp(m.d);

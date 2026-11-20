@@ -976,9 +976,13 @@ message PartyState {
   PartyView party = 1;
 }
 
-// AreaEntered tells the player they stepped into another of the region's areas, by its id in the region's plan: the client reads its name, levels and kind from the region's bake.
+// AreaEntered tells the player they stepped into another of the region's areas, by its id in the region's plan: the client reads its name, levels and kind from the region's bake. A hunting area's field boss comes with it, as a Snapshot's does, and only those in its area hear of it after.
 message AreaEntered {
   string area = 1;
+  // The area's field boss, while it is up.
+  FieldBoss field_boss = 2;
+  // The area's field boss while it's beaten, with when it's back.
+  FieldBossGone field_boss_gone = 3;
 }
 
 // PartySpots is where the player's party members on their map stand that the frames don't bring, once a second to a player in a party on a map cut by cells, empty when none are out of sight; a member it doesn't list isn't here.

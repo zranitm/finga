@@ -11,12 +11,7 @@ func (o *Outbox) body(p model.Push) any {
 	switch p := p.(type) {
 	case model.Snapshot:
 		snap := &clientv1.Snapshot{Channel: uint32(p.Channel), Area: p.Area, Players: playerViews(p.Players), Mobs: mobViews(p.Mobs), Pouches: pouchViews(p.Pouches), Boss: mobView(p.Boss)}
-		if p.FieldBoss != nil {
-			snap.FieldBoss = fieldBoss(*p.FieldBoss)
-		}
-		if p.FieldBossGone != nil {
-			snap.FieldBossGone = bossGone(*p.FieldBossGone)
-		}
+		snap.FieldBoss, snap.FieldBossGone = bossState(p.FieldBoss, p.FieldBossGone)
 		return snap
 	case model.FieldBoss:
 		return fieldBoss(p)
@@ -35,7 +30,8 @@ func (o *Outbox) body(p model.Push) any {
 		}
 		return &clientv1.PartySpots{Spots: spots}
 	case model.AreaEntered:
-		return &clientv1.AreaEntered{Area: p.Area}
+		up, down := bossState(p.FieldBoss, p.FieldBossGone)
+		return &clientv1.AreaEntered{Area: p.Area, FieldBoss: up, FieldBossGone: down}
 	case model.Damage:
 		return &clientv1.Damage{Source: entityRef(p.Source), Target: entityRef(p.Target), Amount: int32(p.Amount), Crit: p.Crit, Miss: p.Miss, Dodge: p.Dodge, Block: p.Block, StatusId: p.Status, Shielded: int32(p.Shielded)}
 	case model.SkillUsed:
@@ -88,6 +84,19 @@ func (o *Outbox) body(p model.Push) any {
 		return &clientv1.QuestChanged{Change: questChanges[p.Change], Quest: questState(p.Quest)}
 	}
 	return nil
+}
+
+// bossState is a field boss up or beaten on the wire; nil for neither.
+func bossState(up *model.FieldBoss, down *model.FieldBossGone) (*clientv1.FieldBoss, *clientv1.FieldBossGone) {
+	var u *clientv1.FieldBoss
+	var d *clientv1.FieldBossGone
+	if up != nil {
+		u = fieldBoss(*up)
+	}
+	if down != nil {
+		d = bossGone(*down)
+	}
+	return u, d
 }
 
 func fieldBoss(b model.FieldBoss) *clientv1.FieldBoss {

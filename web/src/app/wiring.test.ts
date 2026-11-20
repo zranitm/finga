@@ -230,6 +230,23 @@ describe('wiring', () => {
     expect(toasts.getState().toasts).toHaveLength(1);
   });
 
+  it('a region’s area brings its own boss quietly as the player steps in, up or beaten, and a town none', async () => {
+    const { ws } = await connectedSocket();
+    ws.push('areaEntered', { area: 'west', fieldBoss: { mobId: 9, type: 'king_slime' } });
+    expect(fieldBoss.getState()).toMatchObject({
+      boss: { mobId: 9, type: 'king_slime' },
+      down: null,
+    });
+    ws.push('areaEntered', {
+      area: 'north',
+      fieldBossGone: { mobId: 14, type: 'spore_mother', backInMs: 60000n },
+    });
+    expect(fieldBoss.getState()).toMatchObject({ boss: null, down: { type: 'spore_mother' } });
+    ws.push('areaEntered', { area: 'town' });
+    expect(fieldBoss.getState()).toMatchObject({ boss: null, down: null });
+    expect([toasts.getState().toasts, chat.getState().lines]).toEqual([[], []]);
+  });
+
   it.each([
     [TeleportCancelReason.MOVED, ['Teleport cancelled: you moved.']],
     [TeleportCancelReason.ACTED, ['Teleport cancelled: you attacked.']],

@@ -134,14 +134,7 @@ func (i *Instance) add(j *joinMsg) {
 	p.area = i.m.AreaAt(p.state.X, p.state.Z)
 	snap := model.Snapshot{Tick: i.tick, MapID: i.m.ID, Channel: i.channel, Area: i.areaID(p.area), Pouches: i.ground.Views(j.player.ID)}
 	i.watchFrom(p, &snap)
-	switch {
-	case i.boss != nil:
-		up := i.bossUp()
-		snap.FieldBoss = &up
-	case i.m.Boss != nil:
-		down := i.bossDown()
-		snap.FieldBossGone = &down
-	}
+	snap.FieldBoss, snap.FieldBossGone = i.bossState(p)
 	if !j.sink.Send(snap) {
 		i.remove(p.ID)
 		j.done <- ErrSinkClosed
