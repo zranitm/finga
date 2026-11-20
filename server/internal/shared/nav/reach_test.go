@@ -2,6 +2,7 @@ package nav
 
 import (
 	"math"
+	"slices"
 
 	"finga/internal/shared/sim"
 )
@@ -14,41 +15,109 @@ type Reached struct {
 	at []bool
 }
 
-// Reach floods from starts, walking as A* does, and jumping or dropping one or two cells along an axis if the feet rise at most rise, never into deep water from out of it, as the sim stops a body at any height.
+// Reach floods from starts by a player's steps.
 func (n *Grid) Reach(starts []Point, r, rise float64) Reached {
+	return n.ReachWithout(starts, r, rise, nil)
+}
+
+// ReachWithout is Reach that never enters a cell whose centre lies in without, as if it were gone.
+func (n *Grid) ReachWithout(starts []Point, r, rise float64, without func(Point) bool) Reached {
+	lv := n.levels()
 	at := make([]bool, n.nx*n.nz)
 	var queue []int
-	visit := func(j int, _ bool) {
-		if !at[j] {
+	visit := func(j int) {
+		if !at[j] && (without == nil || !without(n.centre(j))) {
 			at[j] = true
 			queue = append(queue, j)
 		}
 	}
 	for _, p := range starts {
 		if i, ok := n.index(p); ok {
-			visit(i, false)
+			visit(i)
 		}
 	}
-	for len(queue) > 0 {
-		i := queue[0]
-		queue = queue[1:]
-		n.moves(i, r, visit)
-		dry := n.flags[i]&deep == 0
-		for k, j := range n.sides(i) {
-			if j < 0 || n.clears(j)-n.spot(i).ground > rise || dry && n.flags[j]&deep != 0 {
-				continue
-			}
-			if n.fits(j, r) {
-				visit(j, false)
-				continue // a body fits on j, so whatever lies beyond it is reached from there
-			}
-			// j is too tight to stand in, as beside a solid, so the jump goes on to f if j has room for the body at the jump's height
-			if f := n.sides(j)[k]; f >= 0 && n.flags[f]&deep == 0 && n.fits(f, r) && n.clears(f)-n.spot(i).ground <= rise && clearance(n.g, n.step, n.centre(j), n.spot(i).ground+rise) >= r {
-				visit(f, false)
-			}
-		}
+	for head := 0; head < len(queue); head++ {
+		n.steps(queue[head], r, rise, lv, visit)
 	}
 	return Reached{n: n, at: at}
+}
+
+// steps calls visit with each cell a player goes to from cell i: walking as A* does, and jumping or dropping one or two cells along an axis if the feet rise at most rise, never into deep water from out of it, as the sim stops a body at any height.
+func (n *Grid) steps(i int, r, rise float64, lv levels, visit func(j int)) {
+	n.moves(i, r, func(j int, _ bool) { visit(j) })
+	dry, ground := n.flags[i]&deep == 0, lv.ground[i]
+	for k, j := range n.sides(i) {
+		if j < 0 || lv.over[j]-ground > rise || dry && n.flags[j]&deep != 0 {
+			continue
+		}
+		if n.fits(j, r) {
+			visit(j)
+			continue // a body fits on j, so whatever lies beyond it is reached from there
+		}
+		// j is too tight to stand in, as beside a solid, so the jump goes on to f if j has room for the body at the jump's height
+		if f := n.sides(j)[k]; f >= 0 && n.flags[f]&deep == 0 && n.fits(f, r) && lv.over[f]-ground <= rise && clearance(n.g, n.step, n.centre(j), ground+rise) >= r {
+			visit(f)
+		}
+	}
+}
+
+// levels are each cell's ground and how high the feet must be to come over it in the air, as the sim decides: a solid's top less step, or the terrain's top. Flat tables a flood reads without a lock.
+type levels struct{ ground, over []float64 }
+
+var levelsOf = map[*Grid]levels{}
+
+// levels are n's, worked out once: the ground as stand finds it, with none of its clearance.
+func (n *Grid) levels() levels {
+	spotsMu.Lock()
+	defer spotsMu.Unlock()
+	if lv, ok := levelsOf[n]; ok {
+		return lv
+	}
+	lv := levels{ground: make([]float64, n.nx*n.nz), over: make([]float64, n.nx*n.nz)}
+	for i := range lv.ground {
+		c := n.centre(i)
+		ground := sim.Ground(c.X, c.Z, math.Inf(1), n.g)
+		lv.ground[i], lv.over[i] = ground, n.g.Terrain.Top(c.X, c.Z)
+		if ground > n.g.Terrain.Height(c.X, c.Z) { // on a solid's top
+			lv.over[i] = ground - n.step
+		}
+	}
+	levelsOf[n] = lv
+	return lv
+}
+
+// Stranded are the cells Reach reaches from start that lead back to it by no steps: one-way pockets, dropped into and never left, by their centres.
+func (n *Grid) Stranded(start Point, r, rise float64) []Point {
+	ahead, lv := n.Reach([]Point{start}, r, rise), n.levels()
+	// every cell a step from a cell may go to, as an offset
+	ways := [...]int{-1, 1, -n.nx, n.nx, -1 - n.nx, 1 - n.nx, -1 + n.nx, 1 + n.nx, -2, 2, -2 * n.nx, 2 * n.nx}
+	out := make([]uint16, len(ahead.at)) // bit k: a step from the cell goes ways[k] on
+	for i, in := range ahead.at {
+		if in {
+			n.steps(i, r, rise, lv, func(j int) { out[i] |= 1 << slices.Index(ways[:], j-i) })
+		}
+	}
+	back := make([]bool, len(ahead.at))
+	s, _ := n.index(start)
+	back[s] = true
+	queue := []int{s}
+	for len(queue) > 0 {
+		j := queue[0]
+		queue = queue[1:]
+		for k, d := range ways {
+			if i := j - d; i >= 0 && i < len(out) && !back[i] && out[i]&(1<<k) != 0 {
+				back[i] = true
+				queue = append(queue, i)
+			}
+		}
+	}
+	var stranded []Point
+	for i, in := range ahead.at {
+		if in && !back[i] {
+			stranded = append(stranded, n.centre(i))
+		}
+	}
+	return stranded
 }
 
 // WalkWithin floods from start as a mob walks, a body of radius r on cells inside leash of home, as its A* keeps to.
@@ -71,15 +140,6 @@ func (n *Grid) WalkWithin(start Point, r float64, home Point, leash float64) Rea
 		})
 	}
 	return Reached{n: n, at: at}
-}
-
-// clears is how high the feet must be to come over b in the air, as the sim decides: a solid's top less step, or the terrain's top.
-func (n *Grid) clears(b int) float64 {
-	if s := n.spot(b); s.onTop {
-		return s.ground - n.step
-	}
-	c := n.centre(b)
-	return n.g.Terrain.Top(c.X, c.Z)
 }
 
 // Has reports whether p's cell was reached.

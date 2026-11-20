@@ -245,7 +245,7 @@ describe('a region drawn from its bake', () => {
 
   it("leaves the overview where a chunk won't come, asking again only once its backoff is past", async () => {
     await built((url) => url.endsWith('1_1.bin'));
-    vi.spyOn(Math, 'random').mockReturnValue(0.99); // the backoff's whole 500 ms
+    vi.spyOn(Math, 'random').mockReturnValue(0.99); // near the top of the first window, 250 to 500 ms
     const said = vi.spyOn(console, 'info').mockImplementation(() => undefined);
     await settle(30, 60);
     for (let i = 0; i < 5; i++) {
@@ -268,10 +268,10 @@ describe('a region drawn from its bake', () => {
     expect(said).toHaveBeenCalledWith(
       expect.stringContaining("chunk 1_1 of tiny didn't load, try 1 of 5"),
     );
-    clock = 494;
+    clock = 496;
     place!.follow(30, 60);
     expect(asked.filter((a) => a.endsWith('1_1.bin')).length).toBe(1);
-    clock = 495;
+    clock = 497;
     place!.follow(30, 60);
     expect(asked.filter((a) => a.endsWith('1_1.bin')).length).toBe(2);
     said.mockRestore();
@@ -279,7 +279,7 @@ describe('a region drawn from its bake', () => {
 
   it('breaks the region once a chunk has failed five times, each try after a longer backoff, and asks for it no more', async () => {
     await built((url) => url.endsWith('1_1.bin'));
-    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+    vi.spyOn(Math, 'random').mockReturnValue(0);
     vi.spyOn(console, 'info').mockImplementation(() => undefined);
     const tries = () => asked.filter((a) => a.endsWith('1_1.bin')).length;
     const waits: number[] = [];
@@ -295,7 +295,7 @@ describe('a region drawn from its bake', () => {
       waits.push(clock - from);
       await source.answer();
     }
-    expect(waits).toEqual([500, 990, 1980, 3960]); // 0.99 of 500 ms doubled each time, to the next 10
+    expect(waits).toEqual([250, 500, 1000, 2000]); // each at its floor, half its window: 3.75 s at the least
     expect(broke).toEqual(['1_1']);
     clock += 60_000;
     place!.follow(30, 60);
@@ -309,11 +309,13 @@ describe('a region drawn from its bake', () => {
     const said = vi.spyOn(console, 'info').mockImplementation(() => undefined);
     const fourFailures = async () => {
       for (let i = 0; i < 4; i++) {
+        clock += 10_000; // past any backoff
         await settle(30, 60);
       }
     };
     await fourFailures();
     failing = false;
+    clock += 10_000;
     await settle(30, 60);
     expect(chunkNames()).toContain('chunk 1_1');
     place!.follow(-400, 60); // freed
