@@ -47,16 +47,16 @@ portals:
   - {name: from_peak, at: [2, 18], radius: 1.2, to: {map: glacier_peak, portal: to_keep}}
 spawns:
   # the gate bats' leash reaches the only portal, so a mob comes to its edge
-  - {name: gate_bats, at: [20, 12], radius: 4, mob: shade_bat, max: 2, respawn: 9s}
-  - {name: wall_bats, at: [20, 25], radius: 4, mob: shade_bat, max: 2, respawn: 9s}
-  - {name: bailey_bats, at: [32, 10], radius: 5, mob: shade_bat, max: 2, respawn: 9s}
-  - {name: tower_bats, at: [37, 26], radius: 4, mob: shade_bat, max: 2, respawn: 9s}
-  - {name: breach_bats, at: [47, 14], radius: 5, mob: shade_bat, max: 2, respawn: 10s}
-  - {name: hall_bats, at: [70, 27], radius: 3, mob: shade_bat, max: 2, respawn: 10s}
-  - {name: gate_slime, at: [30, 17], radius: 3, mob: gloom_slime, max: 1, respawn: 12s}
-  - {name: bailey_slime, at: [42, 20], radius: 3.5, mob: gloom_slime, max: 1, respawn: 12s}
-  - {name: breach_slime, at: [50, 7], radius: 4, mob: gloom_slime, max: 1, respawn: 12s}
-  - {name: hall_slime, at: [60.5, 18], radius: 4, mob: gloom_slime, max: 1, respawn: 12s}
-  - {name: corner_slime, at: [74, 7], radius: 4, mob: gloom_slime, max: 1, respawn: 12s}
+  - {name: gate_bats, at: [20, 12], radius: 4, mob: shade_bat, max: 2, respawn: 27s}
+  - {name: wall_bats, at: [20, 25], radius: 4, mob: shade_bat, max: 2, respawn: 27s}
+  - {name: bailey_bats, at: [32, 10], radius: 5, mob: shade_bat, max: 2, respawn: 27s}
+  - {name: tower_bats, at: [37, 26], radius: 4, mob: shade_bat, max: 2, respawn: 27s}
+  - {name: breach_bats, at: [47, 14], radius: 5, mob: shade_bat, max: 2, respawn: 30s}
+  - {name: hall_bats, at: [70, 27], radius: 3, mob: shade_bat, max: 2, respawn: 30s}
+  - {name: gate_slime, at: [30, 17], radius: 3, mob: gloom_slime, max: 1, respawn: 36s}
+  - {name: bailey_slime, at: [42, 20], radius: 3.5, mob: gloom_slime, max: 1, respawn: 36s}
+  - {name: breach_slime, at: [50, 7], radius: 4, mob: gloom_slime, max: 1, respawn: 36s}
+  - {name: hall_slime, at: [60.5, 18], radius: 4, mob: gloom_slime, max: 1, respawn: 36s}
+  - {name: corner_slime, at: [74, 7], radius: 4, mob: gloom_slime, max: 1, respawn: 36s}
 player_spawn: {at: [4.5, 18], yaw: 90}
 boss: {at: [70, 18], radius: 5, mob: shade_lord}

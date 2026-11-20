@@ -65,14 +65,14 @@ portals:
   - {name: from_crossroads, at: [2, 18], radius: 1.2, to: {map: crossroads, portal: to_frost}}
   - {name: to_icefall, at: [78, 18], radius: 1.2, to: {map: icefall, portal: from_frost}}
 spawns:
-  - {name: west_slimes, at: [21, 9.5], radius: 4.5, mob: frost_slime, max: 2, respawn: 9s}
-  - {name: pine_slimes, at: [31, 16], radius: 5, mob: frost_slime, max: 3, respawn: 9s}
-  - {name: drift_slimes, at: [23, 25], radius: 4.5, mob: frost_slime, max: 2, respawn: 9s}
-  - {name: field_slimes, at: [55, 8.5], radius: 3.5, mob: frost_slime, max: 2, respawn: 10s}
-  - {name: bank_slimes, at: [52, 25.5], radius: 3.5, mob: frost_slime, max: 2, respawn: 10s}
-  - {name: drift_east_slimes, at: [64, 25.5], radius: 3.5, mob: frost_slime, max: 2, respawn: 10s}
-  - {name: rock_weasel, at: [41, 25], radius: 3, mob: snow_weasel, max: 1, respawn: 12s}
-  - {name: ramp_weasel, at: [42, 9.5], radius: 3.5, mob: snow_weasel, max: 1, respawn: 12s}
-  - {name: gate_weasel, at: [66, 9.5], radius: 3, mob: snow_weasel, max: 1, respawn: 12s}
+  - {name: west_slimes, at: [21, 9.5], radius: 4.5, mob: frost_slime, max: 2, respawn: 27s}
+  - {name: pine_slimes, at: [31, 16], radius: 5, mob: frost_slime, max: 3, respawn: 27s}
+  - {name: drift_slimes, at: [23, 25], radius: 4.5, mob: frost_slime, max: 2, respawn: 27s}
+  - {name: field_slimes, at: [55, 8.5], radius: 3.5, mob: frost_slime, max: 2, respawn: 30s}
+  - {name: bank_slimes, at: [52, 25.5], radius: 3.5, mob: frost_slime, max: 2, respawn: 30s}
+  - {name: drift_east_slimes, at: [64, 25.5], radius: 3.5, mob: frost_slime, max: 2, respawn: 30s}
+  - {name: rock_weasel, at: [41, 25], radius: 3, mob: snow_weasel, max: 1, respawn: 36s}
+  - {name: ramp_weasel, at: [42, 9.5], radius: 3.5, mob: snow_weasel, max: 1, respawn: 36s}
+  - {name: gate_weasel, at: [66, 9.5], radius: 3, mob: snow_weasel, max: 1, respawn: 36s}
 player_spawn: {at: [4.5, 18], yaw: 90}
 boss: {at: [61, 18], radius: 5, mob: avalanche_slime}
