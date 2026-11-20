@@ -151,6 +151,31 @@ func TestDeepWaterIsWaterTooDeepToWade(t *testing.T) {
 	}
 }
 
+// A ford is walked across however tall its banks: no cell is steep in a band 4 m wide across the river through it, while the river's banks away from it stay too steep to climb. Here the land east of the river stands 3 m over the west's, so its bank falls 3.8 m to the water. nav's TestEveryFordIsCrossedBothWays walks every plan's.
+func TestAFordIsWalkedAcross(t *testing.T) {
+	p := flat()
+	p.Features = []Feature{
+		{Plateau: &Plateau{Area: [][2]float64{{67, 0}, {128, 0}, {128, 128}, {67, 128}}, Height: 3, Edge: "cliff"}},
+		{River: &River{Path: [][2]float64{{64, 0}, {64, 128}}, Width: 6, Depth: 2, Fords: [][2]float64{{64, 40}}}},
+	}
+	r := build(t, p)
+	tr := r.Geometry.Terrain
+	steep := func(x, z float64) bool { return tr.Steep(x, z, false) || tr.Steep(x, z, true) }
+	for z := 38.5; z < 42; z++ {
+		for x := 50.5; x < 78; x++ {
+			if steep(x, z) || tr.Deep(x, z) {
+				t.Errorf("the cell at (%g, %g), across the ford, is steep or deep", x, z)
+			}
+		}
+	}
+	if !steep(66.5, 90.5) {
+		t.Error("the east bank at (66.5, 90.5), far from the ford, isn't steep")
+	}
+	if h := tr.Heights[40*129+64]; math.Abs(h-(r.Rivers[0].Levels[0]-fordDepth)) > 1e-6 {
+		t.Errorf("the ford's floor is at %v; want its water's level less %v", h, fordDepth)
+	}
+}
+
 // A ridge is (1 − d²/r²)² of its height at d from its path, r half its width, and nothing past it or past its ends.
 func TestARidgeFallsSmoothlyFromItsPath(t *testing.T) {
 	p := flat()

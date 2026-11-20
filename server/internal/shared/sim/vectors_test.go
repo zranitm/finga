@@ -551,7 +551,7 @@ func bakeScenarios() []vector {
 			Region: "tiny", Params: params, Geometry: tiny, Start: on(tiny, 60, 76), Inputs: runs(northEast, 180)},
 		{Name: "bake-tiny-river-bank", Notes: "Walking east at the river: its deep water stops the body at the bank, and a jump east stops in the air and falls back.",
 			Region: "tiny", Params: params, Geometry: tiny, Start: on(tiny, 86, 100), Inputs: runs(east, 120, jumpEast, 1, east, 60)},
-		{Name: "bake-tiny-ford", Notes: "Walking east into the ford at z 30: no deep water stops the body, which crosses the bed to the far bank; that rises 1.45 m in a 2 m cell, steep, so the body stops at its foot.",
+		{Name: "bake-tiny-ford", Notes: "Walking east across the ford at z 30: no deep water stops the body, and the ground round the ford rises gently, so it climbs out on the far bank.",
 			Region: "tiny", Params: params, Geometry: tiny, Start: on(tiny, 86, 30), Inputs: runs(east, 240)},
 		{Name: "bake-tiny-blink-seam", Notes: "A 10.5 m blink east from chunk 0_0: it stops at x 64, short of an oak just over the seam that only chunk 1_0 carries.",
 			Region: "tiny", Params: params, Geometry: tiny, Start: on(tiny, 56, 40), Inputs: moving(blink(1, 0, 10.5), still, 3)},
