@@ -11,11 +11,7 @@ const BABYLON = /[\\/]@babylonjs[\\/]/;
 const GLSL = /[\\/]@babylonjs[\\/]core[\\/]Shaders[\\/]/; // WebGL's shaders, each imported as a material first needs it; ShadersWGSL is WebGPU's
 const WORLD = /[\\/]src[\\/]game[\\/]world3d[\\/]run\.ts$/; // the 3D world, imported on entering it (world3d/handle.ts)
 
-/**
- * Babylon in two files where rolldown made about 130: what the 3D world imports up front, and the GLSL shaders.
- * A slow line pays a round trip a file, six at a time, so a file costs more than its bytes.
- * The groups take only what they name, as a captured module's own imports would pull the page's modules in with it.
- */
+/** Babylon in two files where rolldown made about 130: the world's up-front imports and the GLSL shaders; a slow line pays a round trip a file. */
 function babylonChunks(): Plugin & { upFront: (id: string) => boolean } {
   const imports = new Map<string, readonly string[]>();
   const entries: string[] = [];
@@ -105,6 +101,7 @@ export default defineConfig({
     rolldownOptions: {
       output: {
         codeSplitting: {
+          // Each takes only what it names: its modules' own imports would pull the page's in with them.
           groups: [
             {
               name: 'babylon-glsl',
