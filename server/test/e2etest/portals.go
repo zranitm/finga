@@ -10,22 +10,23 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// Hop stands in the portal at at and presses until MapChange takes it to wantMap at want; a press is repeated only after an input sent behind it came back without one.
+// Hop stands in the portal at at and presses until MapChange takes it to wantMap at want, for up to 30 s of the world's ticks; a press is repeated only after an input sent behind it came back without one.
 func (l *Looter) Hop(t *testing.T, at gamedata.Point, wantMap string, want gamedata.Point) *clientv1.Snapshot {
 	t.Helper()
 	var mc *clientv1.MapChange
 	var hp int32
-	presses, next := 0, time.Now()
-	for deadline := time.Now().Add(30 * time.Second); mc == nil; {
-		if !time.Now().Before(deadline) {
+	const tries = 30 * time.Second
+	presses, next, start := 0, time.Now(), l.tick
+	for mc == nil {
+		if l.timeLeft(start, tries) <= 0 {
 			t.Fatalf("no MapChange after %d presses of EnterPortal at (%.2f, %.2f)", presses, l.X, l.Z)
 		}
 		// Portals are 1.2 m round: within 0.75 m of the middle, standing still on the ground, the player is inside one.
 		away := func() bool { return math.Hypot(at.X-l.X, at.Z-l.Z) >= 0.75 }
-		if away() && !l.WalkTo(at, time.Until(deadline)) {
+		if away() && !l.WalkTo(at, l.timeLeft(start, tries)) {
 			t.Fatalf("could not reach (%v, %v) (at %.2f, %.2f)", at.X, at.Z, l.X, l.Z)
 		}
-		l.Pump(time.Until(next), nil) // the gateway takes 2 presses a second
+		l.Pump(time.Until(next), nil) // the gateway takes 2 presses a second, by the wall clock
 		if !l.Until(2*time.Second, l.Standing) || away() {
 			continue // still in the air, or knocked out of it while landing
 		}
@@ -38,13 +39,13 @@ func (l *Looter) Hop(t *testing.T, at gamedata.Point, wantMap string, want gamed
 			t.Fatal(err)
 		}
 		after := l.Seq
-		l.Pump(time.Until(deadline), func(m wsconn.Message) bool {
+		l.during(l.timeLeft(start, tries), func(m wsconn.Message) bool {
 			if change, ok := m.Data.(*clientv1.MapChange); ok {
 				mc, hp = change, l.HP // as the last frame before it left them: the press is taken before the tick's mob hits
 				return true
 			}
 			return l.ack >= after // applied after the press, with no MapChange: the press missed
-		})
+		}, nil, nil)
 	}
 	if mc.GetMapId() != wantMap || mc.X != want.X || mc.Y != 0 || mc.Z != want.Z { // every portal the rows take stands on open ground at 0
 		t.Fatalf("map change %+v, want %s at (%v, 0, %v)", mc, wantMap, want.X, want.Z)
