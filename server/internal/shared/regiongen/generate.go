@@ -49,6 +49,7 @@ const (
 	smoothing  = 3   // Chaikin passes on a river's or a road's path
 	freeboard  = 0.5 // a river's or a lake's water below its lowest bank
 	fordDepth  = 0.3 // a ford's water
+	fordRamp   = 0.5 // how far the ground round a ford rises a metre, under max_slope's 0.7, so a body walks out of it every way
 	wadeDepth  = 0.6 // water deeper than this is a wall to every body: twice a ford's
 	roadMean   = 15  // a road's height is the ground's mean this far along it each way
 	townBlend  = 12  // a town's flat ground eases into the land around over this
@@ -238,7 +239,7 @@ func (b *builder) inside(poly [][2]float64) []bool {
 // bank is how wide a river's or a lake's banks are: steep to its full depth, gentle to a ford's.
 func bank(width float64) float64 { return min(width/4, 2) }
 
-// river carves its bed along its smoothed path: Depth below water that sits freeboard under the lowest bank yet, between banks that fall to it; shallow at fords.
+// river carves its bed along its smoothed path: Depth below water that sits freeboard under the lowest bank yet, between banks that fall to it; shallow at fords, the ground round each sloping down to it no steeper than fordRamp.
 func (b *builder) river(r River) {
 	path := smooth(r.Path)
 	levels := make([]float64, len(path))
@@ -255,17 +256,34 @@ func (b *builder) river(r River) {
 	half, bk := float64(r.Width/2), bank(r.Width)
 	b.f.near(b.g, path, false, half)
 	fordR := half + bk
+	fordBeds := make([]float64, len(r.Fords))
+	for i := range fordBeds {
+		fordBeds[i] = math.Inf(1)
+	}
 	for _, s := range b.f.touched {
 		level := lerp(levels[b.f.seg[s]], levels[b.f.seg[s]+1], b.f.t[s])
 		depth := r.Depth
 		x, z := b.g.x(int(s)%b.g.nx), b.g.x(int(s)/b.g.nx)
-		for _, at := range r.Fords {
+		for i, at := range r.Fords {
 			if dx, dz := x-at[0], z-at[1]; float64(dx*dx)+float64(dz*dz) < float64(fordR*fordR) {
 				depth = fordDepth
+				fordBeds[i] = min(fordBeds[i], level-fordDepth)
 			}
 		}
 		b.carve(int(s), level-depth, (math.Sqrt(b.f.d2[s])-(half-bk))/bk)
 		b.r.Wet[s], b.water[s] = true, max(b.water[s], level)
+	}
+	for i, at := range r.Fords {
+		b.ramp(at, fordBeds[i], half-bk)
+	}
+}
+
+// ramp holds the ground round a ford at at under a cone: flat at bed within floor of it, then rising fordRamp a metre, so the river's banks there fall no steeper and a body walks into the ford and out of it every way.
+func (b *builder) ramp(at [2]float64, bed, floor float64) {
+	for s := range b.h {
+		dx, dz := b.g.x(s%b.g.nx)-at[0], b.g.x(s/b.g.nx)-at[1]
+		d := math.Sqrt(float64(dx*dx) + float64(dz*dz))
+		b.h[s] = min(b.h[s], bed+float64(fordRamp*max(d-floor, 0)))
 	}
 }
 

@@ -175,6 +175,8 @@ biomes:
     - **Bed:** `depth` below the water.
     - **Banks:** `min(width/4, 2 m)` wide, too steep to climb at full depth.
     - **Fords:** within half the width plus a bank of a ford, the bed is 0.3 m below the water and its banks are walkable.
+      - **As built (the ford ramp, after 4b-2b):** the banks alone weren't. The water sits under the lowest ground seen yet, so where the ground rises downstream a ford's banks stood a metre or two over its bed. The tiny test plan's rose 1.45 m in a 2 m cell, and one of the wide plan's two fords was as steep: only a jump got out, and no mob followed. So the ground round each ford is held under a cone, flat at the ford's floor and rising 0.5 m a metre (under `max_slope`'s 0.7) until it meets the ground. It lowers ground at most 22 m from a ford, the river's banks elsewhere stay steep, and in every plan it changes no deep-water mark.
+      - **The gate** (nav's `TestEveryFordIsCrossedBothWays`): every ford of every shipped region and test plan is walked across both ways as a mob walks, with no jump, on a path held near the ford, so a causeway elsewhere doesn't count.
   - **Lake:** its water is 0.5 m below the lowest ground along its edge, its bed `depth` below that, between banks `min(depth, 2 m)` wide.
   - **Road:** its path is smoothed.
     - **Level:** each point's level is the mean of the ground within 15 m along the road. The road is level across its width.
@@ -504,7 +506,7 @@ Built with step 1, which says who watches a cell.
     - **Tests:**
       - the vectors `deep-*`: a walk, jump, dash, leap and blink stopped at the bank, the ford crossed, a slide along the bank into it, cells deep at one corner only, and a body walking out;
       - the generator's marks: a river's channel and a lake 0.8 m deep are deep, a ford, a causeway, a bank's edge and a pond 0.5 m deep aren't;
-      - a deep river crossed only at its ford, and nothing in a shipped region reaching deep water;
+      - a deep river crossed only at its ford, and nothing in a shipped region reaching deep water; every ford walked across both ways (the ford ramp);
       - a bat's spit across a strip of deep water landing on the far side.
     - Before it, a player in the test region reached 13,039 cells of riverbed, about 3,300 m², walking under up to 2.5 m of water.
 - **Entities:** only what the server sends (section 5).
