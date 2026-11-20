@@ -2,6 +2,7 @@ package world
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"slices"
 	"sync"
@@ -147,6 +148,26 @@ func (cs *channels) loads(r *region) model.Channels {
 
 // channelID is channel n of region m's id in opened.
 func channelID(m *gamedata.Map, n int) string { return fmt.Sprintf("%s/%d", m.ID, n) }
+
+// SwitchChannel starts a switch to channel n of the character's region, pressed during input seq, once n is open with room, and restarts n's idle clock so it stays open for it; the switch then channels as a teleport does, and lands past the cap if n filled meanwhile.
+func (w *World) SwitchChannel(ctx context.Context, id kernel.CharacterID, conn string, n int, seq uint32) error {
+	return w.wait(id, conn, func(i *instance.Instance) error {
+		r, ok := w.channels.regions[i.MapID()]
+		if !ok {
+			return model.ErrNotARegion
+		}
+		if n == i.Channel() {
+			return model.ErrSameChannel
+		}
+		switch open, room := w.channels.touch(r, n); {
+		case !open:
+			return model.ErrNoSuchChannel
+		case !room:
+			return model.ErrChannelFull
+		}
+		return i.SwitchChannel(ctx, id, conn, n, seq)
+	})
+}
 
 // Channels are the open channels of the region the character is in, and how full each is; ErrNotARegion off one.
 func (w *World) Channels(id kernel.CharacterID, conn string) (model.Channels, error) {

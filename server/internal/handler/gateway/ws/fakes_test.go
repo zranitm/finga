@@ -212,6 +212,8 @@ type fakeWorld struct {
 	castErr    error // UseSkill fails with it
 	teleports  []teleportCall
 	tpErr      error // Teleport fails with it
+	switches   []switchCall
+	channels   world.Channels // the list Channels answers
 	promotes   []promoteCall
 	promoteErr error                  // Promote fails with it
 	pointsErr  error                  // SpendPoints, ResetPoints, SpendSkillPoints and ChooseTrait fail with it
@@ -309,6 +311,11 @@ type (
 		p     world.Presence
 		mapID string
 		seq   uint32
+	}
+	switchCall struct {
+		p       world.Presence
+		channel int
+		seq     uint32
 	}
 	promoteCall struct {
 		p     world.Presence
@@ -457,6 +464,7 @@ func (f *fakeWorld) callList() []string            { return copied(&f.mu, &f.cal
 func (f *fakeWorld) useCalls() []useCall           { return copied(&f.mu, &f.uses) }
 func (f *fakeWorld) castCalls() []castCall         { return copied(&f.mu, &f.casts) }
 func (f *fakeWorld) teleportCalls() []teleportCall { return copied(&f.mu, &f.teleports) }
+func (f *fakeWorld) switchCalls() []switchCall     { return copied(&f.mu, &f.switches) }
 func (f *fakeWorld) promoteCalls() []promoteCall   { return copied(&f.mu, &f.promotes) }
 func (f *fakeWorld) skillPointsCalls() []investCall {
 	return copied(&f.mu, &f.invests)
@@ -654,6 +662,21 @@ func (f *fakeWorld) Teleport(_ context.Context, p world.Presence, mapID string, 
 	defer f.mu.Unlock()
 	f.teleports = append(f.teleports, teleportCall{p: p, mapID: mapID, seq: seq})
 	return f.tpErr
+}
+
+func (f *fakeWorld) SwitchChannel(_ context.Context, p world.Presence, n int, seq uint32) error {
+	f.ops.Add(1)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.switches = append(f.switches, switchCall{p: p, channel: n, seq: seq})
+	return f.tpErr
+}
+
+func (f *fakeWorld) Channels(context.Context, world.Presence) (world.Channels, error) {
+	f.ops.Add(1)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.channels, nil
 }
 
 func (f *fakeWorld) Promote(_ context.Context, p world.Presence, npc string, class kernel.Class) error {

@@ -91,6 +91,8 @@ func samples() []wsconn.Message {
 		{Type: "EnterPortal", Seq: 120, Data: &clientv1.EnterPortal{}},
 		{Type: "TakeLoot", ReqID: "r-22", Data: &clientv1.TakeLoot{Picks: []*clientv1.LootPick{{Pouch: 12, Item: 1}, {Pouch: 12, Item: 2}}}},
 		{Type: "Teleport", Seq: 121, ReqID: "r-21", Data: &clientv1.Teleport{MapId: "forest"}},
+		{Type: "SwitchChannel", Seq: 122, ReqID: "r-23", Data: &clientv1.SwitchChannel{Channel: 2}},
+		{Type: "Channels", ReqID: "r-24", Data: &clientv1.Channels{}},
 		{Type: "ChatSend", Data: &clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Text: "hello there"}},
 		{Type: "PartyInvite", ReqID: "r-1", Data: &clientv1.PartyInvite{CharacterId: charB}},
 		{Type: "PartyRespond", ReqID: "r-2", Data: &clientv1.PartyRespond{InviteId: "inv-1", Accept: true}},
@@ -130,7 +132,7 @@ func samples() []wsconn.Message {
 			},
 		}},
 		// A map whose field boss is up.
-		{Type: "Snapshot", Tick: 81234, Data: &clientv1.Snapshot{Players: []*clientv1.PlayerView{player()}, Mobs: []*clientv1.MobView{mob(), boss()}, Pouches: []*clientv1.PouchView{pouch()}, FieldBoss: &clientv1.FieldBoss{MobId: 9, Type: "king_slime"}}},
+		{Type: "Snapshot", Tick: 81234, Data: &clientv1.Snapshot{Players: []*clientv1.PlayerView{player()}, Mobs: []*clientv1.MobView{mob(), boss()}, Pouches: []*clientv1.PouchView{pouch()}, FieldBoss: &clientv1.FieldBoss{MobId: 9, Type: "king_slime"}, Channel: 2}},
 		{Type: "Delta", Tick: 81235, Data: &clientv1.Delta{AckSeq: 117, Energy: proto.Uint32(8), Players: []*clientv1.PlayerView{player(), hurt, leaping, bot}, Mobs: []*clientv1.MobView{mob()}, Pouches: []*clientv1.PouchView{pouch()}, PouchesGone: []uint32{11}, RemovedPlayers: []string{charC}, RemovedMobs: []uint32{6}}},
 		{Type: "Damage", Tick: 81235, Data: &clientv1.Damage{Source: "p:" + charA, Target: "m:7", Amount: 23, Crit: true}},
 		{Type: "SkillUsed", Tick: 81235, Data: &clientv1.SkillUsed{Caster: charA, Skill: "strike", Stage: 2, Trait: "concussion", Aim: -1.5, Target: "m:7"}},

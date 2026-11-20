@@ -57,6 +57,8 @@ type service interface {
 	ChooseTrait(ctx context.Context, id kernel.CharacterID, conn, skill, trait string) error
 	UseSkill(ctx context.Context, id kernel.CharacterID, conn string, use model.SkillUse, seq uint32) error
 	Teleport(ctx context.Context, id kernel.CharacterID, conn, mapID string, seq uint32) error
+	SwitchChannel(ctx context.Context, id kernel.CharacterID, conn string, n int, seq uint32) error
+	Channels(id kernel.CharacterID, conn string) (model.Channels, error)
 	Promote(ctx context.Context, id kernel.CharacterID, conn, npc string, class kernel.Class) error
 	Talk(ctx context.Context, id kernel.CharacterID, conn, npc string) error
 	AcceptQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error
@@ -352,6 +354,28 @@ func (m *Module) Teleport(ctx context.Context, p Presence, mapID string, seq uin
 	ctx, call := m.calls.Start(ctx, "Teleport")
 	defer call.End(&err)
 	return m.svc.Teleport(ctx, p.Character, p.Conn, mapID, seq)
+}
+
+// SwitchChannel starts a switch to channel n of the player's region with input seq and answers once it has started; the hand-off comes as a Teleport to the same map at its end, its Snapshot naming the channel, or a TeleportCancelled.
+func (m *Module) SwitchChannel(ctx context.Context, p Presence, n int, seq uint32) (err error) {
+	ctx, call := m.calls.Start(ctx, "SwitchChannel")
+	defer call.End(&err)
+	return m.svc.SwitchChannel(ctx, p.Character, p.Conn, n, seq)
+}
+
+// Channels are the open channels of the player's region and how full each is.
+func (m *Module) Channels(ctx context.Context, p Presence) (_ Channels, err error) {
+	_, call := m.calls.Start(ctx, "Channels")
+	defer call.End(&err)
+	got, err := m.svc.Channels(p.Character, p.Conn)
+	if err != nil {
+		return Channels{}, err
+	}
+	out := Channels{Cap: got.Cap}
+	for _, c := range got.Open {
+		out.Open = append(out.Open, ChannelLoad(c))
+	}
+	return out, nil
 }
 
 // Promote moves the character to the class the NPC within reach trains and answers once it applies.

@@ -426,6 +426,8 @@ func (i *Instance) drain() {
 			if !i.refused(m.done) {
 				i.startTeleport(m)
 			}
+		case switchMsg:
+			i.startSwitch(m)
 		case talkMsg:
 			i.talk(m)
 		case questMsg:

@@ -125,6 +125,20 @@ func (h *Handler) teleport(c *msgContext, in *clientv1.Teleport) (any, error) {
 	return nil, h.gw.Teleport(c.Ctx, c.Session.session, in.GetMapId(), c.Message.Seq)
 }
 
+// switchChannel answers once the world started the switch; its MapChange or TeleportCancelled comes on the world's stream.
+func (h *Handler) switchChannel(c *msgContext, in *clientv1.SwitchChannel) (any, error) {
+	return nil, h.gw.SwitchChannel(c.Ctx, c.Session.session, int(in.GetChannel()), c.Message.Seq)
+}
+
+// channels answers with the region's open channels.
+func (h *Handler) channels(c *msgContext, _ *clientv1.Channels) (any, error) {
+	list, err := h.gw.Channels(c.Ctx, c.Session.session)
+	if err != nil {
+		return nil, err
+	}
+	return &clientv1.Response{Ok: true, Channels: push.ChannelList(list)}, nil
+}
+
 func (h *Handler) inventoryMove(c *msgContext, in *clientv1.InventoryMove) (any, error) {
 	id, err := kernel.ParseItemID(in.GetItemId())
 	if err != nil {

@@ -2671,6 +2671,46 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 			}
 			h.world.failTeleports(nil)
 		})
+		part(t, "SwitchChannel goes to the world as the sender with its channel and input seq, answering once its channel started, or with its refusal", func() {
+			time.Sleep(time.Second) // under the teleport limit, which switches share
+			c.send(wsconn.Message{Seq: 12, ReqID: "s-1", Data: &clientv1.SwitchChannel{Channel: 3}})
+			if r := c.expect("Response"); r.ReqID != "s-1" || !r.Data.(*clientv1.Response).GetOk() {
+				t.Fatalf("response %+v, want ok to s-1", r)
+			}
+			if got := h.world.switchCalls(); len(got) != 1 || got[0].p.Character != aylaID || got[0].channel != 3 || got[0].seq != 12 {
+				t.Fatalf("switches %+v", got)
+			}
+			for _, tt := range []struct {
+				rule error
+				want model.Public
+			}{
+				{kernel.ErrNotARegion, model.NotARegion},
+				{kernel.ErrSameChannel, model.SameChannel},
+				{kernel.ErrNoSuchChannel, model.NoSuchChannel},
+				{kernel.ErrChannelFull, model.ChannelFull},
+			} {
+				time.Sleep(time.Second)
+				h.world.failTeleports(refusal(tt.rule))
+				c.send(wsconn.Message{ReqID: "r-" + tt.want.Name, Data: &clientv1.SwitchChannel{Channel: 2}})
+				if r := c.expect("Response"); r.ReqID != "r-"+tt.want.Name || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != int32(tt.want.Code) {
+					t.Fatalf("response %+v, want %s", r, tt.want.Name)
+				}
+			}
+			h.world.failTeleports(nil)
+		})
+		part(t, "Channels answers with the region's open channels and the cap", func() {
+			h.world.mu.Lock()
+			h.world.channels = world.Channels{Open: []world.ChannelLoad{{Channel: 1, Players: 150}, {Channel: 2, Players: 7}}, Cap: 150}
+			h.world.mu.Unlock()
+			c.send(wsconn.Message{ReqID: "c-1", Data: &clientv1.Channels{}})
+			r := c.expect("Response")
+			got := r.Data.(*clientv1.Response)
+			want := []*clientv1.ChannelLoad{{Channel: 1, Players: 150}, {Channel: 2, Players: 7}}
+			if r.ReqID != "c-1" || !got.GetOk() || got.GetChannels().GetCap() != 150 || len(got.GetChannels().GetChannels()) != 2 ||
+				!proto.Equal(got.GetChannels().GetChannels()[0], want[0]) || !proto.Equal(got.GetChannels().GetChannels()[1], want[1]) {
+				t.Fatalf("response %+v, want the two channels of 150", r)
+			}
+		})
 		part(t, "Promote goes to the world as the sender, answering once applied, or with its refusal", func() {
 			c.send(wsconn.Message{ReqID: "p-1", Data: &clientv1.Promote{NpcId: "warrior_trainer", Class: "warrior"}})
 			if r := c.expect("Response"); r.ReqID != "p-1" || !r.Data.(*clientv1.Response).GetOk() {

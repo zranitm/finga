@@ -12,6 +12,7 @@ import (
 	"finga/internal/application/world/worldtest"
 	model "finga/internal/model/world"
 	"finga/internal/shared/kernel"
+	"finga/internal/shared/sim"
 )
 
 // parties are fixed parties, each a list of members.
@@ -233,6 +234,98 @@ func TestADeathInAChannelGetsUpInIt(t *testing.T) {
 		}
 		if got := w.open(t, ayla); !slices.Equal(got, []model.ChannelLoad{{Channel: 1, Players: 1}, {Channel: 2, Players: 1}}) {
 			t.Fatalf("channels %+v; want Kai still in 2", got)
+		}
+	})
+}
+
+// A switch (large-regions.md section 4) is refused off a region, to the channel the player is in, to one not open and to a full one; else it channels as a teleport does and lands at the same spot in the other channel, or is cancelled as a teleport is.
+func TestASwitchMovesToTheSameSpotInAnotherChannel(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		w := channelWorld(t, worldtest.Options{ChannelCap: 2})
+		ayla, sa := at(t, "Ayla", "test_region"), &worldtest.Sink{}
+		ayla.X += 3
+		w.enter(t, ayla, "test_region", "c-Ayla", sa)
+		bo, sb := w.enterRegion(t, "Bo")
+		w.enterRegion(t, "Cy")
+		dee, _ := w.enterRegion(t, "Dee")
+		tom := at(t, "Tom", "town")
+		w.enter(t, tom, "town", "c-Tom", &worldtest.Sink{})
+		ctx := context.Background()
+		for _, c := range []struct {
+			who  model.Player
+			to   int
+			want error
+		}{
+			{tom, 2, model.ErrNotARegion},
+			{ayla, 1, model.ErrSameChannel},
+			{ayla, 3, model.ErrNoSuchChannel},
+			{ayla, 2, model.ErrChannelFull},
+		} {
+			if err := w.SwitchChannel(ctx, c.who.ID, "c-"+c.who.Name, c.to, 1); !errors.Is(err, c.want) {
+				t.Fatalf("%s's switch to %d: %v; want %v", c.who.Name, c.to, err, c.want)
+			}
+		}
+		if err := w.Leave(ctx, dee.ID, "c-Dee"); err != nil {
+			t.Fatal(err)
+		}
+		synctest.Wait()
+		here := joinedAt(t, sa, ayla.ID)
+		if err := w.SwitchChannel(ctx, ayla.ID, "c-Ayla", 2, 1); err != nil {
+			t.Fatal(err)
+		}
+		if err := w.SwitchChannel(ctx, bo.ID, "c-Bo", 2, 1); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(worldtest.TickInterval)
+		synctest.Wait()
+		_ = w.Input(bo.ID, "c-Bo", 2, sim.Input{Up: true}, 0)
+		time.Sleep(data.TeleportChannel() + 3*worldtest.TickInterval)
+		synctest.Wait()
+		tel, snaps := worldtest.Of[model.Teleport](sa), worldtest.Of[model.Snapshot](sa)
+		if len(tel) != 1 || tel[0].MapID != "test_region" || tel[0].X != here.X || tel[0].Z != here.Z {
+			t.Fatalf("teleports %+v; want one to where Ayla stood, %v", tel, here)
+		}
+		if len(snaps) != 2 || snaps[1].Channel != 2 {
+			t.Fatalf("snapshots %+v; want channel 2's after channel 1's", snaps)
+		}
+		if i := slices.IndexFunc(snaps[1].Players, func(v model.PlayerView) bool { return v.ID == ayla.ID }); i < 0 || snaps[1].Players[i].State.X != here.X || snaps[1].Players[i].State.Z != here.Z {
+			t.Fatalf("Ayla in channel 2's snapshot: %+v; want at %v", snaps[1].Players, here)
+		}
+		if cancelled := worldtest.Of[model.TeleportCancelled](sb); len(cancelled) != 1 || cancelled[0].Reason != model.TeleportMoved || channelOf(t, sb) != 1 {
+			t.Fatalf("Bo's switch: cancelled %+v, in channel %d; want it cancelled by the move, in 1", cancelled, channelOf(t, sb))
+		}
+		if got := w.open(t, ayla); !slices.Equal(got, []model.ChannelLoad{{Channel: 1, Players: 1}, {Channel: 2, Players: 2}}) {
+			t.Fatalf("channels %+v; want Bo alone in 1, Ayla and Cy in 2", got)
+		}
+	})
+}
+
+// A switch's start restarts its channel's idle clock, so the channel doesn't close under it: cancelled, it closes the idle time after.
+func TestASwitchKeepsItsChannelOpen(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := channelWorld(t, worldtest.Options{ChannelCap: 1, ChannelIdle: 5 * time.Minute})
+		ayla, _ := w.enterRegion(t, "Ayla")
+		kai, _ := w.enterRegion(t, "Kai")
+		ctx := context.Background()
+		if err := w.Leave(ctx, kai.ID, "c-Kai"); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(4 * time.Minute)
+		synctest.Wait()
+		if err := w.SwitchChannel(ctx, ayla.ID, "c-Ayla", 2, 1); err != nil {
+			t.Fatal(err)
+		}
+		_ = w.Input(ayla.ID, "c-Ayla", 2, sim.Input{Up: true}, 0)
+		time.Sleep(90 * time.Second)
+		synctest.Wait()
+		if got := w.open(t, ayla); len(got) != 2 {
+			t.Fatalf("5:30 after channel 2 emptied, 1:30 after the switch started: %+v; want it open", got)
+		}
+		time.Sleep(4 * time.Minute)
+		synctest.Wait()
+		if got := w.open(t, ayla); len(got) != 1 {
+			t.Fatalf("5:30 after the switch started: %+v; want channel 2 closed", got)
 		}
 	})
 }

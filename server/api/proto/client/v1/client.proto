@@ -11,7 +11,7 @@ message ClientMessage {
   reserved 5;
   reserved "pick_up";
 
-  // Input, Attack, UseSkill, EnterPortal and Teleport carry the input sequence number.
+  // Input, Attack, UseSkill, EnterPortal, Teleport and SwitchChannel carry the input sequence number.
   uint32 seq = 1;
   // A command that wants a Response sets req; the Response carries it back.
   string req = 2;
@@ -51,6 +51,8 @@ message ClientMessage {
     AddToWardrobe add_to_wardrobe = 36;
     SetLook set_look = 37;
     TakeLoot take_loot = 38;
+    SwitchChannel switch_channel = 39;
+    Channels channels = 40;
   }
 }
 
@@ -175,6 +177,14 @@ message PickAnswer {
 message EnterPortal {}
 
 // Teleport starts a channel to another map, answered as it starts; at its end a MapChange follows, as for a portal, unless a TeleportCancelled says what ended it first.
+// SwitchChannel starts a 3-second channel, cancelled as a teleport's is, that moves the player to the same spot in another channel of their region: one open with room, as the Channels list shows. The Response comes once it starts; the MapChange and a Snapshot naming the channel, or a TeleportCancelled, come at its end. It carries the input sequence number.
+message SwitchChannel {
+  uint32 channel = 1;
+}
+
+// Channels asks for the open channels of the player's region; the Response carries them.
+message Channels {}
+
 message Teleport {
   // The map's ID.
   string map_id = 1;
@@ -990,6 +1000,20 @@ message Response {
   int32 code = 4;
   // A TakeLoot's answer to each pick, in its order, once the item module answered them.
   repeated PickAnswer picks = 5;
+  // A Channels' answer.
+  ChannelList channels = 6;
+}
+
+// ChannelList is the open channels of the player's region, by number, and how full each is against cap, the players a channel takes before joins pass it.
+message ChannelList {
+  repeated ChannelLoad channels = 1;
+  uint32 cap = 2;
+}
+
+// ChannelLoad is a channel and its players, those on their way included.
+message ChannelLoad {
+  uint32 channel = 1;
+  uint32 players = 2;
 }
 
 // TeleportCancelled says the player's teleport channel ended before it took them.

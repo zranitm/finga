@@ -95,3 +95,12 @@ func fieldBoss(b model.FieldBoss) *clientv1.FieldBoss {
 func bossGone(b model.FieldBossGone) *clientv1.FieldBossGone {
 	return &clientv1.FieldBossGone{MobId: uint32(b.MobID), Type: b.Type, BackInMs: b.BackInMs}
 }
+
+// ChannelList is a region's open channels and how full each is.
+func ChannelList(c model.Channels) *clientv1.ChannelList {
+	out := &clientv1.ChannelList{Cap: uint32(c.Cap)}
+	for _, l := range c.Open {
+		out.Channels = append(out.Channels, &clientv1.ChannelLoad{Channel: uint32(l.Channel), Players: uint32(l.Players)})
+	}
+	return out
+}

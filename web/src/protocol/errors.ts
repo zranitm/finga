@@ -112,6 +112,10 @@ const texts: Record<ErrorCode, string> = {
   [ERR.POUCH_GONE]: 'That’s gone already.',
   [ERR.POUCH_OUT_OF_REACH]: 'Too far away.',
   [ERR.TAKE_BUSY]: 'Still taking that.',
+  [ERR.NOT_A_REGION]: 'Only a region has channels.',
+  [ERR.SAME_CHANNEL]: 'You’re already in that channel.',
+  [ERR.NO_SUCH_CHANNEL]: 'That channel has closed.',
+  [ERR.CHANNEL_FULL]: 'That channel is full.',
 
   [ERR.NOT_PARTY_LEADER]: 'Only the party leader can do that.',
   [ERR.PARTY_FULL]: 'The party is full.',
