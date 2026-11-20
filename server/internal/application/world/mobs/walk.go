@@ -72,11 +72,11 @@ func (a *Arena) move(mb *mob, dx, dz float64, blockers *sim.Blockers) float64 {
 	return moved
 }
 
-// push is where mb ends pushed (dx, dz) through g as the sim pushes a body: short of a town area, by the longest share of the push that stays out, as a wall would stop it.
+// push is where mb ends pushed (dx, dz) through g as the sim pushes a body: short of a town area, by the longest share of the push that stays out, as a wall would stop it. The line holds one way: a mob somehow in a town walks out.
 func (a *Arena) push(mb *mob, dx, dz float64, g sim.Geometry) sim.State {
 	from := sim.State{X: mb.x, Y: mb.y, Z: mb.z, OnGround: true}
 	s := sim.Push(from, dx, dz, g, mb.params)
-	if !a.inTown(nav.Point{X: s.X, Z: s.Z}) {
+	if !a.inTown(nav.Point{X: s.X, Z: s.Z}) || a.inTown(mb.at()) {
 		return s
 	}
 	out, lo, hi := from, 0.0, 1.0

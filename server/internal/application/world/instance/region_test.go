@@ -3,6 +3,7 @@ package instance_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"testing"
 	"testing/synctest"
@@ -141,6 +142,79 @@ func TestNobodyFightsInARegionsTown(t *testing.T) {
 				t.Fatalf("in the field: strike %v, attack swung %v; want both", err, swung)
 			}
 		})
+	}
+}
+
+// A hit started out of a region's town that comes due after its player stepped in lands nothing, as nothing is dealt from a town, a strike's damage or a glare's taunt; one that comes due outside lands.
+func TestAHitDueInARegionsTownLandsNothing(t *testing.T) {
+	data := func(t *testing.T) *gamedata.Data {
+		return skillDataWith(t, map[string]func(string) string{
+			"mobs.yaml": func(m string) string { // the slime outlasts the strike, and its first blow comes long after
+				return edit(t, "hp: 34", "hp: 1000000")(edit(t, "attacks: [{use: hop}]", "attacks: [{use: bite, windup: 3s, cooldown: 4s}]")(m))
+			},
+			"classes.yaml": edit(t, "bastion, rally]", "bastion, rally, test_glare]"),
+			"skills.yaml": func(s string) string { // each lands 12 ticks in
+				return edit(t, "    cancel: 0.45\n    power: {base: 1.5, per_point: 0.05}", "    cancel: 0.6\n    hit: 0.6\n    power: {base: 1.5, per_point: 0.05}")(s) + `
+  - id: test_glare
+    icon: lorc/shouting
+    kind: active
+    effect: status
+    shape: {kind: area, radius: 6}
+    energy: 2
+    cooldown: 1s
+    length: 1s
+    hit: 0.6
+    cancel: 0.6
+    status: {id: taunt, time: 5s}
+    stages:
+      - {at: 0, name: Glare, description: "Taunts."}
+`
+			},
+		})
+	}
+	for _, skill := range []string{"strike", "test_glare"} {
+		for _, in := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s, in the town %v", skill, in), func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					m := vale(t)
+					m.Spawns[0].At.Z = townLine + 1.1
+					inst, stop := worldtest.RunMap(t, data(t), m, nil, worldtest.Options{})
+					defer stop()
+					tick(1)
+					p := caster(townLine + 0.1) // a metre south of the slime, facing it
+					p.Skills.Points["test_glare"] = 1
+					s := join(t, inst, p)
+					if err := cast(inst, p.ID, skill); err != nil {
+						t.Fatal(err)
+					}
+					if in {
+						walkTo(inst, s, p.ID, 0, townLine-0.4, 0.15)
+					}
+					tick(20)
+					own, _ := s.Own(p.ID)
+					landed := 0
+					for _, d := range damages(s) {
+						if d.Source.Player == p.ID {
+							landed++
+						}
+					}
+					for _, v := range mobsIn(s) {
+						if d := math.Hypot(v.X-own.State.X, v.Z-own.State.Z); d > 2.375+0.5 {
+							t.Fatalf("the slime %.2f m off: out of the strike's reach, so this shows nothing", d)
+						}
+						landed += len(v.Statuses)
+					}
+					switch {
+					case in != (own.State.Z < townLine):
+						t.Fatalf("the player at z %.2f; want them in the town %v", own.State.Z, in)
+					case in && landed != 0:
+						t.Fatalf("damage %+v, the slime %+v: a hit that came due in the town landed", damages(s), mobsIn(s))
+					case !in && landed != 1:
+						t.Fatalf("damage %+v, the slime %+v; want the hit landed, out of the town", damages(s), mobsIn(s))
+					}
+				})
+			})
+		}
 	}
 }
 

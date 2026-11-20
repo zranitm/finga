@@ -135,6 +135,18 @@ func TestAChargeStopsAtATownsLine(t *testing.T) {
 	}
 }
 
+// The line holds one way: a mob that's somehow in a town, as none is placed, walks out after a player outside.
+func TestAMobInATownWalksOut(t *testing.T) {
+	a := newArena(t, withTown(meadow(t, open(), spawn("wild_boar", 1, 20, 14, 0.01)), southOf16), worldtest.FixedRoll{V: 0.5})
+	p := player(20, 19)
+	for n := range uint64(100) {
+		a.Step(n+1, []mobs.Body{p}, nil)
+	}
+	if v := a.Views()[0]; v.Z < 16 || distance(v, p.X, p.Z) > boarReach {
+		t.Fatalf("the boar at (%.2f, %.2f) 5 s on; want it out of the town, at the player", v.X, v.Z)
+	}
+}
+
 // A blow's push stops at a town's line: a slime 0.2 m south of a town's edge, pushed 0.25 m north, ends just short of it.
 func TestAPushStopsAtATownsLine(t *testing.T) {
 	m := withTown(meadow(t, open(), spawn("green_slime", 1, 20, 19.8, 0.01)), func(_, z float64) bool { return z >= 20 })

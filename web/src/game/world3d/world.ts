@@ -737,7 +737,7 @@ export class World {
     this.showPortalLabels();
     const m = maps.find((x) => x.id === map.id);
     if (m) {
-      this.banner(m.min_level !== null ? `${m.name} · Lv ${m.min_level}–${m.max_level}` : m.name);
+      this.banner(m.min_level !== null ? `${m.name} · Lv ${m.min_level}–${m.max_level}` : m.name); // a region's area's follows with its Snapshot
     }
     this.pouchMarks?.show(pouches.getState().pouches);
     this.offs.push(
@@ -786,7 +786,7 @@ export class World {
       socket.on('respawned', (m) => this.onWorld(m)),
       socket.on('welcome', (m) => this.onWelcome(m.d.mapId, m.d.tickRateHz)),
       socket.on('mapChange', (m) => this.onTransition(m)),
-      socket.on('areaEntered', (m) => this.enteredArea(m.d.area)),
+      socket.on('areaEntered', (m) => this.onWorld(m)),
       socket.on('damage', (m) => {
         this.combat?.damage(m.d, m.tick);
         this.guardedBy(m.d);
@@ -960,7 +960,7 @@ export class World {
     switch (m.t) {
       case 'snapshot':
         this.channel = m.d.channel;
-        this.areaId = m.d.area;
+        this.enteredArea(m.d.area);
         this.onSnapshot(m.d.players, m.d.mobs, m.d.boss, this.tickOf(m.tick));
         return;
       case 'delta':
@@ -971,6 +971,9 @@ export class World {
         return;
       case 'respawned':
         this.onTransition({ t: 'respawned', d: m.d });
+        return;
+      case 'areaEntered':
+        this.enteredArea(m.d.area);
         return;
     }
   }
@@ -2319,7 +2322,7 @@ export class World {
     }
   }
 
-  /** Into another of the region's areas: its banner, its name and a hunting area's levels. */
+  /** Into a region's area, on a join or a step: its banner, its name and a hunting area's levels. */
   private enteredArea(id: string): void {
     this.areaId = id;
     const a = this.area();

@@ -2,7 +2,11 @@ import type { Received } from '@/net/socket';
 
 /** The messages a map's scene applies, held while the next map's scene is not built yet. */
 export type Held =
-  Received<'snapshot'> | Received<'delta'> | Received<'died'> | Received<'respawned'>;
+  | Received<'snapshot'>
+  | Received<'delta'>
+  | Received<'died'>
+  | Received<'respawned'>
+  | Received<'areaEntered'>;
 
 /** What an Arrival needs of the socket. */
 export interface Feed {
@@ -37,6 +41,7 @@ export class Arrival {
       feed.on('delta', (m) => this.hold(m)),
       feed.on('died', (m) => this.hold(m)),
       feed.on('respawned', (m) => this.hold(m)),
+      feed.on('areaEntered', (m) => this.hold(m)), // a region's area, named from its bake, which the scene has once built
       feed.on('mapChange', (m) => {
         this.held = []; // another map after all: its own Snapshot follows
         this.map = m.d.mapId;

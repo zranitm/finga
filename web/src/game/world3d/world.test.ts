@@ -571,6 +571,23 @@ describe('World', () => {
     expect(below()).toBeGreaterThan(before + 10); // down on the river's bed, 2.4 m under the bank the player stands on
   });
 
+  it('names the region’s area a Snapshot lands the player in along the top, and holds an area entered while the region was building till it stands', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const p = await playing(FLAT, 4, 20);
+    changeMap(p, { mapId: REGIONED, x: 30, y: 0, z: 20, yaw: 0 });
+    p.push('snapshot', { players: [standing(30, 20)], area: 'field' }, { tick: 3 });
+    p.push('areaEntered', { area: 'square' }, { tick: 4 });
+    await vi.waitFor(() => expect(p.parent.textContent).toContain('Market Square'), WAIT);
+    await Promise.allSettled(chunkWork.builds);
+    await new Promise<void>((r) => setImmediate(r));
+    p.frames(2);
+    key('KeyX', true);
+    key('KeyX', false);
+    expect(p.sent('attack')).toEqual([]); // the town's
+    p.push('snapshot', { players: [standing(30, 20)], area: 'field' }, { tick: 5 }); // a rejoin
+    expect(p.parent.textContent).toContain('Field · Lv 1–2');
+  });
+
   it('names the region’s area the player steps into along the top, and in a town area, as a snapshot or a step names it, holds the lock, attacks and skills that harm, as in a town', async () => {
     vi.spyOn(console, 'info').mockImplementation(() => undefined);
     const p = await playing(REGIONED, 30, 20);
