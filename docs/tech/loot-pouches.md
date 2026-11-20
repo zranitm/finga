@@ -106,6 +106,7 @@
     - A full tab answers with its tab: `EQUIP_TAB_FULL`, `USE_TAB_FULL` or `ETC_TAB_FULL`.
     - **No answer from the item module:** the pick is answered `UNAVAILABLE`. Its items stay marked as being taken, and are asked for again every 2 s under the same keys until an answer comes. The owner then hears `InventoryChanged` and `Loot{taken}`, as from any take. Only owners with such items are looked at for a retry.
       - As built: a grant call, its retry included, has 3.5 s. That's inside the 5 s the gateway gives a take, so each pick is answered rather than the whole take failing at the gateway's deadline.
+      - The 3.5 s counts from when a worker takes the call, and on a starved box the queues and ticks before it can use up the rest of the 5 s. So the take's wait also gives up 0.5 s before its deadline and answers each pick `UNAVAILABLE`, as built after a CI run that answered the whole take `INTERNAL`. The grant still settles whenever it answers.
     - **Every item-call worker's queue full:** the take is answered `UNAVAILABLE` at once, and its items stay to take. A retry that finds the queue full waits another 2 s.
     - **An item refused by another rule** is given up and logged, answered `POUCH_GONE`.
   - **Lives:** at a pouch's end, the items not being taken are listed in `Loot{left}`. An item still being asked for then gets one more try; with no answer it's given up and logged.

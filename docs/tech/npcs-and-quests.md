@@ -104,7 +104,7 @@ From the code, the rules this design keeps:
   2. **Rolls:** equipment rewards are rolled now, with the map's seeded generator, as drops are.
   3. **The item call:** a job goes to the item-call pool: `item.HandIn` with the collect objectives to take and the rewards to give.
      - It names the quest and the completion it makes, `times_finished + 1`. The item module hands each completion in once, so a retry, or a hand-in repeated after a crash, takes and gives nothing twice.
-     - A try that times out or finds the item module down is tried again. Every try fits in 3.5 seconds, inside the 5 seconds the gateway and the client give a command, so the outcome always reaches the request. A refusal is final.
+     - A try that times out or finds the item module down is tried again. Every try fits in 3.5 seconds, inside the 5 seconds the gateway and the client give a command, so the outcome always reaches the request. The hand-in's wait also gives up half a second before the request's deadline as `UNAVAILABLE`, in case the queues before the call used up the rest. A refusal is final.
      - The log has a warning for each try that failed, an error for a hand-in given up, and an info line for each one a join finished.
   4. **The result comes back through the inbox:**
      - on success: the quest is marked finished, `times_finished` goes up, the reward EXP is awarded in memory, and the change is queued to save at once. The player gets `InventoryChanged`, `QuestChanged`, and `ExpGained`. This holds for the character on the map whatever its connection, so a reconnect meanwhile still gets it;

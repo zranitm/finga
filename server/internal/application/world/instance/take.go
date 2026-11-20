@@ -2,12 +2,14 @@ package instance
 
 import (
 	"context"
+	"errors"
 	"slices"
 
 	"finga/internal/application/world/loot"
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
+	"finga/pkg/transient"
 )
 
 // takeMsg asks to take items from the player's pouches; done hears each pick once all settle.
@@ -31,10 +33,19 @@ func (i *Instance) TakeLoot(ctx context.Context, id kernel.CharacterID, conn str
 	if err := i.post(m); err != nil {
 		return nil, err
 	}
+	ctx, cancel := answering(ctx, "a take")
+	defer cancel()
 	select {
 	case a := <-m.done:
 		return a.picks, a.err
 	case <-ctx.Done():
+		if why := context.Cause(ctx); errors.Is(why, transient.ErrUnavailable) { // each pick may be asked again; the grant settles whenever it answers
+			answers := make([]model.PickAnswer, len(picks))
+			for k, pk := range picks {
+				answers[k] = model.PickAnswer{Pick: pk, Err: why}
+			}
+			return answers, nil
+		}
 		return nil, ctx.Err()
 	case <-i.stopped:
 		return nil, model.ErrStopped
