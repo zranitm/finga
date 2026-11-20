@@ -40,13 +40,13 @@ var shapes = []struct {
 func BenchmarkACrowdedRegionsFrames(b *testing.B) {
 	m := region(b)
 	for _, sh := range shapes {
-		data := worldtest.LoadDataWith(b, map[string]func(string) string{"world.yaml": func(s string) string {
+		data := worldtest.LoadDataWith(b, worldtest.WithoutRegions(b, map[string]func(string) string{"world.yaml": func(s string) string {
 			return strings.NewReplacer(
 				"  behind: 1\n", fmt.Sprintf("  behind: %d\n", sh.behind),
 				"  ahead: 3\n", fmt.Sprintf("  ahead: %d\n", sh.ahead),
 				"  side: 3\n", fmt.Sprintf("  side: %d\n", sh.side),
 			).Replace(s)
-		}})
+		}}))
 		s := newScene(b, m, data, crowd)
 		s.run(200) // the crowd spreads and the camps wake
 		b.Run(sh.name+"/tick", func(b *testing.B) {

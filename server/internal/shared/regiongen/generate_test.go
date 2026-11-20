@@ -45,7 +45,7 @@ func flat() Plan {
 	return Plan{
 		Name: "Flat", Size: [2]float64{128, 128}, Cell: 1, Seed: 1, Look: Look{Sky: "day"},
 		Ground: Ground{Noise: Noise{Scale: 50, Amplitude: 0, Octaves: 1}},
-		Edge:   Edge{Width: 1, Biome: "meadow"},
+		Edge:   Edge{Width: AreaCell, Biome: "meadow"},
 		Colour: Colour{Slope: 0.25, High: 100},
 		Areas:  []Area{{ID: "all", Area: square, Biome: "meadow", Kind: Hunting}},
 		Start:  Place{At: [2]float64{2, 2}},
@@ -77,6 +77,39 @@ func near(t *testing.T, what string, got, want float64) {
 	t.Helper()
 	if math.Abs(got-want) > 1e-5 {
 		t.Errorf("%s: %v; want %v", what, got, want)
+	}
+}
+
+// The ring of mountains rises over everything inside it: its inner face a cliff edgeCliff over the highest ground inside, too steep to walk, then up by its heights toward the sides; a river and a ridge reaching into it neither cut nor raise it.
+func TestTheRingIsACliffOverTheHighestGroundInside(t *testing.T) {
+	p := flat()
+	p.Edge = Edge{Width: 12, Height: [2]float64{4, 4}, Biome: "meadow"}
+	p.Features = []Feature{
+		{Plateau: &Plateau{Area: [][2]float64{{50, 50}, {70, 50}, {70, 70}, {50, 70}}, Height: 5, Edge: Cliff}},
+		{River: &River{Path: [][2]float64{{64, 30}, {125, 30}}, Width: 6, Depth: 2}},
+		{Ridge: &Ridge{Path: [][2]float64{{64, 100}, {125, 100}}, Width: 10, Height: 3}},
+	}
+	r := build(t, p)
+	near(t, "the plateau, the highest ground inside", r.at(60, 60), 5)
+	for z := range 129 {
+		for x := range 129 {
+			d := min(x, z, 128-x, 128-z)
+			if d >= 12 {
+				continue
+			}
+			want := f32(5 + edgeCliff + float64(smoothstep(1-float64(d)/12)*4))
+			if got := r.at(x, z); got != want {
+				t.Fatalf("the ring at (%d, %d), %d m in: %v; want %v", x, z, 12-d, got, want)
+			}
+			if r.Wet[z*129+x] {
+				t.Fatalf("the ring at (%d, %d) is under water", x, z)
+			}
+		}
+	}
+	for _, z := range []int{30, 64, 100} {
+		if !r.steepBetween(116, z, false) || !r.steepBetween(11, z, false) {
+			t.Errorf("the inner face by z = %d isn't steep both sides", z)
+		}
 	}
 }
 

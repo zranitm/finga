@@ -37,7 +37,7 @@ func TestABakeIsWrittenUnderItsHash(t *testing.T) {
 		t.Fatal(err)
 	}
 	b := tinyBake(t)
-	dir := filepath.Join(out, "tiny", b.Hash[:hashLen])
+	dir := filepath.Join(out, "tiny", b.Folder())
 	for _, f := range b.Files {
 		raw, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(f.Path)))
 		if err != nil {
@@ -136,7 +136,7 @@ func TestABakeIsRenamedIntoPlaceWhole(t *testing.T) {
 	if len(left) != 0 {
 		t.Errorf("half-written bakes left: %v", left)
 	}
-	if _, err := os.Stat(filepath.Join(out, "tiny", tinyBake(t).Hash[:hashLen], "region.json")); err != nil {
+	if _, err := os.Stat(filepath.Join(out, "tiny", tinyBake(t).Folder(), "region.json")); err != nil {
 		t.Errorf("the bake isn't in place: %v", err)
 	}
 }

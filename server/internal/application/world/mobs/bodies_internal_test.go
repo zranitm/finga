@@ -3,11 +3,13 @@ package mobs
 import (
 	"slices"
 	"testing"
+
+	"finga/internal/shared/gamedata"
 )
 
 // A query over more cells than a walk merges goes through every body, in key order: 30 bodies 1 m apart, each in its own cell, asked for from the middle 12 m out.
 func TestAWalkOverManyCellsGoesThroughEveryBody(t *testing.T) {
-	c := newCells(1, 40, 40)
+	c := newCells(gamedata.Interest{Cell: 1}, 40, 40)
 	in := make([][]int32, c.nx*c.nz)
 	var all []int32
 	for i := range int32(30) {
@@ -27,7 +29,7 @@ func TestAWalkOverManyCellsGoesThroughEveryBody(t *testing.T) {
 
 // A walk over a few cells merges them by key, though each cell's lie apart: bodies dealt round four cells come back in order.
 func TestAWalkMergesCellsInKeyOrder(t *testing.T) {
-	c := newCells(8, 16, 16)
+	c := newCells(gamedata.Interest{Cell: 8}, 16, 16)
 	in := make([][]int32, c.nx*c.nz)
 	for i := range int32(12) {
 		k := int(i) % 4

@@ -1,4 +1,5 @@
 // A map's ground seen from above, north up (map-views.md section 4): drawn once as the map loads, for the minimap and the map window to share.
+import { near } from '@/sim/solids';
 import { height, steep } from '@/sim/terrain';
 
 import { CLIFF, groundOf } from './world3d/grounds';
@@ -25,10 +26,11 @@ const toLinear = (c: number) => {
 const toSrgb = (v: number) =>
   255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * Math.min(1, v) ** (1 / 2.4) - 0.055);
 
-/** Whether (x, z) is inside one of the map's solids: a box along its axis, or a cylinder's disc. */
+/** Whether (x, z) is inside one of the map's solids near it: a box along its axis, or a cylinder's disc. */
 function inSolid(map: WorldMap, x: number, z: number): boolean {
   const g = map.geometry;
-  for (const b of g.boxes) {
+  for (const i of near(g, false, x, z, x, z)) {
+    const b = g.boxes[i]!;
     const dx = x - b.x;
     const dz = z - b.z;
     if (
@@ -38,7 +40,10 @@ function inSolid(map: WorldMap, x: number, z: number): boolean {
       return true;
     }
   }
-  return g.cylinders.some((c) => (x - c.x) ** 2 + (z - c.z) ** 2 <= c.radius ** 2);
+  return near(g, true, x, z, x, z).some((i) => {
+    const c = g.cylinders[i]!;
+    return (x - c.x) ** 2 + (z - c.z) ** 2 <= c.radius ** 2;
+  });
 }
 
 /** The ground's colour shaded lighter with height across the map, steep ground darker as the 3D ground draws it, and each solid's footprint dark. */
@@ -47,8 +52,13 @@ export function groundPixels(map: WorldMap): Pixels {
   const t = g.terrain;
   const width = Math.round(g.size_x * PX_PER_M);
   const rows = Math.round(g.size_z * PX_PER_M);
-  const low = Math.min(...t.heights);
-  const span = Math.max(...t.heights) - low;
+  let low = Infinity;
+  let high = -Infinity;
+  for (const h of t.heights) {
+    low = Math.min(low, h);
+    high = Math.max(high, h);
+  }
+  const span = high - low;
   const base = groundOf(map.ground);
   const rgb = [(base >> 16) & 0xff, (base >> 8) & 0xff, base & 0xff].map(toLinear);
   const data = new Uint8ClampedArray(width * rows * 4);

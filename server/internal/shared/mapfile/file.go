@@ -6,7 +6,7 @@ import "time"
 // File is one map as written in data/maps/<id>.yaml. Lengths are metres, angles degrees, positions [x, z] with x east and z north.
 type File struct {
 	Name        string     `yaml:"name"`
-	Kind        string     `yaml:"kind"` // town, hunting or pvp
+	Kind        string     `yaml:"kind"` // town, hunting or pvp; a region's plan is read as a map of kind region
 	Start       bool       `yaml:"start,omitempty"`
 	Town        string     `yaml:"town,omitempty"`        // a hunting map's respawn town
 	Levels      [2]int     `yaml:"levels,omitempty,flow"` // a hunting map's mob levels, lowest and highest
@@ -114,10 +114,9 @@ type NPC struct {
 	Yaw float64    `yaml:"yaw"`
 }
 
-// Boss is where a hunting map's field boss appears, and how many kills on the map bring it.
+// Boss is where a hunting map's field boss stands, wandering its circle.
 type Boss struct {
 	At     [2]float64 `yaml:"at,flow"`
 	Radius float64    `yaml:"radius"`
 	Mob    string     `yaml:"mob"`
-	Kills  int        `yaml:"kills"`
 }

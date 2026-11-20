@@ -2,6 +2,7 @@ import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { describe, expect, it } from 'vitest';
 
 import { movement } from '@/gamedata/movement';
+import { indexed } from '@/sim/solids';
 import type { Box } from '@/sim/step';
 import { terrain } from '@/sim/terrain';
 
@@ -51,10 +52,46 @@ describe('groundPixels', () => {
     expect(cliff).toBeLessThan(low);
   });
 
+  it('shades by height above the map’s lowest ground: the map raised 2 m draws the same', () => {
+    const m = map();
+    const t = m.geometry.terrain;
+    const raised = {
+      ...m,
+      geometry: {
+        ...m.geometry,
+        terrain: terrain(
+          t.cell,
+          t.nx,
+          t.nz,
+          t.heights.map((h) => h + 2),
+          movement.max_slope,
+        ),
+      },
+    };
+    expect(groundPixels(raised).data).toEqual(groundPixels(m).data);
+  });
+
   it('draws a solid’s footprint dark: a cylinder’s disc in the north west, north up', () => {
     const m = map();
     expect(light(at(m, 2, 6))).toBeLessThan(light(at(m, 4, 3)) / 2);
     expect(light(at(m, 2, 2))).toBe(light(at(m, 4, 3))); // the same spot mirrored south: open ground
+  });
+
+  it('finds a point’s solids by its bucket, drawing what testing every solid draws', () => {
+    const across = {
+      x: 8,
+      z: 4,
+      half_w: 3,
+      half_d: 1,
+      ux: Math.cos(0.5),
+      uz: -Math.sin(0.5),
+      top: 2,
+    }; // over the buckets' line at x = 8
+    const m = map([across, { x: 13, z: 2, half_w: 1, half_d: 1, ux: 1, uz: 0, top: 1 }]);
+    const bucketed = { ...m, geometry: indexed(m.geometry) };
+    expect(bucketed.geometry.buckets?.nx).toBe(2);
+    expect(groundPixels(bucketed).data).toEqual(groundPixels(m).data);
+    expect(light(at(bucketed, 8, 4))).toBeLessThan(light(at(m, 4, 3)) / 2);
   });
 
   it('lays a turned box’s footprint where its 3D model stands', () => {

@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"math"
 	"slices"
+
+	"finga/internal/shared/gamedata"
 )
 
 // bodyPad widens a query past any rounding in the distances it stands in for.
@@ -15,8 +17,9 @@ type cells struct {
 	nx, nz int
 }
 
-func newCells(side, sizeX, sizeZ float64) cells {
-	return cells{per: 1 / side, nx: max(1, int(math.Ceil(sizeX/side))), nz: max(1, int(math.Ceil(sizeZ/side)))}
+func newCells(in gamedata.Interest, sizeX, sizeZ float64) cells {
+	nx, nz := in.Cells(sizeX, sizeZ)
+	return cells{per: 1 / in.Cell, nx: nx, nz: nz}
 }
 
 // of is the cell holding (x, z), held to the map: past an edge, the edge's.

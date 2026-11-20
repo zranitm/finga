@@ -389,7 +389,7 @@ Four PRs, each step one commit, green on `make test`, `make lint`, `make cover`,
 9. **Movement:**
    - `jump_velocity` 395, and the movement vectors made again.
    - At 395 the reach test fails 41 times over nine maps: cave, crossroads, fallen_keep, frost_trail, glacier_peak, icefall, spore_hollow, sunken_ruins and town.
-   - Each is reworked, lowering platforms and adding ropes or ladders, until `TestEveryPortalSpawnAndBossCanBeReached` passes at both speeds.
+   - Each is reworked, lowering platforms and adding ropes or ladders, until `TestEveryShippedMapCanBeCrossed` passes at both speeds.
    - Every platform or block with no rope of its own is at most 48 px up, so the jump reaches it from below without leaping across from a rope (B1).
 10. **Bots and tests:** the bot's climb plan and the end-to-end walkers on the new maps.
 

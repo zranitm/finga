@@ -17,13 +17,13 @@ features:
 areas:
   - {id: town, name: Small Town, area: [[90, 60], [150, 60], [150, 110], [90, 110]], biome: meadow, kind: town}
   - {id: west, name: West Field, area: [[24, 24], [90, 24], [90, 232], [24, 232]], levels: [1, 4], biome: meadow, kind: hunting,
-     boss: {at: [55, 100], radius: 5, mob: king_slime, kills: 300}}
+     boss: {at: [55, 100], radius: 5, mob: king_slime}}
   - {id: south, name: South Field, area: [[90, 24], [150, 24], [150, 60], [90, 60]], levels: [1, 4], biome: meadow, kind: hunting,
-     boss: {at: [130, 40], radius: 5, mob: king_slime, kills: 300}}
+     boss: {at: [130, 40], radius: 5, mob: king_slime}}
   - {id: north, name: North Field, area: [[90, 110], [150, 110], [150, 232], [90, 232]], levels: [2, 5], biome: meadow, kind: hunting,
-     boss: {at: [135, 180], radius: 5, mob: king_slime, kills: 300}}
+     boss: {at: [135, 180], radius: 5, mob: king_slime}}
   - {id: woods, name: East Woods, area: [[150, 24], [232, 24], [232, 232], [150, 232]], levels: [3, 6], biome: woods, kind: hunting,
-     boss: {at: [190, 110], radius: 5, mob: king_slime, kills: 300}}
+     boss: {at: [190, 110], radius: 5, mob: king_slime}}
 camps:
   - {area: west, name: slimes, at: [55, 160], radius: 6, mob: green_slime, max: 4, respawn: 10s}
   - {area: woods, name: boars, at: [200, 210], radius: 8, mob: wild_boar, max: 5, respawn: 12s}

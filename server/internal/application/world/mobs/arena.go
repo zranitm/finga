@@ -183,7 +183,7 @@ type Tuning struct {
 func NewArena(d Deps, t Tuning) *Arena {
 	rules := d.Data.StatRules()
 	a := &Arena{m: d.Map, data: d.Data, roll: d.Roll, interval: t.TickInterval, spawns: make([]spawnState, len(d.Map.Spawns)), hit: rules.Hit, playerAt: map[kernel.CharacterID]int{}}
-	c := newCells(d.Data.InterestCell(), d.Map.Geometry.SizeX, d.Map.Geometry.SizeZ)
+	c := newCells(d.Data.Interest(), d.Map.Geometry.SizeX, d.Map.Geometry.SizeZ)
 	a.near = playerCells{cells: c, in: make([][]int32, c.nx*c.nz)}
 	a.bodies = mobCells{cells: c, in: make([][]*mob, c.nx*c.nz)}
 	for _, p := range d.Map.Portals {

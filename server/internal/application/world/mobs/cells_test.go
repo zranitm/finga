@@ -19,7 +19,7 @@ import (
 	"finga/internal/shared/sim"
 )
 
-// withCell is the shipped data with interest cells cell metres wide, and as many rows behind a player as cover 32 m, as the loader asks.
+// withCell is the shipped data with interest cells cell metres wide, and as many rows behind a player as cover 32 m, as the loader asks; without its regions, which one block may hold, as the loader refuses.
 func withCell(t *testing.T, cell string) *gamedata.Data {
 	t.Helper()
 	m, err := strconv.ParseFloat(cell, 64)
@@ -27,9 +27,9 @@ func withCell(t *testing.T, cell string) *gamedata.Data {
 		t.Fatal(err)
 	}
 	behind := strconv.Itoa(int(math.Ceil(32 / m)))
-	return worldtest.LoadDataWith(t, map[string]func(string) string{"world.yaml": func(s string) string {
+	return worldtest.LoadDataWith(t, worldtest.WithoutRegions(t, map[string]func(string) string{"world.yaml": func(s string) string {
 		return strings.NewReplacer("  cell: 32\n", "  cell: "+cell+"\n", "  behind: 1\n", "  behind: "+behind+"\n").Replace(s)
-	}})
+	}}))
 }
 
 // The mobs a scene draws from: every kind of attack, and a boss's slam and wide body.
@@ -40,8 +40,8 @@ func TestAnArenaInCellsRunsAsOneReadingEveryBody(t *testing.T) {
 	inCells := map[float64]*gamedata.Data{2: withCell(t, "2"), 4: withCell(t, "4"), 8: withCell(t, "8"), 32: worldtest.LoadData(t)}
 	oneCell := withCell(t, "100000")
 	for c, d := range inCells {
-		if d.InterestCell() != c || oneCell.InterestCell() != 100000 {
-			t.Fatalf("interest cells %v and %v; want %v and 100000", d.InterestCell(), oneCell.InterestCell(), c)
+		if d.Interest().Cell != c || oneCell.Interest().Cell != 100000 {
+			t.Fatalf("interest cells %v and %v; want %v and 100000", d.Interest().Cell, oneCell.Interest().Cell, c)
 		}
 	}
 	grounds := map[float64]sim.Geometry{}

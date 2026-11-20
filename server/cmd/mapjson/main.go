@@ -1,4 +1,4 @@
-// Command mapjson writes each map's geometry as Go builds it, with its art and without its boss, for the client (3d-world.md section 4).
+// Command mapjson writes each map's geometry as Go builds it, with its art and without its boss, for the client (3d-world.md section 4); a region's names its bake, which draws the rest.
 package main
 
 import (
@@ -11,8 +11,10 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"finga/internal/shared/gamedata"
 	"finga/internal/shared/gamedata/load"
 	"finga/internal/shared/mapfile"
+	"finga/internal/shared/regiongen"
 	"finga/internal/shared/sim"
 )
 
@@ -27,6 +29,13 @@ type Map struct {
 	Props          []Prop       `json:"props"`
 	Portals        []Portal     `json:"portals"`
 	PrepWall       *Wall        `json:"prep_wall,omitempty"` // a pvp map's, standing before each round
+	Region         *Region      `json:"region,omitempty"`    // a region's bake, which draws its ground, solids and props: it has no models
+}
+
+// Region names the bake the client reads a region's looks from, web/public/regions/<id>/<hash>.
+type Region struct {
+	ID   string `json:"id"`
+	Hash string `json:"hash"`
 }
 
 // Wall is a pvp map's prep wall: its boxes and cylinders on the map's terrain, and their models in order.
@@ -99,7 +108,12 @@ func run(dataDir, out string) error {
 		return err
 	}
 	for _, m := range d.Maps() {
-		cm, err := build(dataDir, m.ID, d.Movement())
+		var cm Map
+		if m.Kind == gamedata.Region {
+			cm, err = region(dataDir, m)
+		} else {
+			cm, err = build(dataDir, m.ID, d.Movement())
+		}
 		if err != nil {
 			return err
 		}
@@ -160,4 +174,24 @@ func build(dataDir, id string, p sim.Params) (Map, error) {
 		m.Portals = append(m.Portals, Portal{Name: pt.Name, At: pt.At, Radius: pt.Radius, To: pt.To.Map})
 	}
 	return m, nil
+}
+
+// region is a region as the client reads it: the ground and solids the server generated, its sky, its gates as portals, and its bake.
+func region(dataDir string, m *gamedata.Map) (Map, error) {
+	raw, err := os.ReadFile(filepath.Join(dataDir, "regions", m.ID+".yaml"))
+	if err != nil {
+		return Map{}, err
+	}
+	p, err := regiongen.Decode(raw)
+	if err != nil {
+		return Map{}, fmt.Errorf("%s: %w", m.ID, err)
+	}
+	out := Map{
+		ID: m.ID, Sky: p.Look.Sky, Geometry: m.Geometry, BoxModels: []Model{}, CylinderModels: []string{}, Props: []Prop{}, Portals: []Portal{},
+		Region: &Region{ID: m.ID, Hash: m.Bake},
+	}
+	for _, pt := range m.Portals {
+		out.Portals = append(out.Portals, Portal{Name: pt.Name, At: [2]float64{pt.At.X, pt.At.Z}, Radius: pt.Radius, To: pt.TargetMap})
+	}
+	return out, nil
 }

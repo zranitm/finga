@@ -14,9 +14,11 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"finga/internal/shared/gamedata"
 	"finga/internal/shared/gamedata/gamedatatest"
 	"finga/internal/shared/mapfile"
 	"finga/internal/shared/nav"
+	"finga/internal/shared/regiongen"
 	"finga/internal/shared/sim"
 )
 
@@ -98,21 +100,42 @@ func shipped(t *testing.T) shippedData {
 	return d
 }
 
+// spot is a place the reach check starts from, or one it reaches to within some distance.
+type spot struct {
+	what   string
+	at     [2]float64
+	within float64
+}
+
+// crossed is the reach check on g: a player gets from each start to every target, jumping rise at most.
+func crossed(t *testing.T, g *nav.Grid, radius, rise float64, starts, targets []spot) {
+	t.Helper()
+	if len(targets) == 0 {
+		t.Fatal("nothing to reach, so nothing checked")
+	}
+	for _, s := range starts {
+		got := g.Reach([]nav.Point{mapfile.Point(s.at)}, radius, rise)
+		for _, tg := range targets {
+			if !got.Near(mapfile.Point(tg.at), tg.within) {
+				t.Errorf("from %s, a player can't reach %s", s.what, tg.what)
+			}
+		}
+	}
+}
+
+// fastRise is how high a jump lifts the feet at the fastest a player moves, less jumpMargin: the move_speed limit caps gear, passives and buffs too, and the jump peaks lowest at the fastest speed, so a route on it holds at all.
+func fastRise(data *gamedata.Data, p sim.Params) float64 {
+	return nav.JumpRise(p.Faster(sim.SpeedFactor(data.StatRules().Curves.MoveSpeed.Limit))) - jumpMargin
+}
+
 // The reach check (docs/tech/3d-world.md section 4): on every shipped map, players get from each start to every target at every speed.
 func TestEveryShippedMapCanBeCrossed(t *testing.T) {
 	data := gamedatatest.Shipped(t)
 	d := shipped(t)
 	p := d.params
-	// The move_speed limit caps gear, passives and buffs too, and the jump peaks lowest at the fastest speed, so this one holds at all.
-	fastest := sim.SpeedFactor(data.StatRules().Curves.MoveSpeed.Limit)
-	rise := nav.JumpRise(p.Faster(fastest)) - jumpMargin
+	rise := fastRise(data, p)
 	for _, m := range d.maps {
 		t.Run(m.ID, func(t *testing.T) {
-			type spot struct {
-				what   string
-				at     [2]float64
-				within float64
-			}
 			starts := []spot{{what: "the player spawn", at: m.PlayerSpawn.At}}
 			var targets []spot
 			if m.Kind == "pvp" { // a match's fighters start on its sides and meet with the prep wall down
@@ -138,19 +161,71 @@ func TestEveryShippedMapCanBeCrossed(t *testing.T) {
 			for _, n := range m.NPCs {
 				targets = append(targets, spot{"npc " + n.ID, n.At, data.TalkReach()})
 			}
-			if len(targets) == 0 {
-				t.Fatal("nothing to reach, so nothing checked")
-			}
-			for _, s := range starts {
-				got := m.Grid().Reach([]nav.Point{mapfile.Point(s.at)}, p.Radius, rise)
-				for _, tg := range targets {
-					if !got.Near(mapfile.Point(tg.at), tg.within) {
-						t.Errorf("from %s, a player can't reach %s", s.what, tg.what)
-					}
-				}
-			}
+			crossed(t, m.Grid(), p.Radius, rise, starts, targets)
 		})
 	}
+}
+
+// The reach check on every shipped region (large-regions.md section 3): from its start and each gate, players get to every waypoint, gate, NPC, camp and area boss at every speed, on the walk grid the server builds.
+func TestEveryShippedRegionCanBeCrossed(t *testing.T) {
+	data := gamedatatest.Shipped(t)
+	p := shipped(t).params
+	rise := fastRise(data, p)
+	regions := shippedRegions(t)
+	if len(regions) == 0 {
+		t.Fatal("no regions in data/regions")
+	}
+	for id, plan := range regions {
+		t.Run(id, func(t *testing.T) {
+			m, ok := data.Map(id)
+			if !ok {
+				t.Fatalf("no region %s in the data", id)
+			}
+			starts := []spot{{what: "the start", at: plan.Start.At}}
+			var targets []spot
+			for _, g := range plan.Gates {
+				starts = append(starts, spot{what: "gate " + g.Name, at: g.At})
+				targets = append(targets, spot{"gate " + g.Name, g.At, g.Radius})
+			}
+			for _, w := range plan.Waypoints {
+				targets = append(targets, spot{"waypoint " + w.ID, w.At, p.Radius})
+			}
+			for _, n := range plan.NPCs {
+				targets = append(targets, spot{"npc " + n.ID, n.At, data.TalkReach()})
+			}
+			for _, c := range plan.Camps {
+				targets = append(targets, spot{"camp " + c.Name, c.At, c.Radius})
+			}
+			for _, a := range plan.Areas {
+				if b := a.Boss; b != nil {
+					targets = append(targets, spot{"area " + a.ID + "'s boss", b.At, b.Radius})
+				}
+			}
+			crossed(t, m.Grid(), p.Radius, rise, starts, targets)
+		})
+	}
+}
+
+// shippedRegions are data/regions' plans by id.
+func shippedRegions(t *testing.T) map[string]regiongen.Plan {
+	t.Helper()
+	files, err := filepath.Glob("../../../data/regions/*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]regiongen.Plan{}
+	for _, path := range files {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan, err := regiongen.Decode(raw)
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		out[strings.TrimSuffix(filepath.Base(path), ".yaml")] = plan
+	}
+	return out
 }
 
 // awkward's solids sit off the half-metre grid with axes that aren't 0 or ±1, so every product rounds and a fused one shows.

@@ -290,7 +290,7 @@ describe('generated gamedata', () => {
 
   it('maps carry their spawns, portals, boss spot and world chart place, a match’s map none', () => {
     const places = yaml('world.yaml').places as Record<string, [number, number]>;
-    for (const m of maps) {
+    for (const m of maps.filter((x) => x.kind !== 'region')) {
       const raw = yaml(`maps/${m.id}.yaml`) as {
         spawns?: { mob: string; at: [number, number]; radius: number }[];
         portals?: { name: string; at: [number, number]; radius: number; to: { map: string } }[];
@@ -315,6 +315,45 @@ describe('generated gamedata', () => {
           ? { mob: raw.boss.mob, x: raw.boss.at[0], z: raw.boss.at[1], radius: raw.boss.radius }
           : null,
         place: places[m.id] ?? null,
+      });
+    }
+  });
+
+  it('a region is a map of its plan: its own town, its camps as spawns and gates as portals, no boss, on no chart', () => {
+    const regions = maps.filter((m) => m.kind === 'region');
+    expect(regions.map((m) => m.id)).toContain('test_region');
+    for (const m of regions) {
+      const raw = yaml(`regions/${m.id}.yaml`) as {
+        name: string;
+        look: { sky: string };
+        camps?: { mob: string; at: [number, number]; radius: number }[];
+        gates?: { name: string; at: [number, number]; radius: number; to: { region: string } }[];
+      };
+      expect(m).toEqual({
+        id: m.id,
+        name: raw.name,
+        kind: 'region',
+        town: m.id,
+        start: false,
+        ground: null,
+        sky: raw.look.sky,
+        min_level: null,
+        max_level: null,
+        spawns: (raw.camps ?? []).map((c) => ({
+          mob: c.mob,
+          x: c.at[0],
+          z: c.at[1],
+          radius: c.radius,
+        })),
+        portals: (raw.gates ?? []).map((g) => ({
+          name: g.name,
+          x: g.at[0],
+          z: g.at[1],
+          radius: g.radius,
+          to: g.to.region,
+        })),
+        boss: null,
+        place: null,
       });
     }
   });
