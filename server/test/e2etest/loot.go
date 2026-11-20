@@ -408,7 +408,7 @@ func (l *Looter) Clear(d time.Duration) bool {
 	for time.Now().Before(deadline) {
 		p := l.nearestPouch("")
 		if p == nil && l.taking == "" {
-			return l.Until(time.Second, func() bool { return l.tick > by+2 }) // a take's InventoryChanged and Loot follow its frame
+			return l.Until(Stalled, func() bool { return l.tick > by+2 }) // a take's InventoryChanged and Loot follow its frame
 		}
 		if p == nil {
 			l.Pump(50*time.Millisecond, nil)

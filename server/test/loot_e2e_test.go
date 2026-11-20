@@ -70,7 +70,7 @@ func TestLootAndKeep(t *testing.T) {
 		}
 		// No key, no pickup: two seconds of ticks after it fell, nothing reached the inventory, and the watcher's frames past its fall never named it.
 		fell := killer.FellAt[pouch.GetId()]
-		if !killer.Until(5*time.Second, func() bool { return killer.Tick() >= fell+2*uint64(killer.TickHz) }) || !watcher.Until(5*time.Second, func() bool { return watcher.Tick() > fell }) {
+		if !killer.Until(e2etest.Stalled, func() bool { return killer.Tick() >= fell+2*uint64(killer.TickHz) }) || !watcher.Until(e2etest.Stalled, func() bool { return watcher.Tick() > fell }) {
 			t.Fatalf("frames to ticks %d and %d; want both past the pouch's fall at %d", killer.Tick(), watcher.Tick(), fell)
 		}
 		if killer.Inventory != 0 || len(watcher.Seen) != 0 {
@@ -89,7 +89,7 @@ func TestLootAndKeep(t *testing.T) {
 		if lt := killer.LootOf(pouch.GetId(), clientv1.LootKind_LOOT_KIND_TAKEN)[0]; lt.GetOwnerId() != id || lt.GetOwnerName() != "Liam" || len(lt.GetItems()) != len(pouch.GetItems()) {
 			t.Fatalf("loot %+v; want the pouch's items taken by Liam", lt)
 		}
-		if !watcher.Until(5*time.Second, func() bool { return watcher.Tick() > killer.Tick() }) || len(watcher.Loots) != 0 || len(watcher.Seen) != 0 {
+		if !watcher.Until(e2etest.Stalled, func() bool { return watcher.Tick() > killer.Tick() }) || len(watcher.Loots) != 0 || len(watcher.Seen) != 0 {
 			t.Fatalf("the watcher heard loot %v and saw pouches %v; want nothing of a stranger's", watcher.Loots, watcher.Seen)
 		}
 		var lootEvents, distinctKeys int
@@ -212,7 +212,7 @@ func TestLootAndKeep(t *testing.T) {
 			ravi.Pump(10*time.Millisecond, shared)
 		}
 		last := slices.Max(since())
-		if !ravi.Until(5*time.Second, func() bool { return ravi.Tick() > pia.FellAt[last] }) {
+		if !ravi.Until(e2etest.Stalled, func() bool { return ravi.Tick() > pia.FellAt[last] }) {
 			t.Fatalf("Ravi's frames reached tick %d, want past %d", ravi.Tick(), pia.FellAt[last])
 		}
 		owner, fell := map[uint32]string{}, map[uint32]uint64{}

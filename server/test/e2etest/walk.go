@@ -42,7 +42,7 @@ func (l *Looter) Step(w *Walk, to gamedata.Point) error {
 	return l.Input(&clientv1.Input{Left: in.Left, Right: in.Right, Up: in.Up, Down: in.Down, Jump: in.Jump})
 }
 
-// WalkTo walks to within 0.375 m of to and stands there, still on the ground, by Step; it gives up once d of the world's ticks pass, or when no frame comes for 2 s.
+// WalkTo walks to within 0.375 m of to and stands there, still on the ground, by Step; it gives up once d of the world's ticks pass, or when no frame comes for Stalled.
 func (l *Looter) WalkTo(to gamedata.Point, d time.Duration) bool {
 	var w Walk
 	var stop uint32 // the first stop's seq, once near
@@ -71,10 +71,13 @@ func (l *Looter) WalkTo(to gamedata.Point, d time.Duration) bool {
 	return false
 }
 
-// nextFrame reads until a frame newer than the last one has come, for up to 2 s, then what has come behind it: a walk decides on the newest frame, however far behind its reader runs.
+// Stalled is how long a wait for the world's ticks goes without a frame before the stack has stopped: frames come every tick, and a pause of the test's own process, as a starved runner makes, stops the world and the reader together, so it's waited out.
+const Stalled = time.Minute
+
+// nextFrame reads until a frame newer than the last one has come, for up to Stalled, then what has come behind it: a walk decides on the newest frame, however far behind its reader runs.
 func (l *Looter) nextFrame() bool {
 	was := l.tick
-	if !l.Pump(2*time.Second, func(wsconn.Message) bool { return l.tick != was }) {
+	if !l.Pump(Stalled, func(wsconn.Message) bool { return l.tick != was }) {
 		return false
 	}
 	for m, ok := l.Read(0); ok; m, ok = l.Read(0) {
