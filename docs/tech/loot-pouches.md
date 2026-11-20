@@ -1,6 +1,6 @@
 # Loot pouches and timed bosses
 
-> **Status: approved · 2026-11-19. Steps 1 and 2, timed bosses and pouches, as built. Step 3, slower camps and fewer pouches, approved 2026-11-20.** The high-level design for the changes to [D1. Drops and loot](../product/features/items-and-inventory/d1-drops-and-loot.md) and [C10. Field bosses](../product/features/combat-and-progression/c10-field-bosses.md), with E3's party loot and E5's lines. It replaces auto pickup ([Auto pickup and the combat channel](./auto-pickup-and-combat-channel.md) sections 3 to 5) and the boss's kill count ([Field bosses](./field-bosses.md)).
+> **Status: approved · 2026-11-19. Steps 1 and 2, timed bosses and pouches, as built. Step 3, slower camps and fewer pouches, approved 2026-11-20 and as built.** The high-level design for the changes to [D1. Drops and loot](../product/features/items-and-inventory/d1-drops-and-loot.md) and [C10. Field bosses](../product/features/combat-and-progression/c10-field-bosses.md), with E3's party loot and E5's lines. It replaces auto pickup ([Auto pickup and the combat channel](./auto-pickup-and-combat-channel.md) sections 3 to 5) and the boss's kill count ([Field bosses](./field-bosses.md)).
 
 ## 1. What has to hold
 

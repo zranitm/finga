@@ -45,13 +45,13 @@ portals:
   - {name: from_grove, at: [2, 18], radius: 1.2, to: {map: shroom_grove, portal: to_hollow}}
   - {name: to_heights, at: [73, 18], radius: 1.2, to: {map: toadstool_heights, portal: from_hollow}}
 spawns:
-  - {name: west_moths, at: [21, 15.5], radius: 5, mob: dust_moth, max: 2, respawn: 9s}
-  - {name: middle_moths, at: [34, 18], radius: 5, mob: dust_moth, max: 3, respawn: 9s}
-  - {name: east_moths, at: [56.5, 17], radius: 5, mob: dust_moth, max: 2, respawn: 9s}
-  - {name: slope_moths, at: [22, 28.5], radius: 3, mob: dust_moth, max: 2, respawn: 10s}
-  - {name: glade_moths, at: [42, 12], radius: 5, mob: dust_moth, max: 2, respawn: 10s}
-  - {name: north_rat, at: [59.5, 26], radius: 4, mob: toadstool_rat, max: 1, respawn: 12s}
-  - {name: south_rat, at: [37.5, 9], radius: 2.5, mob: toadstool_rat, max: 1, respawn: 12s}
-  - {name: glade_rat, at: [52, 16], radius: 3, mob: toadstool_rat, max: 1, respawn: 12s}
+  - {name: west_moths, at: [21, 15.5], radius: 5, mob: dust_moth, max: 2, respawn: 27s}
+  - {name: middle_moths, at: [34, 18], radius: 5, mob: dust_moth, max: 3, respawn: 27s}
+  - {name: east_moths, at: [56.5, 17], radius: 5, mob: dust_moth, max: 2, respawn: 27s}
+  - {name: slope_moths, at: [22, 28.5], radius: 3, mob: dust_moth, max: 2, respawn: 30s}
+  - {name: glade_moths, at: [42, 12], radius: 5, mob: dust_moth, max: 2, respawn: 30s}
+  - {name: north_rat, at: [59.5, 26], radius: 4, mob: toadstool_rat, max: 1, respawn: 36s}
+  - {name: south_rat, at: [37.5, 9], radius: 2.5, mob: toadstool_rat, max: 1, respawn: 36s}
+  - {name: glade_rat, at: [52, 16], radius: 3, mob: toadstool_rat, max: 1, respawn: 36s}
 player_spawn: {at: [4.5, 18], yaw: 90}
 boss: {at: [43, 18], radius: 7, mob: moth_empress}

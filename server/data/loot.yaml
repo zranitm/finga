@@ -1,5 +1,5 @@
 # Loot on the ground: how often a kill leaves a pouch, how near a character opens one, and how long pouches and a boss's boxes last.
-pouch: {normal: 0.25, elite: 0.5}  # the chance a kill leaves a pouch; a boss always leaves each eligible player a box
+pouch: {normal: 0.1667, elite: 0.3333}  # the chance a kill leaves a pouch, 1 in 6 and 1 in 3; a boss always leaves each eligible player a box
 reach: 2                           # metres from the character's middle to a pouch or box to open it
 pouch_life: 60s                    # a pouch still holding items then is gone
 box_life: 2m                       # a boss's box still holding items then is gone

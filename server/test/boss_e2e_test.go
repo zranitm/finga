@@ -17,7 +17,7 @@ func quickBoss() []e2etest.DataEdit {
 	return []e2etest.DataEdit{
 		{File: "mobs.yaml", Old: "    name: Orange Mushroom\n    level: 4\n    hp: 72\n", New: "    name: Orange Mushroom\n    level: 4\n    hp: 1\n"},
 		{File: "mobs.yaml", Old: "    attacks: [{use: charge, status: {id: poison, time: 1s, power: 0.15}}]\n    look: {model: mushnub, tint: 0xe08a3c}\n", New: "    attacks: [{use: bite, reach: 0.03}]\n    look: {model: mushnub, tint: 0xe08a3c}\n"},
-		{File: "maps/forest.yaml", Old: "mob: orange_mushroom, max: 4, respawn: 12s}", New: "mob: orange_mushroom, max: 4, respawn: 1s}"},
+		{File: "maps/forest.yaml", Old: "mob: orange_mushroom, max: 4, respawn: 36s}", New: "mob: orange_mushroom, max: 4, respawn: 1s}"},
 		{File: "mobs.yaml", Old: "  respawn: 5m #", New: "  respawn: 3s #"},
 		{File: "mobs.yaml", Old: "    name: King Slime\n    boss: true\n    level: 6\n    hp: 4530\n    attack: 24\n", New: "    name: King Slime\n    boss: true\n    level: 6\n    hp: 40\n    attack: 1\n"},
 		{File: "mobs.yaml", Old: "    exp: 840\n    speed: 0.75\n", New: "    exp: 1001\n    speed: 0\n"},

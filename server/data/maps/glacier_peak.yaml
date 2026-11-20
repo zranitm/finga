@@ -65,14 +65,14 @@ portals:
   - {name: from_icefall, at: [2, 18], radius: 1.2, to: {map: icefall, portal: to_peak}}
   - {name: to_keep, at: [78, 18], radius: 1.2, to: {map: fallen_keep, portal: from_peak}}
 spawns:
-  - {name: west_slimes, at: [17, 10], radius: 4, mob: crystal_slime, max: 2, respawn: 9s}
-  - {name: drift_slimes, at: [18, 25.5], radius: 4, mob: crystal_slime, max: 2, respawn: 9s}
-  - {name: terrace_slimes_s, at: [31, 9.5], radius: 4.5, mob: crystal_slime, max: 2, respawn: 9s}
-  - {name: terrace_slimes_n, at: [32, 26], radius: 4, mob: crystal_slime, max: 2, respawn: 10s}
-  - {name: summit_slimes_s, at: [52, 8.5], radius: 3.5, mob: crystal_slime, max: 2, respawn: 10s}
-  - {name: summit_slimes_n, at: [52, 26.5], radius: 3.5, mob: crystal_slime, max: 2, respawn: 10s}
-  - {name: terrace_rat, at: [39, 18], radius: 3, mob: rime_rat, max: 1, respawn: 12s}
-  - {name: spire_rat_s, at: [64, 9.5], radius: 3, mob: rime_rat, max: 1, respawn: 12s}
-  - {name: spire_rat_n, at: [64, 26.5], radius: 3, mob: rime_rat, max: 1, respawn: 12s}
+  - {name: west_slimes, at: [17, 10], radius: 4, mob: crystal_slime, max: 2, respawn: 27s}
+  - {name: drift_slimes, at: [18, 25.5], radius: 4, mob: crystal_slime, max: 2, respawn: 27s}
+  - {name: terrace_slimes_s, at: [31, 9.5], radius: 4.5, mob: crystal_slime, max: 2, respawn: 27s}
+  - {name: terrace_slimes_n, at: [32, 26], radius: 4, mob: crystal_slime, max: 2, respawn: 30s}
+  - {name: summit_slimes_s, at: [52, 8.5], radius: 3.5, mob: crystal_slime, max: 2, respawn: 30s}
+  - {name: summit_slimes_n, at: [52, 26.5], radius: 3.5, mob: crystal_slime, max: 2, respawn: 30s}
+  - {name: terrace_rat, at: [39, 18], radius: 3, mob: rime_rat, max: 1, respawn: 36s}
+  - {name: spire_rat_s, at: [64, 9.5], radius: 3, mob: rime_rat, max: 1, respawn: 36s}
+  - {name: spire_rat_n, at: [64, 26.5], radius: 3, mob: rime_rat, max: 1, respawn: 36s}
 player_spawn: {at: [3.5, 18], yaw: 90}
 boss: {at: [60, 18], radius: 5, mob: crystal_colossus}
