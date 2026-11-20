@@ -129,6 +129,16 @@ func segment(x, z float64, a, b [2]float64) (float64, float64) {
 	return float64(ex*ex) + float64(ez*ez), t
 }
 
+// onPath is whether at lies within reach of path.
+func onPath(path [][2]float64, at [2]float64, reach float64) bool {
+	for i := 0; i+1 < len(path); i++ {
+		if d2, _ := segment(at[0], at[1], path[i], path[i+1]); d2 <= float64(reach*reach) {
+			return true
+		}
+	}
+	return false
+}
+
 // smooth is path cut at a quarter and three quarters of each segment, smoothing times (Chaikin's method), its ends kept.
 func smooth(path [][2]float64) [][2]float64 {
 	for range smoothing {

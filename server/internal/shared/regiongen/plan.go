@@ -389,6 +389,11 @@ func (p Plan) checkFeature(f Feature) error {
 		if !p.path(r.Path, 2) || !reach(r.Width, maxReach) || !reach(r.Depth, maxHeight) || !p.path(r.Fords, 0) {
 			return fmt.Errorf("a river needs a path and fords in the region, a width up to %d m and a depth up to %d m", maxReach, maxHeight)
 		}
+		for _, at := range r.Fords {
+			if !onPath(smooth(r.Path), at, r.Width/2) {
+				return fmt.Errorf("a river's ford at %v is off it: more than half its width from its smoothed path", at)
+			}
+		}
 	case f.Lake != nil:
 		if !p.path(f.Lake.Area, 3) || !reach(f.Lake.Depth, maxHeight) {
 			return fmt.Errorf("a lake needs an area in the region and a depth up to %d m", maxHeight)

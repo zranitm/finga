@@ -176,6 +176,7 @@ biomes:
     - **Banks:** `min(width/4, 2 m)` wide, too steep to climb at full depth.
     - **Fords:** within half the width plus a bank of a ford, the bed is 0.3 m below the water and its banks are walkable.
       - **As built (the ford ramp, after 4b-2b):** the banks alone weren't. The water sits under the lowest ground seen yet, so where the ground rises downstream a ford's banks stood a metre or two over its bed. The tiny test plan's rose 1.45 m in a 2 m cell, and one of the wide plan's two fords was as steep: only a jump got out, and no mob followed. So the ground round each ford is held under a cone, flat at the ford's floor and rising 0.5 m a metre (under `max_slope`'s 0.7) until it meets the ground. It lowers ground at most 22 m from a ford, the river's banks elsewhere stay steep, and in every plan it changes no deep-water mark.
+      - **On the river:** a plan whose ford lies more than half the river's width from its smoothed path, the path the generator carves, is refused, as the ramp takes its floor from the river's samples near the ford.
       - **The gate** (nav's `TestEveryFordIsCrossedBothWays`): every ford of every shipped region and test plan is walked across both ways as a mob walks, with no jump, on a path held near the ford, so a causeway elsewhere doesn't count.
   - **Lake:** its water is 0.5 m below the lowest ground along its edge, its bed `depth` below that, between banks `min(depth, 2 m)` wide.
   - **Road:** its path is smoothed.
