@@ -39,11 +39,12 @@
     - kelp swaying, coral and shells;
     - bubbles rising, and fish swimming by.
 - **Sea mobs:**
-  - A few new mobs, each using an attack mobs already have, and a boss. For example:
-    - a crab that bites;
-    - a jelly that floats and stings with poison;
-    - an eel that charges.
-  - Their names and models are picked from previews.
+  - Four new fish, each using an attack mobs already have, and a boss, all picked from previews:
+    - a piranha that bites, and a goblin shark, the bigger one, whose bite reaches further;
+    - a lionfish that stings from afar with poison;
+    - a swordfish that charges;
+    - the anglerfish, the boss, which slams and spits.
+  - They swim above the floor as bats fly.
 - **The rules don't change below.** Combat, statuses, the lock, pouches and the death penalty all work as on the land.
 - **Map views** (B8):
   - While a player is inside, the minimap and the map window show the cave or the shrine.
