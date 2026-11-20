@@ -97,6 +97,8 @@ biomes:
   - Every area, waypoint, NPC and gate can be reached from the start: the reachability test of today (`TestEveryShippedMapCanBeCrossed`) is run over the region's nav.
 - **As built (step 4b-1),** `load/regions.go` generates each plan in `data/regions` at load and reads it as a map of kind `region`: its gates are portals, its camps spawns and its start the player spawn, so the maps' spot and link rules apply to it. On top of them:
   - **Areas** are judged on 4 m squares (`regiongen.AreaCell`), each held by the area holding its south-west corner, by the generator's rule for a sample in a polygon. Two areas over one square are refused, and so is a square inside the edge in none. `AreaGrid.Holding` is the lookup step 4b-4's areas read.
+    - **The squares are what plays.** An area's east-west and north-south edges must lie on the 4 m lines, so it plays where its plan draws it. An edge off them would play up to a square past it, to the north or east: the test town's (90–150, 60–110) played as (92–152, 60–112) until it moved onto the lines.
+    - **A corner on a line** goes to the area east of it, and on an east-west line to the area north of it. So two areas sharing an edge, slanted or not, hold each square once, with no gap. A slanted edge plays up to a square from where it's drawn.
   - **The edge** is whole 4 m squares wide, so the ring's face lies on their lines and no square is half inside. A region's size is whole 128 m tiles, so whole squares too.
   - **Areas' own:** ids unique and a name each. A hunting area has levels, 1 ≤ lowest ≤ highest, and a boss mob, at or above its top level, its circle as wide as its body, on ground it fits, and wholly in the area: every square the circle overlaps is the area's (`AreaGrid.Under`), so a boss never wanders into a town, another band or the ring. A town has no levels, no boss and no camps. Each area has its own boss; a region's bosses aren't checked against the maps', since the test region shares theirs.
   - **Camps** name a hunting area, their circles wholly in it as a boss's is, so no mob spawns past its band. Their mobs are known, no boss, in its band, an elite only beside a normal mob, as on a map.
@@ -678,8 +680,9 @@ Built with step 1, which says who watches a cell.
   - reachability over the nav.
   - As built (step 4b-1):
     - a 128 m region of the fixture's mobs, read as a map: its spots, an NPC placed on it, its geometry the generator's, its walk grid, and its bake named as the bake's folder;
-    - each rule refused by a one-line change to the plan, a map or world.yaml, 46 cases in all;
-    - the area grid: each square held by the area holding its corner, a shared side going to the area north or east of it, and two areas over one square refused;
+    - each rule refused by a one-line change to the plan, a map or world.yaml, a case each, an area's straight edge off the 4 m lines among them;
+    - the area grid: each square held by the area holding its corner, a shared side going to the area north or east of it, a corner on a slanted line to the area east of it, and two areas over one square refused;
+    - every shipped region playing on its plan's lines: each square held by the area its centre lies in, but where a slanted edge crosses it;
     - the test region reached by nothing, its JSON with no models and its bake's name, and on no chart or link;
     - the ring a cliff over the highest ground inside, which a river and a ridge reaching into it neither cut nor raise.
 - **Server:**
