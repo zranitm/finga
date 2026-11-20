@@ -197,19 +197,8 @@ func TestLootAndKeep(t *testing.T) {
 			}
 			return out
 		}
-		next := time.Now()
-		for deadline := time.Now().Add(30 * time.Second); len(since()) < 2; {
-			if time.Now().After(deadline) {
-				t.Fatalf("Ravi's first share at tick %d, Pia's pouches by tick %v, in 30 s of hunting; want two of hers since", party, pia.FellAt)
-			}
-			if !time.Now().Before(next) {
-				if err := pia.Swing(); err != nil {
-					t.Fatal(err)
-				}
-				next = time.Now().Add(850 * time.Millisecond)
-			}
-			pia.Pump(50*time.Millisecond, nil)
-			ravi.Pump(10*time.Millisecond, shared)
+		if !pia.HuntUntil(30*time.Second, func() bool { return len(since()) >= 2 }, func() { ravi.Pump(10*time.Millisecond, shared) }) {
+			t.Fatalf("Ravi's first share at tick %d, Pia's pouches by tick %v, in 30 s of hunting; want two of hers since", party, pia.FellAt)
 		}
 		last := slices.Max(since())
 		if !ravi.Until(e2etest.Stalled, func() bool { return ravi.Tick() > pia.FellAt[last] }) {

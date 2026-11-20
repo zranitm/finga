@@ -76,14 +76,66 @@ const Stalled = time.Minute
 
 // nextFrame reads until a frame newer than the last one has come, for up to Stalled, then what has come behind it: a walk decides on the newest frame, however far behind its reader runs.
 func (l *Looter) nextFrame() bool {
+	_, ok := l.frame(nil)
+	return ok
+}
+
+// frame is nextFrame, and whether pred, when set, held for a message read; it stops at that message, leaving the rest for the caller.
+func (l *Looter) frame(pred func(wsconn.Message) bool) (met, ok bool) {
 	was := l.tick
-	if !l.Pump(Stalled, func(wsconn.Message) bool { return l.tick != was }) {
-		return false
+	if !l.Pump(Stalled, func(m wsconn.Message) bool {
+		met = pred != nil && pred(m)
+		return met || l.tick != was
+	}) {
+		return false, false
 	}
-	for m, ok := l.Read(0); ok; m, ok = l.Read(0) {
+	if met {
+		return true, true
+	}
+	for m, more := l.Read(0); more; m, more = l.Read(0) {
 		l.Observe(m)
+		if pred != nil && pred(m) {
+			return true, true
+		}
 	}
-	return true
+	return false, true
+}
+
+// during acts once a frame, reading each frame's messages in between, until done holds or pred holds for a message; it gives up once d of the world's ticks pass, counted frame by frame so a new map's own count carries on, or when no frame comes for Stalled. Any of pred, done and act may be nil.
+func (l *Looter) during(d time.Duration, pred func(wsconn.Message) bool, done func() bool, act func() error) bool {
+	left := l.ticksIn(d)
+	for {
+		if done != nil && done() {
+			return true
+		}
+		if left == 0 {
+			return false
+		}
+		if act != nil && act() != nil {
+			return false
+		}
+		was := l.tick
+		met, ok := l.frame(pred)
+		if !ok {
+			return false
+		}
+		if met {
+			return true
+		}
+		gone := uint64(1) // a frame after an unknown tick, or on a new map's clock
+		if was != 0 && l.tick > was {
+			gone = l.tick - was
+		}
+		left -= min(left, gone)
+	}
+}
+
+// timeLeft is what remains of d of the world's ticks counted from tick start, for a wait that walks or takes on the way.
+func (l *Looter) timeLeft(start uint64, d time.Duration) time.Duration {
+	if l.TickHz == 0 || l.tick < start {
+		return d
+	}
+	return d - time.Duration(l.tick-start)*time.Second/time.Duration(l.TickHz)
 }
 
 // ticksIn is d in the world's ticks.

@@ -94,18 +94,8 @@ func TestQuests(t *testing.T) {
 			return q.GetChange() == clientv1.QuestChange_QUEST_CHANGE_PROGRESSED && slices.Equal(q.GetQuest().GetProgress(), []int32{2, 0})
 		}
 		// Ria is read alongside, so her messages never back up.
-		for deadline, next := time.Now().Add(30*time.Second), time.Now(); !quinn.HasQuest("slime_cleanup", done); {
-			if time.Now().After(deadline) {
-				t.Fatalf("Quinn killed no two slimes in 30 s (quest changes %v)", quinn.Quests)
-			}
-			if !time.Now().Before(next) {
-				if err := quinn.Swing(); err != nil {
-					t.Fatal(err)
-				}
-				next = time.Now().Add(850 * time.Millisecond)
-			}
-			quinn.Pump(50*time.Millisecond, nil)
-			ria.Pump(50*time.Millisecond, nil)
+		if !quinn.HuntUntil(30*time.Second, func() bool { return quinn.HasQuest("slime_cleanup", done) }, func() { ria.Pump(10*time.Millisecond, nil) }) {
+			t.Fatalf("Quinn killed no two slimes in 30 s (quest changes %v)", quinn.Quests)
 		}
 		quinn.QuestChanged(t, "slime_cleanup", time.Second, done)
 		ria.QuestChanged(t, "slime_cleanup", 5*time.Second, done)
@@ -117,13 +107,12 @@ func TestQuests(t *testing.T) {
 			t.Fatalf("leave the party: %+v", r)
 		}
 		quinn.PartyState(t, 1)
-		deadline := time.Now().Add(30 * time.Second)
-		for {
+		for round := 0; ; round++ { // each a second of the world's ticks
 			_, gels, _ := s.ItemTotals(t, quinn.ID, "slime_gel")
 			if gels >= 2 {
 				break
 			}
-			if time.Now().After(deadline) {
+			if round == 30 {
 				t.Fatalf("Quinn holds %d gels after 30 s of hunting", gels)
 			}
 			quinn.Farm(time.Second)

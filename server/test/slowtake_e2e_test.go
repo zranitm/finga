@@ -63,7 +63,7 @@ func TestASlowTakeNeverHoldsThePlayerStill(t *testing.T) {
 	_ = l.Input(e2etest.Toward(1, 0))
 	from, acked, lastX, lastZ := l.Seq, l.Acked(), l.X, l.Z
 	walked := 0 // frames, while the take waits, on which the world applied a newer input sent after it and moved the player
-	l.Pump(10*time.Second, func(m wsconn.Message) bool {
+	l.Await(10*time.Second, func(m wsconn.Message) bool {
 		if answer("slow") != nil {
 			return true
 		}
