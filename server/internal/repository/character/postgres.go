@@ -61,6 +61,23 @@ func (p *Postgres) Load(ctx context.Context, id kernel.CharacterID, account kern
 	return toCharacter(row), nil
 }
 
+// Find is the characters with ids, of any account; one that doesn't exist isn't there.
+func (p *Postgres) Find(ctx context.Context, ids []kernel.CharacterID) ([]model.Character, error) {
+	keys := make([]uuid.UUID, 0, len(ids))
+	for _, id := range ids {
+		keys = append(keys, uuid.UUID(id))
+	}
+	rows, err := p.q.ListCharactersByID(ctx, keys)
+	if err != nil {
+		return nil, failures.Classify(err)
+	}
+	out := make([]model.Character, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, toCharacter(r))
+	}
+	return out, nil
+}
+
 // Quests is the character's quests, by ID.
 func (p *Postgres) Quests(ctx context.Context, id kernel.CharacterID) ([]model.Quest, error) {
 	rows, err := p.q.ListQuests(ctx, uuid.UUID(id))

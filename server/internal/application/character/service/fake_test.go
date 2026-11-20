@@ -85,6 +85,18 @@ func (s *fakeStore) List(_ context.Context, account kernel.AccountID) ([]model.C
 	return out, nil
 }
 
+func (s *fakeStore) Find(_ context.Context, ids []kernel.CharacterID) ([]model.Character, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []model.Character
+	for _, id := range ids {
+		if c, ok := s.chars[id]; ok {
+			out = append(out, c)
+		}
+	}
+	return out, nil
+}
+
 func (s *fakeStore) Load(_ context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

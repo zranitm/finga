@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"finga/internal/application/world/instance"
 	model "finga/internal/model/world"
@@ -31,7 +32,17 @@ func (w *World) OpenMatch(ctx context.Context, spec model.MatchSpec) error {
 		Services: w.deps.Services, Map: m, Data: w.data, Saves: w.saves, Mover: w, Logger: w.deps.Logger,
 		Match: &instance.Match{Spec: spec, Mode: mode, Results: w.deps.Results},
 	}, w.tuning)
-	if err := w.opened.run(id, inst, nil); err != nil {
+	var players []kernel.CharacterID
+	for _, side := range spec.Sides {
+		for _, f := range side {
+			if f.Bot == nil {
+				players = append(players, f.Character)
+			}
+		}
+	}
+	w.fighting.enter(id, players) // before it returns, so a build saved from then on finds the match
+	if err := w.opened.run(id, inst, func() { w.fighting.leave(id, players) }); err != nil {
+		w.fighting.leave(id, players)
 		return err
 	}
 	for s, side := range spec.Sides {
@@ -46,6 +57,56 @@ func (w *World) OpenMatch(ctx context.Context, spec model.MatchSpec) error {
 		}
 	}
 	return nil
+}
+
+// SetBuild hands the character's match their arena build; nothing when they're in none.
+func (w *World) SetBuild(ctx context.Context, id kernel.CharacterID, b model.Build) error {
+	matchID, ok := w.fighting.of(id)
+	if !ok {
+		return nil
+	}
+	inst, ok := w.opened.get(matchID)
+	if !ok {
+		return nil
+	}
+	return whileBusy(ctx, func() error { return inst.SetBuild(ctx, id, b) })
+}
+
+// fighting is the open match each player is in, from its opening until it has stopped.
+type fighting struct {
+	mu sync.Mutex
+	in map[kernel.CharacterID]string
+}
+
+// enter has players in match id.
+func (f *fighting) enter(id string, players []kernel.CharacterID) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.in == nil {
+		f.in = map[kernel.CharacterID]string{}
+	}
+	for _, p := range players {
+		f.in[p] = id
+	}
+}
+
+// leave has players out of match id, those a later match hasn't taken.
+func (f *fighting) leave(id string, players []kernel.CharacterID) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, p := range players {
+		if f.in[p] == id {
+			delete(f.in, p)
+		}
+	}
+}
+
+// of is the match the player is in.
+func (f *fighting) of(p kernel.CharacterID) (string, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	id, ok := f.in[p]
+	return id, ok
 }
 
 // toMatch has the character's map hand them to the match, at spot k of side s.

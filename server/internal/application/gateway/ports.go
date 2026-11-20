@@ -31,6 +31,13 @@ type Wardrobes interface {
 	Pieces(ctx context.Context, account kernel.AccountID) ([]model.Piece, error)
 }
 
+// Arena is the pvp module's profiles, arena builds and boards, for the REST API.
+type Arena interface {
+	Profile(ctx context.Context, account kernel.AccountID, id kernel.CharacterID) (model.PvpProfile, error)
+	SetBuild(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, b model.ArenaBuild) error
+	Leaderboard(ctx context.Context, mode string) ([]model.PvpRow, error)
+}
+
 // Characters is the character module, for the REST API.
 type Characters interface {
 	List(ctx context.Context, account kernel.AccountID) ([]model.Character, error)

@@ -14,19 +14,21 @@ type Lobby struct {
 	characters Characters
 	sessions   Sessions
 	wardrobes  Wardrobes
+	arena      Arena
 }
 
-// LobbyDeps are what the lobby is built over: the account and character modules and the session guard.
+// LobbyDeps are what the lobby is built over: the account, character, item and pvp modules and the session guard.
 type LobbyDeps struct {
 	Accounts   Accounts
 	Characters Characters
 	Sessions   Sessions
 	Wardrobes  Wardrobes
+	Arena      Arena
 }
 
 // NewLobby builds the use cases over deps.
 func NewLobby(deps LobbyDeps) *Lobby {
-	return &Lobby{accounts: deps.Accounts, characters: deps.Characters, sessions: deps.Sessions, wardrobes: deps.Wardrobes}
+	return &Lobby{accounts: deps.Accounts, characters: deps.Characters, sessions: deps.Sessions, wardrobes: deps.Wardrobes, arena: deps.Arena}
 }
 
 // Authenticate resolves a bearer token to its login session.
@@ -67,6 +69,21 @@ func (l *Lobby) CreateCharacter(ctx context.Context, p model.Principal, name str
 // SetSkillBar stores which skill sits on each key of one of the caller's characters.
 func (l *Lobby) SetSkillBar(ctx context.Context, p model.Principal, id kernel.CharacterID, bar []string) error {
 	return l.characters.SetSkillBar(ctx, p.AccountID, id, bar)
+}
+
+// PvpProfile is one of the caller's characters' standing in each rated mode, and their arena build.
+func (l *Lobby) PvpProfile(ctx context.Context, p model.Principal, id kernel.CharacterID) (model.PvpProfile, error) {
+	return l.arena.Profile(ctx, p.AccountID, id)
+}
+
+// SetArenaBuild saves the arena build of one of the caller's characters.
+func (l *Lobby) SetArenaBuild(ctx context.Context, p model.Principal, id kernel.CharacterID, b model.ArenaBuild) error {
+	return l.arena.SetBuild(ctx, p.AccountID, id, b)
+}
+
+// Leaderboard is a rated mode's board, the same for every caller.
+func (l *Lobby) Leaderboard(ctx context.Context, mode string) ([]model.PvpRow, error) {
+	return l.arena.Leaderboard(ctx, mode)
 }
 
 // Settings are the caller's account settings.

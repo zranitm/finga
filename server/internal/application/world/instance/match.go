@@ -55,9 +55,13 @@ type fighter struct {
 	// standsFor is the team fighter whose place a stand-in bot took when they left.
 	standsFor kernel.CharacterID
 	arrived   bool
-	left      bool // logged out, dropped or forfeited before the outcome
-	gone      bool // off the match's map
-	downs     int
+	// next is the newest build a player was sent, put on them at the next countdown; sent and revision say which they have.
+	next     *model.Build
+	sent     bool
+	revision int
+	left     bool // logged out, dropped or forfeited before the outcome
+	gone     bool // off the match's map
+	downs    int
 }
 
 // The messages a match's players send besides the world's.
@@ -80,11 +84,18 @@ type (
 		id   kernel.CharacterID
 		done chan error
 	}
+	// buildMsg hands the match a player's arena build for its next round.
+	buildMsg struct {
+		id    kernel.CharacterID
+		build model.Build
+		done  chan error
+	}
 )
 
 func (forfeitMsg) message() {}
 func (toMatchMsg) message() {}
 func (fightMsg) message()   {}
+func (buildMsg) message()   {}
 
 func newMatch(m Match, rules gamedata.PvpRules, tick func(time.Duration) uint64) *match {
 	mt := &match{Match: m, rules: rules, phase: model.PhasePrep, round: 1, ends: tick(rules.Rounds.Prep), started: time.Now(), fighters: map[kernel.CharacterID]*fighter{}}
@@ -125,6 +136,41 @@ func (i *Instance) ToMatch(ctx context.Context, id kernel.CharacterID, matchID, 
 func (i *Instance) CanFight(ctx context.Context, id kernel.CharacterID) error {
 	m := fightMsg{id: id, done: make(chan error, 1)}
 	return i.ask(ctx, m, m.done)
+}
+
+// SetBuild hands the match a player's arena build, which they fight with from its next round's countdown; one older than a revision it has changes nothing, nor one of a player it doesn't have.
+func (i *Instance) SetBuild(ctx context.Context, id kernel.CharacterID, b model.Build) error {
+	m := buildMsg{id: id, build: b, done: make(chan error, 1)}
+	return i.ask(ctx, m, m.done)
+}
+
+// setBuild answers a buildMsg.
+func (i *Instance) setBuild(m buildMsg) {
+	if f := i.match.fighters[m.id]; f != nil && (!f.sent || m.build.Revision > f.revision) {
+		f.next, f.sent, f.revision = &m.build, true, m.build.Revision
+	}
+	m.done <- nil
+}
+
+// wearBuilds puts on each player the build they were sent since the last countdown: its bar and its traits, from this round.
+func (i *Instance) wearBuilds() {
+	for id, f := range i.match.fighters {
+		if f.next == nil {
+			continue
+		}
+		if p, ok := i.players[id]; ok {
+			p.arenaBar, p.Skills.Traits = f.next.Bar, maps.Clone(f.next.Traits)
+		}
+		f.next = nil
+	}
+}
+
+// onArenaBar refuses a skill pressed on a key p's arena bar doesn't hold: the key of a chain's root, or the skill's own. Only a match's player wearing a build has one.
+func onArenaBar(p *player, in model.SkillUse) error {
+	if p.arenaBar != nil && !slices.Contains(p.arenaBar, cmp.Or(in.Root, in.Skill)) {
+		return model.ErrNotOnArenaBar
+	}
+	return nil
 }
 
 // IsMatch reports whether the instance runs a match.
@@ -286,8 +332,11 @@ func (i *Instance) matchState() model.MatchState {
 	return st
 }
 
-// enterPhase moves the match to phase for d and tells everyone on it.
+// enterPhase moves the match to phase for d and tells everyone on it; a countdown puts on the builds sent since the last.
 func (i *Instance) enterPhase(phase model.MatchPhase, d time.Duration) {
+	if phase == model.PhaseCountdown {
+		i.wearBuilds()
+	}
 	i.match.phase, i.match.ends = phase, i.tick+i.ticksFor(d)
 	i.events = append(i.events, i.matchState())
 }

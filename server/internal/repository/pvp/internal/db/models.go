@@ -11,6 +11,15 @@ import (
 	"github.com/google/uuid"
 )
 
+type PvpBuild struct {
+	CharacterID uuid.UUID
+	SkillBar    []string
+	Traits      []byte
+	Revision    int32
+	CreatedAt   dbx.Stamp
+	UpdatedAt   dbx.Stamp
+}
+
 type PvpMatch struct {
 	ID        uuid.UUID
 	Mode      string
@@ -49,4 +58,5 @@ type PvpRating struct {
 	Draws       int32
 	CreatedAt   dbx.Stamp
 	UpdatedAt   dbx.Stamp
+	Placed      bool
 }

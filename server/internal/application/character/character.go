@@ -27,6 +27,7 @@ type service interface {
 	Create(ctx context.Context, account kernel.AccountID, in application.CreateInput) (model.Character, error)
 	List(ctx context.Context, account kernel.AccountID) ([]model.Character, error)
 	Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error)
+	Find(ctx context.Context, ids []kernel.CharacterID) ([]model.Character, error)
 	Quests(ctx context.Context, id kernel.CharacterID) ([]model.Quest, error)
 	Skills(ctx context.Context, id kernel.CharacterID) ([]model.SkillPoints, error)
 	Timers(ctx context.Context, id kernel.CharacterID) ([]model.SkillTimer, error)
@@ -124,6 +125,33 @@ func (m *Module) Load(ctx context.Context, id kernel.CharacterID, account kernel
 		out.Timers = append(out.Timers, timerOf(t))
 	}
 	return out, nil
+}
+
+// Find is the characters with ids, of any account; one that doesn't exist isn't there.
+func (m *Module) Find(ctx context.Context, ids []kernel.CharacterID) (_ []Character, err error) {
+	ctx, call := m.calls.Start(ctx, "Find")
+	defer call.End(&err)
+	cs, err := m.svc.Find(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Character, 0, len(cs))
+	for _, c := range cs {
+		out = append(out, m.characterOf(c))
+	}
+	return out, nil
+}
+
+// Skills is a character's skills with points and their traits, of any account.
+func (m *Module) Skills(ctx context.Context, id kernel.CharacterID) (_ []SkillPoints, err error) {
+	ctx, call := m.calls.Start(ctx, "Skills")
+	defer call.End(&err)
+	sks, err := m.svc.Skills(ctx, id)
+	out := make([]SkillPoints, 0, len(sks))
+	for _, sk := range sks {
+		out = append(out, SkillPoints(sk))
+	}
+	return out, err
 }
 
 // SaveCheckpoint saves position, HP, energy and the whole progression.

@@ -1,8 +1,9 @@
-// Package pvp is the pvp module's Postgres store behind service.Store: ratings and match history.
+// Package pvp is the pvp module's Postgres store behind service.Store: ratings, match history and arena builds.
 package pvp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	"github.com/google/uuid"
@@ -77,7 +78,7 @@ func (p *Postgres) Record(ctx context.Context, match model.Match, characters []k
 		rated := rate(before)
 		for c, r := range rated.After {
 			if err := q.PutRating(ctx, db.PutRatingParams{
-				CharacterID: uuid.UUID(c), Mode: match.Mode, Mu: r.Mu, Sigma: r.Sigma, Shown: int32(r.Shown), //nolint:gosec // a rating fits
+				CharacterID: uuid.UUID(c), Mode: match.Mode, Mu: r.Mu, Sigma: r.Sigma, Shown: int32(r.Shown), Placed: r.Placed, //nolint:gosec // a rating fits
 				Matches: int32(r.Matches), Wins: int32(r.Wins), Losses: int32(r.Losses), Draws: int32(r.Draws), Now: now, //nolint:gosec // counts fit
 			}); err != nil {
 				return err
@@ -119,4 +120,75 @@ func stored(ctx context.Context, q *db.Queries, match model.Match) ([]model.Figh
 		})
 	}
 	return out, nil
+}
+
+// Ratings are the character's ratings by mode, those they have.
+func (p *Postgres) Ratings(ctx context.Context, id kernel.CharacterID) (map[string]model.Rating, error) {
+	out := map[string]model.Rating{}
+	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
+		rows, err := db.New(tx).Ratings(ctx, uuid.UUID(id))
+		for _, r := range rows {
+			out[r.Mode] = model.Rating{Mu: r.Mu, Sigma: r.Sigma, Matches: int(r.Matches), Wins: int(r.Wins), Losses: int(r.Losses), Draws: int(r.Draws)}
+		}
+		return err
+	}, dbx.Observed(p.obs))
+	return out, failures.Classify(err)
+}
+
+// Board is the most placed ratings of mode, highest first, a tie in character order.
+func (p *Postgres) Board(ctx context.Context, mode string, most int) ([]model.Ranked, error) {
+	var out []model.Ranked
+	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
+		rows, err := db.New(tx).Board(ctx, db.BoardParams{Mode: mode, Most: int32(most)}) //nolint:gosec // a board's length
+		out = make([]model.Ranked, 0, len(rows))
+		for _, r := range rows {
+			out = append(out, model.Ranked{Character: kernel.CharacterID(r.CharacterID), Rating: model.Rating{
+				Shown: int(r.Shown), Placed: true, Matches: int(r.Matches), Wins: int(r.Wins), Losses: int(r.Losses), Draws: int(r.Draws),
+			}})
+		}
+		return err
+	}, dbx.Observed(p.obs))
+	return out, failures.Classify(err)
+}
+
+// Above counts the placed ratings of mode higher than shown.
+func (p *Postgres) Above(ctx context.Context, mode string, shown int) (int, error) {
+	var n int64
+	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
+		var err error
+		n, err = db.New(tx).Above(ctx, db.AboveParams{Mode: mode, Shown: int32(shown)}) //nolint:gosec // a rating fits
+		return err
+	}, dbx.Observed(p.obs))
+	return int(n), failures.Classify(err)
+}
+
+// Build is the character's saved arena build, false when they've saved none.
+func (p *Postgres) Build(ctx context.Context, id kernel.CharacterID) (model.Build, bool, error) {
+	var out model.Build
+	found := false
+	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
+		r, err := db.New(tx).Build(ctx, uuid.UUID(id))
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		found = true
+		out = model.Build{Bar: r.SkillBar, Revision: int(r.Revision)}
+		return json.Unmarshal(r.Traits, &out.Traits)
+	}, dbx.Observed(p.obs))
+	return out, found, failures.Classify(err)
+}
+
+// PutBuild saves the character's arena build, giving back its revision: one more than the last save's.
+func (p *Postgres) PutBuild(ctx context.Context, id kernel.CharacterID, b model.Build) (int, error) {
+	traits, _ := json.Marshal(b.Traits) // a map of strings always marshals
+	var revision int32
+	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
+		var err error
+		revision, err = db.New(tx).PutBuild(ctx, db.PutBuildParams{CharacterID: uuid.UUID(id), SkillBar: b.Bar, Traits: traits, Now: dbx.Now()})
+		return err
+	}, dbx.Observed(p.obs))
+	return int(revision), failures.Classify(err)
 }

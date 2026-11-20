@@ -56,6 +56,11 @@ func (f *fakeService) Load(_ context.Context, id kernel.CharacterID, account ker
 	return ayla, f.err
 }
 
+func (f *fakeService) Find(_ context.Context, ids []kernel.CharacterID) ([]model.Character, error) {
+	f.in = ids
+	return []model.Character{ayla}, f.err
+}
+
 func (f *fakeService) Quests(_ context.Context, _ kernel.CharacterID) ([]model.Quest, error) {
 	f.read = append(f.read, "quests")
 	return []model.Quest{{ID: "slime_cleanup", Status: model.QuestActive, Progress: []int{7}}, {ID: "sticky_samples", Status: model.QuestFinished, TimesFinished: 2}}, nil

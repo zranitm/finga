@@ -60,6 +60,9 @@ func Mount(d Dependencies) func(e *gin.Engine) {
 		authed.GET("/wardrobe", h.wardrobe)
 		authed.POST("/characters", h.createCharacter)
 		authed.PUT("/characters/:id/skill-bar", h.setSkillBar)
+		authed.GET("/characters/:id/pvp", h.pvpProfile)
+		authed.PUT("/characters/:id/pvp-build", h.setArenaBuild)
+		authed.GET("/pvp/leaderboard", h.leaderboard)
 		authed.GET("/settings", h.settings)
 		authed.PUT("/settings", h.updateSettings)
 
@@ -188,6 +191,51 @@ func (h *api) setSkillBar(c *gin.Context) {
 		return
 	}
 	writeJSON(c, http.StatusOK, SkillBarResponse(req))
+}
+
+func (h *api) pvpProfile(c *gin.Context) {
+	id, err := kernel.ParseCharacterID(c.Param("id"))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	p, err := h.lobby.PvpProfile(c.Request.Context(), principalFrom(c), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	writeJSON(c, http.StatusOK, toPvpProfile(p))
+}
+
+func (h *api) setArenaBuild(c *gin.Context) {
+	id, err := kernel.ParseCharacterID(c.Param("id"))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	var req ArenaBuildRequest
+	if decode(c, &req) != nil {
+		return
+	}
+	b := model.ArenaBuild{Bar: req.SkillBar, Traits: req.Traits}
+	if err := h.lobby.SetArenaBuild(c.Request.Context(), principalFrom(c), id, b); err != nil {
+		writeError(c, err)
+		return
+	}
+	writeJSON(c, http.StatusOK, toArenaBuild(b))
+}
+
+func (h *api) leaderboard(c *gin.Context) {
+	mode := c.Query("mode")
+	if missing(c, mode) {
+		return
+	}
+	rows, err := h.lobby.Leaderboard(c.Request.Context(), mode)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	writeJSON(c, http.StatusOK, toLeaderboard(mode, rows))
 }
 
 func (h *api) settings(c *gin.Context) {
