@@ -48,7 +48,7 @@ export interface WorldMap {
   readonly region: RegionMap | null;
 }
 
-/** A region as the world reads it from its bake: what draws it, and the ground its sim walks, which its geometry is, filled as its chunks come (large-regions.md section 4). */
+/** A region as the world reads it from its bake: what draws it, and the ground its sim walks, which its geometry is, filled as its chunks come (large-regions.md section 10). */
 export interface RegionMap {
   readonly ref: RegionRef;
   readonly region: Region;

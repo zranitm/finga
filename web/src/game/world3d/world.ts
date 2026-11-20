@@ -160,7 +160,7 @@ type LiveMark = { -readonly [K in keyof Mark]: Mark[K] };
 const FADE_MS = 250;
 const RETRY = { baseMs: 500, capMs: 10_000 }; // a map that didn't load tries again after a backoff
 const RELOAD_MS = 3000; // a broken region's notice shows this long before the page reloads
-/** The farthest one input can carry the player before the hold sees them: the longest move a skill makes, past their body's radius (large-regions.md section 4). Out of a match only a mob's 0.5 m knockback pushes a player. */
+/** The farthest one input can carry the player before the hold sees them: the longest move a skill makes, past their body's radius (large-regions.md section 10). Out of a match only a mob's 0.5 m knockback pushes a player. */
 const CARRY_M =
   Math.max(
     ...skills
@@ -808,7 +808,7 @@ export class World {
     }
   }
 
-  /** Whether the player's keys wait for the region's ground: while a chunk is missing within the farthest one input could carry them, a move under way or a push included, and its solids' reach past that, as they travel with their centre's chunk (large-regions.md section 4). Every arrival meets it, a walk to the ground's edge too. */
+  /** Whether the player's keys wait for the region's ground: while a chunk is missing within the farthest one input could carry them, a move under way included, and its solids' reach past that, as they travel with their centre's chunk (large-regions.md section 10). Every arrival meets it, a walk to the ground's edge too. */
   private holdForGround(s: State, now: number): boolean {
     const region = this.map?.region;
     const held = !!region && !region.ground.covers(s.x, s.z, CARRY_M + region.region.solids.reach);

@@ -1,4 +1,4 @@
-// A region's ground as the client's sim walks it (large-regions.md section 4): built from the bake's chunks as they come, the same numbers the server's sim reads.
+// A region's ground as the client's sim walks it (large-regions.md section 10): built from the bake's chunks as they come, the same numbers the server's sim reads.
 import { fileBox, fileCylinder, solidBuckets } from '@/sim/solids';
 import type { FilledSolids } from '@/sim/solids';
 import type { Box, Cylinder, Geometry } from '@/sim/step';

@@ -210,19 +210,20 @@ biomes:
   - **This reverses the plan** (section 15, call 11), which had both sides read one bake. Generating on the server needs no artifact to build and ship with it, and the server can't run on a bake older than its plan. Generation is cheap, and the exactness was needed anyway, for the golden hashes to match on arm64.
 - **Where it's built:** `npm run maps` and the web image's build write it to `web/public/regions/<id>/<hash>/`, a build artifact, not committed.
   - `<hash>` is the first 16 hex digits of the bake's hash. From step 4b the server names the hash it built, so a client never reads a bake older than its region.
-    - **As built (step 4b-1):** the loader bakes each region it generates and keeps the folder's name as `gamedata.Map.Bake` (`regiongen.Bake.Folder`, which regionbake names its folder by too). `cmd/mapjson` writes a region's JSON from it: the server's geometry, its sky and gates, and `region: {id, hash}`, with no models, since the bake draws its solids and props.
+    - **As built (step 4b-1):** the loader bakes each region it generates and keeps the folder's name as `gamedata.Map.Bake` (`regiongen.Bake.Folder`, which regionbake names its folder by too). `cmd/mapjson` writes a region's JSON from it: its sky and gates, and `region: {id, hash}`, with no models, since the bake draws its solids and props. From 4b-2b it has no geometry either: the client's sim reads the ground and solids from the bake's chunks (section 10).
     - **Measured** on the reference Mac at 1 km: generating takes 0.32–0.38 s and baking every file 46–48 ms, so the full hash is named at boot. The 256 m test region takes 12 ms and 2 ms, and its walk grid 68 ms, built as the world starts.
   - A new bake clears the old ones. Each is written to `<hash>.part` and renamed whole, so a crash leaves nothing that looks complete. The next run clears it.
 - **The files,** all little-endian. A run of float32s starts on a 4-byte boundary, so a reader can view it in place:
 
   | File | What | Size at 1 km |
   | --- | --- | --- |
-  | `region.json` | The format, name, sky, size, cell, chunk size and grid, overview spacing, and height range; the palette (each ground's name and colour) and the model names, which chunks index; each river's path, width and levels and each lake's area and level; and the plan's areas, camps, waypoints, NPCs, gates and start | 6 kB |
-  | `chunks/<cx>_<cz>.bin` | `FRCK`, the format, its x, z and 65 samples a side, its edges shared with its neighbours; then 67 × 67 heights (float32), its own with a border one sample wide held to the region at its edges, and 65 × 65 colour indices, row by row from the south-west; then the props (model, x, z, yaw), cylinders (x, z, radius, top) and boxes (x, z, half width, half depth, axis, top) whose centres it holds | 23 kB, 16 kB gzipped |
+  | `region.json` | The format, name, sky, size, cell, chunk size and grid, overview spacing, and height range; how many cylinders and boxes the region has, which chunks index into, and the farthest any reaches from its centre; the palette (each ground's name and colour) and the model names, which chunks index; each river's path, width and levels and each lake's area and level; and the plan's areas, camps, waypoints, NPCs, gates and start | 6 kB |
+  | `chunks/<cx>_<cz>.bin` | `FRCK`, the format, its x, z and 65 samples a side, its edges shared with its neighbours; then 67 × 67 heights (float32), its own with a border one sample wide held to the region at its edges, 65 × 65 colour indices and 65 × 65 deep-water marks (1 or 0), row by row from the south-west; then the props (model, x, z, yaw), cylinders (index, x, z, radius, top) and boxes (index, x, z, half width, half depth, axis, top) whose centres it holds, each solid's index its place in the region's list | 29 kB, 17 kB gzipped |
   | `overview.bin` | `FROV`, the format, its samples along x and z and its spacing; then heights and colour indices every 8 m, for the far land | 83 kB, 61 kB gzipped |
   | `tiles/1/<x>_<z>.png`, `tiles/4/<x>_<z>.png` | The map image in 128 m squares from the south-west, at 1 and 4 m a pixel: each ground's colour shaded by its slope toward the north-west light, water over beds, solids dark | 450 kB in all |
 
   - **Steep marks aren't stored:** both sims mark them from the heights by the same rule.
+  - **Format 3** (step 4b-2b) added the deep marks, the solid indices and `region.json`'s solid counts and reach, for the client's sim. Format 2 added the heights' border.
 - **Golden hashes:** `testdata/regions/bakes.sha256` keeps the bake hash of each test plan and each region, so a change to the generator shows in review.
   - The hash covers our own bytes and the tiles' pixels, not the PNG encoding, so a Go upgrade can't change it.
   - It runs on amd64 under `-race` alone, as the coverage run leaves it out (19 s there for nothing more covered), and plainly on arm64.
@@ -499,7 +500,7 @@ Built with step 1, which says who watches a cell.
     - **The sim:** a terrain cell with any deep sample is a wall to a move into it from out of it, at any height, in Go and in the client (`slide`). So no walk, jump, dash, leap, knockback or blink gets in, and a body already in one walks out. Moving downhill stays open everywhere else, which is why the banks alone didn't stop anyone.
     - **Shots fly over it:** a mob's spit moves its ball by the same `Push` with the marks left out, as the client draws it, so a bat spits across a river and its line-of-shot check agrees.
     - **Nav:** a cell over deep water is `deep`. Nobody fits there, no way into it opens from dry ground, a jump in the reach check lands short of it, and a path from inside it leads out by the nearest dry cell.
-    - **The client** reads the marks from the map's JSON (`deep_water`, per sample) until 4b-2b moves its ground onto the bake.
+    - **The client** read the marks from the map's JSON (`deep_water`, per sample) until 4b-2b moved its ground onto the bake, which carries them per chunk.
     - **Tests:**
       - the vectors `deep-*`: a walk, jump, dash, leap and blink stopped at the bank, the ford crossed, a slide along the bank into it, cells deep at one corner only, and a body walking out;
       - the generator's marks: a river's channel and a lake 0.8 m deep are deep, a ford, a causeway, a bank's edge and a pond 0.5 m deep aren't;
@@ -526,13 +527,13 @@ Built with step 1, which says who watches a cell.
   - **Wiring:** a map's JSON may name `region: {id, hash}`. The world then draws that bake in place of the map's own ground and props, and tells it the camera's target each frame. No map names one until 4b serves a region, so only tests and the preview draw one.
   - **Building chunks:** two Web Workers decode and build them (`chunk-workers.ts`), four asked at a time, nearest first. Two meshes are made a frame, so streaming never holds a frame up.
     - A chunk built after the target moved out of its reach isn't made.
-    - A chunk that fails to load isn't asked again; the overview stands in for it.
+    - A chunk that fails to load isn't asked again; the overview stands in for it. (4b-2b asks again after a backoff, below.)
     - The workers start at a region's first chunk, and end as the world leaves the map or the game.
     - A chunk freed before its worker answers is still built, then dropped: at most four are asked at once, so cancelling saves little.
   - **The overview** is cut under every chunk drawn, and whole again where one is freed.
     - Each change rebuilds its index list over every cell, about 16,000 cells for 1 km. A larger region wants each chunk's cells as a fixed index range instead.
   - **Seams:**
-    - The bake's format 2 gives each chunk's heights a border one sample wide. Normals take central differences over it, so a shared edge gets one normal from both chunks and no toon band steps along the seam.
+    - The bake (from format 2, now format 3) gives each chunk's heights a border one sample wide. Normals take central differences over it, so a shared edge gets one normal from both chunks and no toon band steps along the seam.
     - Each detail's skirt hangs 0.5 m below the most an edge strays from the line any coarser neighbour draws: a chunk every 2nd or 4th sample, or the overview every 8 m. The 4-sample line can sit twice as far from a sample as the 8 m one.
     - The overview hangs skirts of its own from its edge where a drawn chunk meets one not drawn, as deep as that chunk's and facing into it. So a chunk's edge dipping under the overview's straight line leaves no slit.
     - Stills with a magenta sky and no fog show no crack across the 64 m and 128 m steps or at the overview's edge.
@@ -548,8 +549,33 @@ Built with step 1, which says who watches a cell.
   - **Not yet:**
     - the looks grid, cascaded shadows and water (5b);
     - label and bar limits, and map tiles (5c);
-    - the loading screen's hold, with 4b, when a player first enters a region.
+    - the loading screen's hold, with 4b, when a player first enters a region (built in 4b-2b, below).
     - A river's bed steps 1 m at a time along its banks until 5b's water covers it.
+- **As built (step 4b-2b): the sim walks the bake.**
+  - **The ground:** a region's map JSON has no geometry. `loadMap` reads its `region.json` and overview, and the map's geometry is a `RegionGround`: one Float32Array of heights for the region, its steep and deep marks a byte a cell or sample, and its solids at the server's indices, all empty till their chunks come.
+    - Each chunk fills its own samples and the cells between them as the worker returns it, drawn or dropped. `markSteep` marks the cells, the same function a whole map's terrain runs, so both mark alike.
+    - Its solids go to the server's index in the region's lists and are filed in the 8 m buckets by their bounds, each bucket kept ascending. So a box over a chunk's edge is in the buckets on both sides, and the sim visits solids in the server's order, which decides the cylinder a body rounds when two cut a move alike.
+    - A chunk that doesn't fit is refused before it changes anything: one ending early or running on, outside the region, of another size, or naming a solid index past the region's count or held already.
+    - Teardown drops the map before the next one loads, so the ground goes with it.
+  - **The predictor, effects, the lock ring and mob attacks** read the same geometry object, so they follow the ground as it fills. NPCs, their marks and portal labels are stood on it again as each chunk lands.
+  - **The hold:** a chunk not in yet reads flat at 0 with no solids, and a solid travels with the chunk holding its centre. So while any chunk is missing within the farthest one input could carry the player, past their radius, and the region's widest solid past that, the player is held:
+    - every tick still sends an `Input`, with every key let go but the walk mode, and the predictor steps the same input. Both sims stay in step, and the server doesn't step the last keys on after its 250 ms gap;
+    - attacks, skills and the other actions wait, as on a stalled world;
+    - the HUD says "Loading the ground…".
+    - **The radius:** the longest skill move in the data, a 10.5 m blink, plus the body's 0.375 m: out of a match only a mob's 0.5 m knockback pushes a player. Then `region.json`'s widest solid: 4.61 m in the test region, 9.28 m (a large house) in the wide plan, so 15.5 m and 20.2 m.
+    - It's judged every frame where the player stands, so every arrival meets it: a spawn, a teleport, a respawn, a reconnect.
+  - **The loading screen** lifts once the chunks within 128 m of the camera's target are drawn, at once on a map.
+  - **A chunk that fails,** or doesn't fit, is asked again after a backoff from 0.5 s, doubling to 8 s. After five failures the HUD says so and the page reloads 3 s later, fetching the bake afresh, a stale client included.
+  - **The minimap and map window** draw a region from its overview, a pixel a metre: its palette's colours blended between the 8 m samples, shaded by height. The bake's colours mark steep ground already, and a river shows as its sand bed until 5b draws water. The minimap blows it up about 4.5×, so it looks soft until 5c's tiles. The maps' 4 pixels a metre would be a 64 MB image at 1 km.
+  - **Measured** on the wide test plan (1 km), headless Chrome, its bake served gzipped as nginx serves it, sprinting (8 m/s) on the real region place, workers and ground, the body stopping while held:
+    - across the middle (720 m) and south to north and west (1,030 m), unthrottled and on Chrome's Fast 3G preset (562.5 ms latency, 1.44 Mbit/s): no hold at all;
+    - the loading screen: 0.19–0.21 s unthrottled, 5.6–8.8 s on Fast 3G, where a chunk takes a median 0.8 s to come and build;
+    - on Fast 3G the hold first shows at 4× a sprint, one of 133 ms over 720 m, and at 8× it holds 5.8 s in four.
+  - **Tests:**
+    - the bake read back in the client: deep marks, every solid index filled once, and each refusal;
+    - the ground: its grid, steep and deep marks as a whole map's, each solid as its chunk records it, and its buckets as indexing every solid at once, whatever order the chunks come in;
+    - ten movement vectors on two test plans' bakes, which Go replays on its generated ground and the client on a `RegionGround` from the chunks, to the bit. The tiny plan's: its seam, a house over it, its river and ford, a blink stopped by an oak a neighbouring chunk carries. The steep plan's, as steep as the wide plan gets (its ring a 42.9 m step in a cell, the wide plan's 42.1 m): cliffs, a fall, a ridge;
+    - the world: the hold on arrival, its radius pinned at a missing chunk's edge, the veil, the notice let go with the region, a gate's label lowered onto the river bed, and the reload once chunks fail every try.
 
 ## 11. cmd/bot
 
@@ -671,7 +697,7 @@ Built with step 1, which says who watches a cell.
 4. **The pipeline,** in two PRs:
    - 4a: `regiongen`, the kit and the bake, and the preview;
    - 4b: the `region` kind and its loader rules, region channels, areas, towns, area bosses and respawn, and a test region. The client's sim walks a region's ground from its bake, and the loading screen holds for the near chunks. The loader refuses a region one block would hold, so none is ever sent whole.
-     - As built, in five PRs: 4b-1 the region kind, the loader, the ring's cliff and the test region; 4b-2a deep water as walls; 4b-2b the client's sim on the bake's chunks and the loading screen's hold; 4b-3 channels; 4b-4 areas, towns, area bosses and respawn.
+     - As built, in five PRs: 4b-1 the region kind, the loader, the ring's cliff and the test region (#332); 4b-2a deep water as walls (#334); 4b-2b the client's sim on the bake's chunks, the hold while the ground round the player comes, and the loading screen's hold (section 10); 4b-3 channels; 4b-4 areas, towns, area bosses and respawn.
      - From step 8, every shipped region's hunting areas also pass the maps' three design tests: no mob sees an arrival, each mob reaches a player anywhere in its leash, and no solid leaves a gap by steep ground only a player fits. The generator then needs a scatter rule keeping solids off cliffs. Run through them once in 4b-1, the test region, a fixture, passes the first after one camp moved and fails the other two: mobs miss a few spots, some in a riverbed that 4b-2a's deep water closes, and trees at the foot of cliffs, the ring's included, leave gaps only a player fits.
 5. **The client for regions,** in three PRs:
    - 5a: the overview, chunk streaming and detail, and props per chunk;
