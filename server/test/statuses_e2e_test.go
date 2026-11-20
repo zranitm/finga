@@ -38,7 +38,7 @@ func TestASlamStunsAPlayer(t *testing.T) {
 	var heldAt *clientv1.PlayerView
 	held, refused, freed := 0, false, false
 	sent := false
-	for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline) && (!refused || !freed || held < 3); {
+	for game := l.Game(15 * time.Second); game.Left() && (!refused || !freed || held < 3); {
 		in := &clientv1.Input{}
 		if ends > 0 {
 			in.Right = true // pressing east all through the stun
@@ -102,7 +102,7 @@ func TestAStunnedPlayerBreaksFree(t *testing.T) {
 	var press uint32
 	var heldAt, after *clientv1.PlayerView // the player when the press went, and in the first frame acking an input past it
 	answered := false
-	for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline) && (after == nil || !answered); {
+	for game := l.Game(15 * time.Second); game.Left() && (after == nil || !answered); {
 		if err := l.Input(&clientv1.Input{Right: press > 0}); err != nil {
 			t.Fatal(err)
 		}

@@ -46,7 +46,7 @@ func (l *Looter) Step(w *Walk, to gamedata.Point) error {
 func (l *Looter) WalkTo(to gamedata.Point, d time.Duration) bool {
 	var w Walk
 	var stop uint32 // the first stop's seq, once near
-	for start := l.tick; l.tick-start < l.ticksIn(d); {
+	for game := l.Game(d); game.Left(); {
 		switch near := math.Hypot(to.X-l.X, to.Z-l.Z); {
 		case stop != 0 && l.ack >= stop && near < 0.75 && l.Standing():
 			return true
@@ -82,10 +82,10 @@ func (l *Looter) nextFrame() bool {
 
 // frame is nextFrame, and whether pred, when set, held for a message read; it stops at that message, leaving the rest for the caller.
 func (l *Looter) frame(pred func(wsconn.Message) bool) (met, ok bool) {
-	was := l.tick
+	was := l.elapsed
 	if !l.Pump(Stalled, func(m wsconn.Message) bool {
 		met = pred != nil && pred(m)
-		return met || l.tick != was
+		return met || l.elapsed != was
 	}) {
 		return false, false
 	}
@@ -101,20 +101,18 @@ func (l *Looter) frame(pred func(wsconn.Message) bool) (met, ok bool) {
 	return false, true
 }
 
-// during acts once a frame, reading each frame's messages in between, until done holds or pred holds for a message; it gives up once d of the world's ticks pass, counted frame by frame so a new map's own count carries on, or when no frame comes for Stalled. Any of pred, done and act may be nil.
-func (l *Looter) during(d time.Duration, pred func(wsconn.Message) bool, done func() bool, act func() error) bool {
-	left := l.ticksIn(d)
-	for {
+// During acts once a frame, reading each frame's messages in between, until done holds or pred holds for a message; it gives up once d of the world's ticks pass, or when no frame comes for Stalled. Any of pred, done and act may be nil.
+func (l *Looter) During(d time.Duration, pred func(wsconn.Message) bool, done func() bool, act func() error) bool {
+	for game := l.Game(d); ; {
 		if done != nil && done() {
 			return true
 		}
-		if left == 0 {
+		if !game.Left() {
 			return false
 		}
 		if act != nil && act() != nil {
 			return false
 		}
-		was := l.tick
 		met, ok := l.frame(pred)
 		if !ok {
 			return false
@@ -122,25 +120,7 @@ func (l *Looter) during(d time.Duration, pred func(wsconn.Message) bool, done fu
 		if met {
 			return true
 		}
-		gone := uint64(1) // a frame after an unknown tick, or on a new map's clock
-		if was != 0 && l.tick > was {
-			gone = l.tick - was
-		}
-		left -= min(left, gone)
 	}
-}
-
-// timeLeft is what remains of d of the world's ticks counted from tick start, for a wait that walks or takes on the way.
-func (l *Looter) timeLeft(start uint64, d time.Duration) time.Duration {
-	if l.TickHz == 0 || l.tick < start {
-		return d
-	}
-	return d - time.Duration(l.tick-start)*time.Second/time.Duration(l.TickHz)
-}
-
-// ticksIn is d in the world's ticks.
-func (l *Looter) ticksIn(d time.Duration) uint64 {
-	return uint64(d.Seconds() * float64(l.TickHz))
 }
 
 // worldTime is the newest frame's tick as time on the map's clock.
