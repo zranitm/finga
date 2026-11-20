@@ -148,6 +148,7 @@
   - A pointer down anywhere else cancels.
   - A refusal shakes the chip red and says why.
 - **Saving:** `lib/save-queue.ts` is the skill bar's debounced, one-at-a-time saver, taken out so both use it. The window saves 500 ms after the last change, and at once when it closes or the page hides.
+  - **The Settings switches and the chat pin save the same way,** as built after the REST limit (#361), through `useSettingsSaves` in `features/shared/useSettingsSaves.ts`. Each flip had been its own `PUT /api/settings`, so a run of them spent most of an account's burst of 10. Now a run of changes makes one save, of the settings as they ended, and closing the window or leaving the world saves one still waiting.
 - **Settings in the world** (decided 11-18): a Settings button in the world corner, above Back to characters, opens the same Settings modal, so a change applies in the game at once.
 - **The talk prompt** (decided 11-18): a `prompt` label, "Z Talk" or "Z Enter" with the bound key's name, over the portal the player stands in, or else over the NPC in reach whose dialog isn't open. It's placed each frame beside the dialog's reach check.
 - **Not built:** the end-to-end test in another browser context, since the repo has no browser e2e suite. The Go e2e saves keys and reads them in a new session, and the client tests cover loading them at login. The live playtest checks the rest.

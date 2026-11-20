@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/Button';
-import { loadSettings, saveSettings } from '@/features/shared/settings';
+import { loadSettings } from '@/features/shared/settings';
+import { useSettingsSaves } from '@/features/shared/useSettingsSaves';
 import type { RestClient } from '@/net/rest';
 import { settings } from '@/state/settings';
 
@@ -23,9 +24,10 @@ export function SettingsPanel({ rest, onClose }: SettingsPanelProps) {
     void loadSettings(rest);
   }, [rest]);
 
-  const save = async () => {
+  const changed = useSettingsSaves(rest, setProblem);
+  const save = () => {
     setProblem(null);
-    setProblem(await saveSettings(rest));
+    changed();
   };
 
   if (bindingKeys) {
@@ -49,7 +51,7 @@ export function SettingsPanel({ rest, onClose }: SettingsPanelProps) {
           checked={autoAssign}
           onChange={(e) => {
             settings.getState().setAutoAssignPoints(e.target.checked);
-            void save();
+            save();
           }}
         />
         Auto-assign at every level-up, by the class’s split (a Beginner spends its own)
@@ -61,7 +63,7 @@ export function SettingsPanel({ rest, onClose }: SettingsPanelProps) {
           checked={minimap}
           onChange={(e) => {
             settings.getState().setShowMinimap(e.target.checked);
-            void save();
+            save();
           }}
         />
         Show the minimap
