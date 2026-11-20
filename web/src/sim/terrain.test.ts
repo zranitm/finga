@@ -18,7 +18,7 @@ describe('terrain', () => {
     ['one raised corner: an x edge and a z edge', [0, 0, 0, 0.4], true, true],
   ] as const)('%s', (_, heights, steepX, steepZ) => {
     const t = terrain(0.5, 2, 2, heights, 0.7);
-    expect([t.steepX[0], t.steepZ[0]]).toEqual([steepX, steepZ]);
+    expect([t.steepX[0] === 1, t.steepZ[0] === 1]).toEqual([steepX, steepZ]);
   });
 
   it('is bilinear between samples', () => {

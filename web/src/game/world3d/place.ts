@@ -143,6 +143,8 @@ export interface Place {
   readonly looks: readonly Look[];
   /** Draws what the camera's target at (x, z) needs: a region streams its chunks round it, a map is drawn whole. */
   follow(x: number, z: number): void;
+  /** Whether what an arrival at (x, z) sees is drawn: a region's chunks round it, a map always. */
+  ready(x: number, z: number): boolean;
   dispose(): void;
 }
 
@@ -284,6 +286,7 @@ export async function buildPlace(
     follow: () => {
       // a map is drawn whole: nothing streams
     },
+    ready: () => true,
     dispose: () => {
       root.dispose(false, false);
       scene.fogMode = Scene.FOGMODE_NONE;

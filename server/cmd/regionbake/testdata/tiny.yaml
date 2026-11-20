@@ -1,4 +1,4 @@
-# The smallest region a bake makes: one map tile, four chunks, a road and some trees.
+# The smallest region a bake makes: one map tile, four chunks, a road over a river with a ford, two houses, one across a chunk's edge, and some trees.
 name: Tiny
 size: [128, 128]
 cell: 2
@@ -8,12 +8,16 @@ ground: {noise: {scale: 60, amplitude: 2, octaves: 2}}
 edge: {width: 12, height: [6, 9], biome: meadow}
 colour: {slope: 0.25, high: 20}
 features:
+  - {river: {path: [[96, 0], [96, 128]], width: 6, depth: 2, fords: [[96, 30]]}}
   - {road: {path: [[20, 64], [108, 64]], width: 4}}
 areas:
   - {id: field, name: Field, area: [[10, 10], [118, 10], [118, 118], [10, 118]], levels: [1, 2], biome: meadow, kind: hunting,
      boss: {at: [64, 90], radius: 4, mob: king_slime}}
 waypoints:
   - {id: field, name: Field, at: [30, 64]}
+pieces:
+  - {house: {area: [60, 80, 6, 6], height: 4, model: house_small}}
+  - {house: {area: [36, 96, 6, 7], height: 4, model: house_small}}
 start: {at: [30, 60], yaw: 0}
 biomes:
   meadow:

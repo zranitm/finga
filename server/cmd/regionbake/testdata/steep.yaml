@@ -1,0 +1,27 @@
+# A region as steep as the wide plan gets, at 2 m a sample to stay a few tens of kB: a ridge a little higher than the wide plan's, so the ring's cliff steps up as far, and a plateau 12 m high with a cliff edge, oaks and boulders round them, for the movement vectors.
+name: Steep
+size: [128, 128]
+cell: 2
+seed: 7
+look: {sky: day}
+ground: {noise: {scale: 60, amplitude: 2, octaves: 2}}
+edge: {width: 12, height: [35, 60], biome: peaks}
+colour: {slope: 0.25, high: 30}
+features:
+  - {ridge: {path: [[20, 100], [60, 108]], width: 36, height: 28}}
+  - {plateau: {area: [[56, 50], [84, 50], [84, 78], [56, 78]], height: 12, edge: cliff}}
+areas:
+  - {id: field, name: Field, area: [[12, 12], [116, 12], [116, 116], [12, 116]], levels: [1, 2], biome: meadow, kind: hunting}
+waypoints:
+  - {id: field, name: Field, at: [24, 24]}
+start: {at: [24, 30], yaw: 0}
+biomes:
+  meadow:
+    colours: {flat: grass, slope: dirt, steep: stone, high: stone}
+    scatter:
+      - {model: tree_oak, spacing: 9, slope: 0.4}
+      - {model: boulder, spacing: 14}
+  peaks:
+    colours: {flat: stone, slope: stone, steep: stone, high: snow}
+    scatter:
+      - {model: boulder, spacing: 30}

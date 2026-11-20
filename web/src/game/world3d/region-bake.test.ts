@@ -76,11 +76,65 @@ describe('a region bake, read as regionbake writes it', () => {
     expect(count).toBeGreaterThan(20); // the tiny plan's oaks
   });
 
+  it('holds each solid in the chunk holding its centre, at its index in the region’s lists, every index once', async () => {
+    servePublic();
+    const { region } = await loadRegion(REF);
+    const seen = { cylinders: [] as number[], boxes: [] as number[] };
+    for (const k of ['0_0', '1_0', '0_1', '1_1']) {
+      const c = readChunk(bakeFile(`chunks/${k}.bin`));
+      for (const [kind, per] of [
+        ['cylinders', 4],
+        ['boxes', 7],
+      ] as const) {
+        c[kind].index.forEach((i, j) => {
+          const [x, z] = c[kind].at.subarray(per * j, per * j + 2);
+          expect(Math.floor(x! / 64)).toBe(c.cx);
+          expect(Math.floor(z! / 64)).toBe(c.cz);
+          seen[kind].push(i);
+        });
+      }
+    }
+    for (const kind of ['cylinders', 'boxes'] as const) {
+      expect(seen[kind].sort((a, b) => a - b)).toEqual(
+        Array.from({ length: region.solids[kind] }, (_, i) => i),
+      );
+    }
+    expect(region.solids).toEqual({ cylinders: 89, boxes: 2, reach: Math.hypot(3, 3.5) }); // the tiny plan's oaks and its two houses
+  });
+
+  it('marks the deep water: the river along x = 96, but for its ford and the road’s causeway', () => {
+    const deepAt = (x: number, z: number) => {
+      const c = readChunk(
+        bakeFile(
+          `chunks/${Math.min(Math.floor(x / 64), 1)}_${Math.min(Math.floor(z / 64), 1)}.bin`,
+        ),
+      );
+      return c.deep[((z - 64 * c.cz) / 2) * c.n + (x - 64 * c.cx) / 2] === 1;
+    };
+    expect(deepAt(96, 100)).toBe(true);
+    expect(deepAt(96, 16)).toBe(true);
+    expect(deepAt(96, 30)).toBe(false); // the ford
+    expect(deepAt(96, 64)).toBe(false); // the road over it
+    expect(deepAt(40, 40)).toBe(false);
+  });
+
+  it('refuses a chunk that ends early or runs on past its boxes', () => {
+    const chunk = bakeFile('chunks/0_1.bin');
+    expect(() => readChunk(chunk.slice(0, chunk.byteLength - 1))).toThrow(
+      'chunk 0_1 ends 1 bytes early',
+    );
+    expect(() => readChunk(chunk.slice(0, 100))).toThrow(/chunk 0_1 ends \d+ bytes early/);
+    const longer = new Uint8Array(chunk.byteLength + 4);
+    longer.set(new Uint8Array(chunk));
+    expect(() => readChunk(longer.buffer)).toThrow('chunk 0_1 runs 4 bytes past its end');
+    expect(() => readChunk(chunk.slice(0, 8))).toThrow('not a format 3 FRCK: 8 bytes');
+  });
+
   it('refuses a file of another format or kind, and says which bake failed to come', async () => {
     const chunk = bakeFile('chunks/0_0.bin');
     const old = chunk.slice(0);
     new DataView(old).setUint16(4, 1, true);
-    expect(() => readChunk(old)).toThrow(/format 2 FRCK/);
+    expect(() => readChunk(old)).toThrow(/format 3 FRCK/);
     expect(() => readOverview(chunk, 2)).toThrow(/FROV/);
     vi.stubGlobal('fetch', (url: string) =>
       Promise.resolve(
@@ -92,7 +146,7 @@ describe('a region bake, read as regionbake writes it', () => {
           : new Response(bakeFile('overview.bin')),
       ),
     );
-    await expect(loadRegion(REF)).rejects.toThrow('bake format 1; this client reads 2');
+    await expect(loadRegion(REF)).rejects.toThrow('bake format 1; this client reads 3');
     vi.stubGlobal('fetch', () => Promise.resolve(new Response(null, { status: 404 })));
     await expect(loadRegion(REF)).rejects.toThrow(/regions\/tiny\/fixture\/.*: 404/);
   });
