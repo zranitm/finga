@@ -16,7 +16,9 @@ interface Vector {
   readonly params: Params;
   readonly speed_factor?: number;
   readonly geometry: Omit<Geometry, 'terrain'> & {
-    readonly terrain: Pick<Terrain, 'cell' | 'nx' | 'nz' | 'heights'>;
+    readonly terrain: Pick<Terrain, 'cell' | 'nx' | 'nz' | 'heights'> & {
+      readonly deep_water?: readonly boolean[];
+    };
   };
   readonly start: State;
   /** blockers, when set, are the mobs from that run on; held and slow, when set, a status the world sets before its first sub-step; breaks, a break-free ending the hold after them; ends_sprint, an attack or skill pressed; move, when set, starts last; fighting steps them as a body in combat. */
@@ -157,6 +159,16 @@ const required = [
   'region-forest-sprint',
   'region-wall-slide',
   'region-steps-on-corners',
+  'deep-walk-stops-at-bank',
+  'deep-jump-stops-in-air',
+  'deep-dash-stops-at-bank',
+  'deep-leap-stops-at-bank',
+  'deep-blink-stops-short',
+  'deep-ford-crosses',
+  'deep-slides-into-ford',
+  'deep-walks-out',
+  'deep-corners-west-bank',
+  'deep-corners-east-bank',
 ];
 
 const noKeys: Input = { left: false, right: false, up: false, down: false, jump: false };
@@ -166,7 +178,7 @@ function replay(v: Vector): State[] {
   const t = v.geometry.terrain;
   let g: Geometry = indexed({
     ...v.geometry,
-    terrain: terrain(t.cell, t.nx, t.nz, t.heights, p.max_slope),
+    terrain: terrain(t.cell, t.nx, t.nz, t.heights, p.max_slope, t.deep_water),
   }); // as a map is, and as Go replays
   let s = v.start;
   const out: State[] = [];

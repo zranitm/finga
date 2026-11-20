@@ -14,7 +14,7 @@ type Reached struct {
 	at []bool
 }
 
-// Reach floods from starts, walking as A* does, and jumping or dropping one or two cells along an axis if the feet rise at most rise.
+// Reach floods from starts, walking as A* does, and jumping or dropping one or two cells along an axis if the feet rise at most rise, never into deep water from out of it, as the sim stops a body at any height.
 func (n *Grid) Reach(starts []Point, r, rise float64) Reached {
 	at := make([]bool, n.nx*n.nz)
 	var queue []int
@@ -33,8 +33,9 @@ func (n *Grid) Reach(starts []Point, r, rise float64) Reached {
 		i := queue[0]
 		queue = queue[1:]
 		n.moves(i, r, visit)
+		dry := n.flags[i]&deep == 0
 		for k, j := range n.sides(i) {
-			if j < 0 || n.clears(j)-n.spot(i).ground > rise {
+			if j < 0 || n.clears(j)-n.spot(i).ground > rise || dry && n.flags[j]&deep != 0 {
 				continue
 			}
 			if n.fits(j, r) {
@@ -42,7 +43,7 @@ func (n *Grid) Reach(starts []Point, r, rise float64) Reached {
 				continue // a body fits on j, so whatever lies beyond it is reached from there
 			}
 			// j is too tight to stand in, as beside a solid, so the jump goes on to f if j has room for the body at the jump's height
-			if f := n.sides(j)[k]; f >= 0 && n.fits(f, r) && n.clears(f)-n.spot(i).ground <= rise && clearance(n.g, n.step, n.centre(j), n.spot(i).ground+rise) >= r {
+			if f := n.sides(j)[k]; f >= 0 && n.flags[f]&deep == 0 && n.fits(f, r) && n.clears(f)-n.spot(i).ground <= rise && clearance(n.g, n.step, n.centre(j), n.spot(i).ground+rise) >= r {
 				visit(f, false)
 			}
 		}

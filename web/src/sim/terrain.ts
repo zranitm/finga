@@ -6,17 +6,19 @@ export interface Terrain {
   readonly nx: number; // samples along x
   readonly nz: number; // samples along z
   readonly heights: readonly number[]; // row by row from z = 0, each row from x = 0
+  readonly deepWater?: readonly boolean[]; // per sample, as heights: under water too deep to wade; none on a map without water
   readonly steepX: readonly boolean[]; // per cell: a rise across either of its x edges exceeds max_slope × cell
   readonly steepZ: readonly boolean[]; // likewise across its z edges
 }
 
-/** The grid with its steep marks for maxSlope, a rise per metre. */
+/** The grid with its steep marks for maxSlope, a rise per metre, and its deep water's samples if it has any. */
 export function terrain(
   cell: number,
   nx: number,
   nz: number,
   heights: readonly number[],
   maxSlope: number,
+  deepWater?: readonly boolean[],
 ): Terrain {
   const limit = maxSlope * cell;
   const steepX: boolean[] = [];
@@ -31,7 +33,9 @@ export function terrain(
       steepZ.push(Math.abs(h01 - h00) > limit || Math.abs(h11 - h10) > limit);
     }
   }
-  return { cell, nx, nz, heights, steepX, steepZ };
+  return deepWater
+    ? { cell, nx, nz, heights, deepWater, steepX, steepZ }
+    : { cell, nx, nz, heights, steepX, steepZ };
 }
 
 /** The cell holding coordinate v along an axis of n samples, and how far into it v lies, 0 to 1. */
@@ -60,6 +64,18 @@ export function top(t: Terrain, x: number, z: number): number {
   const [iz] = at(t, z, t.nz);
   const i = iz * t.nx + ix;
   return Math.max(t.heights[i]!, t.heights[i + 1]!, t.heights[i + t.nx]!, t.heights[i + t.nx + 1]!);
+}
+
+/** Whether any sample of the cell holding (x, z) is under deep water, which no body moves into. */
+export function deep(t: Terrain, x: number, z: number): boolean {
+  const w = t.deepWater;
+  if (!w) {
+    return false;
+  }
+  const [ix] = at(t, x, t.nx);
+  const [iz] = at(t, z, t.nz);
+  const i = iz * t.nx + ix;
+  return w[i]! || w[i + 1]! || w[i + t.nx]! || w[i + t.nx + 1]!;
 }
 
 /** Whether the cell holding (x, z) is steep along x, or along z when alongZ. */

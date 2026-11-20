@@ -59,6 +59,7 @@ interface MapJson {
       readonly nx: number;
       readonly nz: number;
       readonly heights: readonly number[];
+      readonly deep_water?: readonly boolean[];
     };
     readonly boxes: readonly Box[] | null;
     readonly cylinders: readonly Cylinder[] | null;
@@ -102,7 +103,12 @@ export async function loadMap(id: string): Promise<WorldMap> {
 function parseMap(json: unknown): WorldMap {
   const m = json as MapJson;
   const t = m?.geometry?.terrain;
-  if (typeof m?.id !== 'string' || !t || t.heights?.length !== t.nx * t.nz) {
+  if (
+    typeof m?.id !== 'string' ||
+    !t ||
+    t.heights?.length !== t.nx * t.nz ||
+    (t.deep_water !== undefined && t.deep_water.length !== t.nx * t.nz)
+  ) {
     throw new Error('not a map mapjson wrote');
   }
   const boxes = m.geometry.boxes ?? [];
@@ -119,7 +125,7 @@ function parseMap(json: unknown): WorldMap {
   const geometry = indexed({
     size_x: m.geometry.size_x,
     size_z: m.geometry.size_z,
-    terrain: terrain(t.cell, t.nx, t.nz, t.heights, movement.max_slope),
+    terrain: terrain(t.cell, t.nx, t.nz, t.heights, movement.max_slope, t.deep_water),
     boxes,
     cylinders,
   });

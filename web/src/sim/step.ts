@@ -2,7 +2,7 @@
 import type { Input } from './input';
 import { near } from './solids';
 import type { Solids } from './solids';
-import { height, steep, top } from './terrain';
+import { deep, height, steep, top } from './terrain';
 import type { Terrain } from './terrain';
 
 /** √½, a diagonal heading's share on each axis, written out so no trigonometry is needed. */
@@ -426,7 +426,7 @@ function round(
   return [at, steep];
 }
 
-/** How far of d a body moves along x, or z when alongZ, whether into a cell steep that way, the cylinder that cut it short, else -1, and whether a mob did: edges, solids and mobs stop it at contact, terrain it can't climb is a wall. */
+/** How far of d a body moves along x, or z when alongZ, whether into a cell steep that way, the cylinder that cut it short, else -1, and whether a mob did: edges, solids and mobs stop it at contact, terrain it can't climb and deep water are walls. */
 function slide(
   s: State,
   d: number,
@@ -486,6 +486,9 @@ function slide(
   }
   const x = alongZ ? across : at + d;
   const z = alongZ ? at + d : across;
+  if (deep(g.terrain, x, z) && !deep(g.terrain, s.x, s.z)) {
+    return [0, false, -1, mob]; // into deep water, at any height; a body already in it walks out
+  }
   const isSteep = steep(g.terrain, x, z, alongZ);
   const h = height(g.terrain, x, z);
   if (s.on_ground) {

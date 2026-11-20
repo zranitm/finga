@@ -141,12 +141,13 @@ biomes:
      - ridges along their paths;
      - plateaus with cliff or ramp edges;
      - rivers and lakes carved, with fords left shallow;
+       - **As built (step 4b-2a):** once the edge is raised, a sample still under a river or a lake whose water stands more than 0.6 m over it, twice a ford's depth, is marked deep (`sim.Terrain.DeepWater`, per sample). Roads, towns and the edge reshape the ground after the water, so the marks are judged on the final heights: a causeway or a town over a river is dry, and a bank's edge is wadeable.
      - roads flattened to their mean height along a smoothed path.
   3. **Towns:** each town area flattened toward its mean.
   4. **Edge:** the mountain ring, raised last so no feature or town opens it: a cliff 10 m over the highest ground inside the ring at its inner face, then rising smoothly by between its heights to the sides, noise choosing where.
      - **As built (step 4b-1):** the ring was a smooth rise added before the features. Where its noise picked its lower height, the whole slope stayed under the walkable 0.7, and from the test region's start a player reached 21,700 m² of the ring, up to the border.
      - **Why 10 m:** the highest a player gets is about 6.7 m above the ground: 4.5 m up a pillar, the kit's tallest solid that jumps from one top to the next climb to, then a jump and a 300 ms leap at its peak. A blink, a dash or a leap alone adds no height. The cliff is measured from the highest ground inside, so a ridge or plateau beside the ring can't beat it.
-     - **Tests:** nothing the walk grid reaches from the start lies in the ring (`TestNoPlayerReachesARegionsRing`). On each side of every region, and of a flat one whose ground is all as high as at its face, a body at the face fires a jump and every skill's move, from the ground and the climbed 4.5 m, now or at a jump's peak, and gets no farther in than the cliff's own cell (`TestNoMoveGetsOntoARegionsRing`). A 6 m cliff fails it.
+     - **Tests:** nothing the walk grid reaches from the start lies in the ring (`TestNoPlayerReachesARegionsRingOrDeepWater`). On each side of every region, and of a flat one whose ground is all as high as at its face, a body at the face fires a jump and every skill's move, from the ground and the climbed 4.5 m, now or at a jump's peak, and gets no farther in than the cliff's own cell (`TestNoMoveGetsOntoARegionsRing`). A 6 m cliff fails it.
   5. **Steepness,** as `sim.Terrain` marks it today.
   6. **Colours:** each sample gets a biome colour, by its area and its height and slope: flat, slope, steep and high. Roads take dirt, river and lake beds sand.
   7. **Pieces** are added as placed.
@@ -494,6 +495,17 @@ Built with step 1, which says who watches a cell.
 - **Tall props' see-through copies** (`kitLook`) are made per chunk, for chunks within 64 m only. `fade()` reads a grid of looks, so it tests only those near the camera's line to the player.
 - **Shadows:** Babylon's `CascadedShadowGenerator`, with 3 cascades to 80 m. Casters are the near chunks and the bodies in view.
 - **Water:** rivers and lakes are flat planes at their level, in the toon style. Deep water is steep ground the sim blocks, as walls are.
+  - **As built (step 4b-2a):**
+    - **The sim:** a terrain cell with any deep sample is a wall to a move into it from out of it, at any height, in Go and in the client (`slide`). So no walk, jump, dash, leap, knockback or blink gets in, and a body already in one walks out. Moving downhill stays open everywhere else, which is why the banks alone didn't stop anyone.
+    - **Shots fly over it:** a mob's spit moves its ball by the same `Push` with the marks left out, as the client draws it, so a bat spits across a river and its line-of-shot check agrees.
+    - **Nav:** a cell over deep water is `deep`. Nobody fits there, no way into it opens from dry ground, a jump in the reach check lands short of it, and a path from inside it leads out by the nearest dry cell.
+    - **The client** reads the marks from the map's JSON (`deep_water`, per sample) until 4b-2b moves its ground onto the bake.
+    - **Tests:**
+      - the vectors `deep-*`: a walk, jump, dash, leap and blink stopped at the bank, the ford crossed, a slide along the bank into it, cells deep at one corner only, and a body walking out;
+      - the generator's marks: a river's channel and a lake 0.8 m deep are deep, a ford, a causeway, a bank's edge and a pond 0.5 m deep aren't;
+      - a deep river crossed only at its ford, and nothing in a shipped region reaching deep water;
+      - a bat's spit across a strip of deep water landing on the far side.
+    - Before it, a player in the test region reached 13,039 cells of riverbed, about 3,300 m², walking under up to 2.5 m of water.
 - **Entities:** only what the server sends (section 5).
   - Name labels show for the 40 nearest, and for party members and the lock.
   - HP bars show for the party, the lock, and mobs hit in the last 5 s.
@@ -659,8 +671,8 @@ Built with step 1, which says who watches a cell.
 4. **The pipeline,** in two PRs:
    - 4a: `regiongen`, the kit and the bake, and the preview;
    - 4b: the `region` kind and its loader rules, region channels, areas, towns, area bosses and respawn, and a test region. The client's sim walks a region's ground from its bake, and the loading screen holds for the near chunks. The loader refuses a region one block would hold, so none is ever sent whole.
-     - As built, in four PRs: 4b-1 the region kind, the loader, the ring's cliff and the test region; 4b-2 the client's sim on the bake's chunks, the loading screen's hold and deep water as walls; 4b-3 channels; 4b-4 areas, towns, area bosses and respawn.
-     - From step 8, every shipped region's hunting areas also pass the maps' three design tests: no mob sees an arrival, each mob reaches a player anywhere in its leash, and no solid leaves a gap by steep ground only a player fits. The generator then needs a scatter rule keeping solids off cliffs. Run through them once in 4b-1, the test region, a fixture, passes the first after one camp moved and fails the other two: mobs miss a few spots, some in a riverbed that 4b-2's deep water closes, and trees at the foot of cliffs, the ring's included, leave gaps only a player fits.
+     - As built, in five PRs: 4b-1 the region kind, the loader, the ring's cliff and the test region; 4b-2a deep water as walls; 4b-2b the client's sim on the bake's chunks and the loading screen's hold; 4b-3 channels; 4b-4 areas, towns, area bosses and respawn.
+     - From step 8, every shipped region's hunting areas also pass the maps' three design tests: no mob sees an arrival, each mob reaches a player anywhere in its leash, and no solid leaves a gap by steep ground only a player fits. The generator then needs a scatter rule keeping solids off cliffs. Run through them once in 4b-1, the test region, a fixture, passes the first after one camp moved and fails the other two: mobs miss a few spots, some in a riverbed that 4b-2a's deep water closes, and trees at the foot of cliffs, the ring's included, leave gaps only a player fits.
 5. **The client for regions,** in three PRs:
    - 5a: the overview, chunk streaming and detail, and props per chunk;
    - 5b: the looks grid, cascaded shadows and water;
