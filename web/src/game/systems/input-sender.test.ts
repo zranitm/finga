@@ -93,4 +93,20 @@ describe('InputSender', () => {
     s.tickStart(42);
     expect(send).toHaveBeenLastCalledWith(noInput, 1, 42);
   });
+
+  it('lets every key go on a held tick, a jump tapped too, keeping the walk mode, and the keys still down go on after it', () => {
+    const sent: Input[] = [];
+    const s = new InputSender({
+      send: (input) => sent.push(input) > 0,
+      walk: () => true,
+    });
+    s.press('right');
+    s.press('jump');
+    s.tickStart(0, true);
+    s.tickStart(0);
+    expect(sent).toEqual([
+      { ...noInput, walk: true },
+      { ...noInput, right: true, jump: true, walk: true },
+    ]);
+  });
 });

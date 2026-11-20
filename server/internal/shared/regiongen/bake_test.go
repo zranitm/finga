@@ -12,6 +12,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"finga/internal/shared/sim"
 )
 
 var update = flag.Bool("update", false, "rewrite testdata/regions/bakes.sha256 from the test plan and the shipped regions")
@@ -164,7 +166,10 @@ func TestRegionJSONIndexesTheChunks(t *testing.T) {
 		Format  int
 		Chunks  [2]int
 		Heights [2]float64
-		Solids  struct{ Cylinders, Boxes int }
+		Solids  struct {
+			Cylinders, Boxes int
+			Reach            float64
+		}
 		Palette []struct{ Name, RGB string }
 		Models  []string
 		Rivers  []struct{ Levels []float64 }
@@ -177,6 +182,13 @@ func TestRegionJSONIndexesTheChunks(t *testing.T) {
 	k := shippedKit(t)
 	if m.Solids.Cylinders != len(r.Geometry.Cylinders) || m.Solids.Boxes != len(r.Geometry.Boxes) || m.Solids.Cylinders == 0 || m.Solids.Boxes == 0 {
 		t.Errorf("solids %+v; want the region's %d cylinders and %d boxes", m.Solids, len(r.Geometry.Cylinders), len(r.Geometry.Boxes))
+	}
+	widest := 0.0
+	for _, b := range r.Geometry.Boxes {
+		widest = max(widest, math.Sqrt(b.HalfW*b.HalfW+b.HalfD*b.HalfD))
+	}
+	if math.Abs(m.Solids.Reach-widest) > 1e-12 || slices.ContainsFunc(r.Geometry.Cylinders, func(c sim.Cylinder) bool { return c.Radius > widest }) {
+		t.Errorf("solids reach %v; want the widest box's half diagonal, %v, wider than every cylinder", m.Solids.Reach, widest)
 	}
 	if m.Format != Format || m.Chunks != [2]int{4, 4} || m.Heights != r.Heights || !slices.Equal(m.Models, r.Models) || len(m.Areas) != 5 || m.Start.At != [2]float64{124, 80} {
 		t.Errorf("region.json %+v", m)
@@ -262,5 +274,22 @@ func TestBakeHashes(t *testing.T) {
 	}
 	if out.String() != string(want) {
 		t.Errorf("bakes differ (go test ./internal/shared/regiongen -update after a change to the generator or a plan)\ngot:\n%swant:\n%s", out.String(), want)
+	}
+}
+
+// A region's solids reach as far as the widest of them: a cylinder's radius, a box's half diagonal, whichever is wider.
+func TestSolidsReachAsFarAsTheWidest(t *testing.T) {
+	box := sim.Box{HalfW: 3, HalfD: 4, UX: 1}
+	for _, c := range []struct {
+		g    sim.Geometry
+		want float64
+	}{
+		{sim.Geometry{}, 0},
+		{sim.Geometry{Cylinders: []sim.Cylinder{{Radius: 1}, {Radius: 6}}, Boxes: []sim.Box{box}}, 6},
+		{sim.Geometry{Cylinders: []sim.Cylinder{{Radius: 1}}, Boxes: []sim.Box{{HalfW: 1, HalfD: 1, UX: 1}, box}}, 5},
+	} {
+		if got := solidReach(c.g); got != c.want {
+			t.Errorf("solidReach(%+v) = %v; want %v", c.g, got, c.want)
+		}
 	}
 }

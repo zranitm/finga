@@ -111,6 +111,8 @@ describe('a region drawn from its bake', () => {
   let place: Place | undefined;
   let ground: RegionGround;
   let landed: number;
+  let broke: string[];
+  let clock: number;
   const meshes = (prefix: string) =>
     scene.meshes.filter((m) => m.name.startsWith(prefix)) as Mesh[];
   const chunkNames = () =>
@@ -131,14 +133,13 @@ describe('a region drawn from its bake', () => {
     const { region, overview } = await loadRegion(TINY);
     ground = new RegionGround(region, movement.max_slope);
     landed = 0;
-    place = buildRegion(
-      scene,
-      { ref: TINY, region, overview, ground },
-      lighting,
-      models,
-      source,
-      () => landed++,
-    );
+    broke = [];
+    clock = 0;
+    place = buildRegion(scene, { ref: TINY, region, overview, ground }, lighting, models, source, {
+      landed: () => landed++,
+      broke: (k) => broke.push(k),
+      now: () => clock,
+    });
   }
 
   /** The kit models every chunk made so far asked for, loaded and copied in. */
@@ -242,8 +243,9 @@ describe('a region drawn from its bake', () => {
     expect(overview('overview skirts').getTotalIndices()).toBe(0);
   });
 
-  it("leaves the overview where a chunk won't come, asking for it once", async () => {
+  it("leaves the overview where a chunk won't come, asking again only once its backoff is past", async () => {
     await built((url) => url.endsWith('1_1.bin'));
+    vi.spyOn(Math, 'random').mockReturnValue(0.99); // the backoff's whole 500 ms
     const said = vi.spyOn(console, 'info').mockImplementation(() => undefined);
     await settle(30, 60);
     for (let i = 0; i < 5; i++) {
@@ -263,8 +265,85 @@ describe('a region drawn from its bake', () => {
       expect(north ? z : x).toBe(64);
       expect(y - foot).toBeCloseTo(north ? skirtOf(1, 0) : skirtOf(0, 1), 5);
     }
-    expect(said).toHaveBeenCalledWith(expect.stringContaining('chunk 1_1 of tiny'));
+    expect(said).toHaveBeenCalledWith(
+      expect.stringContaining("chunk 1_1 of tiny didn't load, try 1 of 5"),
+    );
+    clock = 494;
+    place!.follow(30, 60);
+    expect(asked.filter((a) => a.endsWith('1_1.bin')).length).toBe(1);
+    clock = 495;
+    place!.follow(30, 60);
+    expect(asked.filter((a) => a.endsWith('1_1.bin')).length).toBe(2);
     said.mockRestore();
+  });
+
+  it('breaks the region once a chunk has failed five times, each try after a longer backoff, and asks for it no more', async () => {
+    await built((url) => url.endsWith('1_1.bin'));
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const tries = () => asked.filter((a) => a.endsWith('1_1.bin')).length;
+    const waits: number[] = [];
+    place!.follow(30, 60);
+    await source.answer();
+    while (tries() < 5) {
+      const from = clock;
+      const before = tries();
+      while (tries() === before) {
+        clock += 10;
+        place!.follow(30, 60);
+      }
+      waits.push(clock - from);
+      await source.answer();
+    }
+    expect(waits).toEqual([500, 990, 1980, 3960]); // 0.99 of 500 ms doubled each time, to the next 10
+    expect(broke).toEqual(['1_1']);
+    clock += 60_000;
+    place!.follow(30, 60);
+    expect([tries(), broke]).toEqual([5, ['1_1']]);
+  });
+
+  it('asks again for a chunk that failed, and counts afresh once it comes', async () => {
+    let failing = true;
+    await built((url) => failing && url.endsWith('1_1.bin'));
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    const said = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const fourFailures = async () => {
+      for (let i = 0; i < 4; i++) {
+        await settle(30, 60);
+      }
+    };
+    await fourFailures();
+    failing = false;
+    await settle(30, 60);
+    expect(chunkNames()).toContain('chunk 1_1');
+    place!.follow(-400, 60); // freed
+    failing = true;
+    await fourFailures(); // eight failures in all, but four since it came
+    expect(said.mock.calls.at(-1)?.[0]).toContain('try 4 of 5');
+    expect(broke).toEqual([]);
+  });
+
+  it('is ready once every chunk within 128 m of the target is drawn, never while one fails', async () => {
+    await built((url) => url.endsWith('1_1.bin'));
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    expect(place!.ready(30, 60)).toBe(false);
+    await settle(30, 60);
+    expect(place!.ready(30, 60)).toBe(false); // 1_1 is 34 m off
+    expect(place!.ready(-200, 60)).toBe(true); // no chunk within 128 m
+    place!.dispose();
+    await built();
+    await settle(30, 60);
+    expect(place!.ready(30, 60)).toBe(true);
+  });
+
+  it('says nothing of a chunk that fails after the region went', async () => {
+    await built((url) => url.endsWith('1_1.bin'));
+    const said = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    place!.follow(30, 60);
+    place!.dispose();
+    place = undefined;
+    await source.answer();
+    expect([said.mock.calls, broke]).toEqual([[], []]);
   });
 
   it('takes a chunk whose ground doesn’t fit the region as one that didn’t come', async () => {
@@ -277,7 +356,7 @@ describe('a region drawn from its bake', () => {
     expect(chunkNames()).toEqual(['chunk 0_0', 'chunk 0_1', 'chunk 1_0']);
     expect([landed, ground.covers(32, 32, 0), ground.covers(96, 96, 0)]).toEqual([3, true, false]);
     expect(said).toHaveBeenCalledWith(
-      "finga: chunk 1_1 of tiny didn't load: chunk 1_1 has 17 samples a side; the region's have 33",
+      "finga: chunk 1_1 of tiny didn't load, try 1 of 5: chunk 1_1 has 17 samples a side; the region's have 33",
     );
   });
 

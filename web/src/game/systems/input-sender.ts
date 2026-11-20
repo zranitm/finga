@@ -33,15 +33,20 @@ export class InputSender {
     this.jumpLatched = false;
   }
 
+  private letGo(): Input {
+    const input = heldInput(new Set());
+    return this.opts.walk() ? { ...input, walk: true } : input;
+  }
+
   private sample(): Input {
     const input = heldInput(this.held);
     const jumped = this.jumpLatched ? { ...input, jump: true } : input;
     return this.opts.walk() ? { ...jumped, walk: true } : jumped;
   }
 
-  /** Sends this tick's input, with view, the tick of the mobs drawn as it's predicted. */
-  tickStart(view: number): Input {
-    const input = this.sample();
+  /** Sends this tick's input, with view, the tick of the mobs drawn as it's predicted; every key let go while held, the walk mode kept. */
+  tickStart(view: number, held = false): Input {
+    const input = held ? this.letGo() : this.sample();
     this.jumpLatched = false;
     this.tick++;
     this.opts.send(input, this.tick, view);

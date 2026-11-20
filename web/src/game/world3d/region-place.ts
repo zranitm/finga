@@ -8,6 +8,8 @@ import '@babylonjs/core/Meshes/thinInstanceMesh';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Scene } from '@babylonjs/core/scene';
 
+import { backoff } from '@/lib/backoff';
+
 import type { Lighting } from './body';
 import type { BuiltChunk, ChunkSource } from './chunk-build';
 import {
@@ -33,6 +35,18 @@ const DETAIL_M = [64, 128] as const; // every sample within the first, every 2nd
 const PROPS_M = 160; // a chunk's props show within this; the fog hides them past it
 const ASKED = 4; // chunks building at once
 const MADE = 2; // chunk meshes made a frame, so streaming never holds one up
+const READY_M = 128; // the chunks within this of an arrival are drawn before the veil lifts
+const TRIES = 5; // a chunk that fails this often breaks the region
+const RETRY = { baseMs: 500, capMs: 8000 }; // and waits this backoff before each try again
+
+/** What a region tells the world as its chunks come, and the clock its retries wait on. */
+export interface RegionHooks {
+  /** A chunk's ground came. */
+  readonly landed: () => void;
+  /** A chunk failed every try: the region can't be walked. */
+  readonly broke: (chunk: string) => void;
+  readonly now: () => number;
+}
 
 /** How far (x, z) is from chunk (cx, cz)'s square, side metres: 0 inside it. */
 export function chunkDistance(cx: number, cz: number, side: number, x: number, z: number): number {
@@ -73,17 +87,17 @@ export function chunksNear(
   return out.sort((a, b) => a.d - b.d || a.cz - b.cz || a.cx - b.cx);
 }
 
-/** Draws region in scene: its sky, the overview, and the chunks round the camera's target as follow is told it, each building on chunks; each chunk's ground goes to the region's as it comes, and landed hears of it. */
+/** Draws region in scene: its sky, the overview, and the chunks round the camera's target as follow is told it, each building on chunks; each chunk's ground goes to the region's as it comes, as hooks hear. */
 export function buildRegion(
   scene: Scene,
   region: RegionMap,
   lighting: Lighting,
   models: Models,
   chunks: ChunkSource,
-  landed: () => void,
+  hooks: RegionHooks,
 ): Place {
   skyFor(scene, region.region.sky);
-  return new RegionView(scene, region, lighting, models, chunks, landed);
+  return new RegionView(scene, region, lighting, models, chunks, hooks);
 }
 
 /** A chunk drawn: its ground at a detail, and its props, which come as their models load. */
@@ -106,9 +120,9 @@ class RegionView implements Place {
   private skirts: Mesh | null = null; // round the overview's holes
   private readonly drawn = new Map<string, Drawn>();
   private readonly asked = new Set<string>();
-  private readonly failed = new Set<string>();
+  private readonly failed = new Map<string, { tries: number; after: number }>(); // a chunk that failed: how often, and when it may be asked again
   private readonly kits = new Map<string, Promise<KitPart[] | null>>();
-  private ready: BuiltChunk[] = [];
+  private toMake: BuiltChunk[] = []; // built, to be made a few a frame
   private holes = false; // whether the overview's holes need cutting again
   private gone = false;
   private readonly region: Region;
@@ -121,7 +135,7 @@ class RegionView implements Place {
     private readonly lighting: Lighting,
     private readonly models: Models,
     private readonly chunks: ChunkSource,
-    private readonly landed: () => void,
+    private readonly hooks: RegionHooks,
   ) {
     const { region, overview: far } = map;
     this.region = region;
@@ -159,8 +173,8 @@ class RegionView implements Place {
         this.asked.delete(k); // dropped as it comes
       }
     }
-    this.ready = this.ready.filter((b) => chunkDistance(b.cx, b.cz, side, x, z) <= FREE_M);
-    for (const b of this.ready.splice(0, MADE)) {
+    this.toMake = this.toMake.filter((b) => chunkDistance(b.cx, b.cz, side, x, z) <= FREE_M);
+    for (const b of this.toMake.splice(0, MADE)) {
       this.make(b);
     }
     for (const d of this.drawn.values()) {
@@ -173,16 +187,18 @@ class RegionView implements Place {
       d.props.setEnabled(away <= PROPS_M);
     }
     const [ncx, ncz] = this.region.chunks;
+    const now = this.hooks.now();
     for (const { cx, cz } of chunksNear(ncx, ncz, side, x, z, LOAD_M)) {
       if (this.asked.size >= ASKED) {
         break;
       }
       const k = key(cx, cz);
+      const failed = this.failed.get(k);
       if (
         !this.drawn.has(k) &&
         !this.asked.has(k) &&
-        !this.failed.has(k) &&
-        !this.ready.some((b) => b.cx === cx && b.cz === cz)
+        !(failed && (failed.tries >= TRIES || now < failed.after)) &&
+        !this.toMake.some((b) => b.cx === cx && b.cz === cz)
       ) {
         this.ask(cx, cz);
       }
@@ -203,13 +219,20 @@ class RegionView implements Place {
     }
   }
 
+  ready(x: number, z: number): boolean {
+    const [ncx, ncz] = this.region.chunks;
+    return chunksNear(ncx, ncz, this.region.chunk, x, z, READY_M).every(({ cx, cz }) =>
+      this.drawn.has(key(cx, cz)),
+    );
+  }
+
   dispose(): void {
     this.gone = true;
     this.root.dispose(false, false);
     this.scene.fogMode = Scene.FOGMODE_NONE;
   }
 
-  /** Asks for chunk (cx, cz); its ground goes to the sim as it comes, and it's made a later frame, unless it went out of reach meanwhile. One that fails, or whose ground doesn't fit the region, isn't asked again: the overview stands in for it. */
+  /** Asks for chunk (cx, cz); its ground goes to the sim as it comes, and it's made a later frame, unless it went out of reach meanwhile. One that fails, or whose ground doesn't fit the region, is asked again after a backoff, the overview standing in meanwhile, and breaks the region once it has failed TRIES times. */
   private ask(cx: number, cz: number): void {
     const k = key(cx, cz);
     this.asked.add(k);
@@ -231,21 +254,30 @@ class RegionView implements Place {
             this.fail(k, err);
             return;
           }
-          this.landed();
+          this.failed.delete(k);
+          this.hooks.landed();
           if (this.asked.delete(k)) {
-            this.ready.push(b);
+            this.toMake.push(b);
           }
         },
-        (err: unknown) => this.fail(k, err),
+        (err: unknown) => {
+          if (!this.gone) {
+            this.fail(k, err);
+          }
+        },
       );
   }
 
   private fail(k: string, err: unknown): void {
     this.asked.delete(k);
-    this.failed.add(k);
+    const tries = (this.failed.get(k)?.tries ?? 0) + 1;
+    this.failed.set(k, { tries, after: this.hooks.now() + backoff(tries - 1, RETRY) });
     console.info(
-      `finga: chunk ${k} of ${this.region.ref.id} didn't load: ${err instanceof Error ? err.message : String(err)}`,
+      `finga: chunk ${k} of ${this.region.ref.id} didn't load, try ${tries} of ${TRIES}: ${err instanceof Error ? err.message : String(err)}`,
     );
+    if (tries >= TRIES) {
+      this.hooks.broke(k);
+    }
   }
 
   /** Draws a built chunk: its ground at the farthest detail till the next follow sets it, and its props as their models load. */

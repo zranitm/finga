@@ -99,7 +99,7 @@ describe('a region bake, read as regionbake writes it', () => {
         Array.from({ length: region.solids[kind] }, (_, i) => i),
       );
     }
-    expect(region.solids).toEqual({ cylinders: 89, boxes: 2 }); // the tiny plan's oaks and its two houses
+    expect(region.solids).toEqual({ cylinders: 89, boxes: 2, reach: Math.hypot(3, 3.5) }); // the tiny plan's oaks and its two houses
   });
 
   it('marks the deep water: the river along x = 96, but for its ford and the road’s causeway', () => {

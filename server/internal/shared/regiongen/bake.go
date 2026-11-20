@@ -11,6 +11,8 @@ import (
 	"math"
 	"slices"
 	"strings"
+
+	"finga/internal/shared/sim"
 )
 
 // Format is the bake's version, in every file; a reader refuses another. 2: a chunk's heights carry a border. 3: a chunk carries its deep water and each solid's index in the region's lists.
@@ -213,8 +215,9 @@ func (r *Region) meta() ([]byte, error) {
 		Level float64      `json:"level"`
 	}
 	type solids struct {
-		Cylinders int `json:"cylinders"`
-		Boxes     int `json:"boxes"`
+		Cylinders int     `json:"cylinders"`
+		Boxes     int     `json:"boxes"`
+		Reach     float64 `json:"reach"` // the farthest any solid reaches from its centre, so from the chunk that carries it
 	}
 	m := struct {
 		Format    int        `json:"format"`
@@ -239,7 +242,7 @@ func (r *Region) meta() ([]byte, error) {
 		Start     Place      `json:"start"`
 	}{
 		Format: Format, Name: p.Name, Sky: p.Look.Sky, Size: p.Size, Cell: p.Cell, Chunk: chunkM, Overview: overviewM, Heights: r.Heights,
-		Solids: solids{len(r.Geometry.Cylinders), len(r.Geometry.Boxes)},
+		Solids: solids{len(r.Geometry.Cylinders), len(r.Geometry.Boxes), solidReach(r.Geometry)},
 		Models: r.Models, Areas: nonNil(p.Areas), Camps: nonNil(p.Camps), Waypoints: nonNil(p.Waypoints), NPCs: nonNil(p.NPCs), Gates: nonNil(p.Gates), Start: p.Start,
 		Rivers: []river{}, Lakes: []lake{},
 	}
@@ -356,4 +359,16 @@ func (r *Region) darkenSolids(img *image.NRGBA) {
 			return math.Abs(u) <= b.HalfW && math.Abs(v) <= b.HalfD
 		})
 	}
+}
+
+// solidReach is the farthest any of g's solids reaches from its centre: a cylinder's radius, a box's half diagonal.
+func solidReach(g sim.Geometry) float64 {
+	reach := 0.0
+	for _, c := range g.Cylinders {
+		reach = max(reach, c.Radius)
+	}
+	for _, b := range g.Boxes {
+		reach = max(reach, math.Sqrt(float64(b.HalfW*b.HalfW)+float64(b.HalfD*b.HalfD))) // no fused multiply-add, so every CPU agrees
+	}
+	return reach
 }

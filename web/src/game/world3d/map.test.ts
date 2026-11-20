@@ -129,7 +129,11 @@ describe('loadMap', () => {
       region: { id: 'tiny', hash: 'abc' },
     });
     expect(tiny.region?.ref).toEqual({ id: 'tiny', hash: 'abc' });
-    expect(tiny.region?.region.solids).toEqual({ cylinders: 89, boxes: 2 });
+    expect(tiny.region?.region.solids).toEqual({
+      cylinders: 89,
+      boxes: 2,
+      reach: Math.hypot(3, 3.5),
+    });
     expect(tiny.region?.overview.nx).toBe(17);
     expect((await read(raw)).region).toBeNull();
     for (const region of [{ id: 'tiny' }, { hash: 'abc' }, { id: 'tiny', hash: 7 }, null]) {

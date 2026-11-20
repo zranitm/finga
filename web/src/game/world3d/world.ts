@@ -13,6 +13,7 @@ import { loot as lootData } from '@/gamedata/loot';
 import { maps } from '@/gamedata/maps';
 import { movement } from '@/gamedata/movement';
 import { npcs as npcData } from '@/gamedata/npcs';
+import { skills } from '@/gamedata/skills';
 import { skillKeys } from '@/input/actions';
 import type { Action } from '@/input/actions';
 import { keyOf, keyTable } from '@/input/bindings';
@@ -147,6 +148,8 @@ export interface WorldDeps {
   readonly chunks: ChunkSource;
   /** The page's clock in ms, which the keys, actions and frames share. */
   readonly now: () => number;
+  /** Reloads the page, for a world that can't go on: a region whose chunk won't come. */
+  readonly reload: () => void;
 }
 
 type Wire = Data<'snapshot'>['players'][number];
@@ -156,6 +159,14 @@ type LiveMark = { -readonly [K in keyof Mark]: Mark[K] };
 
 const FADE_MS = 250;
 const RETRY = { baseMs: 500, capMs: 10_000 }; // a map that didn't load tries again after a backoff
+const RELOAD_MS = 3000; // a broken region's notice shows this long before the page reloads
+/** The farthest one input can carry the player before the hold sees them: the longest move a skill makes, past their body's radius (large-regions.md section 4). Out of a match only a mob's 0.5 m knockback pushes a player. */
+const CARRY_M =
+  Math.max(
+    ...skills
+      .flatMap((s) => [...s.stages, ...s.traits.flatMap((t) => t.stage ?? [])])
+      .map((st) => st.move?.distance ?? 0),
+  ) + movement.radius;
 const BANNER_MS = 1800;
 const STALL_MS = 2000; // 40 ticks without a frame: the world has stalled, though the socket is open
 const SUN = new Vector3(0.35, -1, 0.6);
@@ -424,6 +435,10 @@ export class World {
   private feed = new FeedWatch(STALL_MS);
   private stalled = false;
   private placed = false; // set by the first frame that names the local player
+  private groundHeld = false; // the region's ground round the player is still coming: their keys wait
+  private heldSince = 0;
+  private veiled = false; // the veil waits for what the arrival sees to be drawn
+  private reloading = false;
   private latestMe: Wire | null = null; // the newest frame of the local player, which places them after a respawn here
   private myTeam = 0; // the player's side in a match as their last frame gave it, kept while they're down
   private transitionState: TransitionState = initialTransition;
@@ -532,6 +547,7 @@ export class World {
     this.raiseWall(predictor);
     predictor.holdFor(countdownTicks(pvp.getState().match, this.timing.tickMs)); // known from prep's or the gap's end, before the count's first Delta
     if (this.placed) {
+      const held = this.holdForGround(predictor.state, now);
       if (this.attackHeld) {
         this.attack(false);
       }
@@ -541,7 +557,7 @@ export class World {
         }
         if (step.tickStart) {
           const view = this.renderClock.viewAt(now);
-          const input = sender.tickStart(view); // sends it, so the socket's sequence is its own
+          const input = sender.tickStart(view, held); // sends it, so the socket's sequence is its own
           this.heldNow = input;
           predictor.beginTick(this.deps.socket.sequence, input, view);
         }
@@ -565,6 +581,7 @@ export class World {
     this.publishMarks(now);
     this.drawNpcs(now, dt);
     this.moveCamera(dt);
+    this.unveil();
     this.combat?.frame(now);
     this.closeDialogOutOfReach();
     this.reachPouches();
@@ -639,7 +656,11 @@ export class World {
       pouchMarks = new PouchMarks(scene, models, lighting);
       fx = new Fx(scene, map, art, this.deps.now, lighting.palette);
       place = map.region
-        ? buildRegion(scene, map.region, lighting, models, this.deps.chunks, () => this.landed())
+        ? buildRegion(scene, map.region, lighting, models, this.deps.chunks, {
+            landed: () => this.landed(),
+            broke: (k) => this.broke(map.id, k),
+            now: this.deps.now,
+          })
         : await buildPlace(scene, map, lighting, models);
     } catch (err) {
       scene.dispose();
@@ -775,7 +796,46 @@ export class World {
       this.onWorld(m);
     }
     this.arriving = null;
-    this.veil.style.opacity = '0';
+    this.veiled = true;
+    this.unveil();
+  }
+
+  /** Lifts the veil once what the camera's target sees is drawn: at once on a map, a region's chunks round it first. */
+  private unveil(): void {
+    if (this.veiled && this.place?.ready(this.follow.x, this.follow.z)) {
+      this.veiled = false;
+      this.veil.style.opacity = '0';
+    }
+  }
+
+  /** Whether the player's keys wait for the region's ground: while a chunk is missing within the farthest one input could carry them, a move under way or a push included, and its solids' reach past that, as they travel with their centre's chunk (large-regions.md section 4). Every arrival meets it, a walk to the ground's edge too. */
+  private holdForGround(s: State, now: number): boolean {
+    const region = this.map?.region;
+    const held = !!region && !region.ground.covers(s.x, s.z, CARRY_M + region.region.solids.reach);
+    if (held !== this.groundHeld) {
+      this.groundHeld = held;
+      connection.getState().setGroundLoading(held);
+      if (held) {
+        this.heldSince = now;
+        console.info(
+          `finga: the keys wait for the ground round (${s.x.toFixed(1)}, ${s.z.toFixed(1)})`,
+        );
+      } else {
+        console.info(`finga: the ground came after ${Math.round(now - this.heldSince)} ms`);
+      }
+    }
+    return held;
+  }
+
+  /** A region's chunk failed every try: says so, and reloads the page, which fetches the bake afresh. */
+  private broke(mapId: string, chunk: string): void {
+    if (this.reloading) {
+      return;
+    }
+    this.reloading = true;
+    console.info(`finga: chunk ${chunk} of ${mapId} won't load; reloading`);
+    toasts.getState().push('The map’s ground didn’t load. Reloading…');
+    setTimeout(() => this.deps.reload(), RELOAD_MS);
   }
 
   private bindKeys(): void {
@@ -884,7 +944,7 @@ export class World {
 
   /** Whether the player may act: placed, the world not stalled, alive. */
   private free(): boolean {
-    return this.placed && !this.stalled && !this.transitionState.dead;
+    return this.placed && !this.stalled && !this.groundHeld && !this.transitionState.dead;
   }
 
   private onWorld(m: Held): void {
@@ -2442,6 +2502,10 @@ export class World {
     this.placed = false;
     this.transitionState = initialTransition;
     this.setStalled(false);
+    if (this.groundHeld) {
+      this.groundHeld = false;
+      connection.getState().setGroundLoading(false);
+    }
     this.camera = null;
     this.place = null;
     this.figures = null;

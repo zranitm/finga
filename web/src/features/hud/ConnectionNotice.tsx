@@ -4,6 +4,7 @@ export function ConnectionNotice() {
   const status = connection.use((s) => s.status);
   const attempt = connection.use((s) => s.attempt);
   const stalled = connection.use((s) => s.worldStalled);
+  const loading = connection.use((s) => s.groundLoading);
   if (status === 'reconnecting') {
     return (
       <div className="notice-banner" role="status">
@@ -15,6 +16,13 @@ export function ConnectionNotice() {
     return (
       <div className="notice-banner" role="status">
         Waiting for the server…
+      </div>
+    );
+  }
+  if (status === 'connected' && loading) {
+    return (
+      <div className="notice-banner" role="status">
+        Loading the ground…
       </div>
     );
   }

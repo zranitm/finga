@@ -19,8 +19,8 @@ export interface Region {
   readonly chunks: readonly [number, number];
   /** The region's lowest and highest ground. */
   readonly heights: readonly [number, number];
-  /** How many cylinders and boxes the region has, which its chunks' solids index into. */
-  readonly solids: { readonly cylinders: number; readonly boxes: number };
+  /** How many cylinders and boxes the region has, which its chunks' solids index into, and the farthest any reaches from its centre, so from the chunk that carries it. */
+  readonly solids: { readonly cylinders: number; readonly boxes: number; readonly reach: number };
   /** Each ground's colour, 0xrrggbb sRGB, by the index chunks and the overview hold. */
   readonly palette: readonly number[];
   /** Each kit model's key, by the index a chunk's props hold. */
@@ -98,7 +98,7 @@ interface RegionJson {
   readonly chunk: number;
   readonly chunks: [number, number];
   readonly heights: [number, number];
-  readonly solids: { readonly cylinders: number; readonly boxes: number };
+  readonly solids: { readonly cylinders: number; readonly boxes: number; readonly reach: number };
   readonly palette: readonly { readonly name: string; readonly rgb: string }[];
   readonly models: readonly string[];
 }
