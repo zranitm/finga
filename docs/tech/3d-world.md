@@ -75,7 +75,7 @@ props:                                   # looks only
 portals:
   - {name: from_town, at: [2, 20], radius: 1.2, to: {map: town, portal: to_forest}}
 spawns:
-  - {name: slimes, at: [22, 20], radius: 8, mob: green_slime, max: 5, respawn: 8s}
+  - {name: slimes, at: [22, 20], radius: 8, mob: green_slime, max: 5, respawn: 24s}
 player_spawn: {at: [4, 20], yaw: 90}
 npcs:
   - {id: bowman_trainer, at: [30, 24], yaw: 180}

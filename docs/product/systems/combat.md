@@ -143,7 +143,7 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
   - Elites and field bosses always have super armor: no flinch, no push, no knockdown.
 - **Until mobs can climb,** a Bowman's or Magician's shot, or an area skill, reaches mobs from raised ground they can't climb, such as the forest's mesa: shots and areas don't check height, so mobs below that can't reach up can't answer. Melee arcs check height.
 - **Later**, in this order: attack combos; mobs jumping onto raised ground; launchers and air juggles; players knocked down by heavy hits. Plain movement has no dash; only skills dash (C17).
-- Defeated mobs come back after a respawn delay.
+- Defeated mobs come back 24 to 45 seconds after they're beaten, depending on the camp, with elites the slowest. That leaves time to take a pouch before the camp refills (D1).
 - Number of mob types in the MVP: see World → MVP world.
 
 ## Field bosses

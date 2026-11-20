@@ -1,6 +1,6 @@
 # Loot pouches and timed bosses
 
-> **Status: approved · 2026-11-19. Steps 1 and 2, timed bosses and pouches, as built.** The high-level design for the changes to [D1. Drops and loot](../product/features/items-and-inventory/d1-drops-and-loot.md) and [C10. Field bosses](../product/features/combat-and-progression/c10-field-bosses.md), with E3's party loot and E5's lines. It replaces auto pickup ([Auto pickup and the combat channel](./auto-pickup-and-combat-channel.md) sections 3 to 5) and the boss's kill count ([Field bosses](./field-bosses.md)).
+> **Status: approved · 2026-11-19. Steps 1 and 2, timed bosses and pouches, as built. Step 3, slower camps and fewer pouches, approved 2026-11-20.** The high-level design for the changes to [D1. Drops and loot](../product/features/items-and-inventory/d1-drops-and-loot.md) and [C10. Field bosses](../product/features/combat-and-progression/c10-field-bosses.md), with E3's party loot and E5's lines. It replaces auto pickup ([Auto pickup and the combat channel](./auto-pickup-and-combat-channel.md) sections 3 to 5) and the boss's kill count ([Field bosses](./field-bosses.md)).
 
 ## 1. What has to hold
 
@@ -13,6 +13,10 @@
   - Only players on the boss's map, or in its area of a region, hear that it appeared.
   - Less loot overall: fewer kills drop a pouch, and a pouch holds what one kill drops.
   - Items that quests collect come in pouches like the rest.
+- **The user's words** (2026-11-20): "make mob spawn slower, leave time for player to loot the pouch and decrease drop rate again".
+- **Their choices:**
+  - Camps bring mobs back three times as slowly: today's 8 to 15 s become 24 to 45 s. Field bosses stay at 5 minutes.
+  - A pouch on 1 kill in 6, and 1 in 3 for an elite, a third fewer than 1 in 4 and 1 in 2. A pouch still holds what one kill drops.
 - **The client computes, the server validates:**
   - The client knows its pouches and their contents, works out which are in reach, and draws the window.
   - The server decides every roll and owner, checks reach and ownership on each take, and grants.
@@ -36,7 +40,7 @@
 - **`loot.yaml`:**
 
   ```yaml
-  pouch: {normal: 0.25, elite: 0.5}  # the chance a kill drops a pouch; a boss always leaves each eligible player a box
+  pouch: {normal: 0.1667, elite: 0.3333}  # the chance a kill drops a pouch: 1 in 6, and 1 in 3 for an elite; a boss always leaves each eligible player a box
   reach: 2            # metres from the character's middle to a pouch or box to open it
   pouch_life: 60s     # a pouch still holding items then is gone
   box_life: 2m        # a boss's box still holding items then is gone
@@ -48,6 +52,9 @@
   - `field_boss` becomes `{respawn: 5m, drop_share: 0.01}`, and `life` goes.
   - Drop lists are unchanged. The pouch chance thins them.
 - **Maps:** `boss: {at, radius, mob}`, and `kills` goes. A region's area names its boss's circle the same way (large-regions.md section 6).
+- **Camps** (step 3): every camp's `respawn` in `maps/` and `regions/` is three times what it was: 8 s becomes 24 s, 9 s 27 s, 10 s 30 s, 12 s 36 s and 15 s 45 s.
+  - The shortest, 24 s, is several times the few seconds it takes to walk to a pouch and take it, so the camp doesn't refill on a player still looting.
+  - A test over the shipped maps and regions holds every camp to at least 24 s, so camps added later with a region's layout keep the room to loot. Test fixtures keep their own times, so tests don't wait.
 - **Loader rules:**
   - `pouch` chances must be in (0, 1].
   - `reach` must be at least the talk reach (1.875 m), so a pouch at a player's feet is always in reach.
@@ -246,6 +253,7 @@
   - calm: a player walking the forest past King Slime, stopping by it, is never chased; a blow wakes it, even from someone it can't see; it's calm again after a reset, by its leash or with nobody left; mobs by it still fight;
   - rewards as before.
 - **Item invariants** hold over randomized takes. Every created item has its `drop` cause.
+- **Camps:** every camp in the shipped maps and regions waits at least 24 s.
 - **Client:**
   - the window's list from several pouches;
   - take one, take all, and the second press;
@@ -261,6 +269,10 @@
    - the roll and gate, owners and boxes, private views, `TakeLoot`, lives;
    - the models, hint, window, `loot` key and combat lines;
    - cmd/bot taking.
+3. **Slower camps and fewer pouches,** data only:
+   - `loot.yaml`'s chances, and every camp's `respawn` tripled (section 3);
+   - the test holding shipped camps to 24 s;
+   - any test on the shipped maps that waits for a camp to refill moves to a fixture, or is judged by ticks.
 
 ## 11. Decisions
 
@@ -269,7 +281,7 @@ The user's choices are in section 1. These calls were made in planning and logge
 1. **Pouches and boxes are seen only by their owner.** Nobody else can take them, and others' pouches would only clutter the ground.
 2. **One window for every pouch in reach,** and T again takes all, so a kill streak is one press to open and one to take.
 3. **Nothing follows its owner anymore.** A pouch waits where it fell: 60 s for a pouch, 2 min for a boss's box.
-4. **A pouch on 1 kill in 4, and 1 in 2 for an elite.** A boss always leaves each eligible player a box.
+4. **A pouch on 1 kill in 4, and 1 in 2 for an elite,** cut by the user on 2026-11-20 to 1 in 6 and 1 in 3 (section 1). A boss always leaves each eligible player a box.
 5. **Items an active quest still needs are rolled at their own chance,** outside the pouch's gate, so quests take no more kills. They still come in a pouch. As built, "still needs" is "an active quest collects it", since the world doesn't hold the bag (section 4).
 6. **Party turns move per pouch,** not per item.
 7. **A full tab refuses that item only;** it stays in the pouch until its life ends.
@@ -285,4 +297,6 @@ The user's choices are in section 1. These calls were made in planning and logge
 - **One shared box per boss, with need or greed:** bosses already give each player their own roll, and taking turns over a box is slower.
 - **Pouches everyone sees:** clutter, and a pouch nobody else can open invites confusion.
 - **Fuller pouches with the same loot per hour:** offered, and the user chose less loot overall.
+- **Camps twice as slow (16 to 30 s), or 30 s for every camp:** offered with three times as slow, which the user chose. A flat time would also lose the elites' slower return.
+- **Pouches halved to 1 in 8, with or without fuller pouches:** offered, and the user chose a third fewer.
 - **A boss on a 5-minute clock, or leaving after 10 minutes:** offered, and the user chose 5 minutes after it's beaten.
