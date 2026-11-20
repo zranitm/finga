@@ -90,7 +90,8 @@ func TestASlamStunsAPlayer(t *testing.T) {
 }
 
 // C19 §13: a slammed Beginner presses Roll Back's key, which offers Break Free while held, granted with no points: the frame acking the input after the press
-// shows no status and no hold, the player already walking east on it. Judged by the frames' acks.
+// shows no status and no hold, the player already walking on it. Judged by the frames' acks.
+// From #357's CI: east, into the slimes, a slime can stop the step, and a slam while the reader lags knocks the player back; so west, judged from the frame before.
 func TestAStunnedPlayerBreaksFree(t *testing.T) {
 	t.Parallel()
 	s := newStackOver(t, e2etest.GameData(t, slamming...))
@@ -100,10 +101,10 @@ func TestAStunnedPlayerBreaksFree(t *testing.T) {
 	l.Await(300*time.Millisecond, nil)
 
 	var press uint32
-	var heldAt, after *clientv1.PlayerView // the player when the press went, and in the first frame acking an input past it
+	var last, before, after *clientv1.PlayerView // the player's latest frame, the one before the first acking an input past the press, and that one
 	answered := false
 	for game := l.Game(15 * time.Second); game.Left() && (after == nil || !answered); {
-		if err := l.Input(&clientv1.Input{Right: press > 0}); err != nil {
+		if err := l.Input(&clientv1.Input{Left: press > 0}); err != nil {
 			t.Fatal(err)
 		}
 		l.Pump(50*time.Millisecond, func(m wsconn.Message) bool {
@@ -123,11 +124,12 @@ func TestAStunnedPlayerBreaksFree(t *testing.T) {
 					stunned := slices.ContainsFunc(v.GetStatuses(), func(s *clientv1.StatusView) bool { return s.GetId() == "stun" })
 					switch {
 					case press == 0 && stunned && v.GetHeld() > 0:
-						heldAt, press = v, l.Seq
+						press = l.Seq
 						l.Send(wsconn.Message{ReqID: "free", Seq: press, Data: &clientv1.UseSkill{Skill: "break_free", ChainRoot: "roll_back"}})
 					case press > 0 && d.GetAckSeq() > press && after == nil:
-						after = v
+						before, after = last, v
 					}
+					last = v
 				}
 			}
 			return false
@@ -136,7 +138,7 @@ func TestAStunnedPlayerBreaksFree(t *testing.T) {
 	if press == 0 || !answered || after == nil {
 		t.Fatalf("pressed during input %d, answered %v, a frame past the press %v, within 15 s", press, answered, after != nil)
 	}
-	if len(after.GetStatuses()) != 0 || after.GetHeld() != 0 || after.GetX() <= heldAt.GetX() {
-		t.Fatalf("the first frame acking past the press's input %d: statuses %v, held %d, x %v from %v; want free, walking east", press, after.GetStatuses(), after.GetHeld(), after.GetX(), heldAt.GetX())
+	if len(after.GetStatuses()) != 0 || after.GetHeld() != 0 || after.GetX() >= before.GetX() {
+		t.Fatalf("the first frame acking past the press's input %d: statuses %v, held %d, x %v from %v; want free, walking west", press, after.GetStatuses(), after.GetHeld(), after.GetX(), before.GetX())
 	}
 }
