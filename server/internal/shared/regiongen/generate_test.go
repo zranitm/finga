@@ -113,6 +113,44 @@ func TestTheRingIsACliffOverTheHighestGroundInside(t *testing.T) {
 	}
 }
 
+// Deep water is water more than wadeDepth over the final ground (large-regions.md decision 9): a river's channel and a lake's middle, never a ford, a causeway or a bank's shallow edge.
+func TestDeepWaterIsWaterTooDeepToWade(t *testing.T) {
+	p := flat()
+	p.Features = []Feature{
+		{River: &River{Path: [][2]float64{{64, 0}, {64, 128}}, Width: 6, Depth: 2, Fords: [][2]float64{{64, 40}}}},
+		{Lake: &Lake{Area: [][2]float64{{90, 90}, {120, 90}, {120, 120}, {90, 120}}, Depth: 1.5}},
+		{Lake: &Lake{Area: [][2]float64{{20, 90}, {40, 90}, {40, 110}, {20, 110}}, Depth: 0.8}},
+		{Lake: &Lake{Area: [][2]float64{{20, 20}, {40, 20}, {40, 40}, {20, 40}}, Depth: 0.5}},
+		{Road: &Road{Path: [][2]float64{{20, 80}, {110, 80}}, Width: 4}},
+	}
+	r := build(t, p)
+	deep := func(x, z int) bool { return r.Geometry.Terrain.DeepWater[z*129+x] }
+	wet := func(x, z int) bool { return r.Wet[z*129+x] }
+	for _, c := range []struct {
+		what      string
+		x, z      int
+		deep, wet bool
+	}{
+		{"the river's middle", 64, 64, true, true},
+		{"2 m from its middle, on the bank's steep fall", 66, 64, true, true},
+		{"3 m from its middle, where the bank meets the land", 67, 64, false, true},
+		{"at the ford", 64, 40, false, true},
+		{"4 m along the river from the ford, its edge", 64, 44, false, true},
+		{"on the road across it, a causeway", 64, 80, false, false},
+		{"the lake's middle", 105, 105, true, true},
+		{"a lake 0.8 m deep, past wading", 30, 100, true, true},
+		{"a pond 0.5 m deep, wadeable", 30, 30, false, true},
+		{"dry land", 50, 50, false, false},
+	} {
+		if deep(c.x, c.z) != c.deep || wet(c.x, c.z) != c.wet {
+			t.Errorf("%s (%d, %d): deep %v, wet %v; want %v, %v", c.what, c.x, c.z, deep(c.x, c.z), wet(c.x, c.z), c.deep, c.wet)
+		}
+	}
+	if g := r.Geometry.Terrain; !g.Deep(63.5, 63.5) || !g.Deep(66.5, 63.5) || g.Deep(67.5, 63.5) || g.Deep(64.5, 40.5) {
+		t.Error("a cell is deep where any of its samples is")
+	}
+}
+
 // A ridge is (1 − d²/r²)² of its height at d from its path, r half its width, and nothing past it or past its ends.
 func TestARidgeFallsSmoothlyFromItsPath(t *testing.T) {
 	p := flat()

@@ -87,6 +87,8 @@ var requiredVectors = []string{
 	"sprint-after-walking", "sprint-jump-keeps", "sprint-fast", "sprint-and-combat", "sprint-ends-on-press", "sprint-two-presses",
 	"walk-never-sprints", "walk-switch-while-walking", "walk-switch-standing", "walk-switch-in-combat", "walk-held-keeps-mode",
 	"region-forest-sprint", "region-wall-slide", "region-steps-on-corners",
+	"deep-walk-stops-at-bank", "deep-jump-stops-in-air", "deep-dash-stops-at-bank", "deep-leap-stops-at-bank", "deep-blink-stops-short",
+	"deep-ford-crosses", "deep-slides-into-ford", "deep-walks-out", "deep-corners-west-bank", "deep-corners-east-bank",
 }
 
 // params are §3's starting values in metres.
@@ -361,6 +363,51 @@ func regionScenarios() []vector {
 	}
 }
 
+// river is ground 24 by 12, cell 1, cut north to south by a river: samples x 11 to 13 lie at bed, under deep water, but for a ford at z 5 to 7, dry and level with the banks.
+func river(bed float64) sim.Geometry {
+	in := func(x, z float64) bool { return x >= 11 && x <= 13 && (z < 5 || z > 7) }
+	g := ground(24, 12, 1, func(x, z float64) float64 {
+		if in(x, z) {
+			return bed
+		}
+		return 0
+	})
+	t := &g.Terrain
+	t.DeepWater = make([]bool, t.NX*t.NZ)
+	for iz := range t.NZ {
+		for ix := range t.NX {
+			t.DeepWater[iz*t.NX+ix] = in(float64(ix), float64(iz))
+		}
+	}
+	return g
+}
+
+// deepScenarios are large-regions.md decision 9's: no body moves into deep water from out of it, at any height, by any move; a ford crosses, and a body already in it walks out.
+func deepScenarios() []vector {
+	return []vector{
+		{Name: "deep-walk-stops-at-bank", Notes: "Walking east at a river whose bed lies 1.5 m down: the cell holding its first deep sample is a wall though the way is downhill, so the body stops short of x 10.",
+			Geometry: river(-1.5), Start: standing(6, 0, 3), Inputs: runs(east, 90)},
+		{Name: "deep-jump-stops-in-air", Notes: "Jumping east from the bank: the deep cell stops the body in the air at any height, and it lands back on the bank.",
+			Geometry: river(-1.5), Start: standing(8.8, 0, 3), Inputs: runs(jumpEast, 1, east, 60)},
+		{Name: "deep-dash-stops-at-bank", Notes: "An 8 m dash east across the river: it stops at the deep cell and the move runs out against it.",
+			Geometry: river(-1.5), Start: standing(7, 0, 3), Inputs: moving(dash(1, 0, 8), still, 15)},
+		{Name: "deep-leap-stops-at-bank", Notes: "An 8 m leap east across the river: the hop is stopped in the air at the deep cell and falls back on the bank.",
+			Geometry: river(-1.5), Start: standing(7, 0, 3), Inputs: moving(leap(1, 0, 8), still, 25)},
+		{Name: "deep-blink-stops-short", Notes: "An 8 m blink east across the river: it ends at the last point tested short of the deep cell, 9.75.",
+			Geometry: river(-1.5), Start: standing(7, 0, 3), Inputs: moving(blink(1, 0, 8), still, 3)},
+		{Name: "deep-ford-crosses", Notes: "Walking east along the ford: it's dry, so the body crosses the river to the far bank.",
+			Geometry: river(-1.5), Start: standing(6, 0, 6), Inputs: runs(east, 180)},
+		{Name: "deep-slides-into-ford", Notes: "Walking north-east at the bank: x stops at the deep cell while z slides the body north into the ford; across it the ford's north side holds z while x goes on, and past the river it walks north-east again.",
+			Geometry: river(-1.5), Start: standing(8, 0, 2), Inputs: runs(northEast, 240)},
+		{Name: "deep-corners-west-bank", Notes: "Walking east just north of the ford, at z 7.5, into a cell deep only at its north-east sample, then south to z 4.5 and east into one deep only at its south-east: each stops the body as a wholly deep cell does.",
+			Geometry: river(-1.5), Start: standing(8, 0, 7.5), Inputs: runs(east, 30, south, 36, east, 30)},
+		{Name: "deep-corners-east-bank", Notes: "Walking west from the far bank at z 7.5, into a cell deep only at its north-west sample, then south to z 4.5 and west into one deep only at its south-west: each stops the body.",
+			Geometry: river(-1.5), Start: standing(16, 0, 7.5), Inputs: runs(west, 30, south, 36, west, 30)},
+		{Name: "deep-walks-out", Notes: "A body already in deep water, on level ground: it walks west through the deep cells and out, as only a move into deep water from out of it is stopped.",
+			Geometry: river(0), Start: standing(12, 0, 3), Inputs: runs(west, 60)},
+	}
+}
+
 func scenarios() []vector {
 	walk := func(name, way string, in sim.Input) vector {
 		return vector{Name: name, Notes: "Walking " + way + " from the middle of flat ground, then letting go: the heading stays.", Geometry: flat(), Start: standing(6, 0, 6), Inputs: runs(in, 30, still, 5)}
@@ -455,6 +502,7 @@ func scenarios() []vector {
 	}
 	vs = append(vs, moveScenarios()...)
 	vs = append(vs, statusScenarios()...)
+	vs = append(vs, deepScenarios()...)
 	for i := range vs {
 		vs[i].Params = params
 	}
@@ -533,7 +581,9 @@ func replay(v vector) []sim.State {
 		p = p.Faster(v.SpeedFactor)
 	}
 	g := v.Geometry
+	deep := g.Terrain.DeepWater
 	g.Terrain = sim.NewTerrain(g.Terrain.Cell, g.Terrain.NX, g.Terrain.NZ, g.Terrain.Heights, p.MaxSlope)
+	g.Terrain.DeepWater = deep
 	g = sim.Indexed(g)        // as every map is; the TS replay reads them the same way
 	var blocking sim.Blockers // bucketed as the world buckets its mobs
 	blocking.Set(g.Blockers, g.SizeX, g.SizeZ)

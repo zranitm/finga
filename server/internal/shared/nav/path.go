@@ -98,7 +98,7 @@ func (f *Finder) nearest(n *Grid, w window, from Point, r float64, home Point, l
 			}
 			i := z*n.nx + x
 			c := n.centre(i)
-			if d := Distance(from, c); d < bestD && n.flags[i]&raised == 0 && n.fits(i, r) && w.holds(n, i) && within(c, home, leash) && !slices.Contains(f.skip, i) {
+			if d := Distance(from, c); d < bestD && n.flags[i]&blocked == 0 && n.fits(i, r) && w.holds(n, i) && within(c, home, leash) && !slices.Contains(f.skip, i) {
 				best, bestD = i, d
 			}
 		}

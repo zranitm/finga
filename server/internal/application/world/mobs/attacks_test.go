@@ -242,6 +242,23 @@ func TestASpitFliesToItsTargetUnlessAWallStopsIt(t *testing.T) {
 	}
 }
 
+// Deep water stops bodies, not shots (large-regions.md decision 9): a bat spits across a strip of it, standing where it is, and the ball lands on the far side.
+func TestASpitFliesOverDeepWater(t *testing.T) {
+	g := sim.Geometry{SizeX: 40, SizeZ: 40, Terrain: sim.NewTerrain(1, 41, 41, make([]float64, 41*41), 0.7), Boxes: []sim.Box{}, Cylinders: []sim.Cylinder{}}
+	g.Terrain.DeepWater = make([]bool, 41*41)
+	for x := range 41 {
+		g.Terrain.DeepWater[17*41+x] = true // cells from z 16 to 18
+	}
+	a := newArena(t, meadow(t, g, spawn("cave_bat", 1, 20, 20, 0.01)), worldtest.FixedRoll{V: 0.5})
+	v := a.Views()[0]
+	p := player(20, v.Z-6)
+	if _, next := windup(t, a, []mobs.Body{p}, 1); distance(a.Views()[0], v.X, v.Z) > 1e-9 {
+		t.Fatal("the bat moved to spit; want it spitting across the water from where it stands")
+	} else if hits := landed(a, []mobs.Body{p}, next, 24); len(hits) == 0 {
+		t.Fatal("the spit landed on no one; want it over the water and on the player")
+	}
+}
+
 // A spitter doesn't spit at a target a wall hides from its ball: it walks round the wall, and each spit it starts lands on them. The boss spits the same.
 func TestASpitterWalksRoundAWallToSpit(t *testing.T) {
 	for _, id := range []string{"cave_bat", "vampire_bat"} {

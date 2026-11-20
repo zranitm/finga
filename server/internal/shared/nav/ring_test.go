@@ -20,8 +20,8 @@ func ringDepth(plan regiongen.Plan, x, z float64) float64 {
 	return plan.Edge.Width - min(x, z, plan.Size[0]-x, plan.Size[1]-z)
 }
 
-// No player walks or jumps onto a region's ring of mountains (large-regions.md section 3): nothing the walk grid reaches from the start lies in it.
-func TestNoPlayerReachesARegionsRing(t *testing.T) {
+// No player walks or jumps onto a region's ring of mountains (large-regions.md section 3) or into its deep water (decision 9): nothing the walk grid reaches from the start lies in either.
+func TestNoPlayerReachesARegionsRingOrDeepWater(t *testing.T) {
 	data := gamedatatest.Shipped(t)
 	p := shipped(t).params
 	for id, plan := range shippedRegions(t) {
@@ -30,8 +30,14 @@ func TestNoPlayerReachesARegionsRing(t *testing.T) {
 			got := m.Grid().Reach([]nav.Point{mapfile.Point(plan.Start.At)}, p.Radius, fastRise(data, p))
 			for z := 0.25; z < plan.Size[1]; z += 0.5 {
 				for x := 0.25; x < plan.Size[0]; x += 0.5 {
-					if ringDepth(plan, x, z) > 0 && got.Has(nav.Point{X: x, Z: z}) {
+					if !got.Has(nav.Point{X: x, Z: z}) {
+						continue
+					}
+					if ringDepth(plan, x, z) > 0 {
 						t.Fatalf("a player reaches (%g, %g), %g m into the ring", x, z, ringDepth(plan, x, z))
+					}
+					if m.Geometry.Terrain.Deep(x, z) {
+						t.Fatalf("a player reaches (%g, %g), in deep water", x, z)
 					}
 				}
 			}
@@ -198,4 +204,54 @@ func shippedKit(t *testing.T) regiongen.Kit {
 		t.Fatal(err)
 	}
 	return k
+}
+
+// A river too deep to wade is crossed at its ford (large-regions.md decision 9): from the west a player reaches the east bank by the ford, and never the deep channel. Nobody fits in it, no path leads into it, and one from inside it, as no body should be, leads out by the nearest dry cell.
+func TestADeepRiverIsCrossedAtItsFord(t *testing.T) {
+	data := gamedatatest.Shipped(t)
+	p := data.Movement()
+	plan := flatRegion()
+	plan.Features = []regiongen.Feature{{River: &regiongen.River{Path: [][2]float64{{64, 0}, {64, 128}}, Width: 6, Depth: 2, Fords: [][2]float64{{64, 40}}}}}
+	r, err := regiongen.Generate(plan, shippedKit(t), p.MaxSlope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := r.Geometry
+	grid := nav.New(g, p.Step)
+	channel, ford := nav.Point{X: 64, Z: 64}, nav.Point{X: 64, Z: 40}
+	if nav.FitsAt(g, p.Step, channel, p.Radius) || grid.Fits(channel, p.Radius) || !nav.FitsAt(g, p.Step, ford, p.Radius) || !grid.Fits(ford, p.Radius) {
+		t.Fatal("a body fits in the channel, or not at the ford")
+	}
+	var f nav.Finder
+	bank, in := nav.Point{X: 55, Z: 64}, nav.Point{X: 61.6, Z: 64}
+	if path := f.Path(grid, bank, in, p.Radius, bank, 30); path != nil {
+		t.Fatalf("a path into the deep water: %v", path)
+	}
+	out := f.Path(grid, in, bank, p.Radius, bank, 30)
+	if len(out) == 0 || out[0].X != 60.75 {
+		t.Fatalf("a path out of the deep water: %v", out)
+	}
+	for _, at := range out {
+		if g.Terrain.Deep(at.X, at.Z) {
+			t.Fatalf("a path out of the deep water goes by %v, in it", at)
+		}
+	}
+	got := grid.Reach([]nav.Point{{X: 30, Z: 64}}, p.Radius, fastRise(data, p))
+	if !got.Has(nav.Point{X: 100, Z: 64}) || !got.Has(nav.Point{X: 64, Z: 40}) {
+		t.Fatal("the east bank isn't reached by the ford")
+	}
+	deep := 0
+	for z := 0.25; z < 128; z += 0.5 {
+		for x := 0.25; x < 128; x += 0.5 {
+			if g.Terrain.Deep(x, z) {
+				deep++
+				if got.Has(nav.Point{X: x, Z: z}) {
+					t.Fatalf("a player reaches (%g, %g), in deep water", x, z)
+				}
+			}
+		}
+	}
+	if deep < 1000 {
+		t.Fatalf("only %d deep cells", deep)
+	}
 }

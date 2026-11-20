@@ -468,11 +468,13 @@ func (a *Arena) fly() {
 	})
 }
 
-// ballStep moves at's ball, its centre at (x, y, z), move along (dx, dz): to its end, and how far it went, short of move where a solid or a rise stopped it.
+// ballStep moves at's ball, its centre at (x, y, z), move along (dx, dz): to its end, and how far it went, short of move where a solid or a rise stopped it; deep water stops bodies, not shots.
 func (a *Arena) ballStep(at gamedata.MobAttack, x, y, z, dx, dz, move float64) (nav.Point, float64) {
 	r := at.Size / 2
 	ball := sim.Params{Radius: r, Height: at.Size} // a body that steps onto nothing, so any solid or rise over its bottom stops it
-	s := sim.Push(sim.State{X: x, Y: y - r, Z: z}, float64(dx*move), float64(dz*move), a.m.Geometry, ball)
+	g := a.m.Geometry
+	g.Terrain.DeepWater = nil
+	s := sim.Push(sim.State{X: x, Y: y - r, Z: z}, float64(dx*move), float64(dz*move), g, ball)
 	end := nav.Point{X: s.X, Z: s.Z}
 	return end, nav.Distance(nav.Point{X: x, Z: z}, end)
 }

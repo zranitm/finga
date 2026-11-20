@@ -117,6 +117,16 @@ describe('loadMap', () => {
     await expect(read(null)).rejects.toThrow();
     const raw = json('town') as { box_models: unknown[] };
     await expect(read({ ...raw, box_models: raw.box_models.slice(1) })).rejects.toThrow();
+    const region = json('test_region') as {
+      geometry: { terrain: { deep_water: boolean[] } };
+    };
+    const short = {
+      ...region.geometry.terrain,
+      deep_water: region.geometry.terrain.deep_water.slice(1),
+    };
+    await expect(
+      read({ ...region, geometry: { ...region.geometry, terrain: short } }),
+    ).rejects.toThrow('not a map mapjson wrote');
   });
 
   it('reads the region a map names, and refuses one that names no bake', async () => {
@@ -131,13 +141,17 @@ describe('loadMap', () => {
     }
   });
 
-  it('reads a region with its solids for the sim and no models, its bake drawing them; a map still needs a model for each solid', async () => {
+  it('reads a region with its solids and deep water for the sim and no models, its bake drawing them; a map still needs a model for each solid', async () => {
     const region = await loadMap('test_region');
     expect(region.region?.id).toBe('test_region');
     expect(region.region?.hash).toMatch(/^[0-9a-f]{16}$/);
     expect(region.geometry.cylinders.length).toBeGreaterThan(100);
     expect(region.geometry.boxes.length).toBeGreaterThan(0);
     expect(region.solids).toEqual([]);
+    const raw = json('test_region') as { geometry: { terrain: { deep_water: boolean[] } } };
+    expect(region.geometry.terrain.deepWater).toEqual(raw.geometry.terrain.deep_water);
+    expect(raw.geometry.terrain.deep_water.filter(Boolean).length).toBeGreaterThan(1000);
+    expect((await loadMap('town')).geometry.terrain.deepWater).toBeUndefined();
     const town = json('town') as { box_models: unknown[] };
     await expect(read({ ...town, box_models: town.box_models.slice(1) })).rejects.toThrow(
       'map town: its models and solids differ in number',

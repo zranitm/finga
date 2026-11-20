@@ -49,6 +49,7 @@ const (
 	smoothing  = 3   // Chaikin passes on a river's or a road's path
 	freeboard  = 0.5 // a river's or a lake's water below its lowest bank
 	fordDepth  = 0.3 // a ford's water
+	wadeDepth  = 0.6 // water deeper than this is a wall to every body: twice a ford's
 	roadMean   = 15  // a road's height is the ground's mean this far along it each way
 	townBlend  = 12  // a town's flat ground eases into the land around over this
 	cliffCells = 2   // a cliff edge falls over this many samples
@@ -68,8 +69,9 @@ type builder struct {
 	g        grid
 	maxSlope float64
 	h        []float64
-	area     []int16 // per sample, the plan's area holding it, or -1
-	onRoad   []bool  // per sample: under a road
+	area     []int16   // per sample, the plan's area holding it, or -1
+	onRoad   []bool    // per sample: under a road
+	water    []float64 // per sample: the highest water surface over it, -Inf where none
 	f        *field
 	roads    []Road  // smoothed
 	rivers   []River // smoothed
@@ -83,7 +85,10 @@ func Generate(p Plan, k Kit, maxSlope float64) (*Region, error) {
 	}
 	nx, nz := samples(p.Size[0], p.Cell), samples(p.Size[1], p.Cell)
 	g := grid{nx: nx, nz: nz, cell: p.Cell}
-	b := &builder{p: p, k: k, g: g, maxSlope: maxSlope, h: make([]float64, nx*nz), onRoad: make([]bool, nx*nz), f: newField(nx * nz)}
+	b := &builder{p: p, k: k, g: g, maxSlope: maxSlope, h: make([]float64, nx*nz), onRoad: make([]bool, nx*nz), water: make([]float64, nx*nz), f: newField(nx * nz)}
+	for i := range b.water {
+		b.water[i] = math.Inf(-1)
+	}
 	b.r = Region{Plan: p, Wet: make([]bool, nx*nz), Palette: k.palette(), Models: slices.Sorted(maps.Keys(k.Models))}
 	for _, name := range b.r.Palette {
 		b.r.RGB = append(b.r.RGB, k.rgbOf(name))
@@ -113,6 +118,10 @@ func Generate(p Plan, k Kit, maxSlope float64) (*Region, error) {
 	}
 	b.r.Heights = [2]float64{lo, hi}
 	t := sim.NewTerrain(p.Cell, nx, nz, b.h, maxSlope)
+	t.DeepWater = make([]bool, nx*nz)
+	for s, wet := range b.r.Wet { // judged on the final ground, which roads, towns and the edge reshape after the water
+		t.DeepWater[s] = wet && b.water[s]-b.h[s] > wadeDepth
+	}
 	steep := b.colours(t)
 	var placed solidsNear
 	b.r.Geometry = sim.Geometry{SizeX: p.Size[0], SizeZ: p.Size[1], Terrain: t, Boxes: []sim.Box{}, Cylinders: []sim.Cylinder{}}
@@ -256,7 +265,7 @@ func (b *builder) river(r River) {
 			}
 		}
 		b.carve(int(s), level-depth, (math.Sqrt(b.f.d2[s])-(half-bk))/bk)
-		b.r.Wet[s] = true
+		b.r.Wet[s], b.water[s] = true, max(b.water[s], level)
 	}
 }
 
@@ -288,7 +297,7 @@ func (b *builder) lake(l Lake) {
 			up = 1 - math.Sqrt(b.f.d2[s])/bk
 		}
 		b.carve(s, level-l.Depth, up)
-		b.r.Wet[s] = true
+		b.r.Wet[s], b.water[s] = true, max(b.water[s], level)
 	}
 }
 

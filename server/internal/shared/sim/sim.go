@@ -430,7 +430,7 @@ func keys(plus, minus bool) float64 {
 	return 0
 }
 
-// slide is how far of d a body moves along x, or z when alongZ, whether into a cell steep that way, the cylinder that cut it short, else -1, and whether a mob did: edges, solids and mobs stop it at contact, terrain it can't climb is a wall.
+// slide is how far of d a body moves along x, or z when alongZ, whether into a cell steep that way, the cylinder that cut it short, else -1, and whether a mob did: edges, solids and mobs stop it at contact, terrain it can't climb and deep water are walls.
 func slide(s State, d float64, alongZ bool, g Geometry, p Params) (float64, bool, int, bool) {
 	at, across, size := s.X, s.Z, g.SizeX
 	if alongZ {
@@ -484,6 +484,9 @@ func slide(s State, d float64, alongZ bool, g Geometry, p Params) (float64, bool
 	x, z := at+d, across
 	if alongZ {
 		x, z = across, at+d
+	}
+	if g.Terrain.Deep(x, z) && !g.Terrain.Deep(s.X, s.Z) { // into deep water, at any height; a body already in it walks out
+		return 0, false, -1, mob
 	}
 	steep, h := g.Terrain.Steep(x, z, alongZ), g.Terrain.Height(x, z)
 	switch {
