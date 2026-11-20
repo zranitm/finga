@@ -180,6 +180,7 @@ biomes:
       - **On the river:** a plan whose ford lies more than half the river's width from its smoothed path, the path the generator carves, is refused, as the ramp takes its floor from the river's samples near the ford.
       - **The gate** (nav's `TestEveryFordIsCrossedBothWays`): every ford of every shipped region and test plan is walked across both ways as a mob walks, with no jump, on a path held near the ford, so a causeway elsewhere doesn't count.
     - **Its ends lie in the ring** (from 4b-2b's playtest): a plan whose river ends short of the ring's face is refused. The carve stops at a path's end, and the ring is raised after the water, so the test region's river, ending 6 m short, left a dry strip a cell wide at the cliff on each side, and a player walked across there. An end in the ring has the deep band meet the cliff.
+      - A river may end in a lake when a plan needs it: relax this rule then, and the crossing gate still holds.
       - **The gate** (nav's `TestARiverIsCrossedOnlyAtItsFordsAndCauseways`): in every shipped region and test plan, a player beside each ford reaches the other side, walking and jumping, and reaches nothing past it once the cells of the river's fords and causeways are taken out of the walk grid. With the old ends it fails on the test region.
   - **Lake:** its water is 0.5 m below the lowest ground along its edge, its bed `depth` below that, between banks `min(depth, 2 m)` wide.
   - **Road:** its path is smoothed.
