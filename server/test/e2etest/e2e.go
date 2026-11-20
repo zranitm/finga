@@ -85,8 +85,8 @@ var ItemConfig = config.Item{
 // cheapPasswords keeps the stack's hashing fast; production's cost is in config/config.yaml.
 var cheapPasswords = config.Password{Time: 1, MemoryKiB: 8 * 1024, Threads: 1, Concurrent: 2, Wait: time.Second}
 
-// NewStackBuilt runs the game composed by build over the game data in data.
-func NewStackBuilt(t *testing.T, data string, build host.Build[config.Config]) *Stack {
+// NewStackBuilt runs the game composed by build over the game data in data, its config as edits change it.
+func NewStackBuilt(t *testing.T, data string, build host.Build[config.Config], edits ...func(*config.Config)) *Stack {
 	t.Helper()
 	at := FreeAddrs(t, 3)
 	s := &Stack{T: t, URL: "http://" + at[0], Ops: "http://" + at[1], Admin: "http://" + at[2], Data: data, build: build, Cfg: config.Config{
@@ -105,6 +105,9 @@ func NewStackBuilt(t *testing.T, data string, build host.Build[config.Config]) *
 		World:   config.World{TickRateHz: 20, CheckpointInterval: 30 * time.Second, FlushTimeout: 10 * time.Second, ItemCalls: config.ItemCalls{Workers: 2, BatchMax: 32}, Channels: config.Channels{Cap: 150, Idle: 5 * time.Minute}},
 		Social:  config.Social{Members: config.Members{Keep: time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}},
 	}}
+	for _, edit := range edits {
+		edit(&s.Cfg)
+	}
 	s.start()
 	t.Cleanup(func() { s.Stop() })
 	pool, err := pgxpool.New(context.Background(), s.Cfg.Database.URL)

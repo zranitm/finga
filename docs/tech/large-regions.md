@@ -242,7 +242,7 @@ biomes:
   - `w.instances` keeps the fixed maps.
   - A region's channels live in a registry under its own mutex, keyed by region and channel number.
 - **Joining:**
-  - A player goes to the least full channel under `channel_cap` (150, in config).
+  - A player goes to the least full channel under `world.channels.cap` (150, in config/config.yaml).
   - A party member's channel comes first when it has room.
   - When every channel is full, a new one opens.
 - **Closing:** a channel past the first with nobody in it for 5 minutes closes.
@@ -251,6 +251,28 @@ biomes:
   - B4 becomes the region's channels.
 - **Region changes** go through a gate (the talk key in its ring, as a portal) or a teleport to another region's waypoint. Each is a hand-off as today, to the new region's least full channel.
 - **As built (step 4b-1),** a region runs as one instance in `w.instances`, as a map does, until channels come. It's its own town: one who dies in it gets up at its start, in it, and pays the death's EXP, as on a hunting map. A teleport to its id lands at its start.
+- **As built (step 4b-3a, the server):**
+  - **Channel 1** is the region's instance in `w.instances`, and never closes. The World opens the rest as they're needed, under the runner matches use (`opened`), each under its own cancel so one can be shut alone. An instance knows its number (`Instance.Channel`, 0 off regions) and counts its players in an atomic.
+  - **The registry** (`world/channels.go`) holds each region's open channels under one mutex, with `pending`: the hand-offs picked for a channel that haven't landed. A channel's load is its players plus its pending, read under the lock, so two hand-offs at once never both take the last place.
+  - **A pick,** for every join and every hand-off into a region (a relog, a gate, a teleport, a dead player's join): the channel asked for while it has room; else the one holding most of the player's party with room; else the least full with room; else a new one with the lowest free number. Ties go to the lowest number.
+    - Back from a match, the return point keeps the channel the player left, and the way back asks for it, so a party that queued side by side comes back side by side while it has room.
+    - A gate below a region (B13) will ask for the player's own number the same way, through `instance.Dest`.
+    - A channel's number isn't saved: a relog picks again.
+  - **The cap,** `world.channels.cap` (150), is soft on a switch alone: a switch checks for room as it starts, and lands even if the channel filled in its 3 s. Joins, gates and teleports never pass it.
+  - **Closing:** every 10 s a sweep takes off a channel past the first that it has found empty, with none on their way, for `world.channels.idle` (5 min), then shuts it. So none is picked while it closes, and it closes 5 to about 5⅓ minutes after its last player left. A switch's start restarts its target's idle clock, so it can't close under the switch.
+    - A closing channel holds no pouch or box: they last 60 s and 2 min ([Loot pouches and timed bosses](./loot-pouches.md)). Its area bosses go with it, and a channel opened again with that number starts with them up, as any new channel does.
+    - One who dies in a channel gets up in it, as in 4b-1: no hand-off.
+  - **Switching** (`SwitchChannel{channel}`, client message 39) is refused off a region, to the player's own channel, to one not open and to a full one (`NOT_A_REGION`, `SAME_CHANNEL`, `NO_SUCH_CHANNEL`, `CHANNEL_FULL`, 330042–45). Otherwise it runs on the teleport's channel: the same 3 s and the same cancels (`TeleportCancelled`), then a hand-off at the player's own spot and facing. It shares the teleport rate limit.
+  - **The list** (`Channels`, client message 40) answers with each open channel's players, those on their way included, and the cap, in `Response.channels`. The client turns players against the cap into words. It has its own limit, one a second with a burst of 3.
+  - **The client always knows its channel:** `Snapshot.channel` (8) comes with every join and map change. A hand-off's `MapChange` goes out before the channel is picked, so it carries none.
+  - **The party frame:** `PartyMember.channel` (9) comes from the member's map through the social module. A hand-off tells 0 until the landing's join tells the channel picked.
+  - **Metrics:** the tick metrics gain a `channel` label (0 off regions), and `finga_channels_open{region}` counts the open channels. The dashboard splits ticks by channel, and cmd/bot's report keys a region's channels apart.
+  - **Tests:**
+    - the pick's rules and the sweep's clock, as units;
+    - through a running World: joins filling channels, a party's channel first then the least full, a teleport in, an idle channel closing and its number opened again while the first stays, a death in channel 2 getting up there, the four refusals, a switch landing at the same spot, another cancelled, and a cancelled switch keeping its channel open;
+    - a match from a channel going back to it;
+    - through the gateway, both messages with their arguments and codes;
+    - one e2e through the stack, with two a channel: the third player in channel 2, the list, and a switch landing among channel 2's players, who see the player come.
 
 ## 5. The server: what each player is sent
 
@@ -389,7 +411,7 @@ Built with step 1, which says who watches a cell.
 - **The target,** on one region channel at its cap of 150 players and about 400 mobs:
   - tick p99 under 20 ms of its 50 ms;
   - each client downstream under 40 kB/s in a busy fight.
-- **The test:** a soak with cmd/bot's players (section 13), whose tick p99, overruns and bytes are read from the ops metrics. `channel_cap` is set from it.
+- **The test:** a soak with cmd/bot's players (section 13), whose tick p99, overruns and bytes are read from the ops metrics. `world.channels.cap` is set from it.
 - **The inbox** (4096, 1024 drained a tick) holds about 4× a full channel's input rate. The soak checks `ErrBusy` stays at zero.
 
 ## 6. Areas, towns and what was per map
@@ -700,14 +722,14 @@ Built with step 1, which says who watches a cell.
 4. **The pipeline,** in two PRs:
    - 4a: `regiongen`, the kit and the bake, and the preview;
    - 4b: the `region` kind and its loader rules, region channels, areas, towns, area bosses and respawn, and a test region. The client's sim walks a region's ground from its bake, and the loading screen holds for the near chunks. The loader refuses a region one block would hold, so none is ever sent whole.
-     - As built, in five PRs: 4b-1 the region kind, the loader, the ring's cliff and the test region (#332); 4b-2a deep water as walls (#334); 4b-2b the client's sim on the bake's chunks, the hold while the ground round the player comes, and the loading screen's hold (section 10); 4b-3 channels; 4b-4 areas, towns, area bosses and respawn.
+     - As built, in six PRs: 4b-1 the region kind, the loader, the ring's cliff and the test region (#332); 4b-2a deep water as walls (#334); 4b-2b the client's sim on the bake's chunks, the hold while the ground round the player comes, and the loading screen's hold (section 10, #337); 4b-3 channels, in two PRs: 4b-3a the server (section 4), 4b-3b the client; 4b-4 areas, towns, area bosses and respawn.
      - From step 8, every shipped region's hunting areas also pass the maps' three design tests: no mob sees an arrival, each mob reaches a player anywhere in its leash, and no solid leaves a gap by steep ground only a player fits. The generator then needs a scatter rule keeping solids off cliffs. Run through them once in 4b-1, the test region, a fixture, passes the first after one camp moved and fails the other two: mobs miss a few spots, some in a riverbed that 4b-2a's deep water closes, and trees at the foot of cliffs, the ring's included, leave gaps only a player fits.
 5. **The client for regions,** in three PRs:
    - 5a: the overview, chunk streaming and detail, and props per chunk;
    - 5b: the looks grid, cascaded shadows and water;
    - 5c: label and bar limits, and tiles for the map views.
 6. **Waypoints and teleport:** finding, storage, `Teleport{waypoint}`, and the map views' waypoints.
-7. **The soak:** cmd/bot on regions, and the budget run. `channel_cap` is set.
+7. **The soak:** cmd/bot on regions, and the budget run. `world.channels.cap` is set.
 8. **The green region:** its design first, then its build.
 9. **The desert,** then **the snow mountains.**
 
