@@ -179,28 +179,50 @@ def coral_brain():
 
 
 def kelp():
-    """A kelp bed's plant, about 3 m: four stems swaying from their base, broad blades along them."""
+    """A kelp plant, about 3 m: three supple stems fanning up from a holdfast, each with long wavy ribbon fronds that rise from small gas floats beside it, two streaming from its tip."""
     rng = random.Random(4)
-    stem, blade = material("Stem", "#56702a"), material("Main", "#7d9a33")
+    stem, blade, float_ = material("Stem", "#5c5320"), material("Main", "#8f8a2c"), material("Floats", "#d1b64e")
     m = Mesh("kelp")
-    for s in range(4):
-        spin = s * math.pi / 2 + rng.uniform(-0.4, 0.4)
-        h = rng.uniform(2.4, 3.2)
-        prev = Vector((0.08 * math.cos(spin), 0.08 * math.sin(spin), 0))
+    m.blob((0, 0, 0.03), 0.07, stem, subdiv=1, squash=(1, 1, 0.5))  # the holdfast
+
+    def ribbon(root, out, length, width):
+        """A blade: a strip that tapers at both ends and waves across its own face as it runs out, both faces drawn."""
+        out = out.normalized()
+        across = out.cross(Vector((0, 0, 1))).normalized()
+        face = across.cross(out).normalized()
         n = 7
-        for k in range(1, n + 1):
+        left, right = [], []
+        for k in range(n + 1):
             t = k / n
-            p = Vector((prev.x + 0.06 * math.cos(spin) + 0.05 * math.sin(t * 5 + s), prev.y + 0.06 * math.sin(spin), h * t))
-            m.prism(prev, p, 0.025, 0.02, stem, sides=4)
-            if k % 2 == 1 or k == n:
-                side = 1 if (k + s) % 2 else -1
-                out = Vector((math.cos(spin + side * 1.2), math.sin(spin + side * 1.2), 0)) * 0.32
-                tip = p + out + Vector((0, 0, 0.28))
-                wide = Vector((-out.y, out.x, 0)).normalized() * 0.07
-                for flip in (1, -1):
-                    pts = [p, p + out * 0.5 + wide + Vector((0, 0, 0.1)), tip, p + out * 0.5 - wide + Vector((0, 0, 0.12))]
-                    m.quad(pts if flip > 0 else list(reversed(pts)), blade)
-            prev = p
+            centre = root + out * (length * t) + face * (0.1 * math.sin(t * math.pi * 2.5)) + across * (0.06 * math.sin(t * math.pi * 3.5))
+            half = width * math.sin(math.pi * min(1.0, 0.15 + t * 0.95)) * (1 - 0.6 * t)
+            left.append(centre + across * half)
+            right.append(centre - across * half)
+        for k in range(n):
+            pts = [left[k], right[k], right[k + 1], left[k + 1]]
+            m.quad(pts, blade)
+            m.quad(list(reversed(pts)), blade)
+
+    for s in range(3):
+        spin = s * 2 * math.pi / 3 + rng.uniform(-0.3, 0.3)
+        h = rng.uniform(2.5, 3.1)
+        lean = Vector((math.cos(spin), math.sin(spin), 0))
+        side = Vector((-lean.y, lean.x, 0))
+        n = 10
+        way = []
+        for k in range(n + 1):
+            t = k / n
+            way.append(lean * (0.05 + 0.45 * t * t) + side * (0.2 * math.sin(t * math.pi * 1.8 + s)) + Vector((0, 0, h * t)))
+        for k in range(n):
+            m.prism(way[k], way[k + 1], 0.02 - 0.008 * k / n, 0.02 - 0.008 * (k + 1) / n, stem, sides=4)
+        for k in (1, 3, 5, 7, 9):
+            at = way[k]
+            turn = spin + (0.9 if k % 4 == 1 else -0.9) + rng.uniform(-0.3, 0.3)
+            out = Vector((0.45 * math.cos(turn), 0.45 * math.sin(turn), 1))  # a frond runs up beside its stem, as the water carries it
+            m.blob(at, 0.05, float_, subdiv=1, squash=(1, 1, 1.4))  # the frond's gas float
+            ribbon(at, out, rng.uniform(0.9, 1.1), 0.085)
+        for turn in (spin + 0.5, spin - 0.6):  # the tip's fronds, streaming on
+            ribbon(way[n], Vector((math.cos(turn), math.sin(turn), 0.8)), 0.8, 0.075)
     m.done()
 
 
