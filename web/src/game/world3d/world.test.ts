@@ -525,7 +525,7 @@ describe('World', () => {
 
   it('reloads the page once, saying why, when a region’s chunks have failed every try', async () => {
     vi.spyOn(console, 'info').mockImplementation(() => undefined);
-    vi.spyOn(Math, 'random').mockReturnValue(0); // no backoff between tries
+    vi.spyOn(Math, 'random').mockReturnValue(0); // each wait at its floor, half its window: 0.25, 0.5, 1 and 2 s
     chunkWork.failing = 'chunks/1_'; // 1_0 and 1_1
     const p = await playing(REGIONED, 30, 60);
     vi.useFakeTimers({ toFake: ['setTimeout'] });
@@ -533,7 +533,7 @@ describe('World', () => {
     for (let i = 0; i < 5; i++) {
       await Promise.allSettled(chunkWork.builds);
       await new Promise<void>((r) => setImmediate(r));
-      p.frames(1);
+      p.frames(i < 4 ? Math.ceil((250 * 2 ** i) / FRAME_MS) + 1 : 1); // past the wait, to the next try
     }
     expect(
       toasts.getState().toasts.filter((t) => t.text === 'The map’s ground didn’t load. Reloading…'),

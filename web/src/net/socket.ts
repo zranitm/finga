@@ -108,7 +108,7 @@ const REQUEST_TIMEOUT_MS = 5000;
 const HELLO_TIMEOUT_MS = 4000; // under the server's 5 s window
 const PING_INTERVAL_MS = 15_000;
 const PONG_TIMEOUT_MS = 5000;
-const BACKOFF: BackoffOptions = { baseMs: 500, capMs: 4_000 }; // a restarted gateway is back within a few seconds
+const BACKOFF: BackoffOptions = { baseMs: 500, capMs: 4_000, jitter: 'full' }; // a restarted gateway is back within a few seconds
 
 interface Pending {
   readonly t: RequestType;

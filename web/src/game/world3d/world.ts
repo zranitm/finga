@@ -159,7 +159,7 @@ type MobWire = Data<'snapshot'>['mobs'][number];
 type LiveMark = { -readonly [K in keyof Mark]: Mark[K] };
 
 const FADE_MS = 250;
-const RETRY = { baseMs: 500, capMs: 10_000 }; // a map that didn't load tries again after a backoff
+const RETRY = { baseMs: 500, capMs: 10_000, jitter: 'equal' } as const; // a map that didn't load tries again after a backoff
 const RELOAD_MS = 3000; // a broken region's notice shows this long before the page reloads
 /** The farthest one input can carry the player before the hold sees them: the longest move a skill makes, past their body's radius (large-regions.md section 10). Out of a match only a mob's 0.5 m knockback pushes a player. */
 const CARRY_M =

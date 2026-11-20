@@ -51,6 +51,12 @@ func TestABadPlanIsRefused(t *testing.T) {
 		{"a ford off its river", func(p *Plan) {
 			p.Features = []Feature{{River: &River{Path: [][2]float64{{40, 0}, {40, 128}}, Width: 6, Depth: 2, Fords: [][2]float64{{40, 30}, {43.5, 60}}}}}
 		}, "ford at [43.5 60] is off it"},
+		{"a river starting short of the ring", func(p *Plan) {
+			p.Features = []Feature{{River: &River{Path: [][2]float64{{40, 4}, {40, 128}}, Width: 6, Depth: 2}}}
+		}, "end at [40 4] is 0 m inside the ring's face"},
+		{"a river ending short of the ring", func(p *Plan) {
+			p.Features = []Feature{{River: &River{Path: [][2]float64{{40, 0}, {40, 100}}, Width: 6, Depth: 2}}}
+		}, "end at [40 100] is 24 m inside the ring's face"},
 		{"an endless ridge", func(p *Plan) {
 			p.Features = []Feature{{Ridge: &Ridge{Path: [][2]float64{{1, 1}, {9, 9}}, Width: math.Inf(1), Height: 1}}}
 		}, "a width up to 512 m"},

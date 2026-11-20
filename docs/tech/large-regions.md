@@ -174,10 +174,14 @@ biomes:
     - **Water:** 0.5 m below the lowest ground along it so far, so it never rises downstream.
     - **Bed:** `depth` below the water.
     - **Banks:** `min(width/4, 2 m)` wide, too steep to climb at full depth.
+      - **No one-way pockets** (nav's `TestNoRegionHasAOneWayPocket`, from 4b-2b's playtest): every cell a player reaches from a shipped region's start leads back to it, walking and jumping. The test region's banks pass, though most are steep going away from the water, since walking along them reaches a ford or lower ground. A walled pit fails it.
     - **Fords:** within half the width plus a bank of a ford, the bed is 0.3 m below the water and its banks are walkable.
       - **As built (the ford ramp, after 4b-2b):** the banks alone weren't. The water sits under the lowest ground seen yet, so where the ground rises downstream a ford's banks stood a metre or two over its bed. The tiny test plan's rose 1.45 m in a 2 m cell, and one of the wide plan's two fords was as steep: only a jump got out, and no mob followed. So the ground round each ford is held under a cone, flat at the ford's floor and rising 0.5 m a metre (under `max_slope`'s 0.7) until it meets the ground. It lowers ground at most 22 m from a ford, the river's banks elsewhere stay steep, and in every plan it changes no deep-water mark.
       - **On the river:** a plan whose ford lies more than half the river's width from its smoothed path, the path the generator carves, is refused, as the ramp takes its floor from the river's samples near the ford.
       - **The gate** (nav's `TestEveryFordIsCrossedBothWays`): every ford of every shipped region and test plan is walked across both ways as a mob walks, with no jump, on a path held near the ford, so a causeway elsewhere doesn't count.
+    - **Its ends lie in the ring** (from 4b-2b's playtest): a plan whose river ends short of the ring's face is refused. The carve stops at a path's end, and the ring is raised after the water, so the test region's river, ending 6 m short, left a dry strip a cell wide at the cliff on each side, and a player walked across there. An end in the ring has the deep band meet the cliff.
+      - A river may end in a lake when a plan needs it: relax this rule then, and the crossing gate still holds.
+      - **The gate** (nav's `TestARiverIsCrossedOnlyAtItsFordsAndCauseways`): in every shipped region and test plan, a player beside each ford reaches the other side, walking and jumping, and reaches nothing past it once the cells of the river's fords and causeways are taken out of the walk grid. With the old ends it fails on the test region.
   - **Lake:** its water is 0.5 m below the lowest ground along its edge, its bed `depth` below that, between banks `min(depth, 2 m)` wide.
   - **Road:** its path is smoothed.
     - **Level:** each point's level is the mean of the ground within 15 m along the road. The road is level across its width.
@@ -601,6 +605,7 @@ Built with step 1, which says who watches a cell.
     - It's judged every frame where the player stands, so every arrival meets it: a spawn, a teleport, a respawn, a reconnect.
   - **The loading screen** lifts once the chunks within 128 m of the camera's target are drawn, at once on a map.
   - **A chunk that fails,** or doesn't fit, is asked again after a backoff from 0.5 s, doubling to 8 s. After five failures the HUD says so and the page reloads 3 s later, fetching the bake afresh, a stale client included.
+    - Each wait is equal jitter, in the upper half of its window (from the playtest: full jitter broke in 2.5 s). So the four waits come to 3.75–7.5 s, plus each try's own time, and the reload 3 s after that. A map that doesn't load retries the same way; the socket's reconnect keeps full jitter, spreading every client after a restart.
   - **The minimap and map window** draw a region from its overview, a pixel a metre: its palette's colours blended between the 8 m samples, shaded by height. The bake's colours mark steep ground already, and a river shows as its sand bed until 5b draws water. The minimap blows it up about 4.5×, so it looks soft until 5c's tiles. The maps' 4 pixels a metre would be a 64 MB image at 1 km.
   - **Measured** on the wide test plan (1 km), headless Chrome, its bake served gzipped as nginx serves it, sprinting (8 m/s) on the real region place, workers and ground, the body stopping while held:
     - across the middle (720 m) and south to north and west (1,030 m), unthrottled and on Chrome's Fast 3G preset (562.5 ms latency, 1.44 Mbit/s): no hold at all;

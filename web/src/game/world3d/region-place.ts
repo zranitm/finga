@@ -37,7 +37,7 @@ const ASKED = 4; // chunks building at once
 const MADE = 2; // chunk meshes made a frame, so streaming never holds one up
 const READY_M = 128; // the chunks within this of an arrival are drawn before the veil lifts
 const TRIES = 5; // a chunk that fails this often breaks the region
-const RETRY = { baseMs: 500, capMs: 8000 }; // and waits this backoff before each try again
+const RETRY = { baseMs: 500, capMs: 8000, jitter: 'equal' } as const; // and waits this backoff before each try again: five tries break 3.75–7.5 s after the first fails
 
 /** What a region tells the world as its chunks come, and the clock its retries wait on. */
 export interface RegionHooks {

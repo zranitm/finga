@@ -86,7 +86,7 @@ func TestTheRingIsACliffOverTheHighestGroundInside(t *testing.T) {
 	p.Edge = Edge{Width: 12, Height: [2]float64{4, 4}, Biome: "meadow"}
 	p.Features = []Feature{
 		{Plateau: &Plateau{Area: [][2]float64{{50, 50}, {70, 50}, {70, 70}, {50, 70}}, Height: 5, Edge: Cliff}},
-		{River: &River{Path: [][2]float64{{64, 30}, {125, 30}}, Width: 6, Depth: 2}},
+		{River: &River{Path: [][2]float64{{0, 30}, {125, 30}}, Width: 6, Depth: 2}},
 		{Ridge: &Ridge{Path: [][2]float64{{64, 100}, {125, 100}}, Width: 10, Height: 3}},
 	}
 	r := build(t, p)
@@ -250,7 +250,7 @@ func TestARiversWaterFallsWithTheGroundAndNeverRises(t *testing.T) {
 	p := flat()
 	p.Features = []Feature{
 		{Plateau: &Plateau{Area: [][2]float64{{0, 0}, {64, 0}, {64, 128}, {0, 128}}, Height: 2, Edge: Ramp}},
-		{River: &River{Path: [][2]float64{{10, 64}, {120, 64}}, Width: 6, Depth: 1}},
+		{River: &River{Path: [][2]float64{{0, 64}, {128, 64}}, Width: 6, Depth: 1}},
 	}
 	r := build(t, p)
 	lv := r.Rivers[0].Levels
@@ -258,7 +258,7 @@ func TestARiversWaterFallsWithTheGroundAndNeverRises(t *testing.T) {
 		t.Errorf("levels from %v to %v; want from %v on the plateau to %v below it", first, last, 2-freeboard, -freeboard)
 	}
 
-	p.Features[1].River.Path = [][2]float64{{120, 64}, {10, 64}} // drawn uphill
+	p.Features[1].River.Path = [][2]float64{{128, 64}, {0, 64}} // drawn uphill
 	r = build(t, p)
 	for _, l := range r.Rivers[0].Levels {
 		if l != f32(-freeboard) {
