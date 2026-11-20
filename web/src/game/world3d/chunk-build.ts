@@ -3,6 +3,7 @@ import { chunkGround } from './ground-mesh';
 import type { ChunkArrays } from './ground-mesh';
 import { fetched, readChunk } from './region-bake';
 import type { Chunk } from './region-bake';
+import type { ChunkGround } from './region-ground';
 
 /** What a chunk is built from: its file's url, the region's cell and linear palette, and the widest spacing, in samples, a neighbour draws an edge at. */
 export interface ChunkRequest {
@@ -12,13 +13,14 @@ export interface ChunkRequest {
   readonly coarsest: number;
 }
 
-/** A chunk built: its ground, and its props as model indices and, four to a prop, x, ground height, z and yaw in degrees. */
+/** A chunk built: its ground, its props as model indices and, four to a prop, x, ground height, z and yaw in degrees, and what the sim takes from it. */
 export interface BuiltChunk {
   readonly cx: number;
   readonly cz: number;
   readonly ground: ChunkArrays;
   readonly models: Uint16Array;
   readonly props: Float32Array;
+  readonly sim: ChunkGround;
 }
 
 /** Builds the chunks a region asks for: on workers in the page, in tests on their own thread. */
@@ -42,15 +44,36 @@ export async function buildChunk(req: ChunkRequest): Promise<BuiltChunk> {
     ground: chunkGround(c, req.cell, req.linear, req.coarsest),
     models: c.props.models,
     props,
+    sim: {
+      cx: c.cx,
+      cz: c.cz,
+      n: c.n,
+      heights: c.heights.slice(), // its own buffer, not the file's, to hand over
+      deep: c.deep.slice(),
+      cylinders: c.cylinders,
+      boxes: c.boxes,
+    },
   };
 }
 
 /** The buffers a built chunk hands over rather than copies. */
 export function transfers(b: BuiltChunk): ArrayBuffer[] {
   const { positions, normals, colors, details } = b.ground;
-  return [positions, normals, colors, ...details, b.models, b.props].map(
-    (a) => a.buffer as ArrayBuffer,
-  );
+  const { heights, deep, cylinders, boxes } = b.sim;
+  return [
+    positions,
+    normals,
+    colors,
+    ...details,
+    b.models,
+    b.props,
+    heights,
+    deep,
+    cylinders.index,
+    cylinders.at,
+    boxes.index,
+    boxes.at,
+  ].map((a) => a.buffer as ArrayBuffer);
 }
 
 /** The ground's height at (x, z) in the world, bilinear between c's samples as the sim reads the terrain. */

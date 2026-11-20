@@ -475,7 +475,7 @@ export class World {
   }[] = [];
   private readonly npcViews = new Map<
     string,
-    { readonly view: Drawn; readonly npc: Npc; readonly y: number }
+    { readonly view: Drawn; readonly npc: Npc; y: number }
   >();
 
   private constructor(private readonly deps: WorldDeps) {
@@ -639,7 +639,7 @@ export class World {
       pouchMarks = new PouchMarks(scene, models, lighting);
       fx = new Fx(scene, map, art, this.deps.now, lighting.palette);
       place = map.region
-        ? await buildRegion(scene, map.region, lighting, models, this.deps.chunks)
+        ? buildRegion(scene, map.region, lighting, models, this.deps.chunks, () => this.landed())
         : await buildPlace(scene, map, lighting, models);
     } catch (err) {
       scene.dispose();
@@ -709,17 +709,7 @@ export class World {
       this.npcViews.set(npc.id, { view: this.drawn(npcLook(npc.look), npc.yaw), npc, y });
     }
     this.showMarkers();
-    for (const p of map.portals) {
-      const name = maps.find((m) => m.id === p.to)?.name ?? p.to;
-      this.labels.set(
-        `portal:${p.name}`,
-        'portal',
-        `To ${name}`,
-        p.x,
-        groundUnder(map, p.x, p.z) + PORTAL_LABEL_M,
-        p.z,
-      );
-    }
+    this.showPortalLabels();
     this.banner(map.id);
     this.pouchMarks?.show(pouches.getState().pouches);
     this.offs.push(
@@ -2206,6 +2196,34 @@ export class World {
   }
 
   /** Each NPC's name, and over it the marker of what it has for the player. */
+  /** Stands the NPCs, their marks and the portals' labels on a region's ground that came after they were placed. */
+  private landed(): void {
+    const map = this.map;
+    if (!map) {
+      return;
+    }
+    for (const n of this.npcViews.values()) {
+      n.y = groundUnder(map, n.npc.x, n.npc.z);
+    }
+    this.showMarkers();
+    this.showPortalLabels();
+  }
+
+  private showPortalLabels(): void {
+    const map = this.map!;
+    for (const p of map.portals) {
+      const name = maps.find((m) => m.id === p.to)?.name ?? p.to;
+      this.labels.set(
+        `portal:${p.name}`,
+        'portal',
+        `To ${name}`,
+        p.x,
+        groundUnder(map, p.x, p.z) + PORTAL_LABEL_M,
+        p.z,
+      );
+    }
+  }
+
   private showMarkers(): void {
     const player = questPlayer();
     for (const { npc, y } of this.npcViews.values()) {

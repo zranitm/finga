@@ -117,43 +117,36 @@ describe('loadMap', () => {
     await expect(read(null)).rejects.toThrow();
     const raw = json('town') as { box_models: unknown[] };
     await expect(read({ ...raw, box_models: raw.box_models.slice(1) })).rejects.toThrow();
-    const region = json('test_region') as {
-      geometry: { terrain: { deep_water: boolean[] } };
-    };
-    const short = {
-      ...region.geometry.terrain,
-      deep_water: region.geometry.terrain.deep_water.slice(1),
-    };
-    await expect(
-      read({ ...region, geometry: { ...region.geometry, terrain: short } }),
-    ).rejects.toThrow('not a map mapjson wrote');
   });
 
-  it('reads the region a map names, and refuses one that names no bake', async () => {
-    const raw = json('town') as object;
-    expect((await read({ ...raw, region: { id: 'tiny', hash: 'abc' } })).region).toEqual({
+  it('reads the region a map names from its bake, and refuses one that names no bake', async () => {
+    const raw = json('town') as { id: string; portals: unknown[] };
+    const tiny = await read({
       id: 'tiny',
-      hash: 'abc',
+      sky: 'day',
+      portals: raw.portals,
+      props: [],
+      region: { id: 'tiny', hash: 'abc' },
     });
+    expect(tiny.region?.ref).toEqual({ id: 'tiny', hash: 'abc' });
+    expect(tiny.region?.region.solids).toEqual({ cylinders: 89, boxes: 2 });
+    expect(tiny.region?.overview.nx).toBe(17);
     expect((await read(raw)).region).toBeNull();
-    for (const region of [{ id: 'tiny' }, { hash: 'abc' }, { id: 'tiny', hash: 7 }]) {
+    for (const region of [{ id: 'tiny' }, { hash: 'abc' }, { id: 'tiny', hash: 7 }, null]) {
       await expect(read({ ...raw, region })).rejects.toThrow('map town: its region names no bake');
     }
   });
 
-  it('reads a region with its solids and deep water for the sim and no models, its bake drawing them; a map still needs a model for each solid', async () => {
+  it('walks a region on its ground from the bake, empty till its chunks come, and draws no models of its own; a map still needs a model for each solid', async () => {
     const region = await loadMap('test_region');
-    expect(region.region?.id).toBe('test_region');
-    expect(region.region?.hash).toMatch(/^[0-9a-f]{16}$/);
-    expect(region.geometry.cylinders.length).toBeGreaterThan(100);
-    expect(region.geometry.boxes.length).toBeGreaterThan(0);
+    expect(region.region?.ref.id).toBe('test_region');
+    expect(region.region?.ref.hash).toMatch(/^[0-9a-f]{16}$/);
+    expect(region.geometry).toBe(region.region?.ground.geometry);
+    expect([region.geometry.size_x, region.geometry.size_z]).toEqual(region.region?.region.size);
+    expect(region.geometry.cylinders).toHaveLength(region.region!.region.solids.cylinders);
+    expect(Object.keys(region.geometry.cylinders)).toEqual([]); // till its chunks come
     expect(region.solids).toEqual([]);
-    const raw = json('test_region') as { geometry: { terrain: { deep_water: boolean[] } } };
-    expect(Array.from(region.geometry.terrain.deepWater!, Boolean)).toEqual(
-      raw.geometry.terrain.deep_water,
-    );
-    expect(raw.geometry.terrain.deep_water.filter(Boolean).length).toBeGreaterThan(1000);
-    expect((await loadMap('town')).geometry.terrain.deepWater).toBeUndefined();
+    expect((json('test_region') as { geometry?: unknown }).geometry).toBeUndefined();
     const town = json('town') as { box_models: unknown[] };
     await expect(read({ ...town, box_models: town.box_models.slice(1) })).rejects.toThrow(
       'map town: its models and solids differ in number',

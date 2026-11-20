@@ -1,13 +1,18 @@
 import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { movement } from '@/gamedata/movement';
 import { indexed } from '@/sim/solids';
 import type { Box } from '@/sim/step';
 import { terrain } from '@/sim/terrain';
+import { servePublic } from '@/testing/public-on-disk';
+import { TINY } from '@/testing/region-fixture';
 
 import { groundPixels, PX_PER_M } from './map-image';
 import type { WorldMap } from './world3d/map';
+import { loadRegion } from './world3d/region-bake';
+import type { Overview } from './world3d/region-bake';
+import { RegionGround } from './world3d/region-ground';
 
 /** A 16 m by 8 m map: flat in its west half, a 4 m cliff from x 8 to 12, a plateau east of it, and the given solids. */
 function map(boxes: Box[] = []): WorldMap {
@@ -124,5 +129,53 @@ describe('groundPixels', () => {
       expect([u, v, corner(u, v, 0.85) < open / 2]).toEqual([u, v, true]); // just inside each corner
       expect([u, v, corner(u, v, 1.25) < open / 2]).toEqual([u, v, false]); // just past it
     }
+  });
+});
+
+describe("a region's ground image", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  /** The tiny region as the world holds it, its overview's heights changed by heights if given. */
+  async function tiny(heights?: (h: number) => number): Promise<WorldMap> {
+    servePublic();
+    const { region, overview } = await loadRegion(TINY);
+    const ground = new RegionGround(region, movement.max_slope);
+    const o: Overview = heights
+      ? { ...overview, heights: overview.heights.map(heights) }
+      : overview;
+    return {
+      id: 'tiny',
+      ground: '',
+      sky: 'day',
+      geometry: ground.geometry,
+      solids: [],
+      prepWall: null,
+      props: [],
+      portals: [],
+      region: { ref: TINY, region, overview: o, ground },
+    };
+  }
+
+  /** The pixel's red, green and blue at (x, z), a pixel a metre. */
+  function pixel(m: WorldMap, x: number, z: number): number[] {
+    const p = groundPixels(m);
+    const i = (Math.floor(m.geometry.size_z - z) * p.width + Math.floor(x)) * 4;
+    return [...p.data.slice(i, i + 3)];
+  }
+
+  it('draws its overview a pixel a metre, north up, before any chunk has come: the river’s sand bed, the field’s grass', async () => {
+    const m = await tiny();
+    const p = groundPixels(m);
+    expect([p.width, p.height]).toEqual([128, 128]);
+    const [r, g, b] = pixel(m, 96, 100);
+    expect(r! > g! && g! > b! + 30).toBe(true); // kit.yaml's sand, #e2cf9a
+    const [r2, g2, b2] = pixel(m, 40, 100);
+    expect(g2).toBeGreaterThan(Math.max(r2!, b2!) + 30); // its grass, #8cc265
+  });
+
+  it('shades the high ground lighter', async () => {
+    const [low, high] = (await tiny()).region!.region.heights;
+    const lowest = light(pixel(await tiny(() => low), 40, 100));
+    expect(light(pixel(await tiny(() => high), 40, 100))).toBeGreaterThan(lowest + 30);
   });
 });

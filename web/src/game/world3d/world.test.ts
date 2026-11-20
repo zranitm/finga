@@ -150,17 +150,12 @@ function slim(id: string) {
   };
 }
 
-/** Map id drawn from the tiny region's bake, 128 m square. */
+/** Map id drawn from the tiny region's bake, 128 m square, its ground the bake's as mapjson writes a region, with a gate in its river 3 m below the bank. */
 function regioned(id: string) {
-  const m = bare(id);
   return {
-    ...m,
-    geometry: {
-      ...m.geometry,
-      size_x: 128,
-      size_z: 128,
-      terrain: { cell: 8, nx: 17, nz: 17, heights: Array<number>(17 * 17).fill(0) },
-    },
+    ...bare(id),
+    geometry: undefined,
+    portals: [{ name: 'gate', at: [96, 74], radius: 1.2, to: FLAT }],
     region: TINY,
   };
 }
@@ -228,6 +223,8 @@ interface Playing {
   sent(t: string): Record<string, unknown>[];
   root(file: string): TransformNode | undefined;
   label(key: string): string | null | undefined;
+  /** Where label key stands on the screen, its bottom's y in pixels. */
+  labelBottom(key: string): number;
   push: FakeWebSocket['push'];
 }
 
@@ -310,6 +307,12 @@ async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Pr
     root: (file) =>
       engine.scenes.at(-1)?.transformNodes.find((n) => n.name === file && n.isEnabled()),
     label: (key) => parent.querySelector(`[data-label="${key}"]`)?.textContent,
+    labelBottom: (key) =>
+      Number(
+        /,\s*(-?[\d.]+)px\)$/.exec(
+          parent.querySelector<HTMLElement>(`[data-label="${key}"]`)!.style.transform,
+        )![1],
+      ),
     push: (...args) => ws.push(...args),
   };
   await vi.waitFor(() => expect(p.root(classLook(cls).file)).toBeDefined(), WAIT);
@@ -447,6 +450,18 @@ describe('World', () => {
     p.frames(10);
     expect(p.inputs() - before).toBe(10);
     expect(p.label('me')).toBe('Ayla');
+  });
+
+  it('stands a region’s gate label on its ground once the chunk under it comes', async () => {
+    const p = await playing(REGIONED, 86, 70);
+    expect(p.label('portal:gate')).toBe(`To ${maps.find((m) => m.id === FLAT)!.name}`);
+    const below = () => p.labelBottom('portal:gate') - p.labelBottom('me'); // the gate's 6 m off: the camera's easing moves both
+    p.frames(3);
+    const before = below(); // over ground not come, read flat at 0
+    await Promise.allSettled(chunkWork.builds);
+    await new Promise<void>((r) => setImmediate(r));
+    p.frames(1);
+    expect(below()).toBeGreaterThan(before + 10); // down on the river's bed, 2.4 m under the bank the player stands on
   });
 
   it('draws a map whose data names a region from that bake, streaming its chunks round the camera', async () => {

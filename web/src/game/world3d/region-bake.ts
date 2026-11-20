@@ -17,6 +17,8 @@ export interface Region {
   readonly cell: number;
   readonly chunk: number;
   readonly chunks: readonly [number, number];
+  /** The region's lowest and highest ground. */
+  readonly heights: readonly [number, number];
   /** How many cylinders and boxes the region has, which its chunks' solids index into. */
   readonly solids: { readonly cylinders: number; readonly boxes: number };
   /** Each ground's colour, 0xrrggbb sRGB, by the index chunks and the overview hold. */
@@ -95,6 +97,7 @@ interface RegionJson {
   readonly cell: number;
   readonly chunk: number;
   readonly chunks: [number, number];
+  readonly heights: [number, number];
   readonly solids: { readonly cylinders: number; readonly boxes: number };
   readonly palette: readonly { readonly name: string; readonly rgb: string }[];
   readonly models: readonly string[];
@@ -111,6 +114,7 @@ function parseRegion(ref: RegionRef, j: RegionJson): Region {
     cell: j.cell,
     chunk: j.chunk,
     chunks: j.chunks,
+    heights: j.heights,
     solids: j.solids,
     palette: j.palette.map((c) => parseInt(c.rgb.slice(1), 16)),
     models: j.models,

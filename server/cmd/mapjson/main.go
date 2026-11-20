@@ -20,16 +20,16 @@ import (
 
 // Map is one map as the client reads it.
 type Map struct {
-	ID             string       `json:"id"`
-	Ground         string       `json:"ground"` // art keys
-	Sky            string       `json:"sky"`
-	Geometry       sim.Geometry `json:"geometry"`
-	BoxModels      []Model      `json:"box_models"` // one per geometry box, in order
-	CylinderModels []string     `json:"cylinder_models"`
-	Props          []Prop       `json:"props"`
-	Portals        []Portal     `json:"portals"`
-	PrepWall       *Wall        `json:"prep_wall,omitempty"` // a pvp map's, standing before each round
-	Region         *Region      `json:"region,omitempty"`    // a region's bake, which draws its ground, solids and props: it has no models
+	ID             string        `json:"id"`
+	Ground         string        `json:"ground"` // art keys
+	Sky            string        `json:"sky"`
+	Geometry       *sim.Geometry `json:"geometry,omitempty"` // none for a region, whose bake holds its ground
+	BoxModels      []Model       `json:"box_models"`         // one per geometry box, in order
+	CylinderModels []string      `json:"cylinder_models"`
+	Props          []Prop        `json:"props"`
+	Portals        []Portal      `json:"portals"`
+	PrepWall       *Wall         `json:"prep_wall,omitempty"` // a pvp map's, standing before each round
+	Region         *Region       `json:"region,omitempty"`    // a region's bake, which draws its ground, solids and props: it has no models
 }
 
 // Region names the bake the client reads a region's looks from, web/public/regions/<id>/<hash>.
@@ -144,7 +144,7 @@ func build(dataDir, id string, p sim.Params) (Map, error) {
 	if err != nil {
 		return Map{}, fmt.Errorf("%s: %w", id, err)
 	}
-	m := Map{ID: id, Ground: f.Look.Ground, Sky: f.Look.Sky, Geometry: built.Geometry, BoxModels: []Model{}, CylinderModels: []string{}, Props: []Prop{}, Portals: []Portal{}}
+	m := Map{ID: id, Ground: f.Look.Ground, Sky: f.Look.Sky, Geometry: &built.Geometry, BoxModels: []Model{}, CylinderModels: []string{}, Props: []Prop{}, Portals: []Portal{}}
 	for _, s := range f.Solids { // Build adds each in file order, to the boxes or the cylinders
 		if s.Box != nil {
 			m.BoxModels = append(m.BoxModels, Model{Model: s.Model, Yaw: s.Yaw})
@@ -176,7 +176,7 @@ func build(dataDir, id string, p sim.Params) (Map, error) {
 	return m, nil
 }
 
-// region is a region as the client reads it: the ground and solids the server generated, its sky, its gates as portals, and its bake.
+// region is a region as the client reads it: its sky, its gates as portals, and its bake, whose chunks hold its ground and solids.
 func region(dataDir string, m *gamedata.Map) (Map, error) {
 	raw, err := os.ReadFile(filepath.Join(dataDir, "regions", m.ID+".yaml"))
 	if err != nil {
@@ -187,7 +187,7 @@ func region(dataDir string, m *gamedata.Map) (Map, error) {
 		return Map{}, fmt.Errorf("%s: %w", m.ID, err)
 	}
 	out := Map{
-		ID: m.ID, Sky: p.Look.Sky, Geometry: m.Geometry, BoxModels: []Model{}, CylinderModels: []string{}, Props: []Prop{}, Portals: []Portal{},
+		ID: m.ID, Sky: p.Look.Sky, BoxModels: []Model{}, CylinderModels: []string{}, Props: []Prop{}, Portals: []Portal{},
 		Region: &Region{ID: m.ID, Hash: m.Bake},
 	}
 	for _, pt := range m.Portals {

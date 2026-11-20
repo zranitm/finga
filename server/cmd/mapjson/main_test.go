@@ -12,7 +12,7 @@ import (
 	"finga/internal/shared/gamedata/load"
 )
 
-// Each shipped map is written with the geometry the server builds, number for number, its models in step, its portals' targets, and nothing of its boss; a region with no models, and its bake named as the server names it.
+// Each shipped map is written with the geometry the server builds, number for number, its models in step, its portals' targets, and nothing of its boss; a region with no geometry or models, and its bake named as the server names it, whose chunks hold its ground.
 func TestEveryMapIsWrittenAsTheServerBuildsIt(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "maps")
 	if err := run("../../data", out); err != nil {
@@ -33,17 +33,17 @@ func TestEveryMapIsWrittenAsTheServerBuildsIt(t *testing.T) {
 			t.Fatal(err)
 		}
 		want := m.Geometry
-		if !reflect.DeepEqual(got.Geometry.Terrain.Heights, want.Terrain.Heights) || !reflect.DeepEqual(got.Geometry.Boxes, want.Boxes) ||
-			!reflect.DeepEqual(got.Geometry.Cylinders, want.Cylinders) || got.Geometry.SizeX != want.SizeX || got.Geometry.SizeZ != want.SizeZ {
-			t.Errorf("%s: the written geometry differs from the server's", m.ID)
-		}
-		if m.Kind == gamedata.Region {
-			if got.Region == nil || *got.Region != (Region{ID: m.ID, Hash: m.Bake}) || len(got.BoxModels)+len(got.CylinderModels)+len(got.Props) > 0 || got.Sky == "" {
+		switch {
+		case m.Kind == gamedata.Region:
+			if got.Geometry != nil || got.Region == nil || *got.Region != (Region{ID: m.ID, Hash: m.Bake}) || len(got.BoxModels)+len(got.CylinderModels)+len(got.Props) > 0 || got.Sky == "" {
 				t.Errorf("%s: region %+v, %d box and %d cylinder models, %d props, sky %q", m.ID, got.Region, len(got.BoxModels), len(got.CylinderModels), len(got.Props), got.Sky)
 			}
 			regions++
-		} else if got.Region != nil || len(got.BoxModels) != len(want.Boxes) || len(got.CylinderModels) != len(want.Cylinders) {
+		case got.Region != nil || len(got.BoxModels) != len(want.Boxes) || len(got.CylinderModels) != len(want.Cylinders):
 			t.Errorf("%s: region %+v, %d box and %d cylinder models", m.ID, got.Region, len(got.BoxModels), len(got.CylinderModels))
+		case !reflect.DeepEqual(got.Geometry.Terrain.Heights, want.Terrain.Heights) || !reflect.DeepEqual(got.Geometry.Boxes, want.Boxes) ||
+			!reflect.DeepEqual(got.Geometry.Cylinders, want.Cylinders) || got.Geometry.SizeX != want.SizeX || got.Geometry.SizeZ != want.SizeZ:
+			t.Errorf("%s: the written geometry differs from the server's", m.ID)
 		}
 		if len(got.Portals) != len(m.Portals) {
 			t.Errorf("%s: %d portals", m.ID, len(got.Portals))

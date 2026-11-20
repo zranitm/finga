@@ -1,5 +1,5 @@
-// The page's public folder served from disk, as fetch finds it in the browser: the maps and the effects manifest, and the region bakes in regions/ beside this file, which regionbake's tests keep current.
-import { readFileSync } from 'node:fs';
+// The page's public folder served from disk, as fetch finds it in the browser: the maps and the effects manifest, and the region bakes in regions/ beside this file, which regionbake's tests keep current, else the shipped regions' bakes npm run maps wrote.
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { vi } from 'vitest';
@@ -17,11 +17,17 @@ export function servePublic(served: Readonly<Record<string, unknown>> = {}): voi
   vi.stubGlobal('fetch', (url: string) => {
     const file = /(?:^|\/)((?:maps|assets)\/[\w/.-]+\.json)$/.exec(url)?.[1];
     const id = file && /^maps\/([\w-]+)\.json$/.exec(file)?.[1];
-    const baked = /(?:^|\/)regions\/([\w-]+)\/\w+\/([\w/.-]+)$/.exec(url);
+    const baked = /(?:^|\/)regions\/([\w-]+)\/(\w+)\/([\w/.-]+)$/.exec(url);
     try {
       if (baked) {
+        const [, id, hash, rel] = baked as unknown as [string, string, string, string];
+        const fixture = path.join(REGIONS, id, rel);
         return Promise.resolve(
-          new Response(readFileSync(path.join(REGIONS, baked[1]!, baked[2]!))),
+          new Response(
+            readFileSync(
+              existsSync(fixture) ? fixture : path.join(PUBLIC, 'regions', id, hash, rel),
+            ),
+          ),
         );
       }
       if (id && id in served) {

@@ -9,6 +9,7 @@ import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { Scene } from '@babylonjs/core/scene';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { movement } from '@/gamedata/movement';
 import { servePublic } from '@/testing/public-on-disk';
 import { TINY, tinyFile } from '@/testing/region-fixture';
 
@@ -18,7 +19,8 @@ import { buildChunk } from './chunk-build';
 import type { BuiltChunk, ChunkRequest, ChunkSource } from './chunk-build';
 import { Models } from './models';
 import type { Place } from './place';
-import { readChunk } from './region-bake';
+import { loadRegion, readChunk } from './region-bake';
+import { RegionGround } from './region-ground';
 import { buildRegion, chunkDistance, chunksNear, detailAt } from './region-place';
 import { Palette } from './toon';
 
@@ -106,6 +108,8 @@ describe('a region drawn from its bake', () => {
   let source: Held;
   let models: Loading;
   let place: Place | undefined;
+  let ground: RegionGround;
+  let landed: number;
   const meshes = (prefix: string) =>
     scene.meshes.filter((m) => m.name.startsWith(prefix)) as Mesh[];
   const chunkNames = () =>
@@ -120,7 +124,17 @@ describe('a region drawn from its bake', () => {
   async function built(fails: (url: string) => boolean = () => false): Promise<void> {
     source = new Held(asked, fails);
     models = new Loading(scene, (f) => new Uint8Array(readFileSync(path.join(MODELS, f))));
-    place = await buildRegion(scene, TINY, lighting, models, source);
+    const { region, overview } = await loadRegion(TINY);
+    ground = new RegionGround(region, movement.max_slope);
+    landed = 0;
+    place = buildRegion(
+      scene,
+      { ref: TINY, region, overview, ground },
+      lighting,
+      models,
+      source,
+      () => landed++,
+    );
   }
 
   /** The kit models every chunk made so far asked for, loaded and copied in. */
@@ -312,5 +326,24 @@ describe('a region drawn from its bake', () => {
     await source.answer();
     expect(scene.fogMode).toBe(Scene.FOGMODE_NONE);
     expect(scene.meshes).toEqual([]);
+  });
+
+  it('hands each chunk’s ground to the sim as it comes, drawn or dropped, and says so; none once the region went', async () => {
+    await built();
+    place!.follow(30, 60);
+    expect(ground.covers(30, 60, 0)).toBe(false);
+    place!.follow(-400, 60); // out of reach before they come
+    await source.answer();
+    expect([landed, ground.covers(64, 64, 64)]).toEqual([4, true]);
+    expect(chunkNames()).toEqual([]); // not drawn
+    const c = readChunk(tinyFile('chunks/1_0.bin'));
+    expect(ground.geometry.terrain.heights[32 * 65 + 64]).toBe(c.heights[(32 + 1) * 35 + 32 + 1]);
+
+    await built();
+    place!.follow(30, 60);
+    place!.dispose();
+    place = undefined;
+    await source.answer();
+    expect([landed, ground.covers(0, 0, 0)]).toEqual([0, false]);
   });
 });

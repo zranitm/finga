@@ -178,7 +178,10 @@ function replay(v: Vector): State[] {
   const t = v.geometry.terrain;
   let g: Geometry = indexed({
     ...v.geometry,
-    terrain: terrain(t.cell, t.nx, t.nz, t.heights, p.max_slope, t.deep_water),
+    terrain: {
+      ...terrain(t.cell, t.nx, t.nz, t.heights, p.max_slope),
+      ...(t.deep_water && { deepWater: Uint8Array.from(t.deep_water, Number) }),
+    },
   }); // as a map is, and as Go replays
   let s = v.start;
   const out: State[] = [];

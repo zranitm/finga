@@ -1,12 +1,15 @@
-// A map's ground seen from above, north up (map-views.md section 4): drawn once as the map loads, for the minimap and the map window to share.
+// A map's ground seen from above, north up (map-views.md section 4): drawn once as the map loads, for the minimap and the map window to share; a region's from its bake's overview.
 import { near } from '@/sim/solids';
 import { height, steep } from '@/sim/terrain';
 
 import { CLIFF, groundOf } from './world3d/grounds';
-import type { WorldMap } from './world3d/map';
+import type { RegionMap, WorldMap } from './world3d/map';
 
 /** The image's pixels a metre. */
 export const PX_PER_M = 4;
+
+/** A region's image's: its overview has a sample every 8 m, which finer pixels would only blur. */
+export const REGION_PX_PER_M = 1;
 
 const LOW = 0.8; // the lowest ground's share of its colour, in linear light, rising to HIGH at the highest
 const HIGH = 1.15;
@@ -46,8 +49,11 @@ function inSolid(map: WorldMap, x: number, z: number): boolean {
   });
 }
 
-/** The ground's colour shaded lighter with height across the map, steep ground darker as the 3D ground draws it, and each solid's footprint dark. */
+/** The ground's colour shaded lighter with height across the map, steep ground darker as the 3D ground draws it, and each solid's footprint dark; a region's is its overview's. */
 export function groundPixels(map: WorldMap): Pixels {
+  if (map.region) {
+    return regionPixels(map.region);
+  }
   const g = map.geometry;
   const t = g.terrain;
   const width = Math.round(g.size_x * PX_PER_M);
@@ -79,6 +85,50 @@ export function groundPixels(map: WorldMap): Pixels {
       data[i] = toSrgb(rgb[0]! * k);
       data[i + 1] = toSrgb(rgb[1]! * k);
       data[i + 2] = toSrgb(rgb[2]! * k);
+      data[i + 3] = 255;
+    }
+  }
+  return { width, height: rows, data };
+}
+
+/** A region's overview blended between its samples, its ground's colours shaded lighter with height across the region; its colours mark steep ground already. */
+function regionPixels({ region, overview: o }: RegionMap): Pixels {
+  const [sx, sz] = region.size;
+  const width = Math.round(sx * REGION_PX_PER_M);
+  const rows = Math.round(sz * REGION_PX_PER_M);
+  const [low, high] = region.heights;
+  const span = high - low;
+  const linear = region.palette.map((c) =>
+    [(c >> 16) & 0xff, (c >> 8) & 0xff, c & 0xff].map(toLinear),
+  );
+  const data = new Uint8ClampedArray(width * rows * 4);
+  for (let r = 0; r < rows; r++) {
+    const fz = Math.min((sz - (r + 0.5) / REGION_PX_PER_M) / o.spacing, o.nz - 1);
+    const iz = Math.min(Math.floor(fz), o.nz - 2);
+    const tz = fz - iz;
+    for (let c = 0; c < width; c++) {
+      const fx = Math.min((c + 0.5) / REGION_PX_PER_M / o.spacing, o.nx - 1);
+      const ix = Math.min(Math.floor(fx), o.nx - 2);
+      const tx = fx - ix;
+      let h = 0;
+      const rgb = [0, 0, 0];
+      for (const [s, w] of [
+        [iz * o.nx + ix, (1 - tx) * (1 - tz)],
+        [iz * o.nx + ix + 1, tx * (1 - tz)],
+        [(iz + 1) * o.nx + ix, (1 - tx) * tz],
+        [(iz + 1) * o.nx + ix + 1, tx * tz],
+      ] as const) {
+        h += w * o.heights[s]!;
+        const col = linear[o.colours[s]!]!;
+        for (let k = 0; k < 3; k++) {
+          rgb[k]! += w * col[k]!;
+        }
+      }
+      const shade = span > 0 ? LOW + ((HIGH - LOW) * (h - low)) / span : 1;
+      const i = (r * width + c) * 4;
+      data[i] = toSrgb(rgb[0]! * shade);
+      data[i + 1] = toSrgb(rgb[1]! * shade);
+      data[i + 2] = toSrgb(rgb[2]! * shade);
       data[i + 3] = 255;
     }
   }

@@ -1,4 +1,4 @@
-// A region drawn (large-regions.md section 10): the overview under everything, its 64 m chunks streamed round the camera's target at three details, and each chunk's props as thin instances per model.
+// A region drawn (large-regions.md section 10): the overview under everything, its 64 m chunks streamed round the camera's target at three details, each chunk's props as thin instances per model, and each chunk's ground handed to the sim as it comes.
 import type { Material } from '@babylonjs/core/Materials/material';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { Matrix } from '@babylonjs/core/Maths/math.vector';
@@ -19,11 +19,13 @@ import {
 } from './ground-mesh';
 import type { GroundArrays } from './ground-mesh';
 import { kitModels } from './kit-models';
+import type { RegionMap } from './map';
 import type { Models } from './models';
 import { kitParts, placement, skyFor } from './place';
 import type { KitPart, Place } from './place';
-import { bakeUrl, chunkFile, loadRegion } from './region-bake';
-import type { Overview, Region, RegionRef } from './region-bake';
+import { bakeUrl, chunkFile } from './region-bake';
+import type { Overview, Region } from './region-bake';
+import type { RegionGround } from './region-ground';
 
 const LOAD_M = 256; // chunks within this of the camera's target load, nearest first
 const FREE_M = 320; // and go past this
@@ -71,17 +73,17 @@ export function chunksNear(
   return out.sort((a, b) => a.d - b.d || a.cz - b.cz || a.cx - b.cx);
 }
 
-/** Draws the region ref names in scene: its sky, the overview, and the chunks round the camera's target as follow is told it, each building on chunks. */
-export async function buildRegion(
+/** Draws region in scene: its sky, the overview, and the chunks round the camera's target as follow is told it, each building on chunks; each chunk's ground goes to the region's as it comes, and landed hears of it. */
+export function buildRegion(
   scene: Scene,
-  ref: RegionRef,
+  region: RegionMap,
   lighting: Lighting,
   models: Models,
   chunks: ChunkSource,
-): Promise<Place> {
-  const { region, overview } = await loadRegion(ref);
-  skyFor(scene, region.sky);
-  return new RegionView(scene, region, overview, lighting, models, chunks);
+  landed: () => void,
+): Place {
+  skyFor(scene, region.region.sky);
+  return new RegionView(scene, region, lighting, models, chunks, landed);
 }
 
 /** A chunk drawn: its ground at a detail, and its props, which come as their models load. */
@@ -108,15 +110,23 @@ class RegionView implements Place {
   private readonly kits = new Map<string, Promise<KitPart[] | null>>();
   private ready: BuiltChunk[] = [];
   private holes = false; // whether the overview's holes need cutting again
+  private gone = false;
+  private readonly region: Region;
+  private readonly far: Overview;
+  private readonly ground: RegionGround;
 
   constructor(
     private readonly scene: Scene,
-    private readonly region: Region,
-    private readonly far: Overview,
+    map: RegionMap,
     private readonly lighting: Lighting,
     private readonly models: Models,
     private readonly chunks: ChunkSource,
+    private readonly landed: () => void,
   ) {
+    const { region, overview: far } = map;
+    this.region = region;
+    this.far = far;
+    this.ground = map.ground;
     this.root = new TransformNode(`region ${region.ref.id}`, scene);
     this.templates = new TransformNode('kit models', scene);
     this.templates.parent = this.root;
@@ -194,11 +204,12 @@ class RegionView implements Place {
   }
 
   dispose(): void {
+    this.gone = true;
     this.root.dispose(false, false);
     this.scene.fogMode = Scene.FOGMODE_NONE;
   }
 
-  /** Asks for chunk (cx, cz); it's made a later frame, unless it went out of reach meanwhile. One that fails isn't asked again: the overview stands in for it. */
+  /** Asks for chunk (cx, cz); its ground goes to the sim as it comes, and it's made a later frame, unless it went out of reach meanwhile. One that fails isn't asked again: the overview stands in for it. */
   private ask(cx: number, cz: number): void {
     const k = key(cx, cz);
     this.asked.add(k);
@@ -211,6 +222,11 @@ class RegionView implements Place {
       })
       .then(
         (b) => {
+          if (this.gone) {
+            return;
+          }
+          this.ground.add(b.sim);
+          this.landed();
           if (this.asked.delete(k)) {
             this.ready.push(b);
           }

@@ -11,21 +11,18 @@ export interface Terrain {
   readonly steepZ: Uint8Array; // likewise across its z edges
 }
 
-/** The grid with its steep marks for maxSlope, a rise per metre, and its deep water's samples if it has any. */
+/** The grid with its steep marks for maxSlope, a rise per metre. */
 export function terrain(
   cell: number,
   nx: number,
   nz: number,
   heights: readonly number[] | Float32Array,
   maxSlope: number,
-  deepWater?: readonly boolean[],
 ): Terrain {
   const steepX = new Uint8Array((nx - 1) * (nz - 1));
   const steepZ = new Uint8Array((nx - 1) * (nz - 1));
   markSteep(heights, nx, maxSlope * cell, steepX, steepZ, 0, nx - 2, 0, nz - 2);
-  return deepWater
-    ? { cell, nx, nz, heights, deepWater: Uint8Array.from(deepWater, Number), steepX, steepZ }
-    : { cell, nx, nz, heights, steepX, steepZ };
+  return { cell, nx, nz, heights, steepX, steepZ };
 }
 
 /** Marks cells ix0 to ix1 by iz0 to iz1 of an nx-sample-wide grid steep along x or z where a rise across an edge that way exceeds limit, max_slope × cell. */
