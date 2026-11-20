@@ -70,7 +70,7 @@ type Ticked[T any] struct {
 
 // NewLooter follows p from the Snapshot it joined to.
 func NewLooter(p *Player, snap *clientv1.Snapshot) *Looter {
-	l := &Looter{Player: p}
+	l := &Looter{Player: p, tick: p.Joined} // a wait's first frame counts from the join, not from the map's start
 	l.enter(snap)
 	return l
 }

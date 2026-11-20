@@ -122,8 +122,8 @@ func (l *Looter) during(d time.Duration, pred func(wsconn.Message) bool, done fu
 		if met {
 			return true
 		}
-		gone := uint64(1)
-		if l.tick > was {
+		gone := uint64(1) // a frame after an unknown tick, or on a new map's clock
+		if was != 0 && l.tick > was {
 			gone = l.tick - was
 		}
 		left -= min(left, gone)
