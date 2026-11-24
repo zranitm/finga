@@ -13,7 +13,7 @@ import {
 } from '@/protocol/messages';
 import { resetStores } from '@/testing/reset-stores';
 
-import { countdownTicks, pvp, sideOf, walled } from './pvp';
+import { awayIn, countdownTicks, pvp, sideOf, walled } from './pvp';
 
 const duel = (phase: MatchPhase, wins: number[] = [0, 0], match = 'mt-1') =>
   create(MatchStateSchema, {
@@ -36,6 +36,17 @@ describe('pvp', () => {
   });
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('keeps each fighter’s held place from the state, and lists those away', () => {
+    const st = duel(MatchPhase.FIGHT);
+    st.sides[1]!.fighters[0]!.away = true;
+    pvp.getState().applyMatchState(st, 0);
+    const m = pvp.getState().match;
+    expect([m?.sides[0]?.[0]?.away, m?.sides[1]?.[0]?.away]).toEqual([false, true]);
+    expect([...awayIn(m)]).toEqual(['c-ayla']);
+    expect(awayIn(m)).toBe(awayIn(m)); // once per state
+    expect(awayIn(null).size).toBe(0);
   });
 
   it('counts a ticket’s wait from when the queue said it had waited, and an offer’s lapse from its time left', () => {

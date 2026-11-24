@@ -675,6 +675,11 @@ As built for 1v1 (build step 2):
   - A fighter whose `away` is set shows "Reconnecting" on their frame and over their name.
   - Their side gets a notice when it sets, "<name> lost connection", and when it clears, "<name> is back". The client reads both from the change between states.
   - The player's own client shows "Reconnecting…" as for any drop, and lands back in the match on its `Welcome`.
+  - **As built (step 7b):**
+    - "Reconnecting" is a note on the match frames, under the name as "Down" is, and the tag after the name in the world, where a bot's BOT goes.
+    - The notices are toasts, for the player's own side only, and only between two states of the same match.
+    - A `Welcome` on a match's map keeps the match, its arena bar and its frames: only a held place lands a join there. One anywhere else leaves the match as a trip out does, so a return past the grace says at once that it counts as a loss.
+    - The server sends the arena bar the fighter wears again with the return, after the `Welcome`.
 - **The offer card and the result** draw over any open window.
 - **The result screen** stays through the trip back, until Return closes it.
   - **A forfeit's card:** a forfeit's MapChange comes before its `MatchEnded`. So the store keeps the match left (`left`) until `MatchEnded` arrives, and the card has the match's mode and counts rounds from the player's side.
