@@ -1,9 +1,10 @@
 # PvP (docs/tech/pvp.md section 3): the modes, the queue, the rules of rounds and of the battle, the kit everyone fights with, ratings and ranks, and the bots.
 # A mode with rounds is fought in rounds; one without is a battle, for points, on a map with bases and points.
+# A fighter whose connection drops keeps their place and body for reconnect, with no bot standing in; past it they've left (pvp.md section 4).
 modes:
-  duel: {name: 1v1, team: 1, party: 1, map: ring, rated: true, rounds: {best_of: 3, most: 5, length: 60s}}
-  team: {name: 3v3, team: 3, party: 3, map: ring, rated: true, rounds: {best_of: 3, most: 5, length: 90s}}
-  battle: {name: 15v15, team: 15, party: 4, map: battlefield, rated: false, rating_from: team}
+  duel: {name: 1v1, team: 1, party: 1, map: ring, rated: true, rounds: {best_of: 3, most: 5, length: 60s}, reconnect: 20s}
+  team: {name: 3v3, team: 3, party: 3, map: ring, rated: true, rounds: {best_of: 3, most: 5, length: 90s}, reconnect: 20s}
+  battle: {name: 15v15, team: 15, party: 4, map: battlefield, rated: false, rating_from: team, reconnect: 20s}
 
 # Players are matched with players first; a ticket waiting past bots_after is matched with bots. A ticket's window in mu widens from start by per_second, up to most.
 queue: {bots_after: 15s, offer: 10s, window: {start: 2, per_second: 0.2, most: 8}}

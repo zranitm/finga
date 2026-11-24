@@ -86,13 +86,14 @@ type pvpYAML struct {
 }
 
 type modeYAML struct {
-	Name       string     `yaml:"name"`
-	Team       int        `yaml:"team"`
-	Party      int        `yaml:"party"`
-	Map        string     `yaml:"map"`
-	Rated      bool       `yaml:"rated"`
-	RatingFrom string     `yaml:"rating_from"`
-	Rounds     roundsYAML `yaml:"rounds"` // none for a battle
+	Name       string        `yaml:"name"`
+	Team       int           `yaml:"team"`
+	Party      int           `yaml:"party"`
+	Map        string        `yaml:"map"`
+	Rated      bool          `yaml:"rated"`
+	RatingFrom string        `yaml:"rating_from"`
+	Rounds     roundsYAML    `yaml:"rounds"` // none for a battle
+	Reconnect  time.Duration `yaml:"reconnect"`
 }
 
 type roundsYAML struct {
@@ -188,10 +189,12 @@ func (l *loader) pvpModes(modes map[string]modeYAML) ([]gamedata.PvpMode, error)
 			return nil, fmt.Errorf("mode %s: rounds need an odd best_of, most at least best_of, and a length over 0", id)
 		case m.Rated == (m.RatingFrom != ""):
 			return nil, fmt.Errorf("mode %s: a rated mode has its own rating, and an unrated one reads rating_from's", id)
+		case m.Reconnect < 0:
+			return nil, fmt.Errorf("mode %s: reconnect can't be negative", id)
 		}
 		out = append(out, gamedata.PvpMode{
 			ID: id, Name: m.Name, Team: m.Team, Party: m.Party, Map: m.Map, Rated: m.Rated, RatingFrom: m.RatingFrom,
-			Rounds: gamedata.ModeRounds{BestOf: r.BestOf, Most: r.Most, Length: r.Length},
+			Rounds: gamedata.ModeRounds{BestOf: r.BestOf, Most: r.Most, Length: r.Length}, Reconnect: m.Reconnect,
 		})
 	}
 	for _, m := range out {

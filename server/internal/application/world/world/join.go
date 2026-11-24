@@ -23,6 +23,9 @@ func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 		return model.View{}, err
 	}
 	defer unlock()
+	if v, err := w.rejoinMatch(ctx, account, id, conn, sink); !errors.Is(err, model.ErrNotInMatch) {
+		return v, err
+	}
 	older, took, err := w.takeOff(ctx, id, func(p presence) bool { return p.account == account })
 	var v model.View
 	if err == nil {
@@ -32,6 +35,31 @@ func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 		older.sink.Send(model.Detached{}) // the gateway joins the older connection again, on a map or mid-transfer
 	}
 	return v, err
+}
+
+// rejoinMatch puts conn on the character's body in a match, its place held through a drop or still connected, as a page reload's Hello can come before its old connection's close (pvp.md section 4); ErrNotInMatch when no match holds it, for a plain join.
+func (w *World) rejoinMatch(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink instance.Sink) (model.View, error) {
+	older, ok := w.presences.get(id)
+	if _, fighting := w.fighting.of(id); !ok || !fighting || older.account != account { // as the join loads no character, only its account's presence is taken
+		return model.View{}, model.ErrNotInMatch
+	}
+	at := w.presences.place(id, presence{inst: older.inst, conn: conn, account: account, sink: sink})
+	answerCtx, cancel := answerOf(ctx)
+	defer cancel()
+	var v model.View
+	err := whileBusy(answerCtx, func() (err error) {
+		v, err = older.inst.Rejoin(answerCtx, id, conn, sink)
+		return err
+	})
+	switch {
+	case errors.Is(err, instance.ErrSinkClosed):
+		return model.View{}, model.ErrBusy // held again through conn, as the presence says; the gateway joins on its next stream
+	case err != nil:
+		w.presences.place(id, older) // for the plain join to take off
+		return model.View{}, err
+	}
+	v.JoinSeq = at.gen
+	return v, nil
 }
 
 func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink instance.Sink) (model.View, error) {
