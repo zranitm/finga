@@ -44,6 +44,7 @@ type match struct {
 	seen     []bots.Seen             // the ring's frame as it's filled
 	teams    [2]*bots.Team           // what each side's bots share in a team mode; nil in 1v1
 	battle   *battle                 // a battle's; nil in a round mode
+	tell     bool                    // it changed this tick: an arrival, a phase, a point or the score; tellMatch sends it once
 }
 
 // fighter is a place in the match and how its fighter did.
@@ -314,12 +315,9 @@ func (i *Instance) joinMatch(j *joinMsg) bool {
 	return true
 }
 
-// welcome tells an arrived fighter the match and replaces their sheet and timers with the kit's; those already here hear the match again, as only an arrival names its fighter.
+// welcome replaces an arrived fighter's sheet and timers with the kit's, and has the match told as the tick ends: everyone hears it again, as only an arrival names its fighter.
 func (i *Instance) welcome(p *player) {
-	st := i.matchState()
-	for _, q := range i.players {
-		q.private = append(q.private, st)
-	}
+	i.match.tell = true
 	i.retime(p)
 }
 
@@ -350,13 +348,20 @@ func (i *Instance) matchState() model.MatchState {
 	return st
 }
 
-// enterPhase moves the match to phase for d and tells everyone on it; a countdown, or a battle's fight, puts on the builds sent since the last.
+// enterPhase moves the match to phase for d, told as the tick ends; a countdown, or a battle's fight, puts on the builds sent since the last.
 func (i *Instance) enterPhase(phase model.MatchPhase, d time.Duration) {
 	if phase == model.PhaseCountdown || phase == model.PhaseFight && i.match.battle != nil {
 		i.wearBuilds()
 	}
-	i.match.phase, i.match.ends = phase, i.tick+i.ticksFor(d)
-	i.events = append(i.events, i.matchState())
+	i.match.phase, i.match.ends, i.match.tell = phase, i.tick+i.ticksFor(d), true
+}
+
+// tellMatch tells everyone on the map the match once a tick, as the tick left it, when something in it changed.
+func (i *Instance) tellMatch() {
+	if mt := i.match; mt != nil && mt.tell {
+		mt.tell = false
+		i.events = append(i.events, i.matchState())
+	}
 }
 
 // stepMatch runs the match's clock at the tick's start: prep and between into a countdown, the countdown into a round, a round out of time to its outcome, and the result out. A battle's prep goes straight into its fight, which stepBattle ends.
