@@ -89,7 +89,7 @@ The minimap and the This map tab both draw from this one image. Neither redraws 
 
 ### This map
 
-- **The view:** the whole map, sized to fit the window, from the ground image.
+- **The view:** the whole map, sized to fit the window, from the ground image. A region's plan pans and zooms, under a tab reading "This region" (large-regions.md step 5c-2b).
 - **Marks:** the minimap's marks, plus labels:
   - "To <map name>" by each portal;
   - NPC names;

@@ -786,6 +786,121 @@ describe('MapWindow', () => {
     });
   });
 
+  describe('This region pans and zooms', () => {
+    /** The test region as a kilometre across would be, its tiles the ground: 0.31 px a metre whole. */
+    function inKilometre() {
+      act(() => {
+        mapView
+          .getState()
+          .showMap('test_region', [1024, 1024], { kind: 'tiles', folder: 'bake/tiles' }, [
+            { id: 'west', name: 'West Field', x: 60, z: 85, y: 0, main: false },
+          ]);
+        mapView
+          .getState()
+          .mark({ me: { x: 124, z: 80, yaw: 0 }, party: [], lock: null, boss: null });
+      });
+      render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
+      return screen.getByRole('img', { name: 'Test Region' });
+    }
+    const zoomIn = () => screen.getByRole('button', { name: 'Zoom in' });
+    const tab = () => screen.getAllByRole('tab').map((t) => t.textContent);
+    const zoomOut = () => screen.getByRole('button', { name: 'Zoom out' });
+    const tiles = () =>
+      [...document.querySelectorAll('image.map-tile')].map((t) => t.getAttribute('href'));
+
+    it('zooms by the buttons about its middle, twice a press, till a metre spans 4 px; the tiles in view drawn finer as it does', async () => {
+      const svg = inKilometre();
+      expect(tab()).toEqual(['This region', 'World']);
+      expect([svg.getAttribute('viewBox'), zoomOut()]).toEqual([
+        '0 0 1024 1024',
+        expect.anything(),
+      ]);
+      expect(zoomOut()).toBeDisabled();
+      await user.click(zoomIn());
+      expect(svg.getAttribute('viewBox')).toBe('256 256 512 512');
+      expect([svg.getAttribute('width'), svg.getAttribute('height')]).toEqual(['320', '320']); // its size on screen kept
+      expect(tiles()).toHaveLength(16); // 4 by 4 at 0.63 px a metre: 1 m a pixel
+      expect(new Set(tiles().map((t) => t!.split('/')[2]))).toEqual(new Set(['1']));
+      await user.click(zoomIn());
+      await user.click(zoomIn());
+      expect(svg.getAttribute('viewBox')).toBe('448 448 128 128'); // 8 times
+      await user.click(zoomIn());
+      expect(svg.getAttribute('viewBox')).toBe(`${512 - 40} ${512 - 40} 80 80`); // 12.8 times: 4 px a metre, the most
+      expect(zoomIn()).toBeDisabled();
+      for (let i = 0; i < 4; i++) {
+        await user.click(zoomOut());
+      }
+      expect(svg.getAttribute('viewBox')).toBe('0 0 1024 1024');
+      await user.click(zoomIn());
+      onMap('forest', 30, 10);
+      expect(screen.getByRole('img', { name: 'Forest' }).getAttribute('viewBox')).toBe('0 0 72 40'); // a new map whole
+      expect(tab()).toEqual(['This map', 'World']);
+    });
+
+    it('zooms by the wheel about the pointer, and pans by a drag held inside the region', () => {
+      const svg = inKilometre();
+      fireEvent.wheel(svg, { deltaY: 400 });
+      expect(svg.getAttribute('viewBox')).toBe('0 0 1024 1024'); // no further out than whole
+      expect(fireEvent.wheel(svg, { deltaY: -400, clientX: 0, clientY: 0 })).toBe(false); // the page doesn't scroll; the test page puts the plan at 0, 0
+      expect(svg.getAttribute('viewBox')).toBe('0 0 512 512'); // twice, the north-west corner kept
+      fireEvent.wheel(svg, { deltaY: -400, clientX: 320, clientY: 320 }); // the region's middle: 512 m in at 0.63 px a metre
+      expect(svg.getAttribute('viewBox')).toBe('256 256 256 256');
+      fireEvent.pointerDown(svg, { button: 0, clientX: 100, clientY: 100 });
+      fireEvent.pointerMove(window, { clientX: 20, clientY: 140 }); // 80 px west and 40 south at 1.25 px a metre
+      fireEvent.pointerUp(window);
+      expect(svg.getAttribute('viewBox')).toBe('320 224 256 256');
+      fireEvent.pointerDown(svg, { button: 0, clientX: 0, clientY: 0 });
+      fireEvent.pointerMove(window, { clientX: -2000, clientY: -2000 });
+      fireEvent.pointerUp(window);
+      expect(svg.getAttribute('viewBox')).toBe('768 768 256 256'); // held at the south-east corner
+      fireEvent.pointerMove(window, { clientX: 2000, clientY: 2000 }); // the button's up: no more pan
+      expect(svg.getAttribute('viewBox')).toBe('768 768 256 256');
+      fireEvent.pointerDown(svg, { button: 2, clientX: 0, clientY: 0 });
+      fireEvent.pointerMove(window, { clientX: 2000, clientY: 2000 });
+      fireEvent.pointerUp(window);
+      expect(svg.getAttribute('viewBox')).toBe('768 768 256 256'); // the right button's no drag
+      fireEvent.pointerDown(svg, { button: 0, clientX: 0, clientY: 0 });
+      fireEvent.pointerMove(window, { clientX: 2000, clientY: 2000 });
+      fireEvent.pointerUp(window);
+      expect(svg.getAttribute('viewBox')).toBe('0 0 256 256'); // held at the north-west corner
+    });
+
+    it('a drag that starts on a waypoint picks nothing, and a press that moves under 4 px still picks', () => {
+      inKilometre();
+      const west = screen.getByRole('button', { name: 'West Field' });
+      fireEvent.pointerDown(west, { button: 0, clientX: 50, clientY: 50 });
+      fireEvent.pointerMove(window, { clientX: 60, clientY: 50 });
+      fireEvent.pointerUp(window);
+      fireEvent.click(west);
+      expect(screen.queryByRole('region', { name: 'Waypoint' })).not.toBeInTheDocument();
+      fireEvent.pointerDown(west, { button: 0, clientX: 50, clientY: 50 });
+      fireEvent.pointerMove(window, { clientX: 60, clientY: 50 });
+      fireEvent.pointerUp(window); // let go off the plan: no click follows
+      fireEvent.pointerDown(west, { button: 0, clientX: 50, clientY: 50 });
+      fireEvent.pointerMove(window, { clientX: 53, clientY: 50 });
+      fireEvent.pointerUp(window);
+      fireEvent.click(west);
+      expect(screen.getByRole('region', { name: 'Waypoint' })).toHaveTextContent('West Field');
+    });
+
+    it('a map, however large, keeps its fit, with no buttons, and the wheel and a drag leave it be', () => {
+      act(() => {
+        mapView.getState().showMap('forest', [720, 400], NO_GROUND, []); // 0.67 px a metre, as a region zooms from
+        mapView
+          .getState()
+          .mark({ me: { x: 30, z: 10, yaw: 0 }, party: [], lock: null, boss: null });
+      });
+      render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
+      const svg = screen.getByRole('img', { name: 'Forest' });
+      expect(screen.queryByRole('group', { name: 'Zoom' })).not.toBeInTheDocument();
+      expect(fireEvent.wheel(svg, { deltaY: -400 })).toBe(true); // the page's, as before
+      fireEvent.pointerDown(svg, { button: 0, clientX: 100, clientY: 100 });
+      fireEvent.pointerMove(window, { clientX: 20, clientY: 20 });
+      fireEvent.pointerUp(window);
+      expect(svg.getAttribute('viewBox')).toBe('0 0 720 400');
+    });
+  });
+
   it('a refused teleport says why as a notice and leaves the window open', async () => {
     onMap('town', 20, 10);
     const { socket } = asking(() => Promise.reject(refusal(ERR.TELEPORT_BUSY)));

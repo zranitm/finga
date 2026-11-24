@@ -667,6 +667,24 @@ Built with step 1, which says who watches a cell.
       - This region's level at four sizes, 256 to 1,024 m, which pins the 2-pixel rule between 1.67 and 2.5;
       - a picked region's layout drawing its tiles;
       - the world handing a region's tile folder and a map's image.
+  - **As built (step 5c-2b): This region pans and zooms.**
+    - **The tab** reads "This region" on a region, "This map" elsewhere.
+    - **Zoom:**
+      - the wheel zooms about the pointer, twice per 400 px of scroll;
+      - Zoom in and Zoom out buttons, in the plan's top right, double or halve it about the middle;
+      - from whole to where a metre spans 4 screen pixels, a tile's finest: 12.8 times on a kilometre, 3.2 on the 256 m test region.
+
+      The plan keeps its size on screen. Its labels, marks and tiles are drawn at the zoomed scale, and only the tiles in view are drawn.
+    - **Pan:** a drag with the main button pans it. A press that moves under 4 px is still a click, so a waypoint is picked as before. A drag that starts on one picks nothing.
+    - **Held inside:** the view stays inside the region. A map change starts the new map's plan whole.
+    - **Where it applies:** wherever the ground is tiles, including a region picked on the World tab. A map keeps its fit, with no buttons, and the wheel scrolls the page as before.
+    - **Tests:**
+      - the buttons' steps and limits, the tiles drawn finer as it zooms in, and the size on screen kept;
+      - the wheel about the pointer, with no page scroll, and no further out than whole;
+      - a drag held at both corners, the right button's none, and no pan after the button's up;
+      - a drag over a waypoint picking nothing, one let go off the plan not swallowing the next click, a short press picking;
+      - a 720 m map keeping its fit;
+      - the tab's name.
 - **Loading a region:** the loading screen holds until the overview and the chunks within 128 m are built, then fades as today.
 - **As built (step 5a):**
   - **Wiring:** a map's JSON may name `region: {id, hash}`. The world then draws that bake in place of the map's own ground and props, and tells it the camera's target each frame. No map names one until 4b serves a region, so only tests and the preview draw one.
