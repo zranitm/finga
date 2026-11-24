@@ -24,6 +24,7 @@ import { target } from '@/state/target';
 import { teleport } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
+import { waypoints } from '@/state/waypoints';
 
 export function resetStores(): void {
   for (const store of [
@@ -53,6 +54,7 @@ export function resetStores(): void {
     pouches,
     arenaBuild,
     pvpProfile,
+    waypoints,
   ]) {
     store.reset();
   }

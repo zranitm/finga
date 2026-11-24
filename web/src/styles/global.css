@@ -1533,6 +1533,28 @@ body {
   justify-self: start;
   padding: 1px 10px;
 }
+/* A region's waypoints on a plan, each a mark to pick; the picked one's name, whether it's found, and a teleport to it under the plan. */
+.map-waypoint {
+  cursor: pointer;
+}
+.map-waypoint:focus-visible {
+  outline: none;
+}
+.map-waypoint:focus-visible polygon {
+  stroke: var(--accent);
+}
+.map-waypoint-pick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 26px;
+  margin-top: 6px;
+  font-size: 13px;
+}
+.map-waypoint-pick .btn {
+  margin-left: auto;
+  padding: 1px 10px;
+}
 .map-picked-party {
   display: flex;
   flex-wrap: wrap;

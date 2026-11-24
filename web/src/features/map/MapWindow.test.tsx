@@ -26,6 +26,7 @@ import { party } from '@/state/party';
 import { pvp } from '@/state/pvp';
 import { teleport } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
+import { waypoints } from '@/state/waypoints';
 import { refusal } from '@/testing/refusal';
 import { resetStores } from '@/testing/reset-stores';
 import { user } from '@/testing/user';
@@ -36,14 +37,18 @@ const map = (id: string) => maps.find((m) => m.id === id)!;
 
 /** A map's layout as the app gives it: its size, and no image, as jsdom draws none. */
 const layoutOf = vi.fn((id: string) =>
-  Promise.resolve({ size: id === 'town' ? ([48, 32] as const) : ([72, 40] as const), image: '' }),
+  Promise.resolve({
+    size: id === 'town' ? ([48, 32] as const) : ([72, 40] as const),
+    image: '',
+    waypoints: [],
+  }),
 );
 
 function onMap(id: string, x: number, z: number) {
   const m = map(id);
   const size = id === 'town' ? ([48, 32] as const) : ([72, 40] as const);
   act(() => {
-    mapView.getState().showMap(m.id, size, '');
+    mapView.getState().showMap(m.id, size, '', []);
     mapView.getState().mark({ me: { x, z, yaw: 0 }, party: [], lock: null, boss: null });
   });
 }
@@ -87,11 +92,36 @@ describe('MapWindow', () => {
       Math.abs(a.x - b.x) * 2 < a.w + b.w && a.bottom > b.bottom - b.h && b.bottom > a.bottom - a.h;
     for (const m of maps) {
       const marked = new Set(npcs.npcs.filter((n) => n.map === m.id).map((n) => n.id));
-      const labels = mapLabels(m, { x: 20, z: 20 }, 6, [72, 40], marked, null);
+      const labels = mapLabels(m, { x: 20, z: 20 }, 6, [72, 40], marked, null, []);
       for (const [i, a] of labels.entries()) {
         for (const b of labels.slice(i + 1)) {
           expect([m.id, a.text, b.text, overlap(a, b)]).toEqual([m.id, a.text, b.text, false]);
         }
+      }
+    }
+  });
+
+  it('This map’s labels keep clear of a region’s waypoint marks as drawn: the test region’s, the player by the town’s stone', () => {
+    const stones = [
+      { x: 124, z: 85 },
+      { x: 60, z: 85 },
+      { x: 118, z: 150 },
+      { x: 190, z: 100 },
+    ];
+    const scale = 320 / 256;
+    const labels = mapLabels(
+      map('test_region'),
+      { x: 124, z: 80 },
+      scale,
+      [256, 256],
+      new Set(),
+      null,
+      stones,
+    );
+    for (const s of stones) {
+      const mark = { x: s.x * scale, bottom: (256 - s.z) * scale + 7, w: 10, h: 14 }; // the diamond, 5 px either side and 7 px up and down
+      for (const l of labels) {
+        expect([s, l.text, clashes(l, mark)]).toEqual([s, l.text, false]);
       }
     }
   });
@@ -108,7 +138,7 @@ describe('MapWindow', () => {
   const spawnLabels = (id: string) => {
     const m = map(id);
     const { sx, sz, scale } = fitted(id);
-    return mapLabels(m, null, scale, [sx, sz], new Set(), null)
+    return mapLabels(m, null, scale, [sx, sz], new Set(), null, [])
       .filter((l) => l.kind === 'spawn')
       .map((l) => {
         const mob = m.spawns.find((s) => l.text.startsWith(`${mobById(s.mob)!.name} Lv`))!.mob;
@@ -131,7 +161,15 @@ describe('MapWindow', () => {
     const m = map(id);
     const spot = m.boss!;
     const { sx, sz, scale } = fitted(id);
-    const labels = mapLabels(m, null, scale, [sx, sz], new Set(), { type: spot.mob, backAt: 0 });
+    const labels = mapLabels(
+      m,
+      null,
+      scale,
+      [sx, sz],
+      new Set(),
+      { type: spot.mob, backAt: 0 },
+      [],
+    );
     return { labels, boss: labels.find((l) => l.kind === 'boss')!, crown: (sz - spot.z) * scale };
   };
 
@@ -223,7 +261,15 @@ describe('MapWindow', () => {
 
   it('lifts the player’s label above an NPC’s name when the player stands at the NPC', () => {
     const guide = npcs.npcs.find((n) => n.id === 'town_guide')!;
-    const labels = mapLabels(map('town'), { x: guide.x, z: guide.z }, 6, [48, 32], new Set(), null);
+    const labels = mapLabels(
+      map('town'),
+      { x: guide.x, z: guide.z },
+      6,
+      [48, 32],
+      new Set(),
+      null,
+      [],
+    );
     const you = labels.find((l) => l.kind === 'me')!;
     const name = labels.find((l) => l.text === guide.name)!;
     expect(you.bottom).toBeLessThanOrEqual(name.bottom - name.h - 2);
@@ -596,6 +642,97 @@ describe('MapWindow', () => {
       render(<MapWindow socket={socket} layoutOf={layoutOf} onClose={vi.fn()} />);
       expect(screen.queryByRole('region', { name: 'Channels' })).not.toBeInTheDocument();
       expect(request).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('in a region, its waypoints', () => {
+    const TOWN = { id: 'town', name: 'Test Town', x: 124, z: 85, main: true };
+    const WEST = { id: 'west', name: 'West Field', x: 60, z: 85, main: false };
+    const NORTH = { id: 'north', name: 'North Field', x: 118, z: 150, main: false };
+
+    /** The player in the test region by its town's stone, the west field's found. */
+    function inRegion() {
+      act(() => {
+        mapView.getState().showMap('test_region', [256, 256], '', [TOWN, WEST, NORTH]);
+        mapView
+          .getState()
+          .mark({ me: { x: 124, z: 80, yaw: 0 }, party: [], lock: null, boss: null });
+        waypoints.getState().find('west');
+      });
+    }
+
+    it('This map marks each waypoint, lit once found and grey till then, and names a picked one: found, a main town’s, or not found yet, with Teleport here on the first two', async () => {
+      inRegion();
+      render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
+      const svg = screen.getByRole('img', { name: 'Test Region' });
+      const ids = (selector: string) =>
+        [...svg.querySelectorAll(selector)].map((g) => g.getAttribute('data-waypoint'));
+      expect([ids('.map-waypoint'), ids('.map-waypoint-found')]).toEqual([
+        ['town', 'west', 'north'],
+        ['west'],
+      ]);
+      expect(
+        [...svg.querySelectorAll('.map-waypoint polygon')].map((d) => d.getAttribute('fill')),
+      ).toEqual(['#8a8a8a', '#00dce6', '#8a8a8a']); // grey till found, then the crystal's cyan
+      for (const [name, says, open] of [
+        ['West Field', 'Found', true],
+        ['Test Town', 'Main town, always open', true],
+        ['North Field', 'Not found yet', false],
+      ] as const) {
+        await user.click(within(svg).getByRole('button', { name }));
+        const pick = screen.getByRole('region', { name: 'Waypoint' });
+        expect(pick).toHaveTextContent(`${name}${says}`);
+        expect(within(pick).queryByRole('button', { name: 'Teleport here' }) !== null).toBe(open);
+      }
+      act(() => {
+        waypoints.getState().find('north');
+      });
+      expect(ids('.map-waypoint-found')).toEqual(['west', 'north']);
+      expect(screen.getByRole('region', { name: 'Waypoint' })).toHaveTextContent(
+        'North FieldFound',
+      );
+    });
+
+    it('Teleport here on a waypoint asks the server for it with the latest input’s seq; its answer closes the window and starts the channel, named for the waypoint', async () => {
+      inRegion();
+      const { socket, request } = asking(() => Promise.resolve({ ok: true, code: 0 }));
+      const onClose = vi.fn();
+      render(<MapWindow socket={socket} layoutOf={layoutOf} onClose={onClose} />);
+      await user.click(screen.getByRole('button', { name: 'West Field' }));
+      await user.click(screen.getByRole('button', { name: 'Teleport here' }));
+      expect(request).toHaveBeenCalledWith('teleport', { waypoint: 'west' }, 42);
+      await waitFor(() => {
+        expect(onClose).toHaveBeenCalledOnce();
+      });
+      expect(teleport.getState().to).toEqual({ waypoint: 'west', name: 'West Field' });
+    });
+
+    it('a waypoint offers no Teleport here while the player is dead, and a refused one says why and leaves the window open', async () => {
+      inRegion();
+      const { socket } = asking(() => Promise.reject(refusal(ERR.TELEPORT_NOT_FOUND)));
+      const onClose = vi.fn();
+      render(<MapWindow socket={socket} layoutOf={layoutOf} onClose={onClose} />);
+      await user.click(screen.getByRole('button', { name: 'West Field' }));
+      await user.click(screen.getByRole('button', { name: 'Teleport here' }));
+      await waitFor(() => {
+        expect(toasts.getState().toasts.map((t) => t.text)).toEqual([
+          'You haven’t found that waypoint yet.',
+        ]);
+      });
+      expect([onClose.mock.calls.length, teleport.getState().to]).toEqual([0, null]);
+      act(() => {
+        character.getState().setDead(true);
+      });
+      expect(screen.queryByRole('button', { name: 'Teleport here' })).not.toBeInTheDocument();
+    });
+
+    it('a pick goes with its map', async () => {
+      inRegion();
+      render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
+      await user.click(screen.getByRole('button', { name: 'West Field' }));
+      onMap('forest', 30, 10);
+      expect(screen.queryByRole('region', { name: 'Waypoint' })).not.toBeInTheDocument();
+      expect(document.querySelector('.map-waypoint')).toBeNull();
     });
   });
 

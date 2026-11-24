@@ -36,6 +36,14 @@ describe('TeleportBar', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Switching to Channel 3');
   });
 
+  it('names the waypoint a teleport takes the player to (large-regions.md section 8)', () => {
+    render(<TeleportBar />);
+    act(() => {
+      teleport.getState().start({ waypoint: 'west', name: 'West Field' });
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('Teleporting to West Field');
+  });
+
   it('draws a new channel’s fill afresh, from empty', () => {
     render(<TeleportBar />);
     act(() => {
