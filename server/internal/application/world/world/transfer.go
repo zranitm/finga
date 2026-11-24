@@ -33,7 +33,7 @@ func (w *World) Transfer(from *instance.Instance, p model.Player, sink instance.
 // destination is the instance a hand-off to dest goes to, and what to call once it has landed or failed: in a region, the channel picked for it, which counts it as coming until then.
 func (w *World) destination(id kernel.CharacterID, dest instance.Dest) (*instance.Instance, func(), error) {
 	if r, ok := w.channels.regions[dest.ID]; ok {
-		return w.pickChannel(id, r, dest.Channel, dest.Switch)
+		return w.pickChannel(id, r, dest)
 	}
 	inst, ok := w.instanceAt(dest.ID)
 	if !ok {

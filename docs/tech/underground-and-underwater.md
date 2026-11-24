@@ -309,6 +309,17 @@ These steps follow the regions' build (large-regions.md section 14).
    - the paired channel at a gate below;
    - death, notices and chat inside, by tests;
    - bots through the gates.
+   - **As built (step 2).**
+     - **The paired channel:**
+       - Through a gate between a region and the place below it, either way, the instance asks the World for the player's own channel number (`Dest.Paired`).
+       - The pick opens that channel if it's closed, though another has room. If it's open but full, the usual pick follows: the party's, the least full, then a new one.
+       - Any other gate, and every teleport, asks for none.
+     - **A place below has no fixed first channel.** None opens at the start, and its open count starts at 0. A join, a gate or a teleport opens one, and every channel closes once idle, the first included.
+     - **Death, notices and chat** needed no change:
+       - A place below is its own town, so the dead get up at its nearest waypoint.
+       - Its boss's notices and its chat stay within its instance.
+       - The World's tests check all three on a test cave below the test region. That cave is added through `worldtest.LoadDataWith`, which can now add a file, so no place below ships until step 6.
+     - **Bots** needed none either: `cmd/bot` walks every map a portal leads to, so a place below's camps are hunting spots once a gate leads there.
 3. **The cave look,** after regions step 5b:
    - the material's light-map term, flames, the round shadows and the black sky;
    - KayKit's torches;
