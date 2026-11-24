@@ -9216,14 +9216,16 @@ func (*PvpForfeit) Descriptor() ([]byte, []int) {
 	return file_client_v1_client_proto_rawDescGZIP(), []int{105}
 }
 
-// PvpQueued says the player is in a mode's queue: on joining, to each member of a party ticket, and again after a reconnect.
+// PvpQueued says the player is in a mode's queue: on joining, to each member of a party ticket, and again each time waiting_room flips.
 type PvpQueued struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Mode  string                 `protobuf:"bytes,1,opt,name=mode,proto3" json:"mode,omitempty"`
 	// How long the ticket has waited as this is sent; the client counts on from it.
 	SinceMs uint32 `protobuf:"varint,2,opt,name=since_ms,json=sinceMs,proto3" json:"since_ms,omitempty"`
 	// The ticket's characters: the player alone, or their party.
-	Members       []string `protobuf:"bytes,3,rep,name=members,proto3" json:"members,omitempty"`
+	Members []string `protobuf:"bytes,3,rep,name=members,proto3" json:"members,omitempty"`
+	// Their match is found but waits for the server to have room for its bots ("Waiting for room"); sent again, false, before its offer.
+	WaitingRoom   bool `protobuf:"varint,4,opt,name=waiting_room,json=waitingRoom,proto3" json:"waiting_room,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -9277,6 +9279,13 @@ func (x *PvpQueued) GetMembers() []string {
 		return x.Members
 	}
 	return nil
+}
+
+func (x *PvpQueued) GetWaitingRoom() bool {
+	if x != nil {
+		return x.WaitingRoom
+	}
+	return false
 }
 
 // PvpUnqueued says the player's ticket left the queue without a match.
@@ -10629,11 +10638,12 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x05offer\x18\x01 \x01(\tR\x05offer\x12\x16\n" +
 	"\x06accept\x18\x02 \x01(\bR\x06accept\"\f\n" +
 	"\n" +
-	"PvpForfeit\"T\n" +
+	"PvpForfeit\"w\n" +
 	"\tPvpQueued\x12\x12\n" +
 	"\x04mode\x18\x01 \x01(\tR\x04mode\x12\x19\n" +
 	"\bsince_ms\x18\x02 \x01(\rR\asinceMs\x12\x18\n" +
-	"\amembers\x18\x03 \x03(\tR\amembers\"R\n" +
+	"\amembers\x18\x03 \x03(\tR\amembers\x12!\n" +
+	"\fwaiting_room\x18\x04 \x01(\bR\vwaitingRoom\"R\n" +
 	"\vPvpUnqueued\x123\n" +
 	"\x06reason\x18\x01 \x01(\x0e2\x1b.client.v1.PvpUnqueueReasonR\x06reason\x12\x0e\n" +
 	"\x02by\x18\x02 \x03(\tR\x02by\"c\n" +

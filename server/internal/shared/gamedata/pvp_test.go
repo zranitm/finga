@@ -64,3 +64,12 @@ func TestABuildRefusesAFollowUpOnAKey(t *testing.T) {
 		t.Fatal("Charge, a follow-up, on a key of its own was taken")
 	}
 }
+
+// pvp.md section 8: a side's bots keep each class to ⌈team/4⌉ + 1, its players counted: one past even shares of four classes.
+func TestAModesClassCap(t *testing.T) {
+	for team, want := range map[int]int{1: 2, 3: 2, 4: 2, 5: 3, 15: 5} {
+		if got := (gamedata.PvpMode{Team: team}).ClassCap(); got != want {
+			t.Errorf("a team of %d: cap %d, want %d", team, got, want)
+		}
+	}
+}

@@ -1244,6 +1244,23 @@ func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 			t.Fatalf("err = %v", err)
 		}
 	})
+	t.Run("bot classes too few to fill a side", func(t *testing.T) {
+		t.Parallel()
+		files := fixture() // two promoted classes, 3 of each at most a side of 7: 6
+		spots := func(x, yaw int) string {
+			var out []string
+			for z := 7; z <= 13; z++ {
+				out = append(out, fmt.Sprintf("{at: [%d, %d], yaw: %d}", x, z, yaw))
+			}
+			return "[" + strings.Join(out, ", ") + "]"
+		}
+		files["maps/siege.yaml"] = strings.NewReplacer("[{at: [5, 9], yaw: 90}, {at: [5, 11], yaw: 90}]", spots(5, 90), "[{at: [35, 9], yaw: 270}, {at: [35, 11], yaw: 270}]", spots(35, 270)).Replace(files["maps/siege.yaml"])
+		files["pvp.yaml"] = strings.Replace(files["pvp.yaml"], "war: {name: 2v2, team: 2,", "war: {name: 7v7, team: 7,", 1)
+		_, err := load.Dir(write(t, files))
+		if err == nil || !strings.Contains(err.Error(), "mode war") || !strings.Contains(err.Error(), "can't fill a side of 7") {
+			t.Fatalf("err = %v", err)
+		}
+	})
 	t.Run("a map file that isn't YAML", func(t *testing.T) {
 		t.Parallel()
 		files := fixture()

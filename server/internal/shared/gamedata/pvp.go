@@ -43,6 +43,9 @@ type PvpMode struct {
 // Battle reports whether the mode is fought for points, as PvpBattle rules, rather than in rounds.
 func (m PvpMode) Battle() bool { return m.Rounds.BestOf == 0 }
 
+// ClassCap is the most of one class a side holds once bots fill it, its players counted: ⌈team/4⌉ + 1, so 2 in 3v3 and 5 in 15v15.
+func (m PvpMode) ClassCap() int { return (m.Team+3)/4 + 1 }
+
 // PvpBattle is a battle's rules: Prep with the gates shut, then up to Length of fighting. A side scores PerPoint a second for each point it holds and PerDown for each enemy it downs, and the first to Goal wins. The downed get up after Respawn in their base, which heals BaseHeal of max HP a second.
 type PvpBattle struct {
 	Prep, Length, Respawn   time.Duration

@@ -17,6 +17,7 @@ func TestEachPvpDeliveryKeepsItsValues(t *testing.T) {
 		want model.Push
 	}{
 		{pvp.Queued{Mode: "team", Since: 2 * time.Second, Members: []kernel.CharacterID{ann, bo}}, model.PvpQueued{Mode: "team", Since: 2 * time.Second, Members: []string{ann.String(), bo.String()}}},
+		{pvp.Queued{Mode: "duel", Since: 20 * time.Second, Members: []kernel.CharacterID{ann}, WaitingRoom: true}, model.PvpQueued{Mode: "duel", Since: 20 * time.Second, Members: []string{ann.String()}, WaitingRoom: true}},
 		{pvp.Unqueued{Reason: pvp.UnqueueDeclined, By: []kernel.CharacterID{bo}}, model.PvpUnqueued{Reason: model.PvpUnqueueDeclined, By: []string{bo.String()}}},
 		{pvp.Offered{Offer: "of-1", Mode: "team", Bots: 2, Until: 10 * time.Second}, model.PvpOffer{Offer: "of-1", Mode: "team", Bots: 2, Until: 10 * time.Second}},
 		{pvp.OfferGone{Offer: "of-1", Reason: pvp.GoneLapsed, Requeued: true}, model.PvpOfferCancelled{Offer: "of-1", Reason: model.PvpGoneLapsed, Requeued: true}},

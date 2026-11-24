@@ -50,7 +50,12 @@ describe('pvp', () => {
       mode: 'team',
       since: now - 4000,
       members: ['c-ayla', 'c-robin'],
+      waitingRoom: false,
     });
+    pvp
+      .getState()
+      .applyQueued(create(PvpQueuedSchema, { mode: 'team', sinceMs: 20_000, waitingRoom: true }));
+    expect(pvp.getState().queued?.waitingRoom).toBe(true);
     pvp
       .getState()
       .applyOffer(create(PvpOfferSchema, { offer: 'of-1', mode: 'duel', bots: 1, untilMs: 9500 }));

@@ -71,7 +71,7 @@ func pvpPush(d pvp.Delivery) (model.Push, bool) {
 		for _, m := range d.Members {
 			members = append(members, m.String())
 		}
-		return model.PvpQueued{Mode: d.Mode, Since: d.Since, Members: members}, true
+		return model.PvpQueued{Mode: d.Mode, Since: d.Since, Members: members, WaitingRoom: d.WaitingRoom}, true
 	case pvp.Unqueued:
 		by := make([]string, 0, len(d.By))
 		for _, id := range d.By {

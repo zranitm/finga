@@ -65,6 +65,7 @@ type service interface {
 	AbandonQuest(ctx context.Context, id kernel.CharacterID, conn, quest string) error
 	HandInQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error
 	OpenMatch(ctx context.Context, spec model.MatchSpec) error
+	Bots() int
 	CanFight(ctx context.Context, id kernel.CharacterID) error
 	SetBuild(ctx context.Context, id kernel.CharacterID, b model.Build) error
 	Forfeit(ctx context.Context, id kernel.CharacterID, conn string) error

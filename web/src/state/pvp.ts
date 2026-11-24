@@ -11,6 +11,8 @@ export interface Queued {
   readonly since: number;
   /** The ticket's characters: the player alone, or their party. */
   readonly members: readonly string[];
+  /** Their match is found but waits for the server to have room for its bots. */
+  readonly waitingRoom: boolean;
 }
 
 export interface Offer {
@@ -102,7 +104,14 @@ export const pvp = defineStore<PvpState>((set, get) => ({
   left: null,
   outcome: null,
   applyQueued: (d) => {
-    set({ queued: { mode: d.mode, since: performance.now() - d.sinceMs, members: d.members } });
+    set({
+      queued: {
+        mode: d.mode,
+        since: performance.now() - d.sinceMs,
+        members: d.members,
+        waitingRoom: d.waitingRoom,
+      },
+    });
   },
   applyUnqueued: () => {
     set({ queued: null, offer: null });

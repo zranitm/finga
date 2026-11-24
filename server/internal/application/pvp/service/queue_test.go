@@ -23,11 +23,12 @@ import (
 	"finga/pkg/transient"
 )
 
-// world is the world as the matcher sees it: who can't fight, the matches it opened and the builds it was sent, which fail with buildErr; while hold is open, an open waits for it.
+// world is the world as the matcher sees it: who can't fight, the matches it opened, the bots running, and the builds it was sent, which fail with buildErr; while hold is open, an open waits for it.
 type world struct {
 	mu       sync.Mutex
 	cant     map[kernel.CharacterID]error
 	opened   []model.Spec
+	bots     int // the opened matches' bots, till a test ends some
 	hold     chan struct{}
 	builds   map[kernel.CharacterID][]model.Build
 	buildErr error
@@ -62,7 +63,27 @@ func (w *world) OpenMatch(_ context.Context, spec model.Spec) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.opened = append(w.opened, spec)
+	for _, side := range spec.Sides {
+		for _, p := range side {
+			if p.Bot != nil {
+				w.bots++
+			}
+		}
+	}
 	return nil
+}
+
+func (w *world) Bots() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.bots
+}
+
+// end ends n of the running matches' bots, as their matches close.
+func (w *world) end(n int) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.bots -= n
 }
 
 // store keeps ratings, matches and builds in memory, as the Postgres store does: the next lost Records store, then fail as a commit whose answer was lost; a match in hold waits for it to close. The board and a profile read modes, ratings by mode; buildErr fails every build read and save.

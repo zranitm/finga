@@ -11,11 +11,12 @@ import (
 //sumtype:decl
 type Delivery interface{ delivery() }
 
-// Queued says the player is in a mode's queue, having waited Since.
+// Queued says the player is in a mode's queue, having waited Since: on joining, and again each time WaitingRoom flips, as their match waits for the node to have room for its bots, then has it.
 type Queued struct {
-	Mode    string
-	Since   time.Duration
-	Members []kernel.CharacterID
+	Mode        string
+	Since       time.Duration
+	Members     []kernel.CharacterID
+	WaitingRoom bool
 }
 
 // Unqueued says the player is out of the queue, and why: By is the members whose answer took the ticket out, the one who declined or those who let the offer lapse.
