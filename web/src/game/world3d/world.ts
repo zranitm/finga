@@ -671,10 +671,12 @@ export class World {
       throw err;
     }
     if (visit !== this.visit) {
+      place.dispose();
       scene.dispose();
       return;
     }
     if (arriving.mapId !== id) {
+      place.dispose();
       scene.dispose();
       return this.build(arriving, visit);
     }
@@ -2532,6 +2534,7 @@ export class World {
       connection.getState().setGroundLoading(false);
     }
     this.camera = null;
+    this.place?.dispose(); // a region's chunk work and stones' listener outlive the scene
     this.place = null;
     this.figures = null;
     this.pouchMarks = null;
