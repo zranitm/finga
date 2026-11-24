@@ -375,6 +375,7 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 		}
 	}
 	i.retellParties()
+	i.tellMatch()
 	i.broadcast(changed)
 }
 

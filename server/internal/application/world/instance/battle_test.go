@@ -234,6 +234,11 @@ func TestAHeldPointHoldsWhileContestedAndDrainsToNoOnesFirst(t *testing.T) {
 		if st := lastState(as); !st.Points[0].Contested || st.Points[0].Holder != 1 || st.Points[0].Progress != -1 || st.Score[0] < before.Score[0]+3 {
 			t.Fatalf("both sides in the west point 3 s: %+v from %+v; want it contested, still side 1's, scoring for it", st, before)
 		}
+		in := enteredAt(sinks[robin.ID], robin.ID, west.Circle, held.Tick)
+		states := worldtest.Of[model.MatchState](as)
+		if k := slices.IndexFunc(states, func(st model.MatchState) bool { return st.Tick > held.Tick && st.Points[0].Contested }); k < 0 || states[k].Tick != in {
+			t.Fatalf("Robin in the west point at tick %d; Ayla heard it contested at %d (-1 for never) of %+v; want that tick", in, k, states)
+		}
 		seq = march(inst, sinks, seq, 25, ayla.ID)
 		gone := leftAt(as, ayla.ID, west.Circle, held.Tick)
 		sleep(17 * time.Second)
@@ -443,6 +448,9 @@ func TestAHeldPointScoresEachWholeSecondToTheFightsEnd(t *testing.T) {
 		for k := 1; k < len(states); k++ {
 			if states[k].Tick == states[k-1].Tick {
 				t.Fatalf("two MatchStates at tick %d: %+v and %+v; want one a tick", states[k].Tick, states[k-1], states[k])
+			}
+			if st := states[k]; st.Score != states[k-1].Score && (st.Tick-fight)%second != 0 {
+				t.Fatalf("the score %v heard at tick %d, %d after the fight's start; want it told on the whole second it scored", st.Score, st.Tick, st.Tick-fight)
 			}
 		}
 	})

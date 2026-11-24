@@ -15,7 +15,6 @@ type battle struct {
 	score   [2]int
 	points  []model.CapturePoint // in the map's order
 	perTick float64              // the share of a point one fighter turns in a tick
-	changed bool                 // a holder, a contest or the score changed since everyone last heard
 }
 
 func newBattle(rules gamedata.PvpBattle, points []gamedata.CapturePoint, tick time.Duration) *battle {
@@ -37,7 +36,7 @@ func (b *battle) leader() int {
 	return 0
 }
 
-// stepBattle runs a battle's tick while it's fought: each point turns, and at each whole second from the fight's start, its end's included, each side scores its points and heals its own in its base. The first side to the goal wins, the higher score if both reach it at once; on time the side ahead wins. Everyone hears the score each second and at each change.
+// stepBattle runs a battle's tick while it's fought: each point turns, and at each whole second from the fight's start, its end's included, each side scores its points and heals its own in its base. The first side to the goal wins, the higher score if both reach it at once; on time the side ahead wins. The score's seconds and each change tell the match.
 func (i *Instance) stepBattle() {
 	mt := i.match
 	if mt == nil || mt.battle == nil || mt.phase != model.PhaseFight {
@@ -52,15 +51,10 @@ func (i *Instance) stepBattle() {
 			}
 		}
 		i.baseHeal()
-		b.changed = true
+		mt.tell = true
 	}
 	if b.score[0] >= b.rules.Goal || b.score[1] >= b.rules.Goal || i.tick >= mt.ends {
 		i.endMatch(b.leader())
-		return
-	}
-	if b.changed {
-		b.changed = false
-		i.events = append(i.events, i.matchState())
 	}
 }
 
@@ -93,7 +87,9 @@ func (i *Instance) capture() {
 				pt.Holder = s
 			}
 		}
-		b.changed = b.changed || pt.Holder != was.Holder || pt.Contested != was.Contested
+		if pt.Holder != was.Holder || pt.Contested != was.Contested {
+			i.match.tell = true
+		}
 	}
 }
 
@@ -134,7 +130,7 @@ func (i *Instance) downFor() uint64 {
 func (i *Instance) scoreDown(p *player) {
 	if b := i.match.battle; b != nil {
 		b.score[1-i.match.fighters[p.ID].side] += b.rules.PerDown
-		b.changed = true
+		i.match.tell = true
 	}
 }
 

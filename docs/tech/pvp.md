@@ -321,7 +321,7 @@ bots:
   - In 3v3 a bot of the tier the match's bots have takes over the leaver's body, as it stands: the same class, build and HP. The match goes on.
 - **As built (step 5):** in a team mode, before the outcome, a bot takes the leaver's place in the same tick they go. That covers a forfeit, logging out or dropping, and never arriving by prep's end.
   - **The body:** it's the leaver's as it stands: position, heading, class, name, HP and energy, and down if they were down. A body is never at 0 HP and up: the tick's downs settle before anyone can leave. Their statuses and buffs aren't carried, and its cooldowns start ready.
-  - **A dropped connection:** a player whose sends are refused is removed once the tick's events have all gone out. What the removal raises, the stand-in's `MatchState` or the match's end, opens the next tick's events, so every player hears it.
+  - **A dropped connection:** a player whose sends are refused is removed once the tick's events have all gone out. What the removal raises, the stand-in's `MatchState` or the match's end, goes out with the next tick's events, so every player hears it.
   - **One who never came:** stood in at their side's spot at full HP. As a name and class are only known on arrival, it takes the class their side has fewest of and a free name from the bots' list.
   - **Tier and build:**
     - The tier is the spec's `StandIn`, which pvp gives: the one nearest the mean `mu − σ` of all the match's players.
@@ -333,6 +333,9 @@ bots:
   - **When no player came at all,** the match still closes with no outcome, and no stand-ins are made.
   - **A side's last player** gets no stand-in: their side concedes (section 10).
 - **Arrivals, as built after the 3v3 playtest:** each fighter's arrival sends `MatchState` to everyone in the ring, not only to the one arriving. A state names only fighters who have arrived, so without it the first in saw blank frames until the countdown's state, 10 s on.
+- **Once a tick, as built after step 6a:** whatever changes the match in a tick (arrivals, a phase, a point's holder or contest, the score) marks it, and one `MatchState` goes out as the tick's last event, as the tick left it.
+  - Before, each change sent its own. Two fighters arriving on one tick sent everyone two states, the first naming only one of them; in a 15v15 that grows with every pair.
+  - The state rides in the tick's events after its `Delta`, as before.
 
 ### Points: 15v15
 
@@ -555,7 +558,7 @@ bots:
 | `PvpUnqueued{reason, by}` | server | Out of the queue: left, declined, lapsed, party changed; `by` names the ticket's members whose answer took it out |
 | `PvpOffer{offer, mode, bots, until_ms}` | server | A match found |
 | `PvpOfferGone{reason, requeued}` | server | Someone declined or it lapsed; `requeued` says whether this player is back in the queue |
-| `MatchState{match, mode, phase, round, wins, ends_in_ms, sides, score, points}` | server | On entry and at each change; `sides` lists each fighter's id, name, class and `bot`; `points` each point's holder, progress and whether contested |
+| `MatchState{match, mode, phase, round, wins, ends_in_ms, sides, score, points}` | server | On entry and at each change, once a tick at most, as the tick left it; `sides` lists each fighter's id, name, class and `bot`; `points` each point's holder, progress and whether contested |
 | `MatchState.sides[].away` | server | Set while a fighter's dropped connection holds their place (section 4). A drop and a return each send `MatchState` |
 | `MatchEnded{result, wins, score, rating, mode, left}` | server | The outcome; `rating` has the mode's shown rating and rank before and after, and placement matches left; `left` is set for a player who left before the outcome |
 | `PlayerView.team`, `PlayerView.bot` | server | The side, 0 outside a match, and the bot flag |

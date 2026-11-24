@@ -6,6 +6,7 @@ import (
 	"math"
 	"regexp"
 	"slices"
+	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -775,6 +776,40 @@ func TestABlowBetweenPlayersNeverMisses(t *testing.T) {
 		sleep(time.Second)
 		if hits := hitsOn(rs, robin.ID); len(hits) != 1 || hits[0].Miss || hits[0].Amount == 0 {
 			t.Fatalf("Ayla's attack on Robin: %+v, want one that lands", hits)
+		}
+	})
+}
+
+// Each player hears the match once a tick at most, as the tick left it, and only when it changed: two fighters arriving on one tick hear it once, naming both, then once for each phase.
+func TestTheMatchIsToldOnceATickAsTheTickLeftIt(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := pvpData(t, "1.0", "1.0")
+		ayla, robin := fighterFrom(t, data, "Ayla"), fighterFrom(t, data, "Robin")
+		inst, stop := worldtest.RunMatch(t, data, duel(model.Fighter{Character: ayla.ID}, model.Fighter{Character: robin.ID}), nil, worldtest.Options{})
+		defer stop()
+		sinks := map[kernel.CharacterID]*worldtest.Sink{ayla.ID: {}, robin.ID: {}}
+		var joins sync.WaitGroup
+		for _, p := range []model.Player{ayla, robin} {
+			joins.Go(func() {
+				if err := inst.Join(context.Background(), p, sinks[p.ID]); err != nil {
+					t.Error(err)
+				}
+			})
+		}
+		joins.Wait()
+		sleep(data.Pvp().Rounds.Prep + data.Pvp().Rounds.Countdown + time.Second)
+		for id, s := range sinks {
+			states := worldtest.Of[model.MatchState](s)
+			var phases []model.MatchPhase
+			for _, st := range states {
+				phases = append(phases, st.Phase)
+			}
+			if want := []model.MatchPhase{model.PhasePrep, model.PhaseCountdown, model.PhaseFight}; !slices.Equal(phases, want) {
+				t.Fatalf("%v heard the match in phases %v: %+v; want %v, once each", id, phases, states, want)
+			}
+			if first := states[0]; first.Sides[0][0].Name == "" || first.Sides[1][0].Name == "" {
+				t.Fatalf("%v first heard the match as %+v; want both fighters named, as both arrived that tick", id, first)
+			}
 		}
 	})
 }
