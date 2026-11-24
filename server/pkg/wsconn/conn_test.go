@@ -704,29 +704,40 @@ func TestAPanicInACallbackClosesTheConnectionAndIsRecorded(t *testing.T) {
 	}
 }
 
-// panickyCodec panics encoding, as the proto codec does on an envelope without a body.
-type panickyCodec struct{ wsconn.Codec }
+// panickyCodec panics encoding once its gate opens, as the proto codec does on an envelope without a body.
+type panickyCodec struct {
+	wsconn.Codec
+	gate <-chan struct{}
+}
 
-func (panickyCodec) Encode(wsconn.Message) ([]byte, error) { panic("no body") }
+func (p panickyCodec) Encode(wsconn.Message) ([]byte, error) {
+	<-p.gate
+	panic("no body")
+}
 
-// A panic encoding, on the writer or in the last flush, closes with 1011 and is recorded; OnClose runs, and the process goes on.
+// A panic encoding, on the writer or in the last flush, closes with 1011 and is recorded, each stopping at its first; OnClose runs, and the process goes on.
+// From main's CI for #372: the writer took the first Pong and panicked before OnOpen queued the rest, so the last flush had none, one panic was recorded, and a wait for two ran out.
 func TestAPanicOnTheWriterClosesTheConnectionAndIsRecorded(t *testing.T) {
 	checkLeaks(t)
 	var logs lockedBuffer
 	rec := newRecorder()
+	gate := make(chan struct{})
 	rec.onOpen = func(c wsconn.Conn) {
-		for range 3 { // the writer takes the first, and the last flush the next
+		for range 3 {
 			_ = c.Send(wsconn.Message{Type: "Pong"})
 		}
+		close(gate) // the writer holds the first till all three wait, so the last flush finds the next
 	}
-	s := start(t, rec, wsconn.Options{Subprotocols: []wsconn.Subprotocol{{Name: textProtocol, Codec: panickyCodec{serverCodec(wsconn.JSON)}}},
+	s := start(t, rec, wsconn.Options{Subprotocols: []wsconn.Subprotocol{{Name: textProtocol, Codec: panickyCodec{serverCodec(wsconn.JSON), gate}}},
 		Panics: panics.NewRecorder(slog.New(slog.NewJSONHandler(&logs, nil)), nil)})
 	c := dial(t, s, "")
 	if got := closeStatus(t, c); got != websocket.StatusInternalError {
 		t.Fatalf("close status %d, want 1011", got)
 	}
-	_ = rec.waitClosed(t)
-	eventually(t, func() bool { return strings.Count(logs.String(), `"panic":"no body"`) == 2 })
+	_ = rec.waitClosed(t) // OnClose runs once every panic is recorded
+	if n := strings.Count(logs.String(), `"panic":"no body"`); n != 2 {
+		t.Fatalf("%d panics recorded, want 2: the writer's on the first Pong and the last flush's on the next, the third never encoded", n)
+	}
 }
 
 func TestAPanicInOnCloseIsRecorded(t *testing.T) {
