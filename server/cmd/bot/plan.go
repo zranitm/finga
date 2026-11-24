@@ -2,6 +2,7 @@ package main
 
 import (
 	"cmp"
+	"fmt"
 	"maps"
 	"math"
 	"slices"
@@ -25,24 +26,28 @@ type spot struct {
 // holds reports whether p is on the spot, within spotMargin of its circle.
 func (s spot) holds(p nav.Point) bool { return nav.Distance(p, s.at) <= s.radius+spotMargin }
 
-// world is the part of the game the bots walk: the start town and every map a portal leads to that is a town or hunts at a promotion's level or under.
+// world is the part of the game the bots walk: the start town and every map a portal leads to that is a town or hunts at a promotion's level or under; or, for a soak, one region alone, which they only hunt in.
 type world struct {
 	data   *gamedata.Data
 	maps   map[string]*gamedata.Map
-	bosses map[string]bool // the field bosses' mob types, never prey
+	region *gamedata.Map // the soak's, nil for the whole game
 }
 
-func newWorld(data *gamedata.Data) *world {
+// newWorld is the game the bots walk, or with region the soak's region alone (large-regions.md section 11), which starts them in its main town.
+func newWorld(data *gamedata.Data, region string) (*world, error) {
 	top := 0
 	for _, c := range data.Classes() {
 		top = max(top, c.Promotion.Level)
 	}
 	start := data.StartTown()
-	w := &world{data: data, maps: map[string]*gamedata.Map{start.ID: start}, bosses: map[string]bool{}}
-	for _, m := range data.Maps() {
-		if m.Boss != nil {
-			w.bosses[m.Boss.Mob] = true
+	w := &world{data: data, maps: map[string]*gamedata.Map{start.ID: start}}
+	if region != "" {
+		m, ok := data.Map(region)
+		if !ok || m.Kind != gamedata.Region || mainWaypoint(m) == nil {
+			return nil, fmt.Errorf("-region %s: no region with a main town to start in", region)
 		}
+		w.maps, w.region = map[string]*gamedata.Map{m.ID: m}, m
+		return w, nil
 	}
 	for queue := []*gamedata.Map{start}; len(queue) > 0; queue = queue[1:] {
 		for _, p := range queue[0].Portals {
@@ -54,7 +59,15 @@ func newWorld(data *gamedata.Data) *world {
 			queue = append(queue, next)
 		}
 	}
-	return w
+	return w, nil
+}
+
+// mainWaypoint is region m's waypoint in its main town, which anyone may teleport to; nil for none.
+func mainWaypoint(m *gamedata.Map) *gamedata.Waypoint {
+	if i := slices.IndexFunc(m.Waypoints, func(wp gamedata.Waypoint) bool { return wp.Main }); i >= 0 {
+		return &m.Waypoints[i]
+	}
+	return nil
 }
 
 // portalTo is the portal on map from that starts the fewest hops to map to, among the bots' maps.
@@ -115,8 +128,8 @@ func (w *world) spots(mob string) []spot {
 	return out
 }
 
-// levelSpot is where a bot of a level hunts for EXP: on the map of the strongest normal mob under its level, or at the first, so it seldom dies, the richer on a tie; a circle round every spawn there of a mob it may hunt, so the whole map's mobs feed a party that shares their EXP.
-func (w *world) levelSpot(lvl int) (spot, bool) {
+// levelSpot is where a bot of a level hunts for EXP: on the map of the strongest normal mob under its level, or at the first, so it seldom dies, the richer on a tie; a circle round every spawn there of a mob it may hunt, so the whole map's mobs feed a party that shares their EXP. In a region, a camp, as campSpot picks it by pick.
+func (w *world) levelSpot(lvl, pick int) (spot, bool) {
 	top := max(lvl-1, 1)
 	var best *gamedata.Mob
 	var at spot
@@ -131,6 +144,9 @@ func (w *world) levelSpot(lvl int) (spot, bool) {
 	if best == nil {
 		return spot{}, false
 	}
+	if m := w.maps[at.mapID]; m.Kind == gamedata.Region {
+		return w.campSpot(m, lvl, pick)
+	}
 	var all []spot
 	for _, m := range w.data.Mobs() {
 		if !m.Elite && m.Level <= top {
@@ -142,6 +158,30 @@ func (w *world) levelSpot(lvl int) (spot, bool) {
 		}
 	}
 	return round(at.mapID, all), true
+}
+
+// campSpot is where a bot of a level hunts in region m (large-regions.md section 11): a camp of its prey in the area of the highest band that has any, the one pick names, so bots spread over them. An area's mobs are of its band, so that's the bot's own band while its level is in one with prey, else the highest under it.
+func (w *world) campSpot(m *gamedata.Map, lvl, pick int) (spot, bool) {
+	prey := w.levelPrey(lvl)
+	var camps []gamedata.Spawn
+	band := -1 // the top level of the band the camps are in
+	for _, s := range m.Spawns {
+		k := m.AreaAt(s.At.X, s.At.Z)
+		if k < 0 || !slices.Contains(prey, s.Mob) {
+			continue
+		}
+		switch top := m.Areas[k].MaxLevel; {
+		case top > band:
+			camps, band = []gamedata.Spawn{s}, top
+		case top == band:
+			camps = append(camps, s)
+		}
+	}
+	if len(camps) == 0 {
+		return spot{}, false
+	}
+	c := camps[pick%len(camps)]
+	return spot{mapID: m.ID, at: point(c.At), radius: c.Radius}, true
 }
 
 // round is the circle about the middle of spots' bounds that holds them all.
@@ -178,7 +218,7 @@ func nearest(mobs map[uint32]*clientv1.MobView, s spot, prey []string, from nav.
 func (w *world) levelPrey(lvl int) []string {
 	var out []string
 	for _, m := range w.data.Mobs() {
-		if !m.Elite && !w.bosses[m.ID] && m.Level <= max(lvl-1, 1) {
+		if !m.Elite && !m.Boss && m.Level <= max(lvl-1, 1) {
 			out = append(out, m.ID)
 		}
 	}
@@ -226,6 +266,7 @@ type goal struct {
 
 // plan is what a bot knows of itself for choosing a goal.
 type plan struct {
+	pick     int // which of the camps of its band a bot hunts at in a region: its index
 	class    kernel.Class
 	level    int
 	own      gamedata.Stats
@@ -234,11 +275,14 @@ type plan struct {
 	holding  func(item string) int
 }
 
-// next is what a bot works toward: its future class's quests in order, each taken, worked and handed in, then the promotion once the rest is met; it hunts for EXP while a level stands in the way, and as its class once promoted.
+// next is what a bot works toward: its future class's quests in order, each taken, worked and handed in, then the promotion once the rest is met; it hunts for EXP while a level stands in the way, and as its class once promoted. In a soak's region it only hunts.
 func (w *world) next(future gamedata.Class, p plan) goal {
 	hunt := func(why string) goal {
-		s, _ := w.levelSpot(p.level)
+		s, _ := w.levelSpot(p.level, p.pick)
 		return goal{kind: huntGoal, spot: s, prey: w.levelPrey(p.level), why: why}
+	}
+	if w.region != nil {
+		return hunt("in " + w.region.Name)
 	}
 	if p.class == future.ID {
 		return hunt("as a " + string(future.ID))

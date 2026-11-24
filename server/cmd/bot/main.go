@@ -13,6 +13,7 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -42,19 +43,23 @@ func main() {
 	prefix := flag.String("prefix", "bot", "account name prefix (letters and digits)")
 	metrics := flag.String("metrics", "http://localhost:9100", "the game's ops address, where the tick, grant batch and transaction metrics are")
 	dataDir := flag.String("data", "data", "the game data, for the classes' auto-assign splits")
+	region := flag.String("region", "", "a region the bots start in and only hunt in, for a soak; empty for the whole game")
 	flag.Parse()
-	if err := run(*url, *metrics, *dataDir, *n, *duration, *prefix); err != nil {
+	if err := run(*url, *metrics, *dataDir, *region, *n, *duration, *prefix); err != nil {
 		fmt.Fprintln(os.Stderr, "bot:", err)
 		os.Exit(1)
 	}
 }
 
-func run(url, metrics, dataDir string, n int, duration time.Duration, prefix string) error {
+func run(url, metrics, dataDir, region string, n int, duration time.Duration, prefix string) error {
 	data, err := load.Dir(dataDir)
 	if err != nil {
 		return err
 	}
-	w := newWorld(data)
+	w, err := newWorld(data, region)
+	if err != nil {
+		return err
+	}
 	start := time.Now()
 	stamp := start.Format("150405")
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
@@ -79,16 +84,24 @@ func run(url, metrics, dataDir string, n int, duration time.Duration, prefix str
 		wg.Go(func() { b.play(ctx, bots) })
 	}
 	wg.Wait()
-	fmt.Printf("proof session: %d bots for %s against %s\n\n", n, time.Since(start).Round(time.Second), url)
+	session := time.Since(start)
+	fmt.Printf("proof session: %d bots for %s against %s\n\n", n, session.Round(time.Second), url)
 	var total stats
+	var average, busiest []float64
 	for _, b := range bots {
 		s := b.snapshot()
 		total.add(s)
-		fmt.Printf("%-14s kills %3d  items taken %3d  deaths %2d  hops %3d  chat %3d  spends %2d  skills %4d  quests taken %2d  handed in %2d  messages %7d  refused %3d  reconnects %d  login failures %d  stalls %d\n",
-			b.name, s.kills, s.items, s.deaths, s.hops, s.chats, s.spends, s.skills, s.accepted, s.handedIn, s.messages, s.refused, s.reconnects, s.loginFailures, s.stalls)
+		sent, peak := b.down.read()
+		average, busiest = append(average, float64(sent)/1000/session.Seconds()), append(busiest, float64(peak)/1000)
+		fmt.Printf("%-14s kills %3d  items taken %3d  deaths %2d  hops %3d  chat %3d  spends %2d  skills %4d  quests taken %2d  handed in %2d  messages %7d  refused %3d  busy %d  reconnects %d  login failures %d  stalls %d  down %.1f kB/s, busiest second %.1f\n",
+			b.name, s.kills, s.items, s.deaths, s.hops, s.chats, s.spends, s.skills, s.accepted, s.handedIn, s.messages, s.refused, s.busy, s.reconnects, s.loginFailures, s.stalls, average[len(average)-1], busiest[len(busiest)-1])
 	}
-	fmt.Printf("%-14s kills %3d  items taken %3d  deaths %2d  hops %3d  chat %3d  spends %2d  skills %4d  quests taken %2d  handed in %2d  messages %7d  refused %3d  reconnects %d  login failures %d  stalls %d\n\n",
-		"total", total.kills, total.items, total.deaths, total.hops, total.chats, total.spends, total.skills, total.accepted, total.handedIn, total.messages, total.refused, total.reconnects, total.loginFailures, total.stalls)
+	fmt.Printf("%-14s kills %3d  items taken %3d  deaths %2d  hops %3d  chat %3d  spends %2d  skills %4d  quests taken %2d  handed in %2d  messages %7d  refused %3d  busy %d  reconnects %d  login failures %d  stalls %d\n",
+		"total", total.kills, total.items, total.deaths, total.hops, total.chats, total.spends, total.skills, total.accepted, total.handedIn, total.messages, total.refused, total.busy, total.reconnects, total.loginFailures, total.stalls)
+	if len(bots) > 0 {
+		slices.Sort(average)
+		fmt.Printf("downstream per bot: %.1f kB/s at the median, its busiest second %.1f kB/s at most, against the budget's 40\n\n", average[len(average)/2], slices.Max(busiest))
+	}
 	promoted := 0
 	for _, b := range bots {
 		s := b.snapshot()
@@ -104,7 +117,7 @@ func run(url, metrics, dataDir string, n int, duration time.Duration, prefix str
 }
 
 type stats struct {
-	messages, kills, items, deaths, hops, chats, spends, skills, accepted, handedIn, refused, reconnects, loginFailures, promotes, stalls int
+	messages, kills, items, deaths, hops, chats, spends, skills, accepted, handedIn, refused, busy, reconnects, loginFailures, promotes, stalls int
 	// where the bot stands at the end, and when it promoted; 0 if it didn't
 	class      string
 	level      int
@@ -123,6 +136,7 @@ func (s *stats) add(o stats) {
 	s.accepted += o.accepted
 	s.handedIn += o.handedIn
 	s.refused += o.refused
+	s.busy += o.busy
 	s.reconnects += o.reconnects
 	s.loginFailures += o.loginFailures
 	s.promotes += o.promotes
@@ -192,6 +206,38 @@ type bot struct {
 	portalAt    time.Time
 	frameTick   uint64               // its map's newest frame, the view each input names
 	bossBack    map[string]time.Time // when each map's beaten boss is back, as the bot heard on that map; a map's boss is up otherwise
+	found       map[string]bool      // the waypoints it has found, by id
+	teleportAt  time.Time            // when it started the teleport under way; zero with none
+	// when it may teleport again, after one refused or cancelled
+	teleportAfter time.Time
+	down          meter // what it is sent
+}
+
+// meter counts the bytes a bot is sent, and its busiest whole second's.
+type meter struct {
+	mu     sync.Mutex
+	total  int
+	second time.Time // the second being counted
+	now    int       // its bytes so far
+	peak   int
+}
+
+func (m *meter) add(n int, at time.Time) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.total += n
+	if s := at.Truncate(time.Second); !s.Equal(m.second) {
+		m.peak = max(m.peak, m.now)
+		m.second, m.now = s, 0
+	}
+	m.now += n
+}
+
+// read is the bytes sent all told, and in the busiest second that has ended.
+func (m *meter) read() (total, peak int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.total, m.peak
 }
 
 // kills finds a bot's kills. A blow that empties a mob's HP removes it, so no later blow lands on it: the last landed blow on a mob removed in a tick is its kill, known once the next tick starts.
@@ -365,6 +411,7 @@ func (b *bot) enter(ctx context.Context, token string) (err error) {
 			if err != nil {
 				return
 			}
+			b.down.add(len(data), time.Now())
 			m, err := b.codec.Decode(data)
 			if err != nil {
 				continue
@@ -458,19 +505,23 @@ func (b *bot) command(d proto.Message) {
 // request sends with a request ID, which the Response carries back; an attack, a skill or a portal goes after its tick's Input and names it, as the client's do, and the rest name none.
 func (b *bot) request(reqID string, d proto.Message) {
 	switch d.(type) {
-	case *clientv1.Attack, *clientv1.UseSkill, *clientv1.EnterPortal:
+	case *clientv1.Attack, *clientv1.UseSkill, *clientv1.EnterPortal, *clientv1.Teleport:
 		b.actions = append(b.actions, wsconn.Message{ReqID: reqID, Data: d})
 		return
 	}
 	_ = b.send(wsconn.Message{ReqID: reqID, Data: d})
 }
 
-// The request IDs of a Promote, a UseSkill and a TakeLoot, their type names as command gives the rest.
+// The request IDs of a Promote, a UseSkill, a TakeLoot and a Teleport, their type names as command gives the rest.
 const (
-	promoteReq = "Promote"
-	skillReq   = "UseSkill"
-	takeReq    = "TakeLoot"
+	promoteReq  = "Promote"
+	skillReq    = "UseSkill"
+	takeReq     = "TakeLoot"
+	teleportReq = "Teleport"
 )
+
+// busyCode is the gateway's UNAVAILABLE, as testdata/errors/codes.json lists it, which a map whose inbox is full answers with: the soak checks none comes (large-regions.md section 5).
+const busyCode int32 = 100011
 
 // skillBackoff is how long a bot leaves its skill after the world refuses a use.
 const skillBackoff = 5 * time.Second
@@ -547,7 +598,7 @@ func (b *bot) useSkill(aim float32) bool {
 
 // plan is what the bot knows of itself, for its next goal.
 func (b *bot) plan() plan {
-	return plan{class: b.class, level: b.level, own: b.own, invested: b.invested, quests: b.quests, holding: b.holding}
+	return plan{pick: b.index, class: b.class, level: b.level, own: b.own, invested: b.invested, quests: b.quests, holding: b.holding}
 }
 
 func (b *bot) killed(n int) {
@@ -573,6 +624,10 @@ func (b *bot) observe(m wsconn.Message) {
 		b.quests = map[string]*clientv1.QuestState{}
 		for _, q := range d.GetQuests() {
 			b.quests[q.GetQuestId()] = q
+		}
+		b.found = map[string]bool{}
+		for _, id := range d.GetWaypoints() {
+			b.found[id] = true
 		}
 		b.know(d.GetCharacter())
 		b.energy = int(d.GetCharacter().GetEnergy())
@@ -637,7 +692,15 @@ func (b *bot) observe(m wsconn.Message) {
 	case *clientv1.FieldBossGone:
 		b.bossBackIn(b.mapID, time.Duration(d.GetBackInMs())*time.Millisecond)
 		b.boss = 0
+	case *clientv1.WaypointFound:
+		if b.found == nil {
+			b.found = map[string]bool{}
+		}
+		b.found[d.GetWaypoint()] = true
+	case *clientv1.TeleportCancelled:
+		b.teleportEnded(true)
 	case *clientv1.MapChange:
+		b.teleportEnded(false)
 		b.frameTick = 0 // another map's ticks, from its Snapshot on
 		b.mapID, b.x, b.y, b.z = d.GetMapId(), d.GetX(), d.GetY(), d.GetZ()
 		b.onMap.Store(new(d.GetMapId()))
@@ -682,7 +745,15 @@ func (b *bot) observe(m wsconn.Message) {
 			}
 		}
 		if !d.GetOk() {
-			b.count(func(s *stats) { s.refused++ })
+			b.count(func(s *stats) {
+				s.refused++
+				if d.GetCode() == busyCode {
+					s.busy++
+				}
+			})
+			if m.ReqID == teleportReq {
+				b.teleportEnded(true)
+			}
 			fmt.Fprintf(os.Stderr, "%s: %s refused with %d\n", b.name, m.ReqID, d.GetCode())
 			if m.ReqID == skillReq {
 				b.skillReady = time.Now().Add(skillBackoff)
@@ -858,6 +929,9 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 			b.input(&clientv1.Input{})
 			return
 		}
+		if b.channelling() || b.enterRegion() {
+			return
+		}
 		if m := b.inTheWay(); m != nil { // a mob in its way is fought, the way held into it, until it dies
 			b.stuck = steer.Stall{}
 			strike(m)
@@ -874,7 +948,7 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 			}
 			nextInvite = time.Now().Add(15 * time.Second)
 		}
-		if b.mapID == town && b.visitNPCs() {
+		if b.world.region == nil && b.mapID == town && b.visitNPCs() {
 			return
 		}
 		g := b.goal()
@@ -892,7 +966,7 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 		case talkGoal:
 			b.talkTo(g.npc)
 		case huntGoal:
-			if b.loot() {
+			if b.loot() || b.tripTo(g.spot) {
 				return
 			}
 			// The world plays a skill and an attack one a turn, so a skill puts the next attack off a cooldown.
@@ -941,12 +1015,12 @@ func (b *bot) townEvery() time.Duration { return time.Duration(8+b.index) * time
 
 // goal is a trip to the start town when one is due before promotion, else what the bot's plan says.
 func (b *bot) goal() goal {
-	if !b.promoted() && b.level < b.future.Promotion.Level && time.Now().After(b.townDue) {
+	if b.world.region == nil && !b.promoted() && b.level < b.future.Promotion.Level && time.Now().After(b.townDue) {
 		return goal{kind: tourGoal, why: "a visit to the town"}
 	}
 	g := b.world.next(b.future, b.plan())
 	if g.promote && b.heldAt == b.level {
-		s, _ := b.world.levelSpot(b.level)
+		s, _ := b.world.levelSpot(b.level, b.index)
 		return goal{kind: huntGoal, spot: s, prey: b.world.levelPrey(b.level), why: "for the next level, the trainer having said no"}
 	}
 	return g
