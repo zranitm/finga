@@ -46,18 +46,23 @@
   - Enemies' names are red and teammates' green.
   - A bot carries a BOT tag over its head and on its frames. Bots have their own names and play by the same rules as players.
 - **Leaving:**
-  - A Leave match button forfeits. Logging out, closing the tab or losing the connection does too.
+  - A Leave match button forfeits. Logging out does too.
+  - **A lost connection holds the player's place for 20 seconds.** A closed tab, a reload or a crash counts as one, since the game can't tell them apart.
+    - Their character stays in the match, standing still, with everything on it running on. It can be hit and downed, and a new round brings it back up as anyone.
+    - Everyone sees "Reconnecting" on their frame and over their name, and their side is told "<name> lost connection".
+    - Coming back within the 20 seconds puts the player straight back into the match, on their character as it stands, with nothing reset. Their side is told "<name> is back".
+    - Past the 20 seconds, it's a forfeit.
   - In 1v1 the opponent wins at once. In 3v3 and 15v15 a bot takes the leaver's place, and the match goes on.
-  - A forfeit counts as a loss for the leaver.
+  - A forfeit counts as a loss for the leaver. A match that ends while a player's place is held counts by its result for them, as for anyone there.
 - **Afterwards:** a result screen shows the outcome, then the player is taken back to where they queued from, with the HP, energy, buffs and cooldowns they had. Cooldowns kept running while they were away.
-- **After a crash or relog** during a match, the player is back where they queued from, and the match is a loss for them.
+- **After a relog,** or a lost connection not back within 20 seconds, the player is back where they queued from, and the match is a loss for them.
 
 ## Not in this feature
 
 - Guilds and guild war.
 - Fighting in the open world, duels on request, and spectating.
 - Rewards beyond rating and rank: no items, EXP or currency.
-- Joining a match already under way.
+- Joining a match already under way. Coming back to one's own held place after a lost connection isn't that.
 - Choosing a map.
 
 ## Rules

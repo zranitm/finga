@@ -694,7 +694,7 @@ export class World {
     fx.warm(); // every look's shaders built before a fight needs them
     mapView
       .getState()
-      .showMap(map.id, [map.geometry.size_x, map.geometry.size_z], groundImage(map));
+      .showMap(map.id, [map.geometry.size_x, map.geometry.size_z], groundImage(map), map.waypoints);
     this.start(arriving, fx);
   }
 

@@ -2,7 +2,7 @@
 
 > **Changed by [Outfits](./outfits.md):** the first time a character's shown rating reaches a rank above Bronze, the pvp module grants that rank's outfit piece, and it checks `pvp_wins` feats at a match's end (section 4 there). Ranks still give no items, EXP, currency or stats. PvP bots wear random boss and feat pieces.
 
-> **Status: approved · 2026-11-18.** The high-level design for [I1. PvP matches](../product/features/pvp/i1-pvp-matches.md), [I2. Arena: 1v1 and 3v3](../product/features/pvp/i2-arena.md), [I3. Battlefield: 15v15](../product/features/pvp/i3-battlefield.md) and [I4. PvP rating and ranks](../product/features/pvp/i4-pvp-rating.md).
+> **Status: approved · 2026-11-18.** The high-level design for [I1. PvP matches](../product/features/pvp/i1-pvp-matches.md), [I2. Arena: 1v1 and 3v3](../product/features/pvp/i2-arena.md), [I3. Battlefield: 15v15](../product/features/pvp/i3-battlefield.md) and [I4. PvP rating and ranks](../product/features/pvp/i4-pvp-rating.md). A lost connection's 20 s grace was added on 2026-11-24, after a live test (section 4).
 
 ## 1. What has to hold
 
@@ -53,9 +53,9 @@
 
 ```yaml
 modes:
-  duel:   {name: 1v1,   team: 1,  party: 1, map: ring,        rated: true,  rounds: {best_of: 3, most: 5, length: 60s}}
-  team:   {name: 3v3,   team: 3,  party: 3, map: ring,        rated: true,  rounds: {best_of: 3, most: 5, length: 90s}}
-  battle: {name: 15v15, team: 15, party: 4, map: battlefield, rated: false, rating_from: team}
+  duel:   {name: 1v1,   team: 1,  party: 1, map: ring,        rated: true,  rounds: {best_of: 3, most: 5, length: 60s}, reconnect: 20s}
+  team:   {name: 3v3,   team: 3,  party: 3, map: ring,        rated: true,  rounds: {best_of: 3, most: 5, length: 90s}, reconnect: 20s}
+  battle: {name: 15v15, team: 15, party: 4, map: battlefield, rated: false, rating_from: team, reconnect: 20s}
 queue:  {bots_after: 15s, offer: 10s, window: {start: 2, per_second: 0.2, most: 8}}  # window in mu
 rounds: {prep: 10s, countdown: 3s, between: 5s}
 battle: {prep: 20s, length: 12m, goal: 1000, per_point: 1, per_down: 5, respawn: 10s, base_heal: 0.10,
@@ -148,7 +148,16 @@ bots:
   - At the end, or on a forfeit, the player is handed off to `back`'s map and spot, with `back`'s state.
   - `startTimers` re-bases its timers, so a cooldown that ended meanwhile is ready, and a buff that ended is gone.
 - **Leaving:**
-  - A presence that goes, through logout or a dropped connection, is a forfeit. The instance removes the player as any leave does, and checkpoints `back`.
+  - **Logout and Leave match** are a forfeit at once. The instance removes the player as any leave does, and checkpoints `back`.
+  - **A dropped connection holds the place** for the mode's `reconnect`, 20 s. A closed tab is a drop too, as the server can't reliably tell one from the other.
+    - **Why:** in a live test (2026-11-24) a 0.3 s drop under load, as round 1's fight began, cost a rated 3v3. Players on Wi-Fi and phones will see blips like that.
+    - **The body stays:** the presence stays in the instance with no connection, and what's sent to it is dropped. The body takes no input but is otherwise the player's: HP, energy, statuses, buffs and their own cooldowns all run on. It can be hit and downed, and a round's reset applies to it as to anyone.
+    - **`back` is untouched,** and its checkpoints go on as before.
+    - **The return:** a `Hello` for a character whose place is held goes straight to the match instance, by the presence the world still holds, never through town or `back`. The player gets `Welcome` on the match's map, on the body as it stands, then `MatchState` and a `StatsChanged` with every timer. Nothing resets.
+    - **Past the grace,** the drop is a forfeit and the leaver path runs (section 7), the stand-in taking the body as it stands then.
+    - **A second drop** in the same match gets a fresh grace: with no bot during it, dropping gains nothing.
+    - **The match ends during the grace:** the held player is handed out to `back` with the rest and rated by the result, as anyone there, never as a leaver. One not yet back misses `MatchEnded`; their rating shows in the Arena profile.
+    - **No bot during the grace:** a stand-in starts with cooldowns ready and no statuses, so a free return would make a drop a reset. A player weaker than the match's bots could also drop to let one fight for them. The price is a team one short for up to 20 s on a long drop.
   - After a server stop or a crash, a match has no result and moves no rating.
   - A match that expected players and saw none by prep's end closes with no outcome. A match of bots alone runs to its end, as its test runs one; the queue never makes one.
 - **Teardown:** after the result phase, the instance hands everyone out and its `Run` returns. Then it's dropped from `w.matches`.
@@ -307,7 +316,7 @@ bots:
   - every cooldown, buff, shield, status, dodge, block and action cleared;
   - the downed back up;
   - a build changed meanwhile applied.
-- **A forfeit:**
+- **A forfeit** is Leave match, logout, or a drop whose grace ran out (section 4):
   - In 1v1 the other side wins at once.
   - In 3v3 a bot of the tier the match's bots have takes over the leaver's body, as it stands: the same class, build and HP. The match goes on.
 - **As built (step 5):** in a team mode, before the outcome, a bot takes the leaver's place in the same tick they go. That covers a forfeit, logging out or dropping, and never arriving by prep's end.
@@ -320,6 +329,7 @@ bots:
   - **Its place:** the bot takes the leaver's slot on their side, so rounds, resets, `MatchState.sides` and the bots' ring see the body. `MatchState` goes out again, with the slot now the bot's id and `bot` set: the stand-in's arrival sends it, as any fighter's does.
   - **The outcome:** it still lists the leaver in their slot, with `left` set and their own downs, never the bot. pvp rates the leaver as losing, and the side by the result, with the stand-in counted at the leaver's mu (section 10).
   - **No way back:** a leaver who reconnects mid-match lands on their world map, not in the match. The place stays the bot's to the end.
+  - **With the reconnect grace (section 4):** a drop reaches this path only when its grace runs out. Until then the player is no leaver, and a reconnect lands in the match.
   - **When no player came at all,** the match still closes with no outcome, and no stand-ins are made.
   - **A side's last player** gets no stand-in: their side concedes (section 10).
 - **Arrivals, as built after the 3v3 playtest:** each fighter's arrival sends `MatchState` to everyone in the ring, not only to the one arriving. A state names only fighters who have arrived, so without it the first in saw blank frames until the countdown's state, 10 s on.
@@ -500,6 +510,7 @@ bots:
 - **Leavers:**
   - A leaver is rated as losing to the other side.
   - Their side is rated by the result, with the bot that took their place counted at the leaver's mu.
+  - A player whose place is held when the match ends (section 4) isn't a leaver, and is rated by the result.
 - **As built (step 5):**
   - A leaver is told a loss, whatever their side does.
   - **A side whose players have all left concedes at once,** as a 1v1 forfeit does. The other side wins and is rated as winning against the leavers' ratings. The leavers are rated as losing.
@@ -545,6 +556,7 @@ bots:
 | `PvpOffer{offer, mode, bots, until_ms}` | server | A match found |
 | `PvpOfferGone{reason, requeued}` | server | Someone declined or it lapsed; `requeued` says whether this player is back in the queue |
 | `MatchState{match, mode, phase, round, wins, ends_in_ms, sides, score, points}` | server | On entry and at each change; `sides` lists each fighter's id, name, class and `bot`; `points` each point's holder, progress and whether contested |
+| `MatchState.sides[].away` | server | Set while a fighter's dropped connection holds their place (section 4). A drop and a return each send `MatchState` |
 | `MatchEnded{result, wins, score, rating, mode, left}` | server | The outcome; `rating` has the mode's shown rating and rank before and after, and placement matches left; `left` is set for a player who left before the outcome |
 | `PlayerView.team`, `PlayerView.bot` | server | The side, 0 outside a match, and the bot flag |
 | `SkillUsed.target` | server | Becomes a ref |
@@ -628,6 +640,10 @@ As built for 1v1 (build step 2):
     - So the predictor holds each input as the world will, and nothing is corrected across a count.
     - From the count's own state alone it would come a tick late: a tick's Delta is sent before its events, `MatchState` among them.
 - **Leave match** is on the match bar. It forfeits after a second press, "Leave and lose?".
+- **A held place** (section 4):
+  - A fighter whose `away` is set shows "Reconnecting" on their frame and over their name.
+  - Their side gets a notice when it sets, "<name> lost connection", and when it clears, "<name> is back". The client reads both from the change between states.
+  - The player's own client shows "Reconnecting…" as for any drop, and lands back in the match on its `Welcome`.
 - **The offer card and the result** draw over any open window.
 - **The result screen** stays through the trip back, until Return closes it.
   - **A forfeit's card:** a forfeit's MapChange comes before its `MatchEnded`. So the store keeps the match left (`left`) until `MatchEnded` arrives, and the card has the match's mode and counts rounds from the player's side.
@@ -675,7 +691,7 @@ As built after the 3v3 playtest:
   - The player's own lapse still says "You didn't answer the match offer, so you left the queue." Their own decline says nothing.
   - A member the party doesn't name is "A party member". A lapse naming no one is a match the world couldn't open: "The match couldn't open, so you left the queue."
 - **A team match's leaver:**
-  - Leaving a match under way, by Leave match or by a rejoin after a drop, says at once: "You left the match: it counts as a loss. Your rating updates when the match ends."
+  - Leaving a match under way, by Leave match or by a rejoin after a drop whose grace ran out, says at once: "You left the match: it counts as a loss. Your rating updates when the match ends."
   - Its end comes as a General line, never the result card: "Your 3v3 match ended: Defeat. Rating 1000 → 968 (−32)." The card is for those the match ended with. The leaver may be anywhere by then, even in another match, so the line is drawn from `MatchEnded`'s own `mode` and `left`, not from the match the store holds.
   - A 1v1 forfeit ends the match at once, so its forfeiter still gets the card.
 
@@ -722,6 +738,13 @@ As built after the 3v3 playtest:
 - **World:**
   - `OpenMatch` and teardown.
   - The return point: checkpoints write it, and a forfeit on leaving lands the player there with their timers run on.
+  - **The reconnect grace,** judged by ticks:
+    - a drop holds the body, which takes hits and resets and runs its timers;
+    - a `Hello` within the grace lands on the body in the match, with nothing reset;
+    - past it, the stand-in in 3v3 and 15v15, and the win in 1v1;
+    - a second drop's fresh grace;
+    - a match ending during the grace, rated by its result;
+    - logout and Leave match forfeit at once.
   - **Combat between players:**
     - reach with the lock;
     - dodge and block;
@@ -738,14 +761,17 @@ As built after the 3v3 playtest:
   - A bot-against-bot match runs to its end, the same each time from one seed.
   - The tier choice.
 - **End to end** (`test/`, pgtest), judged by ticks, not the wall clock:
-  1. A player queues for 1v1 and accepts.
-  2. The match runs against a novice bot to its end.
-  3. The player is back at their spot with their timers, and their rating row has moved.
+  - **A match:**
+    1. A player queues for 1v1 and accepts.
+    2. The match runs against a novice bot to its end.
+    3. The player is back at their spot with their timers, and their rating row has moved.
+  - **A drop:** a player whose socket drops mid-round and reconnects within the grace is back in the match, on their body, and the match runs on.
 - **Client:** the lock on players, the match bar, the counting of the offer and the queue tag, the Arena tab, and the result screen.
 - **Live:**
   - each mode with each class;
   - a party in 3v3 and in 15v15;
-  - a forfeit, and a relog mid-match.
+  - a forfeit, and a relog mid-match;
+  - a dropped connection back within 20 s, and one that stays away past it.
 
 ## 16. Build
 
@@ -792,6 +818,12 @@ As built after the 3v3 playtest:
    - 6d:
      - `mapjson` writes a battle map's bases and points for the client; 6a leaves it as it is;
      - the client's sim blocks the other side's base as the server does, or a runner into it is corrected at every input.
+7. **The reconnect grace,** after 15v15:
+   - `reconnect` in each mode;
+   - the held presence and body, and the return through `Hello`;
+   - `MatchState.sides[].away`;
+   - the client's tag and notices;
+   - their tests.
 
 ## 17. Decisions
 
@@ -807,7 +839,7 @@ The user's choices are in section 1. These calls were made in planning and logge
 8. **Rounds start at full energy.** No potions, regen, items or progression changes in a match.
 9. **No hit guard between players,** and a plain hit doesn't knock back, so combos land. A skill's push still moves the target.
 10. **Nothing a player does is unblockable.**
-11. **Leaving is a forfeit.** In 1v1 the other side wins. In 3v3 and 15v15 a bot takes the leaver's body.
+11. **Leaving is a forfeit.** In 1v1 the other side wins. In 3v3 and 15v15 a bot takes the leaver's body. Amended on 2026-11-24: Leave match and logout forfeit at once, and a dropped connection only after a 20 s grace with the body held and no bot (section 4).
 12. **15v15 kills score 5 and points 1 a second.** Respawns take 10 s at a base the enemy can't enter, which heals 10% a second.
 13. **An even round counts for neither side,** with a draw after five rounds.
 14. **Bots carry a BOT tag** and names of their own, so no one mistakes them for players.
@@ -838,3 +870,9 @@ The user's choices are in section 1. These calls were made in planning and logge
 - **One rating for every mode:** the user chose one each for 1v1 and 3v3.
 - **One shared arena instance holding many matches:** separate instances keep each match's tick, rules and teardown its own, and a match is no bigger than a busy map.
 - **Revives in 3v3, tag team, team kills or crystals in 15v15:** the user chose otherwise.
+- **For a dropped connection:**
+  - **No grace,** as first planned: every blip, common on Wi-Fi and phones, was a rated loss.
+  - **A bot standing in during the grace:**
+    - It would keep a team whole through a long drop.
+    - But a stand-in starts with cooldowns ready and no statuses, so a free return would make a drop a reset. A player weaker than the bots could drop to let one fight for them.
+    - Guarding both, by carrying the body's state both ways and one grace a match, would cost two hand-overs a drop.

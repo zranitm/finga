@@ -18,7 +18,7 @@ function at(x: number, z: number, yaw = 0) {
 describe('Minimap', () => {
   beforeEach(() => {
     resetStores();
-    mapView.getState().showMap('forest', SIZE, '');
+    mapView.getState().showMap('forest', SIZE, '', []);
   });
 
   it('shows 40 m round the player, north up, and holds the view inside the map at its edges', () => {
@@ -82,11 +82,25 @@ describe('Minimap', () => {
     at(30, 10);
     expect(document.querySelector('.minimap-name')).toHaveTextContent(/^Forest$/);
     act(() => {
-      mapView.getState().showMap('test_region', [256, 256], '');
+      mapView.getState().showMap('test_region', [256, 256], '', []);
       mapView.getState().inChannel(2);
     });
     at(124, 80);
     expect(document.querySelector('.minimap-name')).toHaveTextContent(/^Test Region · Ch\. 2$/);
+  });
+
+  it('marks no waypoint, as the map window alone does (large-regions.md section 8)', () => {
+    render(<Minimap />);
+    act(() => {
+      mapView
+        .getState()
+        .showMap('test_region', [256, 256], '', [
+          { id: 'town', name: 'Test Town', x: 124, z: 85, main: true },
+        ]);
+    });
+    at(124, 80);
+    expect(screen.getByRole('img', { name: 'Minimap' })).toBeInTheDocument();
+    expect(document.querySelector('.map-waypoint')).toBeNull();
   });
 
   it('hides when the setting says so', () => {

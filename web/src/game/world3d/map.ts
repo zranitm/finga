@@ -4,6 +4,7 @@ import { indexed } from '@/sim/solids';
 import { ground } from '@/sim/step';
 import type { Box, Cylinder, Geometry } from '@/sim/step';
 import { height, terrain } from '@/sim/terrain';
+import type { MapWaypoint } from '@/state/map-view';
 
 import { loadRegion } from './region-bake';
 import type { Overview, Region, RegionRef } from './region-bake';
@@ -46,6 +47,8 @@ export interface WorldMap {
   readonly prepWall: { readonly boxes: readonly Box[]; readonly walled: Geometry } | null;
   /** The region whose bake draws it and holds its ground, or null for a map drawn whole from its own JSON. */
   readonly region: RegionMap | null;
+  /** A region's waypoints; none elsewhere. */
+  readonly waypoints: readonly MapWaypoint[];
 }
 
 /** A region as the world reads it from its bake: what draws it, and the ground its sim walks, which its geometry is, filled as its chunks come (large-regions.md section 10). */
@@ -97,6 +100,12 @@ interface MapJson {
     readonly cylinders: readonly Cylinder[] | null;
   };
   readonly region?: RegionRef;
+  readonly waypoints?: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly at: readonly [number, number];
+    readonly main: boolean;
+  }[];
 }
 
 /** The map with id, from its JSON in the page's maps folder. */
@@ -184,6 +193,13 @@ function parseMap(m: MapJson, region: RegionMap | null): WorldMap {
         }
       : null,
     region,
+    waypoints: (m.waypoints ?? []).map((w) => ({
+      id: w.id,
+      name: w.name,
+      x: w.at[0],
+      z: w.at[1],
+      main: w.main,
+    })),
   };
 }
 
