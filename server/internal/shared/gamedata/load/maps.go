@@ -360,6 +360,9 @@ func mapOf(m *mapfile.Map, r regionParts) *gamedata.Map {
 		out.Points = append(out.Points, gamedata.CapturePoint{ID: p.ID, Name: p.Name, At: point(p.At), Radius: p.Radius})
 	}
 	out.Kept = m.Kept
+	if len(m.Bases) == 2 {
+		out.KeptGrid = m.KeptGrid
+	}
 	return out
 }
 

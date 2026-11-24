@@ -75,7 +75,7 @@ func walkOffline(m *gamedata.Map, mv sim.Params, from, to nav.Point, within floa
 		if nav.Distance(at, to) <= within {
 			return took, true
 		}
-		held = walk.Keys(m, mv.Radius, at, to, took, stuck.Stalled(at, s.OnGround, held))
+		held = walk.Keys(m, m.Grid(), mv.Radius, at, to, took, stuck.Stalled(at, s.OnGround, held))
 		for range steps {
 			s = sim.Step(s, held, m.Geometry, mv)
 		}

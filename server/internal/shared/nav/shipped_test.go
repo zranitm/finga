@@ -169,7 +169,7 @@ func TestEveryShippedMapCanBeCrossed(t *testing.T) {
 	}
 }
 
-// pvp.md sections 3 and 7: on every shipped battle map, each side, walking with the other's base standing, gets from its spots to every point at every speed, and never into the other's base however high it jumps; with the prep wall up, neither gets out of its bay.
+// pvp.md sections 3, 7 and 8: on every shipped battle map, each side, walking with the other's base standing, as its bots' grid has it, gets from its spots to every point at every speed, and never into the other's base however high it jumps; with the prep wall up, neither gets out of its bay.
 func TestEveryShippedBattleMapKeepsItsSides(t *testing.T) {
 	data := gamedatatest.Shipped(t)
 	d := shipped(t)
@@ -189,7 +189,7 @@ func TestEveryShippedBattleMapKeepsItsSides(t *testing.T) {
 			walled := nav.New(m.Walled, p.Step)
 			for k := range m.Sides {
 				own, other := sideSpots(m, k, p.Radius), sideSpots(m, 1-k, p.Radius)
-				kept := nav.New(m.Kept[k], p.Step)
+				kept := m.KeptGrid(k) // the grid the side's bots walk
 				from := fmt.Sprintf("side %d's spots", k+1)
 				reached := kept.Reach(startsOf(own), p.Radius, rise)
 				for _, tg := range append(points, own...) {
