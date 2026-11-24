@@ -4,7 +4,7 @@
 >
 > **Changed by [Loot pouches and timed bosses](./loot-pouches.md):** an area's boss stands at its circle from the channel's start and comes back 5 minutes after it's beaten. Kills don't count toward it, and its notices go to the area's players, not the whole channel. Pouches go in the owner's private part of the frame.
 
-> **Status: approved · 2026-11-18.** The high-level design for [B10. Large regions](../product/features/world-and-movement/b10-large-regions.md), [B11. Sprint and waypoints](../product/features/world-and-movement/b11-sprint-and-waypoints.md) and [B12. Camera zoom](../product/features/world-and-movement/b12-camera-zoom.md). It changes [Minimap and world map](./map-views.md), [Teleport](./teleport.md) and the map parts of [3D world](./3d-world.md).
+> **Status: approved · 2026-11-18.** The high-level design for [B10. Large regions](../product/features/world-and-movement/b10-large-regions.md), [B11. Sprint and waypoints](../product/features/world-and-movement/b11-sprint-and-waypoints.md) and [B12. Camera zoom](../product/features/world-and-movement/b12-camera-zoom.md). It changes [Minimap and world map](./map-views.md), [Teleport](./teleport.md) and the map parts of [3D world](./3d-world.md). The waypoint stone's look was picked from previews on 2026-11-24 (section 8).
 
 ## 1. What has to hold
 
@@ -21,6 +21,10 @@
 - **After the live test of sprint** (2026-11-19): "should have a key to trigger the sprint or walk, for e.g if i want to walk during without combat".
   - Their choices: a key that switches between walk and sprint mode, which sprints at once when switched back while moving; Left Shift by default.
   - They asked first for Ctrl+Shift. It was left out because on Windows Ctrl+Shift switches the keyboard layout, and it's the default switch of Vietnamese typing tools such as Unikey, which then take some letter presses. Chrome also keeps Ctrl+Shift with W, T and N.
+- **The waypoint stone** (2026-11-24), picked from preview stills drawn in the game's renderer:
+  - the carved obelisk with a floating crystal, its halo kept pure cyan on grass, where the first stills read mint;
+  - dimmer until found;
+  - a short flare on finding.
 - **The client computes, the server validates:**
   - The client draws the land from baked files and predicts sprint.
   - The server decides every move, hit and channel, and only sends what a player can see.
@@ -513,6 +517,19 @@ Built with step 1, which says who watches a cell.
 ## 8. Waypoints and teleport
 
 - **Data:** waypoints come from the plan. A waypoint is a set piece, a tall stone with a glow, with a 12 m finding circle.
+- **The look** is the client's, from the found set that `Welcome` and `WaypointFound` give it:
+  - **The stone:**
+    - A six-sided obelisk, about 2.8 m tall on a low octagonal plinth, in the palette's stone grey.
+    - Above it floats a six-sided crystal, its top at about 3.55 m, in the map's waypoint cyan.
+    - Rune strips are carved up three of the obelisk's faces.
+  - **Unfound:** a dim teal crystal, dark runes and a faint small halo. It still reads 22 m off and in a dark cave.
+  - **Found:** a near-white cyan crystal, lit runes and a wider halo.
+  - **The halo** is pure cyan on grass as on dark ground, never mint.
+  - **The flare on finding:**
+    - The crystal and runes light within 0.3 s.
+    - A beam rises and is gone by 0.6 s.
+    - A ring spreads 7 m on the ground.
+    - Then the found look holds. No light column stays over a found stone.
 - **Finding:**
   - Each tick, a player's cell lists the waypoints near it.
   - Coming within 12 m of an unfound one stores it and sends `WaypointFound{id}`.
@@ -837,4 +854,10 @@ The user's choices are in section 1. These calls were made in planning and logge
 - **Sculpting regions in Blender:** the user chose generation. Set pieces can still come from Blender, which is installed.
 - **A region per process, or per-cell instances:** one instance per channel keeps today's tick, inbox and hand-offs. The soak decides whether that's enough before anything heavier.
 - **Textures on the ground** (splat maps): more art to fetch and vet, and a different look from the flat toon colours of every model.
+- **The waypoint stone's look**, offered with the previews:
+  - a rough natural standing stone in place of the carved obelisk;
+  - the same glow found or not, which leaves the map as the only way to tell;
+  - no glow until found, which makes unfound stones hard to spot from afar;
+  - a quieter find, with no beam or ring;
+  - a lasting light column over found stones, easier to steer by but busier on screen.
 - **Per-player frames:** encoding per player would lose the shared encoding. Per-cell parts keep it.
