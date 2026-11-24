@@ -8,7 +8,7 @@ import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import type { Material } from '@babylonjs/core/Materials/material';
 import { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
-import { Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { Matrix, Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { Scene } from '@babylonjs/core/scene';
@@ -23,10 +23,11 @@ import type { Lighting } from './body';
 import { CHEST_M, cameraAt, heldView } from './follow';
 import type { KitModel } from './kit-models';
 import { groundUnder, loadMap } from './map';
-import type { WorldMap } from './map';
+import type { Solid, WorldMap } from './map';
 import { Models } from './models';
 import type { ModelSource } from './models';
-import { buildPlace, fade } from './place';
+import { buildPlace, fade, Look, LookGrid, placedBox } from './place';
+import type { Place } from './place';
 import { linearOf, Palette } from './toon';
 
 const kits: Record<string, KitModel> = vi.hoisted(() => ({}));
@@ -37,6 +38,30 @@ const MODELS = path.resolve(process.cwd(), 'public/models');
 const mapOf = (id: string) => loadMap(id);
 
 const SETTLED = 1000; // ms in which any look steps all the way to how the camera wants it
+
+/** Steps place's looks over dt as the world does a frame, with the camera at camera and the head at head. */
+function fadeIn(place: Place, camera: Vector3, head: Vector3, dt: number): void {
+  fade(camera, head, place.looks.around(camera, head), dt);
+}
+
+/** Every look on map's place: those round a line across the whole map. */
+function allLooks(place: Place, map: WorldMap): Look[] {
+  const { size_x: sx, size_z: sz } = map.geometry;
+  return place.looks.around(new Vector3(-1, 0, -1), new Vector3(sx + 1, 0, sz + 1));
+}
+
+/** The look round solid s: of those whose box holds its centre, the one whose box's middle is nearest it. */
+function solidLook(place: Place, s: Solid): Look {
+  const at = s.kind === 'box' ? s.box : s.cylinder;
+  const off = (l: Look) =>
+    Math.hypot((l.min.x + l.max.x) / 2 - at.x, (l.min.z + l.max.z) / 2 - at.z);
+  const [found] = place.looks
+    .around(new Vector3(at.x, 0, at.z), new Vector3(at.x, 0, at.z))
+    .filter((l) => l.min.x < at.x && at.x < l.max.x && l.min.z < at.z && at.z < l.max.z)
+    .sort((a, b) => off(a) - off(b));
+  expect(found).toBeDefined();
+  return found!;
+}
 
 let engine: NullEngine;
 let scene: Scene;
@@ -154,10 +179,10 @@ describe('a map drawn', () => {
     for (const id of ['town', 'forest']) {
       const map = await mapOf(id);
       const place = await buildPlace(scene, map, lighting, new Models(scene, source));
-      expect(place.looks).toHaveLength(map.solids.length);
-      map.solids.forEach((s, i) => {
+      expect(allLooks(place, map)).toHaveLength(map.solids.length);
+      map.solids.forEach((s) => {
         const at = s.kind === 'box' ? s.box : s.cylinder;
-        const look = place.looks[i]!;
+        const look = solidLook(place, s);
         expect(at.x).toBeGreaterThan(look.min.x);
         expect(at.x).toBeLessThan(look.max.x);
         expect(at.z).toBeGreaterThan(look.min.z);
@@ -354,7 +379,7 @@ describe('kit models', () => {
     expect(scene.getMeshByName('tree_pine')).not.toBeNull(); // a key with no model keeps its stand-in
     expect(loaded).toEqual(['quaternius/Mushnub.glb']);
     expect([scene.skeletons, scene.animationGroups]).toEqual([[], []]); // a kit model stands still
-    const oak = place.looks[map.solids.indexOf(oaks[0]!)]!;
+    const oak = solidLook(place, oaks[0]!);
     const at = oaks[0]!.kind === 'cylinder' ? oaks[0]!.cylinder : oaks[0]!.box;
     const posed = await restPose('quaternius/Mushnub.glb');
     expect(oak.min.y).toBeCloseTo(
@@ -374,7 +399,7 @@ describe('kit models', () => {
     const map = await mapOf('forest');
     const place = await buildPlace(scene, map, lighting, new Models(scene, source));
     const first = map.solids.findIndex((s) => s.model === 'tree_oak');
-    const oak = place.looks[first]!;
+    const oak = solidLook(place, map.solids[first]!);
     const meshes = templates('tree_oak');
     const inks = meshes.map(
       (m) => m.getChildMeshes(true).find((c) => c.name.endsWith(' ink')) as Mesh,
@@ -383,7 +408,7 @@ describe('kit models', () => {
     const up = new Vector3(0, 10, -10);
     expect(copies('tree_oak')).toEqual([]);
 
-    fade(mid.add(up), mid.subtract(up), place.looks, SETTLED);
+    fadeIn(place, mid.add(up), mid.subtract(up), SETTLED);
     expect(copies('tree_oak')).toHaveLength(meshes.length);
     const s = map.solids[first]!;
     const at = s.kind === 'cylinder' ? s.cylinder : s.box;
@@ -401,7 +426,7 @@ describe('kit models', () => {
     }
     await castShadows(copies('tree_oak'));
 
-    fade(new Vector3(-50, 10, -50), new Vector3(-40, 1, -40), place.looks, SETTLED);
+    fadeIn(place, new Vector3(-50, 10, -50), new Vector3(-40, 1, -40), SETTLED);
     expect(copies('tree_oak')).toEqual([]);
     for (const m of [...meshes, ...inks]) {
       expect(placed(m, 0).scale.x).toBeCloseTo(2, 5);
@@ -418,13 +443,13 @@ describe('kit models', () => {
       const at = `a player at (${x}, ${z})`;
       const k = map.solids.findIndex((s) => s.kind === 'box' && s.box.x === bx && s.box.z === bz);
       const s = map.solids[k]!;
-      const look = place.looks[k]!;
+      const look = solidLook(place, s);
       const { camera, head } = viewFrom(map, x, z);
       const out = (a: 'x' | 'y' | 'z') =>
         Math.max(look.min[a] - camera[a], 0, camera[a] - look.max[a]);
       expect(Math.hypot(out('x'), out('y'), out('z')), at).toBeLessThan(2); // where the tour found the camera
 
-      fade(camera, head, place.looks, SETTLED);
+      fadeIn(place, camera, head, SETTLED);
       const gone = copies(s.model).filter(
         (c) => Math.hypot(c.position.x - bx, c.position.z - bz) < 1e-6,
       );
@@ -438,7 +463,7 @@ describe('kit models', () => {
         expect(placed(m, n).scale.x, at).toBe(0);
       }
 
-      fade(new Vector3(-50, 10, -50), new Vector3(-40, 1, -40), place.looks, SETTLED);
+      fadeIn(place, new Vector3(-50, 10, -50), new Vector3(-40, 1, -40), SETTLED);
       expect(copies(s.model), at).toEqual([]);
       for (const m of templates(s.model)) {
         expect(placed(m, n).scale.x, at).not.toBe(0); // whole again for the next spot
@@ -494,7 +519,7 @@ describe('kit models', () => {
     Object.assign(kits, kitModels);
     const map = await mapOf('sandstone_cliffs');
     const place = await buildPlace(scene, map, lighting, new Models(scene, source));
-    const crag = place.looks.find(
+    const crag = allLooks(place, map).find(
       (l) => l.min.x < 40 && 40 < l.max.x && l.min.z < 1.5 && 1.5 < l.max.z && l.min.y > 2,
     )!; // the crag on the bank top at (40, 1.5)
     const { camera, head } = viewFrom(map, 40, 6); // the player behind it, as the live test’s frame has them
@@ -593,6 +618,79 @@ describe('warming', () => {
   });
 });
 
+describe('a look grid', () => {
+  /** A look round the box from (x0, z0) to (x1, z1), 3 m tall, counting its steps in shown. */
+  const box = (x0: number, z0: number, x1: number, z1: number, shown: number[] = []) =>
+    new Look(new Vector3(x0, 0, z0), new Vector3(x1, 3, z1), (step) => shown.push(step));
+  const at = (x: number, z: number, y = 1) => new Vector3(x, y, z);
+
+  it('files a look under every 8 m cell its box covers, west and south of 0 too, so a line over any of them finds it and one elsewhere doesn’t', () => {
+    const grid = new LookGrid();
+    const wide = box(-3, -1, 17, 1); // cells -1 to 2 along x, -1 and 0 along z
+    grid.add(wide);
+    for (const x of [-2.5, 4, 12, 16.5]) {
+      expect(grid.around(at(x, -0.5, 10), at(x, -0.5)), `x ${x}`).toEqual([wide]);
+    }
+    expect(grid.around(at(40, 40, 10), at(40, 30))).toEqual([]);
+    expect(grid.around(at(5, 30, 10), at(5, 12))).toEqual([]); // 11 m north of its edge
+  });
+
+  it('finds a look within 2 m of the camera though the line stays in the next cell', () => {
+    const grid = new LookGrid();
+    const near = box(14, 10, 15.9, 12); // in the cell from 8 to 16
+    grid.add(near);
+    expect(grid.around(at(16.5, 11, 2), at(22, 11))).toEqual([near]); // the camera 0.6 m from it, east in the next cell
+    expect(grid.around(at(18.5, 11, 2), at(22, 11))).toEqual([]);
+  });
+
+  it('keeps giving a look till it’s whole again, wherever the camera went, then lets it go', () => {
+    const grid = new LookGrid();
+    const shown: number[] = [];
+    const house = box(0, 0, 4, 4, shown);
+    grid.add(house);
+    const [camera, head] = [at(2, -8, 4), at(2, 8)]; // the line through it
+    fade(camera, head, grid.around(camera, head), 50);
+    expect(house.whole).toBe(false);
+    const away = [at(100, 100, 10), at(100, 90)] as const;
+    expect(grid.around(...away)).toEqual([house]);
+    fade(...away, grid.around(...away), SETTLED);
+    expect([house.whole, shown]).toEqual([true, [2, 0]]); // faded, then whole again
+    expect(grid.around(...away)).toEqual([]);
+  });
+
+  it('forgets a look taken out, on its way back or not', () => {
+    const grid = new LookGrid();
+    const house = box(0, 0, 4, 4);
+    const shed = box(1, 1, 2, 2);
+    grid.add(house);
+    grid.add(shed);
+    const [camera, head] = [at(2, -8, 4), at(2, 8)]; // the line through it
+    fade(camera, head, grid.around(camera, head), 50);
+    grid.remove(house);
+    expect(grid.around(camera, head)).toEqual([shed]);
+    expect(grid.around(at(100, 100, 10), at(100, 90))).toEqual([shed]); // the shed on its way back; the house gone
+  });
+
+  it('boxes a model as placed: turned, scaled and moved', () => {
+    const at = Matrix.Scaling(2, 2, 2)
+      .multiply(Matrix.RotationY(Math.PI / 2))
+      .multiply(Matrix.Translation(10, 1, 20));
+    const { min, max } = placedBox({ min: new Vector3(-1, 0, -3), max: new Vector3(1, 4, 3) }, at);
+    expect([...min.asArray(), ...max.asArray()].map((v) => Math.round(v * 1e9) / 1e9)).toEqual([
+      4, 1, 18, 16, 9, 22,
+    ]); // its 6 m along z turned to run along x, doubled
+  });
+
+  it('reads a line longer than the cells filed from those cells, and still only those under it', () => {
+    const grid = new LookGrid();
+    const [west, east] = [box(0, 0, 1, 1), box(100, 0, 101, 1)];
+    grid.add(west);
+    grid.add(east);
+    expect(grid.around(at(-50, 0.5, 10), at(50, 0.5))).toEqual([west]); // 13 cells under it, 2 filed
+    expect(grid.around(at(-50, 0.5, 10), at(150, 0.5))).toEqual([west, east]);
+  });
+});
+
 describe('fade', () => {
   /** The meshes drawn faded now. */
   const faded = () => drawn().filter((m) => m.material?.name.endsWith(' 0.3'));
@@ -600,10 +698,10 @@ describe('fade', () => {
   it('fades a solid between the camera and the head to 30% without its ink, and brings it back', async () => {
     const map = await mapOf('town');
     const place = await buildPlace(scene, map, lighting, new Models(scene, source));
-    const house = place.looks[0]!;
+    const house = solidLook(place, map.solids[0]!);
     const mid = house.min.add(house.max).scale(0.5);
     const up = new Vector3(0, 10, -10);
-    fade(mid.add(up), mid.subtract(up), place.looks, SETTLED);
+    fadeIn(place, mid.add(up), mid.subtract(up), SETTLED);
     const model = map.solids[0]!.model;
     expect(faded().map((m) => m.name)).toEqual([model, `${model} roof`]);
     const body = faded()[0]!;
@@ -615,7 +713,7 @@ describe('fade', () => {
         ?.isEnabled(),
     ).toBe(false);
 
-    fade(new Vector3(-50, 10, -50), new Vector3(-40, 1, -40), place.looks, SETTLED);
+    fadeIn(place, new Vector3(-50, 10, -50), new Vector3(-40, 1, -40), SETTLED);
     expect(faded()).toEqual([]);
     expect((await built(body.material)).needAlphaBlending()).toBe(false);
     expect(
@@ -629,23 +727,23 @@ describe('fade', () => {
   it('takes a solid from the view, ink and all, when the camera is in it or within 2 m; its shadow still cast', async () => {
     const map = await mapOf('town');
     const place = await buildPlace(scene, map, lighting, new Models(scene, source));
-    const house = place.looks[0]!;
+    const house = solidLook(place, map.solids[0]!);
     const model = map.solids[0]!.model;
     const mid = house.min.add(house.max).scale(0.5);
     const gone = () => drawn().filter((m) => m.material?.name.endsWith(' 0'));
     const east = (d: number) => new Vector3(house.max.x + d, mid.y, mid.z); // beside it, the head further east
     const ink = (m: AbstractMesh) => m.getChildMeshes(true).find((c) => c.name.endsWith(' ink'));
 
-    fade(mid, mid.add(new Vector3(0, -10, 0)), place.looks, SETTLED);
+    fadeIn(place, mid, mid.add(new Vector3(0, -10, 0)), SETTLED);
     expect(gone().map((m) => m.name)).toEqual([model, `${model} roof`]);
     for (const m of gone()) {
       expect(ink(m)?.isEnabled()).toBe(false);
     }
     await castShadows(gone());
-    fade(east(1.9), east(10), place.looks, SETTLED);
+    fadeIn(place, east(1.9), east(10), SETTLED);
     expect(gone().map((m) => m.name)).toEqual([model, `${model} roof`]);
 
-    fade(east(2.1), east(10), place.looks, SETTLED);
+    fadeIn(place, east(2.1), east(10), SETTLED);
     expect(gone()).toEqual([]);
     expect(faded()).toEqual([]);
     expect(ink(scene.getMeshByName(model)!)?.isEnabled()).toBe(true);
@@ -654,7 +752,7 @@ describe('fade', () => {
   it('steps a solid toward how the camera wants it, one alpha each 50 ms: 1, 0.65, 0.3, 0.15, 0, and back the same way', async () => {
     const map = await mapOf('town');
     const place = await buildPlace(scene, map, lighting, new Models(scene, source));
-    const house = place.looks[0]!;
+    const house = solidLook(place, map.solids[0]!);
     const body = scene.getMeshByName(map.solids[0]!.model)!;
     const mid = house.min.add(house.max).scale(0.5);
     const below = mid.add(new Vector3(0, -10, 0));
@@ -686,8 +784,9 @@ describe('fade', () => {
   });
 
   it('leaves a solid beside the camera’s line alone, and one past the head', async () => {
-    const place = await buildPlace(scene, await mapOf('town'), lighting, new Models(scene, source));
-    const s = place.looks[0]!;
+    const map = await mapOf('town');
+    const place = await buildPlace(scene, map, lighting, new Models(scene, source));
+    const s = solidLook(place, map.solids[0]!);
     const mid = s.min.add(s.max).scale(0.5);
     const beside = new Vector3(s.max.x - s.min.x + 1, 0, 0);
     fade(mid.add(beside).add(new Vector3(0, 10, -10)), mid.add(beside), [s], SETTLED);

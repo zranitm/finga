@@ -666,6 +666,7 @@ As built in slice PR 7:
     - The instance swaps for its copy only at whole, since setting one thin instance uploads them all.
     - Every see-through step's material is compiled while the map loads, as before.
   - **Props:** a kit prop drawn taller than half a player (0.875 m) fades and goes as a solid does. A lower one hides at most a player's legs and gets no copy.
+  - **Which looks a frame steps:** since large-regions step 5b-1, only those a grid of 8 m cells gives near the camera's line, and those on their way back to whole (large-regions.md section 10).
     - **The sweep:** all 14 maps, a player every 0.5 m, the game's camera at 1280 by 800. It found 516 of the 2,858 kit props crossing the camera's line or at the lens from some spot.
     - **What the rule covers:** all 496 of those taller than 0.875 m now fade: trees, dead trees, palms, pillars, crags, dead shrubs, bushes, cacti and small rocks. That's 531 props with a look in all.
     - **What it leaves out:** the 20 lower ones, grass, flowers, small mushrooms and pebbles. Each sits on a bank top and is seen across it only from the bank's foot.

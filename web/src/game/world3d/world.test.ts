@@ -107,10 +107,10 @@ const WAIT = { timeout: 3000, interval: 5 }; // polled every 5 ms, not 50; 3 s f
 
 vi.mock('./kit-models', () => ({ kitModels: {} })); // every key a stand-in: place.test draws town and forest with the real kit models
 
-/** Hunting maps with no NPCs, served flat and bare for the tests no map's own layout bears on: FLAT, the two a map change goes to, one served as a region, and the widest a block holds. */
-const [FLAT, FLAT2, FLAT3, REGIONED, WIDE] = maps
+/** Hunting maps with no NPCs, served flat and bare for the tests no map's own layout bears on: FLAT, the two a map change goes to, one served as a region, the widest a block holds, and that with a tower. */
+const [FLAT, FLAT2, FLAT3, REGIONED, WIDE, TOWERED] = maps
   .filter((m) => m.kind === 'hunting' && npcsOn(m.id).length === 0)
-  .map((m) => m.id) as [string, string, string, string, string];
+  .map((m) => m.id) as [string, string, string, string, string, string];
 
 /** Map id flat and bare, 72 by 40 m. */
 function bare(id: string) {
@@ -188,6 +188,19 @@ function wide(id: string) {
   };
 }
 
+/** Map id as WIDE with a 14 m tower 8.6 m south of (60, 40): at the camera's end of its line to a player there. */
+function towered(id: string) {
+  const m = wide(id);
+  return {
+    ...m,
+    geometry: {
+      ...m.geometry,
+      boxes: [{ x: 60, z: 31.4, half_w: 1, half_d: 0.5, ux: 1, uz: 0, top: 14 }], // south of the 8 m cell the player's head is in
+    },
+    box_models: [{ model: 'tower', yaw: 0 }],
+  };
+}
+
 /** The maps served in place of the real ones, made once; the rest come from disk. */
 const SERVED = {
   [FLAT]: bare(FLAT),
@@ -196,6 +209,7 @@ const SERVED = {
   [REGIONED]: regioned(REGIONED),
   [`regions/${TINY.id}/${TINY.hash}/region.json`]: townedTiny(),
   [WIDE]: wide(WIDE),
+  [TOWERED]: towered(TOWERED),
   town: slim('town'),
   ring: { ...bare('ring'), prep_wall: (mapJson('ring') as { prep_wall: unknown }).prep_wall }, // flat, with its own prep wall
 };
@@ -2709,6 +2723,17 @@ describe('World', () => {
     key('KeyX', true);
     key('KeyX', false);
     expect(p.sent('attack')).toHaveLength(1); // a match's map fights as a hunting map does
+  });
+
+  it('takes a solid at the camera’s end of its line to the player from the view, 8 m from the player, and gives it back as the player walks clear', async () => {
+    expect(TOWERED).toBeDefined();
+    const p = await playing(TOWERED, 60, 40);
+    p.live(2);
+    const tower = () => meshesOn(p, 'tower')[0]!.material!.name;
+    expect(tower()).toMatch(/ cut 0$/); // the camera 10.3 m south and 12.3 m up, 1.2 m from its face
+    p.push('snapshot', { players: [standing(20, 40)] }, { tick: 100 });
+    p.live(4);
+    expect(tower()).not.toMatch(/ 0(\.\d+)?$/);
   });
 
   it.each([
