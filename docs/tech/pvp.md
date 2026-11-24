@@ -719,6 +719,20 @@ As built after the 3v3 playtest:
   - Its end comes as a General line, never the result card: "Your 3v3 match ended: Defeat. Rating 1000 → 968 (−32)." The card is for those the match ended with. The leaver may be anywhere by then, even in another match, so the line is drawn from `MatchEnded`'s own `mode` and `left`, not from the match the store holds.
   - A 1v1 forfeit ends the match at once, so its forfeiter still gets the card.
 
+As built for 15v15 (step 6d-1, the client):
+
+- **The map:** `mapjson` writes a battle map's `battle`: each side's base, its points in the map's order, and the cylinder each side's geometry gains, the other side's base standing 1,000 m tall. The client adds that cylinder after the map's own solids, as the server's `Kept` does. `gen-gamedata` gives each battle map's point names, each mode's map, and the battle's goal, length and respawn.
+- **Prediction:** through prep the player walks the map with its prep wall. In the fight and after, they walk their side's geometry, chosen from the match's sides. So a runner into the other base stops at its edge as the world stops them, never corrected.
+- **The match bar in a battle:**
+  - "You 312", the clock, then "290 Them": the scores from the player's side, in place of the pips. The phase reads "Battle".
+  - Under the clock, the three points, each named by its name's first word ("West"), in its holder's colour, grey for no one's. Each has a ring filled as far as the point has turned, in the colour of the side it turns toward, and a wavy underline while contested. Their labels say "West Ruin: yours, contested".
+  - The rings move with each `MatchState`: at each change of holder or contest, and every whole second with the score. They aren't moved between states.
+- **Colours:** the HUD and the 2D map views (the bar, the map window, the minimap) use the bar's pair, `--ally` `#5fd35f` and `--enemy` `#e04848`. Things drawn in the 3D world (the point rings and the base wall of step 6d-2) use the name tags' pair, `#7fe08a` and `#ff6b62`, to match the tags beside them under the world's light.
+- **The Arena card:** "15 against 15: first to 1,000 points, or the most in 12 minutes.", marked Unrated, with the record alone: no rating, rank or placement.
+- **The result:** "Score 312 – 290" from the player's side, in place of the rounds, and no rating.
+- **Down:** "Back in 7 s", counted from when the down showed to the battle's respawn, then "Back in a moment" till the world gets them up.
+- **Frames:** the party frames stay the party, and the enemies get no frames under the bar.
+
 ## 14. Balance
 
 - **The harness,** `pvp_balance_test.go`, sits beside the rotation harness in `model/world`, on its helpers, against a player's kit, whom no blow MISSes. Its targets:
@@ -838,6 +852,7 @@ As built after the 3v3 playtest:
    - the 15v15 match bar and points on the maps.
    - As built, it lands as four PRs: the battle's rules on the server (6a), the deal and the bot cap (6b), bot roles (6c), then the client (6d).
    - 6a hides the 15v15 card in the Arena window, as the client has no battle HUD yet. 6d shows it again, gives a mode without rounds its own card line (a battle has no "best of"), and builds the HUD.
+   - 6d lands as two PRs: 6d-1 makes the battle playable (the map's battle data, prediction, the bar, the card, the result, the down and the frames); 6d-2 draws the points and bases on the map views and in the world.
    - 6c: the bots' nav blocks the other side's base, as the server's per-side geometry does.
    - 6d:
      - `mapjson` writes a battle map's bases and points for the client; 6a leaves it as it is;

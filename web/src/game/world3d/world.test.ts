@@ -198,6 +198,10 @@ const SERVED = {
   [WIDE]: wide(WIDE),
   town: slim('town'),
   ring: { ...bare('ring'), prep_wall: (mapJson('ring') as { prep_wall: unknown }).prep_wall }, // flat, with its own prep wall
+  battlefield: {
+    ...slim('battlefield'), // its own size, flat, with its bases and points
+    battle: (mapJson('battlefield') as { battle: unknown }).battle,
+  },
 };
 
 type PlayerWire = NonNullable<ServerInit<'snapshot'>['players']>[number];
@@ -2709,6 +2713,49 @@ describe('World', () => {
     key('KeyX', true);
     key('KeyX', false);
     expect(p.sent('attack')).toHaveLength(1); // a match's map fights as a hunting map does
+  });
+
+  it('in a battle’s fight the player walks their side’s ground: the other side’s base stands, their own doesn’t, and again once the map is entered afresh', async () => {
+    const p = await playing('battlefield', 112, 45);
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: 'battlefield',
+        character: { id: ME, name: 'Ayla', class: 'warrior', level: 30, hp: 50, maxHp: 50 },
+      }),
+    );
+    const onSide = (side: number) =>
+      pvp.getState().applyMatchState(
+        create(MatchStateSchema, {
+          match: 'mt-1',
+          mode: 'battle',
+          phase: MatchPhase.FIGHT,
+          endsInMs: 600_000,
+          sides:
+            side === 1
+              ? [{ fighters: [{ id: ME }] }, { fighters: [{ id: 'c-robin' }] }]
+              : [{ fighters: [{ id: 'c-robin' }] }, { fighters: [{ id: ME }] }],
+        }),
+        0,
+      );
+    onSide(1);
+    key('ArrowRight', true);
+    p.live(60);
+    const me = p.root(classLook('warrior').file)!;
+    expect(me.position.x).toBeCloseTo(127 - 9 - movement.radius, 3); // side 2's base, at (127, 45), 9 m round
+    onSide(2);
+    p.live(20);
+    key('ArrowRight', false);
+    expect(me.position.x).toBeGreaterThan(120); // on into its own
+    onSide(1);
+    p.live(1); // tick 82
+    changeMap(p, { mapId: 'battlefield', x: 112, y: 0, z: 45, yaw: 0 }); // as a return to the same battle
+    p.push('snapshot', { players: [standing(112, 45)] }, { tick: 82 });
+    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), WAIT);
+    key('ArrowRight', true);
+    p.live(60);
+    key('ArrowRight', false);
+    expect(p.root(classLook('warrior').file)!.position.x).toBeCloseTo(127 - 9 - movement.radius, 3);
   });
 
   it.each([

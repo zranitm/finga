@@ -52,7 +52,6 @@ function Play({ socket }: { readonly socket: Pick<GameSocket, 'request'> }) {
   const standings = pvpProfile.use((s) => s.standings);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const modes = data.modes.filter((m) => m.best_of !== null); // a battle's card waits for the client's battle (pvp.md step 6d)
 
   const run = async (request: () => Promise<unknown>) => {
     setBusy(true);
@@ -73,14 +72,18 @@ function Play({ socket }: { readonly socket: Pick<GameSocket, 'request'> }) {
         skill fully learned.
       </p>
       <ul className="arena-modes" aria-label="Modes">
-        {modes.map((m) => (
+        {data.modes.map((m) => (
           <li key={m.id} className="arena-mode" aria-label={m.name}>
             <div className="arena-mode-head">
               <strong>{m.name}</strong>
               <span className="muted">{m.rated ? 'Rated' : 'Unrated'}</span>
             </div>
             <span className="muted">{describe(m)}</span>
-            {m.rated && <Standing standing={standingIn(standings, m.id)} />}
+            {m.rated ? (
+              <Standing standing={standingIn(standings, m.id)} />
+            ) : (
+              <Record standing={standingIn(standings, m.id)} />
+            )}
             {queued?.mode === m.id ? (
               <div className="row">
                 <Waiting since={queued.since} room={queued.waitingRoom} />
@@ -136,8 +139,21 @@ function Standing({ standing: s }: { readonly standing: PvpStanding | undefined 
   );
 }
 
-/** How many a side and the rounds a match is best of. */
+/** An unrated mode's record alone; nothing till the profile's read. */
+function Record({ standing: s }: { readonly standing: PvpStanding | undefined }) {
+  return s ? (
+    <div className="arena-standing" aria-label="Your record">
+      <span className="muted">{recordOf(s)}</span>
+    </div>
+  ) : null;
+}
+
+/** How many a side, and the rounds a match is best of, or a battle's goal and length. */
 function describe(m: Mode): string {
+  if (m.best_of === null) {
+    const goal = data.battle.goal.toLocaleString('en-US');
+    return `${m.team} against ${m.team}: first to ${goal} points, or the most in ${data.battle.length_ms / 60_000} minutes.`;
+  }
   return `${m.team} against ${m.team}, best of ${m.best_of} rounds.`;
 }
 

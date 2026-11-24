@@ -54,8 +54,12 @@ describe('ArenaWindow', () => {
     expect(card).toHaveTextContent('Rated');
     expect(
       within(screen.getByRole('list', { name: 'Modes' })).getAllByRole('listitem'),
-    ).toHaveLength(2);
-    expect(screen.queryByRole('listitem', { name: '15v15' })).not.toBeInTheDocument();
+    ).toHaveLength(3);
+    const battle = screen.getByRole('listitem', { name: '15v15' });
+    expect(battle).toHaveTextContent(
+      '15 against 15: first to 1,000 points, or the most in 12 minutes.',
+    );
+    expect(battle).toHaveTextContent('Unrated');
     expect(screen.getByRole('listitem', { name: '3v3' })).toHaveTextContent(
       '3 against 3, best of 3 rounds.',
     );
@@ -220,6 +224,16 @@ describe('ArenaWindow standings and board', () => {
     wins: 9,
     losses: 1,
     draws: 0,
+  });
+
+  it('the unrated 15v15 card shows the record alone, no rating, rank or placement', () => {
+    act(() => pvpProfile.getState().apply([standing('battle', { wins: 2, losses: 1, draws: 0 })]));
+    render(<ArenaWindow socket={fakeSocket().socket} board={noBoard} onClose={vi.fn()} />);
+    const card = screen.getByRole('listitem', { name: '15v15' });
+    expect(within(card).getByLabelText('Your record')).toHaveTextContent('2 W · 1 L · 0 D');
+    expect(card).not.toHaveTextContent('1640');
+    expect(card).not.toHaveTextContent('Gold');
+    expect(within(card).queryByLabelText('Your standing')).not.toBeInTheDocument();
   });
 
   it('opening it reads the profile afresh, and each rated card shows the rating, rank and place once placed, or how far placement is', () => {

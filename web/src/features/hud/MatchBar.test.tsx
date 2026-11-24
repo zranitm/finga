@@ -118,6 +118,53 @@ describe('MatchBar', () => {
     expect(bar.querySelector('.side-enemy')).not.toHaveTextContent(/Ash|Cole/);
   });
 
+  it('in a battle shows both scores from the player’s side and each point in its holder’s colour, its ring turned toward a side, and contested; no rounds', () => {
+    render(<MatchBar socket={fakeSocket().socket} />);
+    act(() =>
+      pvp.getState().applyMatchState(
+        create(MatchStateSchema, {
+          match: 'mt-1',
+          mode: 'battle',
+          phase: MatchPhase.FIGHT,
+          endsInMs: 600_000,
+          score: [290, 312],
+          points: [
+            { id: 'west', holder: 2, progress: 1 },
+            { id: 'middle', holder: 0, progress: -0.5, contested: true },
+            { id: 'east', holder: 1, progress: -1 },
+          ],
+          sides: [
+            { fighters: [{ id: 'c-ash', name: 'Ash', class: 'thief' }] },
+            { fighters: [{ id: 'c-ayla', name: 'Ayla', class: 'warrior' }] },
+          ],
+        }),
+        0,
+      ),
+    );
+    const bar = screen.getByRole('group', { name: 'Match' });
+    expect(within(bar).getByLabelText('Your score')).toHaveTextContent('312');
+    expect(within(bar).getByLabelText('Their score')).toHaveTextContent('290');
+    expect(bar).toHaveTextContent('Battle');
+    expect(bar).not.toHaveTextContent('Round');
+    expect(within(bar).queryByRole('img', { name: /rounds/ })).not.toBeInTheDocument();
+    expect(bar.querySelector('.side-enemy')).not.toHaveTextContent('Ash');
+    const points = within(within(bar).getByRole('list', { name: 'Points' })).getAllByRole(
+      'listitem',
+    );
+    expect(points.map((p) => [p.getAttribute('aria-label'), p.className, p.textContent])).toEqual([
+      ['West Ruin: yours', 'match-point point-ally', 'West'],
+      ['Middle Ruin: no one’s, contested', 'match-point point-none contested', 'Middle'],
+      ['East Ruin: theirs', 'match-point point-enemy', 'East'],
+    ]);
+    const ring = (k: number) => points[k]!.querySelector('.match-point-ring')!;
+    const length = 2 * Math.PI * 9;
+    expect(ring(0)).toHaveClass('point-ally');
+    expect(ring(0).getAttribute('stroke-dasharray')).toBe(`${length} ${length}`);
+    expect(ring(1)).toHaveClass('point-enemy'); // turning toward side 1, theirs
+    expect(ring(1).getAttribute('stroke-dasharray')).toBe(`${0.5 * length} ${length}`);
+    expect(ring(2)).toHaveClass('point-enemy');
+  });
+
   it('counts into a round in big numbers over the world', () => {
     render(
       <>
