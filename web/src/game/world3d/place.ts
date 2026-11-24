@@ -86,7 +86,7 @@ const PROP_DEFAULT: PropStandIn = { shape: 'bloom', color: 0xc8c8c0, size: 0.25 
 
 const PORTAL = 0x7ac7ff;
 const NEAR = 2; // metres from the camera within which a look's drawn box is at the lens
-const STEPS = [1, 0.65, 0.3, 0.15, 0] as const; // the alphas a look steps through: whole, faded at 0.3, gone at 0
+export const STEPS = [1, 0.65, 0.3, 0.15, 0] as const; // the alphas a look steps through: whole, faded at 0.3, gone at 0
 const STEP_MS = 50; // between two steps, so whole to gone takes 0.15 s after the first
 const LOW_PROP = movement.height / 2; // a prop no taller hides at most a player's legs, so it never fades
 const SINK = 0.5; // a solid reaches this far under the ground at its centre, so a slope never shows its foot
@@ -139,7 +139,7 @@ export class Look {
 }
 
 export interface Place {
-  /** Each solid's look by its index among the map's, then the kit props' taller than LOW_PROP in the map's order. */
+  /** Each solid's look by its index among the map's, then the kit props' taller than LOW_PROP in the map's order; a region's, its waypoint stones'. */
   readonly looks: readonly Look[];
   /** Draws what the camera's target at (x, z) needs: a region streams its chunks round it, a map is drawn whole. */
   follow(x: number, z: number): void;

@@ -7,6 +7,7 @@ import { RawTexture } from '@babylonjs/core/Materials/Textures/rawTexture';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { Matrix } from '@babylonjs/core/Maths/math.vector';
+import { Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { CreateCylinder } from '@babylonjs/core/Meshes/Builders/cylinderBuilder';
 import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder';
 import { CreateTorus } from '@babylonjs/core/Meshes/Builders/torusBuilder';
@@ -19,7 +20,7 @@ import type { MapWaypoint } from '@/state/map-view';
 import { waypoints as foundWaypoints } from '@/state/waypoints';
 
 import type { Models } from './models';
-import { kitParts, placement } from './place';
+import { kitParts, Look, placement, STEPS } from './place';
 import type { KitPart } from './place';
 import { linearOf } from './toon';
 import type { Palette } from './toon';
@@ -45,11 +46,17 @@ const FLARE_MS = 800;
 const BEAM_MS = 600;
 const RING_M = 7;
 
+/** The box a stone's see-through look takes round its spot, halo and all: as wide as the found halo, up to its top. */
+const SEE = { reach: 1.3, top: 4.5 };
+
 interface Stone {
   readonly w: MapWaypoint;
   readonly at: Matrix;
   readonly halo: Mesh;
+  readonly look: Look;
   lit: boolean;
+  step: number; // its look's step in STEPS: whole at 0
+  copies: { readonly unfound: Mesh[]; readonly found: Mesh[] } | null; // drawn see-through while it isn't whole
 }
 
 const ease = (k: number) => 1 - (1 - Math.min(1, Math.max(0, k))) ** 2;
@@ -57,6 +64,8 @@ const ease = (k: number) => 1 - (1 - Math.min(1, Math.max(0, k))) ** 2;
 export class WaypointStones {
   private readonly root: TransformNode;
   private readonly stones: Stone[];
+  /** Each stone's see-through look, which fades it out of the camera's way to the player as a tall prop is. */
+  readonly looks: readonly Look[];
   private readonly dot: RawTexture;
   private readonly halos: { readonly unfound: StandardMaterial; readonly found: StandardMaterial };
   private readonly beam: Mesh;
@@ -72,6 +81,7 @@ export class WaypointStones {
     palette: Palette,
     models: Models,
     private readonly now: () => number,
+    private readonly heightAt: (x: number, z: number) => number,
   ) {
     this.root = new TransformNode('waypoint stones', scene);
     this.dot = dotTexture(scene);
@@ -84,10 +94,23 @@ export class WaypointStones {
       const halo = CreatePlane(`waypoint ${w.id} halo`, { size: 1 }, scene);
       halo.billboardMode = Mesh.BILLBOARDMODE_ALL;
       halo.position.set(w.x, w.y + CRYSTAL_Y, w.z);
-      const stone = { w, at: placement(KIT, w.x, w.z, YAW, w.y), halo, lit: found.has(w.id) };
+      const stone: Stone = {
+        w,
+        at: placement(KIT, w.x, w.z, YAW, w.y),
+        halo,
+        look: new Look(
+          new Vector3(w.x - SEE.reach, w.y, w.z - SEE.reach),
+          new Vector3(w.x + SEE.reach, w.y + SEE.top, w.z + SEE.reach),
+          (step) => this.see(stone, step),
+        ),
+        lit: found.has(w.id),
+        step: 0,
+        copies: null,
+      };
       this.haloOf(stone, 0);
       return stone;
     });
+    this.looks = this.stones.map((s) => s.look);
     this.beam = CreateCylinder(
       'waypoint beam',
       { height: 9, diameterTop: 0.15, diameterBottom: 0.7, tessellation: 24 },
@@ -155,16 +178,49 @@ export class WaypointStones {
     );
     paint(found, linearOf(BRIGHT), palette.glow(linearOf(RUNE), 1));
     this.parts = { unfound, found };
+    for (const s of this.stones) {
+      s.copies = { unfound: this.copied(s, unfound), found: this.copied(s, found) };
+    }
     this.place();
   }
 
-  /** Each painted copy drawn at every stone in its state, and not at all where none is. */
+  /** parts at s alone, drawn see-through: hidden till its look leaves whole. */
+  private copied(s: Stone, parts: readonly KitPart[]): Mesh[] {
+    return parts.map((p) => {
+      const c = p.mesh.clone(`${p.mesh.name} faded ${s.w.id}`, this.root, true);
+      c.rotationQuaternion = new Quaternion();
+      s.at.decompose(c.scaling, c.rotationQuaternion, c.position);
+      c.setEnabled(false);
+      return c;
+    });
+  }
+
+  /** s at its look's step: whole among the instances, else its see-through copy, gone at the last, its halo fading with it. */
+  private see(s: Stone, step: number): void {
+    s.step = step;
+    s.halo.visibility = STEPS[step]!;
+    this.place();
+  }
+
+  /** Each painted copy drawn at every whole stone in its state, and not at all where none is; a stone not whole draws its see-through copy. */
   private place(): void {
+    for (const s of this.stones) {
+      const parts = this.parts?.[s.lit ? 'found' : 'unfound'] ?? [];
+      for (const lit of [false, true]) {
+        s.copies?.[lit ? 'found' : 'unfound'].forEach((c, k) => {
+          const shown = lit === s.lit && s.step > 0 && s.step < STEPS.length - 1;
+          c.setEnabled(shown);
+          if (shown) {
+            c.material = parts[k]!.steps[s.step]!;
+          }
+        });
+      }
+    }
     for (const [lit, parts] of [
       [false, this.parts?.unfound ?? []],
       [true, this.parts?.found ?? []],
     ] as const) {
-      const at = this.stones.filter((s) => s.lit === lit);
+      const at = this.stones.filter((s) => s.lit === lit && s.step === 0);
       const flat = new Float32Array(16 * at.length);
       at.forEach((s, i) => s.at.copyToArray(flat, 16 * i));
       for (const p of parts) {
@@ -209,7 +265,7 @@ export class WaypointStones {
       this.haloOf(this.flaring.stone, 0);
     }
     this.flaring = { stone, from: this.now() };
-    this.ring.position.set(stone.w.x, stone.w.y + 0.08, stone.w.z);
+    this.ring.position.set(stone.w.x, stone.w.y, stone.w.z);
     this.step(this.flaring.from);
   }
 
@@ -233,6 +289,15 @@ export class WaypointStones {
     this.beam.material!.alpha = 0.7 * (1 - Math.min(k / BEAM_MS, 1));
     const across = 1.4 + (RING_M - 1.4) * ease(k / FLARE_MS);
     this.ring.scaling.set(across, 1, across);
+    let top = y; // the ring lies flat, so it rides the highest ground under it, on a slope too
+    for (let i = 0; i < 16; i++) {
+      const a = (i * Math.PI) / 8;
+      top = Math.max(
+        top,
+        this.heightAt(x + (across / 2) * Math.cos(a), z + (across / 2) * Math.sin(a)),
+      );
+    }
+    this.ring.position.y = top + 0.08;
     this.ring.material!.alpha = 0.95 * (1 - k / FLARE_MS);
   }
 
