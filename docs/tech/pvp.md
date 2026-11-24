@@ -311,7 +311,7 @@ bots:
   - In 1v1 the other side wins at once.
   - In 3v3 a bot of the tier the match's bots have takes over the leaver's body, as it stands: the same class, build and HP. The match goes on.
 - **As built (step 5):** in a team mode, before the outcome, a bot takes the leaver's place in the same tick they go. That covers a forfeit, logging out or dropping, and never arriving by prep's end.
-  - **The body:** it's the leaver's as it stands: position, heading, class, name, HP and energy, and down if they were down or at 0 HP. Their statuses and buffs aren't carried, and its cooldowns start ready.
+  - **The body:** it's the leaver's as it stands: position, heading, class, name, HP and energy, and down if they were down. A body is never at 0 HP and up: the tick's downs settle before anyone can leave. Their statuses and buffs aren't carried, and its cooldowns start ready.
   - **A dropped connection:** a player whose sends are refused is removed once the tick's events have all gone out. What the removal raises, the stand-in's `MatchState` or the match's end, opens the next tick's events, so every player hears it.
   - **One who never came:** stood in at their side's spot at full HP. As a name and class are only known on arrival, it takes the class their side has fewest of and a free name from the bots' list.
   - **Tier and build:**
@@ -345,9 +345,10 @@ bots:
 - **Updates:** `MatchState` carries the score and the points each second and at each change. The client moves the rings between updates at the rate it knows.
 - **As built (step 6a):**
   - **No countdown:** prep (the gates shut) goes straight into the fight, and the builds sent in prep go on as it starts. A build saved during the fight goes on at the player's next respawn.
-  - **A point** counts the living fighters whose centre is in its circle each tick. Progress moves by the pace above times the tick over `capture.time`. Drained past 0, a held point is no one's, and at full it's the side's. A side scores for each point it holds at every whole second of the fight, a contested or draining one included.
+  - **A point** counts the living fighters whose centre is in its circle each tick. Progress moves by the pace above times the tick over `capture.time`. Drained past 0, a held point is no one's, and at full it's the side's. With no one in it, its progress holds where it was, with no decay, and a held point stays held.
+  - **Scoring:** a side scores for each point it holds at every whole second from the fight's start, a contested or draining one included. The last second scores on the fight's final tick, so a point held through a 12-minute fight scores 720.
   - **A down scores for the other side outright.** Only an enemy's hit, or the damage over time it left, takes a fighter down: the battlefield has no mobs or hazards. So the last hit is always the other side's, with no hitter to track and no time window. A hazard added later needs this revisited.
-  - **A whole side down** ends nothing: its fighters get up after `respawn`. The first side to `goal` wins on that tick; on time, the side ahead wins, and an equal score is a draw.
+  - **A whole side down** ends nothing: its fighters get up after `respawn`. The first side to `goal` wins on that tick. If both reach it on one tick, the higher score wins, and an equal score is a draw. On time, the side ahead wins, and an equal score is a draw.
   - **Getting up:** at the base spot whose nearest body is farthest, the first on a tie, at full HP, energy and cooldowns as they were. A stand-in for a downed leaver gets up when the leaver would have.
   - **The base:** each side moves through its own geometry, the map's with the other side's base standing as a cylinder 1,000 m tall. So the other side can't walk, leap or be knocked back into a base, while sight and the side's own moves are as before. It heals `base_heal` of max HP each second, carrying fractions as regen does.
   - **The gates** are the battlefield's `prep_wall`, one across each base's bay.
@@ -787,6 +788,10 @@ As built after the 3v3 playtest:
    - the 15v15 match bar and points on the maps.
    - As built, it lands as four PRs: the battle's rules on the server (6a), the deal and the bot cap (6b), bot roles (6c), then the client (6d).
    - 6a hides the 15v15 card in the Arena window, as the client has no battle HUD yet. 6d shows it again, gives a mode without rounds its own card line (a battle has no "best of"), and builds the HUD.
+   - 6c: the bots' nav blocks the other side's base, as the server's per-side geometry does.
+   - 6d:
+     - `mapjson` writes a battle map's bases and points for the client; 6a leaves it as it is;
+     - the client's sim blocks the other side's base as the server does, or a runner into it is corrected at every input.
 
 ## 17. Decisions
 

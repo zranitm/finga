@@ -37,7 +37,7 @@ func (b *battle) leader() int {
 	return 0
 }
 
-// stepBattle runs a battle's tick while it's fought: each point turns, and once a second each side scores its points and heals its own in its base. The first side to the goal wins; everyone hears the score each second and at each change.
+// stepBattle runs a battle's tick while it's fought: each point turns, and at each whole second from the fight's start, its end's included, each side scores its points and heals its own in its base. The first side to the goal wins, the higher score if both reach it at once; on time the side ahead wins. Everyone hears the score each second and at each change.
 func (i *Instance) stepBattle() {
 	mt := i.match
 	if mt == nil || mt.battle == nil || mt.phase != model.PhaseFight {
@@ -45,7 +45,7 @@ func (i *Instance) stepBattle() {
 	}
 	b := mt.battle
 	i.capture()
-	if i.tick%i.ticksFor(time.Second) == 0 {
+	if since := i.tick - (mt.ends - i.ticksFor(b.rules.Length)); since > 0 && since%i.ticksFor(time.Second) == 0 {
 		for _, pt := range b.points {
 			if pt.Holder > 0 {
 				b.score[pt.Holder-1] += b.rules.PerPoint
@@ -54,7 +54,7 @@ func (i *Instance) stepBattle() {
 		i.baseHeal()
 		b.changed = true
 	}
-	if b.score[0] >= b.rules.Goal || b.score[1] >= b.rules.Goal {
+	if b.score[0] >= b.rules.Goal || b.score[1] >= b.rules.Goal || i.tick >= mt.ends {
 		i.endMatch(b.leader())
 		return
 	}

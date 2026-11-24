@@ -417,6 +417,92 @@ func TestTheFirstSideToTheGoalWinsThere(t *testing.T) {
 	})
 }
 
+// pvp.md section 7: a point scores at each whole second from the fight's start, the last at its end, so one held from a tick scores every second from the first at or after it, and the fight lasts its length to the tick; no tick tells the match twice.
+func TestAHeldPointScoresEachWholeSecondToTheFightsEnd(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := battleData(t, "1.0", "1.0", "length: 12m", "length: 30s")
+		field, _ := data.Map("battlefield")
+		results := &worldtest.Results{}
+		ayla, robin := fighterFrom(t, data, "Ayla"), fighterFrom(t, data, "Robin")
+		inst, sinks, stop := aBattle(t, data, results, [2][]model.Player{{ayla}, {robin}})
+		defer stop()
+		as := sinks[ayla.ID]
+		sleep(data.Pvp().Battle.Prep + worldtest.TickInterval)
+		march(inst, sinks, 0, field.Points[0].At.X, ayla.ID)
+		sleep(30 * time.Second)
+		states := worldtest.Of[model.MatchState](as)
+		fight := states[slices.IndexFunc(states, func(st model.MatchState) bool { return st.Phase == model.PhaseFight })].Tick
+		held, ok := turned(as, 0, 1, fight)
+		second, length := ticks(time.Second), ticks(30*time.Second)
+		first := (held.Tick - fight + second - 1) / second // the first whole second at or after the capture
+		want := int(length/second - first + 1)
+		got := results.All()
+		if end := lastState(as); !ok || len(got) != 1 || got[0].Score != [2]int{want, 0} || end.Phase != model.PhaseResult || end.Tick != fight+length {
+			t.Fatalf("the west point Ayla's from tick %d (%v) of a 30 s fight from tick %d: outcomes %+v, last state at tick %d; want %d, a point for each second from the %dth to the 30th, and the end at tick %d", held.Tick, ok, fight, got, end.Tick, want, first, fight+length)
+		}
+		for k := 1; k < len(states); k++ {
+			if states[k].Tick == states[k-1].Tick {
+				t.Fatalf("two MatchStates at tick %d: %+v and %+v; want one a tick", states[k].Tick, states[k-1], states[k])
+			}
+		}
+	})
+}
+
+// pvp.md section 7: when both sides reach the goal on one tick, the higher score wins there, and an equal one is a draw.
+func TestBothSidesAtTheGoalOnOneTick(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		hold   bool // Ayla's side holds the west point first, scoring a little
+		winner int
+	}{
+		{"even scores draw", false, 0},
+		{"the higher score wins", true, 1},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				data := battleData(t, "1.0", "100.0", "goal: 1000", "goal: 20", "per_down: 5", "per_down: 20") // any blow downs, and a down reaches the goal
+				field, _ := data.Map("battlefield")
+				west := field.Points[0]
+				results := &worldtest.Results{}
+				ayla, robin := fighterFrom(t, data, "Ayla"), fighterFrom(t, data, "Robin")
+				inst, sinks, stop := aBattle(t, data, results, [2][]model.Player{{ayla}, {robin}})
+				defer stop()
+				as := sinks[ayla.ID]
+				sleep(data.Pvp().Battle.Prep + worldtest.TickInterval)
+				at := west.At.X + west.Radius + 3 // clear of the point
+				if c.hold {
+					at = west.At.X + west.Radius - 0.3 // just in it, Robin just out
+				}
+				seq := march(inst, sinks, 0, at+1.2, robin.ID)
+				march(inst, sinks, seq, at, ayla.ID)
+				for range ticks(20 * time.Second) {
+					if !c.hold || lastState(as).Score[0] > 0 {
+						break
+					}
+					sleep(worldtest.TickInterval)
+				}
+				before := lastState(as).Score
+				for range 400 {
+					strikeAt(inst, as, ayla.ID, robin.ID)
+					strikeAt(inst, as, robin.ID, ayla.ID)
+					sleep(worldtest.TickInterval)
+					if len(worldtest.Of[model.Died](as)) > 0 {
+						break
+					}
+				}
+				died := worldtest.Of[model.Died](as)
+				got := results.All()
+				if len(died) != 2 || died[0].Tick != died[1].Tick || len(got) != 1 || got[0].Winner != c.winner || got[0].Score != [2]int{before[0] + 20, 20} || lastState(as).Tick != died[0].Tick {
+					t.Fatalf("from %v, Died %+v, outcomes %+v; want both down on one tick, side 1 at %d and side 2 at 20, and side %d's win there", before, died, got, before[0]+20, c.winner)
+				}
+				if c.hold && before[0] == 0 {
+					t.Fatal("Ayla's side scored nothing from the point before the downs")
+				}
+			})
+		})
+	}
+}
+
 // pvp.md section 7: a base keeps the other side's bodies out, walking or knocked back, and heals its own side base_heal of max HP a second, nobody outside it.
 func TestABaseKeepsTheOtherSideOutAndHealsItsOwn(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {

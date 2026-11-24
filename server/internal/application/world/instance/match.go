@@ -359,7 +359,7 @@ func (i *Instance) enterPhase(phase model.MatchPhase, d time.Duration) {
 	i.events = append(i.events, i.matchState())
 }
 
-// stepMatch runs the match's clock at the tick's start: prep and between into a countdown, the countdown into a round, a round out of time to its outcome, and the result out. A battle's prep goes straight into its fight, which ends on time to the side ahead.
+// stepMatch runs the match's clock at the tick's start: prep and between into a countdown, the countdown into a round, a round out of time to its outcome, and the result out. A battle's prep goes straight into its fight, which stepBattle ends.
 func (i *Instance) stepMatch() {
 	mt := i.match
 	if mt == nil || i.tick < mt.ends {
@@ -392,8 +392,7 @@ func (i *Instance) stepMatch() {
 		i.enterPhase(model.PhaseFight, mt.Mode.Rounds.Length)
 	case model.PhaseFight:
 		if mt.battle != nil {
-			i.endMatch(mt.battle.leader())
-			return
+			return // stepBattle ends it, once its last second has scored
 		}
 		i.endRound(i.onTime())
 	case model.PhaseBetween:
@@ -550,7 +549,7 @@ func (i *Instance) someoneCame() bool {
 	return false
 }
 
-// standIn has a bot of the spec's stand-in tier take a team fighter's place the tick they leave before the outcome: their body as it stands, with their class, name, HP and energy, or a fresh one at their spot for one who never came, down if they were at 0 HP, getting up in a battle when they would have; the tier's build for the class, as a bot plays from its order. Its arrival tells everyone the match with the slot now the bot's. Nothing outside a team mode, once decided, or for a side's last player, whose side concedes.
+// standIn has a bot of the spec's stand-in tier take a team fighter's place the tick they leave before the outcome: their body as it stands, with their class, name, HP and energy, or a fresh one at their spot for one who never came, down if they were, getting up in a battle when they would have; the tier's build for the class, as a bot plays from its order. Its arrival tells everyone the match with the slot now the bot's. Nothing outside a team mode, once decided, or for a side's last player, whose side concedes.
 func (i *Instance) standIn(id kernel.CharacterID, body *player) {
 	mt := i.match
 	f := mt.fighters[id]
@@ -580,12 +579,8 @@ func (i *Instance) standIn(id kernel.CharacterID, body *player) {
 		st.VX, st.VY, st.VZ, st.Move, st.Held, st.Slow = 0, 0, 0, sim.Move{}, 0, sim.Slow{}
 		p.state, p.aim = st, body.aim
 		p.HP, p.Energy = min(body.HP, p.derived.MaxHP), body.Energy
-		if body.dead || body.HP <= 0 {
+		if body.dead { // the downs settle before anyone leaves a tick, so a body at 0 HP is down already
 			p.HP, p.dead, p.deadUntil = 0, true, body.deadUntil
-			if !body.dead {
-				f.downs++ // they fell this tick: the down is theirs
-				p.deadUntil = i.downFor()
-			}
 		}
 		p.changed, p.moved = true, true
 	}
