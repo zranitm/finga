@@ -636,6 +636,26 @@ Built with step 1, which says who watches a cell.
       - a deep river crossed only at its ford, and nothing in a shipped region reaching deep water; every ford walked across both ways (the ford ramp);
       - a bat's spit across a strip of deep water landing on the far side.
     - Before it, a player in the test region reached 13,039 cells of riverbed, about 3,300 m², walking under up to 2.5 m of water.
+- **As built (step 5b-2): water.**
+  - **Reading it:** the region reads `region.json`'s rivers and lakes, and its palette's water colour. A palette with no water is refused, as a plan's kit must have one.
+  - **A river** is a ribbon along its smoothed path, at each point's level:
+    - its channel's half width plus 2 m out on each side, square to the line from the point before to the one after;
+    - the 2 m runs under the banks' ground, which stands at least 0.5 m over the water.
+  - **A lake** is its area grown 2 m past every side, at its level:
+    - each corner moves out along the line between its two sides', at most 6 m, so a sharp corner doesn't spike;
+    - it's cut into triangles by earcut (Mapbox's, ISC, no dependencies). Vetted: the source scanned, no install scripts, no OSV advisories.
+  - **Drawn** as the region loads, one mesh each:
+    - toon at 0.85 in the water's colour, taking the sun's shadows;
+    - neither streams with the chunks: a river is a few dozen triangles, a lake fewer;
+    - the whole channel is covered, so a ford shows as shallow water over its bed.
+  - **Tests:**
+    - the tiny bake's river laid along x = 96 from 91 to 101 m at its levels;
+    - a bend's pairs square across it, either way it runs;
+    - the test region's lake grown 2 m from each side's line, covered once, either way its corners run;
+    - a sharp corner capped at 6 m;
+    - every triangle facing up, wound as the ground's are;
+    - the water's colour and alpha, and the meshes going with the region;
+    - region.json read with a lake, with none written as null, and refused with no water.
 - **Entities:** only what the server sends (section 5).
   - Name labels show for the 40 nearest, and for party members and the lock.
   - HP bars show for the party, the lock, and mobs hit in the last 5 s.
@@ -676,10 +696,10 @@ Built with step 1, which says who watches a cell.
     - 15.5 MB of buffers and a 123 MB JS heap.
     - At 32:9 (2560×720), props reach the sides of the view at full zoom.
   - **Not yet:**
-    - the looks grid, cascaded shadows and water (5b);
+    - the looks grid, cascaded shadows and water (5b; water built in 5b-2, below);
     - label and bar limits, and map tiles (5c);
     - the loading screen's hold, with 4b, when a player first enters a region (built in 4b-2b, below).
-    - A river's bed steps 1 m at a time along its banks until 5b's water covers it.
+    - A river's bed steps 1 m at a time along its banks until 5b's water covers it (5b-2 does).
 - **As built (step 4b-2b): the sim walks the bake.**
   - **The ground:** a region's map JSON has no geometry. `loadMap` reads its `region.json` and overview, and the map's geometry is a `RegionGround`: one Float32Array of heights for the region, its steep and deep marks a byte a cell or sample, and its solids at the server's indices, all empty till their chunks come.
     - Each chunk fills its own samples and the cells between them as the worker returns it, drawn or dropped. `markSteep` marks the cells, the same function a whole map's terrain runs, so both mark alike.

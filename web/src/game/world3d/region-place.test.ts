@@ -408,6 +408,21 @@ describe('a region drawn from its bake', () => {
     expect(scene.meshes).toEqual([]);
   });
 
+  it('lays its river’s water before any chunk comes, along its path at its levels, and lets it go with itself', async () => {
+    await built();
+    const river = scene.getMeshByName('river 0') as Mesh;
+    expect(river.parent?.name).toBe('region tiny');
+    const at = river.getVerticesData('position')!;
+    const xs = at.filter((_, k) => k % 3 === 0);
+    expect([Math.min(...xs), Math.max(...xs)]).toEqual([91, 101]); // the tiny plan's river along x = 96, 6 m wide
+    expect(at[1]).toBeCloseTo(-1.079, 3);
+    expect(asked).toEqual([]);
+    expect(scene.getMeshByName('lake 0')).toBeNull(); // it has none
+    place!.dispose();
+    place = undefined;
+    expect(scene.getMeshByName('river 0')).toBeNull();
+  });
+
   it('stands its waypoints’ stones before any chunk comes, each one’s look among its own, and lets them go with itself', async () => {
     await built();
     expect(place!.looks).toHaveLength(1); // the field's, which the world fades out of the camera's way
