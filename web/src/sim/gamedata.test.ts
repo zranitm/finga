@@ -355,6 +355,7 @@ describe('generated gamedata', () => {
         boss: null,
         place: null,
         points: [],
+        bases: [],
       });
     }
   });
