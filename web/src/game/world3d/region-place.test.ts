@@ -423,6 +423,18 @@ describe('a region drawn from its bake', () => {
     expect(scene.getMeshByName('river 0')).toBeNull();
   });
 
+  it('says nothing of its stones’ model coming after it and its scene went', async () => {
+    const said = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    await built();
+    place!.dispose();
+    place = undefined;
+    scene.dispose();
+    await kitsIn(); // the stone model's load fails on the scene gone, and is let go
+    expect(said).not.toHaveBeenCalled();
+    said.mockRestore();
+    scene = new Scene(engine); // for the next to dispose
+  });
+
   it('stands its waypoints’ stones before any chunk comes, each one’s look among its own, and lets them go with itself', async () => {
     await built();
     expect(place!.looks).toHaveLength(1); // the field's, which the world fades out of the camera's way
