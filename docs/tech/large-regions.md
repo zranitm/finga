@@ -568,6 +568,13 @@ Built with step 1, which says who watches a cell.
   - **The test region** is reached by its main town's waypoint, `town`.
   - **The stone lists** now come from the same `interest.of` that files a player: each stone goes in every cell holding a spot of the square 13 m round it. Edges built as `k × 32 m` could disagree with `interest.of` by a rounding on a cell's line.
   - **Copy rows:** test/rules' `TestEveryEventAndPushHasACopyRow` fails the build for a map event, world stream event or gateway push with no row in its conversion's copy test. `AreaEntered`, `ArenaBar` and `MatchState` had none and gained theirs.
+- **As built (step 6c-1), the map window:**
+  - **Data:** mapjson writes a region's waypoints into its map JSON: each one's id, name, stone's spot and `main`, from the Go loader, so the client works out no main town itself. The scene hands them to the map views' store, and `layoutOf` gives them for a map picked on the World tab.
+  - **Found:** a `waypoints` store holds the ids found, from `Welcome`'s list and then each `WaypointFound`. A find also says "Waypoint found: <name>" as a notice, the name from the player's own region. Leaving the character clears it.
+  - **Marks:** This map, and a region picked on the World tab, mark each stone with a diamond, cyan once found and grey till then. The minimap marks none.
+  - **Picking a mark** names it under the plan as "Found", "Main town, always open" or "Not found yet". Teleport here shows for a found one or a main town's while the player is alive, and sends `Teleport{waypoint}`. The bar says "Teleporting to <name>".
+  - **A region on the World tab** reads "Region" on its node, its card and its picked header, in place of levels, which its areas hold. It offers no Teleport here by its id.
+  - **No region is charted yet,** so a test charts the test region by a fixture.
 
 ## 9. The camera
 

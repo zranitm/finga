@@ -30,6 +30,15 @@ type Map struct {
 	Portals        []Portal      `json:"portals"`
 	PrepWall       *Wall         `json:"prep_wall,omitempty"` // a pvp map's, standing before each round
 	Region         *Region       `json:"region,omitempty"`    // a region's bake, which draws its ground, solids and props: it has no models
+	Waypoints      []Waypoint    `json:"waypoints,omitempty"` // a region's, which the map window marks
+}
+
+// Waypoint is a region's waypoint as the map window marks it: its stone's spot, and whether it's in the region's main town, open to a teleport unfound.
+type Waypoint struct {
+	ID   string     `json:"id"`
+	Name string     `json:"name"`
+	At   [2]float64 `json:"at"`
+	Main bool       `json:"main"`
 }
 
 // Region names the bake the client reads a region's looks from, web/public/regions/<id>/<hash>.
@@ -192,6 +201,9 @@ func region(dataDir string, m *gamedata.Map) (Map, error) {
 	}
 	for _, pt := range m.Portals {
 		out.Portals = append(out.Portals, Portal{Name: pt.Name, At: [2]float64{pt.At.X, pt.At.Z}, Radius: pt.Radius, To: pt.TargetMap})
+	}
+	for _, w := range m.Waypoints {
+		out.Waypoints = append(out.Waypoints, Waypoint{ID: w.ID, Name: w.Name, At: [2]float64{w.At.X, w.At.Z}, Main: w.Main})
 	}
 	return out, nil
 }

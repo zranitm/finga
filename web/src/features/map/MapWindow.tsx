@@ -1,4 +1,4 @@
-// The map window (map-views.md sections 6 and 12): This map, the whole map with its marks named and, in a region, its channels (large-regions.md section 4), and World, every map on the chart linked by its portals, any of which opens its layout.
+// The map window (map-views.md sections 6 and 12): This map, the whole map with its marks named and, in a region, its channels and waypoints (large-regions.md sections 4 and 8), and World, every map on the chart linked by its portals, any of which opens its layout.
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 
@@ -19,13 +19,16 @@ import { character } from '@/state/character';
 import { fieldBoss } from '@/state/field-boss';
 import type { BossDown } from '@/state/field-boss';
 import { mapView } from '@/state/map-view';
-import type { Spot } from '@/state/map-view';
+import type { MapWaypoint, Spot } from '@/state/map-view';
 import { party } from '@/state/party';
 import { pvp } from '@/state/pvp';
 import { teleport } from '@/state/teleport';
+import type { Destination } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
+import { waypoints } from '@/state/waypoints';
 
 import { MapMarks, useNpcMarkers } from './MapMarks';
+import { MARK_PX, WaypointMarks } from './WaypointMarks';
 
 type MapData = (typeof maps)[number];
 type Tab = 'here' | 'world';
@@ -49,6 +52,9 @@ type Charted = (typeof maps)[number] & { readonly place: readonly [number, numbe
 /** The maps on the world chart: every one but a match's, which only a match reaches. */
 const charted = maps.filter((m): m is Charted => m.place !== null);
 const levels = (m: MapData) => `Lv ${m.min_level}–${m.max_level}`;
+/** What a map is, under its name: a town, a region, whose areas have levels of their own, or a hunting map's levels. */
+const kindOf = (m: MapData) =>
+  m.kind === 'town' ? 'Town' : m.kind === 'region' ? 'Region' : levels(m);
 
 /** A label on This map, in pixels: its text centred on x, sitting on bottom. */
 export interface MapLabel extends TagBox {
@@ -105,7 +111,7 @@ function within(members: Spawn[]): Spawn[][] {
   return [near, ...(far.length > 0 ? within(far) : [])];
 }
 
-/** This map's labels at scale pixels a metre. A spawn group's label sits on one of its own circles, nearest the group's middle first, stepped up or down inside the circle, wherever it's in LABEL_REACH_M of all the group's circles and covers no quest mark or label before it; failing that, it's lifted. Portals and NPCs follow, each lifted clear of everything before it; then a beaten boss's, under its crown or over it, wherever it has BOSS_ROOM_PX round it, else lifted as the rest are; then the player's. */
+/** This map's labels at scale pixels a metre. A spawn group's label sits on one of its own circles, nearest the group's middle first, stepped up or down inside the circle, wherever it's in LABEL_REACH_M of all the group's circles and covers no quest mark, waypoint mark or label before it; failing that, it's lifted. Portals and NPCs follow, each lifted clear of everything before it; then a beaten boss's, under its crown or over it, wherever it has BOSS_ROOM_PX round it, else lifted as the rest are; then the player's. */
 export function mapLabels(
   map: MapData,
   me: Spot | null,
@@ -113,6 +119,7 @@ export function mapLabels(
   size: readonly [number, number],
   marked: ReadonlySet<string>,
   down: BossDown | null,
+  stones: readonly Spot[],
 ): MapLabel[] {
   const y = (z: number) => (size[1] - z) * scale;
   const box = (kind: MapLabel['kind'], text: string, x: number, bottom: number) => {
@@ -129,9 +136,17 @@ export function mapLabels(
     };
   };
   const here = npcs.npcs.filter((n) => n.map === map.id);
-  const placed: TagBox[] = here
-    .filter((n) => marked.has(n.id))
-    .map((n) => ({ x: n.x * scale, bottom: y(n.z) - 2 * DOT_PX, w: 10, h: 14 }));
+  const placed: TagBox[] = [
+    ...here
+      .filter((n) => marked.has(n.id))
+      .map((n) => ({ x: n.x * scale, bottom: y(n.z) - 2 * DOT_PX, w: 10, h: 14 })),
+    ...stones.map((w) => ({
+      x: w.x * scale,
+      bottom: y(w.z) + 1.4 * MARK_PX,
+      w: 2 * MARK_PX,
+      h: 2.8 * MARK_PX,
+    })),
+  ];
   const step = LABEL_PX + 2 + TAG_GAP;
   const tried = spawnGroups(map.spawns).map((members) => {
     const mob = mobById(members[0]!.mob);
@@ -207,16 +222,48 @@ function BackIn({ down }: { readonly down: BossDown }) {
   return backIn(down.type, down.backAt - now);
 }
 
-/** A map's size in metres east and north, and its ground's image, which the map window is given for a map the scene hasn't drawn. */
+/** A map's size in metres east and north, its ground's image and a region's waypoints, which the map window is given for a map the scene hasn't drawn. */
 export interface MapLayout {
   readonly size: readonly [number, number];
   readonly image: string;
+  readonly waypoints: readonly MapWaypoint[];
 }
 
-/** map's layout to fit the window: the scene's map, or one from its layout; the player's label and the live marks only on their own. */
-function Plan({ map, layout }: { readonly map: MapData; readonly layout?: MapLayout }) {
+/** A channel asked of the server by ask: its answer starts the bar for to and closes the window; a refusal says why as a notice and leaves the window open. */
+function useChannel(onClose: () => void) {
+  const [asking, setAsking] = useState(false);
+  const start = (ask: () => Promise<unknown>, to: Destination) => {
+    setAsking(true);
+    ask().then(
+      () => {
+        teleport.getState().start(to);
+        onClose();
+      },
+      (err: unknown) => {
+        setAsking(false);
+        toasts.getState().push(problemOf(err));
+      },
+    );
+  };
+  return { asking, start };
+}
+
+/** map's layout to fit the window: the scene's map, or one from its layout; the player's label and the live marks only on their own. A region's waypoints are marked, picked's ringed. */
+function Plan({
+  map,
+  layout,
+  picked,
+  onPick,
+}: {
+  readonly map: MapData;
+  readonly layout?: MapLayout;
+  readonly picked: string | null;
+  readonly onPick: (id: string) => void;
+}) {
   const current = mapView.use((s) => s.mapId);
   const size = mapView.use((s) => s.size);
+  const shown = mapView.use((s) => s.waypoints);
+  const marks = layout?.waypoints ?? (map.id === current ? shown : []);
   const me = mapView.use((s) => s.me);
   const beaten = fieldBoss.use((s) => s.down);
   const down = map.id === current ? beaten : null;
@@ -230,6 +277,7 @@ function Plan({ map, layout }: { readonly map: MapData; readonly layout?: MapLay
     [sx, sz],
     new Set(markers.keys()),
     down,
+    marks,
   );
   return (
     <svg
@@ -253,6 +301,13 @@ function Plan({ map, layout }: { readonly map: MapData; readonly layout?: MapLay
             {l.kind === 'boss' && down ? <BackIn down={down} /> : l.text}
           </text>
         ))}
+        <WaypointMarks
+          waypoints={marks}
+          unit={1 / scale}
+          height={sz}
+          picked={picked}
+          onPick={onPick}
+        />
       </MapMarks>
     </svg>
   );
@@ -261,15 +316,48 @@ function Plan({ map, layout }: { readonly map: MapData; readonly layout?: MapLay
 function ThisMap({ socket, onClose }: Pick<WorldProps, 'socket' | 'onClose'>) {
   const mapId = mapView.use((s) => s.mapId);
   const channel = mapView.use((s) => s.channel);
+  const marks = mapView.use((s) => s.waypoints);
+  const [picked, setPicked] = useState<string | null>(null);
   const map = maps.find((m) => m.id === mapId);
   if (!map) {
     return <p className="muted">No map yet.</p>;
   }
+  const pick = marks.find((w) => w.id === picked); // ids are unique across regions, so a pick goes with its map
   return (
     <>
       {channel > 0 && <Channels socket={socket} onClose={onClose} />}
-      <Plan map={map} />
+      <Plan map={map} picked={pick?.id ?? null} onPick={setPicked} />
+      {pick && <WaypointPick waypoint={pick} socket={socket} onClose={onClose} />}
     </>
+  );
+}
+
+/** The waypoint picked on a plan: its name, whether it's found, and Teleport here where the server takes one, to a found waypoint or a main town's, the player alive (large-regions.md section 8). */
+function WaypointPick({
+  waypoint,
+  socket,
+  onClose,
+}: { readonly waypoint: MapWaypoint } & Pick<WorldProps, 'socket' | 'onClose'>) {
+  const found = waypoints.use((s) => s.found.has(waypoint.id));
+  const dead = character.use((s) => s.dead);
+  const { asking, start } = useChannel(onClose);
+  const go = () =>
+    start(() => socket.request('teleport', { waypoint: waypoint.id }, socket.sequence), {
+      waypoint: waypoint.id,
+      name: waypoint.name,
+    });
+  return (
+    <section className="map-waypoint-pick" aria-label="Waypoint">
+      <strong>{waypoint.name}</strong>
+      <span className="muted">
+        {found ? 'Found' : waypoint.main ? 'Main town, always open' : 'Not found yet'}
+      </span>
+      {(found || waypoint.main) && !dead && (
+        <button type="button" className="btn" disabled={asking} onClick={go}>
+          Teleport here
+        </button>
+      )}
+    </section>
   );
 }
 
@@ -286,7 +374,7 @@ function Channels({ socket, onClose }: Pick<WorldProps, 'socket' | 'onClose'>) {
   const mine = mapView.use((s) => s.channel);
   const dead = character.use((s) => s.dead);
   const [list, setList] = useState<ChannelList | null>(null);
-  const [asking, setAsking] = useState(false);
+  const { asking, start } = useChannel(onClose);
   useEffect(() => {
     let on = true;
     const ask = () => {
@@ -302,19 +390,8 @@ function Channels({ socket, onClose }: Pick<WorldProps, 'socket' | 'onClose'>) {
       clearInterval(every);
     };
   }, [socket]);
-  const go = (n: number) => {
-    setAsking(true);
-    socket.request('switchChannel', { channel: n }, socket.sequence).then(
-      () => {
-        teleport.getState().start({ channel: n });
-        onClose();
-      },
-      (err: unknown) => {
-        setAsking(false);
-        toasts.getState().push(problemOf(err));
-      },
-    );
-  };
+  const go = (n: number) =>
+    start(() => socket.request('switchChannel', { channel: n }, socket.sequence), { channel: n });
   return (
     <section className="map-channels" aria-label="Channels">
       <strong>Channel {mine}</strong>
@@ -362,20 +439,11 @@ function Picked({
 }: WorldProps & { readonly map: MapData; readonly onBack: () => void }) {
   const own = mapView.use((s) => s.mapId) === map.id;
   const dead = character.use((s) => s.dead);
-  const [asking, setAsking] = useState(false);
-  const go = () => {
-    setAsking(true);
-    socket.request('teleport', { mapId: map.id }, socket.sequence).then(
-      () => {
-        teleport.getState().start({ map: map.id });
-        onClose();
-      },
-      (err: unknown) => {
-        setAsking(false);
-        toasts.getState().push(problemOf(err));
-      },
-    );
-  };
+  const shown = mapView.use((s) => s.waypoints);
+  const { asking, start } = useChannel(onClose);
+  const [picked, setPicked] = useState<string | null>(null);
+  const go = () =>
+    start(() => socket.request('teleport', { mapId: map.id }, socket.sequence), { map: map.id });
   const myId = character.use((s) => s.character?.id);
   const members = party.use((s) => s.party?.members) ?? [];
   const [layout, setLayout] = useState<MapLayout | 'failed' | null>(null);
@@ -395,6 +463,8 @@ function Picked({
   const here = own
     ? []
     : members.filter((p) => p.online && p.mapId === map.id && p.characterId !== myId);
+  const marks = own ? shown : layout && layout !== 'failed' ? layout.waypoints : [];
+  const pick = marks.find((w) => w.id === picked);
   return (
     <div className="map-picked">
       <div className="map-picked-head">
@@ -402,12 +472,14 @@ function Picked({
           Back
         </button>
         <strong>{map.name}</strong>
-        <span className="muted">{map.kind === 'town' ? 'Town' : levels(map)}</span>
-        {!own && !dead && (
-          <button type="button" className="btn" disabled={asking} onClick={go}>
-            Teleport here
-          </button>
-        )}
+        <span className="muted">{kindOf(map)}</span>
+        {!own &&
+          !dead &&
+          map.kind !== 'region' && ( // a region is reached by its waypoints
+            <button type="button" className="btn" disabled={asking} onClick={go}>
+              Teleport here
+            </button>
+          )}
       </div>
       {here.length > 0 && (
         <ul className="map-picked-party" aria-label={`Party in ${map.name}`}>
@@ -417,14 +489,15 @@ function Picked({
         </ul>
       )}
       {own ? (
-        <Plan map={map} />
+        <Plan map={map} picked={pick?.id ?? null} onPick={setPicked} />
       ) : layout === 'failed' ? (
         <p className="muted">The map didn’t load.</p>
       ) : layout ? (
-        <Plan map={map} layout={layout} />
+        <Plan map={map} layout={layout} picked={pick?.id ?? null} onPick={setPicked} />
       ) : (
         <p className="muted">Loading…</p>
       )}
+      {pick && <WaypointPick waypoint={pick} socket={socket} onClose={onClose} />}
     </div>
   );
 }
@@ -521,7 +594,7 @@ function World(props: WorldProps) {
               </text>
               {!town && (
                 <text className="map-node-levels" x={x} y={y + 6.6} textAnchor="middle">
-                  {levels(m)}
+                  {kindOf(m)}
                 </text>
               )}
               {names.map((p, i) => (
@@ -551,7 +624,7 @@ function World(props: WorldProps) {
           )}
         >
           <strong>{card.name}</strong>
-          <div className="muted">{card.kind === 'town' ? 'Town' : levels(card)}</div>
+          <div className="muted">{kindOf(card)}</div>
           <ul>
             {[...new Set(card.spawns.map((s) => s.mob))]
               .flatMap((id) => mobById(id) ?? [])

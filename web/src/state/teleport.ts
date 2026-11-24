@@ -1,8 +1,11 @@
 // The player's teleport channel as the screen shows it (teleport.md section 4): from the Response that started it till its MapChange, its TeleportCancelled, or a key the server cancels it for. A switch of channels runs on it too (large-regions.md section 4).
 import { defineStore } from './store';
 
-/** Where a channel takes the player: another map, or another channel of their region. */
-export type Destination = { readonly map: string } | { readonly channel: number };
+/** Where a channel takes the player: another map, a waypoint, named as the bar shows it, or another channel of their region. */
+export type Destination =
+  | { readonly map: string }
+  | { readonly waypoint: string; readonly name: string }
+  | { readonly channel: number };
 
 export interface TeleportState {
   readonly to: Destination | null;

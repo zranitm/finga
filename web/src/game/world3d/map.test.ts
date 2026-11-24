@@ -112,6 +112,18 @@ describe('loadMap', () => {
     ]);
   });
 
+  it('carries a region’s waypoints as Go wrote them, its main town’s marked, and none for a map', async () => {
+    const { waypoints } = await loadMap('test_region');
+    expect(waypoints.map((w) => [w.id, w.main])).toEqual([
+      ['town', true],
+      ['west', false],
+      ['north', false],
+      ['woods', false],
+    ]);
+    expect(waypoints[1]).toEqual({ id: 'west', name: 'West Field', x: 60, z: 85, main: false });
+    expect((await loadMap('forest')).waypoints).toEqual([]);
+  });
+
   it('refuses what isn’t a map mapjson wrote', async () => {
     await expect(read({ id: 'x' })).rejects.toThrow();
     await expect(read(null)).rejects.toThrow();

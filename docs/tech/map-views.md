@@ -96,6 +96,7 @@ The minimap and the This map tab both draw from this one image. Neither redraws 
   - "<Mob> Lv <level>" by each spawn circle;
   - "You" by the player.
 - **Labels** keep clear of each other with the name-tag rule the world's labels use.
+- **In a region:** its channels (large-regions.md section 4) and its waypoints, marked grey till found and picked for a teleport (section 8, step 6c-1).
 - **As built:**
   - the rule (`stackTags`) moved to `lib/tags.ts` for both to use;
   - labels go in order: spawns, portals, NPCs, then "You", each lifted clear of the NPCs' quest marks and the labels before it, so only "You" moves as the player walks;
@@ -118,6 +119,7 @@ The minimap and the This map tab both draw from this one image. Neither redraws 
   - the player's map is ringed and labelled "You are here";
   - each party member's map (`PartyMember.map_id`) shows their name under it, and an offline member shows none.
 - **Pointing at a node** shows a small card: the map's name, its level range, and its mobs with their levels, from the map's `spawns`.
+- **A region** reads "Region" in place of a level range, and is reached by its waypoints when picked (large-regions.md section 8).
 - **Every map shows from the start.**
 - **Clicking a node** shows that map's layout (section 12).
 - **As built:** the card opens toward the chart's middle, so it stays inside the window; focusing a node with Tab shows it too.

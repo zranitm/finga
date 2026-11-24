@@ -1,4 +1,4 @@
-// Each map's layout for the map window's World tab, fetched once a session (map-views.md section 12).
+// Each map's layout for the map window's World tab, fetched once a session (map-views.md section 12): its size, ground and a region's waypoints.
 import type { MapLayout } from '@/features/map/MapWindow';
 import { groundImage } from '@/game/map-image';
 import { loadMap } from '@/game/world3d/map';
@@ -12,6 +12,7 @@ export function layoutOf(id: string): Promise<MapLayout> {
     layout = loadMap(id).then((m) => ({
       size: [m.geometry.size_x, m.geometry.size_z] as const,
       image: groundImage(m),
+      waypoints: m.waypoints,
     }));
     kept.set(id, layout);
     layout.catch(() => kept.delete(id));

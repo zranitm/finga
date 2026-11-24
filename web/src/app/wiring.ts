@@ -39,6 +39,7 @@ import type { ActiveBuff, Cooldown } from '@/state/skill-bar';
 import { teleport } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
+import { waypoints } from '@/state/waypoints';
 
 /** Why a teleport ended early, as its notice says it; a death's screen says it already. */
 const CANCELLED: Partial<Record<TeleportCancelReason, string>> = {
@@ -115,6 +116,7 @@ export function wireSocket(socket: GameSocket): () => void {
       energy.getState().welcome(m.d.character?.energy ?? 0);
       inventory.getState().applyWelcome(m.d);
       quests.getState().applyWelcome(m.d);
+      waypoints.getState().applyWelcome(m.d.waypoints);
       ui.getState().closeWindow('npc');
       pvp.getState().applyUnqueued(); // a join is out of any match; the queue sends its ticket again
       leaveMatch();
@@ -175,6 +177,11 @@ export function wireSocket(socket: GameSocket): () => void {
       const text = `${mobName(m.d.type)} has appeared!`; // only its map hears it
       toasts.getState().push(text, 'info');
       chat.getState().notice(text);
+    }),
+    socket.on('waypointFound', (m) => {
+      waypoints.getState().find(m.d.waypoint);
+      const found = mapView.getState().waypoints.find((w) => w.id === m.d.waypoint); // found where the player stands
+      toasts.getState().push(`Waypoint found: ${found?.name ?? m.d.waypoint}`, 'info');
     }),
     socket.on('fieldBossGone', (m) => {
       fieldBoss.getState().applyGone(m.d);
@@ -409,6 +416,7 @@ export function leaveCharacter(): void {
   combatLog.getState().clear();
   pouches.getState().clear();
   fieldBoss.getState().clear();
+  waypoints.getState().clear();
   teleport.getState().end();
   pvp.getState().clear();
 }

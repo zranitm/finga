@@ -7,6 +7,15 @@ export interface Spot {
   readonly z: number;
 }
 
+/** A region's waypoint, as the map window marks it: its stone's spot, and whether it's in the region's main town, open to a teleport unfound (large-regions.md section 8). */
+export interface MapWaypoint {
+  readonly id: string;
+  readonly name: string;
+  readonly x: number;
+  readonly z: number;
+  readonly main: boolean;
+}
+
 /** Where the bodies the map views mark are drawn now. */
 export interface MapMarks {
   readonly me: (Spot & { readonly yaw: number }) | null; // yaw from north toward east
@@ -20,8 +29,14 @@ export interface MapViewState extends MapMarks {
   readonly channel: number; // the region's channel the player's latest Snapshot named; 0 off regions
   readonly size: readonly [number, number]; // metres east and north
   readonly image: string; // the ground's image URL; '' where none could be drawn
-  /** A map loaded: its ground's image, and no marks till the scene places them. */
-  showMap(mapId: string, size: readonly [number, number], image: string): void;
+  readonly waypoints: readonly MapWaypoint[]; // a region's; none elsewhere
+  /** A map loaded: its ground's image and its waypoints, and no marks till the scene places them. */
+  showMap(
+    mapId: string,
+    size: readonly [number, number],
+    image: string,
+    waypoints: readonly MapWaypoint[],
+  ): void;
   mark(marks: MapMarks): void;
   /** The player's Snapshot named their channel: one per join and map change. */
   inChannel(channel: number): void;
@@ -35,9 +50,10 @@ export const mapView = defineStore<MapViewState>((set) => ({
   channel: 0,
   size: [0, 0],
   image: '',
+  waypoints: [],
   ...NONE,
-  showMap: (mapId, size, image) => {
-    set({ mapId, size, image, ...NONE });
+  showMap: (mapId, size, image, waypoints) => {
+    set({ mapId, size, image, waypoints, ...NONE });
   },
   mark: (marks) => {
     set(marks);
@@ -46,6 +62,6 @@ export const mapView = defineStore<MapViewState>((set) => ({
     set({ channel });
   },
   clear: () => {
-    set({ mapId: null, channel: 0, size: [0, 0], image: '', ...NONE });
+    set({ mapId: null, channel: 0, size: [0, 0], image: '', waypoints: [], ...NONE });
   },
 }));
