@@ -43,6 +43,7 @@ type match struct {
 	ring     *bots.Ring              // what its bots see; nil in a match with none
 	seen     []bots.Seen             // the ring's frame as it's filled
 	teams    [2]*bots.Team           // what each side's bots share in a team mode; nil in 1v1
+	battle   *battle                 // a battle's; nil in a round mode
 }
 
 // fighter is a place in the match and how its fighter did.
@@ -97,8 +98,12 @@ func (toMatchMsg) message() {}
 func (fightMsg) message()   {}
 func (buildMsg) message()   {}
 
-func newMatch(m Match, rules gamedata.PvpRules, tick func(time.Duration) uint64) *match {
+func newMatch(m Match, rules gamedata.PvpRules, points []gamedata.CapturePoint, tickInterval time.Duration) *match {
+	tick := func(d time.Duration) uint64 { return model.TicksIn(d, tickInterval) }
 	mt := &match{Match: m, rules: rules, phase: model.PhasePrep, round: 1, ends: tick(rules.Rounds.Prep), started: time.Now(), fighters: map[kernel.CharacterID]*fighter{}}
+	if m.Mode.Battle() {
+		mt.round, mt.ends, mt.battle = 0, tick(rules.Battle.Prep), newBattle(rules.Battle, points, tickInterval)
+	}
 	for s, side := range m.Spec.Sides {
 		for k, f := range side {
 			id := f.Character
@@ -138,7 +143,7 @@ func (i *Instance) CanFight(ctx context.Context, id kernel.CharacterID) error {
 	return i.ask(ctx, m, m.done)
 }
 
-// SetBuild hands the match a player's arena build, which they fight with from its next round's countdown; one older than a revision it has changes nothing, nor one of a player it doesn't have.
+// SetBuild hands the match a player's arena build, which they fight with from its next round's countdown, or in a battle from its fight or their next respawn; one older than a revision it has changes nothing, nor one of a player it doesn't have.
 func (i *Instance) SetBuild(ctx context.Context, id kernel.CharacterID, b model.Build) error {
 	m := buildMsg{id: id, build: b, done: make(chan error, 1)}
 	return i.ask(ctx, m, m.done)
@@ -152,19 +157,24 @@ func (i *Instance) setBuild(m buildMsg) {
 	m.done <- nil
 }
 
-// wearBuilds puts on each player the build they were sent since the last countdown, its bar and its traits from this round, and tells them both.
+// wearBuilds puts on each player the build they were sent since the last countdown, or before a battle's fight.
 func (i *Instance) wearBuilds() {
 	for id, f := range i.match.fighters {
-		if f.next == nil {
-			continue
-		}
-		if p, ok := i.players[id]; ok {
-			p.arenaBar, p.Skills.Traits = f.next.Bar, maps.Clone(f.next.Traits)
-			p.private = append(p.private, model.ArenaBar{Tick: i.tick, Bar: f.next.Bar})
-			i.restat(p)
-		}
-		f.next = nil
+		i.wearBuild(id, f)
 	}
+}
+
+// wearBuild puts on the player the build they were sent since they last put one on, its bar and its traits, and tells them both.
+func (i *Instance) wearBuild(id kernel.CharacterID, f *fighter) {
+	if f.next == nil {
+		return
+	}
+	if p, ok := i.players[id]; ok {
+		p.arenaBar, p.Skills.Traits = f.next.Bar, maps.Clone(f.next.Traits)
+		p.private = append(p.private, model.ArenaBar{Tick: i.tick, Bar: f.next.Bar})
+		i.restat(p)
+	}
+	f.next = nil
 }
 
 // onArenaBar refuses a skill pressed on a key p's arena bar doesn't hold: the key of a chain's root, or the skill's own. Only a match's player wearing a build has one.
@@ -274,18 +284,21 @@ func subStats(a, b gamedata.Stats) gamedata.Stats {
 	return gamedata.Stats{STR: a.STR - b.STR, DEX: a.DEX - b.DEX, INT: a.INT - b.INT, AGI: a.AGI - b.AGI, VIT: a.VIT - b.VIT}
 }
 
-// fighting is whether the match lets its fighters attack and use skills: in a round, not before or after.
+// fighting is whether the match lets its fighters attack and use skills: in a round or a battle's fight, not before or after.
 func (i *Instance) fighting() bool { return i.match == nil || i.match.phase == model.PhaseFight }
 
-// walled is whether the prep wall stands: before a round starts.
+// walled is whether the prep wall stands: before a round or a battle's fight starts.
 func (i *Instance) walled() bool {
 	return i.match != nil && (i.match.phase == model.PhasePrep || i.match.phase == model.PhaseCountdown)
 }
 
-// geometry is the map's solids, with the prep wall while it stands.
-func (i *Instance) geometry() sim.Geometry {
-	if i.walled() {
+// geometry is what p's body moves through: the map's solids, with the prep wall while it stands, and in a battle's fight the other side's base.
+func (i *Instance) geometry(p *player) sim.Geometry {
+	switch {
+	case i.walled():
 		return i.m.Walled
+	case i.match != nil && i.match.battle != nil:
+		return i.m.Kept[i.match.fighters[p.ID].side]
 	}
 	return i.m.Geometry
 }
@@ -322,6 +335,9 @@ func (i *Instance) retime(p *player) {
 func (i *Instance) matchState() model.MatchState {
 	mt := i.match
 	st := model.MatchState{Tick: i.tick, Match: mt.Spec.ID, Mode: mt.Mode.ID, Phase: mt.phase, Round: mt.round, Wins: mt.wins}
+	if mt.battle != nil {
+		mt.battle.view(&st)
+	}
 	if mt.ends > i.tick {
 		st.EndsIn = time.Duration(mt.ends-i.tick) * i.tuning.TickInterval
 	}
@@ -334,16 +350,16 @@ func (i *Instance) matchState() model.MatchState {
 	return st
 }
 
-// enterPhase moves the match to phase for d and tells everyone on it; a countdown puts on the builds sent since the last.
+// enterPhase moves the match to phase for d and tells everyone on it; a countdown, or a battle's fight, puts on the builds sent since the last.
 func (i *Instance) enterPhase(phase model.MatchPhase, d time.Duration) {
-	if phase == model.PhaseCountdown {
+	if phase == model.PhaseCountdown || phase == model.PhaseFight && i.match.battle != nil {
 		i.wearBuilds()
 	}
 	i.match.phase, i.match.ends = phase, i.tick+i.ticksFor(d)
 	i.events = append(i.events, i.matchState())
 }
 
-// stepMatch runs the match's clock at the tick's start: prep and between into a countdown, the countdown into a round, a round out of time to its outcome, and the result out.
+// stepMatch runs the match's clock at the tick's start: prep and between into a countdown, the countdown into a round, a round out of time to its outcome, and the result out. A battle's prep goes straight into its fight, which ends on time to the side ahead.
 func (i *Instance) stepMatch() {
 	mt := i.match
 	if mt == nil || i.tick < mt.ends {
@@ -365,13 +381,20 @@ func (i *Instance) stepMatch() {
 				i.standIn(id, nil)
 			}
 		}
-		if i.settleLeavers() {
-			return
+		switch {
+		case i.settleLeavers():
+		case mt.battle != nil:
+			i.enterPhase(model.PhaseFight, mt.rules.Battle.Length)
+		default:
+			i.enterPhase(model.PhaseCountdown, mt.rules.Rounds.Countdown)
 		}
-		i.enterPhase(model.PhaseCountdown, mt.rules.Rounds.Countdown)
 	case model.PhaseCountdown:
 		i.enterPhase(model.PhaseFight, mt.Mode.Rounds.Length)
 	case model.PhaseFight:
+		if mt.battle != nil {
+			i.endMatch(mt.battle.leader())
+			return
+		}
 		i.endRound(i.onTime())
 	case model.PhaseBetween:
 		mt.round++
@@ -382,9 +405,9 @@ func (i *Instance) stepMatch() {
 	}
 }
 
-// judgeRound ends the round when a whole side is down or gone: the other side takes it, and an even round when both are.
+// judgeRound ends the round when a whole side is down or gone: the other side takes it, and an even round when both are. A battle has no rounds: its downed get up.
 func (i *Instance) judgeRound() {
-	if i.match == nil || i.match.phase != model.PhaseFight {
+	if i.match == nil || i.match.battle != nil || i.match.phase != model.PhaseFight {
 		return
 	}
 	out := [2]bool{i.sideOut(0), i.sideOut(1)}
@@ -455,6 +478,9 @@ func (i *Instance) endMatch(winner int) {
 	mt := i.match
 	mt.winner = winner
 	r := model.MatchResult{Match: mt.Spec.ID, Mode: mt.Mode.ID, Started: mt.started, Ended: time.Now(), Winner: winner, Wins: mt.wins}
+	if mt.battle != nil {
+		r.Score = mt.battle.score
+	}
 	for s, side := range mt.order {
 		for _, id := range side {
 			f := mt.fighters[id]
@@ -524,7 +550,7 @@ func (i *Instance) someoneCame() bool {
 	return false
 }
 
-// standIn has a bot of the spec's stand-in tier take a team fighter's place the tick they leave before the outcome: their body as it stands, with their class, name, HP and energy, or a fresh one at their spot for one who never came, down if they were at 0 HP; the tier's build for the class, as a bot plays from its order. Its arrival tells everyone the match with the slot now the bot's. Nothing outside a team mode, once decided, or for a side's last player, whose side concedes.
+// standIn has a bot of the spec's stand-in tier take a team fighter's place the tick they leave before the outcome: their body as it stands, with their class, name, HP and energy, or a fresh one at their spot for one who never came, down if they were at 0 HP, getting up in a battle when they would have; the tier's build for the class, as a bot plays from its order. Its arrival tells everyone the match with the slot now the bot's. Nothing outside a team mode, once decided, or for a side's last player, whose side concedes.
 func (i *Instance) standIn(id kernel.CharacterID, body *player) {
 	mt := i.match
 	f := mt.fighters[id]
@@ -555,10 +581,11 @@ func (i *Instance) standIn(id kernel.CharacterID, body *player) {
 		p.state, p.aim = st, body.aim
 		p.HP, p.Energy = min(body.HP, p.derived.MaxHP), body.Energy
 		if body.dead || body.HP <= 0 {
+			p.HP, p.dead, p.deadUntil = 0, true, body.deadUntil
 			if !body.dead {
 				f.downs++ // they fell this tick: the down is theirs
+				p.deadUntil = i.downFor()
 			}
-			p.HP, p.dead, p.deadUntil = 0, true, math.MaxUint64
 		}
 		p.changed, p.moved = true, true
 	}
@@ -739,9 +766,10 @@ func (i *Instance) scaled(by kernel.CharacterID, amount float64) int {
 	return int(math.Round(amount * factor))
 }
 
-// down is a fighter at 0 HP in a match: out of the round with their action, statuses and buffs gone, as a death, but with no penalty and no respawn; the round's reset brings them back.
+// down is a fighter at 0 HP in a match: out of the round with their action, statuses and buffs gone, as a death, but with no penalty; the round's reset brings them back, or in a battle the respawn, and the down scores for the other side.
 func (i *Instance) down(p *player) {
-	p.HP, p.dead, p.deadUntil = 0, true, math.MaxUint64
+	p.HP, p.dead, p.deadUntil = 0, true, i.downFor()
+	i.scoreDown(p)
 	p.held, p.pending = sim.Input{}, p.pending[:0]
 	if len(p.buffs) > 0 {
 		clear(p.buffs)

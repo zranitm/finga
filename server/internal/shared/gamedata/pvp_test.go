@@ -9,7 +9,7 @@ import (
 	"finga/internal/shared/kernel"
 )
 
-// pvp.md section 6: with no build saved, a character's is their world bar's copy, a block not the class's own swapped for the class's block as a promotion does, and keys the class can't use, follow-ups or repeats left empty; it keeps the traits of the class's active skills, on the bar or not, as a follow-up rides on its root's key.
+// pvp.md section 6: with no build saved, a character's is their world bar's copy, a block not the class's own swapped for the class's block as a promotion does, and keys the class can't use or repeats left empty; it keeps the traits of the class's active skills, on the bar or not, as a follow-up rides on its root's key.
 func TestPvpCopyIsTheWorldBarAsTheClassCanUseIt(t *testing.T) {
 	skills := map[string]gamedata.Skill{
 		"strike":     {ID: "strike", Kind: gamedata.Active, Class: "beginner", Traits: []gamedata.Trait{{ID: "swift"}}},
@@ -21,7 +21,7 @@ func TestPvpCopyIsTheWorldBarAsTheClassCanUseIt(t *testing.T) {
 		"iron_body":  {ID: "iron_body", Kind: gamedata.Active, Class: "warrior", Traits: []gamedata.Trait{{ID: "steadfast"}}},
 	}
 	skill := func(id string) (gamedata.Skill, bool) { s, ok := skills[id]; return s, ok }
-	warrior := gamedata.Class{ID: "warrior", Line: []kernel.Class{"warrior", "beginner"}, Skills: []string{"war_cry", "toughness", "bastion", "iron_body"}, Chains: []gamedata.Chain{{Root: "strike", Follow: []gamedata.FollowUp{{Skill: "iron_body"}}}}}
+	warrior := gamedata.Class{ID: "warrior", Line: []kernel.Class{"warrior", "beginner"}, Skills: []string{"war_cry", "toughness", "bastion"}}
 	traits := map[string]string{"strike": "swift", "war_cry": "rally", "guard": "steady", "fire_arrow": "blaze", "iron_body": "steadfast"}
 	kept := map[string]string{"strike": "swift", "war_cry": "rally", "iron_body": "steadfast"}
 	tests := []struct {
@@ -35,7 +35,6 @@ func TestPvpCopyIsTheWorldBarAsTheClassCanUseIt(t *testing.T) {
 		{"the block moves to Guard's key", []string{"strike", "bastion", "guard", "", "", "", "", ""}, []string{"strike", "", "bastion", "", "", "", "", ""}, kept},
 		{"another class's skill, a passive, a repeat and an unknown left off", []string{"fire_arrow", "toughness", "strike", "strike", "gone", "war_cry", "", ""}, []string{"", "", "strike", "", "", "war_cry", "", ""}, kept},
 		{"a short bar filled out", []string{"war_cry"}, []string{"war_cry", "", "", "", "", "", "", ""}, kept},
-		{"a follow-up left off, its root keeping its key", []string{"strike", "iron_body", "", "", "", "", "", ""}, []string{"strike", "", "", "", "", "", "", ""}, kept},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

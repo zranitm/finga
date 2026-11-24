@@ -345,6 +345,23 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 			model.MatchEnded{Mode: "team", Result: model.MatchLoss, Wins: [2]int{2, 1}, Rating: &model.PvpRatingChange{Before: 1000, After: 968, RankBefore: "bronze", RankAfter: "iron", PlacementLeft: 4}, Left: true},
 			&clientv1.MatchEnded{Mode: "team", Result: clientv1.MatchOutcome_MATCH_OUTCOME_LOSS, Wins: []int32{2, 1}, Rating: &clientv1.PvpRatingChange{Before: 1000, After: 968, RankBefore: "bronze", RankAfter: "iron", PlacementLeft: 4}, Left: true},
 		},
+		{ // a battle's score, and no rounds
+			model.MatchEnded{Mode: "battle", Result: model.MatchWin, Battle: true, Wins: [2]int{1, 0}, Score: [2]int{1000, 640}},
+			&clientv1.MatchEnded{Mode: "battle", Result: clientv1.MatchOutcome_MATCH_OUTCOME_WIN, Score: []int32{1000, 640}},
+		},
+		{
+			model.MatchState{Match: "m-1", Mode: "duel", Phase: model.PhaseCountdown, Round: 2, Wins: [2]int{1, 0}, EndsIn: 3 * time.Second, Score: [2]int{4, 5}, Sides: [2][]model.MatchFighter{{{ID: "p-1", Name: "Ayla", Class: "warrior"}}, {{ID: "b-1", Name: "Cedar", Class: "magician", Bot: true}}}},
+			&clientv1.MatchState{Match: "m-1", Mode: "duel", Phase: clientv1.MatchPhase_MATCH_PHASE_COUNTDOWN, Round: 2, Wins: []int32{1, 0}, EndsInMs: 3000, Sides: []*clientv1.MatchSide{
+				{Fighters: []*clientv1.MatchFighter{{Id: "p-1", Name: "Ayla", Class: "warrior"}}},
+				{Fighters: []*clientv1.MatchFighter{{Id: "b-1", Name: "Cedar", Class: "magician", Bot: true}}},
+			}},
+		},
+		{ // a battle's score and points, and no rounds
+			model.MatchState{Match: "m-2", Mode: "battle", Phase: model.PhaseFight, Wins: [2]int{1, 0}, EndsIn: 9 * time.Minute, Battle: true, Score: [2]int{120, 95}, Points: []model.CapturePoint{{ID: "west", Holder: 1, Progress: -1}, {ID: "middle", Progress: 0.25, Contested: true}}},
+			&clientv1.MatchState{Match: "m-2", Mode: "battle", Phase: clientv1.MatchPhase_MATCH_PHASE_FIGHT, EndsInMs: 540000, Score: []int32{120, 95}, Points: []*clientv1.CapturePoint{
+				{Id: "west", Holder: 1, Progress: -1}, {Id: "middle", Progress: 0.25, Contested: true},
+			}, Sides: []*clientv1.MatchSide{{}, {}}},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%T", tt.push), func(t *testing.T) {

@@ -729,9 +729,9 @@ func (s *Service) Record(ctx context.Context, r model.Result) {
 				before[c] = s.fresh()
 			}
 		}
-		return s.rate(r, before)
+		return s.rate(r, mode.Rated, before)
 	}
-	match := model.Match{ID: r.Match, Mode: ratedMode(mode), Started: r.Started, Ended: r.Ended, Winner: r.Winner}
+	match := model.Match{ID: r.Match, Mode: mode.ID, Started: r.Started, Ended: r.Ended, Winner: r.Winner}
 	fighters, err := backoff.Retry(ctx, func() ([]model.Fighter, error) {
 		fighters, err := s.d.Store.Record(ctx, match, characters, rate)
 		if err != nil && !errors.Is(err, transient.ErrUnavailable) {
@@ -744,14 +744,14 @@ func (s *Service) Record(ctx context.Context, r model.Result) {
 	}
 	changes := map[kernel.CharacterID]*RatingChange{}
 	for _, f := range fighters {
-		if !f.Character.IsZero() {
+		if !f.Character.IsZero() && mode.Rated {
 			changes[f.Character] = s.change(f.Before, f.After)
 		}
 	}
 	for side, fs := range r.Sides {
 		for _, f := range fs {
 			if !f.Character.IsZero() {
-				s.d.Notifier.Push(f.Character, Ended{Mode: r.Mode, Outcome: outcomeFor(f, r.Winner, side+1), Wins: r.Wins, Rating: changes[f.Character], Left: f.Left})
+				s.d.Notifier.Push(f.Character, Ended{Mode: r.Mode, Outcome: outcomeFor(f, r.Winner, side+1), Battle: mode.Battle(), Wins: r.Wins, Score: r.Score, Rating: changes[f.Character], Left: f.Left})
 			}
 		}
 	}
@@ -765,8 +765,8 @@ func outcomeFor(f model.Outcome, winner, side int) Outcome {
 	return outcomeOf(winner, side)
 }
 
-// rate is what r does to the characters' ratings, from before: bots take part at their tier's mu and a sigma of 1, and keep it. A leaver is rated as their side losing; their side by the outcome, the stand-in that took their place counted at their rating.
-func (s *Service) rate(r model.Result, before map[kernel.CharacterID]model.Rating) model.Rated {
+// rate is what r does to the characters' ratings, from before: bots take part at their tier's mu and a sigma of 1, and keep it. A leaver is rated as their side losing; their side by the outcome, the stand-in that took their place counted at their rating. An unrated mode's rows count the record alone: mu and sigma stay, and they're never placed.
+func (s *Service) rate(r model.Result, rated bool, before map[kernel.CharacterID]model.Rating) model.Rated {
 	var sides [2][]rating.Rating
 	for k, side := range r.Sides {
 		for _, f := range side {
@@ -782,8 +782,11 @@ func (s *Service) rate(r model.Result, before map[kernel.CharacterID]model.Ratin
 	}
 	rr := s.rules.Rating
 	rules := rating.Rules{Beta: rr.Beta, Tau: rr.Tau}
-	moved := rating.Rate(rules, sides, score)
-	lost := [2][2][]rating.Rating{rating.Rate(rules, sides, 0), rating.Rate(rules, sides, 1)} // as side 1 loses, and as side 2 does
+	moved, lost := sides, [2][2][]rating.Rating{sides, sides}
+	if rated {
+		moved = rating.Rate(rules, sides, score)
+		lost = [2][2][]rating.Rating{rating.Rate(rules, sides, 0), rating.Rate(rules, sides, 1)} // as side 1 loses, and as side 2 does
+	}
 	out := model.Rated{After: map[kernel.CharacterID]model.Rating{}}
 	for k, side := range r.Sides {
 		for slot, f := range side {
@@ -804,7 +807,7 @@ func (s *Service) rate(r model.Result, before map[kernel.CharacterID]model.Ratin
 				case Draw:
 					a.Draws++
 				}
-				a.Shown, a.Placed = s.shown(a), a.Matches >= s.rules.Rating.Placement
+				a.Shown, a.Placed = s.shown(a), rated && a.Matches >= s.rules.Rating.Placement
 				fr.Before, fr.After = b, a
 				out.After[f.Character] = a
 			}

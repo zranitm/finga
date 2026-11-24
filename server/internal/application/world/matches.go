@@ -49,6 +49,7 @@ type MatchResult struct {
 	Sides          [2][]FighterResult
 	Winner         int
 	Wins           [2]int
+	Score          [2]int // a battle's
 }
 
 // FighterResult is how a fighter did: a character, or a bot of Tier.
@@ -93,7 +94,7 @@ func specOf(s MatchSpec) model.MatchSpec {
 }
 
 func resultOf(r model.MatchResult) MatchResult {
-	out := MatchResult{Match: r.Match, Mode: r.Mode, Started: r.Started, Ended: r.Ended, Winner: r.Winner, Wins: r.Wins}
+	out := MatchResult{Match: r.Match, Mode: r.Mode, Started: r.Started, Ended: r.Ended, Winner: r.Winner, Wins: r.Wins, Score: r.Score}
 	for k, side := range r.Sides {
 		for _, f := range side {
 			out.Sides[k] = append(out.Sides[k], FighterResult(f))

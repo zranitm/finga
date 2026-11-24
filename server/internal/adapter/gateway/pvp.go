@@ -83,7 +83,7 @@ func pvpPush(d pvp.Delivery) (model.Push, bool) {
 	case pvp.OfferGone:
 		return model.PvpOfferCancelled{Offer: d.Offer, Reason: model.PvpGoneReason(d.Reason), Requeued: d.Requeued}, true
 	case pvp.Ended:
-		e := model.MatchEnded{Mode: d.Mode, Result: model.MatchOutcome(d.Outcome), Wins: d.Wins, Left: d.Left}
+		e := model.MatchEnded{Mode: d.Mode, Result: model.MatchOutcome(d.Outcome), Battle: d.Battle, Wins: d.Wins, Score: d.Score, Left: d.Left}
 		if r := d.Rating; r != nil {
 			e.Rating = &model.PvpRatingChange{Before: r.Before, After: r.After, RankBefore: r.RankBefore, RankAfter: r.RankAfter, PlacementLeft: r.PlacementLeft}
 		}

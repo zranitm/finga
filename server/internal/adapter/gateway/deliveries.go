@@ -93,7 +93,10 @@ func worldPush(e world.Event) (model.Push, bool) {
 	case world.ArenaBar:
 		return model.ArenaBar{Bar: ev.Bar}, true
 	case world.MatchState:
-		st := model.MatchState{Match: ev.Match.String(), Mode: ev.Mode, Phase: model.MatchPhase(ev.Phase), Round: ev.Round, Wins: ev.Wins, EndsIn: ev.EndsIn}
+		st := model.MatchState{Match: ev.Match.String(), Mode: ev.Mode, Phase: model.MatchPhase(ev.Phase), Round: ev.Round, Wins: ev.Wins, EndsIn: ev.EndsIn, Battle: ev.Battle, Score: ev.Score}
+		for _, p := range ev.Points {
+			st.Points = append(st.Points, model.CapturePoint(p))
+		}
 		for s, side := range ev.Sides {
 			for _, f := range side {
 				st.Sides[s] = append(st.Sides[s], model.MatchFighter{ID: f.ID.String(), Name: f.Name, Class: f.Class.String(), Bot: f.Bot})

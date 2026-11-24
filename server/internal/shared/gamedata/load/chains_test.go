@@ -13,6 +13,7 @@ import (
 // chained is the roster with C18's chains, and Power Shot the Bowman's alone:
 //   - the Beginner's Strike offers Lunge at a far lock, then Meteor after its hit, then Taunt at a stunned or frozen lock;
 //   - its Roll Back offers Disengage after a dodge;
+//   - its War Cry offers Shadow Step after its hit, so no Beginner's key holds Shadow Step, a follow-up of the Warrior's too;
 //   - the Warrior's own Strike offers Shadow Step at a far lock;
 //   - its War Cry offers Shadow Step after its hit too.
 func chained() map[string]string {
@@ -26,6 +27,9 @@ func chained() map[string]string {
       - root: roll_back
         follow:
           - {skill: disengage, when: {dodged: 1500ms}}
+      - root: war_cry
+        follow:
+          - {skill: shadow_step, when: {after: 3s}}
     skills: [strike, second_wind, lunge,`, 1)
 	files["classes.yaml"] = strings.Replace(files["classes.yaml"], "    auto_assign: {str: 3, vit: 2}\n", `    auto_assign: {str: 3, vit: 2}
     chains:
@@ -119,6 +123,7 @@ func TestChainRejections(t *testing.T) {
 		{"controlled on no status", "controlled: [stun, freeze]", "controlled: [stun, stunned]", []string{"taunt", "stunned isn't a hard status"}},
 		{"controlled naming none", "controlled: [stun, freeze]", "controlled: []", []string{"taunt", "at least one status"}},
 		{"controlled beside another key", "{controlled: [stun, freeze]}", "{controlled: [stun, freeze], far: 3}", []string{"taunt", "exactly one"}},
+		{"a promotion making a parent's key a follow-up", "{skill: shadow_step, when: {far: 3}}", "{skill: roll_back, when: {far: 3}}", []string{"warrior", "roll_back", "a beginner may hold on a key", "follow-up here"}},
 		{"an unknown condition", "when: {far: 3}}\n          - {skill: meteor", "when: {near: 3}}\n          - {skill: meteor", []string{"classes.yaml", "near"}},
 	}
 	for _, tt := range tests {

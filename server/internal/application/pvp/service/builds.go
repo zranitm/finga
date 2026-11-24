@@ -22,7 +22,7 @@ const (
 	buildsFor   = 5 * time.Second
 )
 
-// Standing is a character in a rated mode: their shown rating and its rank, the placement matches they have left, their record, and their place on the board once placed, 0 before.
+// Standing is a character in a mode: in a rated one their shown rating and its rank, the placement matches they have left, their record, and their place on the board once placed, 0 before; in an unrated one their record alone.
 type Standing struct {
 	Mode                string
 	Shown               int
@@ -32,7 +32,7 @@ type Standing struct {
 	Place               int
 }
 
-// Profile is a character's standing in each mode, in pvp.yaml's order, every one rated, and their arena build.
+// Profile is a character's standing in each mode, in pvp.yaml's order, and their arena build.
 type Profile struct {
 	Standings []Standing
 	Build     model.Build
@@ -96,14 +96,18 @@ func (s *Service) Profile(ctx context.Context, account kernel.AccountID, id kern
 	}
 	var out Profile
 	for _, mode := range s.rules.Modes {
-		rt, ok := ratings[ratedMode(mode)]
+		rt, ok := ratings[mode.ID]
+		if !mode.Rated {
+			out.Standings = append(out.Standings, Standing{Mode: mode.ID, Wins: rt.Wins, Losses: rt.Losses, Draws: rt.Draws})
+			continue
+		}
 		if !ok {
 			rt = s.fresh()
 		}
 		shown := s.shown(rt)
 		st := Standing{Mode: mode.ID, Shown: shown, Rank: s.rankOf(shown), PlacementLeft: max(0, s.rules.Rating.Placement-rt.Matches), Wins: rt.Wins, Losses: rt.Losses, Draws: rt.Draws}
 		if st.PlacementLeft == 0 {
-			above, err := s.d.Store.Above(ctx, ratedMode(mode), shown)
+			above, err := s.d.Store.Above(ctx, mode.ID, shown)
 			if err != nil {
 				return Profile{}, err
 			}
@@ -141,8 +145,8 @@ func (s *Service) copied(ch model.Character) model.Build {
 // Leaderboard is a rated mode's top placed characters, highest first, a tie sharing its place; one read serves everyone for boardFor.
 func (s *Service) Leaderboard(ctx context.Context, modeID string) ([]Row, error) {
 	mode, ok := s.d.Data.PvpMode(modeID)
-	if !ok {
-		return nil, model.ErrUnknownMode
+	if !ok || !mode.Rated {
+		return nil, model.ErrUnknownMode // an unrated mode has no board
 	}
 	s.boards.mu.Lock()
 	b, ok := s.boards.read[mode.ID]
@@ -169,7 +173,7 @@ func (s *Service) Leaderboard(ctx context.Context, modeID string) ([]Row, error)
 
 // readBoard reads mode's board from the store, with the characters' names.
 func (s *Service) readBoard(ctx context.Context, mode gamedata.PvpMode) ([]Row, error) {
-	ranked, err := s.d.Store.Board(ctx, ratedMode(mode), boardLength)
+	ranked, err := s.d.Store.Board(ctx, mode.ID, boardLength)
 	if err != nil {
 		return nil, err
 	}

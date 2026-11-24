@@ -52,6 +52,7 @@ function Play({ socket }: { readonly socket: Pick<GameSocket, 'request'> }) {
   const standings = pvpProfile.use((s) => s.standings);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const modes = data.modes.filter((m) => m.best_of !== null); // a battle's card waits for the client's battle (pvp.md step 6d)
 
   const run = async (request: () => Promise<unknown>) => {
     setBusy(true);
@@ -72,7 +73,7 @@ function Play({ socket }: { readonly socket: Pick<GameSocket, 'request'> }) {
         skill fully learned.
       </p>
       <ul className="arena-modes" aria-label="Modes">
-        {data.modes.map((m) => (
+        {modes.map((m) => (
           <li key={m.id} className="arena-mode" aria-label={m.name}>
             <div className="arena-mode-head">
               <strong>{m.name}</strong>

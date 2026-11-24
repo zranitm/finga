@@ -60,7 +60,7 @@ type Return struct {
 // MatchPhase is where a match stands.
 type MatchPhase int
 
-// The phases: before the first round, counting into a round, fighting it, between rounds, and the outcome.
+// The phases: before the first round or the battle, counting into a round, fighting, between rounds, and the outcome. A battle has no count or rounds.
 const (
 	PhasePrep MatchPhase = iota
 	PhaseCountdown
@@ -75,10 +75,21 @@ type MatchState struct {
 	Match  kernel.MatchID
 	Mode   string
 	Phase  MatchPhase
-	Round  int // from 1
+	Round  int // from 1; 0 in a battle
 	Wins   [2]int
 	EndsIn time.Duration // the phase's time left
 	Sides  [2][]MatchFighter
+	Battle bool // fought for points: Score and Points are its, and it has no rounds
+	Score  [2]int
+	Points []CapturePoint // in the map's order
+}
+
+// CapturePoint is a battle's point as it stands: the side holding it, 0 for none; its progress from -1, side 1's, through 0 to 1, side 2's; and whether both sides stand in it, holding it still.
+type CapturePoint struct {
+	ID        string
+	Holder    int
+	Progress  float64
+	Contested bool
 }
 
 // MatchFighter is a fighter as the match lists them.
@@ -107,6 +118,7 @@ type MatchResult struct {
 	Sides          [2][]FighterResult
 	Winner         int
 	Wins           [2]int
+	Score          [2]int // a battle's
 }
 
 // FighterResult is how a fighter did: a character, or a bot of Tier.

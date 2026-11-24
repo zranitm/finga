@@ -51,7 +51,12 @@ var matchOutcomes = map[model.MatchOutcome]clientv1.MatchOutcome{
 }
 
 func matchEnded(e model.MatchEnded) *clientv1.MatchEnded {
-	out := &clientv1.MatchEnded{Mode: e.Mode, Result: matchOutcomes[e.Result], Wins: []int32{int32(e.Wins[0]), int32(e.Wins[1])}, Left: e.Left} //nolint:gosec // a few rounds
+	out := &clientv1.MatchEnded{Mode: e.Mode, Result: matchOutcomes[e.Result], Left: e.Left}
+	if e.Battle {
+		out.Score = []int32{int32(e.Score[0]), int32(e.Score[1])} //nolint:gosec // up to the goal
+	} else {
+		out.Wins = []int32{int32(e.Wins[0]), int32(e.Wins[1])} //nolint:gosec // a few rounds
+	}
 	if r := e.Rating; r != nil {
 		out.Rating = &clientv1.PvpRatingChange{Before: int32(r.Before), After: int32(r.After), RankBefore: r.RankBefore, RankAfter: r.RankAfter, PlacementLeft: int32(r.PlacementLeft)} //nolint:gosec // ratings fit
 	}
@@ -69,7 +74,15 @@ var matchPhases = map[model.MatchPhase]clientv1.MatchPhase{
 func matchState(st model.MatchState) *clientv1.MatchState {
 	out := &clientv1.MatchState{
 		Match: st.Match, Mode: st.Mode, Phase: matchPhases[st.Phase], Round: int32(st.Round), //nolint:gosec // a few rounds
-		Wins: []int32{int32(st.Wins[0]), int32(st.Wins[1])}, EndsInMs: uint32(st.EndsIn.Milliseconds()), //nolint:gosec // seconds, a few rounds
+		EndsInMs: uint32(st.EndsIn.Milliseconds()), //nolint:gosec // minutes at most
+	}
+	if st.Battle {
+		out.Score = []int32{int32(st.Score[0]), int32(st.Score[1])} //nolint:gosec // up to the goal
+		for _, p := range st.Points {
+			out.Points = append(out.Points, &clientv1.CapturePoint{Id: p.ID, Holder: int32(p.Holder), Progress: p.Progress, Contested: p.Contested}) //nolint:gosec // 0 to 2
+		}
+	} else {
+		out.Wins = []int32{int32(st.Wins[0]), int32(st.Wins[1])} //nolint:gosec // a few rounds
 	}
 	for _, side := range st.Sides {
 		s := &clientv1.MatchSide{}

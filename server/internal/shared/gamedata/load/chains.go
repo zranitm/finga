@@ -96,7 +96,7 @@ func (l *loader) conditionOf(w whenYAML) (gamedata.ChainCondition, error) {
 	return c, nil
 }
 
-// checkChains holds each class's chains to skills.yaml: the class can learn each root and follow-up, none is a passive, no root starts two chains, no follow-up is its own root or listed twice in one chain; a break-free skill comes up only while the player is held, and only it does, since while held every other skill is refused; and each class's own break-free is in one of its chains, so no key holds it alone.
+// checkChains holds each class's chains to skills.yaml: the class can learn each root and follow-up, none is a passive, no root starts two chains, no follow-up is its own root or listed twice in one chain; a break-free skill comes up only while the player is held, and only it does, since while held every other skill is refused; and each class's own break-free is in one of its chains, so no key holds it alone. An active skill its parent may hold on a key stays keyable after the promotion, whose chains replace the parent's, so a bar never holds a key its next save would be refused for.
 func (l *loader) checkChains(string) error {
 	for _, c := range l.classes.list {
 		var roots []string
@@ -133,6 +133,13 @@ func (l *loader) checkChains(string) error {
 				return slices.ContainsFunc(ch.Follow, func(f gamedata.FollowUp) bool { return f.Skill == id })
 			}) {
 				return fmt.Errorf("%s: class %s: %s breaks control but follows in none of its chains; it goes from its escape root's key alone", classesFile, c.ID, id)
+			}
+		}
+		if p, ok := l.classes.get(c.Parent); ok {
+			for _, s := range l.skills.list {
+				if s.Kind == gamedata.Active && p.Learnable(s) && p.Keyable(s.ID) && !c.Keyable(s.ID) {
+					return fmt.Errorf("%s: class %s: %s, which a %s may hold on a key, is a follow-up here, so its promotion would leave a key no save takes", classesFile, c.ID, s.ID, p.ID)
+				}
 			}
 		}
 	}

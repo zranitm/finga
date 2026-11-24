@@ -75,7 +75,7 @@ type Named struct {
 // Match is a match's outcome to store; Winner is 1 or 2, 0 for a draw.
 type Match struct {
 	ID             kernel.MatchID
-	Mode           string // the rated mode its ratings are of
+	Mode           string // its mode, whose rating rows it moves, or an unrated mode's record rows it counts
 	Started, Ended time.Time
 	Winner         int
 }
@@ -127,6 +127,7 @@ type Result struct {
 	Sides          [2][]Outcome
 	Winner         int
 	Wins           [2]int
+	Score          [2]int // a battle's
 }
 
 // Outcome is how a fighter did: a character, or a bot of Tier.

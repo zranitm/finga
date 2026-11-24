@@ -53,6 +53,7 @@ describe('ArenaWindow', () => {
     expect(
       within(screen.getByRole('list', { name: 'Modes' })).getAllByRole('listitem'),
     ).toHaveLength(2);
+    expect(screen.queryByRole('listitem', { name: '15v15' })).not.toBeInTheDocument();
     expect(screen.getByRole('listitem', { name: '3v3' })).toHaveTextContent(
       '3 against 3, best of 3 rounds.',
     );
