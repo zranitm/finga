@@ -66,7 +66,7 @@ type Waypoint struct {
 	ID, Name string
 	At       Point   // the stone
 	Arrive   Point   // beside it, where a teleport lands and the dead get up
-	Yaw      float64 // facing away from the stone there, radians from north toward east
+	Yaw      float64 // facing there, radians from north toward east: north, the camera's way
 	Main     bool    // in the region's main town, the town holding its start
 }
 

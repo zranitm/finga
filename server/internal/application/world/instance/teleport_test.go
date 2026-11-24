@@ -3,7 +3,6 @@ package instance_test
 import (
 	"context"
 	"errors"
-	"math"
 	"reflect"
 	"strings"
 	"testing"
@@ -166,22 +165,7 @@ func TestATeleportIsRefused(t *testing.T) {
 	})
 }
 
-// housedWest is the shipped data with a house over the north and north-east of the test region's west field stone, so its arrival faces east; every shipped one faces north.
-func housedWest(t *testing.T) *gamedata.Data {
-	t.Helper()
-	data := worldtest.LoadDataWith(t, map[string]func(string) string{"regions/test_region.yaml": func(s string) string {
-		if !strings.Contains(s, "pieces:\n") {
-			t.Fatal("test_region.yaml has no pieces to add a house to")
-		}
-		return strings.Replace(s, "pieces:\n", "pieces:\n  - {house: {area: [56, 86.5, 8, 3], height: 4, model: house_small}}\n", 1)
-	}})
-	if _, w, _ := data.Waypoint("west"); w.Arrive != (gamedata.Point{X: 62, Z: 85}) || w.Yaw != math.Pi/2 {
-		t.Fatalf("west's arrival is %+v facing %v; want east of the stone, facing east", w.Arrive, w.Yaw)
-	}
-	return data
-}
-
-// Large regions section 8: a teleport to a waypoint lands beside its stone, facing away, checkpointed there; from an old map into its region, or within the region back into the player's own channel. A waypoint named beside a map id is the target.
+// Large regions section 8: a teleport to a waypoint lands beside its stone at its arrival, facing its way, checkpointed there; from an old map into its region, or within the region back into the player's own channel. A waypoint named beside a map id is the target.
 func TestATeleportToAWaypointLandsBesideIt(t *testing.T) {
 	for _, c := range []struct {
 		name            string
@@ -198,7 +182,7 @@ func TestATeleportToAWaypointLandsBesideIt(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				data := housedWest(t)
+				data := worldtest.LoadData(t)
 				from, _ := data.Map(c.from)
 				region, w, _ := data.Waypoint(c.waypoint)
 				cps := &worldtest.Checkpoints{}
@@ -207,7 +191,7 @@ func TestATeleportToAWaypointLandsBesideIt(t *testing.T) {
 				defer stop()
 				tick(1)
 				p := worldtest.NewPlayer("Ayla", from.PlayerSpawn.X, from.PlayerSpawn.Z)
-				p.Connection = "c1"
+				p.Connection, p.Yaw = "c1", model.YawOf(-1, 0) // facing west, which the landing turns to the arrival's way
 				if c.found {
 					p.Waypoints = model.Waypoints{c.waypoint: time.Now()}
 				}
