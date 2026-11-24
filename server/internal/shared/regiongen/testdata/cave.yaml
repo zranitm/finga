@@ -1,4 +1,4 @@
-# A cave below small (underground-and-underwater.md section 3): halls and tunnels carved from rock at 0.5 m, for the generator's tests and its golden hash.
+# A cave below small (underground-and-underwater.md section 3): halls and tunnels carved from rock at 0.5 m, torches on their walls and one standing, for the generator's tests and its golden hash.
 name: Test Cave
 under: small
 size: [256, 128]
@@ -9,6 +9,7 @@ ground: {noise: {scale: 60, amplitude: 1.5, octaves: 3}}
 edge: {width: 8, height: [2, 4], biome: rock}
 colour: {slope: 0.25, high: 100}
 rock: {height: 4.5, rough: 1.5}
+torches: {spacing: 10, model: torch_mounted}
 features:
   - {hall: {area: [[16, 40], [56, 40], [56, 88], [16, 88]]}}
   - {tunnel: {path: [[52, 64], [90, 58], [120, 70]], width: 6}}
@@ -22,6 +23,8 @@ camps:
   - {area: deep, name: bats, at: [228, 64], radius: 6, mob: cave_bat, max: 4, respawn: 10s}
 waypoints:
   - {id: test_cave_mouth, name: Cave Mouth, at: [32, 64]}
+pieces:
+  - {model: torch_lit, at: [226, 50], yaw: 0}
 gates:
   - {name: mouth, at: [22, 64], radius: 1.6, to: {region: small, gate: east}}
 start: {at: [26, 64], yaw: 90}

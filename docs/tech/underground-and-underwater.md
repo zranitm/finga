@@ -107,7 +107,7 @@ The steps of large-regions.md section 3, with these added. Everything keeps the 
   - It counts only where the torch sees the texel's ground: that ground is below the flame, and no sample on the straight line between them, stepped every half cell, rises above it.
   - So light stops at walls, and rock tops stay dark.
 - **Summed** per group, clamped to 1, and stored as `Floor(v × 255)`.
-- **Only the bake writes it.** The server generates the place at load as a region does, but light changes no rule, so the server skips it.
+- **The server computes it too** (as built, step 1b). Light changes no rule, but the loader bakes each region to name its folder by the hash of every file, `light.bin` among them. A torch's 8 m reach is about 200 texels of 16 steps each, so it's cheap.
 
 ### Seas
 
@@ -305,6 +305,21 @@ These steps follow the regions' build (large-regions.md section 14).
        - `linkMaps` checks each gate leads back.
      - **Not yet:** reachability, mob reach and calm from the gates, since no place below ships until step 6. The shipped regions' crossing test already starts from every gate.
      - **Test plans:** `regiongen/testdata/cave.yaml` (0.5 m, three halls and two tunnels) and `sea.yaml` (a basin with two reefs), hashed with the others. A test checks the test cave's gate, waypoint, start, camp and boss stand on carved floor.
+   - **As built (step 1b): torches and the light map.**
+     - **The kit's `light`:** a reach up to 32 m. `torch_mounted` is `{light: {height: 2.2, reach: 8}}`, and `torch_lit` a cylinder 0.15 m round and 1.9 m tall, with `{height: 1.8, reach: 8}`. The numbers are provisional until step 3's stills.
+     - **The plan's `torches`** need rock, a model with a light, and a spacing of 6 m at least, as each keeps 3 m from the next.
+     - **Placement:**
+       - Spots are taken along the plan's lines, not the wall's samples: round a hall's polygon from half a spacing, and along a tunnel's smoothed path. The wall stays within `rough` of those lines.
+       - From each spot the generator walks straight out, half a cell a step, to the first rock. The torch stands on the last carved spot, facing back into the carved space.
+       - Its yaw is the nearest of 16, taken from `mapfile.Axis`, since the generator takes no angle from a direction.
+       - Nothing hangs where no wall comes within reach (a tunnel's mouth, an opening between spaces), or where the walk starts in rock.
+     - **A tunnel's left wall is hung first, then its right,** staggered half a spacing. Alternating walls in the props' order would put each wall's neighbours in one flicker group.
+     - **A torch stands at the wall's foot on the floor,** its flame `light.height` over the ground there. Step 3 lifts the mounted model to its flame.
+     - **Flames** are every prop of a model with a light, set pieces first, in the props' order. A flame's group is its index modulo 2.
+     - **The light map** is sampled at texel centres, with distances across the ground. Its line of sight reads the ground's interpolated height.
+     - **`light.bin`'s header** has a third field, 2, for the bytes in each texel, as every bake header carries three.
+     - **`region.json`** has `under` (empty on the land) and `lights`, each `{at, y, group}`, `[]` without torches.
+     - **The test cave** hangs torches every 10 m, and has one standing torch as a piece.
 2. **The server,** after regions step 6 (waypoints):
    - the paired channel at a gate below;
    - death, notices and chat inside, by tests;
