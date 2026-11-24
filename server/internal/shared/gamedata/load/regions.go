@@ -158,10 +158,10 @@ func (l *loader) loadRegion(id string, raw, kitRaw []byte, kit regiongen.Kit) er
 // arriveAt is how far from its stone a waypoint's arrival stands, in metres.
 const arriveAt = 2
 
-// around is the eight ways from a stone, north first and on clockwise.
-var around = [8][2]float64{{0, 1}, {math.Sqrt2 / 2, math.Sqrt2 / 2}, {1, 0}, {math.Sqrt2 / 2, -math.Sqrt2 / 2}, {0, -1}, {-math.Sqrt2 / 2, -math.Sqrt2 / 2}, {-1, 0}, {-math.Sqrt2 / 2, math.Sqrt2 / 2}}
+// around is the eight ways from a stone, south first, the camera's side, and north last: the camera looks north, so a stone south of one who arrives would stand between them.
+var around = [8][2]float64{{0, -1}, {math.Sqrt2 / 2, -math.Sqrt2 / 2}, {-math.Sqrt2 / 2, -math.Sqrt2 / 2}, {1, 0}, {-1, 0}, {math.Sqrt2 / 2, math.Sqrt2 / 2}, {-math.Sqrt2 / 2, math.Sqrt2 / 2}, {0, 1}}
 
-// waypointsOf is a region's waypoints as players use them: each one's arrival, the first of the spots arriveAt round its stone, in around's order, that a player fits on in the stone's own area, facing away; and those in its main town, the town holding its start, which a region with towns starts in.
+// waypointsOf is a region's waypoints as players use them: each one's arrival, the first of the spots arriveAt round its stone, in around's order, that a player fits on in the stone's own area, facing north, the camera's way; and those in its main town, the town holding its start, which a region with towns starts in.
 func (l *loader) waypointsOf(p regiongen.Plan, m *mapfile.Map, areas regiongen.AreaGrid) ([]gamedata.Waypoint, error) {
 	main := areas.Holding(p.Start.At[0], p.Start.At[1])
 	if main >= 0 && p.Areas[main].Kind != regiongen.Town {
@@ -183,7 +183,7 @@ func (l *loader) waypointsOf(p regiongen.Plan, m *mapfile.Map, areas regiongen.A
 		d := around[k]
 		out = append(out, gamedata.Waypoint{
 			ID: w.ID, Name: w.Name, At: gamedata.Point{X: w.At[0], Z: w.At[1]},
-			Arrive: gamedata.Point{X: w.At[0] + arriveAt*d[0], Z: w.At[1] + arriveAt*d[1]}, Yaw: float64(k) * math.Pi / 4,
+			Arrive: gamedata.Point{X: w.At[0] + arriveAt*d[0], Z: w.At[1] + arriveAt*d[1]}, Yaw: 0,
 			Main: main >= 0 && area == main,
 		})
 	}

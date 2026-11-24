@@ -543,7 +543,8 @@ Built with step 1, which says who watches a cell.
 - **As built (step 6a), finding and keeping:**
   - **Data:**
     - `gamedata.Waypoint` gains `Arrive`, `Yaw` and `Main`.
-    - **The arrival:** the loader picks each waypoint's as the first of eight spots 2 m round its stone that a player fits on in the stone's own area, north first and on clockwise. One arrives there facing away from the stone. A waypoint with no such spot is refused.
+    - **The arrival:** the loader picks each waypoint's as the first of eight spots 2 m round its stone that a player fits on in the stone's own area. One arrives there facing north, the camera's way. A waypoint with no such spot is refused.
+      - **The order:** south first, then the south diagonals, east and west, the north diagonals, and north last. The camera looks north, so a stone south of one who arrives stands between them. The stones' live pass found north-first arrivals hidden by the stone and its halo after every teleport and get-up.
     - **The main town** is the town area holding the region's start; a region with towns must start in one. Its waypoints are `Main`.
     - **Ids** are unique across every region, so a waypoint is named by its id alone.
     - `TestEveryShippedRegionCanBeCrossed` starts from each arrival too.
@@ -556,13 +557,13 @@ Built with step 1, which says who watches a cell.
     - `character_waypoints(character_id, waypoint_id, found_at)` is migration 00015.
     - The waypoints found travel with the player across hand-offs. Each checkpoint adds those not yet stored, keeping each one's first time, and drops none.
     - `Welcome.waypoints`, field 13, lists their ids.
-  - **Death:** a region's dead get up at their nearest waypoint's arrival, facing away from the stone, no longer on the stone's spot.
+  - **Death:** a region's dead get up at their nearest waypoint's arrival, facing its way, no longer on the stone's spot.
     - **Leaving dead** saves that same arrival with half HP, and a character saved at 0 HP joins there. The getting up, the checkpoint and the join share one rule, `Data.GetUp`; the old maps keep their town's spawn. In the waypoints playtest, both had come back at the region's start.
 - **As built (step 6b), teleport:**
   - **The request:** `Teleport` keeps `map_id` (1) and gains `waypoint` (2) beside it. A `oneof` round both would move field 1 into it, which `buf breaking` refuses even at WIRE. A set waypoint is the target; `map_id` is read only without one.
   - **`map_id`** is for the old maps alone, until the last is retired. A region's id is `TELEPORT_UNKNOWN_MAP`, as a match's map's is, and the player's own old map `TELEPORT_SAME_MAP`.
   - **A waypoint** that no region has is `TELEPORT_UNKNOWN_WAYPOINT` (330046, 404). One the player hasn't found, outside a main town, is `TELEPORT_NOT_FOUND` (330047, 409). Dead and busy are refused after these, as before.
-  - **The landing:** at the channel's end, the player is handed off beside the stone, at its arrival, facing away, and checkpointed there.
+  - **The landing:** at the channel's end, the player is handed off beside the stone, at its arrival, facing its way, and checkpointed there.
     - Into a region, from an old map or another region, the World picks the channel as for any join.
     - Within their own region, even to the stone they stand by, they go back into their own channel, which takes them even if it filled in the 3 s, as a switch's does. The client hears a `MapChange` and shows the veil, as for any.
     - No same-stone check refuses a teleport to the stone one stands by: it doubles as a way out for anyone wedged near one.
@@ -593,6 +594,9 @@ Built with step 1, which says who watches a cell.
     - The beam is gone by 0.6 s, and the ring spreads 7 m across over 0.8 s.
     - The halo swells to half as wide again and settles. A swell to twice as wide hid the obelisk behind a solid disc.
     - One stone flares at a time; a newer find takes the flare over.
+    - **The ring** lies flat, so as it spreads it rides the highest ground under it. On East Woods' slope the flat ring had sunk into the ground for up to 98° of its circle.
+  - **See-through:** a stone between the camera and the player fades as a tall prop does, its halo with it, and goes at the lens. They're a region's only see-through looks so far.
+    - **While faded,** it leaves its thin instances and draws its own copy at the step's alpha, made when its model loads.
 
 ## 9. The camera
 

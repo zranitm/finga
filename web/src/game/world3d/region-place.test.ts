@@ -408,8 +408,9 @@ describe('a region drawn from its bake', () => {
     expect(scene.meshes).toEqual([]);
   });
 
-  it('stands its waypoints’ stones before any chunk comes, and lets them go with itself', async () => {
+  it('stands its waypoints’ stones before any chunk comes, each one’s look among its own, and lets them go with itself', async () => {
     await built();
+    expect(place!.looks).toHaveLength(1); // the field's, which the world fades out of the camera's way
     await vi.waitFor(() => {
       expect(
         (scene.getMeshByName('waypoint stone Crystal') as Mesh | null)?.thinInstanceCount,

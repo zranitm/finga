@@ -149,8 +149,8 @@ func TestARegionLoadsAsAMapOfItsPlan(t *testing.T) {
 		if !reflect.DeepEqual(m.Areas, want) {
 			t.Errorf("areas %+v", m.Areas)
 		}
-		// The start stands in Hamlet, so it's the main town; north of the stone is clear, so one arrives there facing north.
-		if want := []gamedata.Waypoint{{ID: "hamlet", Name: "Hamlet", At: gamedata.Point{X: 64, Z: 32}, Arrive: gamedata.Point{X: 64, Z: 34}, Main: true}}; !reflect.DeepEqual(m.Waypoints, want) {
+		// The start stands in Hamlet, so it's the main town; south of the stone is clear, so one arrives there facing north.
+		if want := []gamedata.Waypoint{{ID: "hamlet", Name: "Hamlet", At: gamedata.Point{X: 64, Z: 32}, Arrive: gamedata.Point{X: 64, Z: 30}, Main: true}}; !reflect.DeepEqual(m.Waypoints, want) {
 			t.Errorf("waypoints %+v", m.Waypoints)
 		}
 		for _, c := range []struct {
@@ -182,14 +182,16 @@ const boxedIn = `  - {house: {area: [58, 33.5, 12, 3.5], height: 4, model: house
   - {house: {area: [59, 30.5, 3.5, 3], height: 4, model: house_small}}
 `
 
-// One arrives beside a stone at the first spot round it, north first and on clockwise, that a player fits on in the stone's area, facing away.
+// One arrives beside a stone at the first spot round it that a player fits on in the stone's area, facing north: south first, then the south diagonals, east and west, the north diagonals, and north last, as the camera looks north, and from the waypoints' live pass, a stone between it and the player hid them.
 func TestAWaypointsArrivalIsTheFirstSpotRoundItThatFits(t *testing.T) {
 	for _, tt := range []struct {
 		name, old, replace string
 		want               gamedata.Point
 	}{
-		{"past a house filling the north and north-east", "pieces:\n", "pieces:\n  - {house: {area: [60, 33.5, 8, 3], height: 4, model: house_small}}\n", gamedata.Point{X: 66, Z: 32}},
-		{"past the north and north-east, in Meadow over the town's line at z 48", "at: [64, 32]}", "at: [64, 47]}", gamedata.Point{X: 66, Z: 47}},
+		{"south, on open ground", "", "", gamedata.Point{X: 64, Z: 30}},
+		{"past a house filling the south and its diagonals", "pieces:\n", "pieces:\n  - {house: {area: [59, 29, 10, 2], height: 4, model: house_small}}\n", gamedata.Point{X: 66, Z: 32}},
+		{"past the south and its diagonals, in the ring under the edge at z 16", "at: [64, 32]}", "at: [64, 17]}", gamedata.Point{X: 66, Z: 17}},
+		{"north last, past houses round every other side", "pieces:\n", "pieces:\n  - {house: {area: [62.6, 29, 2.8, 2], height: 4, model: house_small}}\n  - {house: {area: [65.5, 28, 3, 8], height: 4, model: house_small}}\n  - {house: {area: [59.5, 28, 3, 8], height: 4, model: house_small}}\n", gamedata.Point{X: 64, Z: 34}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			files := regioned(t)
@@ -199,8 +201,8 @@ func TestAWaypointsArrivalIsTheFirstSpotRoundItThatFits(t *testing.T) {
 				t.Fatal(err)
 			}
 			m, _ := d.Map("vale")
-			if w := m.Waypoints[0]; w.Arrive != tt.want || w.Yaw != math.Pi/2 {
-				t.Errorf("arrives at %+v facing %g; want %+v, east of the stone, facing east", w.Arrive, w.Yaw, tt.want)
+			if w := m.Waypoints[0]; w.Arrive != tt.want || w.Yaw != 0 {
+				t.Errorf("arrives at %+v facing %g; want %+v facing north", w.Arrive, w.Yaw, tt.want)
 			}
 		})
 	}

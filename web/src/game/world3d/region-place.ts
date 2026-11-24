@@ -9,6 +9,7 @@ import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Scene } from '@babylonjs/core/scene';
 
 import { backoff } from '@/lib/backoff';
+import { height } from '@/sim/terrain';
 
 import type { Lighting } from './body';
 import type { BuiltChunk, ChunkSource } from './chunk-build';
@@ -24,7 +25,7 @@ import { kitModels } from './kit-models';
 import type { RegionMap } from './map';
 import type { Models } from './models';
 import { kitParts, placement, skyFor } from './place';
-import type { KitPart, Place } from './place';
+import type { KitPart, Look, Place } from './place';
 import { bakeUrl, chunkFile } from './region-bake';
 import type { Overview, Region } from './region-bake';
 import type { RegionGround } from './region-ground';
@@ -110,7 +111,7 @@ interface Drawn {
 }
 
 class RegionView implements Place {
-  readonly looks = [];
+  readonly looks: readonly Look[]; // its waypoint stones'
   private readonly root: TransformNode;
   private readonly templates: TransformNode;
   private readonly material: Material;
@@ -143,7 +144,15 @@ class RegionView implements Place {
     this.region = region;
     this.far = far;
     this.ground = map.ground;
-    this.stones = new WaypointStones(scene, map.waypoints, lighting.palette, models, hooks.now);
+    this.stones = new WaypointStones(
+      scene,
+      map.waypoints,
+      lighting.palette,
+      models,
+      hooks.now,
+      (x, z) => height(map.ground.geometry.terrain, x, z),
+    );
+    this.looks = this.stones.looks;
     this.root = new TransformNode(`region ${region.ref.id}`, scene);
     this.templates = new TransformNode('kit models', scene);
     this.templates.parent = this.root;

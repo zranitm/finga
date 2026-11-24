@@ -15,6 +15,7 @@ import { tinyFile } from '@/testing/region-fixture';
 import { resetStores } from '@/testing/reset-stores';
 
 import { Models } from './models';
+import { fade, STEPS } from './place';
 import { Palette } from './toon';
 import { WaypointStones } from './waypoint-stones';
 
@@ -29,6 +30,7 @@ describe('a region’s waypoint stones', () => {
   let palette: Palette;
   let clock: number;
   let stones: WaypointStones | undefined;
+  let heightAt: (x: number, z: number) => number;
 
   const mesh = (name: string) => scene.getMeshByName(name) as Mesh | null;
   /** Where copy draws its stone, at each spot it stands. */
@@ -50,7 +52,14 @@ describe('a region’s waypoint stones', () => {
 
   async function built(): Promise<void> {
     const models = new Models(scene, (f) => new Uint8Array(readFileSync(path.join(MODELS, f))));
-    stones = new WaypointStones(scene, [WEST, TOWN], palette, models, () => clock);
+    stones = new WaypointStones(
+      scene,
+      [WEST, TOWN],
+      palette,
+      models,
+      () => clock,
+      (x, z) => heightAt(x, z),
+    );
     await vi.waitFor(() => {
       expect(mesh('waypoint stone found Crystal')).not.toBeNull();
     });
@@ -63,6 +72,7 @@ describe('a region’s waypoint stones', () => {
     scene = new Scene(engine);
     palette = new Palette(scene);
     clock = 1000;
+    heightAt = () => 0;
   });
 
   afterEach(() => {
@@ -143,6 +153,54 @@ describe('a region’s waypoint stones', () => {
     frame(1800);
     expect([beam.isEnabled(), ring.isEnabled()]).toEqual([false, false]);
     expect(halo.scaling.x).toBe(found);
+  });
+
+  // From the stones' live pass: arrivals were north of the stone, which stood between the camera and the player. A stone still fades for the player walking behind it, as a tall prop does.
+  it('fades a stone out of the camera’s way to the player, halo and all, gone at the lens, and back whole after', async () => {
+    await built();
+    const instances = () => spots('waypoint stone');
+    const copy = (lit: string) =>
+      scene.meshes.filter(
+        (m) => m.name.endsWith(` faded ${WEST.id}`) && m.name.startsWith(`waypoint stone ${lit}`),
+      );
+    const westHalo = mesh('waypoint west halo')!;
+    const behind = new Vector3(60, 2.5, 90); // the player's head north of the west stone
+    fade(new Vector3(60, 12, 72), behind, stones!.looks, 1000); // the camera south of it
+    expect(instances()).toEqual([[124, 2, 85]]); // the west stone left the instances
+    const faded = copy('').filter((m) => !m.name.startsWith('waypoint stone found'));
+    expect(faded.length).toBeGreaterThan(0);
+    for (const m of faded) {
+      const alone = !m.hasThinInstances; // drawn here alone, not at every stone
+      expect([m.name, m.isEnabled(), m.material!.name.endsWith(` ${STEPS[2]}`), alone]).toEqual([
+        m.name,
+        true,
+        true,
+        true,
+      ]); // its toon at the faded step's alpha
+    }
+    expect(westHalo.visibility).toBe(STEPS[2]);
+    waypoints.getState().find('west');
+    expect(faded.every((m) => !m.isEnabled())).toBe(true); // found while faded: its found copy shows instead
+    expect(copy('found').every((m) => m.isEnabled())).toBe(true);
+    fade(new Vector3(60, 4, 86), behind, stones!.looks, 1000); // the lens at the stone
+    expect([...copy(''), ...copy('found')].some((m) => m.isEnabled())).toBe(false);
+    expect(westHalo.visibility).toBe(0);
+    fade(new Vector3(80, 12, 72), new Vector3(80, 2.5, 90), stones!.looks, 1000); // off to the east
+    expect(spots('waypoint stone found')).toEqual([[60, 1.5, 85]]);
+    expect(westHalo.visibility).toBe(1);
+  });
+
+  // From the stones' live pass: on East Woods' slope the ground covered up to 98° of the flat ring by 8 cm.
+  it('lifts the flare’s ring over the highest ground under it, on a slope too', async () => {
+    heightAt = (x) => 1.5 + 0.1 * (x - WEST.x); // rising east
+    await built();
+    waypoints.getState().find('west');
+    const ring = mesh('waypoint ring')!;
+    frame(1799); // at its widest, 7 m across
+    expect(ring.position.y).toBeCloseTo(1.5 + 0.1 * 3.5 + 0.08, 2);
+    heightAt = () => TOWN.y;
+    waypoints.getState().find('town');
+    expect(ring.position.y).toBeCloseTo(TOWN.y + 0.08, 5); // on flat ground, just over it
   });
 
   it('a find of another region’s waypoint flares nothing here', async () => {
