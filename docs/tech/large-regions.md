@@ -639,6 +639,14 @@ Built with step 1, which says who watches a cell.
 - **Entities:** only what the server sends (section 5).
   - Name labels show for the 40 nearest, and for party members and the lock.
   - HP bars show for the party, the lock, and mobs hit in the last 5 s.
+  - **As built (step 5c-1):**
+    - **On every map, not only regions,** so the game has one rule; the old maps are going.
+    - **Names:** another player is named while among the 40 nearest the camera's target, in the party, or locked. Those past it keep their bodies and lose only the name.
+    - **Bars:** a mob's bar shows while it's locked or for 5 s after its HP last fell, whoever hit it. A heal, regeneration included, is no hit. A mob is seen anew when it comes back into sight or on a rejoin or map change, so a fall while out of sight doesn't count.
+    - **The party's bars** are its HUD frames, as before. No player has a bar over their head.
+    - **Tests:**
+      - 40 allies within 3 m named; a stranger 41st nearest not; a party member and the locked enemy past them named;
+      - a mob's bar: none till hurt but the lock's, gone 5 s after, kept for the lock, none for a heal, none for a mob back in sight or on a map anew at lower HP.
 - **Models** are cached across scenes, so a region change doesn't parse them again.
 - **Map views** (map-views.md):
   - **The minimap** draws the baked tiles round the player at 1 px a metre.

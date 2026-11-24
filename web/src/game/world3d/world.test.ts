@@ -1078,7 +1078,10 @@ describe('World', () => {
           { ...standing(94, 20, 'c-robin', 'thief'), statuses: slow, shield: 10 },
           { ...standing(x, 20, 'c-jade', 'bowman'), statuses: slow, shield: 10 },
         ];
-        const mobs = [mob(1, 'green_slime', x), ...(boarGone ? [] : [boar])];
+        const mobs = [
+          { ...mob(1, 'green_slime', x), hp: 34 - (tick % 30) }, // hurt each frame, so it shows its bar while drawn
+          ...(boarGone ? [] : [boar]),
+        ];
         p.push(
           'delta',
           { players, mobs, ...(leaving && { unseen: { mobs: [2] } }) },
@@ -1542,6 +1545,44 @@ describe('World', () => {
     expect(p.root(classLook('warrior').file)).toBeUndefined();
   });
 
+  it('names the 40 other players nearest, a party member and the lock however far, and no one else', async () => {
+    const p = await playing(FLAT, 4, 20);
+    const near = Array.from({ length: 40 }, (_, i) => ({
+      ...standing(2 + (i % 10) / 2, 19 + Math.floor(i / 10) / 2, `c-${i}`),
+      name: `P${i}`,
+      team: 1,
+    })); // within 2.7 m
+    const robin = { ...standing(4, 25, 'c-robin', 'thief'), team: 2 }; // 5 m north: the enemy, locked
+    const jade = { ...standing(10, 24, 'c-jade', 'bowman'), name: 'Jade', team: 1 }; // the party's, 7.2 m
+    const lee = { ...standing(7, 22, 'c-lee', 'bowman'), name: 'Lee', team: 1 }; // 3.6 m, the 41st nearest, and no one's
+    party.getState().applyPartyState(
+      create(PartyStateSchema, {
+        party: create(PartyViewSchema, {
+          leader: ME,
+          members: [
+            { characterId: ME, name: 'Ayla', mapId: FLAT, online: true },
+            { characterId: 'c-jade', name: 'Jade', mapId: FLAT, online: true },
+          ],
+        }),
+      }),
+    );
+    for (let tick = 2; tick <= 10; tick++) {
+      p.push(
+        'delta',
+        { players: [{ ...standing(4, 20), team: 1 }, ...near, robin, jade, lee] },
+        { tick },
+      );
+      p.frames(1);
+    }
+    expect(target.getState().target?.ref).toBe('p:c-robin');
+    expect(near.every((n) => p.label(`p:${n.id}`) === n.name)).toBe(true);
+    expect([p.label('p:c-robin'), p.label('p:c-jade'), p.label('p:c-lee')]).toEqual([
+      'Robin',
+      'Jade',
+      undefined,
+    ]);
+  });
+
   it('in a match names enemies red and teammates green, tags a bot, and locks and attacks an enemy as a mob, never a teammate', async () => {
     const cut = vi.spyOn(Palette.prototype, 'cutAround');
     const p = await playing(FLAT, 4, 20);
@@ -1749,20 +1790,49 @@ describe('World', () => {
       make.mockRestore();
     });
 
-    it('show an HP bar over each one’s head, an elite’s in gold, none over a boss or a killed one', async () => {
+    it('show an HP bar over a mob’s head while it’s locked or for 5 s after it last lost HP, an elite’s in gold, none over a boss or a killed one', async () => {
       const p = await playing(FLAT, 4, 20);
       const bar = (id: number) => p.parent.querySelector<HTMLElement>(`[data-bar="${id}"]`);
       const all = [mob(1, 'green_slime', 6), mob(2, 'sun_slime', 8), mob(3, 'king_slime', 10)];
       frames(p, 2, 8, all);
+      expect(target.getState().target?.ref).toBe('m:1'); // the nearest, locked as it's seen
+      expect([bar(1) !== null, bar(2), bar(3)]).toEqual([true, null, null]); // the lock's alone: none hurt yet, however far down
+      const hurt = all.map((m) => ({ ...m, hp: 28 }));
+      frames(p, 9, 12, hurt);
       expect(bar(1)?.style.display).toBe('');
-      expect((bar(1)?.firstElementChild as HTMLElement).style.width).toBe(`${(30 / 34) * 100}%`);
+      expect((bar(1)?.firstElementChild as HTMLElement).style.width).toBe(`${(28 / 34) * 100}%`);
       expect([bar(1)?.style.outline, bar(2)?.style.outline]).toEqual(['', '2px solid #f2c14e']);
       expect(bar(3)).toBeNull(); // the boss bar at the top shows its HP
-      frames(p, 9, 12, [{ ...mob(1, 'green_slime', 6, MobPose.DOWN), hp: 0 }, ...all.slice(1)]);
-      expect(bar(1)).toBeNull();
-      p.push('delta', { removedMobs: [2] }, { tick: 13 });
+      frames(p, 13, 13 + 5000 / FRAME_MS, hurt); // 5 s on, none hurt again
+      expect([bar(1) !== null, bar(2)]).toEqual([true, null]); // the lock's kept
+      const healed = { ...hurt[1]!, hp: 30 };
+      const nearer = mob(4, 'green_slime', 5);
+      const king = hurt[2]!;
+      frames(p, 330, 333, [
+        { ...mob(1, 'green_slime', 6, MobPose.DOWN), hp: 0 },
+        nearer,
+        healed,
+        king,
+      ]);
+      expect(target.getState().target?.ref).toBe('m:4'); // the lock moves on
+      expect([bar(1), bar(2)]).toEqual([null, null]); // killed, and a heal's no hurt
+      p.push('delta', { removedMobs: [2] }, { tick: 334 });
       p.frames(4);
-      expect(bar(2)).toBeNull();
+      frames(p, 335, 338, [nearer, { ...healed, hp: 20 }, king]);
+      expect(bar(2)).toBeNull(); // back in sight, seen anew
+      changeMap(p, { mapId: FLAT, x: 4, y: 0, z: 20, yaw: 0 }); // as a rejoin
+      p.push(
+        'snapshot',
+        { players: [standing(4, 20)], mobs: [nearer, { ...healed, hp: 10 }] },
+        { tick: 339 },
+      );
+      await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), WAIT);
+      frames(p, 340, 343, [nearer, { ...healed, hp: 10 }]);
+      frames(p, 344, 347, [
+        { ...nearer, hp: 25 },
+        { ...healed, hp: 10 },
+      ]);
+      expect([bar(4) !== null, bar(2)]).toEqual([true, null]); // one hurt on the new map, and one seen there anew
     });
 
     it('play a boss’s attack as the drawn frames reach its windup, laying its area then', async () => {

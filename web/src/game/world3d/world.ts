@@ -194,6 +194,8 @@ const ZOOM_STEP = 0.125; // a zoom key's press, or a wheel's notch, of the way f
 const WHEEL_PX = 800; // a wheel's pixels from close to far, so a notch of 100 px is a step
 const CAST_M = 25; // another player casts a shadow within this of the camera's target; past it the shadow map spares their draws
 const CAST_EDGE_M = 1; // starting at CAST_M less this, stopping at CAST_M more
+const NAMED = 40; // other players named over their heads, the nearest the camera's target, besides the party and the lock (large-regions.md section 10)
+const HURT_BAR_MS = 5000; // a mob's HP bar shows this long after it last lost HP, and while it's locked
 const FAR_PLANE_M = 1500; // the camera sees no farther (large-regions.md section 9)
 
 /** A figure drawn for one of the map's bodies, made in the background; its turn eases toward its facing. */
@@ -484,6 +486,7 @@ export class World {
   private readonly deadRemotes = new Set<string>();
   private bossSent: MobWire | null = null; // the field boss as the frames last sent it for its bar, wherever it stands; never drawn from
   private mobs = new MobTracker(this.timing.tickMs);
+  private readonly mobHurt = new Map<number, { hp: number; at: number }>(); // each mob's HP as last drawn, and when it last fell
   private readonly mobViews = new Map<number, Drawn>();
   private readonly mobTypes = new Map<number, string>();
   private readonly dying: {
@@ -1138,6 +1141,8 @@ export class World {
       return;
     }
     const { shown, looks, gone } = remotes.render(renderTime);
+    const named = nearest(shown, this.follow, NAMED);
+    const members = party.getState().party;
     this.remoteLooks = looks;
     let changed = gone.length > 0;
     for (const id of gone) {
@@ -1178,7 +1183,10 @@ export class World {
       v.show(edge !== 'hidden');
       v.fade(edge === 'faded' || (looks.get(id)?.dodging ?? false));
       v.castAt(Math.hypot(s.x - this.follow.x, s.z - this.follow.z));
-      if (edge === 'hidden') {
+      if (
+        edge === 'hidden' ||
+        !(named.has(id) || isMember(members, id) || this.lockedId === `p:${id}`)
+      ) {
         this.labels.delete(`p:${id}`);
         continue;
       }
@@ -1268,7 +1276,15 @@ export class World {
       const edge = this.edgeOf(mark.id, s.x);
       mark.inView = edge !== 'hidden' && this.overlay.within(s.x, middle, s.z, LOCK_INSET);
       mark.inFrame = edge !== 'hidden' && this.overlay.within(s.x, middle, s.z, 0);
-      if (m && !m.boss && s.hp > 0 && edge !== 'hidden') {
+      const hurt = this.mobHurt.get(id);
+      if (!hurt) {
+        this.mobHurt.set(id, { hp: s.hp, at: -Infinity });
+      } else if (s.hp !== hurt.hp) {
+        hurt.at = s.hp < hurt.hp ? now : hurt.at;
+        hurt.hp = s.hp;
+      }
+      const barred = now - (hurt?.at ?? -Infinity) < HURT_BAR_MS || this.lockedId === mark.id;
+      if (m && !m.boss && s.hp > 0 && edge !== 'hidden' && barred) {
         this.bars.set(id, s.x, s.y + m.height, s.z, s.hp, s.maxHp, m.elite);
       } else {
         this.bars.delete(id); // a boss's is the bar at the top; a killed one's is gone
@@ -1299,6 +1315,7 @@ export class World {
     this.mobViews.delete(id);
     this.mobTypes.delete(id);
     this.bars.delete(id);
+    this.mobHurt.delete(id);
     return v;
   }
 
@@ -2459,6 +2476,7 @@ export class World {
     this.mobViews.clear();
     this.mobTypes.clear();
     this.bars.clear();
+    this.mobHurt.clear();
     this.marks.length = 0;
     for (const d of this.dying) {
       d.view.dispose();
@@ -2540,4 +2558,22 @@ export class World {
     this.scene?.dispose();
     this.scene = null;
   }
+}
+
+/** The ids of the n players in shown nearest at. */
+function nearest(
+  shown: ReadonlyMap<string, { readonly x: number; readonly z: number }>,
+  at: { readonly x: number; readonly z: number },
+  n: number,
+): Set<string> {
+  if (shown.size <= n) {
+    return new Set(shown.keys());
+  }
+  return new Set(
+    [...shown]
+      .map(([id, s]) => [id, Math.hypot(s.x - at.x, s.z - at.z)] as const)
+      .sort((a, b) => a[1] - b[1])
+      .slice(0, n)
+      .map(([id]) => id),
+  );
 }
