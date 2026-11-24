@@ -134,6 +134,9 @@ func TestADroppedFightersBodyIsHeldTillTheyReturn(t *testing.T) {
 		if d := back.Deltas(); len(d) == 0 || d[0].Energy == nil || *d[0].Energy != v.Energy {
 			t.Fatal("the new connection's first frame didn't tell her energy")
 		}
+		if bars := worldtest.Of[model.ArenaBar](back); len(bars) != 0 {
+			t.Fatalf("the new connection was sent bars %+v, want none for a fighter wearing no build", bars)
+		}
 		own, ok := back.Own(ayla.ID)
 		if !ok || own.HP != body.HP || math.Abs(own.State.Z-body.State.Z) > 0.01 {
 			t.Fatalf("the new connection sees Ayla %+v, want her body as it stood, %+v", own, body)
@@ -145,6 +148,35 @@ func TestADroppedFightersBodyIsHeldTillTheyReturn(t *testing.T) {
 		sleep(f.grace)
 		if f.gone(ayla.ID) || len(f.results.All()) != 0 {
 			t.Fatalf("drops %v, outcomes %+v; want the match running on with Ayla", f.moves.Drops(), f.results.All())
+		}
+	})
+}
+
+// A fighter back from a drop wears the arena bar they wore, and the new connection is told it.
+func TestAReturnIsToldTheArenaBarWorn(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		ayla, robin := fighterFrom(t, data, "Ayla"), fighterFrom(t, data, "Robin")
+		inst, stop := worldtest.RunMatch(t, data, duel(model.Fighter{Character: ayla.ID}, model.Fighter{Character: robin.ID}), nil, worldtest.Options{})
+		defer stop()
+		joinAll(t, inst, ayla, robin)
+		build := model.Build{Bar: arenaBar("strike", "war_cry"), Traits: map[string]string{}, Revision: 1}
+		if err := inst.SetBuild(context.Background(), ayla.ID, build); err != nil {
+			t.Fatal(err)
+		}
+		sleep(data.Pvp().Rounds.Prep + data.Pvp().Rounds.Countdown + worldtest.TickInterval)
+		holdOf(t, inst, ayla)
+		back := &worldtest.Sink{}
+		if _, err := inst.Rejoin(context.Background(), ayla.ID, "c-Ayla-again", back); err != nil {
+			t.Fatal(err)
+		}
+		sleep(worldtest.TickInterval)
+		if bars := worldtest.Of[model.ArenaBar](back); len(bars) != 1 || !slices.Equal(bars[0].Bar, build.Bar) {
+			t.Fatalf("the new connection was sent bars %+v, want her build's", bars)
+		}
+		ayla.Connection = "c-Ayla-again"
+		if err := fromKey(inst, ayla, "slash_blast"); !errors.Is(err, model.ErrNotOnArenaBar) {
+			t.Fatalf("a skill off her arena bar: %v, want it refused", err)
 		}
 	})
 }

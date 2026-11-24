@@ -71,7 +71,7 @@ func (i *Instance) hold(id kernel.CharacterID, conn string) bool {
 	return true
 }
 
-// rejoin puts conn and sink on the fighter's body as it stands: the inputs count from the new connection's, the map and the fighter's sheet and timers are told afresh, and the match hears they're back.
+// rejoin puts conn and sink on the fighter's body as it stands: the inputs count from the new connection's, the map, the fighter's sheet and timers and the arena bar they wear are told afresh, and the match hears they're back.
 func (i *Instance) rejoin(id kernel.CharacterID, conn string, sink Sink) (model.View, error) {
 	p, f := i.fighterOf(id)
 	if p == nil {
@@ -91,6 +91,9 @@ func (i *Instance) rejoin(id kernel.CharacterID, conn string, sink Sink) (model.
 	}
 	f.away = 0
 	i.welcome(p)
+	if p.arenaBar != nil {
+		p.private = append(p.private, model.ArenaBar{Tick: i.tick, Bar: p.arenaBar})
+	}
 	i.tellParty(p, i.m.ID, i.channel)
 	s := i.stats(p)
 	return model.View{
