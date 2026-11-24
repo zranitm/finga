@@ -218,12 +218,23 @@ type MatchState struct {
 	Wins   [2]int
 	EndsIn time.Duration
 	Sides  [2][]MatchFighter
+	Battle bool // fought for points: Score and Points are its, and it has no rounds
+	Score  [2]int
+	Points []CapturePoint
+}
+
+// CapturePoint is a battle's point: its holder, 0 for none, and its progress from -1, side 1's, to 1, side 2's, held still while contested.
+type CapturePoint struct {
+	ID        string
+	Holder    int
+	Progress  float64
+	Contested bool
 }
 
 // MatchPhase is where a match stands.
 type MatchPhase int
 
-// The phases: before the first round, counting into a round, fighting it, between rounds, and the outcome.
+// The phases: before the first round or the battle, counting into a round, fighting, between rounds, and the outcome. A battle has no count or rounds.
 const (
 	PhasePrep MatchPhase = iota
 	PhaseCountdown
@@ -344,7 +355,9 @@ const (
 type MatchEnded struct {
 	Mode   string
 	Result MatchOutcome
+	Battle bool // fought for points: Score is its, and it has no rounds
 	Wins   [2]int
+	Score  [2]int
 	Rating *PvpRatingChange
 	Left   bool
 }

@@ -63,9 +63,11 @@ const (
 type Ended struct {
 	Mode    string
 	Outcome Outcome
-	Wins    [2]int
-	Rating  *RatingChange
-	Left    bool // the player left before the outcome, so lost whatever their side did
+	Battle  bool   // fought for points: Score is its, and it has no rounds
+	Wins    [2]int // rounds won by each side
+	Score   [2]int
+	Rating  *RatingChange // a rated mode's
+	Left    bool          // the player left before the outcome, so lost whatever their side did
 }
 
 // Outcome is a match's end for a side.

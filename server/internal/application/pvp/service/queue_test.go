@@ -70,6 +70,7 @@ type store struct {
 	mu       sync.Mutex
 	ratings  map[kernel.CharacterID]model.Rating
 	matches  map[kernel.MatchID]model.Rated
+	recorded map[kernel.MatchID]string // each stored match's mode
 	lost     int
 	hold     map[kernel.MatchID]chan struct{}
 	modes    map[string]map[kernel.CharacterID]model.Rating
@@ -82,7 +83,7 @@ type store struct {
 }
 
 func newStore() *store {
-	return &store{ratings: map[kernel.CharacterID]model.Rating{}, matches: map[kernel.MatchID]model.Rated{}, hold: map[kernel.MatchID]chan struct{}{}, modes: map[string]map[kernel.CharacterID]model.Rating{}, builds: map[kernel.CharacterID]model.Build{}, stall: map[kernel.CharacterID]bool{}, stalled: map[kernel.CharacterID]time.Duration{}}
+	return &store{ratings: map[kernel.CharacterID]model.Rating{}, matches: map[kernel.MatchID]model.Rated{}, recorded: map[kernel.MatchID]string{}, hold: map[kernel.MatchID]chan struct{}{}, modes: map[string]map[kernel.CharacterID]model.Rating{}, builds: map[kernel.CharacterID]model.Build{}, stall: map[kernel.CharacterID]bool{}, stalled: map[kernel.CharacterID]time.Duration{}}
 }
 
 func (s *store) Ratings(_ context.Context, id kernel.CharacterID) (map[string]model.Rating, error) {
@@ -225,7 +226,7 @@ func (s *store) Record(_ context.Context, m model.Match, characters []kernel.Cha
 		}
 	}
 	rated := rate(had)
-	s.matches[m.ID] = rated
+	s.matches[m.ID], s.recorded[m.ID] = rated, m.Mode
 	maps.Copy(s.ratings, rated.After)
 	if s.lost > 0 {
 		s.lost--
@@ -496,7 +497,7 @@ func TestQueueRefusals(t *testing.T) {
 		f := newFixture(t)
 		ctx := context.Background()
 		ayla, bruno := kernel.NewCharacterID(), kernel.NewCharacterID()
-		if err := f.svc.Queue(ctx, model.Player{ID: ayla}, "battle"); !errors.Is(err, model.ErrUnknownMode) {
+		if err := f.svc.Queue(ctx, model.Player{ID: ayla}, "ffa"); !errors.Is(err, model.ErrUnknownMode) {
 			t.Fatalf("an unknown mode: %v", err)
 		}
 		if err := f.svc.Queue(ctx, model.Player{ID: ayla}, "duel"); err != nil {
@@ -551,6 +552,37 @@ func TestAnOutcomeRatesItsPlayersOnce(t *testing.T) {
 		again, _ := last[service.Ended](f.notes, ayla)
 		if f.store.ratings[ayla] != rt || again.Rating == nil || *again.Rating != *e.Rating {
 			t.Fatalf("a repeat moved the rating to %+v, or told %+v; want it kept and told as before, %+v", f.store.ratings[ayla], again.Rating, *e.Rating)
+		}
+	})
+}
+
+// pvp.md section 10: a battle, unrated, counts each player's record under its own mode and moves no rating, a leaver's either, and never places it; each hears the score, with no rating change.
+func TestABattleCountsTheRecordAndMovesNoRating(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newFixture(t)
+		ayla, bram := kernel.NewCharacterID(), kernel.NewCharacterID()
+		placement := f.data.Pvp().Rating.Placement
+		for k := range placement {
+			r := model.Result{
+				Match: kernel.NewMatchID(), Mode: "battle", Winner: 1, Score: [2]int{1000, 640},
+				Sides: [2][]model.Outcome{{{Character: ayla}, {Tier: "novice"}}, {{Character: bram, Left: true}, {Tier: "adept"}}},
+			}
+			f.svc.Record(context.Background(), r)
+			if f.store.recorded[r.Match] != "battle" {
+				t.Fatalf("stored under %q; want the battle's own mode", f.store.recorded[r.Match])
+			}
+			a, b := f.store.ratings[ayla], f.store.ratings[bram]
+			fresh := model.Rating{Mu: f.data.Pvp().Rating.Mu, Sigma: f.data.Pvp().Rating.Sigma}
+			if a.Mu != fresh.Mu || a.Sigma != fresh.Sigma || b.Mu != fresh.Mu || b.Sigma != fresh.Sigma {
+				t.Fatalf("after %d battles Ayla %+v, Bram the leaver %+v; want mu and sigma as they started", k+1, a, b)
+			}
+			if a.Matches != k+1 || a.Wins != k+1 || b.Losses != k+1 || a.Placed || b.Placed {
+				t.Fatalf("after %d battles Ayla %+v, Bram %+v; want the record counted, never placed", k+1, a, b)
+			}
+			e, ok := last[service.Ended](f.notes, ayla)
+			if !ok || e.Outcome != service.Win || !e.Battle || e.Score != r.Score || e.Rating != nil {
+				t.Fatalf("Ayla heard %+v; want her win with the score and no rating", e)
+			}
 		}
 	})
 }

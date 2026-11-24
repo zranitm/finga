@@ -94,7 +94,7 @@ func (i *Instance) hitPlayer(t, by *player, s mobs.Strike, damages bool) {
 	t.invulnUntil = tick + i.ticksFor(i.data.MobRules().HitGuard) // the blink only: nextHit stays
 	t.changed = true
 	if s.Push > 0 {
-		t.state = sim.Push(t.state, dx*s.Push, dz*s.Push, i.geometry(), i.params)
+		t.state = sim.Push(t.state, dx*s.Push, dz*s.Push, i.geometry(t), i.params)
 		t.moved = true
 	}
 	if t.HP <= 0 {

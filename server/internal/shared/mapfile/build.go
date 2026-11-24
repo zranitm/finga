@@ -19,9 +19,11 @@ type Map struct {
 	File
 	Geometry sim.Geometry
 	Walled   sim.Geometry // Geometry with the prep wall standing; zero on a map with none
-	params   sim.Params
-	keyed    sync.Once
-	grid     *sharedGrid
+	// Kept is the Geometry each side of a battle walks, the other side's base standing as a cylinder no body gets over; zero on a map with no bases.
+	Kept   [2]sim.Geometry
+	params sim.Params
+	keyed  sync.Once
+	grid   *sharedGrid
 }
 
 // sharedGrid is one walk grid, built once for every map with its geometry and params.
@@ -90,9 +92,24 @@ func Build(id string, f File, p sim.Params) (*Map, error) {
 		}
 		walled = sim.Indexed(walled)
 	}
+	var kept [2]sim.Geometry
+	if len(f.Bases) == 2 {
+		for s := range kept {
+			other := f.Bases[1-s]
+			if !inside(f.Size, other.At[0], other.At[1]) || !positive(other.Radius) {
+				return nil, fmt.Errorf("base %d needs its centre inside the map and a positive radius", 2-s)
+			}
+			k := g
+			k.Cylinders = append(slices.Clone(g.Cylinders), sim.Cylinder{X: other.At[0], Z: other.At[1], Radius: other.Radius, Top: baseTop})
+			kept[s] = sim.Indexed(k)
+		}
+	}
 	g = sim.Indexed(g)
-	return &Map{ID: id, File: f, Geometry: g, Walled: walled, params: p}, nil
+	return &Map{ID: id, File: f, Geometry: g, Walled: walled, Kept: kept, params: p}, nil
 }
+
+// baseTop is how high a base stands to the other side: past any jump.
+const baseTop = 1000
 
 // Generated is a map whose ground and solids were built elsewhere, as a region's are from its plan: f holds its spots, and g its geometry, indexed.
 func Generated(id string, f File, g sim.Geometry, p sim.Params) *Map {

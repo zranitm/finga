@@ -99,8 +99,8 @@ func TestABuildTheWorldCantTakeIsStillSaved(t *testing.T) {
 	}
 }
 
-// pvp.md section 10: a profile gives each rated mode's shown rating, rank, placement matches left, record and place, the place once placed and shared by a tie; with no build saved, the build is the world bar's copy.
-func TestAProfileGivesEachRatedModeAndTheBuild(t *testing.T) {
+// pvp.md section 10: a profile gives each rated mode's shown rating, rank, placement matches left, record and place, the place once placed and shared by a tie, and an unrated mode's record alone; with no build saved, the build is the world bar's copy.
+func TestAProfileGivesEachModeAndTheBuild(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 	account := kernel.NewAccountID()
@@ -112,6 +112,7 @@ func TestAProfileGivesEachRatedModeAndTheBuild(t *testing.T) {
 	fresh := []service.Standing{
 		{Mode: "duel", Shown: 1000, Rank: "bronze", PlacementLeft: 5},
 		{Mode: "team", Shown: 1000, Rank: "bronze", PlacementLeft: 5},
+		{Mode: "battle"},
 	}
 	copied := model.Build{Bar: []string{"bastion", "strike", "", "", "", "", "", ""}, Traits: map[string]string{"strike": "swift", "taunt": "goad"}} // another class's trait left off
 	if !slices.Equal(p.Standings, fresh) || !same(p.Build, copied) {
@@ -126,6 +127,8 @@ func TestAProfileGivesEachRatedModeAndTheBuild(t *testing.T) {
 		kernel.NewCharacterID(): {Shown: shown(high) + 100, Matches: 3}, // not placed: off the board
 	}
 	f.store.modes["duel"][ayla] = model.Rating{Mu: tie.Mu, Sigma: tie.Sigma, Shown: shown(tie), Placed: true, Matches: tie.Matches, Wins: tie.Wins, Losses: tie.Losses, Draws: tie.Draws}
+	f.store.modes["team"] = map[kernel.CharacterID]model.Rating{ayla: {Mu: high.Mu, Sigma: high.Sigma, Shown: shown(high), Placed: true, Matches: 9, Wins: 7, Losses: 2}}
+	f.store.modes["battle"] = map[kernel.CharacterID]model.Rating{ayla: {Mu: 25, Sigma: 8.333, Shown: 0, Matches: 6, Wins: 3, Losses: 2, Draws: 1}}
 	f.store.builds[ayla] = model.Build{Bar: warriorBar, Traits: map[string]string{}, Revision: 3}
 	p, err = f.svc.Profile(ctx, account, ayla)
 	if err != nil {
@@ -133,6 +136,9 @@ func TestAProfileGivesEachRatedModeAndTheBuild(t *testing.T) {
 	}
 	if want := (service.Standing{Mode: "duel", Shown: shown(tie), Rank: "platinum", Wins: 4, Losses: 1, Draws: 1, Place: 2}); p.Standings[0] != want || !same(p.Build, f.store.builds[ayla]) {
 		t.Fatalf("a placed fighter's duel %+v, build %+v; want %+v, second with the one tied, and the saved build", p.Standings[0], p.Build, want)
+	}
+	if want := (service.Standing{Mode: "battle", Wins: 3, Losses: 2, Draws: 1}); p.Standings[2] != want {
+		t.Fatalf("the battle's standing %+v; want %+v, its own record alone", p.Standings[2], want)
 	}
 	if _, err := f.svc.Profile(ctx, kernel.NewAccountID(), ayla); !errors.Is(err, model.ErrNoCharacter) {
 		t.Fatalf("another account's profile: %v", err)
@@ -210,7 +216,7 @@ func TestTheBoardListsThePlacedHighestFirst(t *testing.T) {
 		if again, _ := f.svc.Leaderboard(ctx, "team"); again[0].Shown != 3000 || f.store.boards != 2 {
 			t.Fatalf("30 s on, read %d times, top %+v; want it read again", f.store.boards, again[0])
 		}
-		for _, mode := range []string{"ffa", ""} {
+		for _, mode := range []string{"ffa", "", "battle"} { // an unrated mode has no board
 			if _, err := f.svc.Leaderboard(ctx, mode); !errors.Is(err, model.ErrUnknownMode) {
 				t.Fatalf("a board of %q: %v", mode, err)
 			}

@@ -1,0 +1,82 @@
+# The 15v15 battle's map (docs/tech/pvp.md sections 3 and 7): 140 m by 90 m, each side's base in a cliff-walled bay at its end, shut by a gate during prep, and three points along the middle: west, middle and east, 10 m across.
+# West and east mirror each other about x = 70, so no point is nearer one base than the other. Hills and ruins of the keep's and the desert's art break the lines between them.
+name: Battlefield
+kind: pvp
+look: {ground: sand, sky: day}
+size: [140, 90]
+terrain:
+  cell: 0.5
+  hills:
+    # low rises on the flanks, walked over, that hide a body behind them; a shallow mound by the middle point
+    - {at: [50, 16], radius: 14, height: 2.5}
+    - {at: [90, 16], radius: 14, height: 2.5}
+    - {at: [50, 74], radius: 14, height: 2.5}
+    - {at: [90, 74], radius: 14, height: 2.5}
+    - {at: [60, 45], radius: 7, height: 1}
+    - {at: [80, 45], radius: 7, height: 1}
+  mesas:
+    # each base's bay, 30 m across: cliffs north and south of it from the map's end to the gate, too steep to climb and higher than a jump, and low enough that the camera, looking north, sees the whole base over the south one
+    - {area: [-5, -5, 29, 35], height: 3, edge: 0.5}
+    - {area: [116, -5, 29, 35], height: 3, edge: 0.5}
+    - {area: [-5, 60, 29, 35], height: 3, edge: 0.5}
+    - {area: [116, 60, 29, 35], height: 3, edge: 0.5}
+solids:
+  # the west point's ruin: a fallen tower's columns and a boulder, kept out of the point's circle, and its mirror
+  - {cylinder: [33, 38], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [107, 38], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [43, 52], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [97, 52], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [45, 37], radius: 2.52, height: 2.31, model: boulder}
+  - {cylinder: [95, 37], radius: 2.52, height: 2.31, model: boulder}
+  # the walls between the points, cover for a side crossing the open middle, and its mirror
+  - {cylinder: [55, 29], radius: 2.33, height: 3.52, model: sandstone_wall}
+  - {cylinder: [85, 29], radius: 2.33, height: 3.52, model: sandstone_wall}
+  - {cylinder: [55, 61], radius: 2.33, height: 3.52, model: sandstone_wall}
+  - {cylinder: [85, 61], radius: 2.33, height: 3.52, model: sandstone_wall}
+  - {cylinder: [30, 24], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [110, 24], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [30, 66], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [110, 66], radius: 2.33, height: 3.52, model: rock_wall}
+  # the middle point's four columns, every gap wider than three bodies
+  - {cylinder: [63, 38], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [77, 38], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [63, 52], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [77, 52], radius: 1.6, height: 4.5, model: pillar}
+props:
+  - {scatter: {model: sand_pebbles, area: [24, 2, 92, 86], count: 120, seed: 71}}
+  - {scatter: {model: pebbles, area: [2, 35, 20, 20], count: 14, seed: 72}}
+  - {scatter: {model: pebbles, area: [118, 35, 20, 20], count: 14, seed: 73}}
+  # the cliffs' tops: crags and dead trees, and a crag by each gate's end hiding where cliff meets gate
+  - {at: [10, 15], model: crag}
+  - {at: [130, 15], model: crag}
+  - {at: [10, 75], model: crag}
+  - {at: [130, 75], model: crag}
+  - {at: [22, 28], model: crag}
+  - {at: [118, 28], model: crag}
+  - {at: [22, 62], model: crag}
+  - {at: [118, 62], model: crag}
+  - {scatter: {model: dead_tree, area: [0, 0, 22, 30], count: 4, seed: 74}}
+  - {scatter: {model: dead_tree, area: [118, 60, 22, 30], count: 4, seed: 75}}
+  - {scatter: {model: cactus_tall, area: [26, 2, 88, 6], count: 6, seed: 76}}
+  - {scatter: {model: cactus_tall, area: [26, 82, 88, 6], count: 6, seed: 77}}
+portals: []
+# each base's fifteen spots, five across and three deep, the front row's middle first; side 1 west facing east, side 2 east facing west
+sides:
+  - [{at: [17, 45], yaw: 90}, {at: [17, 41.5], yaw: 90}, {at: [17, 48.5], yaw: 90}, {at: [17, 38], yaw: 90}, {at: [17, 52], yaw: 90},
+     {at: [13.5, 45], yaw: 90}, {at: [13.5, 41.5], yaw: 90}, {at: [13.5, 48.5], yaw: 90}, {at: [13.5, 38], yaw: 90}, {at: [13.5, 52], yaw: 90},
+     {at: [10, 45], yaw: 90}, {at: [10, 41.5], yaw: 90}, {at: [10, 48.5], yaw: 90}, {at: [10, 38], yaw: 90}, {at: [10, 52], yaw: 90}]
+  - [{at: [123, 45], yaw: 270}, {at: [123, 41.5], yaw: 270}, {at: [123, 48.5], yaw: 270}, {at: [123, 38], yaw: 270}, {at: [123, 52], yaw: 270},
+     {at: [126.5, 45], yaw: 270}, {at: [126.5, 41.5], yaw: 270}, {at: [126.5, 48.5], yaw: 270}, {at: [126.5, 38], yaw: 270}, {at: [126.5, 52], yaw: 270},
+     {at: [130, 45], yaw: 270}, {at: [130, 41.5], yaw: 270}, {at: [130, 48.5], yaw: 270}, {at: [130, 38], yaw: 270}, {at: [130, 52], yaw: 270}]
+# each bay's gate, cliff to cliff, shut during prep
+prep_wall:
+  - {box: [24.5, 45, 0.6, 30], height: 4, model: prep_wall}
+  - {box: [115.5, 45, 0.6, 30], height: 4, model: prep_wall}
+# each bay's base: its own side heals in it, and the other side's bodies stay out
+bases:
+  - {at: [13, 45], radius: 9}
+  - {at: [127, 45], radius: 9}
+points:
+  - {id: west, name: West Ruin, at: [38, 45], radius: 5}
+  - {id: middle, name: Middle Ruin, at: [70, 45], radius: 5}
+  - {id: east, name: East Ruin, at: [102, 45], radius: 5}

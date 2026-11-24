@@ -51,7 +51,7 @@ func (w World) SetBuild(ctx context.Context, id kernel.CharacterID, b model.Buil
 // FollowResults hands deliver each match's outcome until ctx ends.
 func (w World) FollowResults(ctx context.Context, deliver func(model.Result)) error {
 	return w.w.FollowResults(ctx, func(r world.MatchResult) {
-		out := model.Result{Match: r.Match, Mode: r.Mode, Started: r.Started, Ended: r.Ended, Winner: r.Winner, Wins: r.Wins}
+		out := model.Result{Match: r.Match, Mode: r.Mode, Started: r.Started, Ended: r.Ended, Winner: r.Winner, Wins: r.Wins, Score: r.Score}
 		for k, side := range r.Sides {
 			for _, f := range side {
 				out.Sides[k] = append(out.Sides[k], model.Outcome(f))

@@ -150,7 +150,7 @@ skills:
 - **The skill bar** is saved over REST, `PUT /api/characters/{id}/skill-bar` with `{slots}`, and listed with the character in `GET /api/characters`. It's a UI arrangement, not game state, and the world never reads it.
   - **Validation:** six keys (eight since [Key bindings](./key-bindings.md)), each empty or an active skill in the game data, whether or not the character has learned it yet. Anything else is `BAD_SKILL_BAR`. Another account's character is `CHARACTER_NOT_FOUND`.
     - It doesn't check the class, as the world refuses a skill the class can't learn when it's used.
-    - Since the PvP 4 playtest, a follow-up of the character's class is `BAD_SKILL_BAR` too, as the client refuses that drop: it rides on its root's key. With today's chains, no promotion turns a key the Beginner could hold into a follow-up. Were one to, that bar's next save would be refused until the key changes.
+    - Since the PvP 4 playtest, a follow-up of the character's class is `BAD_SKILL_BAR` too, as the client refuses that drop: it rides on its root's key. No promotion can strand one on a bar: the loader refuses a class whose chains make a follow-up of an active skill its parent may hold on a key.
     - Nor does it refuse one skill on two keys. The client never sends that, since a skill dropped on a key leaves any other.
   - **The client saves it** 800 ms after the player's last change, so a run of drags makes one call.
     - Saves go one at a time, each with the bar as it stood when due, so the last change lands last.

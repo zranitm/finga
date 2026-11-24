@@ -312,6 +312,25 @@ sides:
 prep_wall:
   - {box: [10, 10, 20, 0.6], height: 3, model: prep_wall}
 `,
+		"maps/siege.yaml": `
+name: Siege
+kind: pvp
+look: {ground: sand, sky: day}
+size: [40, 20]
+terrain: {cell: 4}
+portals: []
+sides:
+  - [{at: [5, 9], yaw: 90}, {at: [5, 11], yaw: 90}]
+  - [{at: [35, 9], yaw: 270}, {at: [35, 11], yaw: 270}]
+prep_wall:
+  - {box: [10, 10, 0.6, 20], height: 3, model: prep_wall}
+  - {box: [30, 10, 0.6, 20], height: 3, model: prep_wall}
+bases:
+  - {at: [5, 10], radius: 4}
+  - {at: [35, 10], radius: 4}
+points:
+  - {id: mid, name: Middle, at: [20, 10], radius: 3}
+`,
 		"outfits.yaml": `
 pieces:
   - {id: lord_robe, slot: outfit, name: Lord's Robe, stars: 3, look: mage_body, from: [{boss: slime_lord, chance: 0.05}]}
@@ -321,8 +340,10 @@ pieces:
 		"pvp.yaml": `
 modes:
   duel: {name: 1v1, team: 1, party: 1, map: pit, rated: true, rounds: {best_of: 3, most: 5, length: 60s}}
+  war: {name: 2v2, team: 2, party: 2, map: siege, rated: false, rating_from: duel}
 queue: {bots_after: 15s, offer: 10s, window: {start: 2, per_second: 0.2, most: 8}}
 rounds: {prep: 10s, countdown: 3s, between: 5s}
+battle: {prep: 20s, length: 12m, goal: 1000, per_point: 1, per_down: 5, respawn: 10s, base_heal: 0.10, capture: {time: 8s, per_extra: 0.25, fastest: 2}}
 result: 10s
 kit: {level: 4, classes: {warrior: {hp: 1.5, damage: 0.8}, bowman: {hp: 1.0, damage: 1.25}}}
 scale: {hp: 1.0, damage: 1.0}
@@ -693,7 +714,7 @@ func TestValidDataLoads(t *testing.T) {
 		if !field.Grid().Fits(nav.Point{X: 3, Z: 10}, 0.375) {
 			t.Fatal("the field's walk grid has no standing room at the player's spawn")
 		}
-		if len(d.Maps()) != 3 {
+		if len(d.Maps()) != 4 {
 			t.Fatalf("%d maps", len(d.Maps()))
 		}
 	})
@@ -735,6 +756,32 @@ func TestValidDataLoads(t *testing.T) {
 		}
 		if _, ok := d.Kit("beginner"); ok {
 			t.Error("the Beginner has a kit, though only promoted characters fight")
+		}
+	})
+	t.Run("a battle's map, its bases and points, and the battle's rules", func(t *testing.T) {
+		siege, _ := d.Map("siege")
+		bases := [2]gamedata.Circle{{At: gamedata.Point{X: 5, Z: 10}, Radius: 4}, {At: gamedata.Point{X: 35, Z: 10}, Radius: 4}}
+		points := []gamedata.CapturePoint{{ID: "mid", Name: "Middle", At: gamedata.Point{X: 20, Z: 10}, Radius: 3}}
+		if siege.Bases != bases || !reflect.DeepEqual(siege.Points, points) {
+			t.Fatalf("siege's bases %+v and points %+v", siege.Bases, siege.Points)
+		}
+		for s, k := range siege.Kept {
+			other := bases[1-s]
+			if len(siege.Geometry.Cylinders) != 0 || len(k.Cylinders) != 1 || k.Cylinders[0].X != other.At.X || k.Cylinders[0].Radius != other.Radius {
+				t.Fatalf("side %d walks %+v; want the other side's base standing, and on no other geometry", s+1, k.Cylinders)
+			}
+		}
+		if pit, _ := d.Map("pit"); len(pit.Points) != 0 || pit.Bases != ([2]gamedata.Circle{}) || pit.Kept[0].SizeX != 0 {
+			t.Fatal("a round map has a battle's bases")
+		}
+		war, ok := d.PvpMode("war")
+		if duel, _ := d.PvpMode("duel"); !ok || !war.Battle() || duel.Battle() {
+			t.Fatalf("war %+v is no battle, or the duel is", war)
+		}
+		want := gamedata.PvpBattle{Prep: 20 * time.Second, Length: 12 * time.Minute, Respawn: 10 * time.Second, Goal: 1000, PerPoint: 1, PerDown: 5, BaseHeal: 0.1,
+			Capture: gamedata.Capture{Time: 8 * time.Second, PerExtra: 0.25, Fastest: 2}}
+		if got := d.Pvp().Battle; got != want {
+			t.Fatalf("battle %+v, want %+v", got, want)
 		}
 	})
 	t.Run("NPCs, placed by their maps", func(t *testing.T) {
@@ -1050,7 +1097,7 @@ func TestRejections(t *testing.T) {
 		{"actions.yaml with the lock's old range", "actions.yaml", "ready: 0.85\n", "ready: 0.85\nlock_range: 12\n", []string{"actions.yaml", "lock_range"}},
 		{"a map with no place on the world chart", "world.yaml", "  field: [60, 50]\n", "", []string{"world.yaml", "field", "no place"}},
 		{"a place for a pvp map", "world.yaml", "  field: [60, 50]\n", "  field: [60, 50]\n  pit: [10, 10]\n", []string{"world.yaml", "pit", "pvp"}},
-		{"pvp.yaml without modes", "pvp.yaml", "  duel: {name: 1v1, team: 1, party: 1, map: pit, rated: true, rounds: {best_of: 3, most: 5, length: 60s}}\n", "", []string{"pvp.yaml", "no modes"}},
+		{"pvp.yaml without modes", "pvp.yaml", "  duel: {name: 1v1, team: 1, party: 1, map: pit, rated: true, rounds: {best_of: 3, most: 5, length: 60s}}\n  war: {name: 2v2, team: 2, party: 2, map: siege, rated: false, rating_from: duel}\n", "", []string{"pvp.yaml", "no modes"}},
 		{"a mode on a hunting map", "pvp.yaml", "map: pit", "map: field", []string{"pvp.yaml", "duel", "field", "no pvp map"}},
 		{"a mode's team past its map's spots", "pvp.yaml", "team: 1, party: 1", "team: 2, party: 1", []string{"pvp.yaml", "duel", "fewer than 2 spots"}},
 		{"a party past the team", "pvp.yaml", "team: 1, party: 1", "team: 1, party: 2", []string{"pvp.yaml", "duel", "party"}},
@@ -1058,6 +1105,32 @@ func TestRejections(t *testing.T) {
 		{"most rounds under best_of", "pvp.yaml", "most: 5", "most: 2", []string{"pvp.yaml", "duel", "most"}},
 		{"an unrated mode with no rating to read", "pvp.yaml", "rated: true", "rated: false", []string{"pvp.yaml", "duel", "rating_from"}},
 		{"an offer that never lapses", "pvp.yaml", "offer: 10s", "offer: 0s", []string{"pvp.yaml", "offer"}},
+		{"a battle on a round map", "pvp.yaml", "team: 2, party: 2, map: siege", "team: 1, party: 1, map: pit", []string{"pvp.yaml", "war", "bases and points"}},
+		{"half a battle's rounds", "pvp.yaml", "rating_from: duel}", "rating_from: duel, rounds: {best_of: 3}}", []string{"pvp.yaml", "war", "odd best_of"}},
+		{"a battle with no prep", "pvp.yaml", "battle: {prep: 20s,", "battle: {prep: 0s,", []string{"pvp.yaml", "battle", "prep"}},
+		{"a battle with no length", "pvp.yaml", "length: 12m,", "length: 0s,", []string{"pvp.yaml", "battle", "length"}},
+		{"a battle with no respawn", "pvp.yaml", "respawn: 10s,", "respawn: 0s,", []string{"pvp.yaml", "battle", "respawn"}},
+		{"a point taken at once", "pvp.yaml", "capture: {time: 8s,", "capture: {time: 0s,", []string{"pvp.yaml", "battle", "capture's time"}},
+		{"a battle with no goal", "pvp.yaml", "goal: 1000,", "goal: 0,", []string{"pvp.yaml", "battle", "goal"}},
+		{"a point scoring nothing", "pvp.yaml", "per_point: 1,", "per_point: 0,", []string{"pvp.yaml", "battle", "per_point"}},
+		{"a down scoring nothing", "pvp.yaml", "per_down: 5,", "per_down: 0,", []string{"pvp.yaml", "battle", "per_down"}},
+		{"a base healing nothing", "pvp.yaml", "base_heal: 0.10,", "base_heal: 0,", []string{"pvp.yaml", "battle", "base_heal"}},
+		{"a base healing past max HP", "pvp.yaml", "base_heal: 0.10,", "base_heal: 1.5,", []string{"pvp.yaml", "battle", "base_heal"}},
+		{"a crowd slowing a point", "pvp.yaml", "per_extra: 0.25,", "per_extra: -0.25,", []string{"pvp.yaml", "battle", "per_extra"}},
+		{"a crowd turning a point slower than one", "pvp.yaml", "fastest: 2}", "fastest: 0.5}", []string{"pvp.yaml", "battle", "fastest"}},
+		{"a battle map with one base", "maps/siege.yaml", "  - {at: [35, 10], radius: 4}\n", "", []string{"siege", "two bases"}},
+		{"a battle map with no points", "maps/siege.yaml", "points:\n  - {id: mid, name: Middle, at: [20, 10], radius: 3}\n", "", []string{"siege", "two bases and its points"}},
+		{"a base of no size", "maps/siege.yaml", "{at: [5, 10], radius: 4}", "{at: [5, 10], radius: 0}", []string{"siege", "base 1", "positive radius"}},
+		{"a base off the map", "maps/siege.yaml", "{at: [35, 10], radius: 4}", "{at: [45, 10], radius: 4}", []string{"siege", "base 2", "inside the map"}},
+		{"bases that overlap", "maps/siege.yaml", "{at: [35, 10], radius: 4}", "{at: [12, 10], radius: 4}", []string{"siege", "apart"}},
+		{"a spot outside its base", "maps/siege.yaml", "{at: [35, 9], yaw: 270}", "{at: [25, 9], yaw: 270}", []string{"siege", "side 2's spot 1", "outside its base"}},
+		{"a point with no id", "maps/siege.yaml", "{id: mid,", "{id: '',", []string{"siege", "point 1", "id"}},
+		{"a point twice", "maps/siege.yaml", "  - {id: mid, name: Middle, at: [20, 10], radius: 3}\n", "  - {id: mid, name: Middle, at: [20, 10], radius: 3}\n  - {id: mid, name: Again, at: [20, 4], radius: 2}\n", []string{"siege", "point 2", "of its own"}},
+		{"a point past the map's south edge", "maps/siege.yaml", "at: [20, 10], radius: 3}", "at: [20, 1], radius: 3}", []string{"siege", "mid", "inside the map"}},
+		{"a point past the map's north edge", "maps/siege.yaml", "at: [20, 10], radius: 3}", "at: [20, 19], radius: 3}", []string{"siege", "mid", "inside the map"}},
+		{"a point past the map's west edge", "maps/siege.yaml", "at: [20, 10], radius: 3}", "at: [1, 3], radius: 3}", []string{"siege", "mid", "inside the map"}},
+		{"a point past the map's east edge", "maps/siege.yaml", "at: [20, 10], radius: 3}", "at: [39, 3], radius: 3}", []string{"siege", "mid", "inside the map"}},
+		{"a point in a base", "maps/siege.yaml", "at: [20, 10], radius: 3}", "at: [10, 10], radius: 3}", []string{"siege", "mid", "overlaps a base"}},
 		{"a window whose most is under its start", "pvp.yaml", "most: 8}", "most: 1}", []string{"pvp.yaml", "window"}},
 		{"no countdown", "pvp.yaml", "countdown: 3s", "countdown: 0s", []string{"pvp.yaml", "countdown"}},
 		{"a kit past the level cap", "pvp.yaml", "kit: {level: 4,", "kit: {level: 5,", []string{"pvp.yaml", "kit", "cap 4"}},

@@ -206,7 +206,7 @@ func New(d Deps, t Tuning) *Instance {
 		channel:  d.Channel,
 	}
 	if d.Match != nil {
-		i.match = newMatch(*d.Match, d.Data.Pvp(), i.ticksFor)
+		i.match = newMatch(*d.Match, d.Data.Pvp(), d.Map.Points, t.TickInterval)
 		i.addBots()
 	}
 	i.bosses = bossSlots(d.Map)
@@ -355,6 +355,7 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.settleDowns()
 	i.deathsAndRespawns()
 	i.judgeRound()
+	i.stepBattle()
 	i.teleports()
 	i.trackAreas()
 	i.trackWaypoints(time.Now())

@@ -165,12 +165,23 @@ type MatchState struct {
 	Wins   [2]int
 	EndsIn time.Duration
 	Sides  [2][]MatchFighter
+	Battle bool // fought for points: Score and Points are its, and it has no rounds
+	Score  [2]int
+	Points []CapturePoint
+}
+
+// CapturePoint is a battle's point: its holder, 0 for none, and its progress from -1, side 1's, to 1, side 2's, held still while contested.
+type CapturePoint struct {
+	ID        string
+	Holder    int
+	Progress  float64
+	Contested bool
 }
 
 // MatchPhase is where a match stands.
 type MatchPhase int
 
-// The phases: before the first round, counting into a round, fighting it, between rounds, and the outcome.
+// The phases: before the first round or the battle, counting into a round, fighting, between rounds, and the outcome. A battle has no count or rounds.
 const (
 	PhasePrep MatchPhase = iota
 	PhaseCountdown
@@ -659,7 +670,10 @@ func deliveryOf(e model.Event) Delivery {
 		}
 		return Delivery{Tick: ev.Tick, Event: sc}
 	case model.MatchState:
-		st := MatchState{Match: ev.Match, Mode: ev.Mode, Phase: MatchPhase(ev.Phase), Round: ev.Round, Wins: ev.Wins, EndsIn: ev.EndsIn}
+		st := MatchState{Match: ev.Match, Mode: ev.Mode, Phase: MatchPhase(ev.Phase), Round: ev.Round, Wins: ev.Wins, EndsIn: ev.EndsIn, Battle: ev.Battle, Score: ev.Score}
+		for _, p := range ev.Points {
+			st.Points = append(st.Points, CapturePoint(p))
+		}
 		for s, side := range ev.Sides {
 			for _, f := range side {
 				st.Sides[s] = append(st.Sides[s], MatchFighter(f))

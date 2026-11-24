@@ -23,6 +23,8 @@ func chainData(t *testing.T) *gamedata.Data {
 	return skillDataWith(t, withEdits(mechanicsEdits(t), map[string]func(string) string{
 		"classes.yaml": func(s string) string {
 			s = edit(t, "test_war_cry, test_barrier]", "test_war_cry, test_barrier, hop_back, daze]")(s)
+			// the Warrior's follow-ups follow on the Beginner's Mend too, so no Beginner's key holds one the promotion would strand
+			s = edit(t, "{skill: break_free, when: {controlled_self: true}}, {skill: lunge, when: {dodged: 1500ms}}]}\n", "{skill: break_free, when: {controlled_self: true}}, {skill: lunge, when: {dodged: 1500ms}}]}\n      - {root: mend, follow: [{skill: test_flurry, when: {after: 2s}}, {skill: rain, when: {far: 3}}, {skill: short_rain, when: {controlled: [stun, freeze]}}, {skill: test_barrier, when: {dodged: 3s}}]}\n")(s)
 			return edit(t, `    chains:
       - root: strike
         follow:

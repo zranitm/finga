@@ -138,7 +138,7 @@ func TestEveryShippedMapCanBeCrossed(t *testing.T) {
 		t.Run(m.ID, func(t *testing.T) {
 			starts := []spot{{what: "the player spawn", at: m.PlayerSpawn.At}}
 			var targets []spot
-			if m.Kind == "pvp" { // a match's fighters start on its sides and meet with the prep wall down
+			if m.Kind == "pvp" { // a match's fighters start on its sides and meet with the prep wall down; a battle's take its points
 				starts = nil
 				for k, side := range m.Sides {
 					for i, at := range side {
@@ -146,6 +146,9 @@ func TestEveryShippedMapCanBeCrossed(t *testing.T) {
 						starts = append(starts, spot{what: what, at: at.At})
 						targets = append(targets, spot{what, at.At, p.Radius})
 					}
+				}
+				for _, pt := range m.Points {
+					targets = append(targets, spot{"point " + pt.ID, pt.At, pt.Radius})
 				}
 			}
 			for _, pt := range m.Portals {
@@ -164,6 +167,77 @@ func TestEveryShippedMapCanBeCrossed(t *testing.T) {
 			crossed(t, m.Grid(), p.Radius, rise, starts, targets)
 		})
 	}
+}
+
+// pvp.md sections 3 and 7: on every shipped battle map, each side, walking with the other's base standing, gets from its spots to every point at every speed, and never into the other's base however high it jumps; with the prep wall up, neither gets out of its bay.
+func TestEveryShippedBattleMapKeepsItsSides(t *testing.T) {
+	data := gamedatatest.Shipped(t)
+	d := shipped(t)
+	p := d.params
+	rise, high := fastRise(data, p), highRise(p)
+	battles := 0
+	for _, m := range d.maps {
+		if len(m.Points) == 0 {
+			continue
+		}
+		battles++
+		t.Run(m.ID, func(t *testing.T) {
+			var points []spot
+			for _, pt := range m.Points {
+				points = append(points, spot{"point " + pt.ID, pt.At, pt.Radius})
+			}
+			walled := nav.New(m.Walled, p.Step)
+			for k := range m.Sides {
+				own, other := sideSpots(m, k, p.Radius), sideSpots(m, 1-k, p.Radius)
+				kept := nav.New(m.Kept[k], p.Step)
+				from := fmt.Sprintf("side %d's spots", k+1)
+				reached := kept.Reach(startsOf(own), p.Radius, rise)
+				for _, tg := range append(points, own...) {
+					if !reached.Near(mapfile.Point(tg.at), tg.within) {
+						t.Errorf("from %s, with the other base standing, a player can't reach %s", from, tg.what)
+					}
+				}
+				over := kept.Reach(startsOf(own), p.Radius, high)
+				for _, tg := range other {
+					if over.Near(mapfile.Point(tg.at), tg.within) {
+						t.Errorf("from %s, a player gets into the other base, to %s", from, tg.what)
+					}
+				}
+				shut := walled.Reach(startsOf(own), p.Radius, high)
+				for _, tg := range append(points, other...) {
+					if shut.Near(mapfile.Point(tg.at), tg.within) {
+						t.Errorf("from %s, with the prep wall up, a player gets out to %s", from, tg.what)
+					}
+				}
+			}
+		})
+	}
+	if battles == 0 {
+		t.Fatal("no battle map in data/maps, so nothing checked")
+	}
+}
+
+// highRise is above the highest a jump lifts the feet, at any speed, by jumpMargin: Faster keeps a jump's peak at launch²/2·gravity, and the sim's steps only fall short of it.
+func highRise(p sim.Params) float64 {
+	return float64(p.JumpVelocity*p.JumpVelocity)/float64(2*p.Gravity) + jumpMargin
+}
+
+// sideSpots is side k's starting spots on m, each reached within radius.
+func sideSpots(m *mapfile.Map, k int, radius float64) []spot {
+	var out []spot
+	for i, at := range m.Sides[k] {
+		out = append(out, spot{fmt.Sprintf("side %d's spot %d", k+1, i+1), at.At, radius})
+	}
+	return out
+}
+
+// startsOf is spots' places, a flood starting from all of them at once.
+func startsOf(spots []spot) []nav.Point {
+	var out []nav.Point
+	for _, s := range spots {
+		out = append(out, mapfile.Point(s.at))
+	}
+	return out
 }
 
 // The reach check on every shipped region (large-regions.md section 3): from its start, each gate and beside each waypoint, where teleports land and the dead get up, players get to every waypoint, gate, NPC, camp and area boss at every speed, on the walk grid the server builds.

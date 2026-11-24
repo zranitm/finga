@@ -107,6 +107,9 @@ func (l *loader) mapRules(m *mapfile.Map) error {
 		case len(m.PrepWall) == 0:
 			return errors.New("a pvp map has a prep_wall, standing before each round")
 		}
+		if err := battleMapRules(m); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("unknown kind %q", m.Kind)
 	}
@@ -350,8 +353,48 @@ func mapOf(m *mapfile.Map, r regionParts) *gamedata.Map {
 	if gamedata.MapKind(m.Kind) == gamedata.Pvp {
 		out.PlayerSpawn, out.SpawnYaw, out.Walled = out.Sides[0][0].At, out.Sides[0][0].Yaw, m.Walled // where one who falls out is caught
 	}
+	for s, b := range m.Bases {
+		out.Bases[s] = gamedata.Circle{At: point(b.At), Radius: b.Radius}
+	}
+	for _, p := range m.Points {
+		out.Points = append(out.Points, gamedata.CapturePoint{ID: p.ID, Name: p.Name, At: point(p.At), Radius: p.Radius})
+	}
+	out.Kept = m.Kept
 	return out
 }
 
 // radians is a data angle, written in degrees, as the world turns by it.
 func radians(degrees float64) float64 { return degrees * math.Pi / 180 }
+
+// battleMapRules checks a pvp map's bases and points, which a battle map has and a round map doesn't: two bases apart, each holding its side's spots, and points with ids of their own, inside the map and in no base.
+func battleMapRules(m *mapfile.Map) error {
+	switch {
+	case len(m.Bases) == 0 && len(m.Points) == 0:
+		return nil
+	case len(m.Bases) != 2 || len(m.Points) == 0:
+		return errors.New("a battle map has two bases and its points")
+	case math.Hypot(m.Bases[0].At[0]-m.Bases[1].At[0], m.Bases[0].At[1]-m.Bases[1].At[1]) <= m.Bases[0].Radius+m.Bases[1].Radius:
+		return errors.New("a battle map's bases are apart")
+	}
+	in := func(c [2]float64, r float64, at [2]float64) bool { return math.Hypot(at[0]-c[0], at[1]-c[1]) <= r }
+	for s, b := range m.Bases {
+		for k, spot := range m.Sides[s] {
+			if !in(b.At, b.Radius, spot.At) {
+				return fmt.Errorf("side %d's spot %d is outside its base", s+1, k+1)
+			}
+		}
+	}
+	ids := map[string]bool{}
+	for k, p := range m.Points {
+		switch {
+		case p.ID == "" || p.Name == "" || ids[p.ID]:
+			return fmt.Errorf("point %d needs an id of its own and a name", k+1)
+		case !positive(p.Radius) || p.At[0]-p.Radius < 0 || p.At[1]-p.Radius < 0 || p.At[0]+p.Radius > m.Size[0] || p.At[1]+p.Radius > m.Size[1]:
+			return fmt.Errorf("point %s needs a positive radius and its circle inside the map", p.ID)
+		case in(m.Bases[0].At, m.Bases[0].Radius+p.Radius, p.At) || in(m.Bases[1].At, m.Bases[1].Radius+p.Radius, p.At):
+			return fmt.Errorf("point %s overlaps a base", p.ID)
+		}
+		ids[p.ID] = true
+	}
+	return nil
+}

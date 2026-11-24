@@ -19,6 +19,7 @@ type PvpRules struct {
 	Modes  []PvpMode // by team size
 	Queue  PvpQueue
 	Rounds PvpRounds
+	Battle PvpBattle
 	Result time.Duration // how long the outcome shows before everyone goes back
 	Kits   map[kernel.Class]Kit
 	Scale  PvpScale
@@ -37,6 +38,23 @@ type PvpMode struct {
 	Rated      bool
 	RatingFrom string     // an unrated mode's ticket reads this mode's rating
 	Rounds     ModeRounds // a round mode's
+}
+
+// Battle reports whether the mode is fought for points, as PvpBattle rules, rather than in rounds.
+func (m PvpMode) Battle() bool { return m.Rounds.BestOf == 0 }
+
+// PvpBattle is a battle's rules: Prep with the gates shut, then up to Length of fighting. A side scores PerPoint a second for each point it holds and PerDown for each enemy it downs, and the first to Goal wins. The downed get up after Respawn in their base, which heals BaseHeal of max HP a second.
+type PvpBattle struct {
+	Prep, Length, Respawn   time.Duration
+	Goal, PerPoint, PerDown int
+	BaseHeal                float64
+	Capture                 Capture
+}
+
+// Capture is how fast a point turns: Time for one fighter alone, each more of their side adding PerExtra of that pace, up to Fastest times it.
+type Capture struct {
+	Time              time.Duration
+	PerExtra, Fastest float64
 }
 
 // ModeRounds is a round mode's: the first to win more than half of BestOf takes the match, and Most rounds end it a draw; each round lasts Length.
@@ -155,7 +173,7 @@ func PvpBuildFault(c Class, skill func(string) (Skill, bool), bar []string, trai
 	return nil
 }
 
-// PvpCopy is the pvp build a character of c has before they save one: their world bar and traits, with a block not c's own swapped for c's block, moved there if it stood on another key as a promotion does, and keys c can't use, follow-ups or repeats left empty; the traits kept are those of c's active skills, a follow-up's off the bar included.
+// PvpCopy is the pvp build a character of c has before they save one: their world bar and traits, with a block not c's own swapped for c's block, moved there if it stood on another key as a promotion does, and keys c can't use or repeats left empty; the traits kept are those of c's active skills, a follow-up's off the bar included.
 func PvpCopy(c Class, skill func(string) (Skill, bool), bar []string, traits map[string]string) ([]string, map[string]string) {
 	out := make([]string, BarKeys)
 	copy(out, bar)
@@ -170,7 +188,7 @@ func PvpCopy(c Class, skill func(string) (Skill, bool), bar []string, traits map
 		}
 	}
 	for k, id := range out {
-		if s, ok := skill(id); id != "" && (!ok || s.Kind != Active || !c.Learnable(s) || !c.Keyable(id) || slices.Contains(out[:k], id)) {
+		if s, ok := skill(id); id != "" && (!ok || s.Kind != Active || !c.Learnable(s) || slices.Contains(out[:k], id)) {
 			out[k] = ""
 		}
 	}

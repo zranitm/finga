@@ -34,6 +34,20 @@ type pvpYAML struct {
 		Countdown time.Duration `yaml:"countdown"`
 		Between   time.Duration `yaml:"between"`
 	} `yaml:"rounds"`
+	Battle struct {
+		Prep     time.Duration `yaml:"prep"`
+		Length   time.Duration `yaml:"length"`
+		Goal     int           `yaml:"goal"`
+		PerPoint int           `yaml:"per_point"`
+		PerDown  int           `yaml:"per_down"`
+		Respawn  time.Duration `yaml:"respawn"`
+		BaseHeal float64       `yaml:"base_heal"`
+		Capture  struct {
+			Time     time.Duration `yaml:"time"`
+			PerExtra float64       `yaml:"per_extra"`
+			Fastest  float64       `yaml:"fastest"`
+		} `yaml:"capture"`
+	} `yaml:"battle"`
 	Result time.Duration `yaml:"result"`
 	Kit    struct {
 		Level   int                                `yaml:"level"`
@@ -72,17 +86,19 @@ type pvpYAML struct {
 }
 
 type modeYAML struct {
-	Name       string `yaml:"name"`
-	Team       int    `yaml:"team"`
-	Party      int    `yaml:"party"`
-	Map        string `yaml:"map"`
-	Rated      bool   `yaml:"rated"`
-	RatingFrom string `yaml:"rating_from"`
-	Rounds     struct {
-		BestOf int           `yaml:"best_of"`
-		Most   int           `yaml:"most"`
-		Length time.Duration `yaml:"length"`
-	} `yaml:"rounds"`
+	Name       string     `yaml:"name"`
+	Team       int        `yaml:"team"`
+	Party      int        `yaml:"party"`
+	Map        string     `yaml:"map"`
+	Rated      bool       `yaml:"rated"`
+	RatingFrom string     `yaml:"rating_from"`
+	Rounds     roundsYAML `yaml:"rounds"` // none for a battle
+}
+
+type roundsYAML struct {
+	BestOf int           `yaml:"best_of"`
+	Most   int           `yaml:"most"`
+	Length time.Duration `yaml:"length"`
 }
 
 type buildYAML struct {
@@ -112,6 +128,9 @@ func (l *loader) loadPvp(dir string) error {
 		return fmt.Errorf("%s: rounds' prep, countdown and between, and result, must be over 0", pvpFile)
 	case !positive(y.Scale.HP) || !positive(y.Scale.Damage):
 		return fmt.Errorf("%s: scale's hp and damage must be over 0", pvpFile)
+	}
+	if p.Battle, err = battleRules(y); err != nil {
+		return fmt.Errorf("%s: battle: %w", pvpFile, err)
 	}
 	p.Queue = gamedata.PvpQueue{BotsAfter: q.BotsAfter, Offer: q.Offer, Window: gamedata.QueueWindow(q.Window)}
 	p.Rounds, p.Result, p.Scale = gamedata.PvpRounds(r), y.Result, y.Scale
@@ -158,7 +177,9 @@ func (l *loader) pvpModes(modes map[string]modeYAML) ([]gamedata.PvpMode, error)
 			return nil, fmt.Errorf("mode %s: map %q is no pvp map", id, m.Map)
 		case len(mp.Sides[0]) < m.Team || len(mp.Sides[1]) < m.Team:
 			return nil, fmt.Errorf("mode %s: map %s has fewer than %d spots a side", id, m.Map, m.Team)
-		case r.BestOf < 1 || r.BestOf%2 == 0 || r.Most < r.BestOf || r.Length <= 0:
+		case r == roundsYAML{} && len(mp.Points) == 0:
+			return nil, fmt.Errorf("mode %s: a battle, with no rounds, is fought on a map with bases and points", id)
+		case r != roundsYAML{} && (r.BestOf < 1 || r.BestOf%2 == 0 || r.Most < r.BestOf || r.Length <= 0):
 			return nil, fmt.Errorf("mode %s: rounds need an odd best_of, most at least best_of, and a length over 0", id)
 		case m.Rated == (m.RatingFrom != ""):
 			return nil, fmt.Errorf("mode %s: a rated mode has its own rating, and an unrated one reads rating_from's", id)
@@ -306,4 +327,19 @@ func (l *loader) botBuild(c gamedata.Class, b buildYAML) error {
 		}
 	}
 	return nil
+}
+
+// battleRules checks the battle's rules: every time and amount over 0, base_heal at most all of max HP, and fastest at least one fighter's pace.
+func battleRules(y pvpYAML) (gamedata.PvpBattle, error) {
+	b, c := y.Battle, y.Battle.Capture
+	switch {
+	case b.Prep <= 0 || b.Length <= 0 || b.Respawn <= 0 || c.Time <= 0:
+		return gamedata.PvpBattle{}, errors.New("prep, length, respawn and capture's time must be over 0")
+	case b.Goal < 1 || b.PerPoint < 1 || b.PerDown < 1:
+		return gamedata.PvpBattle{}, errors.New("goal, per_point and per_down must be over 0")
+	case !positive(b.BaseHeal) || b.BaseHeal > 1 || !nonNegative(c.PerExtra) || !(c.Fastest >= 1):
+		return gamedata.PvpBattle{}, errors.New("base_heal must be over 0 and at most 1, per_extra not below 0, and fastest at least 1")
+	}
+	return gamedata.PvpBattle{Prep: b.Prep, Length: b.Length, Respawn: b.Respawn, Goal: b.Goal, PerPoint: b.PerPoint, PerDown: b.PerDown, BaseHeal: b.BaseHeal,
+		Capture: gamedata.Capture{Time: c.Time, PerExtra: c.PerExtra, Fastest: c.Fastest}}, nil
 }

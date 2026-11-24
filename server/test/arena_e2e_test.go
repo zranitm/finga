@@ -28,8 +28,9 @@ func TestAnArenaBuildIsSavedAndFoughtWith(t *testing.T) {
 	p := s.Call("GET", profile, token, nil)
 	s.MustStatus(p, http.StatusOK)
 	duel := map[string]any{"mode": "duel", "shown": float64(1000), "rank": "bronze", "placement_left": float64(5), "wins": float64(0), "losses": float64(0), "draws": float64(0), "place": float64(0)}
-	if got := p.Body["standings"].([]any); len(got) != 2 || !reflect.DeepEqual(got[0], duel) {
-		t.Fatalf("a new fighter's standings %v; want %v first", got, duel)
+	battle := map[string]any{"mode": "battle", "shown": float64(0), "rank": "", "placement_left": float64(0), "wins": float64(0), "losses": float64(0), "draws": float64(0), "place": float64(0)}
+	if got := p.Body["standings"].([]any); len(got) != 3 || !reflect.DeepEqual(got[0], duel) || !reflect.DeepEqual(got[2], battle) {
+		t.Fatalf("a new fighter's standings %v; want %v first and the unrated battle's record alone last, %v", got, duel, battle)
 	}
 	if b := p.Body["build"].(map[string]any); !reflect.DeepEqual(b["skill_bar"], world) {
 		t.Fatalf("the build before one's saved %v; want the world bar's copy %v", b, world)

@@ -220,12 +220,16 @@ func (i *Instance) kill(p *player) {
 	i.events = append(i.events, model.Died{Tick: i.tick, ID: p.ID, X: p.state.X, Y: p.state.Y, Z: p.state.Z})
 }
 
-// deathsAndRespawns revives the dead at the town spawn, handing off those on another map.
+// deathsAndRespawns revives the dead at the town spawn, handing off those on another map; a battle's downed get up in their base.
 func (i *Instance) deathsAndRespawns() {
 	for _, id := range slices.Clone(i.order) {
 		p := i.players[id]
 		if !p.dead || p.deadUntil > i.tick || p.itemCalls > 0 && i.m.Town != i.m.ID {
 			continue // an item call in flight settles here before the respawn hands the player off
+		}
+		if i.match != nil {
+			i.backInBase(p) // a round's downed never get here: their time never comes
+			continue
 		}
 		p.dead = false
 		p.HP = RespawnHP(p.derived.MaxHP)

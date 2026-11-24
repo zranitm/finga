@@ -108,6 +108,23 @@ bots:
   - Three points, west, middle and east, 10 m across.
   - Hills and ruins from the keep's and desert's art.
   - Fifteen spots in each base.
+- **As built (step 6a):**
+  - **The format:** a battle map's `bases` are two circles `{at, radius}`, side 1's then side 2's, and its `points` are `{id, name, at, radius}`. Its gates are its `prep_wall`, one across each base's bay.
+  - **The loader checks:**
+    - the two bases are apart;
+    - each side's spots stand in its base;
+    - each point has an id of its own and a name, its circle is inside the map, and it overlaps no base.
+    - A mode with no `rounds` is a battle, and its map must have bases and points.
+  - **`battlefield`** is 140 m by 90 m, mirrored about x = 70, so no point is nearer one base than the other:
+    - each base a 9 m circle at the end of a bay 30 m across, its gate 11.5 m from the base's centre;
+    - the bays' cliffs are 3 m: too steep to climb and over a jump's 2 m, and low enough that the camera, looking north, sees the whole base over the south one at every zoom;
+    - three 5 m points along z = 45, at x = 38, 70 and 102;
+    - a fallen tower's columns and a boulder by each outer point, walls between the points, four columns round the middle one, and low hills on the flanks.
+  - **The crossing test** reaches every point and every spot of both sides from each side's spots.
+  - **A second check** floods each side's spots on a battle map:
+    - with the other side's base standing, it reaches every point and its own spots at every speed, and none of the other side's spots;
+    - with the prep wall up, it reaches no point and none of the other side's spots.
+    - Both "none" floods jump as high as a jump gets at any speed, plus a margin, so a cliff or gate a jump clears fails them.
 
 ## 4. Match instances
 
@@ -273,7 +290,7 @@ bots:
   - **The save delay** is the skill bar's own.
 - **As built (step 4b):**
   - **A trait** may be any of the class's active skills', not only those on the bar, so a follow-up's can be chosen. A trait for another class's skill is `BAD_PVP_BUILD`.
-  - **A follow-up on a key of its own** is `BAD_PVP_BUILD`, as the client refuses that drop: it rides on its root's key. The world bar's save refuses one too. The copy still leaves one off, for a world bar a promotion's chains would make one in, so a copy is always a build the server would take.
+  - **A follow-up on a key of its own** is `BAD_PVP_BUILD`, as the client refuses that drop: it rides on its root's key. The world bar's save refuses one too, and the loader refuses chains a promotion would strand one with, so a copy never holds one.
   - **The countdown tells each player their build:** `ArenaBar` carries the bar the match put on, and a `StatsChanged` sent with it carries the traits. So the client shows exactly the bar the match judges, from the same countdown.
 
 ## 7. Match rules
@@ -303,7 +320,7 @@ bots:
   - In 1v1 the other side wins at once.
   - In 3v3 a bot of the tier the match's bots have takes over the leaver's body, as it stands: the same class, build and HP. The match goes on.
 - **As built (step 5):** in a team mode, before the outcome, a bot takes the leaver's place in the same tick they go. That covers a forfeit, logging out or dropping, and never arriving by prep's end.
-  - **The body:** it's the leaver's as it stands: position, heading, class, name, HP and energy, and down if they were down or at 0 HP. Their statuses and buffs aren't carried, and its cooldowns start ready.
+  - **The body:** it's the leaver's as it stands: position, heading, class, name, HP and energy, and down if they were down. A body is never at 0 HP and up: the tick's downs settle before anyone can leave. Their statuses and buffs aren't carried, and its cooldowns start ready.
   - **A dropped connection:** a player whose sends are refused is removed once the tick's events have all gone out. What the removal raises, the stand-in's `MatchState` or the match's end, opens the next tick's events, so every player hears it.
   - **One who never came:** stood in at their side's spot at full HP. As a name and class are only known on arrival, it takes the class their side has fewest of and a free name from the bots' list.
   - **Tier and build:**
@@ -336,6 +353,16 @@ bots:
   - Standing inside heals `base_heal` of max HP a second.
 - **A leaver:** a bot takes over their body, as in 3v3.
 - **Updates:** `MatchState` carries the score and the points each second and at each change. The client moves the rings between updates at the rate it knows.
+- **As built (step 6a):**
+  - **No countdown:** prep (the gates shut) goes straight into the fight, and the builds sent in prep go on as it starts. A build saved during the fight goes on at the player's next respawn.
+  - **A point** counts the living fighters whose centre is in its circle each tick. Progress moves by the pace above times the tick over `capture.time`. Drained past 0, a held point is no one's, and at full it's the side's. With no one in it, its progress holds where it was, with no decay, and a held point stays held.
+  - **Scoring:** a side scores for each point it holds at every whole second from the fight's start, a contested or draining one included. The last second scores on the fight's final tick, so a point held through a 12-minute fight scores 720.
+  - **A down scores for the other side outright.** Only an enemy's hit, or the damage over time it left, takes a fighter down: the battlefield has no mobs or hazards. So the last hit is always the other side's, with no hitter to track and no time window. A hazard added later needs this revisited.
+  - **A whole side down** ends nothing: its fighters get up after `respawn`. The first side to `goal` wins on that tick. If both reach it on one tick, the higher score wins, and an equal score is a draw. On time, the side ahead wins, and an equal score is a draw.
+  - **Getting up:** at the base spot whose nearest body is farthest, the first on a tie, at full HP, energy and cooldowns as they were. A stand-in for a downed leaver gets up when the leaver would have.
+  - **The base:** each side moves through its own geometry, the map's with the other side's base standing as a cylinder 1,000 m tall. So the other side can't walk, leap or be knocked back into a base, while sight and the side's own moves are as before. It heals `base_heal` of max HP each second, carrying fractions as regen does.
+  - **The gates** are the battlefield's `prep_wall`, one across each base's bay.
+  - **The wire:** a battle's `MatchState` has round 0 and its score and points, and no wins. Its `MatchEnded` has the score and no wins or rating. A round mode's sends wins and no score.
 
 ## 8. Bots
 
@@ -507,12 +534,13 @@ bots:
   - It inserts the match. The id is the key, so a repeated result does nothing.
   - It locks the players' rating rows `FOR UPDATE`, rates them and writes them.
   - 15v15 stores the match, wins and losses only.
+  - **As built (step 6a):** a battle records under its own mode, `battle`, in `pvp_ratings` as a rated mode does. Its rows keep mu and σ as they started, a leaver's too, and are never placed, so the board never lists them. Its `MatchEnded` carries no rating change. The `points` column of `pvp_match_fighters` isn't built: nothing reads it yet.
 - **Leaderboard:**
   - `GET /api/pvp/leaderboard?mode=duel|team` lists the top 100 by `shown`, among players past `placement`.
   - It's cached 30 s.
   - It includes the caller's own place: those above them, plus one.
   - As built (step 4a), a read is bounded to 5 s, and the callers waiting on one share it. The caller's own place comes in their profile instead, so the board is the same for every caller and one read serves them all. A tie shares its place. Names come from the character module by ID, as the modules share no tables.
-- **Profile:** `GET /api/characters/{id}/pvp` gives each mode's shown rating, rank, placement matches left, wins, losses and draws. As built (step 4a), it also gives the place, 0 before placement, and the arena build, the saved one or the copy.
+- **Profile:** `GET /api/characters/{id}/pvp` gives each mode's shown rating, rank, placement matches left, wins, losses and draws. As built (step 6a), an unrated mode's standing is its record alone: its rating, placement and place are 0 and its rank empty. The board refuses an unrated mode as unknown. As built (step 4a), it also gives the place, 0 before placement, and the arena build, the saved one or the copy.
 
 ## 11. Protocol
 
@@ -784,6 +812,12 @@ As built after the 3v3 playtest:
    - the deal into sides and the bot cap;
    - bot roles;
    - the 15v15 match bar and points on the maps.
+   - As built, it lands as four PRs: the battle's rules on the server (6a), the deal and the bot cap (6b), bot roles (6c), then the client (6d).
+   - 6a hides the 15v15 card in the Arena window, as the client has no battle HUD yet. 6d shows it again, gives a mode without rounds its own card line (a battle has no "best of"), and builds the HUD.
+   - 6c: the bots' nav blocks the other side's base, as the server's per-side geometry does.
+   - 6d:
+     - `mapjson` writes a battle map's bases and points for the client; 6a leaves it as it is;
+     - the client's sim blocks the other side's base as the server does, or a runner into it is corrected at every input.
 7. **The reconnect grace,** after 15v15:
    - `reconnect` in each mode;
    - the held presence and body, and the return through `Hello`;

@@ -24,6 +24,7 @@ func TestEachPvpDeliveryKeepsItsValues(t *testing.T) {
 			pvp.Ended{Mode: "team", Outcome: pvp.Loss, Wins: [2]int{2, 1}, Rating: &pvp.RatingChange{Before: 1000, After: 968, RankBefore: "bronze", RankAfter: "iron", PlacementLeft: 4}, Left: true},
 			model.MatchEnded{Mode: "team", Result: model.MatchLoss, Wins: [2]int{2, 1}, Rating: &model.PvpRatingChange{Before: 1000, After: 968, RankBefore: "bronze", RankAfter: "iron", PlacementLeft: 4}, Left: true},
 		},
+		{pvp.Ended{Mode: "battle", Outcome: pvp.Win, Battle: true, Score: [2]int{1000, 640}}, model.MatchEnded{Mode: "battle", Result: model.MatchWin, Battle: true, Score: [2]int{1000, 640}}},
 	}
 	for _, tt := range tests {
 		if got, ok := pvpPush(tt.in); !ok || !reflect.DeepEqual(got, tt.want) {
