@@ -21,7 +21,7 @@ import {
 } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { fieldBoss } from '@/state/field-boss';
-import { mapView } from '@/state/map-view';
+import { mapView, NO_GROUND } from '@/state/map-view';
 import { party } from '@/state/party';
 import { pvp } from '@/state/pvp';
 import { teleport } from '@/state/teleport';
@@ -39,7 +39,7 @@ const map = (id: string) => maps.find((m) => m.id === id)!;
 const layoutOf = vi.fn((id: string) =>
   Promise.resolve({
     size: id === 'town' ? ([48, 32] as const) : ([72, 40] as const),
-    image: '',
+    ground: NO_GROUND,
     waypoints: [],
   }),
 );
@@ -48,7 +48,7 @@ function onMap(id: string, x: number, z: number) {
   const m = map(id);
   const size = id === 'town' ? ([48, 32] as const) : ([72, 40] as const);
   act(() => {
-    mapView.getState().showMap(m.id, size, '', []);
+    mapView.getState().showMap(m.id, size, NO_GROUND, []);
     mapView.getState().mark({ me: { x, z, yaw: 0 }, party: [], lock: null, boss: null });
   });
 }
@@ -654,13 +654,39 @@ describe('MapWindow', () => {
     /** The player in the test region by its town's stone, the west field's found. */
     function inRegion() {
       act(() => {
-        mapView.getState().showMap('test_region', [256, 256], '', [TOWN, WEST, NORTH]);
+        mapView.getState().showMap('test_region', [256, 256], NO_GROUND, [TOWN, WEST, NORTH]);
         mapView
           .getState()
           .mark({ me: { x: 124, z: 80, yaw: 0 }, party: [], lock: null, boss: null });
         waypoints.getState().find('west');
       });
     }
+
+    it('This map draws a region’s every tile at 1 m a pixel, or at 4 m where a 4 m pixel spans at most 2 screen pixels', () => {
+      /** The tiles' levels and count drawn for a square region side metres across, in the window's 480 × 320 px. */
+      const drawn = (side: number) => {
+        act(() => {
+          mapView
+            .getState()
+            .showMap('test_region', [side, side], { kind: 'tiles', folder: 'bake/tiles' }, []); // the test region as one side across would be
+          mapView
+            .getState()
+            .mark({ me: { x: 124, z: 80, yaw: 0 }, party: [], lock: null, boss: null });
+        });
+        const { unmount } = render(
+          <MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />,
+        );
+        const hrefs = [...document.querySelectorAll('image.map-tile')].map((t) =>
+          t.getAttribute('href'),
+        );
+        unmount();
+        return [new Set(hrefs.map((h) => h!.split('/')[2])), hrefs.length, hrefs.at(-1)];
+      };
+      expect(drawn(256)).toEqual([new Set(['1']), 4, 'bake/tiles/1/1_1.png']); // 1.25 px a metre
+      expect(drawn(512)).toEqual([new Set(['1']), 16, 'bake/tiles/1/3_3.png']); // 0.63: a 4 m pixel would span 2.5
+      expect(drawn(768)).toEqual([new Set(['4']), 36, 'bake/tiles/4/5_5.png']); // 0.42: 1.67
+      expect(drawn(1024)).toEqual([new Set(['4']), 64, 'bake/tiles/4/7_7.png']); // 0.31: 1.25
+    });
 
     // From the waypoints playtest: at a stone's arrival, "You" sat over its mark and took the click, so the unstuck teleport needed the keyboard.
     it('a click on the player, a party member, the lock or a boss over a mark goes through to the mark', async () => {

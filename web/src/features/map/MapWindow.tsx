@@ -19,7 +19,7 @@ import { character } from '@/state/character';
 import { fieldBoss } from '@/state/field-boss';
 import type { BossDown } from '@/state/field-boss';
 import { mapView } from '@/state/map-view';
-import type { MapWaypoint, Spot } from '@/state/map-view';
+import type { MapGround, MapWaypoint, Spot } from '@/state/map-view';
 import { party } from '@/state/party';
 import { pvp } from '@/state/pvp';
 import { teleport } from '@/state/teleport';
@@ -222,10 +222,10 @@ function BackIn({ down }: { readonly down: BossDown }) {
   return backIn(down.type, down.backAt - now);
 }
 
-/** A map's size in metres east and north, its ground's image and a region's waypoints, which the map window is given for a map the scene hasn't drawn. */
+/** A map's size in metres east and north, its ground and a region's waypoints, which the map window is given for a map the scene hasn't drawn. */
 export interface MapLayout {
   readonly size: readonly [number, number];
-  readonly image: string;
+  readonly ground: MapGround;
   readonly waypoints: readonly MapWaypoint[];
 }
 

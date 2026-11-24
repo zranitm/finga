@@ -9,11 +9,73 @@ import { MARKER_TEXT, markerFor } from '@/progression/quests';
 import type { Marker } from '@/progression/quests';
 import { fieldBoss } from '@/state/field-boss';
 import { mapView } from '@/state/map-view';
+import type { MapGround } from '@/state/map-view';
 
 const SPAWN_DEFAULT = 0x9a9a9a; // an untinted mob's circle
 const CROWN = '-1,0.6 -1,-0.6 -0.5,0 0,-0.9 0.5,0 1,-0.6 1,0.6'; // a boss's mark, a unit round its middle
 
+const TILE_M = 128; // a region's map tile's side
+const LEVELS = [1, 4] as const; // its tiles' metres a pixel, finest first
+const BLUR = 2; // the screen pixels a tile's pixel may span before a finer level is drawn
+
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
+
+/** A box of the map in its SVG's metres: its west edge, its north edge as y down from the map's north, and its sides. */
+export interface MapBox {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+/** The ground at `unit` metres a pixel on a map size across: a map's one image, or a region's tiles meeting view at the coarsest level whose pixel spans at most BLUR screen pixels. */
+function Ground({
+  ground,
+  size: [sx, sz],
+  unit,
+  view,
+}: {
+  readonly ground: MapGround;
+  readonly size: readonly [number, number];
+  readonly unit: number;
+  readonly view: MapBox;
+}) {
+  if (ground.kind === 'image') {
+    return (
+      ground.url && (
+        <image href={ground.url} x={0} y={0} width={sx} height={sz} preserveAspectRatio="none" />
+      )
+    );
+  }
+  const level = LEVELS.findLast((l) => l / unit <= BLUR) ?? LEVELS[0];
+  const tiles = [];
+  for (let tz = 0; tz < sz / TILE_M; tz++) {
+    const y = sz - (tz + 1) * TILE_M;
+    for (let tx = 0; tx < sx / TILE_M; tx++) {
+      const x = tx * TILE_M;
+      if (
+        x < view.x + view.w &&
+        x + TILE_M > view.x &&
+        y < view.y + view.h &&
+        y + TILE_M > view.y
+      ) {
+        tiles.push(
+          <image
+            key={`${tx}_${tz}`}
+            className="map-tile"
+            href={`${ground.folder}/${level}/${tx}_${tz}.png`}
+            x={x}
+            y={y}
+            width={TILE_M + unit} // a screen pixel over its east and south neighbours, so no seam shows
+            height={TILE_M + unit}
+            preserveAspectRatio="none"
+          />,
+        );
+      }
+    }
+  }
+  return tiles;
+}
 
 /** The quest mark over each NPC on the map that shows one, kept current with the player's quests. */
 export function useNpcMarkers(mapId: string | null): ReadonlyMap<string, Marker> {
@@ -26,26 +88,28 @@ export function useNpcMarkers(mapId: string | null): ReadonlyMap<string, Marker>
   );
 }
 
-/** A map other than the one the scene drew: its id, size in metres east and north, and ground image. */
+/** A map other than the one the scene drew: its id, size in metres east and north, and ground. */
 export interface OtherMap {
   readonly id: string;
   readonly size: readonly [number, number];
-  readonly image: string;
+  readonly ground: MapGround;
 }
 
-/** The map's ground and marks at `unit` metres a pixel: the scene's map, or `other`; children, such as labels, go over the fixed marks and under the moving ones, which show only on the player's own map, as does a beaten boss's grey mark at its spot. */
+/** The map's ground and marks at `unit` metres a pixel, seen in `view`, the whole map if none: the scene's map, or `other`; children, such as labels, go over the fixed marks and under the moving ones, which show only on the player's own map, as does a beaten boss's grey mark at its spot. */
 export function MapMarks({
   unit,
+  view,
   other,
   children,
 }: {
   readonly unit: number;
+  readonly view?: MapBox;
   readonly other?: OtherMap;
   readonly children?: ReactNode;
 }) {
   const current = mapView.use((s) => s.mapId);
   const size = mapView.use((s) => s.size);
-  const ground = mapView.use((s) => s.image);
+  const ground = mapView.use((s) => s.ground);
   const marks = {
     me: mapView.use((s) => s.me),
     party: mapView.use((s) => s.party),
@@ -60,7 +124,6 @@ export function MapMarks({
     return null;
   }
   const [sx, sz] = other?.size ?? size;
-  const image = other ? other.image : ground;
   const { me, party, lock, boss } =
     mapId === current ? marks : { me: null, party: [], lock: null, boss: null }; // the client tracks positions only here
   const y = (z: number) => sz - z;
@@ -68,9 +131,12 @@ export function MapMarks({
   const beaten = mapId === current && down ? map.boss : null;
   return (
     <>
-      {image && (
-        <image href={image} x={0} y={0} width={sx} height={sz} preserveAspectRatio="none" />
-      )}
+      <Ground
+        ground={other?.ground ?? ground}
+        size={[sx, sz]}
+        unit={unit}
+        view={view ?? { x: 0, y: 0, w: sx, h: sz }}
+      />
       {map.spawns.map((s, i) => {
         const tint = hex(mobById(s.mob)?.look.tint ?? SPAWN_DEFAULT);
         return (

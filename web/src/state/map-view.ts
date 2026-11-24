@@ -1,4 +1,4 @@
-// What the map views draw that only the world scene knows (map-views.md sections 4 and 5): the ground's image, made as a map loads, and where the player, the party, the lock and the field boss are drawn, set about ten times a second.
+// What the map views draw that only the world scene knows (map-views.md sections 4 and 5): the ground, a map's image made as it loads or a region's baked tiles, and where the player, the party, the lock and the field boss are drawn, set about ten times a second.
 import { defineStore } from './store';
 
 /** A place on the map: x east and z north, in metres. */
@@ -17,6 +17,13 @@ export interface MapWaypoint {
   readonly main: boolean;
 }
 
+/** A map's ground as the map views draw it: a map's one image, '' where none could be drawn, or the folder of a region's baked tiles, `<level>/<x>_<z>.png` under it (large-regions.md section 3). */
+export type MapGround =
+  | { readonly kind: 'image'; readonly url: string }
+  | { readonly kind: 'tiles'; readonly folder: string };
+
+export const NO_GROUND: MapGround = { kind: 'image', url: '' };
+
 /** Where the bodies the map views mark are drawn now. */
 export interface MapMarks {
   readonly me: (Spot & { readonly yaw: number }) | null; // yaw from north toward east
@@ -29,13 +36,13 @@ export interface MapViewState extends MapMarks {
   readonly mapId: string | null;
   readonly channel: number; // the region's channel the player's latest Snapshot named; 0 off regions
   readonly size: readonly [number, number]; // metres east and north
-  readonly image: string; // the ground's image URL; '' where none could be drawn
+  readonly ground: MapGround;
   readonly waypoints: readonly MapWaypoint[]; // a region's; none elsewhere
-  /** A map loaded: its ground's image and its waypoints, and no marks till the scene places them. */
+  /** A map loaded: its ground and its waypoints, and no marks till the scene places them. */
   showMap(
     mapId: string,
     size: readonly [number, number],
-    image: string,
+    ground: MapGround,
     waypoints: readonly MapWaypoint[],
   ): void;
   mark(marks: MapMarks): void;
@@ -50,11 +57,11 @@ export const mapView = defineStore<MapViewState>((set) => ({
   mapId: null,
   channel: 0,
   size: [0, 0],
-  image: '',
+  ground: NO_GROUND,
   waypoints: [],
   ...NONE,
-  showMap: (mapId, size, image, waypoints) => {
-    set({ mapId, size, image, waypoints, ...NONE });
+  showMap: (mapId, size, ground, waypoints) => {
+    set({ mapId, size, ground, waypoints, ...NONE });
   },
   mark: (marks) => {
     set(marks);
@@ -63,6 +70,6 @@ export const mapView = defineStore<MapViewState>((set) => ({
     set({ channel });
   },
   clear: () => {
-    set({ mapId: null, channel: 0, size: [0, 0], image: '', waypoints: [], ...NONE });
+    set({ mapId: null, channel: 0, size: [0, 0], ground: NO_GROUND, waypoints: [], ...NONE });
   },
 }));

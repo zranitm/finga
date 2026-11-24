@@ -95,6 +95,7 @@ import { CHEST_M } from './follow';
 import { classLook, mobLook } from './looks';
 import type { ModelLook } from './looks';
 import { loadMap } from './map';
+import { bakeUrl } from './region-bake';
 import { Palette } from './toon';
 import { World } from './world';
 
@@ -580,7 +581,11 @@ describe('World', () => {
       vi.spyOn(console, 'info').mockImplementation(() => undefined);
       const p = await playing(REGIONED, 30, 20);
       p.push('snapshot', { players: [standing(30, 20)], channel: 2 }, { tick: 2 });
-      expect(mapView.getState()).toMatchObject({ mapId: REGIONED, channel: 2 });
+      expect(mapView.getState()).toMatchObject({
+        mapId: REGIONED,
+        channel: 2,
+        ground: { kind: 'tiles', folder: bakeUrl(TINY, 'tiles') }, // its bake's map tiles
+      });
       vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
       p.push('mapChange', { mapId: REGIONED, x: 30, y: 0, z: 20, yaw: 0 }, { tick: 3 }); // a switch to channel 3
       const snapshot = () =>
@@ -2727,6 +2732,7 @@ describe('World', () => {
   it('tells the map views the map, and about ten times a second the player, the party members here, the lock and the field boss while it’s up', async () => {
     const p = await playing(FLAT, 10, 20);
     expect([mapView.getState().mapId, mapView.getState().size]).toEqual([FLAT, [72, 40]]);
+    expect(mapView.getState().ground.kind).toBe('image'); // a map's own
     party.getState().applyPartyState(
       create(PartyStateSchema, {
         party: create(PartyViewSchema, {

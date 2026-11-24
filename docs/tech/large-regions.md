@@ -651,6 +651,22 @@ Built with step 1, which says who watches a cell.
     - party members.
   - **The World tab** charts the three regions and any old maps still in use.
   - `map-image.ts` reads its height range from `region.json`, not from a spread of every height.
+  - **As built (step 5c-2a): the tiles.**
+    - **What the views get:** the world hands them a map's ground as one of two kinds (`MapGround` in `state/map-view.ts`):
+      - a map's one image, drawn as it loads, as before;
+      - a region's tile folder in its bake.
+
+      The World tab's picked layouts carry the same. The region image drawn from the overview is gone, and so is the client's work making it.
+    - **Which tiles:** `MapMarks` draws the tiles that meet the view, at the coarsest level whose pixel spans at most 2 screen pixels:
+      - the minimap, at 4.5 px a metre, draws up to four at 1 m a pixel;
+      - This region draws every tile: at 1 m on the 256 m test region (1.25 px a metre), at 4 m on a kilometre (0.31 px a metre).
+    - **Seams:** each tile is drawn a screen pixel wider and taller, over its east and south neighbours, so no seam shows between them.
+    - **Pan and zoom** in This region come in 5c-2b.
+    - **Tests:**
+      - the minimap's tiles as the player walks: two across a line, four at a corner, one inside, and none past a view edge on the line;
+      - This region's level at four sizes, 256 to 1,024 m, which pins the 2-pixel rule between 1.67 and 2.5;
+      - a picked region's layout drawing its tiles;
+      - the world handing a region's tile folder and a map's image.
 - **Loading a region:** the loading screen holds until the overview and the chunks within 128 m are built, then fades as today.
 - **As built (step 5a):**
   - **Wiring:** a map's JSON may name `region: {id, hash}`. The world then draws that bake in place of the map's own ground and props, and tells it the camera's target each frame. No map names one until 4b serves a region, so only tests and the preview draw one.
@@ -697,7 +713,7 @@ Built with step 1, which says who watches a cell.
     - **Those chunks are asked all at once,** as built in the fetch order PR, and the rest four at a time, nearest first. Four at a time, a fresh load into the test region on Fast 3G waited on them in turns: 12.2–12.4 s, against 11.0 s all at once. After the arrival they're drawn long before the player nears them, so only an arrival asks this way.
   - **A chunk that fails,** or doesn't fit, is asked again after a backoff from 0.5 s, doubling to 8 s. After five failures the HUD says so and the page reloads 3 s later, fetching the bake afresh, a stale client included.
     - Each wait is equal jitter, in the upper half of its window (from the playtest: full jitter broke in 2.5 s). So the four waits come to 3.75–7.5 s, plus each try's own time, and the reload 3 s after that. A map that doesn't load retries the same way; the socket's reconnect keeps full jitter, spreading every client after a restart.
-  - **The minimap and map window** draw a region from its overview, a pixel a metre: its palette's colours blended between the 8 m samples, shaded by height. The bake's colours mark steep ground already, and a river shows as its sand bed until 5b draws water. The minimap blows it up about 4.5×, so it looks soft until 5c's tiles. The maps' 4 pixels a metre would be a 64 MB image at 1 km.
+  - **The minimap and map window** draw a region from its overview, a pixel a metre: its palette's colours blended between the 8 m samples, shaded by height. The bake's colours mark steep ground already, and a river shows as its sand bed until 5b draws water. The minimap blows it up about 4.5×, so it looks soft until 5c's tiles. The maps' 4 pixels a metre would be a 64 MB image at 1 km. Step 5c-2a replaced it with the bake's tiles (below).
   - **Measured** on the wide test plan (1 km), headless Chrome, its bake served gzipped as nginx serves it, sprinting (8 m/s) on the real region place, workers and ground, the body stopping while held:
     - across the middle (720 m) and south to north and west (1,030 m), unthrottled and on Chrome's Fast 3G preset (562.5 ms latency, 1.44 Mbit/s): no hold at all;
     - the loading screen: 0.19–0.21 s unthrottled, 5.6–8.8 s on Fast 3G, where a chunk takes a median 0.8 s to come and build;
