@@ -47,7 +47,7 @@ export interface WorldMap {
   readonly prepWall: { readonly boxes: readonly Box[]; readonly walled: Geometry } | null;
   /** The region whose bake draws it and holds its ground, or null for a map drawn whole from its own JSON. */
   readonly region: RegionMap | null;
-  /** A region's waypoints; none elsewhere. */
+  /** A region's waypoints, as the map views mark them; none elsewhere. */
   readonly waypoints: readonly MapWaypoint[];
 }
 
@@ -57,6 +57,8 @@ export interface RegionMap {
   readonly region: Region;
   readonly overview: Overview;
   readonly ground: RegionGround;
+  /** Its waypoints, whose stones its place draws. */
+  readonly waypoints: readonly MapWaypoint[];
 }
 
 /** One map's JSON, as mapjson writes it. */
@@ -104,6 +106,7 @@ interface MapJson {
     readonly id: string;
     readonly name: string;
     readonly at: readonly [number, number];
+    readonly ground: number;
     readonly main: boolean;
   }[];
 }
@@ -128,6 +131,14 @@ export async function loadMap(id: string): Promise<WorldMap> {
     region,
     overview,
     ground: new RegionGround(region, movement.max_slope),
+    waypoints: (json.waypoints ?? []).map((w) => ({
+      id: w.id,
+      name: w.name,
+      x: w.at[0],
+      z: w.at[1],
+      y: w.ground,
+      main: w.main,
+    })),
   });
 }
 
@@ -193,13 +204,7 @@ function parseMap(m: MapJson, region: RegionMap | null): WorldMap {
         }
       : null,
     region,
-    waypoints: (m.waypoints ?? []).map((w) => ({
-      id: w.id,
-      name: w.name,
-      x: w.at[0],
-      z: w.at[1],
-      main: w.main,
-    })),
+    waypoints: region?.waypoints ?? [],
   };
 }
 

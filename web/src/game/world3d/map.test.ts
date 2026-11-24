@@ -112,7 +112,7 @@ describe('loadMap', () => {
     ]);
   });
 
-  it('carries a region’s waypoints as Go wrote them, its main town’s marked, and none for a map', async () => {
+  it('carries a region’s waypoints as Go wrote them, the ground’s height at each and its main town’s marked, and none for a map', async () => {
     const { waypoints } = await loadMap('test_region');
     expect(waypoints.map((w) => [w.id, w.main])).toEqual([
       ['town', true],
@@ -120,7 +120,16 @@ describe('loadMap', () => {
       ['north', false],
       ['woods', false],
     ]);
-    expect(waypoints[1]).toEqual({ id: 'west', name: 'West Field', x: 60, z: 85, main: false });
+    const ground = (json('test_region') as { waypoints: { ground: number }[] }).waypoints[1]!
+      .ground;
+    expect(waypoints[1]).toEqual({
+      id: 'west',
+      name: 'West Field',
+      x: 60,
+      z: 85,
+      y: ground,
+      main: false,
+    });
     expect((await loadMap('forest')).waypoints).toEqual([]);
   });
 
@@ -142,7 +151,7 @@ describe('loadMap', () => {
     });
     expect(tiny.region?.ref).toEqual({ id: 'tiny', hash: 'abc' });
     expect(tiny.region?.region.solids).toEqual({
-      cylinders: 89,
+      cylinders: 90, // one its waypoint's stone
       boxes: 2,
       reach: Math.hypot(3, 3.5),
     });

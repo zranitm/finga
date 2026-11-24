@@ -135,11 +135,19 @@ describe('a region drawn from its bake', () => {
     landed = 0;
     broke = [];
     clock = 0;
-    place = buildRegion(scene, { ref: TINY, region, overview, ground }, lighting, models, source, {
-      landed: () => landed++,
-      broke: (k) => broke.push(k),
-      now: () => clock,
-    });
+    const waypoints = [{ id: 'field', name: 'Field', x: 30, z: 64, y: 0, main: true }]; // the tiny plan's
+    place = buildRegion(
+      scene,
+      { ref: TINY, region, overview, ground, waypoints },
+      lighting,
+      models,
+      source,
+      {
+        landed: () => landed++,
+        broke: (k) => broke.push(k),
+        now: () => clock,
+      },
+    );
   }
 
   /** The kit models every chunk made so far asked for, loaded and copied in. */
@@ -397,6 +405,19 @@ describe('a region drawn from its bake', () => {
     place!.dispose();
     place = undefined;
     await kitsIn();
+    expect(scene.meshes).toEqual([]);
+  });
+
+  it('stands its waypoints’ stones before any chunk comes, and lets them go with itself', async () => {
+    await built();
+    await vi.waitFor(() => {
+      expect(
+        (scene.getMeshByName('waypoint stone Crystal') as Mesh | null)?.thinInstanceCount,
+      ).toBe(1);
+    });
+    expect(asked).toEqual([]);
+    place!.dispose();
+    place = undefined;
     expect(scene.meshes).toEqual([]);
   });
 

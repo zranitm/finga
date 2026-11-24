@@ -7,12 +7,13 @@ export interface Spot {
   readonly z: number;
 }
 
-/** A region's waypoint, as the map window marks it: its stone's spot, and whether it's in the region's main town, open to a teleport unfound (large-regions.md section 8). */
+/** A region's waypoint, as the world draws its stone and the map window marks it: the stone's spot, the ground's height there, and whether it's in the region's main town, open to a teleport unfound (large-regions.md section 8). */
 export interface MapWaypoint {
   readonly id: string;
   readonly name: string;
   readonly x: number;
   readonly z: number;
+  readonly y: number;
   readonly main: boolean;
 }
 

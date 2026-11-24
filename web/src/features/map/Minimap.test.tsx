@@ -95,7 +95,7 @@ describe('Minimap', () => {
       mapView
         .getState()
         .showMap('test_region', [256, 256], '', [
-          { id: 'town', name: 'Test Town', x: 124, z: 85, main: true },
+          { id: 'town', name: 'Test Town', x: 124, z: 85, y: 0, main: true },
         ]);
     });
     at(124, 80);
