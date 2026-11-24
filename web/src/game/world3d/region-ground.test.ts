@@ -125,16 +125,16 @@ describe("a region's ground, built from its chunks", () => {
       [{ ...c, cz: 2 }, "chunk 1_2 is outside the region's 2 by 2"],
       [{ ...c, n: 17 }, "chunk 1_0 has 17 samples a side; the region's have 33"],
       [
-        { ...c, cylinders: solids([89]) },
-        "chunk 1_0's cylinder 89 is past the region's 89, or held twice",
+        { ...c, cylinders: solids([90]) },
+        "chunk 1_0's cylinder 90 is past the region's 90, or held twice",
       ],
       [
         { ...c, cylinders: solids([own, own]) },
-        `chunk 1_0's cylinder ${own} is past the region's 89, or held twice`,
+        `chunk 1_0's cylinder ${own} is past the region's 90, or held twice`,
       ],
       [
         { ...c, cylinders: solids([theirs]) },
-        `chunk 1_0's cylinder ${theirs} is past the region's 89, or held twice`,
+        `chunk 1_0's cylinder ${theirs} is past the region's 90, or held twice`,
       ],
       [
         { ...c, boxes: { index: Uint32Array.of(2), at: new Float32Array(7) } },

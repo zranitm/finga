@@ -314,10 +314,7 @@ func (l *loader) regionSpots(p regiongen.Plan, m *mapfile.Map, areas regiongen.A
 		if seen[w.ID] {
 			return nil, fmt.Errorf("two waypoints are %s", w.ID)
 		}
-		seen[w.ID] = true
-		if !nav.FitsAt(m.Geometry, l.movement.Step, mapfile.Point(w.At), l.movement.Radius) {
-			return nil, fmt.Errorf("waypoint %s at %v isn't ground a player fits on", w.ID, w.At)
-		}
+		seen[w.ID] = true // its stone's solid stands on its spot; its arrival beside it must fit (waypointsOf)
 	}
 	for i, a := range p.Areas {
 		if a.Kind == regiongen.Town && !slices.ContainsFunc(p.Waypoints, func(w regiongen.Waypoint) bool { return areas.Holding(w.At[0], w.At[1]) == i }) {

@@ -41,7 +41,7 @@ func TestEveryMapIsWrittenAsTheServerBuildsIt(t *testing.T) {
 			}
 			var waypoints []Waypoint
 			for _, w := range m.Waypoints {
-				waypoints = append(waypoints, Waypoint{ID: w.ID, Name: w.Name, At: [2]float64{w.At.X, w.At.Z}, Main: w.Main})
+				waypoints = append(waypoints, Waypoint{ID: w.ID, Name: w.Name, At: [2]float64{w.At.X, w.At.Z}, Ground: m.Geometry.Terrain.Height(w.At.X, w.At.Z), Main: w.Main})
 			}
 			if !reflect.DeepEqual(got.Waypoints, waypoints) || !slices.ContainsFunc(waypoints, func(w Waypoint) bool { return w.Main }) {
 				t.Errorf("%s: waypoints %+v; want the server's %+v, a main town's among them", m.ID, got.Waypoints, waypoints)

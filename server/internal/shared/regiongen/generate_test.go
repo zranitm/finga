@@ -3,10 +3,13 @@ package regiongen
 import (
 	"math"
 	"os"
+	"slices"
 	"sync"
 	"testing"
 
 	"gopkg.in/yaml.v3"
+
+	"finga/internal/shared/sim"
 )
 
 // shippedKit is data/kit.yaml.
@@ -402,6 +405,29 @@ func TestEveryStoredNumberIsAFloat32s(t *testing.T) {
 		for _, at := range l.Area {
 			exact("a lake's corner", at[0])
 			exact("a lake's corner", at[1])
+		}
+	}
+}
+
+// Each waypoint stands its stone, a solid of 0.5 m to the obelisk's top (large-regions.md section 8), with no prop: the client draws the stone, lit or dim.
+func TestEachWaypointStandsItsStone(t *testing.T) {
+	r := smallRegion(t)
+	if len(r.Plan.Waypoints) == 0 {
+		t.Fatal("the small plan has no waypoint to stand a stone at")
+	}
+	for _, w := range r.Plan.Waypoints {
+		x, z := f32(w.At[0]), f32(w.At[1])
+		k := slices.IndexFunc(r.Geometry.Cylinders, func(c sim.Cylinder) bool { return c.X == x && c.Z == z })
+		if k < 0 {
+			t.Errorf("waypoint %s at %v stands no solid", w.ID, w.At)
+			continue
+		}
+		c := r.Geometry.Cylinders[k]
+		if want := f32(r.Geometry.Terrain.Height(x, z) + 2.82); c.Radius != 0.5 || c.Top != want { // the model's obelisk top, web/scripts/waypoint_stone.py
+			t.Errorf("waypoint %s's stone %+v; want radius 0.5 to %v", w.ID, c, want)
+		}
+		if slices.ContainsFunc(r.Props, func(p Prop) bool { return p.X == x && p.Z == z }) {
+			t.Errorf("waypoint %s has a prop drawn by the bake", w.ID)
 		}
 	}
 }

@@ -106,7 +106,7 @@ biomes:
   - **The edge** is whole 4 m squares wide, so the ring's face lies on their lines and no square is half inside. A region's size is whole 128 m tiles, so whole squares too.
   - **Areas' own:** ids unique and a name each. A hunting area has levels, 1 ≤ lowest ≤ highest, and a boss mob, at or above its top level, its circle as wide as its body, on ground it fits, and wholly in the area: every square the circle overlaps is the area's (`AreaGrid.Under`), so a boss never wanders into a town, another band or the ring. A town has no levels, no boss and no camps. Each area has its own boss; a region's bosses aren't checked against the maps', since the test region shares theirs.
   - **Camps** name a hunting area, their circles wholly in it as a boss's is, so no mob spawns past its band. Their mobs are known, no boss, in its band, an elite only beside a normal mob, as on a map.
-  - **Waypoints** have unique ids and stand where a player fits. Gates, NPCs and the start are checked as portals, NPCs and the player spawn are. None of them, nor a waypoint, stands in the ring.
+  - **Waypoints** have unique ids, and each one's arrival beside its stone is where a player fits. Gates, NPCs and the start are checked as portals, NPCs and the player spawn are. None of them, nor a waypoint, stands in the ring.
   - **Gates** lead to a map's portal or a region's gate, never to themselves, and the two lead to each other, judged from both sides.
   - **The region** isn't named as a map is, has a name, and isn't one block holds (`gamedata.Interest.Whole`, which the instances read too).
   - Every waypoint, gate, NPC, camp and area boss is reached from the start and each gate, at every speed: `TestEveryShippedRegionCanBeCrossed`.
@@ -575,6 +575,21 @@ Built with step 1, which says who watches a cell.
   - **Picking a mark** names it under the plan as "Found", "Main town, always open" or "Not found yet". Teleport here shows for a found one or a main town's while the player is alive, and sends `Teleport{waypoint}`. The bar says "Teleporting to <name>".
   - **A region on the World tab** reads "Region" on its node, its card and its picked header, in place of levels, which its areas hold. It offers no Teleport here by its id.
   - **No region is charted yet,** so a test charts the test region by a fixture.
+- **As built (step 6c-2), the stone:**
+  - **The model** is our own, made in Blender by `web/scripts/waypoint_stone.py` as `waypoint/waypoint_stone.glb`. The client lights its `Crystal` and `Rune` meshes.
+  - **The solid:** the generator stands a 0.5 m cylinder at each waypoint, up to the obelisk's top at 2.82 m. The crystal floats out of reach above it. The bake draws no prop for it.
+    - The loader no longer asks that a player fit on a waypoint's spot, as the stone stands there; its arrival must still fit.
+    - The reach check counts a waypoint reached within 12 m, its finding circle.
+  - **Where it's drawn:** mapjson adds the ground's height at each stone. The region's place draws the stones from its first frame, before any chunk comes, and lets them go with itself. Like the region's props, they cast no shadow until 5b's cascades.
+  - **Found or not:** the model is copied twice, painted dim and lit, and each copy is drawn at the stones in its state. A find swaps a stone's copy at once, which is within the Look's 0.3 s.
+  - **The halo** is drawn over the ground rather than added to it, as an added one read mint on grass.
+    - Even drawn over, a thin cyan over grass reads mint. So the halo is a firm disc with a short soft edge, out of `#00d0f4`, a touch bluer than the crystal's cyan. The unfound one is faint by being small: 1.35 m at alpha 0.7, against 2.2 m at 0.9 found.
+    - Its middle is clearer, so the crystal shows through.
+    - **Measured** on the forest's grass, the found halo's median hue went from 130° to 186°, with pure cyan about 183°. The unfound one went from 121° to 178°. Its soft edge is the only part still under 165°.
+  - **The flare** comes only from a `WaypointFound`; a join's list lights stones without one.
+    - The beam is gone by 0.6 s, and the ring spreads 7 m across over 0.8 s.
+    - The halo swells to half as wide again and settles. A swell to twice as wide hid the obelisk behind a solid disc.
+    - One stone flares at a time; a newer find takes the flare over.
 
 ## 9. The camera
 

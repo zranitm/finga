@@ -646,9 +646,9 @@ describe('MapWindow', () => {
   });
 
   describe('in a region, its waypoints', () => {
-    const TOWN = { id: 'town', name: 'Test Town', x: 124, z: 85, main: true };
-    const WEST = { id: 'west', name: 'West Field', x: 60, z: 85, main: false };
-    const NORTH = { id: 'north', name: 'North Field', x: 118, z: 150, main: false };
+    const TOWN = { id: 'town', name: 'Test Town', x: 124, z: 85, y: 0, main: true };
+    const WEST = { id: 'west', name: 'West Field', x: 60, z: 85, y: 0, main: false };
+    const NORTH = { id: 'north', name: 'North Field', x: 118, z: 150, y: 0, main: false };
 
     /** The player in the test region by its town's stone, the west field's found. */
     function inRegion() {
