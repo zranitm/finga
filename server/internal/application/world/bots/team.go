@@ -14,12 +14,14 @@ const (
 	focusReach = 12.0            // metres from one of its side within which an enemy can be its focus
 	focusHold  = 2 * time.Second // how long a side keeps its focus before it may change
 	healBelow  = 0.6             // the HP share under which one of the side is healed
+	healReach  = 12.0            // metres within which a battle's bot heals one of its side: the rest are at other points
 )
 
 // Team is what a side's bots share in a team mode: the enemy they focus, and until when they hold it. Its zero value has none.
 type Team struct {
 	focus kernel.CharacterID
-	until uint64 // the tick the hold ends
+	until uint64                      // the tick the hold ends
+	roles map[kernel.CharacterID]role // in a battle, the point each of its bots up goes to
 }
 
 // focusOf is the side's focus as me sees it at tick: the one held while it's up and the hold lasts, else the enemy up with the lowest HP share within focusReach of one of the side, held from now; nil when no enemy is that near.
@@ -55,7 +57,7 @@ func nearSide(b model.Body, me Self, seen []Seen) bool {
 	return false
 }
 
-// mend is the bot's heal for the lowest of its side under healBelow of their HP, itself among them, when one is ready: pressed once it would reach them, else the place to walk to first.
+// mend is the bot's heal for the lowest of its side under healBelow of their HP, itself among them, within healReach in a battle, when one is ready: pressed once it would reach them, else the place to walk to first.
 func (b *Brain) mend(v View, others []Seen, yaw float32, lock model.EntityRef) (*model.SkillUse, *nav.Point) {
 	me := v.Self
 	id := ""
@@ -73,7 +75,8 @@ func (b *Brain) mend(v View, others []Seen, yaw float32, lock model.EntityRef) (
 	hp, most, found := me.HP, me.MaxHP, low(me.HP, me.MaxHP)
 	for k := range others {
 		o := &others[k]
-		if o.Side == me.Side && o.ID != me.ID && o.Up && low(o.HP, o.MaxHP) && (!found || o.HP*most < hp*o.MaxHP) {
+		near := v.Battle == nil || nav.Distance(point(me.State), nav.Point{X: o.Body.X, Z: o.Body.Z}) <= healReach
+		if o.Side == me.Side && o.ID != me.ID && o.Up && near && low(o.HP, o.MaxHP) && (!found || o.HP*most < hp*o.MaxHP) {
 			lowest, hp, most, found = o, o.HP, o.MaxHP, true
 		}
 	}

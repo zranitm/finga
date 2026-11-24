@@ -20,10 +20,12 @@ type Map struct {
 	Geometry sim.Geometry
 	Walled   sim.Geometry // Geometry with the prep wall standing; zero on a map with none
 	// Kept is the Geometry each side of a battle walks, the other side's base standing as a cylinder no body gets over; zero on a map with no bases.
-	Kept   [2]sim.Geometry
-	params sim.Params
-	keyed  sync.Once
-	grid   *sharedGrid
+	Kept      [2]sim.Geometry
+	params    sim.Params
+	keyed     sync.Once
+	grid      *sharedGrid
+	keptKeyed [2]sync.Once
+	kept      [2]*sharedGrid
 }
 
 // sharedGrid is one walk grid, built once for every map with its geometry and params.
@@ -36,10 +38,19 @@ type sharedGrid struct {
 var grids sync.Map // [sha256.Size]byte → *sharedGrid
 
 // Grid is the map's walk grid, built at the first call in the process for every map of its geometry and params, which the world makes as it starts.
-func (m *Map) Grid() *nav.Grid {
-	m.keyed.Do(func() { m.grid = gridFor(m.Geometry, m.params) })
-	m.grid.once.Do(func() { m.grid.grid = nav.New(m.Geometry, m.params.Step) })
-	return m.grid.grid
+func (m *Map) Grid() *nav.Grid { return walkGrid(&m.keyed, &m.grid, m.Geometry, m.params) }
+
+// KeptGrid is the walk grid of a battle side's Kept, built and shared as Grid is.
+func (m *Map) KeptGrid(side int) *nav.Grid {
+	return walkGrid(&m.keptKeyed[side], &m.kept[side], m.Kept[side], m.params)
+}
+
+// walkGrid is g's walk grid under p: its shared grid, keyed once into *at, and built at the first call for every map of g.
+func walkGrid(keyed *sync.Once, at **sharedGrid, g sim.Geometry, p sim.Params) *nav.Grid {
+	keyed.Do(func() { *at = gridFor(g, p) })
+	s := *at
+	s.once.Do(func() { s.grid = nav.New(g, p.Step) })
+	return s.grid
 }
 
 // gridFor is the shared grid for g under p, or one of its own when g can't be keyed.

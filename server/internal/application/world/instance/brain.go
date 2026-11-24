@@ -44,7 +44,7 @@ func (i *Instance) botFor(p *player) *bot {
 	setup := bots.Setup{
 		Seed: [2]uint64{binary.BigEndian.Uint64(id[:8]) ^ binary.BigEndian.Uint64(b[8:]), binary.BigEndian.Uint64(id[8:])},
 		Tier: i.tierOf(f.bot.Tier), Class: p.class, Bar: f.bot.Build.Bar, Skills: map[string]bots.Skill{},
-		Map: i.m, Radius: i.params.Radius, Height: i.params.Height, Tick: i.tuning.TickInterval,
+		Map: i.m, Grid: i.walkGrid(f.side), Radius: i.params.Radius, Height: i.params.Height, Tick: i.tuning.TickInterval,
 	}
 	for _, build := range i.data.Pvp().Bots.Builds[f.bot.Class] {
 		if slices.Equal(build.Bar, f.bot.Build.Bar) {
@@ -109,7 +109,7 @@ func (i *Instance) botView(p *player, b *bot) bots.View {
 	}
 	slices.Sort(buffs)
 	return bots.View{
-		Tick: i.tick, Fighting: i.fighting(), Ring: i.match.ring, Team: i.match.teams[i.match.fighters[p.ID].side],
+		Tick: i.tick, Fighting: i.fighting(), Ring: i.match.ring, Team: i.match.teams[i.match.fighters[p.ID].side], Battle: i.battleView(i.match.fighters[p.ID].side),
 		Self: bots.Self{
 			ID: p.ID, Side: i.side(p.ID), State: p.state, HP: p.HP, MaxHP: p.derived.MaxHP, Energy: p.Energy, Down: p.dead || p.HP <= 0,
 			Hard: p.statuses.Hard(), CantAct: p.statuses.Blocks(gamedata.BlocksAct), Silenced: p.statuses.Blocks(gamedata.BlocksSkills),
@@ -120,6 +120,24 @@ func (i *Instance) botView(p *player, b *bot) bots.View {
 			return ok && i.holds(p, root, f.When, b.seq, lock)
 		},
 	}
+}
+
+// battleView is a battle's points as its bots see them, with how many bots side has; nil in a round mode.
+func (i *Instance) battleView(side int) *bots.Battle {
+	b := i.match.battle
+	if b == nil {
+		return nil
+	}
+	v := &bots.Battle{Points: make([]bots.Point, len(b.points))}
+	for k, pt := range b.points {
+		v.Points[k] = bots.Point{Circle: i.m.Points[k].Circle, CapturePoint: pt}
+	}
+	for _, f := range i.match.fighters {
+		if f.bot != nil && f.side == side {
+			v.Bots++
+		}
+	}
+	return v
 }
 
 // act takes the bot's decision as its client's input and presses: the keys it holds from now, its attack queued, and its skill use put with this tick's, pressed during its latest input.

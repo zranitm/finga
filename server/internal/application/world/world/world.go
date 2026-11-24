@@ -102,6 +102,10 @@ func New(d Deps, t Tuning) *World {
 	w.tuning = instance.Tuning{TickInterval: t.TickInterval, CheckpointInterval: t.CheckpointInterval, BatchMax: t.BatchMax}
 	for _, m := range data.Maps() {
 		m.Grid() // built now, a match's map's too, so no tick waits on one
+		if m.KeptGrid != nil {
+			m.KeptGrid(0)
+			m.KeptGrid(1)
+		}
 	}
 	for _, m := range data.Maps() {
 		if m.Kind == gamedata.Pvp {

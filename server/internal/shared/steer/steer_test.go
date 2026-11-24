@@ -92,27 +92,27 @@ func TestAStalledWalkerJumpsThenStepsAsideEachSideInTurn(t *testing.T) {
 	from, now := nav.Point{X: m.PlayerSpawn.X, Z: m.PlayerSpawn.Z}, 1000*time.Second
 	to := nav.Point{X: from.X + 4, Z: from.Z}
 	var wk Walker
-	ahead := wayOf(wk.Keys(m, r, from, to, now, false))
-	jump := wk.Keys(m, r, from, to, now, true)
+	ahead := wayOf(wk.Keys(m, m.Grid(), r, from, to, now, false))
+	jump := wk.Keys(m, m.Grid(), r, from, to, now, true)
 	if !jump.Jump || wayOf(jump) != ahead {
 		t.Fatalf("the first stall presses %+v, want a jump ahead %v", jump, ahead)
 	}
-	aside := wayOf(wk.Keys(m, r, from, to, now, true))
+	aside := wayOf(wk.Keys(m, m.Grid(), r, from, to, now, true))
 	if aside == ([2]int{}) || aside[0]*ahead[0]+aside[1]*ahead[1] != 0 {
 		t.Fatalf("the second stall steps %v, want across the way ahead %v", aside, ahead)
 	}
 	for k := 1; k < asideFor; k++ {
-		if got := wayOf(wk.Keys(m, r, from, to, now, false)); got != aside {
+		if got := wayOf(wk.Keys(m, m.Grid(), r, from, to, now, false)); got != aside {
 			t.Fatalf("decision %d of the step aside presses %v, want %v", k+1, got, aside)
 		}
 	}
-	if got := wayOf(wk.Keys(m, r, from, to, now, false)); got != ahead {
+	if got := wayOf(wk.Keys(m, m.Grid(), r, from, to, now, false)); got != ahead {
 		t.Fatalf("after the step aside it presses %v, want %v", got, ahead)
 	}
-	if !wk.Keys(m, r, from, to, now, true).Jump {
+	if !wk.Keys(m, m.Grid(), r, from, to, now, true).Jump {
 		t.Fatal("the third stall doesn't jump")
 	}
-	if got := wayOf(wk.Keys(m, r, from, to, now, true)); got != [2]int{-aside[0], -aside[1]} {
+	if got := wayOf(wk.Keys(m, m.Grid(), r, from, to, now, true)); got != [2]int{-aside[0], -aside[1]} {
 		t.Fatalf("the fourth stall steps %v, want the other side of %v", got, aside)
 	}
 }
@@ -121,13 +121,65 @@ func TestAWalkerWithNoWayWalksStraightAndLooksAgainASecondOn(t *testing.T) {
 	m, r := shippedMap(t, "forest")
 	from, onTop, now := nav.Point{X: 40, Z: 28}, nav.Point{X: 50, Z: 28}, 1000*time.Second // a ledge only a jump gets onto
 	var wk Walker
-	if got := wayOf(wk.Keys(m, r, from, onTop, now, false)); !wk.Lost() || got != [2]int{1, 0} {
+	if got := wayOf(wk.Keys(m, m.Grid(), r, from, onTop, now, false)); !wk.Lost() || got != [2]int{1, 0} {
 		t.Fatalf("lost %v, pressing %v; want lost, straight east", wk.Lost(), got)
 	}
-	if wk.Keys(m, r, from, onTop, now+repathEvery/2, true); wk.found != now {
+	if wk.Keys(m, m.Grid(), r, from, onTop, now+repathEvery/2, true); wk.found != now {
 		t.Fatal("a stall with no way looked again within the second")
 	}
-	if wk.Keys(m, r, from, nav.Point{X: 30, Z: 20}, now+repathEvery/2, false); wk.Lost() {
+	if wk.Keys(m, m.Grid(), r, from, nav.Point{X: 30, Z: 20}, now+repathEvery/2, false); wk.Lost() {
 		t.Fatal("still lost once its end moved to open ground")
 	}
+}
+
+// A body that covers more than a waypoint's reach between decisions, as a bot sprinting from one decision to the next does, 0.84 m, keeps on along its path: it never turns back to a waypoint it stepped past or swings round one it stepped beside, and arrives in about as many decisions as its strides.
+func TestAWalkerStridingPastItsWaypointsKeepsOn(t *testing.T) {
+	m, r := shippedMap(t, "battlefield")
+	for _, c := range []struct{ from, to nav.Point }{
+		{nav.Point{X: 44, Z: 45.2}, nav.Point{X: 60, Z: 44.8}},
+		{nav.Point{X: 29.8, Z: 48.4}, nav.Point{X: 68, Z: 44.5}},
+	} {
+		var wk Walker
+		from := c.from
+		most := int(nav.Distance(c.from, c.to)/0.84) + 8
+		for k := range most + 1 {
+			if nav.Distance(from, c.to) < 0.84 {
+				break
+			}
+			if k == most {
+				t.Fatalf("from %v, %d decisions on, at (%.2f, %.2f); want it at %v", c.from, most, from.X, from.Z, c.to)
+			}
+			in := wk.Keys(m, m.Grid(), r, from, c.to, time.Duration(k)*100*time.Millisecond, false)
+			dx, dz := axis(in.Right, in.Left), axis(in.Up, in.Down)
+			if dx*(c.to.X-c.from.X)+dz*(c.to.Z-c.from.Z) < 0 {
+				t.Fatalf("from %v, decision %d at (%.2f, %.2f): keys %+v; want it never pressing back the way it came", c.from, k, from.X, from.Z, in)
+			}
+			l := math.Hypot(dx, dz)
+			if l == 0 {
+				t.Fatalf("from %v, decision %d at (%.2f, %.2f): no keys short of the end", c.from, k, from.X, from.Z)
+			}
+			from = nav.Point{X: from.X + 0.84*dx/l, Z: from.Z + 0.84*dz/l}
+		}
+	}
+}
+
+// A body moved far since the last call, as a respawn moves a bot, which then walks to a new end, counts no waypoint of its new path reached past a metre: west of a boulder, it walks round it, not straight into it at a waypoint beyond.
+func TestAWalkerAfterAJumpStillWalksRound(t *testing.T) {
+	m, r := shippedMap(t, "battlefield")
+	var wk Walker
+	wk.Keys(m, m.Grid(), r, nav.Point{X: 20, Z: 37}, nav.Point{X: 30, Z: 45}, 0, false)
+	to := nav.Point{X: 50, Z: 37} // east of the boulder at (45, 37), 2.52 m round
+	if in := wk.Keys(m, m.Grid(), r, nav.Point{X: 41.5, Z: 37}, to, 100*time.Millisecond, false); in.Right && !in.Up && !in.Down {
+		t.Fatalf("21.5 m on, west of the boulder: keys %+v; want it turning round it, not straight east into it", in)
+	}
+}
+
+func axis(plus, minus bool) float64 {
+	switch {
+	case plus && !minus:
+		return 1
+	case minus && !plus:
+		return -1
+	}
+	return 0
 }

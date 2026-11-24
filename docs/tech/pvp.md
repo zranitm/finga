@@ -408,6 +408,9 @@ bots:
      - It aims off by up to `aim` degrees.
   6. **Move:** it walks the nav path toward where the rules want it.
 - **Walking:** `internal/shared/steer` is cmd/bot's walker, and both cmd/bot and the server's bots walk with it: `Walker`, `KeysToward`, `YawTo` and `Stall`. A path keeps `gamedata.BotPathMargin`, 0.25 m, beyond a player's radius where it can. The movement loader checks that sum against the walk grid's steps.
+  - **As built (step 6c):**
+    - A battle's bots path on their side's walk grid, built from the geometry that keeps them out of the other side's base, and built with the other grids as the world starts.
+    - A waypoint counts as reached within 0.6 of the distance the body moved since the walker's last call, at least 0.3 m and at most 1 m. A bot sprinting out of combat moves 0.84 m between its decisions, past the 0.3 m reach of a path's half-metre cells. It swung round a waypoint it stepped past or beside, crawling, and in 3v3 too. Walkers called each frame move less than half a metre a call, so they keep 0.3 m.
 - **Teams (3v3):**
   - Each side's bots share a focus: the enemy with the lowest HP share within 12 m of a teammate. They hold it 2 s before changing.
   - Heals go to the lowest teammate under 60%. Buffs go out at the round's start.
@@ -428,6 +431,15 @@ bots:
   - First the nearest one its side doesn't hold, then a contested one.
   - No point gets more than half the side's bots.
   - At a held point with no enemy near, one or two stay, and the rest go on.
+- **As built (step 6c):** a battle gives its bots its points, as `MatchState` shows them, and the number of bots on their side.
+  - **Picking:**
+    - A bot drops its point when it goes down. At its first decision up, it picks the nearest point (straight line) its side doesn't hold, else the nearest contested one, else the nearest, to guard.
+    - No point takes more than half the side's bots, rounded down. Once every point has its half, as on a map of one point, the nearest takes any number.
+    - It stands on a spot rolled within half the point's radius, or the point's middle where no body fits on the spot, so bots don't stack.
+  - **Going on:** in a point its side holds, uncontested, the first two of its bots standing in it, by id, stay. A third goes on to a point that needs it (one its side doesn't hold, or contested) and has room. With none, it stays and holds still.
+  - **The objective:** with no enemy it can reach within 10 m, a bot walks to its spot, or stands on it, after defending and breaking free. An enemy standing in their own base, which the bot's side can't enter, is never fought or counted. So a chase ends 10 m out or at a base, and the bot walks back.
+  - **No shared focus in a battle:** a side spread over three points fights the nearest enemy each. The 3v3 focus would pull bots from one point to another's fight.
+  - **Heals in a battle** reach only teammates within 12 m. Farther ones are at another point.
 - **Tiers:** a bot gets the tier whose mu is nearest the players it meets.
   - In 1v1 that's the player's `mu − σ`.
   - In a team mode it's the average `mu − σ` of the side's players, else the other side's.
