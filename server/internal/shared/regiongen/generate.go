@@ -74,8 +74,11 @@ type builder struct {
 	onRoad   []bool    // per sample: under a road
 	water    []float64 // per sample: the highest water surface over it, -Inf where none
 	f        *field
-	roads    []Road  // smoothed
-	rivers   []River // smoothed
+	roads    []Road    // smoothed
+	rivers   []River   // smoothed
+	floor    []float64 // a cave's ground under its rock, which its halls and tunnels are carved down to
+	rocky    []bool    // a cave's, per sample: rock or a wall, not carved floor
+	wander   *noise    // a cave's: how its carved walls' lines wander
 	r        Region
 }
 
@@ -96,6 +99,7 @@ func Generate(p Plan, k Kit, maxSlope float64) (*Region, error) {
 	}
 	b.areas()
 	b.ground()
+	b.rock()
 	for _, f := range p.Features {
 		switch {
 		case f.Ridge != nil:
@@ -106,6 +110,10 @@ func Generate(p Plan, k Kit, maxSlope float64) (*Region, error) {
 			b.river(*f.River)
 		case f.Lake != nil:
 			b.lake(*f.Lake)
+		case f.Hall != nil:
+			b.hall(*f.Hall)
+		case f.Tunnel != nil:
+			b.tunnel(*f.Tunnel)
 		default:
 			b.road(*f.Road)
 		}
