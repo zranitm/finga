@@ -27,14 +27,14 @@
   - Standing in it gives back 10% of HP a second.
 - **The match bar,** at the top centre: both sides' scores, the three points in their holders' colours, each with a ring that fills as it turns, and the time left.
 - **Frames:** the player's party shows as party frames, as in the world. There are no enemy frames; the lock's target window shows the locked enemy.
-- **A player who leaves** is replaced by a bot.
+- **A player who leaves** is replaced by a bot. A lost connection holds their place for 20 seconds first (I1).
 - **No rating:** 15v15 gives no rating, only the result. Guild war will rate guilds later.
 - **The result screen:** Victory, Defeat or Draw, both scores, and the player's own downs and points taken. The player is taken back after 10 seconds, or at once with Return.
 
 ## Not in this feature
 
 - Guilds, guild war and its rewards.
-- Joining a battle already under way, even in a bot's place.
+- Joining a battle already under way, even in a bot's place. Coming back to one's own held place after a lost connection (I1) isn't that.
 - Siege objects, mounts, or more than one battlefield.
 
 ## Rules
