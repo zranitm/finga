@@ -74,8 +74,17 @@ func (b *builder) slope2(ix, iz int) float64 {
 	return float64(gx*gx) + float64(gz*gz)
 }
 
-// pieces places the plan's set pieces as written, each with its kit model's solid.
+// The waypoint stone's solid (large-regions.md section 8): its obelisk, as the crystal floats above it out of reach.
+const (
+	stoneRadius = 0.5
+	stoneHeight = 2.82
+)
+
+// pieces places the plan's set pieces as written, each with its kit model's solid, and each waypoint's stone, a solid only, as the client draws the stone lit or dim.
 func (b *builder) pieces(placed *solidsNear) {
+	for _, w := range b.p.Waypoints {
+		b.cylinder(f32(w.At[0]), f32(w.At[1]), stoneRadius, stoneHeight, placed)
+	}
 	for _, pc := range b.p.Pieces {
 		if h := pc.House; h != nil {
 			x, z := f32(h.Area[0]+float64(h.Area[2]/2)), f32(h.Area[1]+float64(h.Area[3]/2))
@@ -92,10 +101,7 @@ func (b *builder) place(model string, x, z, yaw float64, placed *solidsNear) {
 	b.prop(model, x, z, yaw)
 	switch s := b.k.Models[model]; {
 	case s.Cylinder != nil:
-		r := f32(s.Cylinder.Radius)
-		g := &b.r.Geometry
-		g.Cylinders = append(g.Cylinders, sim.Cylinder{X: x, Z: z, Radius: r, Top: f32(g.Terrain.Height(x, z) + s.Cylinder.Height)})
-		placed.add(x, z, r)
+		b.cylinder(x, z, s.Cylinder.Radius, s.Cylinder.Height, placed)
 	case s.Box != nil:
 		b.box(x, z, s.Box.Width/2, s.Box.Depth/2, yaw, s.Box.Height, placed)
 	}
@@ -104,6 +110,14 @@ func (b *builder) place(model string, x, z, yaw float64, placed *solidsNear) {
 func (b *builder) prop(model string, x, z, yaw float64) {
 	m, _ := slices.BinarySearch(b.r.Models, model)
 	b.r.Props = append(b.r.Props, Prop{Model: m, X: x, Z: z, Yaw: yaw})
+}
+
+// cylinder adds a cylinder solid of radius r at (x, z), height above the ground there.
+func (b *builder) cylinder(x, z, r, height float64, placed *solidsNear) {
+	r = f32(r)
+	g := &b.r.Geometry
+	g.Cylinders = append(g.Cylinders, sim.Cylinder{X: x, Z: z, Radius: r, Top: f32(g.Terrain.Height(x, z) + height)})
+	placed.add(x, z, r)
 }
 
 // box adds a box solid at (x, z), halfW across its yaw and halfD along it, height above the ground at its centre.

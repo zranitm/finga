@@ -154,7 +154,7 @@ describe("a region's ground image", () => {
       waypoints: [],
       props: [],
       portals: [],
-      region: { ref: TINY, region, overview: o, ground },
+      region: { ref: TINY, region, overview: o, ground, waypoints: [] },
     };
   }
 

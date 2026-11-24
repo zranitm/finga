@@ -33,12 +33,13 @@ type Map struct {
 	Waypoints      []Waypoint    `json:"waypoints,omitempty"` // a region's, which the map window marks
 }
 
-// Waypoint is a region's waypoint as the map window marks it: its stone's spot, and whether it's in the region's main town, open to a teleport unfound.
+// Waypoint is a region's waypoint as the client draws its stone and the map window marks it: the stone's spot and the ground's height there, and whether it's in the region's main town, open to a teleport unfound.
 type Waypoint struct {
-	ID   string     `json:"id"`
-	Name string     `json:"name"`
-	At   [2]float64 `json:"at"`
-	Main bool       `json:"main"`
+	ID     string     `json:"id"`
+	Name   string     `json:"name"`
+	At     [2]float64 `json:"at"`
+	Ground float64    `json:"ground"`
+	Main   bool       `json:"main"`
 }
 
 // Region names the bake the client reads a region's looks from, web/public/regions/<id>/<hash>.
@@ -203,7 +204,7 @@ func region(dataDir string, m *gamedata.Map) (Map, error) {
 		out.Portals = append(out.Portals, Portal{Name: pt.Name, At: [2]float64{pt.At.X, pt.At.Z}, Radius: pt.Radius, To: pt.TargetMap})
 	}
 	for _, w := range m.Waypoints {
-		out.Waypoints = append(out.Waypoints, Waypoint{ID: w.ID, Name: w.Name, At: [2]float64{w.At.X, w.At.Z}, Main: w.Main})
+		out.Waypoints = append(out.Waypoints, Waypoint{ID: w.ID, Name: w.Name, At: [2]float64{w.At.X, w.At.Z}, Ground: m.Geometry.Terrain.Height(w.At.X, w.At.Z), Main: w.Main})
 	}
 	return out, nil
 }

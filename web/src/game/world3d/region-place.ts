@@ -28,6 +28,7 @@ import type { KitPart, Place } from './place';
 import { bakeUrl, chunkFile } from './region-bake';
 import type { Overview, Region } from './region-bake';
 import type { RegionGround } from './region-ground';
+import { WaypointStones } from './waypoint-stones';
 
 const LOAD_M = 256; // chunks within this of the camera's target load, nearest first
 const FREE_M = 320; // and go past this
@@ -128,6 +129,7 @@ class RegionView implements Place {
   private readonly region: Region;
   private readonly far: Overview;
   private readonly ground: RegionGround;
+  private readonly stones: WaypointStones;
 
   constructor(
     private readonly scene: Scene,
@@ -141,6 +143,7 @@ class RegionView implements Place {
     this.region = region;
     this.far = far;
     this.ground = map.ground;
+    this.stones = new WaypointStones(scene, map.waypoints, lighting.palette, models, hooks.now);
     this.root = new TransformNode(`region ${region.ref.id}`, scene);
     this.templates = new TransformNode('kit models', scene);
     this.templates.parent = this.root;
@@ -228,6 +231,7 @@ class RegionView implements Place {
 
   dispose(): void {
     this.gone = true;
+    this.stones.dispose();
     this.root.dispose(false, false);
     this.scene.fogMode = Scene.FOGMODE_NONE;
   }
