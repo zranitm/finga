@@ -234,18 +234,17 @@ func (i *Instance) deathsAndRespawns() {
 		p.dead = false
 		p.HP = RespawnHP(p.derived.MaxHP)
 		p.changed = true
-		if i.m.Town == i.m.ID { // a town or a region revives its own dead
-			at, yaw := i.getUp(p.state.X, p.state.Z)
-			p.state = i.standing(at.X, 0, at.Z, yaw)
+		town, up, upYaw := i.data.GetUp(i.m, p.state.X, p.state.Z)
+		yaw := float32(upYaw)
+		if town == i.m { // a town or a region revives its own dead
+			p.state = i.standing(up.X, 0, up.Z, yaw)
 			i.events = append(i.events, model.Respawned{Tick: i.tick, ID: p.ID, MapID: i.m.ID, X: p.state.X, Y: p.state.Y, Z: p.state.Z, HP: p.HP, Yaw: yaw})
 			i.tellParty(p, i.m.ID, i.channel)
 			p.moved = true
 			continue
 		}
 		// The player leaves before the broadcast, so tell them directly.
-		town := i.town()
-		yaw := float32(town.SpawnYaw)
-		at := standOn(town, i.params, town.PlayerSpawn.X, 0, town.PlayerSpawn.Z, yaw)
+		at := standOn(town, i.params, up.X, 0, up.Z, yaw)
 		respawned := model.Respawned{Tick: i.tick, ID: p.ID, MapID: town.ID, X: at.X, Y: at.Y, Z: at.Z, HP: p.HP, Yaw: yaw}
 		i.events = append(i.events, respawned)
 		p.sink.Send(respawned)

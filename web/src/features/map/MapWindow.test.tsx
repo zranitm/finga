@@ -101,7 +101,8 @@ describe('MapWindow', () => {
     }
   });
 
-  it('This map’s labels keep clear of a region’s waypoint marks as drawn: the test region’s, the player by the town’s stone', () => {
+  // From the waypoints playtest: two labels touched their marks by a pixel, and a picked mark's ring ran into one.
+  it('This map’s labels keep clear of a region’s waypoint marks as drawn, picked: the test region’s, the player by the town’s stone', () => {
     const stones = [
       { x: 124, z: 85 },
       { x: 60, z: 85 },
@@ -119,7 +120,7 @@ describe('MapWindow', () => {
       stones,
     );
     for (const s of stones) {
-      const mark = { x: s.x * scale, bottom: (256 - s.z) * scale + 7, w: 10, h: 14 }; // the diamond, 5 px either side and 7 px up and down
+      const mark = { x: s.x * scale, bottom: (256 - s.z) * scale + 12.5, w: 25, h: 25 }; // its pick ring, 11 px round, its stroke, and a clear pixel
       for (const l of labels) {
         expect([s, l.text, clashes(l, mark)]).toEqual([s, l.text, false]);
       }
@@ -660,6 +661,29 @@ describe('MapWindow', () => {
         waypoints.getState().find('west');
       });
     }
+
+    // From the waypoints playtest: at a stone's arrival, "You" sat over its mark and took the click, so the unstuck teleport needed the keyboard.
+    it('a click on the player, a party member, the lock or a boss over a mark goes through to the mark', async () => {
+      inRegion();
+      const town = { x: TOWN.x, z: TOWN.z };
+      act(() => {
+        mapView.getState().mark({
+          me: { x: 124, z: 87, yaw: 0 }, // the town stone's arrival
+          party: [{ id: 'p-2', name: 'Bree', ...town }],
+          lock: town,
+          boss: town,
+        });
+      });
+      render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
+      const svg = screen.getByRole('img', { name: 'Test Region' });
+      const live = [...svg.querySelectorAll('.map-me, .map-party, .map-lock circle, .map-boss')];
+      expect(live).toHaveLength(5);
+      for (const marker of live) {
+        await expect(user.click(marker)).rejects.toThrow(/pointer-events: none/);
+      }
+      await user.click(within(svg).getByRole('button', { name: 'Test Town' }));
+      expect(screen.getByRole('region', { name: 'Waypoint' })).toHaveTextContent('Test Town');
+    });
 
     it('This map marks each waypoint, lit once found and grey till then, and names a picked one: found, a main town’s, or not found yet, with Teleport here on the first two', async () => {
       inRegion();

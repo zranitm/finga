@@ -133,48 +133,51 @@ export function MapMarks({
         />
       )}
       {children}
-      {party.map((p) => (
-        <circle
-          key={p.id}
-          className="map-party"
-          data-id={p.id}
-          cx={p.x}
-          cy={y(p.z)}
-          r={dot}
-          fill="#5fd35f"
-        />
-      ))}
-      {lock && (
-        <g className="map-lock">
-          <circle cx={lock.x} cy={y(lock.z)} r={dot} fill="#ffdb73" />
+      <g className="map-live" style={{ pointerEvents: 'none' }}>
+        {/* drawn over the marks, but a click goes through to a mark under it */}
+        {party.map((p) => (
           <circle
-            cx={lock.x}
-            cy={y(lock.z)}
-            r={2 * dot}
-            fill="none"
-            stroke="#ffdb73"
-            strokeWidth={unit}
+            key={p.id}
+            className="map-party"
+            data-id={p.id}
+            cx={p.x}
+            cy={y(p.z)}
+            r={dot}
+            fill="#5fd35f"
           />
-        </g>
-      )}
-      {boss && (
-        <polygon
-          className="map-boss"
-          points={CROWN}
-          transform={`translate(${boss.x} ${y(boss.z)}) scale(${2 * dot})`}
-          fill="#e04040"
-        />
-      )}
-      {me && (
-        <polygon
-          className="map-me"
-          points="0,-1.4 1,1 0,0.4 -1,1"
-          transform={`translate(${me.x} ${y(me.z)}) rotate(${(me.yaw * 180) / Math.PI}) scale(${2 * dot})`}
-          fill="#ffffff"
-          stroke="#1a1a22"
-          strokeWidth={0.15}
-        />
-      )}
+        ))}
+        {lock && (
+          <g className="map-lock">
+            <circle cx={lock.x} cy={y(lock.z)} r={dot} fill="#ffdb73" />
+            <circle
+              cx={lock.x}
+              cy={y(lock.z)}
+              r={2 * dot}
+              fill="none"
+              stroke="#ffdb73"
+              strokeWidth={unit}
+            />
+          </g>
+        )}
+        {boss && (
+          <polygon
+            className="map-boss"
+            points={CROWN}
+            transform={`translate(${boss.x} ${y(boss.z)}) scale(${2 * dot})`}
+            fill="#e04040"
+          />
+        )}
+        {me && (
+          <polygon
+            className="map-me"
+            points="0,-1.4 1,1 0,0.4 -1,1"
+            transform={`translate(${me.x} ${y(me.z)}) rotate(${(me.yaw * 180) / Math.PI}) scale(${2 * dot})`}
+            fill="#ffffff"
+            stroke="#1a1a22"
+            strokeWidth={0.15}
+          />
+        )}
+      </g>
     </>
   );
 }

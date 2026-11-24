@@ -169,5 +169,20 @@ func (d *Data) Waypoint(id string) (*Map, Waypoint, bool) {
 	return m, m.Waypoints[at.w], true
 }
 
+// GetUp is where one who died at (x, z) on m gets up, the map and the way they face: on a map that revives its own dead, beside its nearest waypoint in a straight line, found or not, on a region, whose towns each hold one, or at the spawn on a town; elsewhere at its town's spawn.
+func (d *Data) GetUp(m *Map, x, z float64) (*Map, Point, float64) {
+	if m.Town != m.ID {
+		town, _ := d.Map(m.Town) // loading checks that every map names one
+		return town, town.PlayerSpawn, town.SpawnYaw
+	}
+	at, yaw, best := m.PlayerSpawn, m.SpawnYaw, math.Inf(1)
+	for _, w := range m.Waypoints {
+		if far := math.Hypot(w.At.X-x, w.At.Z-z); far < best {
+			at, yaw, best = w.Arrive, w.Yaw, far
+		}
+	}
+	return m, at, yaw
+}
+
 // StartTown is the town new characters start in, the one map with the property start.
 func (d *Data) StartTown() *Map { return d.p.StartTown }

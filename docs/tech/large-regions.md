@@ -557,6 +557,7 @@ Built with step 1, which says who watches a cell.
     - The waypoints found travel with the player across hand-offs. Each checkpoint adds those not yet stored, keeping each one's first time, and drops none.
     - `Welcome.waypoints`, field 13, lists their ids.
   - **Death:** a region's dead get up at their nearest waypoint's arrival, facing away from the stone, no longer on the stone's spot.
+    - **Leaving dead** saves that same arrival with half HP, and a character saved at 0 HP joins there. The getting up, the checkpoint and the join share one rule, `Data.GetUp`; the old maps keep their town's spawn. In the waypoints playtest, both had come back at the region's start.
 - **As built (step 6b), teleport:**
   - **The request:** `Teleport` keeps `map_id` (1) and gains `waypoint` (2) beside it. A `oneof` round both would move field 1 into it, which `buf breaking` refuses even at WIRE. A set waypoint is the target; `map_id` is read only without one.
   - **`map_id`** is for the old maps alone, until the last is retired. A region's id is `TELEPORT_UNKNOWN_MAP`, as a match's map's is, and the player's own old map `TELEPORT_SAME_MAP`.
@@ -572,6 +573,8 @@ Built with step 1, which says who watches a cell.
   - **Data:** mapjson writes a region's waypoints into its map JSON: each one's id, name, stone's spot and `main`, from the Go loader, so the client works out no main town itself. The scene hands them to the map views' store, and `layoutOf` gives them for a map picked on the World tab.
   - **Found:** a `waypoints` store holds the ids found, from `Welcome`'s list and then each `WaypointFound`. A find also says "Waypoint found: <name>" as a notice, the name from the player's own region. Leaving the character clears it.
   - **Marks:** This map, and a region picked on the World tab, mark each stone with a diamond, cyan once found and grey till then. The minimap marks none.
+    - The player, party, lock and boss markers drawn over them let a click through to a mark, so the stone one stands by can be picked.
+    - This map's labels keep clear of a mark's pick ring, 11 px round, with a pixel to spare, not just its diamond. Drawn text runs a little past the box the labels are placed by.
   - **Picking a mark** names it under the plan as "Found", "Main town, always open" or "Not found yet". Teleport here shows for a found one or a main town's while the player is alive, and sends `Teleport{waypoint}`. The bar says "Teleporting to <name>".
   - **A region on the World tab** reads "Region" on its node, its card and its picked header, in place of levels, which its areas hold. It offers no Teleport here by its id.
   - **No region is charted yet,** so a test charts the test region by a fixture.

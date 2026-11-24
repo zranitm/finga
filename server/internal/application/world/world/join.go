@@ -215,14 +215,14 @@ func whileBusy(ctx context.Context, try func() error) error {
 	return err
 }
 
-// respawned is c, saved dead before dead players were saved as respawned, as the respawn it was owed.
+// respawned is c, saved dead before dead players were saved as respawned, as the respawn it was owed, where it would have got up.
 func (w *World) respawned(c model.Character, maxHP int) (model.Character, error) {
 	m, ok := w.data.Map(c.MapID)
 	if !ok {
 		return c, model.ErrNoMap
 	}
-	town, _ := w.data.Map(m.Town)
-	c.MapID, c.X, c.Y, c.Z, c.Yaw, c.HP = town.ID, town.PlayerSpawn.X, 0, town.PlayerSpawn.Z, float32(town.SpawnYaw), instance.RespawnHP(maxHP)
+	town, up, yaw := w.data.GetUp(m, c.X, c.Z)
+	c.MapID, c.X, c.Y, c.Z, c.Yaw, c.HP = town.ID, up.X, 0, up.Z, float32(yaw), instance.RespawnHP(maxHP)
 	return c, nil
 }
 
