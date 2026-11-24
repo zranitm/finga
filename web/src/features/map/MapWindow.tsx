@@ -28,7 +28,7 @@ import { toasts } from '@/state/toasts';
 import { waypoints } from '@/state/waypoints';
 
 import { MapMarks, useNpcMarkers } from './MapMarks';
-import { MARK_PX, WaypointMarks } from './WaypointMarks';
+import { MARK_REACH_PX, WaypointMarks } from './WaypointMarks';
 
 type MapData = (typeof maps)[number];
 type Tab = 'here' | 'world';
@@ -142,9 +142,9 @@ export function mapLabels(
       .map((n) => ({ x: n.x * scale, bottom: y(n.z) - 2 * DOT_PX, w: 10, h: 14 })),
     ...stones.map((w) => ({
       x: w.x * scale,
-      bottom: y(w.z) + 1.4 * MARK_PX,
-      w: 2 * MARK_PX,
-      h: 2.8 * MARK_PX,
+      bottom: y(w.z) + MARK_REACH_PX,
+      w: 2 * MARK_REACH_PX,
+      h: 2 * MARK_REACH_PX,
     })),
   ];
   const step = LABEL_PX + 2 + TAG_GAP;

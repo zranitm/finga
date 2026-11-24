@@ -5,8 +5,10 @@ import { waypoints as foundWaypoints } from '@/state/waypoints';
 const LIT = '#00dce6'; // the stone's crystal, as the bake's debug map marks it
 const GREY = '#8a8a8a';
 const DIAMOND = '0,-1.4 1,0 0,1.4 -1,0';
-/** A mark's half width in pixels; its half height is 1.4 times it, which This map's labels keep clear of. */
-export const MARK_PX = 5;
+const MARK_PX = 5; // a mark's half width in pixels; its half height is 1.4 times it
+const RING = 2.2; // a picked mark's ring's radius, in half widths
+/** How far This map's labels keep from a mark's spot in pixels: its pick ring, the ring's stroke, and a clear pixel, as drawn text runs a little past its box. */
+export const MARK_REACH_PX = RING * MARK_PX + 2;
 
 /** waypoints on a plan of height metres north to south, at unit metres a pixel; picked's ringed, and a click picks one. */
 export function WaypointMarks({
@@ -48,7 +50,7 @@ export function WaypointMarks({
           >
             <title>{w.name}</title>
             {w.id === picked && (
-              <circle cx={w.x} cy={y} r={2.2 * size} fill="none" stroke={LIT} strokeWidth={unit} />
+              <circle cx={w.x} cy={y} r={RING * size} fill="none" stroke={LIT} strokeWidth={unit} />
             )}
             <polygon
               points={DIAMOND}

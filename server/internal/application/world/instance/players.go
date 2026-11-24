@@ -374,16 +374,10 @@ func (i *Instance) checkpointOn(p *player, mapID string) {
 		return
 	}
 	cp := model.Checkpoint{ID: p.ID, Class: p.Class, MapID: mapID, X: p.state.X, Y: p.state.Y, Z: p.state.Z, Yaw: facing(p.state), HP: p.HP, Energy: p.Energy, Level: p.Level, Exp: p.Exp, Points: p.Points, Skills: p.Skills.Clone(), Quests: p.Quests.Clone(), Timers: i.timersOf(p, time.Now()), Waypoints: p.Waypoints.Clone()}
-	if p.dead { // the respawn it is owed; the death penalty is already taken
-		town := i.town()
-		at := standOn(town, i.params, town.PlayerSpawn.X, 0, town.PlayerSpawn.Z, float32(town.SpawnYaw))
-		cp.MapID, cp.X, cp.Y, cp.Z, cp.Yaw, cp.HP = town.ID, at.X, at.Y, at.Z, float32(town.SpawnYaw), RespawnHP(p.derived.MaxHP)
+	if p.dead { // the respawn it is owed, where it would get up; the death penalty is already taken
+		town, up, yaw := i.data.GetUp(i.m, p.state.X, p.state.Z)
+		at := standOn(town, i.params, up.X, 0, up.Z, float32(yaw))
+		cp.MapID, cp.X, cp.Y, cp.Z, cp.Yaw, cp.HP = town.ID, at.X, at.Y, at.Z, float32(yaw), RespawnHP(p.derived.MaxHP)
 	}
 	i.saves.Put(cp)
-}
-
-// town is where the map's dead respawn; loading checks that every map names one.
-func (i *Instance) town() *gamedata.Map {
-	town, _ := i.data.Map(i.m.Town)
-	return town
 }

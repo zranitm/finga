@@ -229,6 +229,32 @@ func TestACharacterSavedDeadJoinsRespawnedInTown(t *testing.T) {
 	})
 }
 
+// From the waypoints playtest: one saved dead in a region joins where they'd have got up, beside its nearest waypoint, not at its start.
+func TestACharacterSavedDeadInARegionJoinsAtItsNearestWaypoint(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		region, woods, ok := data.Waypoint("woods")
+		if !ok || region.ID != "test_region" {
+			t.Fatal("no East Woods waypoint in the test region")
+		}
+		account := kernel.NewAccountID()
+		dead := model.Character{
+			ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 1,
+			HP: 0, MapID: region.ID, X: 212.5, Z: 100, // by the East Woods' glow slimes
+		}
+		w, stop := joinWorld(t, &fakeCharacters{chars: map[kernel.CharacterID]model.Character{dead.ID: dead}}, &fakeStarter{})
+		defer stop()
+		s := &worldtest.Sink{}
+		v, err := w.Join(context.Background(), account, dead.ID, "c-1", s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if at := joinedAt(t, s, dead.ID); v.MapID != region.ID || at.X != woods.Arrive.X || at.Z != woods.Arrive.Z || v.HP != 72 {
+			t.Fatalf("joined %+v at %+v; want beside East Woods' stone at %v with 72 HP", v, at, woods.Arrive)
+		}
+	})
+}
+
 // A saved position the map can't hold starts at the map's spawn; one under an open spot stands on the ground above it.
 func TestASavedPositionOffTheMapStartsAtItsSpawn(t *testing.T) {
 	data := worldtest.LoadData(t)

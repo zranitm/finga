@@ -82,6 +82,41 @@ func TestAPlayerWhoDiesInARegionGetsUpAtItsNearestWaypoint(t *testing.T) {
 	}
 }
 
+// From the waypoints playtest: one who leaves a region dead is saved where they'd have got up, beside its nearest waypoint, not at its start, alive at half HP.
+func TestAPlayerWhoLeavesARegionDeadIsSavedAtItsNearestWaypoint(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		field float64 // as in the getting up's test
+		want  gamedata.Point
+	}{
+		{"the town's", 34, gamedata.Point{X: arenaX + 2, Z: 6}},
+		{"the field's", 28, gamedata.Point{X: arenaX + 2, Z: 28}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				data := worldtest.LoadData(t)
+				m := vale(t, gamedata.Waypoint{ID: "field", Name: "Vale Field", At: gamedata.Point{X: arenaX, Z: c.field}, Arrive: gamedata.Point{X: arenaX + 2, Z: c.field}, Yaw: math.Pi / 2})
+				m.SpawnYaw = 1.5
+				cps := &worldtest.Checkpoints{}
+				inst, stop := worldtest.RunMap(t, data, m, cps, worldtest.Options{})
+				defer stop()
+				tick(1)
+				p := warriorAt(nextToSlime)
+				p.HP, p.Exp = 1, 10
+				s := join(t, inst, p)
+				untilDead(t, s, p.ID)
+				cps.Drain()
+				_ = inst.Leave(p.ID, "", nil)
+				tick(1)
+				saved := cps.Drain()
+				if len(saved) != 1 || saved[0].MapID != "vale" || saved[0].X != c.want.X || saved[0].Z != c.want.Z || saved[0].Yaw != math.Pi/2 || saved[0].HP != 72 || saved[0].Exp != 9 {
+					t.Fatalf("checkpoint of a dead player %+v; want vale at %v facing away from the stone, with 72 HP and EXP 9", saved, c.want)
+				}
+			})
+		})
+	}
+}
+
 // A player is told the region's area they stand in: on joining, in the snapshot, and on each crossing into another, once; a map has none.
 func TestAPlayerIsToldTheAreaTheyStandIn(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
