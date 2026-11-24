@@ -5,6 +5,7 @@ import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
 import { Constants } from '@babylonjs/core/Engines/constants';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import type { HighlightLayer } from '@babylonjs/core/Layers/highlightLayer';
+import { CascadedShadowGenerator } from '@babylonjs/core/Lights/Shadows/cascadedShadowGenerator';
 import type { InputBlock } from '@babylonjs/core/Materials/Node/Blocks/Input/inputBlock';
 import type { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
 import type { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
@@ -495,6 +496,16 @@ describe('World', () => {
     p.frames(10);
     expect(p.inputs() - before).toBe(10);
     expect(p.label('me')).toBe('Ayla');
+  });
+
+  it('lights a region with cascaded shadows where the engine can cascade, and a map with its one shadow map', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const asked = vi.spyOn(CascadedShadowGenerator, 'IsSupported', 'get'); // the null engine can't: the one map's again
+    await playing(FLAT, 10, 20);
+    expect(asked).not.toHaveBeenCalled();
+    await playing(REGIONED, 30, 60);
+    expect(asked).toHaveBeenCalled();
+    asked.mockRestore();
   });
 
   it('holds the keys, attacks and skills till the region’s ground round the player comes, saying so, and lifts the veil once the chunks they see are drawn', async () => {

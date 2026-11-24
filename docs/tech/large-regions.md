@@ -584,7 +584,7 @@ Built with step 1, which says who watches a cell.
   - **The solid:** the generator stands a 0.5 m cylinder at each waypoint, up to the obelisk's top at 2.82 m. The crystal floats out of reach above it. The bake draws no prop for it.
     - The loader no longer asks that a player fit on a waypoint's spot, as the stone stands there; its arrival must still fit.
     - The reach check counts a waypoint reached within 12 m, its finding circle.
-  - **Where it's drawn:** mapjson adds the ground's height at each stone. The region's place draws the stones from its first frame, before any chunk comes, and lets them go with itself. Like the region's props, they cast no shadow until 5b's cascades.
+  - **Where it's drawn:** mapjson adds the ground's height at each stone. The region's place draws the stones from its first frame, before any chunk comes, and lets them go with itself. They cast no shadow, even with 5b-3's cascades (section 10).
   - **Found or not:** the model is copied twice, painted dim and lit, and each copy is drawn at the stones in its state. A find swaps a stone's copy at once, which is within the Look's 0.3 s.
   - **The halo** is drawn over the ground rather than added to it, as an added one read mint on grass.
     - Even drawn over, a thin cyan over grass reads mint. So the halo is a firm disc with a short soft edge, out of `#00d0f4`, a touch bluer than the crystal's cyan. The unfound one is faint by being small: 1.35 m at alpha 0.7, against 2.2 m at 0.9 found.
@@ -654,6 +654,23 @@ Built with step 1, which says who watches a cell.
     - looks filed and freed with their chunks, and none for a prop no taller than half a player;
     - the see-through steps warmed once per tall kit model;
     - the world taking a 14 m tower at the camera's end of its line from the view, which a grid read round the head alone misses.
+- **As built (step 5b-3): cascaded shadows.**
+  - **The sun:** a region's sun casts through Babylon's `CascadedShadowGenerator`:
+    - 3 cascades out to 80 m from the camera;
+    - held steady as the camera moves (`stabilizeCascades`);
+    - cast by see-through meshes too.
+  - An engine that can't cascade, such as WebGL 1, gets the one shadow map a map has. Maps keep theirs.
+  - **Casters:**
+    - each chunk's props, and their faded copies, while the chunk is within 128 m of the camera's target, and not past it (the cascades reach 80 m from the camera, which stands up to 40 m back);
+    - bodies within 25 m, as on maps;
+    - never the inks.
+  - **Why near ones only:** the cascades fit their depth to the box round every caster each frame. Far casters would stretch it and blur the near shadows.
+  - **The waypoint stones still cast none.** They're thin instances of one mesh across the region, so as a caster their box would span it.
+  - **Tests:**
+    - the generator: 3 cascades, 80 m, steady, see-through casting, and the one map where the engine can't cascade;
+    - the world asks for cascades on a region only;
+    - a chunk's props cast within 128 m and stop past it, bodies but not inks;
+    - a faded copy casts.
 - **Entities:** only what the server sends (section 5).
   - Name labels show for the 40 nearest, and for party members and the lock.
   - HP bars show for the party, the lock, and mobs hit in the last 5 s.

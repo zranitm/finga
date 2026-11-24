@@ -7,6 +7,7 @@ import {
 import type { AssetContainer } from '@babylonjs/core/assetContainer';
 import type { Skeleton } from '@babylonjs/core/Bones/skeleton';
 import type { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
+import { CascadedShadowGenerator } from '@babylonjs/core/Lights/Shadows/cascadedShadowGenerator';
 import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import type { Material } from '@babylonjs/core/Materials/material';
 import type { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
@@ -107,6 +108,22 @@ export interface Still {
 export interface Lighting {
   readonly palette: Palette;
   readonly shadows: ShadowGenerator;
+}
+
+const CASCADES = 3;
+const CASCADE_REACH_M = 80; // from the camera: past it the fog thickens and the ground's far detail takes none
+
+/** A region's sun shadows, as its ground runs a kilometre: three cascades out to CASCADE_REACH_M from the camera, so the near ones stay sharp (large-regions.md section 10); the one map's where the engine can't cascade. */
+export function regionShadows(sun: DirectionalLight, size: number): ShadowGenerator {
+  if (!CascadedShadowGenerator.IsSupported) {
+    return sunShadows(sun, size);
+  }
+  const shadows = new CascadedShadowGenerator(size, sun);
+  shadows.numCascades = CASCADES;
+  shadows.shadowMaxZ = CASCADE_REACH_M;
+  shadows.stabilizeCascades = true; // no shimmer as the camera moves
+  shadows.transparencyShadow = true;
+  return shadows;
 }
 
 /** The sun's shadows, size texels a side and soft, cast by see-through meshes too: a solid faded or gone from the camera's way keeps its shadow. */
