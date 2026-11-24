@@ -263,7 +263,7 @@ func TestEveryShippedRegionCanBeCrossed(t *testing.T) {
 			}
 			for _, w := range m.Waypoints {
 				starts = append(starts, spot{what: "beside waypoint " + w.ID, at: [2]float64{w.Arrive.X, w.Arrive.Z}})
-				targets = append(targets, spot{"waypoint " + w.ID, [2]float64{w.At.X, w.At.Z}, p.Radius})
+				targets = append(targets, spot{"waypoint " + w.ID, [2]float64{w.At.X, w.At.Z}, gamedata.WaypointReach}) // found from 12 m, round its stone's solid
 			}
 			for _, n := range plan.NPCs {
 				targets = append(targets, spot{"npc " + n.ID, n.At, data.TalkReach()})

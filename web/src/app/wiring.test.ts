@@ -231,16 +231,17 @@ describe('wiring', () => {
     expect(toasts.getState().toasts).toHaveLength(1);
   });
 
-  it('a Welcome’s waypoints are those found, in place of any before; a WaypointFound adds one and says so by its name where the player stands; leaving forgets them', async () => {
+  it('a Welcome’s waypoints are those found, in place of any before; a WaypointFound adds one, its stone’s to flare, and says so by its name where the player stands; leaving forgets them', async () => {
     const { ws } = await connectedSocket();
     expect(waypoints.getState().found).toEqual(new Set());
     mapView
       .getState()
       .showMap('test_region', [256, 256], '', [
-        { id: 'west', name: 'West Field', x: 60, z: 85, main: false },
+        { id: 'west', name: 'West Field', x: 60, z: 85, y: 0, main: false },
       ]);
     ws.push('waypointFound', { waypoint: 'west' });
     expect(waypoints.getState().found).toEqual(new Set(['west']));
+    expect(waypoints.getState().last).toBe('west');
     expect(toasts.getState().toasts).toMatchObject([
       { text: 'Waypoint found: West Field', kind: 'info' },
     ]);
@@ -248,6 +249,7 @@ describe('wiring', () => {
     expect(waypoints.getState().found).toEqual(new Set(['town', 'north']));
     leaveCharacter();
     expect(waypoints.getState().found).toEqual(new Set());
+    expect(waypoints.getState().last).toBeNull();
   });
 
   it('a region’s area brings its own boss quietly as the player steps in, up or beaten, and a town none', async () => {
