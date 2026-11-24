@@ -304,11 +304,12 @@ func (Promoted) push()          {}
 func (ChatMessage) push()       {}
 func (InventoryChanged) push()  {}
 
-// PvpQueued says the player is in a mode's queue, having waited Since.
+// PvpQueued says the player is in a mode's queue, having waited Since, and whether their match waits for room for its bots.
 type PvpQueued struct {
-	Mode    string
-	Since   time.Duration
-	Members []string
+	Mode        string
+	Since       time.Duration
+	Members     []string
+	WaitingRoom bool
 }
 
 // PvpUnqueued says the player left the queue without a match; By is the members whose answer took the ticket out.

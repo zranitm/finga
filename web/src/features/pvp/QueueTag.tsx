@@ -1,4 +1,4 @@
-// The queue tag by the minimap (pvp.md section 13): the mode, the party members queued with the player, and the time waited, counted from when the queue said, with a button to leave.
+// The queue tag by the minimap (pvp.md section 13): the mode, the party members queued with the player, whether their match waits for room for its bots, and the time waited, counted from when the queue said, with a button to leave.
 import { problemOf } from '@/features/shared/problem';
 import { useNow } from '@/features/shared/useNow';
 import type { GameSocket } from '@/net/socket';
@@ -42,6 +42,7 @@ function Shown({
     >
       <span>{name} queue</span>
       {mates && <span className="muted">{mates}</span>}
+      {queued.waitingRoom && <span className="muted">Waiting for room</span>}
       <span className="queue-tag-time">{waited(now - queued.since)}</span>
       <button
         type="button"

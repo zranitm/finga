@@ -36,8 +36,10 @@ function fakeSocket(answers: readonly (object | Error)[] = []) {
 
 const noBoard = () => Promise.resolve({ mode: 'duel', rows: [] });
 
-const queued = (sinceMs = 0) =>
-  act(() => pvp.getState().applyQueued(create(PvpQueuedSchema, { mode: 'duel', sinceMs })));
+const queued = (sinceMs = 0, waitingRoom = false) =>
+  act(() =>
+    pvp.getState().applyQueued(create(PvpQueuedSchema, { mode: 'duel', sinceMs, waitingRoom })),
+  );
 
 describe('ArenaWindow', () => {
   beforeEach(() => {
@@ -62,6 +64,10 @@ describe('ArenaWindow', () => {
     expect(calls).toEqual([{ t: 'pvpQueue', d: { mode: 'duel' } }]);
     queued(5000);
     expect(within(card).getByLabelText('Waiting 0:05')).toBeInTheDocument();
+    queued(20_000, true);
+    expect(within(card).getByLabelText(/^Waiting for room 0:/)).toBeInTheDocument();
+    queued(21_000);
+    expect(within(card).getByLabelText(/^Waiting 0:/)).toBeInTheDocument();
     expect(screen.getByText(/Play on while you wait/)).toBeInTheDocument();
     await user.click(within(card).getByRole('button', { name: 'Leave queue' }));
     expect(calls.at(-1)).toEqual({ t: 'pvpLeaveQueue', d: {} });
@@ -115,6 +121,16 @@ describe('QueueTag', () => {
     expect(tag).toHaveClass('low');
     act(() => within(tag).getByRole('button', { name: 'Leave the queue' }).click());
     expect(calls).toEqual([{ t: 'pvpLeaveQueue', d: {} }]);
+  });
+
+  it('says while the match waits for room for its bots, and drops it when the queue says it has room', () => {
+    render(<QueueTag socket={fakeSocket().socket} />);
+    queued(20_000, true);
+    const tag = screen.getByRole('status', { name: 'In the 1v1 queue' });
+    expect(tag).toHaveTextContent('Waiting for room');
+    expect(tag).toHaveTextContent('0:20');
+    queued(21_000);
+    expect(tag).not.toHaveTextContent('Waiting for room');
   });
 
   it('names the party members queued with the player, and none for one queued alone', () => {

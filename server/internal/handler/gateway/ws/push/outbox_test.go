@@ -338,6 +338,7 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 			&clientv1.QuestChanged{Change: clientv1.QuestChange_QUEST_CHANGE_ABANDONED, Quest: &clientv1.QuestState{QuestId: "a"}},
 		},
 		{model.PvpQueued{Mode: "team", Since: 2 * time.Second, Members: []string{"p-1", "p-2"}}, &clientv1.PvpQueued{Mode: "team", SinceMs: 2000, Members: []string{"p-1", "p-2"}}},
+		{model.PvpQueued{Mode: "duel", Since: 20 * time.Second, Members: []string{"p-1"}, WaitingRoom: true}, &clientv1.PvpQueued{Mode: "duel", SinceMs: 20000, Members: []string{"p-1"}, WaitingRoom: true}},
 		{model.PvpUnqueued{Reason: model.PvpUnqueueLapsed, By: []string{"p-2"}}, &clientv1.PvpUnqueued{Reason: clientv1.PvpUnqueueReason_PVP_UNQUEUE_REASON_LAPSED, By: []string{"p-2"}}},
 		{model.PvpOffer{Offer: "of-1", Mode: "team", Bots: 2, Until: 10 * time.Second}, &clientv1.PvpOffer{Offer: "of-1", Mode: "team", Bots: 2, UntilMs: 10000}},
 		{model.PvpOfferCancelled{Offer: "of-1", Reason: model.PvpGoneLapsed, Requeued: true}, &clientv1.PvpOfferGone{Offer: "of-1", Reason: clientv1.PvpOfferGoneReason_PVP_OFFER_GONE_REASON_LAPSED, Requeued: true}},

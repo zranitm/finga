@@ -13,6 +13,7 @@ import (
 type WorldModule interface {
 	CanFight(ctx context.Context, id kernel.CharacterID) error
 	OpenMatch(ctx context.Context, spec world.MatchSpec) error
+	Bots() int
 	SetBuild(ctx context.Context, id kernel.CharacterID, b world.Build) error
 	FollowResults(ctx context.Context, deliver func(world.MatchResult)) error
 }
@@ -42,6 +43,9 @@ func (w World) OpenMatch(ctx context.Context, spec model.Spec) error {
 	}
 	return w.w.OpenMatch(ctx, out)
 }
+
+// Bots is how many bots the matches running have.
+func (w World) Bots() int { return w.w.Bots() }
 
 // SetBuild hands the character's match their arena build.
 func (w World) SetBuild(ctx context.Context, id kernel.CharacterID, b model.Build) error {

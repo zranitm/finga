@@ -1,14 +1,32 @@
 // The World tab with a region on the chart, which no shipped region is yet (large-regions.md section 8): the test region charted by a fixture, as the chart reads the maps as its module loads.
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { mapView } from '@/state/map-view';
-import { teleport } from '@/state/teleport';
-import { waypoints } from '@/state/waypoints';
-import { resetStores } from '@/testing/reset-stores';
+import type * as MapViewModule from '@/state/map-view';
+import type * as TeleportModule from '@/state/teleport';
+import type * as WaypointsModule from '@/state/waypoints';
+import type * as ResetModule from '@/testing/reset-stores';
 import { user } from '@/testing/user';
 
-import { MapWindow } from './MapWindow';
+import type * as WindowModule from './MapWindow';
+
+// A worker shares its modules across files, and one before this may have loaded the window with the real chart: this file loads the window and the stores it reads afresh, under the mock, and leaves the next file to load its own.
+let MapWindow: typeof WindowModule.MapWindow;
+let mapView: typeof MapViewModule.mapView;
+let teleport: typeof TeleportModule.teleport;
+let waypoints: typeof WaypointsModule.waypoints;
+let resetStores: typeof ResetModule.resetStores;
+beforeAll(async () => {
+  vi.resetModules();
+  ({ MapWindow } = await import('./MapWindow'));
+  ({ mapView } = await import('@/state/map-view'));
+  ({ teleport } = await import('@/state/teleport'));
+  ({ waypoints } = await import('@/state/waypoints'));
+  ({ resetStores } = await import('@/testing/reset-stores'));
+});
+afterAll(() => {
+  vi.resetModules();
+});
 
 vi.mock('@/gamedata/maps', async (importOriginal) => {
   const real = await importOriginal<{ maps: readonly { readonly id: string }[] }>();

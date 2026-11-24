@@ -1189,13 +1189,15 @@ message PvpAnswer {
 // PvpForfeit leaves the match under way as a loss: in 1v1 the other side wins at once, in a team mode a bot takes the leaver's body.
 message PvpForfeit {}
 
-// PvpQueued says the player is in a mode's queue: on joining, to each member of a party ticket, and again after a reconnect.
+// PvpQueued says the player is in a mode's queue: on joining, to each member of a party ticket, and again each time waiting_room flips.
 message PvpQueued {
   string mode = 1;
   // How long the ticket has waited as this is sent; the client counts on from it.
   uint32 since_ms = 2;
   // The ticket's characters: the player alone, or their party.
   repeated string members = 3;
+  // Their match is found but waits for the server to have room for its bots ("Waiting for room"); sent again, false, before its offer.
+  bool waiting_room = 4;
 }
 
 // PvpUnqueued says the player's ticket left the queue without a match.

@@ -436,9 +436,15 @@ bots:
 - **As built (step 5):**
   - Each side's bots take the tier nearest that side's players' mean `mu − σ`, else the other side's.
   - The class rule counts the side's players too: a bot's class is drawn from those its side holds fewer than two of.
+  - **As built (step 6b):** "two" became the mode's class cap, ⌈team/4⌉ + 1: still 2 in 3v3, and 5 in 15v15, so a side of fifteen mixes its classes. The loader refuses a mode whose bot classes, at the cap each, couldn't fill a side.
 - **Cost:**
   - A decision is a few shape checks and at most one path a second.
   - `bots.most` caps the bots one node runs at once. A match that would pass it waits in the queue, and its players see "Waiting for room".
+  - **As built (step 6b):**
+    - The world counts the bots its matches' specs place, from the open until the match's instance stops. A leaver's stand-in isn't counted: it takes a player's place, at most the match's players.
+    - Each matcher step, the room is `bots.most` less the world's count, the bots of the standing offers, and those of the matches being opened.
+    - Every mode's offers take from it. A match needing more bots than are left waits, and a match of players alone never does.
+    - Each of its tickets hears `PvpQueued` with `waiting_room` set, once, and again with it clear just before its offer.
 
 ## 9. Matchmaking
 
@@ -484,7 +490,10 @@ bots:
     - For each waiting ticket, oldest first, it gathers the tickets within each other's windows, oldest first, up to six players. It skips one that would make six that no two whole sides of three can hold, such as three parties of two.
     - Six players meet at once, at the split with the least gap between the sides' mean mu.
     - Past `bots_after`, the players found meet with bots in the places left. Players who fit on one side fight together against bots.
-    - 15v15 isn't matched yet (step 6).
+  - **The 15v15 deal, as built (step 6b):**
+    - It's an open queue, with no windows. It deals once the waiting tickets hold 30 players, or the oldest has waited `bots_after`.
+    - The oldest tickets that fit in 30 go in, parties whole. They're dealt high mu to low, each to the side with fewer players, ties to the lower total mu, so the sides' mu stays even.
+    - A ticket that doesn't fit that side fits neither, and stays queued for the next deal: greedy dealing can leave out a party a perfect split would fit. Bots take the places left.
 - **State:** in memory. A restart empties the queue, and the client shows no queue after it reconnects.
 - **Results:** `MatchResult` reports:
   - the match id and mode;
@@ -551,7 +560,7 @@ bots:
 | `PvpAnswer{offer, accept}` | client | Accept or decline an offer |
 | `PvpForfeit{}` | client | Leave the match as a loss |
 | `Attack.target`, `UseSkill.target` | client | Become refs, `"m:<id>"` or `"p:<id>"` |
-| `PvpQueued{mode, since_ms, members}` | server | In the queue; sent on joining and to each party member |
+| `PvpQueued{mode, since_ms, members, waiting_room}` | server | In the queue; sent on joining and to each party member, and again each time `waiting_room` flips: the match found waits for room for its bots |
 | `PvpUnqueued{reason, by}` | server | Out of the queue: left, declined, lapsed, party changed; `by` names the ticket's members whose answer took it out |
 | `PvpOffer{offer, mode, bots, until_ms}` | server | A match found |
 | `PvpOfferGone{reason, requeued}` | server | Someone declined or it lapsed; `requeued` says whether this player is back in the queue |
@@ -594,7 +603,7 @@ Area 55, PvP:
 - **The Arena window,** `features/pvp/ArenaWindow.tsx`, opened by a new action, `arena`, on V. It sits in the key-binding window's Windows group (key-bindings.md).
   - **Play:** a card for each mode, with the rating, rank or "Placing (n of 5)", the record, and Queue or Leave queue. A refusal shows the server's message.
   - **Leaderboard:** 1v1 or 3v3, the top 100, and the player's own row.
-- **The queue tag,** `features/pvp/QueueTag.tsx`, by the minimap: the mode and the time waited, counted locally from `since_ms`, with ✕ to leave.
+- **The queue tag,** `features/pvp/QueueTag.tsx`, by the minimap: the mode and the time waited, counted locally from `since_ms`, with ✕ to leave. As built (step 6b), it adds "Waiting for room" while `waiting_room` is set, and the Arena card's wait reads "Waiting for room" too.
 - **The offer card,** `features/pvp/MatchOffer.tsx`, with Accept and Decline. It counts down locally. Accept shows "Waiting for the others…" at once, as its Response comes only when the match opens, after the MapChange; a refusal brings the buttons back.
 - **The match bar,** `features/hud/MatchBar.tsx`:
   - **Rounds:** each side's pips and the round's time.

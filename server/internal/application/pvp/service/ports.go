@@ -11,8 +11,10 @@ import (
 type World interface {
 	// CanFight is nil when the character could go into a match now.
 	CanFight(ctx context.Context, id kernel.CharacterID) error
-	// OpenMatch opens spec's match, which knows its players once it returns.
+	// OpenMatch opens spec's match, which knows its players once it returns, its bots counted in Bots from then on.
 	OpenMatch(ctx context.Context, spec model.Spec) error
+	// Bots is how many bots the matches running have, as their specs placed them.
+	Bots() int
 	// SetBuild hands the character's match their arena build, for its next round; nothing when they're in none.
 	SetBuild(ctx context.Context, id kernel.CharacterID, b model.Build) error
 }

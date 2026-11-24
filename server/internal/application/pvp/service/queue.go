@@ -55,8 +55,10 @@ type Service struct {
 	tickets map[kernel.CharacterID]*ticket // by each member
 	offers  map[string]*offer
 	opening map[kernel.CharacterID]bool // accepted, while the world opens their match
-	boards  boards
-	lifeCtx context.Context // Run's while it runs: the module's life, which the reads detached from their callers end with
+	// openingBots are the bots of the matches the world is opening; room is how many more bots a step may offer.
+	openingBots, room int
+	boards            boards
+	lifeCtx           context.Context // Run's while it runs: the module's life, which the reads detached from their callers end with
 }
 
 // ticket is a player, or a party from its leader, waiting in a mode's queue: each member's rating there, and when they joined, which a requeue keeps.
@@ -65,6 +67,7 @@ type ticket struct {
 	mode    gamedata.PvpMode
 	joined  time.Time
 	offer   *offer // while one stands
+	waiting bool   // told its match waits for room for its bots
 }
 
 // member is a ticket's character as the matcher weighs them.
@@ -415,9 +418,11 @@ func (s *Service) Answer(ctx context.Context, who kernel.CharacterID, offerID st
 		}
 	}
 	spec := s.spec(o)
+	s.openingBots += o.bots()
 	s.mu.Unlock()
 	s.open(context.WithoutCancel(ctx), spec, o)
 	s.mu.Lock()
+	s.openingBots -= o.bots() // the world counts them once it has opened the match
 	for _, t := range o.tickets() {
 		for _, m := range t.members {
 			delete(s.opening, m.ID)
@@ -470,7 +475,7 @@ func (s *Service) Run(ctx context.Context) error {
 	}
 }
 
-// step lapses the offers past their time, then matches each mode's waiting tickets, oldest first: one a side in pairs, round modes' teams in sides; 15v15 isn't matched yet.
+// step lapses the offers past their time, then matches each mode's waiting tickets, oldest first: one a side in pairs, round modes' teams in sides, and a battle's dealt; every offer's bots within the room bots.most leaves beside the bots running, offered and opening.
 func (s *Service) step(now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -481,6 +486,10 @@ func (s *Service) step(now time.Time) {
 		for _, t := range s.fail(o, GoneLapsed, func(t *ticket) bool { return !o.accepted(t) }) {
 			s.tell(t, Unqueued{Reason: UnqueueLapsed, By: o.silent(t)})
 		}
+	}
+	s.room = s.rules.Bots.Most - s.d.World.Bots() - s.openingBots
+	for _, o := range s.offers {
+		s.room -= o.bots()
 	}
 	byMode := map[string][]*ticket{}
 	for _, t := range s.unique() {
@@ -493,7 +502,9 @@ func (s *Service) step(now time.Time) {
 		switch mode := waiting[0].mode; {
 		case mode.Team == 1:
 			s.pair(waiting, now)
-		case mode.Rounds.BestOf > 0:
+		case mode.Battle():
+			s.battle(waiting, now)
+		default:
 			s.teams(waiting, now)
 		}
 	}
@@ -550,6 +561,46 @@ func (s *Service) teams(waiting []*ticket, now time.Time) {
 			s.offer(a.mode, sides, now)
 		}
 	}
+}
+
+// battle deals a battle once its waiting tickets hold both sides, or the oldest has waited bots_after: the oldest that fit both sides, parties whole, as deal sides them, with bots in the places left. It's an open queue, with no windows. The caller holds mu.
+func (s *Service) battle(waiting []*ticket, now time.Time) {
+	mode := waiting[0].mode
+	if players(waiting) < 2*mode.Team && now.Sub(waiting[0].joined) < s.rules.Queue.BotsAfter {
+		return
+	}
+	var in []*ticket
+	n := 0
+	for _, t := range waiting {
+		if n+len(t.members) <= 2*mode.Team {
+			in, n = append(in, t), n+len(t.members)
+		}
+	}
+	s.offer(mode, deal(in, mode.Team), now)
+}
+
+// deal sides the tickets, parties whole, team players a side at most: high mu to low, each to the side with fewer players, ties to the lower total mu. One that doesn't fit there fits neither side, and is left out for the next deal.
+func deal(ts []*ticket, team int) [2][]*ticket {
+	byMu := slices.Clone(ts)
+	slices.SortStableFunc(byMu, func(a, b *ticket) int { return cmp.Compare(b.mu(), a.mu()) })
+	var sides [2][]*ticket
+	var n [2]int
+	var sum [2]float64
+	for _, t := range byMu {
+		k := 0
+		if n[1] < n[0] || n[1] == n[0] && sum[1] < sum[0] {
+			k = 1
+		}
+		if n[k]+len(t.members) > team {
+			continue // nor does it fit the other side, which holds as many or more
+		}
+		sides[k] = append(sides[k], t)
+		n[k] += len(t.members)
+		for _, m := range t.members {
+			sum[k] += m.rating.Mu
+		}
+	}
+	return sides
 }
 
 // near reports whether b is within the window of every ticket in group, and each within b's.
@@ -610,9 +661,20 @@ func (s *Service) window(t *ticket, now time.Time) float64 {
 	return min(w.Start+w.PerSecond*now.Sub(t.joined).Seconds(), w.Most)
 }
 
-// offer makes an offer of sides, with bots in the places left, and tells each player. The caller holds mu.
+// offer makes an offer of sides, with bots in the places left, and tells each player; with no room for its bots, its tickets wait, each told once that it waits and again before its offer. A match of players alone never waits. The caller holds mu.
 func (s *Service) offer(mode gamedata.PvpMode, sides [2][]*ticket, now time.Time) {
 	o := &offer{id: uuidv7.NewString(), mode: mode, sides: sides, yes: map[kernel.CharacterID]bool{}, until: now.Add(s.rules.Queue.Offer)}
+	room := o.bots() == 0 || o.bots() <= s.room
+	for _, t := range o.tickets() {
+		if t.waiting != !room {
+			t.waiting = !room
+			s.tell(t, Queued{Mode: mode.ID, Since: now.Sub(t.joined), Members: t.ids(), WaitingRoom: t.waiting})
+		}
+	}
+	if !room {
+		return
+	}
+	s.room -= o.bots()
 	s.offers[o.id] = o
 	for _, t := range o.tickets() {
 		t.offer = o
@@ -620,7 +682,7 @@ func (s *Service) offer(mode gamedata.PvpMode, sides [2][]*ticket, now time.Time
 	}
 }
 
-// spec is the match an accepted offer opens: each side's players, then bots in its places left, of the tier nearest its players' mean mu − sigma, else the other side's, with no class three times on a side and every name unlike anyone's in it. A team mode's leaver's stand-in takes the tier nearest all the players'. The caller holds mu.
+// spec is the match an accepted offer opens: each side's players, then bots in its places left, of the tier nearest its players' mean mu − sigma, else the other side's, with no class past the mode's cap on a side and every name unlike anyone's in it. A team mode's leaver's stand-in takes the tier nearest all the players'. The caller holds mu.
 func (s *Service) spec(o *offer) model.Spec {
 	spec := model.Spec{ID: kernel.NewMatchID(), Mode: o.mode.ID}
 	var names []string
@@ -644,7 +706,7 @@ func (s *Service) spec(o *offer) model.Spec {
 		}
 		tier := s.tierNear(mean(of))
 		for range o.mode.Team - len(spec.Sides[k]) {
-			b := s.bot(tier, names, classes[k])
+			b := s.bot(tier, names, classes[k], o.mode.ClassCap())
 			names, classes[k] = append(names, b.Name), append(classes[k], b.Class)
 			spec.Sides[k] = append(spec.Sides[k], model.Place{Bot: b})
 		}
@@ -666,11 +728,11 @@ func (s *Service) tierNear(mu float64) gamedata.BotTier {
 	return slices.MinFunc(tiers, func(a, b gamedata.BotTier) int { return cmp.Compare(math.Abs(a.Mu-mu), math.Abs(b.Mu-mu)) })
 }
 
-// bot is a bot of tier: a random promoted class its side holds fewer than two of, one of its builds, and a name not in taken.
-func (s *Service) bot(tier gamedata.BotTier, taken []string, side []kernel.Class) *model.Bot {
+// bot is a bot of tier: a random promoted class its side holds fewer than most of, one of its builds, and a name not in taken.
+func (s *Service) bot(tier gamedata.BotTier, taken []string, side []kernel.Class, most int) *model.Bot {
 	classes := make([]kernel.Class, 0, len(s.rules.Bots.Builds))
 	for c := range s.rules.Bots.Builds {
-		if count(side, c) < 2 {
+		if count(side, c) < most {
 			classes = append(classes, c)
 		}
 	}

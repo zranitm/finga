@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -42,6 +43,7 @@ type World struct {
 	order     []string
 	opened    opened // matches and channels, opened on demand
 	fighting  fighting
+	bots      atomic.Int64 // in the matches running, by their specs
 	channels  channels
 	tuning    instance.Tuning
 	presences presences

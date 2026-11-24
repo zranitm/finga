@@ -110,6 +110,9 @@ func (m *Module) OpenMatch(ctx context.Context, spec MatchSpec) (err error) {
 	return m.svc.OpenMatch(ctx, specOf(spec))
 }
 
+// Bots is how many bots the matches running have, as their specs placed them; a leaver's stand-in isn't counted.
+func (m *Module) Bots() int { return m.svc.Bots() }
+
 // CanFight is nil when the character could go into a match now: on a map, alive, promoted and in no match.
 func (m *Module) CanFight(ctx context.Context, id kernel.CharacterID) (err error) {
 	ctx, call := m.calls.Start(ctx, "CanFight")

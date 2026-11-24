@@ -83,7 +83,7 @@ function Play({ socket }: { readonly socket: Pick<GameSocket, 'request'> }) {
             {m.rated && <Standing standing={standingIn(standings, m.id)} />}
             {queued?.mode === m.id ? (
               <div className="row">
-                <Waiting since={queued.since} />
+                <Waiting since={queued.since} room={queued.waitingRoom} />
                 <Button
                   variant="quiet"
                   disabled={busy}
@@ -141,11 +141,13 @@ function describe(m: Mode): string {
   return `${m.team} against ${m.team}, best of ${m.best_of} rounds.`;
 }
 
-function Waiting({ since }: { readonly since: number }) {
+/** The time waited, and while the match waits for room for its bots, that it does. */
+function Waiting({ since, room }: { readonly since: number; readonly room: boolean }) {
   const now = useNow(1000);
+  const text = `Waiting${room ? ' for room' : ''} ${waited(now - since)}`;
   return (
-    <span className="arena-waiting" aria-label={`Waiting ${waited(now - since)}`}>
-      Waiting {waited(now - since)}
+    <span className="arena-waiting" aria-label={text}>
+      {text}
     </span>
   );
 }

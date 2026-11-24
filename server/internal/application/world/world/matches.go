@@ -33,16 +33,21 @@ func (w *World) OpenMatch(ctx context.Context, spec model.MatchSpec) error {
 		Match: &instance.Match{Spec: spec, Mode: mode, Results: w.deps.Results},
 	}, w.tuning)
 	var players []kernel.CharacterID
+	var bots int64
 	for _, side := range spec.Sides {
 		for _, f := range side {
 			if f.Bot == nil {
 				players = append(players, f.Character)
+			} else {
+				bots++
 			}
 		}
 	}
 	w.fighting.enter(id, players) // before it returns, so a build saved from then on finds the match
-	if err := w.opened.run(id, inst, func() { w.fighting.leave(id, players) }); err != nil {
+	w.bots.Add(bots)              // before it returns too, so the matcher never counts the room twice
+	if err := w.opened.run(id, inst, func() { w.fighting.leave(id, players); w.bots.Add(-bots) }); err != nil {
 		w.fighting.leave(id, players)
+		w.bots.Add(-bots)
 		return err
 	}
 	for s, side := range spec.Sides {
@@ -58,6 +63,9 @@ func (w *World) OpenMatch(ctx context.Context, spec model.MatchSpec) error {
 	}
 	return nil
 }
+
+// Bots is how many bots the matches running have, as their specs placed them; a leaver's stand-in isn't counted.
+func (w *World) Bots() int { return int(w.bots.Load()) }
 
 // SetBuild hands the character's match their arena build; nothing when they're in none.
 func (w *World) SetBuild(ctx context.Context, id kernel.CharacterID, b model.Build) error {

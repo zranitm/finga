@@ -155,6 +155,11 @@ func (l *loader) loadPvp(dir string) error {
 	if p.Bots, err = l.botRules(y); err != nil {
 		return fmt.Errorf("%s: bots: %w", pvpFile, err)
 	}
+	for _, m := range p.Modes {
+		if len(p.Bots.Builds)*m.ClassCap() < m.Team {
+			return fmt.Errorf("%s: mode %s: %d classes of bots, %d of each at most, can't fill a side of %d", pvpFile, m.ID, len(p.Bots.Builds), m.ClassCap(), m.Team)
+		}
+	}
 	l.pvp = p
 	return nil
 }
