@@ -657,9 +657,11 @@ describe('World', () => {
     press('KeyQ');
     p.frames(2);
     expect(held()).toEqual([null, [], []]);
+    expect(mapView.getState().area).toBe('square'); // for the map views' crowns
     p.push('areaEntered', { area: 'field' });
     frames(p, 7, 8, pack);
     expect(p.parent.textContent).toContain('Field · Lv 1–2');
+    expect(mapView.getState().area).toBe('field');
     expect(target.getState().target?.ref).toBe('m:1');
     press('KeyX');
     expect(p.sent('attack')).toHaveLength(1);

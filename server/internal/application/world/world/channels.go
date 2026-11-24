@@ -208,6 +208,20 @@ func (w *World) Channels(id kernel.CharacterID, conn string) (model.Channels, er
 	return w.channels.loads(r), nil
 }
 
+// Bosses is how each hunting area's field boss stands on the region channel the character is in, in its areas' order; ErrNotARegion off one.
+func (w *World) Bosses(ctx context.Context, id kernel.CharacterID, conn string) ([]model.AreaBoss, error) {
+	var out []model.AreaBoss
+	err := w.wait(id, conn, func(i *instance.Instance) error {
+		if _, ok := w.channels.regions[i.MapID()]; !ok {
+			return model.ErrNotARegion
+		}
+		got, err := i.Bosses(ctx)
+		out = got
+		return err
+	})
+	return out, err
+}
+
 // pickChannel is the channel of r character id goes to, as channels.pick picks it, with their party's channels in r, and what to call once they've landed or failed.
 func (w *World) pickChannel(id kernel.CharacterID, r *region, want int, over bool) (*instance.Instance, func(), error) {
 	party := map[int]int{}

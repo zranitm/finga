@@ -2713,6 +2713,18 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 				t.Fatalf("response %+v, want the two channels of 150", r)
 			}
 		})
+		part(t, "Bosses answers with each of the region's area bosses, up or its time back", func() {
+			h.world.mu.Lock()
+			h.world.bosses = []world.AreaBoss{{Area: "west", BackIn: 90 * time.Second}, {Area: "east", Up: true}}
+			h.world.mu.Unlock()
+			c.send(wsconn.Message{ReqID: "b-1", Data: &clientv1.Bosses{}})
+			r := c.expect("Response")
+			got := r.Data.(*clientv1.Response).GetBosses().GetBosses()
+			want := []*clientv1.AreaBoss{{Area: "west", BackInMs: 90000}, {Area: "east", Up: true}}
+			if r.ReqID != "b-1" || !r.Data.(*clientv1.Response).GetOk() || len(got) != 2 || !proto.Equal(got[0], want[0]) || !proto.Equal(got[1], want[1]) {
+				t.Fatalf("response %+v, want the west's back in 90 s and the east's up", r)
+			}
+		})
 		part(t, "Promote goes to the world as the sender, answering once applied, or with its refusal", func() {
 			c.send(wsconn.Message{ReqID: "p-1", Data: &clientv1.Promote{NpcId: "warrior_trainer", Class: "warrior"}})
 			if r := c.expect("Response"); r.ReqID != "p-1" || !r.Data.(*clientv1.Response).GetOk() {

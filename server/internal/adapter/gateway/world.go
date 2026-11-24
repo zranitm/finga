@@ -28,6 +28,7 @@ type WorldModule interface {
 	Teleport(ctx context.Context, p world.Presence, mapID, waypoint string, seq uint32) error
 	SwitchChannel(ctx context.Context, p world.Presence, n int, seq uint32) error
 	Channels(ctx context.Context, p world.Presence) (world.Channels, error)
+	Bosses(ctx context.Context, p world.Presence) ([]world.AreaBoss, error)
 	Say(ctx context.Context, p world.Presence, name, text string) error
 	Equip(ctx context.Context, p world.Presence, key string, item kernel.ItemID, equipSlot string) error
 	SetLook(ctx context.Context, p world.Presence, key string, look world.Look) error
@@ -131,6 +132,19 @@ func (w World) Teleport(ctx context.Context, p model.Presence, mapID, waypoint s
 // SwitchChannel starts a switch to channel n of the player's region; it answers once its channel starts.
 func (w World) SwitchChannel(ctx context.Context, p model.Presence, n int, seq uint32) error {
 	return worldErr(w.w.SwitchChannel(ctx, presence(p), n, seq))
+}
+
+// Bosses is how each hunting area's field boss stands on the player's region channel.
+func (w World) Bosses(ctx context.Context, p model.Presence) ([]model.AreaBoss, error) {
+	got, err := w.w.Bosses(ctx, presence(p))
+	if err != nil {
+		return nil, worldErr(err)
+	}
+	out := make([]model.AreaBoss, 0, len(got))
+	for _, b := range got {
+		out = append(out, model.AreaBoss{Area: b.Area, Up: b.Up, BackInMs: b.BackIn.Milliseconds()})
+	}
+	return out, nil
 }
 
 // Channels are the open channels of the player's region and how full each is.

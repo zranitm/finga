@@ -427,6 +427,7 @@ func (w *world) SwitchChannel(context.Context, model.Presence, int, uint32) erro
 func (w *world) Channels(context.Context, model.Presence) (model.Channels, error) {
 	return model.Channels{}, nil
 }
+func (w *world) Bosses(context.Context, model.Presence) ([]model.AreaBoss, error)  { return nil, nil }
 func (w *world) Promote(context.Context, model.Presence, string, string) error     { return nil }
 func (w *world) Forfeit(context.Context, model.Presence) error                     { return nil }
 func (w *world) Talk(context.Context, model.Presence, string) error                { return nil }

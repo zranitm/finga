@@ -213,7 +213,8 @@ type fakeWorld struct {
 	teleports  []teleportCall
 	tpErr      error // Teleport fails with it
 	switches   []switchCall
-	channels   world.Channels // the list Channels answers
+	channels   world.Channels   // the list Channels answers
+	bosses     []world.AreaBoss // the list Bosses answers
 	promotes   []promoteCall
 	promoteErr error                  // Promote fails with it
 	pointsErr  error                  // SpendPoints, ResetPoints, SpendSkillPoints and ChooseTrait fail with it
@@ -678,6 +679,13 @@ func (f *fakeWorld) Channels(context.Context, world.Presence) (world.Channels, e
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.channels, nil
+}
+
+func (f *fakeWorld) Bosses(context.Context, world.Presence) ([]world.AreaBoss, error) {
+	f.ops.Add(1)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.bosses, nil
 }
 
 func (f *fakeWorld) Promote(_ context.Context, p world.Presence, npc string, class kernel.Class) error {

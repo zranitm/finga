@@ -53,8 +53,8 @@ function onMap(id: string, x: number, z: number) {
   });
 }
 
-/** A socket no test here asks anything of. */
-const idle = { request: vi.fn(), sequence: 0 } as never;
+/** A socket no test here waits on: a region's map window asks it for the bosses, and it never answers. */
+const idle = { request: vi.fn(() => new Promise<never>(() => undefined)), sequence: 0 } as never;
 
 /** A socket whose teleport requests answer with answer, as pressed during input 42. */
 function asking(answer: () => Promise<unknown>) {
@@ -87,12 +87,71 @@ describe('MapWindow', () => {
     expect(texts(svg, '.map-label-me')).toEqual(['You']);
   });
 
+  it('names a region’s areas at their middles, a hunting area with its levels and a town by its name, and outlines each, a town tinted', () => {
+    const region = map('test_region');
+    const scale = 320 / 256;
+    const named = mapLabels(region, null, scale, [256, 256], new Set(), [], [])
+      .filter((l) => l.kind === 'area' || l.kind === 'town')
+      .map((l) => [l.kind, l.text, l.x / scale]);
+    expect(named).toEqual([
+      ['town', 'Test Town', 122],
+      ['area', 'West Field Lv 1–4', 58],
+      ['area', 'South Field Lv 10–14', 122],
+      ['area', 'North Field Lv 15–18', 122],
+      ['area', 'East Woods Lv 19–20', 192],
+    ]);
+    const ell = {
+      ...region,
+      spawns: [],
+      portals: [],
+      areas: [
+        {
+          id: 'ell',
+          name: 'Ell',
+          kind: 'hunting',
+          levels: [1, 2],
+          area: [
+            [0, 0],
+            [30, 0],
+            [30, 10],
+            [10, 10],
+            [10, 30],
+            [0, 30],
+          ],
+          boss: null,
+        },
+      ],
+    } as unknown as Parameters<typeof mapLabels>[0]; // the generated maps' types are their own literals
+    const [label] = mapLabels(ell, null, 10, [30, 30], new Set(), [], []);
+    expect(label!.x / 10).toBeCloseTo(11, 6); // the L's middle by area, not its corners' 13.3
+    expect(30 - (label!.bottom - label!.h / 2) / 10).toBeCloseTo(11, 0);
+    act(() => {
+      mapView.getState().showMap('test_region', [256, 256], NO_GROUND, []);
+      mapView.getState().mark({ me: { x: 124, z: 80, yaw: 0 }, party: [], lock: null, boss: null });
+    });
+    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
+    const svg = screen.getByRole('img', { name: 'Test Region' });
+    expect(texts(svg, '.map-label-town')).toEqual(['Test Town']);
+    expect(texts(svg, '.map-label-area')).toHaveLength(4);
+    const outlines = [...svg.querySelectorAll('polygon.map-area')];
+    expect(
+      outlines.map((o) => [o.getAttribute('data-area'), o.classList.contains('map-area-town')]),
+    ).toEqual([
+      ['town', true],
+      ['west', false],
+      ['south', false],
+      ['north', false],
+      ['woods', false],
+    ]);
+    expect(outlines[1]!.getAttribute('points')).toBe('24,232 92,232 92,24 24,24'); // y down from the north
+  });
+
   it('This map’s labels keep clear of each other and of the quest marks, on every map', () => {
     const overlap = (a: { x: number; bottom: number; w: number; h: number }, b: typeof a) =>
       Math.abs(a.x - b.x) * 2 < a.w + b.w && a.bottom > b.bottom - b.h && b.bottom > a.bottom - a.h;
     for (const m of maps) {
       const marked = new Set(npcs.npcs.filter((n) => n.map === m.id).map((n) => n.id));
-      const labels = mapLabels(m, { x: 20, z: 20 }, 6, [72, 40], marked, null, []);
+      const labels = mapLabels(m, { x: 20, z: 20 }, 6, [72, 40], marked, [], []);
       for (const [i, a] of labels.entries()) {
         for (const b of labels.slice(i + 1)) {
           expect([m.id, a.text, b.text, overlap(a, b)]).toEqual([m.id, a.text, b.text, false]);
@@ -116,7 +175,7 @@ describe('MapWindow', () => {
       scale,
       [256, 256],
       new Set(),
-      null,
+      [],
       stones,
     );
     for (const s of stones) {
@@ -139,7 +198,7 @@ describe('MapWindow', () => {
   const spawnLabels = (id: string) => {
     const m = map(id);
     const { sx, sz, scale } = fitted(id);
-    return mapLabels(m, null, scale, [sx, sz], new Set(), null, [])
+    return mapLabels(m, null, scale, [sx, sz], new Set(), [], [])
       .filter((l) => l.kind === 'spawn')
       .map((l) => {
         const mob = m.spawns.find((s) => l.text.startsWith(`${mobById(s.mob)!.name} Lv`))!.mob;
@@ -168,7 +227,7 @@ describe('MapWindow', () => {
       scale,
       [sx, sz],
       new Set(),
-      { type: spot.mob, backAt: 0 },
+      [{ ...spot, down: { type: spot.mob, backAt: 0 } }],
       [],
     );
     return { labels, boss: labels.find((l) => l.kind === 'boss')!, crown: (sz - spot.z) * scale };
@@ -268,7 +327,7 @@ describe('MapWindow', () => {
       6,
       [48, 32],
       new Set(),
-      null,
+      [],
       [],
     );
     const you = labels.find((l) => l.kind === 'me')!;
@@ -449,6 +508,23 @@ describe('MapWindow', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('a picked map shows no beaten boss of the player’s own map, at its own boss’s spot or anywhere', async () => {
+    onMap('forest', 30, 10);
+    act(() => {
+      fieldBoss
+        .getState()
+        .applyGone(create(FieldBossGoneSchema, { mobId: 9, type: 'king_slime', backInMs: 60000n }));
+    });
+    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
+    await user.click(screen.getByRole('tab', { name: 'World' }));
+    await user.click(screen.getByRole('button', { name: 'Cave' }));
+    const other = await screen.findByRole('img', { name: 'Cave' });
+    expect([
+      other.querySelectorAll('.map-boss-down').length,
+      texts(other, '.map-label-boss'),
+    ]).toEqual([0, []]);
   });
 
   it('a picked map names the party members online on it under its header', async () => {
@@ -783,6 +859,135 @@ describe('MapWindow', () => {
       onMap('forest', 30, 10);
       expect(screen.queryByRole('region', { name: 'Waypoint' })).not.toBeInTheDocument();
       expect(document.querySelector('.map-waypoint')).toBeNull();
+    });
+  });
+
+  describe('This region crowns each area’s boss', () => {
+    type Answer = { area: string; up: boolean; backInMs: bigint }[];
+    /** A socket answering each bosses query with bosses; nothing else it's asked answers. */
+    const answering = (bosses: Answer) =>
+      vi.fn((t: string) =>
+        t === 'bosses'
+          ? Promise.resolve({ ok: true, code: 0, bosses: { bosses } })
+          : new Promise<never>(() => undefined),
+      );
+    /** This region open, the player in area. */
+    function inArea(area: string, request: ReturnType<typeof answering>) {
+      act(() => {
+        mapView.getState().showMap('test_region', [256, 256], NO_GROUND, []);
+        mapView
+          .getState()
+          .mark({ me: { x: 124, z: 80, yaw: 0 }, party: [], lock: null, boss: null });
+        mapView.getState().inArea(area);
+      });
+      return render(
+        <MapWindow
+          socket={{ request, sequence: 0 } as never}
+          layoutOf={layoutOf}
+          onClose={vi.fn()}
+        />,
+      );
+    }
+    /** Each crown at a spot: its mob, up or beaten, and where it's drawn. */
+    const crowns = () =>
+      [...document.querySelectorAll('.map-boss-spot, .map-boss-down')].map((c) => [
+        c.getAttribute('data-mob'),
+        c.classList.contains('map-boss-down') ? 'beaten' : 'up',
+        /translate\(([^)]*)\)/.exec(c.getAttribute('transform')!)![1],
+      ]);
+    const beaten = (mob: string, ms: bigint) =>
+      create(FieldBossGoneSchema, { mobId: 9, type: mob, backInMs: ms });
+
+    it('crowns each area’s boss at its spot as the query last said: red while up, grey while beaten with its time back counting down; none before it answers', async () => {
+      vi.useFakeTimers();
+      try {
+        inArea(
+          'town',
+          answering([
+            { area: 'west', up: false, backInMs: 90000n },
+            { area: 'south', up: true, backInMs: 0n },
+            { area: 'north', up: true, backInMs: 0n },
+            { area: 'woods', up: false, backInMs: 5000n },
+          ]),
+        );
+        expect(crowns()).toEqual([]);
+        await act(() => Promise.resolve());
+        expect(crowns()).toEqual([
+          ['king_slime', 'beaten', '46 146'],
+          ['vampire_bat', 'up', '125 208'],
+          ['spore_mother', 'up', '120 81'],
+          ['moth_empress', 'beaten', '200 46'],
+        ]);
+        const svg = screen.getByRole('img', { name: 'Test Region' });
+        expect(texts(svg, '.map-label-boss')).toEqual([
+          'King Slime: back in 1:30',
+          'Moth Empress: back in 0:05',
+        ]);
+        act(() => {
+          vi.advanceTimersByTime(3000);
+        });
+        expect(texts(svg, '.map-label-boss')).toEqual([
+          'King Slime: back in 1:27',
+          'Moth Empress: back in 0:02',
+        ]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('takes the player’s own area’s boss from its frames, as a map’s, over what the query said: beaten, grey; up, only its live crown', async () => {
+      act(() => {
+        fieldBoss.getState().applyGone(beaten('king_slime', 60000n));
+      });
+      const answer: Answer = [
+        { area: 'west', up: true, backInMs: 0n },
+        { area: 'south', up: false, backInMs: 30000n },
+      ];
+      const { unmount } = inArea('west', answering(answer));
+      await act(() => Promise.resolve());
+      expect(crowns()).toEqual([
+        ['king_slime', 'beaten', '46 146'],
+        ['vampire_bat', 'beaten', '125 208'],
+      ]); // the north and the woods unsaid: none
+      unmount();
+      act(() => {
+        fieldBoss
+          .getState()
+          .applySnapshot(create(FieldBossSchema, { mobId: 10, type: 'king_slime' }), undefined);
+      });
+      inArea('west', answering([{ area: 'west', up: false, backInMs: 9000n }]));
+      await act(() => Promise.resolve());
+      expect(crowns()).toEqual([]); // up: the live crown, where it is, shows it
+    });
+
+    it('asks every 5 s while This region shows, and never off a region', () => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+      try {
+        const request = answering([]);
+        const asked = () => request.mock.calls.filter(([t]) => t === 'bosses').length;
+        const { unmount } = inArea('town', request);
+        expect(asked()).toBe(1);
+        vi.advanceTimersByTime(4999);
+        expect(asked()).toBe(1);
+        vi.advanceTimersByTime(1);
+        expect(asked()).toBe(2);
+        unmount();
+        vi.advanceTimersByTime(5000);
+        expect(asked()).toBe(2);
+        const off = answering([]);
+        onMap('forest', 30, 10);
+        render(
+          <MapWindow
+            socket={{ request: off, sequence: 0 } as never}
+            layoutOf={layoutOf}
+            onClose={vi.fn()}
+          />,
+        );
+        vi.advanceTimersByTime(5000);
+        expect(off).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

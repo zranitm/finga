@@ -564,10 +564,11 @@ for (const file of readdirSync(join(dataDir, 'maps'))
       };
     })(),
     place: pvp ? null : pair(places[id], `world.yaml place of ${id}`),
+    areas: [],
   });
   placeNpcs(file, id, m.npcs);
 }
-// regions/*.yaml: each region on the map list as a map of kind region, its own town and on no chart, so no link either: its name and sky, its camps as spawns, its gates as portals; its bake draws its ground (large-regions.md section 4).
+// regions/*.yaml: each region on the map list as a map of kind region, its own town and on no chart, so no link either: its name and sky, its camps as spawns, its gates as portals, and its areas with their corners, levels and bosses for the map views; its bake draws its ground (large-regions.md section 4).
 const regionsDir = join(dataDir, 'regions');
 for (const file of existsSync(regionsDir)
   ? readdirSync(regionsDir)
@@ -614,6 +615,29 @@ for (const file of existsSync(regionsDir)
     }),
     boss: null,
     place: null,
+    areas: (r.areas === undefined ? [] : must(r.areas, isArray, `${file} areas`)).map((raw) => {
+      const a = must(raw, isRecord, `a ${file} area`);
+      const name = must(a.id, isString, `a ${file} area id`);
+      const kind = must(a.kind, isString, `${file} area ${name} kind`);
+      const b = a.boss === undefined ? null : must(a.boss, isRecord, `${file} area ${name} boss`);
+      const at = b && pair(b.at, `${file} area ${name} boss at`);
+      return {
+        id: name,
+        name: must(a.name, isString, `${file} area ${name} name`),
+        kind,
+        levels: kind === 'town' ? null : pair(a.levels, `${file} area ${name} levels`),
+        area: must(a.area, isArray, `${file} area ${name} area`).map((c, i) =>
+          pair(c, `${file} area ${name} corner ${i + 1}`),
+        ),
+        boss: b &&
+          at && {
+            mob: must(b.mob, isString, `${file} area ${name} boss mob`),
+            x: at[0],
+            z: at[1],
+            radius: must(b.radius, isNumber, `${file} area ${name} boss radius`),
+          },
+      };
+    }),
   });
   placeNpcs(file, id, r.npcs);
 }

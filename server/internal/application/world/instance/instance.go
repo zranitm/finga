@@ -168,6 +168,8 @@ type (
 		name string
 		text string
 	}
+	// bossesMsg asks how each hunting area's boss stands; done hears it on the next drain.
+	bossesMsg struct{ done chan []model.AreaBoss }
 )
 
 func (*joinMsg) message()    {}
@@ -180,6 +182,7 @@ func (equipMsg) message()    {}
 func (equippedMsg) message() {}
 func (chatMsg) message()     {}
 func (useMsg) message()      {}
+func (bossesMsg) message()   {}
 func (usedMsg) message()     {}
 
 // Errors a join can end with besides the model's.
@@ -466,6 +469,8 @@ func (i *Instance) drain() {
 			i.setBuild(m)
 		case usedMsg:
 			i.settleUse(m)
+		case bossesMsg:
+			m.done <- i.areaBosses()
 		case chatMsg:
 			if _, ok := i.players[m.from]; ok {
 				i.events = append(i.events, model.Chat{Tick: i.tick, Sender: m.from, SenderName: m.name, Text: m.text})
