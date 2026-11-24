@@ -564,6 +564,13 @@ for (const file of readdirSync(join(dataDir, 'maps'))
       };
     })(),
     place: pvp ? null : pair(places[id], `world.yaml place of ${id}`),
+    points: (m.points === undefined ? [] : must(m.points, isArray, `${file} points`)).map((raw) => {
+      const p = must(raw, isRecord, `a ${file} point`);
+      return {
+        id: must(p.id, isString, `a ${file} point id`),
+        name: must(p.name, isString, `${file} point ${String(p.id)} name`),
+      };
+    }),
   });
   placeNpcs(file, id, m.npcs);
 }
@@ -614,6 +621,7 @@ for (const file of existsSync(regionsDir)
     }),
     boss: null,
     place: null,
+    points: [],
   });
   placeNpcs(file, id, r.npcs);
 }
@@ -685,7 +693,7 @@ const grounds = Object.fromEntries(
 );
 
 mkdirSync(outDir, { recursive: true });
-// pvp.yaml: each mode the queue takes, with its name, side size, whether it's rated and the rounds a match is best of, none for a battle; the count into a round, which holds everyone still, as the client predicts; the kit's level; and the placement matches a rating takes before it shows. The queue's, the rest of the rating's and the bots' constants stay with the server (pvp.md section 3).
+// pvp.yaml: each mode the queue takes, with its name, side size, whether it's rated and the rounds a match is best of, none for a battle; the count into a round, which holds everyone still, as the client predicts; a battle's goal, length and respawn, as its card and the down overlay say them; the kit's level; and the placement matches a rating takes before it shows. The queue's, the rest of the rating's and the bots' constants stay with the server (pvp.md section 3).
 const pvpFile = must(load('pvp.yaml'), isRecord, 'pvp.yaml');
 const pvp = {
   modes: Object.entries(must(pvpFile.modes, isRecord, 'pvp.yaml modes')).map(([id, raw]) => {
@@ -697,6 +705,7 @@ const pvp = {
       name: must(m.name, isString, `pvp.yaml mode ${id} name`),
       team: must(m.team, isNumber, `pvp.yaml mode ${id} team`),
       rated: must(m.rated, isBoolean, `pvp.yaml mode ${id} rated`),
+      map: must(m.map, isString, `pvp.yaml mode ${id} map`),
       best_of: rounds ? must(rounds.best_of, isNumber, `pvp.yaml mode ${id} best_of`) : null,
     };
   }),
@@ -704,6 +713,14 @@ const pvp = {
     must(pvpFile.rounds, isRecord, 'pvp.yaml rounds').countdown,
     'pvp.yaml rounds countdown',
   ),
+  battle: (() => {
+    const b = must(pvpFile.battle, isRecord, 'pvp.yaml battle');
+    return {
+      goal: must(b.goal, isNumber, 'pvp.yaml battle goal'),
+      length_ms: durationMs(b.length, 'pvp.yaml battle length'),
+      respawn_ms: durationMs(b.respawn, 'pvp.yaml battle respawn'),
+    };
+  })(),
   kit_level: must(
     must(pvpFile.kit, isRecord, 'pvp.yaml kit').level,
     isNumber,

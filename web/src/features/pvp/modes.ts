@@ -1,4 +1,5 @@
 // The PvP modes the queue takes (pvp.md section 3), as the window, the cards and the bar name them.
+import { maps } from '@/gamedata/maps';
 import { pvp } from '@/gamedata/pvp';
 
 export type Mode = (typeof pvp.modes)[number];
@@ -16,6 +17,17 @@ export function modeName(id: string): string {
 export function roundsToWin(id: string): number {
   const best = modeById(id)?.best_of ?? 0;
   return best > 0 ? Math.floor(best / 2) + 1 : 0;
+}
+
+/** Whether the mode is a battle, fought for points and a score rather than rounds (pvp.md section 7); false for one this client doesn't know. */
+export function isBattle(id: string): boolean {
+  return modeById(id)?.best_of === null;
+}
+
+/** A battle's points' names by id, as its map names them; none for a mode this client doesn't know. */
+export function pointNames(id: string): ReadonlyMap<string, string> {
+  const map = maps.find((m) => m.id === modeById(id)?.map);
+  return new Map(map?.points.map((p) => [p.id, p.name]) ?? []);
 }
 
 /** How many fight on a side in the mode, 1 for one this client doesn't know. */

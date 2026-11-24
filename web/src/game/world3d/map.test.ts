@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { movementParams } from '@/game/systems/prediction';
 import { movement } from '@/gamedata/movement';
 import { indexed } from '@/sim/solids';
+import { ground, step } from '@/sim/step';
+import type { Geometry, State } from '@/sim/step';
 import { mapJson as json, servePublic } from '@/testing/public-on-disk';
 
 import { groundUnder, loadMap, standsIn } from './map';
@@ -53,6 +56,51 @@ describe('loadMap', () => {
     expect(m.prepWall?.walled.cylinders).toEqual([...m.geometry.cylinders, post]);
     expect(m.prepWall?.walled.terrain).toBe(m.geometry.terrain);
     expect(m.geometry.boxes).toEqual([{ ...wall, z: 2 }]); // the map's own stay as they were
+  });
+
+  it('reads a battle map’s bases and points, and each side’s ground, the other side’s base standing after the map’s solids: a body runs on into its own base and stops at the other’s, as the world walks it through the fight', async () => {
+    expect((await onSolid(1)).battle).toBeNull();
+    const m = await read(json('battlefield'));
+    const b = m.battle!;
+    expect(b.points.map((p) => [p.id, p.x, p.z, p.radius])).toEqual([
+      ['west', 38, 45, 5],
+      ['middle', 70, 45, 5],
+      ['east', 102, 45, 5],
+    ]);
+    expect(b.bases).toEqual([
+      { x: 13, z: 45, radius: 9 },
+      { x: 127, z: 45, radius: 9 },
+    ]);
+    for (const s of [0, 1] as const) {
+      const other = b.bases[s === 0 ? 1 : 0];
+      expect(b.kept[s].cylinders).toEqual([
+        ...m.geometry.cylinders,
+        { x: other.x, z: other.z, radius: other.radius, top: 1000 },
+      ]);
+      expect(b.kept[s].boxes).toEqual(m.geometry.boxes);
+    }
+    const p = movementParams('hunting', 1);
+    const east = { left: false, right: true, up: false, down: false, jump: false };
+    const run = (g: Geometry) => {
+      let s: State = {
+        x: 112,
+        y: ground(112, 45, -Infinity, g),
+        z: 45,
+        vx: 0,
+        vy: 0,
+        vz: 0,
+        on_ground: true,
+        hx: 1,
+        hz: 0,
+      };
+      for (let k = 0; k < 240; k++) {
+        s = step(s, east, g, p);
+      }
+      return s.x;
+    };
+    const edge = b.bases[1].x - b.bases[1].radius - movement.radius;
+    expect(run(b.kept[0])).toBeCloseTo(edge, 2); // side 1 stops at side 2's base
+    expect(run(b.kept[1])).toBeGreaterThan(b.bases[1].x); // side 2 runs on into its own
   });
 
   it('reads the town and forest as Go wrote them, the sim’s geometry number for number', async () => {
