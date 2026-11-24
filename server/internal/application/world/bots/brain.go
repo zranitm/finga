@@ -22,7 +22,7 @@ const (
 	tooClose   = 3.0 // metres inside which a bowman or a magician steps away
 )
 
-// Setup is what a bot fights with: its seed, tier, class, build and skills, the map and its body.
+// Setup is what a bot fights with: its seed, tier, class, build and skills, the map and the walk grid it paths on, and its body.
 type Setup struct {
 	Seed   [2]uint64
 	Tier   gamedata.BotTier
@@ -31,6 +31,7 @@ type Setup struct {
 	Order  []string
 	Skills map[string]Skill
 	Map    *gamedata.Map
+	Grid   *nav.Grid // its side's in a battle, which the other side's base blocks; else the map's
 	Radius float64
 	Height float64
 	Tick   time.Duration
@@ -103,6 +104,9 @@ func (b *Brain) decide(v View, held sim.Input) Decision {
 	if !v.Fighting && v.Team != nil {
 		*v.Team = Team{} // between fights the side lets its focus go
 	}
+	if me.Down && v.Team != nil {
+		delete(v.Team.roles, me.ID) // it picks its point anew once up
+	}
 	if me.Down || !v.Fighting {
 		return Decision{}
 	}
@@ -113,6 +117,12 @@ func (b *Brain) decide(v View, held sim.Input) Decision {
 	b.hard = false
 	var d Decision
 	d.Skill = b.defend(v, others, started)
+	if v.Battle != nil {
+		if spot, ok := b.objective(v, others); ok {
+			d.Keys = b.toward(v, held, spot)
+			return d
+		}
+	}
 	t := b.target(v, others)
 	if t == nil {
 		return d
@@ -141,7 +151,7 @@ func (b *Brain) decide(v View, held sim.Input) Decision {
 		d.Attack = &Attack{Aim: yaw, Lock: lock}
 	}
 	if mate != nil {
-		d.Keys = b.walk.Keys(b.s.Map, b.s.Radius, at, *mate, time.Duration(v.Tick)*b.s.Tick, b.stuck.Stalled(at, me.State.OnGround, held))
+		d.Keys = b.walk.Keys(b.s.Map, b.s.Grid, b.s.Radius, at, *mate, time.Duration(v.Tick)*b.s.Tick, b.stuck.Stalled(at, me.State.OnGround, held))
 	} else {
 		d.Keys = b.keep(v, held, at, to, dist)
 	}
@@ -159,7 +169,7 @@ func (b *Brain) breakOut(v View, others []Seen) Decision {
 	b.breaking = false
 	at := point(v.Self.State)
 	use := &model.SkillUse{Skill: b.breakFree, Root: b.breakRoot, Aim: model.YawOf(v.Self.State.HX, v.Self.State.HZ), Way: sim.Way{X: v.Self.State.HX, Z: v.Self.State.HZ}}
-	if t := nearest(v.Self, others); t != nil {
+	if t := b.nearest(v, others); t != nil {
 		use.Aim, use.Target, use.Way = steer.YawTo(at, nav.Point{X: t.Body.X, Z: t.Body.Z}), model.EntityRef{Player: t.ID}, away(at, t.Body)
 	}
 	if mv := b.s.Skills[b.breakFree].Spec.Move; mv.Distance > 0 {
@@ -288,7 +298,7 @@ func (b *Brain) keep(v View, held sim.Input, at, to nav.Point, dist float64) sim
 	now := time.Duration(v.Tick) * b.s.Tick
 	if b.s.Class.Attack.Shape.Kind == gamedata.ArcShape {
 		if dist > reachOf(b.s.Class.Attack.Shape)*meleeShare {
-			return b.walk.Keys(b.s.Map, b.s.Radius, at, to, now, stalled)
+			return b.walk.Keys(b.s.Map, b.s.Grid, b.s.Radius, at, to, now, stalled)
 		}
 		return sim.Input{}
 	}
@@ -300,31 +310,31 @@ func (b *Brain) keep(v View, held sim.Input, at, to nav.Point, dist float64) sim
 	}
 	switch {
 	case b.approaching:
-		return b.walk.Keys(b.s.Map, b.s.Radius, at, to, now, stalled)
+		return b.walk.Keys(b.s.Map, b.s.Grid, b.s.Radius, at, to, now, stalled)
 	case dist < tooClose:
 		return steer.KeysToward(at.X-to.X, at.Z-to.Z)
 	}
 	return sim.Input{}
 }
 
-// target is the enemy the bot fights: its side's focus in a team mode, else the nearest still up.
+// target is the enemy the bot fights: its side's focus in a 3v3, else the nearest it can reach. A battle's side, spread over its points, shares no focus.
 func (b *Brain) target(v View, others []Seen) *Seen {
-	me := v.Self
-	if v.Team != nil {
-		if f := v.Team.focusOf(v.Tick, b.hold, me, others); f != nil {
+	if v.Team != nil && v.Battle == nil {
+		if f := v.Team.focusOf(v.Tick, b.hold, v.Self, others); f != nil {
 			return f
 		}
 	}
-	return nearest(me, others)
+	return b.nearest(v, others)
 }
 
-// nearest is the enemy up nearest the bot, the one it breaks free away from.
-func nearest(me Self, others []Seen) *Seen {
+// nearest is the enemy nearest the bot that it can reach, the one it breaks free away from.
+func (b *Brain) nearest(v View, others []Seen) *Seen {
+	me := v.Self
 	var best *Seen
 	bestD := math.Inf(1)
 	for k := range others {
 		o := &others[k]
-		if o.ID == me.ID || o.Side == me.Side || !o.Up {
+		if !b.reachable(v, o) {
 			continue
 		}
 		if d := nav.Distance(point(me.State), nav.Point{X: o.Body.X, Z: o.Body.Z}); d < bestD {

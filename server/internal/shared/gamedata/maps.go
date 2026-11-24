@@ -91,17 +91,18 @@ type Map struct {
 	PlayerSpawn        Point   // where players appear; in towns, the respawn point
 	SpawnYaw           float64 // the way they face there, radians from north toward east
 	NPCs               []Placement
-	Boss               *BossSpot          // a hunting map's; nil in a town
-	Grid               func() *nav.Grid   // the walk grid, built at the first call; the world calls every map's as it starts, so no tick waits on one
-	Sides              [2][]Spot          // a pvp map's starting spots, side 1's then side 2's
-	Walled             sim.Geometry       // a pvp map's Geometry with its prep wall standing, before a round starts
-	Bases              [2]Circle          // a battle map's, side 1's then side 2's; zero on another map
-	Points             []CapturePoint     // a battle map's capture points
-	Kept               [2]sim.Geometry    // what each side of a battle walks: Geometry with the other side's base standing
-	Bake               string             // a region's bake hash, the first 16 hex digits, naming the folder its client files are in; empty on a map
-	Areas              []Area             // a region's, in its plan's order; none on a map
-	AreaGrid           regiongen.AreaGrid // which of Areas holds each 4 m square of a region
-	Waypoints          []Waypoint         // a region's, ids unique across every region; every town area holds one
+	Boss               *BossSpot                // a hunting map's; nil in a town
+	Grid               func() *nav.Grid         // the walk grid, built at the first call; the world calls every map's as it starts, so no tick waits on one
+	Sides              [2][]Spot                // a pvp map's starting spots, side 1's then side 2's
+	Walled             sim.Geometry             // a pvp map's Geometry with its prep wall standing, before a round starts
+	Bases              [2]Circle                // a battle map's, side 1's then side 2's; zero on another map
+	Points             []CapturePoint           // a battle map's capture points
+	Kept               [2]sim.Geometry          // what each side of a battle walks: Geometry with the other side's base standing
+	KeptGrid           func(side int) *nav.Grid // the walk grid of a side's Kept, built at the first call, as Grid; nil on a map with no bases
+	Bake               string                   // a region's bake hash, the first 16 hex digits, naming the folder its client files are in; empty on a map
+	Areas              []Area                   // a region's, in its plan's order; none on a map
+	AreaGrid           regiongen.AreaGrid       // which of Areas holds each 4 m square of a region
+	Waypoints          []Waypoint               // a region's, ids unique across every region; every town area holds one
 }
 
 // Circle is a round area: At and what's within Radius of it.

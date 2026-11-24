@@ -11,7 +11,9 @@ import (
 )
 
 const (
-	waypointReach = 0.3         // metres from a path's waypoint the walker turns to the next
+	waypointReach = 0.3         // metres from a path's waypoint the walker turns to the next, at the least
+	strideReach   = 0.6         // of the stride the body made since the last call, the reach at the most, so a stride can't step past a waypoint's reach
+	mostReach     = 1.0         // metres, however far the body moved
 	repathEvery   = time.Second // a path is found again this often, or sooner when its end moves
 	repathMoved   = 1.0         // metres its end may move before the path is found again
 	stallMoved    = 0.05        // metres a body pressing a way must move in stallFor decisions not to have stalled
@@ -58,22 +60,29 @@ type Walker struct {
 	none   bool // the last search found no way
 	stalls int  // since it last reached a waypoint
 	aside  int  // decisions left stepping aside
+	at     nav.Point
+	walked bool // at is where the body was at the last call
 }
 
-// Keys walks a body of radius r from from toward to on m, round what's in the way, jumping then stepping aside at a stall.
-func (w *Walker) Keys(m *gamedata.Map, r float64, from, to nav.Point, now time.Duration, stalled bool) sim.Input {
+// Keys walks a body of radius r from from toward to on m by its walk grid g, round what's in the way, jumping then stepping aside at a stall.
+func (w *Walker) Keys(m *gamedata.Map, g *nav.Grid, r float64, from, to nav.Point, now time.Duration, stalled bool) sim.Input {
 	if w.mapID != m.ID || nav.Distance(w.to, to) > repathMoved || now-w.found > repathEvery || (!w.none && (stalled || len(w.path) == 0)) {
 		leash := math.Hypot(m.Geometry.SizeX, m.Geometry.SizeZ)
-		w.path = w.finder.Path(m.Grid(), from, to, r+gamedata.BotPathMargin, from, leash)
+		w.path = w.finder.Path(g, from, to, r+gamedata.BotPathMargin, from, leash)
 		if len(w.path) == 0 {
-			w.path = w.finder.Path(m.Grid(), from, to, r, from, leash)
+			w.path = w.finder.Path(g, from, to, r, from, leash)
 		}
 		if n := len(w.path); n > 0 {
 			w.path[n-1] = to
 		}
 		w.mapID, w.to, w.found, w.none = m.ID, to, now, len(w.path) == 0
 	}
-	for len(w.path) > 1 && nav.Distance(from, w.path[0]) < waypointReach {
+	reach := waypointReach
+	if w.walked {
+		reach = min(max(reach, strideReach*nav.Distance(from, w.at)), mostReach)
+	}
+	w.at, w.walked = from, true
+	for len(w.path) > 1 && nav.Distance(from, w.path[0]) < reach {
 		w.path, w.stalls = w.path[1:], 0
 	}
 	next := to

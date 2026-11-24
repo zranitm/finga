@@ -14,9 +14,22 @@ type View struct {
 	Fighting bool // a round's fight runs
 	Self     Self
 	Ring     *Ring
-	Team     *Team // its side's, in a team mode; nil in 1v1
+	Team     *Team   // its side's, in a team mode; nil in 1v1
+	Battle   *Battle // a battle's points, as everyone sees them now; nil in a round mode
 	// Holds is whether a follow-up's condition holds for the bot now, with lock its lock, as the world judges a press.
 	Holds func(root, skill string, lock model.EntityRef) bool
+}
+
+// Battle is a battle as its bots see it: the points, in the map's order, and how many bots the deciding bot's side has to share them.
+type Battle struct {
+	Points []Point
+	Bots   int
+}
+
+// Point is a capture point: its circle, and how it stands as the match shows it.
+type Point struct {
+	gamedata.Circle
+	model.CapturePoint
 }
 
 // Self is the bot itself, now.

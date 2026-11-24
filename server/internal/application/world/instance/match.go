@@ -14,6 +14,7 @@ import (
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
+	"finga/internal/shared/nav"
 	"finga/internal/shared/progression"
 	"finga/internal/shared/sim"
 	"finga/pkg/transient"
@@ -287,6 +288,14 @@ func subStats(a, b gamedata.Stats) gamedata.Stats {
 
 // fighting is whether the match lets its fighters attack and use skills: in a round or a battle's fight, not before or after.
 func (i *Instance) fighting() bool { return i.match == nil || i.match.phase == model.PhaseFight }
+
+// walkGrid is the walk grid a fighter of side paths on: in a battle, the map's with the other side's base standing, as their geometry has it.
+func (i *Instance) walkGrid(side int) *nav.Grid {
+	if i.match.battle != nil {
+		return i.m.KeptGrid(side)
+	}
+	return i.m.Grid()
+}
 
 // walled is whether the prep wall stands: before a round or a battle's fight starts.
 func (i *Instance) walled() bool {

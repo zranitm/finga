@@ -37,7 +37,7 @@ func newFight(t *testing.T, class kernel.Class, tier gamedata.BotTier) *fight {
 	m, _ := data.Map("ring")
 	build := data.Pvp().Bots.Builds[class][0]
 	mv := data.Movement()
-	s := bots.Setup{Seed: [2]uint64{1, 2}, Tier: tier, Class: c, Bar: build.Bar, Order: build.Order, Skills: map[string]bots.Skill{}, Map: m, Radius: mv.Radius, Height: mv.Height, Tick: tick}
+	s := bots.Setup{Seed: [2]uint64{1, 2}, Tier: tier, Class: c, Bar: build.Bar, Order: build.Order, Skills: map[string]bots.Skill{}, Map: m, Grid: m.Grid(), Radius: mv.Radius, Height: mv.Height, Tick: tick}
 	for _, sk := range data.Skills() {
 		kit := 0
 		if !sk.Granted {
