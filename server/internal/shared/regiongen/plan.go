@@ -24,7 +24,8 @@ type Plan struct {
 	Ground    Ground           `yaml:"ground"`
 	Edge      Edge             `yaml:"edge,flow"`
 	Colour    Colour           `yaml:"colour,flow"`
-	Rock      *Rock            `yaml:"rock,omitempty,flow"` // a cave's: the ground its halls and tunnels are carved from
+	Rock      *Rock            `yaml:"rock,omitempty,flow"`    // a cave's: the ground its halls and tunnels are carved from
+	Torches   *Torches         `yaml:"torches,omitempty,flow"` // a cave's: hung on its halls' and tunnels' walls
 	Features  []Feature        `yaml:"features,omitempty"`
 	Areas     []Area           `yaml:"areas"`
 	Camps     []Camp           `yaml:"camps,omitempty"`
@@ -51,6 +52,12 @@ const (
 type Rock struct {
 	Height float64 `yaml:"height"`
 	Rough  float64 `yaml:"rough"`
+}
+
+// Torches hang Model, a kit model with a light, on the walls of a cave's halls and tunnels, one every Spacing metres along each wall.
+type Torches struct {
+	Spacing float64 `yaml:"spacing"`
+	Model   string  `yaml:"model"`
 }
 
 // Ground is the noise the ground rolls with.
@@ -313,6 +320,12 @@ func (p Plan) check(k Kit) error {
 		return fmt.Errorf("rock is a cave's: a sky of %s, not %s", Cave, p.Look.Sky)
 	case p.Rock != nil && (!reach(p.Rock.Height, maxHeight) || !within(p.Rock.Rough, 0, maxReach)):
 		return fmt.Errorf("rock needs a height up to %d m and a rough of 0 to %d m", maxHeight, maxReach)
+	case p.Torches != nil && p.Rock == nil:
+		return errors.New("torches hang on a cave's walls, and the plan has no rock")
+	case p.Torches != nil && !within(p.Torches.Spacing, 2*torchAway, maxReach):
+		return fmt.Errorf("torches %g m apart: %d to %d m, as each keeps %d m from the next", p.Torches.Spacing, 2*torchAway, maxReach, torchAway)
+	case p.Torches != nil && k.Models[p.Torches.Model].Light == nil:
+		return fmt.Errorf("torch model %q: a kit model with a light", p.Torches.Model)
 	}
 	if err := p.checkBiome("edge", p.Edge.Biome); err != nil {
 		return err

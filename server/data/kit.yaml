@@ -1,6 +1,7 @@
 # The art kit as regions use it (large-regions.md section 3).
 # grounds: the colours a region's ground is painted with, by name; the client's ground table is generated from them (npm run gen).
 # models: each model's solid, which a scattered or set piece stands with: a cylinder or a box, its height above the ground at its centre; {} is looks only.
+# A model with a light is a torch: its flame stands height above the ground and lights a cave reach metres round (underground-and-underwater.md section 3).
 grounds:
   brick: '#9c5d4b'
   cave_floor: '#6b5d4c'
@@ -50,6 +51,8 @@ models:
   small_mushrooms: {}
   stump: {cylinder: {radius: 0.5, height: 0.6}}
   tiny_mushrooms: {}
+  torch_lit: {cylinder: {radius: 0.15, height: 1.9}, light: {height: 1.8, reach: 8}}
+  torch_mounted: {light: {height: 2.2, reach: 8}}
   tree_oak: {cylinder: {radius: 0.34, height: 6.5}}
   tree_pine: {cylinder: {radius: 0.34, height: 6.5}}
   well: {cylinder: {radius: 1.35, height: 0.6}}
