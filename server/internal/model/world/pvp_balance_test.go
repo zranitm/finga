@@ -115,37 +115,60 @@ const (
 	opening               // a follow-up waiting on a far lock or a dodge: only a burst's first blow
 )
 
-// blowsOf are a's damage skills it can key or follow up into, on b, with traits, the strongest first.
-func blowsOf(d *gamedata.Data, a, b kit, traits map[string]string) []blow {
+// blowsOf are a's damage skills it can key or follow up into, on b, with no trait, the strongest first.
+func blowsOf(d *gamedata.Data, a, b kit) []blow {
 	var out []blow
 	for _, id := range slices.Sorted(maps.Keys(a.points)) {
-		s, _ := d.Skill(id)
-		if s.Kind != gamedata.Active || s.Effect != gamedata.DamageEffect {
-			continue
+		if bl, ok := blowOf(d, a, b, id, ""); ok {
+			out = append(out, bl)
 		}
-		st := s.Spec(a.points[id], traits[id])
-		bl := blow{act: actOf(d, a.me, st, a.points[id], b.on())}
-		bl.id = id
-		if def, ok := d.Status(st.Status.Status); ok && def.Group == gamedata.Hard && def.Blocks.Has(gamedata.BlocksAct) {
-			bl.holds, bl.wakes = model.TicksIn(st.Status.Time, tickInterval), def.Wakes
-			if def.ID == gamedata.Knockdown {
-				bl.holds = model.TicksIn(d.MobRules().React.Down, tickInterval) // the down pose
-			}
-		}
-		if f, root, ok := followOf(a.class, id); ok && !a.class.Keyable(id) {
-			switch {
-			case f.When.After > 0:
-				bl.root, bl.after = root, model.TicksIn(f.When.After, tickInterval)
-			case len(f.When.Controlled) > 0:
-				bl.when = whileHeld
-			default:
-				bl.when = opening
-			}
-		}
-		out = append(out, bl)
 	}
-	slices.SortFunc(out, func(x, y blow) int { return cmp.Or(cmp.Compare(y.damage, x.damage), cmp.Compare(x.id, y.id)) })
+	strongestFirst(out)
 	return out
+}
+
+// withTrait is blows with id's blow taken with trait, the strongest first; blows is left as it was.
+func withTrait(d *gamedata.Data, a, b kit, blows []blow, id, trait string) []blow {
+	k := slices.IndexFunc(blows, func(bl blow) bool { return bl.id == id })
+	if k < 0 {
+		return blows
+	}
+	out := slices.Clone(blows)
+	out[k], _ = blowOf(d, a, b, id, trait)
+	strongestFirst(out)
+	return out
+}
+
+func strongestFirst(blows []blow) {
+	slices.SortFunc(blows, func(x, y blow) int { return cmp.Or(cmp.Compare(y.damage, x.damage), cmp.Compare(x.id, y.id)) })
+}
+
+// blowOf is a's skill id on b with trait; false when it isn't an active damage skill.
+func blowOf(d *gamedata.Data, a, b kit, id, trait string) (blow, bool) {
+	s, _ := d.Skill(id)
+	if s.Kind != gamedata.Active || s.Effect != gamedata.DamageEffect {
+		return blow{}, false
+	}
+	st := s.Spec(a.points[id], trait)
+	bl := blow{act: actOf(d, a.me, st, a.points[id], b.on())}
+	bl.id = id
+	if def, ok := d.Status(st.Status.Status); ok && def.Group == gamedata.Hard && def.Blocks.Has(gamedata.BlocksAct) {
+		bl.holds, bl.wakes = model.TicksIn(st.Status.Time, tickInterval), def.Wakes
+		if def.ID == gamedata.Knockdown {
+			bl.holds = model.TicksIn(d.MobRules().React.Down, tickInterval) // the down pose
+		}
+	}
+	if f, root, ok := followOf(a.class, id); ok && !a.class.Keyable(id) {
+		switch {
+		case f.When.After > 0:
+			bl.root, bl.after = root, model.TicksIn(f.When.After, tickInterval)
+		case len(f.When.Controlled) > 0:
+			bl.when = whileHeld
+		default:
+			bl.when = opening
+		}
+	}
+	return bl, true
 }
 
 // followOf is the class's chain that skill follows in, and its root.
@@ -204,11 +227,14 @@ func TestPvpBurst(t *testing.T) {
 	for _, a := range all {
 		for _, b := range all {
 			basic := basicOf(d, a.me, a.class, b.on())
+			plain := blowsOf(d, a, b) // each skill's damage is a mean of many rolls, so a trait retakes only its own skill's
 			for _, id := range slices.Sorted(maps.Keys(a.points)) {
 				s, _ := d.Skill(id)
 				for _, trait := range append([]string{""}, traitIDs(s)...) {
-					traits := map[string]string{id: trait}
-					blows := blowsOf(d, a, b, traits)
+					blows := plain
+					if trait != "" {
+						blows = withTrait(d, a, b, plain, id, trait)
+					}
 					k := slices.IndexFunc(blows, func(bl blow) bool { return bl.id == id })
 					if k < 0 || blows[k].holds == 0 || blows[k].when == whileHeld {
 						continue
