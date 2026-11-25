@@ -55,7 +55,7 @@ import { nearby } from '@/state/nearby';
 import { isMember, party } from '@/state/party';
 import type { PartyState } from '@/state/party';
 import { picksInReach, pouches } from '@/state/pouches';
-import { countdownTicks, pvp, walled } from '@/state/pvp';
+import { countdownTicks, pvp, sideOf, walled } from '@/state/pvp';
 import { questPlayer, quests } from '@/state/quests';
 import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
@@ -100,6 +100,7 @@ import { moveStart, wayFor } from '../systems/skill-way';
 import { relationOf } from '../systems/teams';
 
 import { Bars } from './bars';
+import { BattleMarks } from './battle-marks';
 import { beatsOf } from './beats';
 import type { Beats } from './beats';
 import type { Figure, Gait, Lighting, Pose } from './body';
@@ -401,7 +402,9 @@ export class World {
   private ring: LockRing | null = null;
   private bubbles: ShieldBubbles | null = null;
   private prepWall: PrepWall | null = null;
+  private battleMarks: BattleMarks | null = null;
   private walledUp = false; // a match's prep wall stands, and attacks and skills wait for the round
+  private keptSide = 0; // in a battle past its prep, the player's side, whose geometry has the other side's base standing; 0 elsewhere
   private remoteLooks: ReadonlyMap<string, RemoteLook> = new Map(); // as drawn this frame
   private lockedAt: MapSpot | null = null; // the lock as drawn, for the map views
   private lockedId: string | null = null; // and its ref, which the place opens round
@@ -525,16 +528,30 @@ export class World {
     return this.resets0 + (this.predictor?.resets ?? 0);
   }
 
-  /** A match's prep wall up through prep and the count into a round, as the match's state says: drawn, and walked against from the next step. */
-  private raiseWall(predictor: Predictor): void {
-    const wall = this.map?.prepWall;
-    const up = !!wall && walled(pvp.getState().match?.phase);
-    if (!wall || up === this.walledUp) {
+  /** What the player walks, as the world has them walk it and as the match's state says, from the next step: a match's prep wall, drawn, through prep and the count into a round (pvp.md section 3); in a battle after, their side's geometry, the other side's base standing (section 7); else the map's. */
+  private setGround(predictor: Predictor): void {
+    const map = this.map;
+    if (!map) {
       return;
     }
+    const match = pvp.getState().match;
+    const up = !!map.prepWall && walled(match?.phase);
+    const side = !up && map.battle ? sideOf(match, this.deps.player.characterId) : 0;
+    if (up === this.walledUp && side === this.keptSide) {
+      return;
+    }
+    if (up !== this.walledUp) {
+      this.prepWall?.show(up);
+    }
     this.walledUp = up;
-    this.prepWall?.show(up);
-    predictor.setGeometry(up ? wall.walled : this.map!.geometry);
+    this.keptSide = side;
+    if (up) {
+      predictor.setGeometry(map.prepWall.walled);
+    } else {
+      predictor.setGeometry(
+        map.battle && side ? map.battle.kept[side === 1 ? 0 : 1] : map.geometry,
+      );
+    }
   }
 
   /** One frame of dtMs: the player stepped and sent at the world's tick, every body drawn, the camera eased after the player, then rendered. */
@@ -548,7 +565,13 @@ export class World {
     const dt = Math.min(dtMs, MAX_FRAME_MS);
     const now = this.deps.now();
     this.setStalled(this.feed.stalled(now));
-    this.raiseWall(predictor);
+    this.setGround(predictor);
+    const match = pvp.getState().match;
+    this.battleMarks?.show(
+      match?.points ?? [],
+      sideOf(match, this.deps.player.characterId),
+      this.keptSide,
+    );
     predictor.holdFor(countdownTicks(pvp.getState().match, this.timing.tickMs)); // known from prep's or the gap's end, before the count's first Delta
     if (this.placed) {
       const held = this.holdForGround(predictor.state, now);
@@ -691,6 +714,9 @@ export class World {
     this.ring = new LockRing(scene, map, lighting.palette);
     this.bubbles = new ShieldBubbles(scene);
     this.prepWall = map.prepWall && new PrepWall(scene, map.prepWall.boxes, map.geometry.terrain);
+    this.battleMarks =
+      map.battle &&
+      new BattleMarks(scene, map, map.battle.points, map.battle.bases, lighting.palette);
     fx.warm(); // every look's shaders built before a fight needs them
     mapView
       .getState()
@@ -2509,7 +2535,10 @@ export class World {
     this.bubbles = null;
     this.prepWall?.dispose();
     this.prepWall = null;
+    this.battleMarks?.dispose();
+    this.battleMarks = null;
     this.walledUp = false;
+    this.keptSide = 0;
     this.remoteLooks = new Map();
     target.getState().show(null);
     mapView.getState().clear();

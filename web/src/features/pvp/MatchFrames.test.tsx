@@ -125,11 +125,20 @@ describe('match frames', () => {
     expect(screen.getByRole('group', { name: 'Enemy Ash' })).toBeInTheDocument();
   });
 
-  it('leave a mode without rounds to the party frames, as 15v15 will', () => {
-    render(<TeamFrames />);
-    match('battlefield'); // not in this client's data: no rounds
-    show({ 'c-robin': live(60) });
-    expect(screen.queryByRole('group', { name: 'Teammates' })).not.toBeInTheDocument();
+  it('leave a battle, and a mode this client doesn’t know, to the party frames, and frame no enemies in a battle', () => {
+    for (const mode of ['battle', 'siege']) {
+      const { unmount } = render(
+        <>
+          <TeamFrames />
+          <EnemyFrames />
+        </>,
+      );
+      match(mode);
+      show({ 'c-robin': live(60), 'c-ash': live(80) });
+      expect(screen.queryByRole('group', { name: 'Teammates' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('group', { name: 'Enemies' })).not.toBeInTheDocument();
+      unmount();
+    }
   });
 
   it('in 1v1 show none: the bar names the enemy, and there are no teammates', () => {

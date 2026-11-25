@@ -212,6 +212,10 @@ const SERVED = {
   [TOWERED]: towered(TOWERED),
   town: slim('town'),
   ring: { ...bare('ring'), prep_wall: (mapJson('ring') as { prep_wall: unknown }).prep_wall }, // flat, with its own prep wall
+  battlefield: {
+    ...slim('battlefield'), // its own size, flat, with its bases and points
+    battle: (mapJson('battlefield') as { battle: unknown }).battle,
+  },
 };
 
 type PlayerWire = NonNullable<ServerInit<'snapshot'>['players']>[number];
@@ -2734,6 +2738,100 @@ describe('World', () => {
     p.push('snapshot', { players: [standing(20, 40)] }, { tick: 100 });
     p.live(4);
     expect(tower()).not.toMatch(/ 0(\.\d+)?$/);
+  });
+
+  it('in a battle’s fight the player walks their side’s ground: the other side’s base stands, their own doesn’t, and again once the map is entered afresh', async () => {
+    const p = await playing('battlefield', 112, 45);
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: 'battlefield',
+        character: { id: ME, name: 'Ayla', class: 'warrior', level: 30, hp: 50, maxHp: 50 },
+      }),
+    );
+    const onSide = (side: number) =>
+      pvp.getState().applyMatchState(
+        create(MatchStateSchema, {
+          match: 'mt-1',
+          mode: 'battle',
+          phase: MatchPhase.FIGHT,
+          endsInMs: 600_000,
+          sides:
+            side === 1
+              ? [{ fighters: [{ id: ME }] }, { fighters: [{ id: 'c-robin' }] }]
+              : [{ fighters: [{ id: 'c-robin' }] }, { fighters: [{ id: ME }] }],
+        }),
+        0,
+      );
+    onSide(1);
+    key('ArrowRight', true);
+    p.live(60);
+    const me = p.root(classLook('warrior').file)!;
+    expect(me.position.x).toBeCloseTo(127 - 9 - movement.radius, 3); // side 2's base, at (127, 45), 9 m round
+    onSide(2);
+    p.live(20);
+    key('ArrowRight', false);
+    expect(me.position.x).toBeGreaterThan(120); // on into its own
+    onSide(1);
+    p.live(1); // tick 82
+    changeMap(p, { mapId: 'battlefield', x: 112, y: 0, z: 45, yaw: 0 }); // as a return to the same battle
+    p.push('snapshot', { players: [standing(112, 45)] }, { tick: 82 });
+    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), WAIT);
+    key('ArrowRight', true);
+    p.live(60);
+    key('ArrowRight', false);
+    expect(p.root(classLook('warrior').file)!.position.x).toBeCloseTo(127 - 9 - movement.radius, 3);
+  });
+
+  it('on a battle’s map rings each point on the ground in its holder’s colour from the player’s side, the name tags’ pair, grey with no match; the other side’s base is walled in red through the fight', async () => {
+    const p = await playing('battlefield', 20, 45);
+    const one = (name: string) => {
+      const [m] = meshesOn(p, name);
+      return m!;
+    };
+    const decal = (hex: string, alpha: number) => `decal ${hex} ${alpha}`;
+    const glow = (hex: string) => decal(Color3.FromHexString(hex).scale(0.45).toHexString(), 0.2);
+    const looks = () =>
+      ['west', 'middle', 'east'].map((id) => [
+        one(`point ring ${id}`).material!.name,
+        one(`point glow ${id}`).material!.name,
+      ]);
+    const walls = () => [1, 2].map((i) => one(`base wall ${i}`).isEnabled());
+    p.frames(1);
+    const grey = [decal('#D8D8D8', 0.9), glow('#d8d8d8')];
+    expect(looks()).toEqual([grey, grey, grey]);
+    expect(walls()).toEqual([false, false]);
+    const ring = one('point ring east');
+    ring.refreshBoundingInfo({});
+    const box = ring.getBoundingInfo().boundingBox;
+    expect([ring.position.x, ring.position.z, box.extendSize.x, box.extendSize.z]).toEqual([
+      102, 45, 5, 5,
+    ]); // round the east point, 5 m out
+    expect(box.minimumWorld.y).toBeCloseTo(0.04, 3); // just over the flat ground
+    const wall = one('base wall 2');
+    wall.refreshBoundingInfo({});
+    expect([wall.position.x, wall.getBoundingInfo().boundingBox.extendSize.x]).toEqual([127, 9]);
+    pvp.getState().applyMatchState(
+      create(MatchStateSchema, {
+        match: 'mt-1',
+        mode: 'battle',
+        phase: MatchPhase.FIGHT,
+        points: [
+          { id: 'west', holder: 1 },
+          { id: 'middle', holder: 2, contested: true },
+        ],
+        sides: [{ fighters: [{ id: ME }] }, { fighters: [{ id: 'c-robin' }] }],
+      }),
+      0,
+    );
+    p.frames(1);
+    expect(looks()).toEqual([
+      [decal('#7FE08A', 0.9), glow('#7fe08a')],
+      [decal('#FF6B62', 0.9), glow('#ff6b62')],
+      grey,
+    ]);
+    expect(walls()).toEqual([false, true]); // side 1 kept from base 2
+    expect(one('base wall 2').material!.name).toBe('base wall');
   });
 
   it.each([

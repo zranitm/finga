@@ -525,6 +525,33 @@ describe('a region drawn from its bake', () => {
     expect(copies('0_0').some((m) => m.name.endsWith(' faded'))).toBe(false); // none in a chunk till it fades
   });
 
+  it('lays its river’s water before any chunk comes, along its path at its levels, and lets it go with itself', async () => {
+    await built();
+    const river = scene.getMeshByName('river 0') as Mesh;
+    expect(river.parent?.name).toBe('region tiny');
+    const at = river.getVerticesData('position')!;
+    const xs = at.filter((_, k) => k % 3 === 0);
+    expect([Math.min(...xs), Math.max(...xs)]).toEqual([91, 101]); // the tiny plan's river along x = 96, 6 m wide
+    expect(at[1]).toBeCloseTo(-1.079, 3);
+    expect(asked).toEqual([]);
+    expect(scene.getMeshByName('lake 0')).toBeNull(); // it has none
+    place!.dispose();
+    place = undefined;
+    expect(scene.getMeshByName('river 0')).toBeNull();
+  });
+
+  it('says nothing of its stones’ model coming after it and its scene went', async () => {
+    const said = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    await built();
+    place!.dispose();
+    place = undefined;
+    scene.dispose();
+    await kitsIn(); // the stone model's load fails on the scene gone, and is let go
+    expect(said).not.toHaveBeenCalled();
+    said.mockRestore();
+    scene = new Scene(engine); // for the next to dispose
+  });
+
   it('stands its waypoints’ stones before any chunk comes, each one’s look among its own, and lets them go with itself', async () => {
     await built();
     expect(place!.looks.around(Vector3.Zero(), new Vector3(1000, 0, 1000))).toHaveLength(1); // the field's, which the world fades out of the camera's way
