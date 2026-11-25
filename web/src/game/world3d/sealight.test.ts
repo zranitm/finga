@@ -3,11 +3,15 @@ import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import type { ClampBlock } from '@babylonjs/core/Materials/Node/Blocks/clampBlock';
 import { AnimatedInputBlockTypes } from '@babylonjs/core/Materials/Node/Blocks/Input/animatedInputBlockTypes';
 import type { InputBlock } from '@babylonjs/core/Materials/Node/Blocks/Input/inputBlock';
+import type { TrigonometryBlock } from '@babylonjs/core/Materials/Node/Blocks/trigonometryBlock';
+import { TrigonometryBlockOperations } from '@babylonjs/core/Materials/Node/Blocks/trigonometryBlock';
 import type { WorleyNoise3DBlock } from '@babylonjs/core/Materials/Node/Blocks/worleyNoise3DBlock';
 import type { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
 import type { NodeMaterialConnectionPoint } from '@babylonjs/core/Materials/Node/nodeMaterialBlockConnectionPoint';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector2, Vector3, Vector4 } from '@babylonjs/core/Maths/math.vector';
+import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder';
+import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { Scene } from '@babylonjs/core/scene';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -31,6 +35,7 @@ afterEach(() => {
 /** A fragment: where it is and which way it faces, the sun's light on it 0–1, the seconds the engine has run, and the nearest two of the Worley points' distances from it, in cells. */
 interface Sample {
   readonly at: readonly [number, number, number];
+  readonly base?: readonly [number, number, number]; // where a thin instance's model stands
   readonly normal: readonly [number, number, number];
   readonly sun: number;
   readonly seconds: number;
@@ -85,12 +90,18 @@ function run(p: NodeMaterialConnectionPoint, at: Sample, seeds: Value[] = []): V
       const b = block as InputBlock;
       return b.animationType === AnimatedInputBlockTypes.RealTime ? at.seconds : asValue(b.value);
     }
-    case 'TransformBlock':
-      if (block.name === 'worldPos') {
-        return [...at.at, 1];
-      }
-      expect(block.name).toBe('worldNormal');
-      return [...at.normal, 0];
+    case 'TransformBlock': {
+      const v =
+        block.name === 'worldPos'
+          ? [...at.at, 1]
+          : block.name === 'swayBase'
+            ? [...at.base!, 1]
+            : (expect(block.name).toBe('worldNormal'), [...at.normal, 0]);
+      return p.name === 'xyz' ? v.slice(0, 3) : v;
+    }
+    case 'TrigonometryBlock':
+      expect((block as TrigonometryBlock).operation).toBe(TrigonometryBlockOperations.Sin);
+      return each(input('input'), 0, (v) => Math.sin(v));
     case 'LightBlock':
       expect(p.name).toBe('diffuseOutput');
       return [at.sun, at.sun, at.sun];
@@ -216,5 +227,87 @@ describe('a sea’s toon materials (underground-and-underwater.md section 7)', (
     const cave = toonOf(new Palette(scene, new Torchlight(scene, null)));
     expect(cave.getBlockByName('causticCells')).toBeNull();
     expect(toonOf(new Palette(scene, 'sea')).getBlockByName('causticCells')).not.toBeNull();
+  });
+});
+
+describe('kelp and sea grass in a sea (underground-and-underwater.md section 7)', () => {
+  const TALL = 3; // kelp's height
+
+  /** Where a sea palette's material for a model TALL high, or its ink, draws a vertex at at over a base standing at base, at seconds. */
+  function drawn(
+    m: NodeMaterial,
+    at: readonly [number, number, number],
+    base: readonly [number, number, number],
+    seconds: number,
+  ): number[] {
+    return value(m, 'swayed', {
+      at,
+      base,
+      normal: [0, 1, 0],
+      seconds,
+      sun: 1,
+      ...MIDDLE,
+    }) as number[];
+  }
+
+  const palette = () => new Palette(scene, 'sea');
+  const swaying = () =>
+    palette().toon({ texture: null, color: Color3.White() }, 1, false, false, TALL);
+
+  it('bend by their height over their base: the base still, the top swinging further than the middle, sideways only and not too far', () => {
+    const m = swaying();
+    let top = 0;
+    for (let seconds = 0; seconds < 20; seconds += 0.25) {
+      const at = (y: number) => drawn(m, [10, y, 4], [10, 0, 4], seconds);
+      expect(at(0)).toEqual([10, 0, 4]);
+      const off = (y: number) => Math.hypot(at(y)[0]! - 10, at(y)[2]! - 4);
+      expect(at(TALL)[1]).toBe(TALL); // sideways only
+      expect(off(TALL / 2)).toBeLessThanOrEqual(off(TALL) / 3 + 1e-12); // a bend, not a lean: the stem rises straight from its base
+      top = Math.max(top, off(TALL));
+    }
+    expect(top).toBeGreaterThan(0.05 * TALL);
+    expect(top).toBeLessThan(0.2 * TALL);
+  });
+
+  it('sway as a wave across a bed: plants side by side across the current together, plants a few metres along it out of step', () => {
+    const m = swaying();
+    const swing = (x: number, z: number, seconds: number) => {
+      const [dx, , dz] = drawn(m, [x, TALL, z], [x, 0, z], seconds);
+      return [dx! - x, dz! - z];
+    };
+    let apart = 0;
+    for (let seconds = 0; seconds < 10; seconds += 0.5) {
+      const here = swing(0, 0, seconds);
+      const [hx, hz] = here as [number, number];
+      const way = hx === 0 && hz === 0 ? null : Math.atan2(hz, hx);
+      for (const across of [2, 5]) {
+        const next = way === null ? [0, 0] : [-Math.sin(way) * across, Math.cos(way) * across];
+        swing(next[0]!, next[1]!, seconds).forEach((v, i) => expect(v).toBeCloseTo(here[i]!, 9));
+      }
+      if (way !== null) {
+        const along = swing(3 * Math.cos(way), 3 * Math.sin(way), seconds);
+        apart = Math.max(apart, Math.hypot(along[0]! - here[0]!, along[1]! - here[1]!));
+      }
+    }
+    expect(apart).toBeGreaterThan(0.05); // 3 m along, out of step
+  });
+
+  it('sway their ink with them', () => {
+    const p = palette();
+    const body = p.toon({ texture: null, color: Color3.White() }, 1, false, false, TALL);
+    const box = CreateBox('kelp', {}, scene);
+    p.outline(box, false, TALL);
+    const ink = (box.getChildMeshes(true)[0] as Mesh).material as NodeMaterial;
+    for (const seconds of [0, 1.3, 4.1]) {
+      expect(drawn(ink, [1, 2, 3], [1, 0, 3], seconds)).toEqual(
+        drawn(body, [1, 2, 3], [1, 0, 3], seconds),
+      );
+    }
+    const still = CreateBox('rock', {}, scene);
+    p.outline(still);
+    expect(
+      ((still.getChildMeshes(true)[0] as Mesh).material as NodeMaterial).getBlockByName('swayed'),
+    ).toBeNull();
+    expect(p.toon({ texture: null, color: Color3.White() }).getBlockByName('swayed')).toBeNull();
   });
 });

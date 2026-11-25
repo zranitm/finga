@@ -635,7 +635,7 @@ export interface KitPart {
   readonly steps: readonly Material[];
 }
 
-/** key's kit model, made once: each mesh baked into the model's space at an identity transform, toon-drawn, inked and casting shadows when given them; its clips and skeletons let go, as it stands still. */
+/** key's kit model, made once: each mesh baked into the model's space at an identity transform, toon-drawn, inked and casting shadows when given them, swaying in the water when the kit says so; its clips and skeletons let go, as it stands still. */
 export async function kitParts(
   models: Models,
   kit: KitModel,
@@ -658,8 +658,7 @@ export async function kitParts(
     .flatMap((r) => r.getChildMeshes(false))
     .filter((m): m is Mesh => m instanceof Mesh && m.material !== null && m.getTotalVertices() > 0);
   const worlds = meshes.map((m) => m.computeWorldMatrix(true).clone());
-  const parts = meshes.map((mesh, i): KitPart => {
-    const base = baseOf(mesh.material!);
+  for (const [i, mesh] of meshes.entries()) {
     mesh.makeGeometryUnique();
     if (mesh.skeleton) {
       mesh.skeleton.prepare(true);
@@ -673,11 +672,17 @@ export async function kitParts(
     mesh.rotation.setAll(0);
     mesh.scaling.setAll(1);
     mesh.refreshBoundingInfo();
-    const steps = STEPS.map((a) => palette.toon(base, a, true, true));
+  }
+  const sway = kit.sway
+    ? kit.scale * Math.max(...meshes.map((m) => m.getBoundingInfo().maximum.y))
+    : null; // its height over its base as placed
+  const parts = meshes.map((mesh): KitPart => {
+    const base = baseOf(mesh.material!);
+    const steps = STEPS.map((a) => palette.toon(base, a, true, true, sway));
     mesh.material = steps[0]!;
     mesh.receiveShadows = true;
     shadows?.addShadowCaster(mesh, false);
-    palette.outline(mesh, true);
+    palette.outline(mesh, true, sway);
     const ink = mesh
       .getChildMeshes(true)
       .find((c): c is Mesh => c instanceof Mesh && c.name === `${mesh.name} ink`);

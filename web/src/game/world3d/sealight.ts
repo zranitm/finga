@@ -1,4 +1,4 @@
-// A sea's light (underground-and-underwater.md section 7): its sun nearly overhead, cyan and softer than the land's, and the caustics it ripples on what faces up.
+// A sea's light and water (underground-and-underwater.md section 7): its sun nearly overhead, cyan and softer than the land's, the caustics it ripples on what faces up, and the current kelp and sea grass sway in.
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 
@@ -18,4 +18,12 @@ export const CAUSTICS = {
   width: 0.08, // a line's reach either side of a cell's edge, in cells, where F2 − F1 runs from 0 to this
   up: [0.5, 0.9] as const, // from facing this far up to this, a face takes from none of the web to all of it
   light: new Color3(0.3, 0.42, 0.42), // linear, added to a face's light on the web where the sun reaches it in full
+};
+
+/** How kelp and sea grass sway: bent along the current by their height above their base, a wave running along it so a bed sways as one. */
+export const SWAY = {
+  share: 0.12, // of its height, how far its top swings either way
+  current: [0.94, 0.34] as const, // the current's way over x and z, a unit vector
+  wavelength: 9, // metres between the wave's crests along the current
+  period: 5, // seconds a swing takes, there and back
 };

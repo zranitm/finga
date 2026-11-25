@@ -52,7 +52,7 @@ import { SubMesh } from '@babylonjs/core/Meshes/subMesh';
 import type { Scene } from '@babylonjs/core/scene';
 
 import { CUT_MOBS } from './cut-mobs';
-import { CAUSTICS, SEA_LIT, SEA_SHADE } from './sealight';
+import { CAUSTICS, SEA_LIT, SEA_SHADE, SWAY } from './sealight';
 import { clearsMark, GHOST, markOthers, onPlace } from './see-through';
 import { FLICKERS, FLOOR, Torchlight, TORCH } from './torchlight';
 
@@ -110,9 +110,10 @@ class Skinned {
   readonly worldPos = new TransformBlock('worldPos');
   readonly worldNormal = new TransformBlock('worldNormal');
   readonly vertex = new VertexOutputBlock('vertexOutput');
+  private readonly instances = new InstancesBlock('instances');
 
   constructor() {
-    const instances = new InstancesBlock('instances');
+    const instances = this.instances;
     this.attribute('world0').output.connectTo(instances.world0);
     this.attribute('world1').output.connectTo(instances.world1);
     this.attribute('world2').output.connectTo(instances.world2);
@@ -139,6 +140,64 @@ class Skinned {
     const b = new InputBlock(name);
     b.setAsSystemValue(v);
     return b;
+  }
+
+  /** The vertex's place in the world swayed by the water (underground-and-underwater.md section 7): bent along the current by the square of its share of tall, the model's height over its base at the mesh's origin, its top swinging SWAY.share of tall; the swing a wave running along the current from where its base stands, so a bed sways as one. */
+  swayed(tall: number): NodeMaterialConnectionPoint {
+    const origin = new InputBlock('swayOrigin');
+    origin.value = Vector3.Zero();
+    const base = new TransformBlock('swayBase');
+    origin.output.connectTo(base.vector);
+    this.instances.output.connectTo(base.transform);
+    const from = new VectorSplitterBlock('swayFrom');
+    base.output.connectTo(from.xyzw);
+    const at = new VectorSplitterBlock('swayAt');
+    this.worldPos.output.connectTo(at.xyzw);
+    const up = new SubtractBlock('swayUp');
+    at.y.connectTo(up.left);
+    from.y.connectTo(up.right);
+    const share = new ScaleBlock('swayShare');
+    up.output.connectTo(share.input);
+    constant('swayTall', 1 / tall).output.connectTo(share.factor);
+    const bent = new MultiplyBlock('swayBent');
+    share.output.connectTo(bent.left);
+    share.output.connectTo(bent.right);
+    const reach = new ScaleBlock('swayReach');
+    bent.output.connectTo(reach.input);
+    constant('swayTop', SWAY.share * tall).output.connectTo(reach.factor);
+    const k = (2 * Math.PI) / SWAY.wavelength;
+    const alongX = new ScaleBlock('swayAlongX');
+    from.x.connectTo(alongX.input);
+    constant('swayWaveX', SWAY.current[0] * k).output.connectTo(alongX.factor);
+    const alongZ = new ScaleBlock('swayAlongZ');
+    from.z.connectTo(alongZ.input);
+    constant('swayWaveZ', SWAY.current[1] * k).output.connectTo(alongZ.factor);
+    const phase = new AddBlock('swayPhase');
+    alongX.output.connectTo(phase.left);
+    alongZ.output.connectTo(phase.right);
+    const time = new InputBlock('time', undefined, NodeMaterialBlockConnectionPointTypes.Float);
+    time.animationType = AnimatedInputBlockTypes.RealTime;
+    const turned = new ScaleBlock('swayTurned');
+    time.output.connectTo(turned.input);
+    constant('swayRate', (2 * Math.PI) / SWAY.period).output.connectTo(turned.factor);
+    const phased = new SubtractBlock('swayPhased');
+    turned.output.connectTo(phased.left);
+    phase.output.connectTo(phased.right);
+    const sine = new TrigonometryBlock('swaySine');
+    sine.operation = TrigonometryBlockOperations.Sin;
+    phased.output.connectTo(sine.input);
+    const swing = new MultiplyBlock('swaySwing');
+    reach.output.connectTo(swing.left);
+    sine.output.connectTo(swing.right);
+    const way = new InputBlock('swayCurrent');
+    way.value = new Vector3(SWAY.current[0], 0, SWAY.current[1]);
+    const push = new ScaleBlock('swayPush');
+    way.output.connectTo(push.input);
+    swing.output.connectTo(push.factor);
+    const out = new AddBlock('swayed');
+    this.worldPos.xyz.connectTo(out.left);
+    push.output.connectTo(out.right);
+    return out.output;
   }
 
   /** Draws the vertex at world, a point in the world. */
@@ -572,9 +631,10 @@ function toonMaterial(
   place = cut !== null,
   hollow = false,
   lit: Lit = 'sun',
+  sway: number | null = null,
 ): NodeMaterial {
   const s = new Skinned();
-  s.place(s.worldPos.output);
+  s.place(sway === null ? s.worldPos.output : s.swayed(sway));
   const torches = lit instanceof Torchlight ? lit : null;
 
   // Posterize floors the light into 0, ⅓ and ⅔; stretched to 0, ½ and 1, the top band is the colour itself, in a sea the sun's cyan, or in a cave the torches' warm light.
@@ -725,7 +785,7 @@ function rimmed(
 }
 
 /** The ink: back faces only, pushed out along their normals by OUTLINE_M in the world, so every model's line is the same width. */
-function inkMaterial(scene: Scene, cut: Cut | null): NodeMaterial {
+function inkMaterial(scene: Scene, cut: Cut | null, sway: number | null): NodeMaterial {
   const s = new Skinned();
   const unit = new NormalizeBlock('unit');
   s.worldNormal.xyz.connectTo(unit.input);
@@ -735,7 +795,7 @@ function inkMaterial(scene: Scene, cut: Cut | null): NodeMaterial {
   unit.output.connectTo(push.input);
   width.output.connectTo(push.factor);
   const out = new AddBlock('out');
-  s.worldPos.xyz.connectTo(out.left);
+  (sway === null ? s.worldPos.xyz : s.swayed(sway)).connectTo(out.left);
   push.output.connectTo(out.right);
   s.place(out.output);
   const ink = new InputBlock('ink');
@@ -928,7 +988,7 @@ function decalMaterial(
 /** A scene's materials: toon ones by texture and colour, shared by every mesh drawn with them, and the ink; the place's open round the player's chest, and clear the stencil every other mesh marks. */
 export class Palette {
   private readonly made = new Map<string, NodeMaterial>();
-  private readonly inks = new Map<boolean, NodeMaterial>();
+  private readonly inks = new Map<string, NodeMaterial>();
   private readonly cut: Cut = {
     chest: new Vector3(),
     on: 0,
@@ -944,11 +1004,17 @@ export class Palette {
     markOthers(scene);
   }
 
-  /** The toon material for base, drawn at alpha: 1, or less for a solid faded out of the camera's way; cut for the place, which opens round the player; a hollow one, a model the place stands, shows a dark inside where it's cut whole. */
-  toon(base: ToonBase, alpha = 1, cut = false, hollow = false): NodeMaterial {
+  /** The toon material for base, drawn at alpha: 1, or less for a solid faded out of the camera's way; cut for the place, which opens round the player; a hollow one, a model the place stands, shows a dark inside where it's cut whole; one with sway, a model that height, sways in the water. */
+  toon(
+    base: ToonBase,
+    alpha = 1,
+    cut = false,
+    hollow = false,
+    sway: number | null = null,
+  ): NodeMaterial {
     const color = base.color.clampToRef(0, 1, new Color3());
     const inside = hollow && cut && alpha === 1;
-    const key = `${base.texture?.uniqueId ?? '-'} ${color.toHexString()}${base.glow ? ' glow' : ''}${base.vertexColors ? ' vertex' : ''}${cut ? ' cut' : ''}${inside ? ' hollow' : ''}${alpha < 1 ? ` ${alpha}` : ''}`;
+    const key = `${base.texture?.uniqueId ?? '-'} ${color.toHexString()}${base.glow ? ' glow' : ''}${base.vertexColors ? ' vertex' : ''}${cut ? ' cut' : ''}${inside ? ' hollow' : ''}${alpha < 1 ? ` ${alpha}` : ''}${sway === null ? '' : ` sway ${sway}`}`;
     let m = this.made.get(key);
     if (!m) {
       m = toonMaterial(
@@ -960,6 +1026,7 @@ export class Palette {
         cut,
         inside,
         this.lit,
+        sway,
       );
       this.made.set(key, m);
     }
@@ -1076,8 +1143,8 @@ export class Palette {
     return m;
   }
 
-  /** An ink line round mesh: a clone on it, sharing its geometry and skeleton, drawn in the ink; cut for the place, as its mesh. */
-  outline(mesh: AbstractMesh, cut = false): void {
+  /** An ink line round mesh: a clone on it, sharing its geometry and skeleton, drawn in the ink; cut for the place, as its mesh; swaying with it when it does, a model sway high. */
+  outline(mesh: AbstractMesh, cut = false, sway: number | null = null): void {
     const hull = mesh.clone(`${mesh.name} ink`, mesh, true);
     if (!hull) {
       return;
@@ -1087,10 +1154,11 @@ export class Palette {
     hull.rotation.setAll(0);
     hull.scaling.setAll(1);
     hull.isPickable = false;
-    let ink = this.inks.get(cut);
+    const key = `${cut} ${sway}`;
+    let ink = this.inks.get(key);
     if (!ink) {
-      ink = inkMaterial(this.scene, cut ? this.cut : null);
-      this.inks.set(cut, ink);
+      ink = inkMaterial(this.scene, cut ? this.cut : null, sway);
+      this.inks.set(key, ink);
     }
     hull.material = ink;
   }
