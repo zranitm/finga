@@ -170,6 +170,8 @@ The steps of large-regions.md section 3, with these added. Everything keeps the 
     `floor + (1 − floor) × min(1, a × flickerA(t) + b × flickerB(t))`.
   - It's banded as the sun's light is, so the toon look holds. The bands are judged on the preview.
   - **Why a floor:** dim, never black. A mob, a player and a warning always show, and darkness never decides a fight.
+  - **As built after the stills (the floor raised):** 0.3 read as black. The floor multiplies a surface's own colour in linear light, and on the dark `cave_floor` that put the ground at 23 of 255 on screen, with a mid-grey body at 44. The floor is now the land's shade band, (0.5, 0.5, 0.58) sRGB, so a cave's darkest spot looks like a shadow on the land: the ground at about 44, the walls (`cave_rock`) darker at about 32, a mid-grey body at about 78. A torch's full band still lights that ground about 1.8 times as bright, at 78.
+    - **Why raise it, not a minimum brightness:** a floor on brightness would lift dark cloth and dark ground to the same level, losing the contrast that makes a body stand out. Raising the floor keeps every colour's place relative to the others.
 - **Flames:**
   - A torch model's flame mesh draws unlit, at full colour, with a small glow card behind it. Both are thin instances.
   - Each scales with its group's flicker: two slow sums of sines at different rates, about ±8%.
@@ -366,13 +368,14 @@ These steps follow the regions' build (large-regions.md section 14).
      - **A cave region has no sun:** no directional light and no shadow generator, so `Lighting.shadows` is null there. The old open-topped Cave map, which isn't a region, keeps the sun till step 6 replaces it.
      - **The texture:** the light map as RGBA, red and green its groups', sampled bilinearly between texel centres and held at its edges, at `x / nx` and `z / nz`. A cave with no torches gets one dark texel.
      - **The term:** `min(1, a × fA(t) + b × fB(t))`, each group's flicker `1 + Σ amp × sin(rate × t + phase)` over two sines whose amplitudes add to 0.08. `t` is the engine's seconds (`RealTime`), the same for every material, so the flicker runs in the shader.
-       - It's banded as the sun's light is: floored into thirds and stretched to 0, ½ and 1. The tone runs from the floor, 0.3 grey a little cool, to the torches' warm light, (1, 0.86, 0.66), both sRGB.
+       - It's banded as the sun's light is: floored into thirds and stretched to 0, ½ and 1. The tone runs from the floor, 0.3 grey a little cool, to the torches' warm light, (1, 0.86, 0.66), both sRGB. (The floor is now the land's shade, 0.5: see "As built after the stills" above.)
        - With a torch's 8 m reach, the full band holds within about 3.4 m of a lone flame, and the half band to about 5.2 m. The colours and bands are provisional until the stills.
        - Decals and glows aren't toon materials, so warnings, ghosts and glows draw as on the land.
      - **The sky:** black, with fog from 14 to 40 m. The old open-topped Cave map shares the sky's key, so it takes the same black and fog under its sun till step 6 replaces it.
      - **Tests:**
        - a small cave below tiny (`hollow`, a hall and a tunnel at 2 m), baked by regionbake's tests into the client's fixtures: its flames in both groups, light under each flame, none on the rock, and a light map refused;
        - the material's own node graph run block by block for a texel: the full band under a flame at every flicker, the floor where no torch reaches, each group swinging ±8% at its own rates, and two torches held to full;
+       - the darkest spot readable: the floor is the land's shade, `cave_floor` shows at 40 of 255 or more under it, `cave_rock` darker, and a torch's full band over 1.5 times as bright;
        - a cave region in the world: no sun, its ground sampling the light map, its sky black; a region on the land keeps the sun.
    - **As built (3a-2, the round shadows).**
      - **One disc, thin-instanced,** in a cave region only. Each frame, once the bodies are drawn, it lays one under the player, the others, the mobs (the dying too) and the NPCs within 25 m of the camera's target, as far as bodies cast the sun's shadow on the land.
