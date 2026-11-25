@@ -232,7 +232,8 @@ describe('a region drawn from its bake', () => {
         expect((part.getChildMeshes(true)[0] as Mesh).thinInstanceCount).toBe(oaks); // its ink
       }
     }
-    expect(lighting.shadows.getShadowMap()!.renderList).toHaveLength(0); // no casting till the cascades come
+    const casting = () => new Set(lighting.shadows.getShadowMap()!.renderList);
+    expect(casting()).toEqual(new Set(ALL.flatMap(copies))); // each chunk's props, within 128 m, their inks not
     for (const part of copies('1_1')) {
       const { minimumWorld: lo, maximumWorld: hi } = part.getBoundingInfo().boundingBox;
       for (const m of part.thinInstanceGetWorldMatrices()) {
@@ -257,13 +258,17 @@ describe('a region drawn from its bake', () => {
     expect(a.getChildMeshes(true)[0]!.geometry).toBe(a.geometry); // its ink draws the same instances
 
     place!.follow(-100, 60); // the west chunks 100 m off, the east ones 164 m
+    expect(casting()).toEqual(new Set(['0_0', '0_1'].flatMap(copies))); // the east ones past 128 m
     expect(meshes('chunk 0_0')[0]!.getTotalIndices()).toBe((16 * 16 * 2 + 4 * 16 * 2) * 3);
     expect(meshes('chunk 1_0')[0]!.getTotalIndices()).toBe((8 * 8 * 2 + 4 * 8 * 2) * 3);
     expect(props('0_0')!.isEnabled()).toBe(true);
     expect(props('1_0')!.isEnabled()).toBe(false);
+    place!.follow(30, 60);
+    expect(casting()).toEqual(new Set(ALL.flatMap(copies))); // back within it
 
     place!.follow(-330, 60); // the west chunks 330 m off: freed; the east ones too
     expect(chunkNames()).toEqual([]);
+    expect(casting()).toEqual(new Set()); // none left casting once freed
     expect(props('0_0')).toBeNull();
     expect(overview().getTotalIndices()).toBe(WHOLE);
     expect(overview('overview skirts').getTotalIndices()).toBe(0);
@@ -450,6 +455,7 @@ describe('a region drawn from its bake', () => {
     for (const c of made) {
       expect([c.isEnabled(), c.material?.name]).toEqual([true, expect.stringMatching(/ 0\.3$/)]);
       expect(c.getChildMeshes(true)).toEqual([]); // no ink
+      expect(lighting.shadows.getShadowMap()!.renderList).toContain(c); // its shadow cast still, as its chunk's near
     }
     const scale = (m: Mesh, n: number) => {
       const s = new Vector3();

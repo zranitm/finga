@@ -329,13 +329,13 @@ These steps follow the regions' build (large-regions.md section 14).
    - the paired channel at a gate below;
    - death, notices and chat inside, by tests;
    - bots through the gates.
-   - **As built (the walls' follow-up, from 1a's and 1b's reviews).**
+   - **As built (the walls' follow-up, from #388's and #389's reviews).**
      - **The rock is a wall at any height.**
        - A walking-only flood of the test cave reached about 64,000 rock-top points. The wall beside its first tunnel, which runs nearly along x, rose 0.3–0.4 m a metre along x, under `max_slope`, while too steep across.
-       - So every sample the carving leaves past a body's radius before the wall's foot carries `DeepWater`'s mark. The sim, nav and the bake already stop any move into a cell holding one from outside, at any height: a walk, a jump, a dash, a leap, a knockback or a blink. Shots still stop on the rock's height.
-       - The mark keeps its name here. A neutral name follows in its own change.
+       - So every sample the carving leaves past a body's radius before the wall's foot carries deep water's mark, `sim.Terrain.Barrier`. The sim, nav and the bake already stop any move into a cell holding one from outside, at any height: a walk, a jump, a dash, a leap, a knockback or a blink. Shots still stop on the rock's height.
+       - **The name:** `DeepWater` became `Barrier` in its own change, `Deep` `Barred`, and nav's `deep` flag `barred`, in Go and in the client (`barrier`, `barred`). The movement vectors' key is `barrier`.
        - `Generate` takes the body (`sim.Params`) for its radius, and the loader names a bake's folder by its slope and radius.
-       - **Test:** nothing a player reaches from the start of a plan with rock, walking or jumping, lies deep in the rock, and the walk still reaches every camp and waypoint.
+       - **Test:** nothing a player reaches from the start or any gate of a plan with rock, walking or jumping, lies deep in the rock, and the walk from each still reaches every camp and waypoint.
      - **Width:** a tunnel or hall narrower than a metre plus twice the wander, a body's radius and a cell is refused, and never under twice the `rough` + 1 m a torch steps in from a hall's edge. At 0.5 m with `rough` 1.5 that's 5.75 m, so the test cave's second tunnel widened from 5 to 6 m.
        - A hall is measured square across from each edge every metre, to the edges sharing no corner with it, so a sharp corner's wedge doesn't count.
      - **Joins:** a tunnel's floor is held to a hall's, or an earlier tunnel's, where its path runs through them, the lowest where several meet. Between joins it keeps within half the walkable slope of them, or halfway where two are too far apart in height for that. Inside a hall or an earlier tunnel it never carves below their floor, so its flat band doesn't dig into a sloping hall.

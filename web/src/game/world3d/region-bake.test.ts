@@ -119,7 +119,7 @@ describe('a region bake, read as regionbake writes it', () => {
           `chunks/${Math.min(Math.floor(x / 64), 1)}_${Math.min(Math.floor(z / 64), 1)}.bin`,
         ),
       );
-      return c.deep[((z - 64 * c.cz) / 2) * c.n + (x - 64 * c.cx) / 2] === 1;
+      return c.barrier[((z - 64 * c.cz) / 2) * c.n + (x - 64 * c.cx) / 2] === 1;
     };
     expect(deepAt(96, 100)).toBe(true);
     expect(deepAt(96, 16)).toBe(true);

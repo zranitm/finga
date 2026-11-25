@@ -219,7 +219,7 @@ func TestJoinHoldsATunnelToTheFloorsItMeets(t *testing.T) {
 	}
 }
 
-// A cave's rock is deep water's mark, a wall at any height, from a body's radius before its wall's foot.
+// A cave's rock is a barrier, a wall at any height, from a body's radius before its wall's foot.
 func TestACavesRockIsAWallFromABodysRadiusBeforeItsFoot(t *testing.T) {
 	p := flat()
 	cave(&p)
@@ -227,7 +227,7 @@ func TestACavesRockIsAWallFromABodysRadiusBeforeItsFoot(t *testing.T) {
 	p.Features = []Feature{{Hall: &Hall{Area: [][2]float64{{40, 40}, {88, 40}, {88, 88}, {40, 88}}}}}
 	r := build(t, p)
 	tr := r.Geometry.Terrain
-	walled := func(x float64) bool { return tr.DeepWater[int(64/p.Cell)*tr.NX+int(x/p.Cell)] }
+	walled := func(x float64) bool { return tr.Barrier[int(64/p.Cell)*tr.NX+int(x/p.Cell)] }
 	for x, want := range map[float64]bool{30: true, 39.75: true, 40: true, 40.25: true, 40.5: false, 64: false} { // the body's 0.375 m
 		if walled(x) != want {
 			t.Errorf("the sample at x = %g is marked %v; want %v", x, walled(x), want)

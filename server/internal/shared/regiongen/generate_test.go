@@ -128,7 +128,7 @@ func TestDeepWaterIsWaterTooDeepToWade(t *testing.T) {
 		{Road: &Road{Path: [][2]float64{{20, 80}, {110, 80}}, Width: 4}},
 	}
 	r := build(t, p)
-	deep := func(x, z int) bool { return r.Geometry.Terrain.DeepWater[z*129+x] }
+	deep := func(x, z int) bool { return r.Geometry.Terrain.Barrier[z*129+x] }
 	wet := func(x, z int) bool { return r.Wet[z*129+x] }
 	for _, c := range []struct {
 		what      string
@@ -150,7 +150,7 @@ func TestDeepWaterIsWaterTooDeepToWade(t *testing.T) {
 			t.Errorf("%s (%d, %d): deep %v, wet %v; want %v, %v", c.what, c.x, c.z, deep(c.x, c.z), wet(c.x, c.z), c.deep, c.wet)
 		}
 	}
-	if g := r.Geometry.Terrain; !g.Deep(63.5, 63.5) || !g.Deep(66.5, 63.5) || g.Deep(67.5, 63.5) || g.Deep(64.5, 40.5) {
+	if g := r.Geometry.Terrain; !g.Barred(63.5, 63.5) || !g.Barred(66.5, 63.5) || g.Barred(67.5, 63.5) || g.Barred(64.5, 40.5) {
 		t.Error("a cell is deep where any of its samples is")
 	}
 }
@@ -167,7 +167,7 @@ func TestAFordIsWalkedAcross(t *testing.T) {
 	steep := func(x, z float64) bool { return tr.Steep(x, z, false) || tr.Steep(x, z, true) }
 	for z := 38.5; z < 42; z++ {
 		for x := 50.5; x < 78; x++ {
-			if steep(x, z) || tr.Deep(x, z) {
+			if steep(x, z) || tr.Barred(x, z) {
 				t.Errorf("the cell at (%g, %g), across the ford, is steep or deep", x, z)
 			}
 		}

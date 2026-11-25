@@ -104,7 +104,7 @@ import { BattleMarks } from './battle-marks';
 import { beatsOf } from './beats';
 import type { Beats } from './beats';
 import type { Figure, Gait, Lighting, Pose } from './body';
-import { STILL, sunShadows } from './body';
+import { regionShadows, STILL, sunShadows } from './body';
 import type { ChunkSource } from './chunk-build';
 import { Combat, playerBody } from './combat';
 import { cutMobs } from './cut-mobs';
@@ -682,7 +682,10 @@ export class World {
     let fx: Fx;
     try {
       const sun = new DirectionalLight('sun', SUN.normalizeToNew(), scene);
-      lighting = { palette: new Palette(scene), shadows: sunShadows(sun, SHADOW_MAP) };
+      lighting = {
+        palette: new Palette(scene),
+        shadows: (map.region ? regionShadows : sunShadows)(sun, SHADOW_MAP),
+      };
       const models = new Models(scene, this.deps.models);
       figures = new Figures(scene, lighting, models);
       pouchMarks = new PouchMarks(scene, models, lighting);
