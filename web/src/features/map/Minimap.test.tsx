@@ -150,7 +150,7 @@ describe('Minimap', () => {
       character
         .getState()
         .applyWelcome(create(WelcomeSchema, { character: { id: 'c-ayla', name: 'Ayla' } }));
-      mapView.getState().showMap('battlefield', [140, 90], '', []);
+      mapView.getState().showMap('battlefield', [140, 90], NO_GROUND, []);
     });
     render(<Minimap />);
     at(110, 45);

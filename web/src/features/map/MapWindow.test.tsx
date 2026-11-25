@@ -89,7 +89,7 @@ describe('MapWindow', () => {
 
   it('This map names a battle’s points', () => {
     act(() => {
-      mapView.getState().showMap('battlefield', [140, 90], '', []);
+      mapView.getState().showMap('battlefield', [140, 90], NO_GROUND, []);
       mapView.getState().mark({ me: { x: 20, z: 45, yaw: 0 }, party: [], lock: null, boss: null });
     });
     render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
