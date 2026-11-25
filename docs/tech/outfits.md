@@ -98,7 +98,7 @@ feats:
   - Every piece has a source this build has. A boss source names a `boss: true` mob, with a chance in (0, 1].
   - Every rank, quest and feat named exists, and every feat gives some piece.
   - A rank gives at most one piece.
-- **`gen-gamedata`** carries the pieces, without chances, and the feats' names, for the wardrobe's lists and "how to get".
+- **`gen-gamedata`** carries the pieces, without chances, and the feats' names, for the wardrobe's lists and "how to get". As built, it also writes each piece's item as the server's loader makes it (`piece.<id>`, Etc, the piece's name and stars), so the inventory names a dropped piece.
 
 ## 4. Server: the wardrobe in the item module
 
@@ -247,11 +247,15 @@ Changing looks in combat is `IN_COMBAT` (330037), the code a trait change in com
   - Each slot has the class's own look first, headwear has Hidden, and wings have None.
   - A count, "Collected 12 of 45", sits under the grid.
   - A refusal shows the server's message.
-- **The character window:** its empty figure becomes the same 3D view of the character, as worn.
+- **The character window:** its empty figure becomes the same 3D view of the character, as worn. As built, both windows draw it with `features/shared/FigureView`.
 - **The inventory:**
   - A piece's item card gains Preview, which opens the wardrobe on it, and Add to wardrobe.
   - Add to wardrobe asks first: "Add <name> to your wardrobe? It can't be traded after." For a piece already collected it's greyed, with "Already in your wardrobe".
-- **Notices:** each new piece shows "New in your wardrobe: <name>".
+  - **As built:**
+    - the account's pieces load as a character enters the world, and again as the wardrobe opens, so the card knows a piece already collected;
+    - Preview opens the wardrobe at the piece's tab, tried on over what's worn; it's greyed for a weapon look the class can't carry, which can still be added for another character;
+    - once the server answers an add, the wardrobe holds the piece and its notice shows.
+- **Notices:** each new piece shows "New in your wardrobe: <name>". As built (3b), an add from the inventory shows it; `PiecesAdded` comes with step 4.
 
 ## 8. Art
 
@@ -320,7 +324,7 @@ Changing looks in combat is `IN_COMBAT` (330037), the code a trait change in com
    - the migration, adding, the look and its checks, promotion;
    - `PlayerView.look`, `/api/wardrobe`, the failures and the invariant.
 2. **The client's looks:** parts files, binding to the class's rig, colourways, attach and fit, wings' hinges and motion, the cape hidden under wings, others redrawn, and the swing trail.
-3. **The wardrobe window,** the character window's figure, the inventory card actions, notices and the `wardrobe` key. Built in two parts: 3a the window and its key, 3b the character window, the inventory card and the notices.
+3. **The wardrobe window,** the character window's figure, the inventory card actions, notices and the `wardrobe` key. Built in two parts: 3a the window and its key, 3b the character window, the inventory card and an add's notice.
 4. **Sources:** ranks from the pvp module, quest pieces and feats, with `GrantPieces` and `PiecesAdded`.
 5. **The catalogue:**
    - the Skeletons pack added, and the face pieces and wings modelled;
