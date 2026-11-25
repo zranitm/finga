@@ -2,7 +2,7 @@
 import type { Input } from './input';
 import { near } from './solids';
 import type { Solids } from './solids';
-import { deep, height, steep, top } from './terrain';
+import { barred, height, steep, top } from './terrain';
 import type { Terrain } from './terrain';
 
 /** √½, a diagonal heading's share on each axis, written out so no trigonometry is needed. */
@@ -486,8 +486,8 @@ function slide(
   }
   const x = alongZ ? across : at + d;
   const z = alongZ ? at + d : across;
-  if (deep(g.terrain, x, z) && !deep(g.terrain, s.x, s.z)) {
-    return [0, false, -1, mob]; // into deep water, at any height; a body already in it walks out
+  if (barred(g.terrain, x, z) && !barred(g.terrain, s.x, s.z)) {
+    return [0, false, -1, mob]; // into a barrier, at any height; a body already in one walks out
   }
   const isSteep = steep(g.terrain, x, z, alongZ);
   const h = height(g.terrain, x, z);

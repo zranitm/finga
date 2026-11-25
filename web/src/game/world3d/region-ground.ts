@@ -9,10 +9,10 @@ import type { Chunk, Region } from './region-bake';
 /** What the sim takes from a chunk. */
 export type ChunkGround = Pick<
   Chunk,
-  'cx' | 'cz' | 'n' | 'heights' | 'deep' | 'cylinders' | 'boxes'
+  'cx' | 'cz' | 'n' | 'heights' | 'barrier' | 'cylinders' | 'boxes'
 >;
 
-/** One height grid for the whole region, its steep and deep marks, and its solids at the server's indices in its buckets, each chunk's filled as it comes; ground not in yet reads flat at 0, which the world keeps the player off. */
+/** One height grid for the whole region, its steep and barrier marks, and its solids at the server's indices in its buckets, each chunk's filled as it comes; ground not in yet reads flat at 0, which the world keeps the player off. */
 export class RegionGround {
   readonly geometry: Geometry;
   private readonly terrain: {
@@ -20,7 +20,7 @@ export class RegionGround {
     readonly nx: number;
     readonly nz: number;
     readonly heights: Float32Array;
-    readonly deepWater: Uint8Array;
+    readonly barrier: Uint8Array;
     readonly steepX: Uint8Array;
     readonly steepZ: Uint8Array;
   };
@@ -43,7 +43,7 @@ export class RegionGround {
       nx,
       nz,
       heights: new Float32Array(nx * nz),
-      deepWater: new Uint8Array(nx * nz),
+      barrier: new Uint8Array(nx * nz),
       steepX: new Uint8Array((nx - 1) * (nz - 1)),
       steepZ: new Uint8Array((nx - 1) * (nz - 1)),
     };
@@ -87,7 +87,7 @@ export class RegionGround {
       for (let ix = 0; ix < c.n; ix++) {
         const s = (z0 + iz) * t.nx + x0 + ix;
         t.heights[s] = c.heights[(iz + 1) * (c.n + 2) + ix + 1]!;
-        t.deepWater[s] = c.deep[iz * c.n + ix]!;
+        t.barrier[s] = c.barrier[iz * c.n + ix]!;
       }
     }
     markSteep(t.heights, t.nx, this.limit, t.steepX, t.steepZ, x0, x0 + c.n - 2, z0, z0 + c.n - 2);

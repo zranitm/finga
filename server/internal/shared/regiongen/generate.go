@@ -133,9 +133,9 @@ func Generate(p Plan, k Kit, body sim.Params) (*Region, error) {
 	}
 	b.r.Heights = [2]float64{lo, hi}
 	t := sim.NewTerrain(p.Cell, nx, nz, b.h, maxSlope)
-	t.DeepWater = make([]bool, nx*nz)
+	t.Barrier = make([]bool, nx*nz)
 	for s, wet := range b.r.Wet { // judged on the final ground, which roads, towns and the edge reshape after the water
-		t.DeepWater[s] = wet && b.water[s]-b.h[s] > wadeDepth || b.walled(s)
+		t.Barrier[s] = wet && b.water[s]-b.h[s] > wadeDepth || b.walled(s)
 	}
 	steep := b.colours(t)
 	var placed solidsNear

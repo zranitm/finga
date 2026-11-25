@@ -60,7 +60,7 @@ func fileOf(t *testing.T, b Bake, path string) File {
 	return b.Files[i]
 }
 
-// Read back as the client will, every chunk holds its square's heights, colours and deep water, its edges shared with its neighbours, its heights with a border a sample wide held to the region, and the props and solids whose centres it holds, each once, each solid at its index in the region's list; the overview holds every 8th sample.
+// Read back as the client will, every chunk holds its square's heights, colours and barrier marks, its edges shared with its neighbours, its heights with a border a sample wide held to the region, and the props and solids whose centres it holds, each once, each solid at its index in the region's list; the overview holds every 8th sample.
 func TestTheBakeReadsBackAsTheRegion(t *testing.T) {
 	r, b := smallRegion(t), smallBake(t)
 	tr := r.Geometry.Terrain
@@ -91,8 +91,8 @@ func TestTheBakeReadsBackAsTheRegion(t *testing.T) {
 			rd.take(3) // 65² colours, padded to 4 bytes
 			for iz := range 65 {
 				for ix := range 65 {
-					if got, want := rd.take(1)[0] == 1, tr.DeepWater[(cz*64+iz)*tr.NX+cx*64+ix]; got != want {
-						t.Fatalf("chunk %d_%d's deep water at (%d, %d) is %v; want %v", cx, cz, ix, iz, got, want)
+					if got, want := rd.take(1)[0] == 1, tr.Barrier[(cz*64+iz)*tr.NX+cx*64+ix]; got != want {
+						t.Fatalf("chunk %d_%d's barrier at (%d, %d) is %v; want %v", cx, cz, ix, iz, got, want)
 					}
 				}
 			}
