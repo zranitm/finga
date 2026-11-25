@@ -4,6 +4,7 @@ import type { AbstractEngine } from '@babylonjs/core/Engines/abstractEngine';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { PrecisionDate } from '@babylonjs/core/Misc/precisionDate';
 import { Scene } from '@babylonjs/core/scene';
 
 import { actions as actionData } from '@/gamedata/actions';
@@ -109,6 +110,7 @@ import type { ChunkSource } from './chunk-build';
 import { Combat, playerBody } from './combat';
 import { cutMobs } from './cut-mobs';
 import { Figures } from './figures';
+import { Flames } from './flames';
 import { CHEST_M, cameraAt, easeShare, heldView, yawOf } from './follow';
 import { Labels } from './labels';
 import { LockRing } from './lock-ring';
@@ -418,6 +420,7 @@ export class World {
   private figures: Figures | null = null;
   private lighting: Lighting | null = null;
   private roundShadows: RoundShadows | null = null; // a cave's, which has no sun
+  private flames: Flames | null = null; // its torches'
   private pouchMarks: PouchMarks | null = null;
   private place: Place | null = null;
   private map: WorldMap | null = null;
@@ -633,6 +636,11 @@ export class World {
     this.publishMarks(now);
     this.drawNpcs(now, dt);
     this.shadeBodies();
+    this.flames?.frame(
+      (PrecisionDate.Now - this.deps.engine.startTime) / 1000, // the toon materials' clock for their light's flicker
+      this.camera?.position.x ?? this.follow.x,
+      this.camera?.position.z ?? this.follow.z,
+    );
     this.moveCamera(dt);
     this.unveil();
     this.combat?.frame(now);
@@ -699,6 +707,7 @@ export class World {
     let place: Place;
     let lighting: Lighting;
     let round: RoundShadows | null;
+    let flames: Flames | null;
     let figures: Figures;
     let pouchMarks: PouchMarks;
     let fx: Fx;
@@ -707,6 +716,7 @@ export class World {
       lighting = cave ? caveLighting(scene, cave) : sunLighting(scene, map);
       round = cave && new RoundShadows(scene, lighting.palette, map);
       const models = new Models(scene, this.deps.models);
+      flames = cave && new Flames(scene, lighting.palette, models, cave.region.lights);
       figures = new Figures(scene, lighting, models);
       pouchMarks = new PouchMarks(scene, models, lighting);
       fx = new Fx(scene, map, art, this.deps.now, lighting.palette);
@@ -734,6 +744,7 @@ export class World {
     this.scene = scene;
     this.lighting = lighting;
     this.roundShadows = round;
+    this.flames = flames;
     this.figures = figures;
     this.pouchMarks = pouchMarks;
     this.place = place;
@@ -2640,6 +2651,7 @@ export class World {
     this.place = null;
     this.figures = null;
     this.roundShadows = null;
+    this.flames = null;
     this.pouchMarks = null;
     this.lighting = null;
     this.map = null;

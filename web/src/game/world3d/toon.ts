@@ -377,16 +377,8 @@ function hole(
   return open;
 }
 
-/** Finishes m: rgb, a linear colour, fogged by its distance from the camera, out in gamma space at alpha; the place's clears the stencil for ghosts and decals, and with cut opens round the player's chest. */
-function built(
-  m: NodeMaterial,
-  s: Skinned,
-  rgb: NodeMaterialConnectionPoint,
-  alpha = 1,
-  cut: Cut | null = null,
-  place = cut !== null,
-  facing: NodeMaterialConnectionPoint | null = null,
-) {
+/** rgb, a linear colour, fogged by its distance from the camera. */
+function fogged(s: Skinned, rgb: NodeMaterialConnectionPoint): NodeMaterialConnectionPoint {
   const fog = new FogBlock('fog');
   s.worldPos.output.connectTo(fog.worldPosition);
   s.system('view', NodeMaterialSystemValues.View).output.connectTo(fog.view);
@@ -398,9 +390,22 @@ function built(
   );
   fogColor.setAsSystemValue(NodeMaterialSystemValues.FogColor);
   fogColor.output.connectTo(fog.fogColor);
+  return fog.output;
+}
+
+/** Finishes m: rgb, a linear colour, fogged by its distance from the camera, out in gamma space at alpha; the place's clears the stencil for ghosts and decals, and with cut opens round the player's chest. */
+function built(
+  m: NodeMaterial,
+  s: Skinned,
+  rgb: NodeMaterialConnectionPoint,
+  alpha = 1,
+  cut: Cut | null = null,
+  place = cut !== null,
+  facing: NodeMaterialConnectionPoint | null = null,
+) {
   const fragment = new FragmentOutputBlock('fragmentOutput');
   fragment.convertToGammaSpace = true;
-  fog.output.connectTo(fragment.rgb);
+  fogged(s, rgb).connectTo(fragment.rgb);
   if (alpha < 1) {
     const a = new InputBlock('alpha');
     a.value = alpha;
@@ -666,9 +671,18 @@ function glowMaterial(name: string, scene: Scene, color: Color3, alpha: number):
 
 const DISC_DARK = 0.55; // a round shadow's darkness at its middle
 const DISC_SOFT = 0.35; // and the share of its radius it holds that before fading to nothing at its rim
+const GLOW = new Color3(1, 0.55, 0.18).toLinearSpace(); // a flame's glow card, sRGB, the torches' orange
+const GLOW_PEAK = 0.5; // its strength at its middle, fading from it to nothing at its rim
 
-/** A round shadow: black, DISC_DARK at its middle, fading from DISC_SOFT of its radius to nothing at its rim; a disc's uvs run 0 to 1 across it. Drawn over the ground, writing no depth, and clearing the stencil as the place does, so a hidden telegraph's ghost shows over it as over the ground. */
-function discMaterial(scene: Scene): NodeMaterial {
+/** A soft disc of color, a linear colour, peak at its middle, held to soft of its radius and fading to nothing at its rim; a disc's or plane's uvs run 0 to 1 across it. Fogged, so a glow fades into a cave's black with the flame it's behind; it writes no depth, and blends by mode. */
+function discMaterial(
+  name: string,
+  scene: Scene,
+  color: Color3,
+  peak: number,
+  soft: number,
+  mode: number,
+): NodeMaterial {
   const s = new Skinned();
   s.place(s.worldPos.output);
   const middle = new InputBlock('middle');
@@ -683,27 +697,48 @@ function discMaterial(scene: Scene): NodeMaterial {
   constant('toRim', 2).output.connectTo(rim.factor);
   const fade = new SmoothStepBlock('fade');
   rim.output.connectTo(fade.value);
-  constant('soft', DISC_SOFT).output.connectTo(fade.edge0);
+  constant('soft', soft).output.connectTo(fade.edge0);
   constant('edge', 1).output.connectTo(fade.edge1);
   const held = new OneMinusBlock('held');
   fade.output.connectTo(held.input);
   const alpha = new ScaleBlock('discAlpha');
   held.output.connectTo(alpha.input);
-  constant('dark', DISC_DARK).output.connectTo(alpha.factor);
-  const black = new InputBlock('black');
-  black.value = Color3.Black();
+  constant('peak', peak).output.connectTo(alpha.factor);
+  const c = new InputBlock('color');
+  c.value = color;
   const fragment = new FragmentOutputBlock('fragmentOutput');
-  black.output.connectTo(fragment.rgb);
+  fragment.convertToGammaSpace = true;
+  fogged(s, c.output).connectTo(fragment.rgb);
   alpha.output.connectTo(fragment.a);
-  const m = new NodeMaterial('round shadow', scene, { emitComments: false });
+  const m = new NodeMaterial(name, scene, { emitComments: false });
   m.addOutputNode(s.vertex);
   m.addOutputNode(fragment);
   m.build();
   m.backFaceCulling = false;
   m.forceAlphaBlending = true;
+  m.alphaMode = mode;
   m.disableDepthWrite = true;
-  clearsMark(m);
   return m;
+}
+
+/** base's texture times its colour at full strength, unlit, fogged: a torch's flame. */
+function unlitMaterial(name: string, scene: Scene, base: ToonBase): NodeMaterial {
+  const s = new Skinned();
+  s.place(s.worldPos.output);
+  const color = new InputBlock('color');
+  color.value = base.color;
+  const albedo = new MultiplyBlock('albedo');
+  if (base.texture) {
+    const texture = new TextureBlock('texture');
+    texture.texture = base.texture;
+    texture.convertToLinearSpace = true;
+    s.attribute('uv').output.connectTo(texture.uv);
+    texture.rgb.connectTo(albedo.left);
+  } else {
+    constant('white', 1).output.connectTo(albedo.left);
+  }
+  color.output.connectTo(albedo.right);
+  return built(new NodeMaterial(name, scene, { emitComments: false }), s, albedo.output);
 }
 
 /** An unlit colour, as written, at alpha: a decal laid on the place, faint where cut opens the place; a premultiplied one's colour fades there with its alpha. */
@@ -833,12 +868,41 @@ export class Palette {
     return m;
   }
 
-  /** The material of a round shadow, made once. */
+  /** The material of a round shadow, made once: black, DISC_DARK at its middle, fading from DISC_SOFT of its radius. Drawn over the ground, it clears the stencil as the place does, so a hidden telegraph's ghost shows over it as over the ground. */
   disc(): NodeMaterial {
     let m = this.made.get('disc');
     if (!m) {
-      m = discMaterial(this.scene);
+      m = discMaterial(
+        'round shadow',
+        this.scene,
+        Color3.Black(),
+        DISC_DARK,
+        DISC_SOFT,
+        Constants.ALPHA_COMBINE,
+      );
+      clearsMark(m);
       this.made.set('disc', m);
+    }
+    return m;
+  }
+
+  /** The material of a flame's glow card, made once: the torches' orange, added to what's behind, fading from its middle. */
+  flameGlow(): NodeMaterial {
+    let m = this.made.get('flame glow');
+    if (!m) {
+      m = discMaterial('flame glow', this.scene, GLOW, GLOW_PEAK, 0, Constants.ALPHA_ADD);
+      this.made.set('flame glow', m);
+    }
+    return m;
+  }
+
+  /** base drawn unlit at full colour, made once a base: a torch's flame. */
+  unlit(base: ToonBase): NodeMaterial {
+    const key = `unlit ${base.texture?.uniqueId ?? '-'} ${base.color.toHexString()}`;
+    let m = this.made.get(key);
+    if (!m) {
+      m = unlitMaterial(key, this.scene, base);
+      this.made.set(key, m);
     }
     return m;
   }
