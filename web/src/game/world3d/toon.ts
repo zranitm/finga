@@ -52,7 +52,7 @@ import { SubMesh } from '@babylonjs/core/Meshes/subMesh';
 import type { Scene } from '@babylonjs/core/scene';
 
 import { CUT_MOBS } from './cut-mobs';
-import { CAUSTICS, SEA_LIT, SEA_SHADE, SWAY } from './sealight';
+import { CAUSTIC_PATCHES, CAUSTICS, SEA_LIT, SEA_SHADE, SWAY } from './sealight';
 import { clearsMark, GHOST, markOthers, onPlace } from './see-through';
 import { FLICKERS, FLOOR, Torchlight, TORCH } from './torchlight';
 
@@ -573,10 +573,67 @@ function flickering(group: number, time: NodeMaterialConnectionPoint): NodeMater
   return f;
 }
 
-/** A sea's caustics at the fragment, 0 to 1: the web along the edges of 3D Worley noise's cells over x and z, time its third axis so the web shifts as it drifts, on what faces up. */
-function caustics(s: Skinned): NodeMaterialConnectionPoint {
+/** The seconds the engine has run, for what moves in a sea's light. */
+function realTime(): InputBlock {
   const time = new InputBlock('time', undefined, NodeMaterialBlockConnectionPointTypes.Float);
   time.animationType = AnimatedInputBlockTypes.RealTime;
+  return time;
+}
+
+/** How much of the caustics' light the fragment takes, 0 to 1: CAUSTIC_PATCHES' waves over x and z, each sin(2π(heading · xz − speed·t)/length + phase), their mean eased between the fade's ends. */
+function causticPatches(s: Skinned, time: InputBlock): NodeMaterialConnectionPoint {
+  const at = new VectorSplitterBlock('patchAt');
+  s.worldPos.output.connectTo(at.xyzw);
+  const { waves, speed, fade } = CAUSTIC_PATCHES;
+  let sum: NodeMaterialConnectionPoint | null = null;
+  waves.forEach((w, k) => {
+    const turn = (2 * Math.PI) / w.length; // radians a metre
+    const rad = (w.heading * Math.PI) / 180;
+    const along = [at.x, at.z].map((v, i) => {
+      const part = new ScaleBlock(`patch${k}${'xz'[i]!}`);
+      v.connectTo(part.input);
+      constant(
+        `patch${k}${'xz'[i]!}Turn`,
+        turn * (i === 0 ? Math.cos(rad) : Math.sin(rad)),
+      ).output.connectTo(part.factor);
+      return part.output;
+    });
+    const across = new AddBlock(`patch${k}Across`);
+    along[0]!.connectTo(across.left);
+    along[1]!.connectTo(across.right);
+    const run = new ScaleBlock(`patch${k}Run`);
+    time.output.connectTo(run.input);
+    constant(`patch${k}Speed`, -turn * speed).output.connectTo(run.factor);
+    const moved = new AddBlock(`patch${k}Moved`);
+    across.output.connectTo(moved.left);
+    run.output.connectTo(moved.right);
+    const phased = new AddBlock(`patch${k}Phased`);
+    moved.output.connectTo(phased.left);
+    constant(`patch${k}Phase`, w.phase).output.connectTo(phased.right);
+    const sine = new TrigonometryBlock(`patch${k}Sine`);
+    sine.operation = TrigonometryBlockOperations.Sin;
+    phased.output.connectTo(sine.input);
+    if (sum === null) {
+      sum = sine.output;
+      return;
+    }
+    const added = new AddBlock(`patch${k}Sum`);
+    sum.connectTo(added.left);
+    sine.output.connectTo(added.right);
+    sum = added.output;
+  });
+  const mean = new ScaleBlock('patchMean');
+  sum!.connectTo(mean.input);
+  constant('patchShare', 1 / waves.length).output.connectTo(mean.factor);
+  const eased = new SmoothStepBlock('causticPatches');
+  mean.output.connectTo(eased.value);
+  constant('patchDark', fade[0]).output.connectTo(eased.edge0);
+  constant('patchBright', fade[1]).output.connectTo(eased.edge1);
+  return eased.output;
+}
+
+/** A sea's caustics at the fragment, 0 to 1: the web along the edges of 3D Worley noise's cells over x and z, time its third axis so the web shifts as it drifts, on what faces up. */
+function caustics(s: Skinned, time: InputBlock): NodeMaterialConnectionPoint {
   const at = new VectorSplitterBlock('causticAt');
   s.worldPos.output.connectTo(at.xyzw);
   const seed = new VectorMergerBlock('causticSeed');
@@ -671,9 +728,13 @@ function toonMaterial(
   banded.output.connectTo(tone.gradient);
   let light = tone.output;
   if (lit === 'sea') {
+    const time = realTime();
+    const strength = new ScaleBlock('causticStrength'); // the web's light, brightening and fading in patches
+    constantColor('causticLight', CAUSTICS.light).output.connectTo(strength.input);
+    causticPatches(s, time).connectTo(strength.factor);
     const ripple = new ScaleBlock('ripple');
-    constantColor('causticLight', CAUSTICS.light).output.connectTo(ripple.input);
-    caustics(s).connectTo(ripple.factor);
+    strength.output.connectTo(ripple.input);
+    caustics(s, time).connectTo(ripple.factor);
     const reached = new MultiplyBlock('causticsLit'); // only where the sun reaches, the more as it does
     ripple.output.connectTo(reached.left);
     banded.output.connectTo(reached.right);
