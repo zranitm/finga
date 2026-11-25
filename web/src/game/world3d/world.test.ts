@@ -102,6 +102,7 @@ import { classLook, mobLook } from './looks';
 import type { ModelLook } from './looks';
 import { loadMap } from './map';
 import { bakeUrl } from './region-bake';
+import { GLOW_ORDER } from './see-through';
 import { Palette } from './toon';
 import { flicker } from './torchlight';
 import { World } from './world';
@@ -863,10 +864,16 @@ describe('World', () => {
       glow.getBlockByName('fog') !== null, // faded into the cave's black with its flame
       (glow.getBlockByName('fragmentOutput') as FragmentOutputBlock).convertToGammaSpace,
     ]).toEqual([true, true]);
-    expect([glow.alphaMode, glow.needAlphaBlending(), glow.disableDepthWrite]).toEqual([
+    expect([
+      glow.alphaMode,
+      glow.needAlphaBlending(),
+      glow.disableDepthWrite,
+      scene.getMeshByName('glow cards')!.alphaIndex,
+    ]).toEqual([
       Constants.ALPHA_ADD,
       true,
       true,
+      GLOW_ORDER, // before a fight's effects
     ]);
   });
 

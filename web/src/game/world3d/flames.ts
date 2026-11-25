@@ -8,6 +8,7 @@ import { TORCH_SCALE } from './kit-models';
 import type { Models } from './models';
 import { baseOf } from './place';
 import type { Flame } from './region-bake';
+import { GLOW_ORDER } from './see-through';
 import type { Palette } from './toon';
 import { flicker } from './torchlight';
 
@@ -33,6 +34,7 @@ export class Flames {
     this.cards = new Float32Array(16 * lights.length);
     this.card = CreatePlane('glow cards', { size: 1 }, scene);
     this.card.material = palette.flameGlow();
+    this.card.alphaIndex = GLOW_ORDER;
     this.ready(this.card, this.cards);
     models
       .load(FLAME_FILE)

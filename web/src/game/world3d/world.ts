@@ -636,12 +636,12 @@ export class World {
     this.publishMarks(now);
     this.drawNpcs(now, dt);
     this.shadeBodies();
+    this.moveCamera(dt);
     this.flames?.frame(
       (PrecisionDate.Now - this.deps.engine.startTime) / 1000, // the toon materials' clock for their light's flicker
       this.camera?.position.x ?? this.follow.x,
       this.camera?.position.z ?? this.follow.z,
-    );
-    this.moveCamera(dt);
+    ); // its cards turned to the camera where this frame draws from
     this.unveil();
     this.combat?.frame(now);
     this.closeDialogOutOfReach();
