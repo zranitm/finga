@@ -513,6 +513,7 @@ function sunlight(s: Skinned): NodeMaterialConnectionPoint {
   s.system('cameraPosition', NodeMaterialSystemValues.CameraPosition).output.connectTo(
     light.cameraPosition,
   );
+  s.system('view', NodeMaterialSystemValues.View).output.connectTo(light.view); // a cascaded shadow picks its cascade by view depth; without it the shader doesn't compile
   return light.diffuseOutput;
 }
 
