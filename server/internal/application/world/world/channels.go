@@ -19,7 +19,7 @@ import (
 // channelSweep is how often the World looks for channels to close.
 const channelSweep = 10 * time.Second
 
-// channels are each region's channels (large-regions.md section 4): its first, a fixed map's instance that never closes, and those opened as the rest fill.
+// channels are each region's channels (large-regions.md section 4): its first, a fixed map's instance that never closes, and those opened as the rest fill. A place below has no fixed one: its channels all open as they're needed and close once idle (underground-and-underwater.md section 6).
 type channels struct {
 	mu       sync.Mutex
 	cap      int           // players a channel takes before a pick passes it; a switch may go past it
@@ -46,20 +46,27 @@ type channel struct {
 // load is the players on c and on their way.
 func (c *channel) load() int { return c.inst.Players() + c.pending }
 
-// pick is the channel of r a hand-off goes to, one more on its way to it until release:
-//   - want, while it's open and has room, or, on a switch, open;
+// pick is the channel of r a hand-off to dest goes to, one more on its way to it until release:
+//   - dest's channel, while it's open and has room, or, on a switch, open; through a gate below, opened by open if it's closed;
 //   - else the one holding most of the player's party, by channel number in party, that has room;
 //   - else the least full with room;
 //   - else a new one, with the lowest free number, made by open.
 //
 // Ties go to the lowest number.
-func (cs *channels) pick(r *region, want int, over bool, party map[int]int, open func(m *gamedata.Map, n int) (*channel, error)) (*channel, error) {
+func (cs *channels) pick(r *region, dest instance.Dest, party map[int]int, open func(m *gamedata.Map, n int) (*channel, error)) (*channel, error) {
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
 	room := func(c *channel) bool { return c.load() < cs.cap }
 	var to *channel
-	if i := slices.IndexFunc(r.open, func(c *channel) bool { return c.n == want }); i >= 0 && (over || room(r.open[i])) {
+	switch i := slices.IndexFunc(r.open, func(c *channel) bool { return c.n == dest.Channel }); {
+	case i >= 0 && (dest.Switch || room(r.open[i])):
 		to = r.open[i]
+	case i < 0 && dest.Paired:
+		c, err := cs.add(r, dest.Channel, open)
+		if err != nil {
+			return nil, err
+		}
+		to = c
 	}
 	if to == nil {
 		for _, c := range r.open {
@@ -82,18 +89,27 @@ func (cs *channels) pick(r *region, want int, over bool, party map[int]int, open
 				n++
 			}
 		}
-		c, err := open(r.m, n)
+		c, err := cs.add(r, n, open)
 		if err != nil {
 			return nil, err
 		}
-		r.open = append(r.open, c)
-		slices.SortFunc(r.open, func(a, b *channel) int { return cmp.Compare(a.n, b.n) })
-		cs.observer.ChannelsOpen(r.m.ID, len(r.open))
 		to = c
 	}
 	to.pending++
 	to.empty = time.Time{}
 	return to, nil
+}
+
+// add opens channel n of r with open, held under cs.mu.
+func (cs *channels) add(r *region, n int, open func(m *gamedata.Map, n int) (*channel, error)) (*channel, error) {
+	c, err := open(r.m, n)
+	if err != nil {
+		return nil, err
+	}
+	r.open = append(r.open, c)
+	slices.SortFunc(r.open, func(a, b *channel) int { return cmp.Compare(a.n, b.n) })
+	cs.observer.ChannelsOpen(r.m.ID, len(r.open))
+	return c, nil
 }
 
 // release counts a hand-off picked for c as landed or failed.
@@ -122,7 +138,7 @@ func (cs *channels) touch(r *region, n int) {
 	}
 }
 
-// sweep takes off the channels past the first found empty for idle by now, and gives their ids in opened to shut; none can be picked once taken off.
+// sweep takes off the channels found empty for idle by now, all but a region's first, and gives their ids in opened to shut; none can be picked once taken off.
 func (cs *channels) sweep(now time.Time) []string {
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
@@ -131,7 +147,7 @@ func (cs *channels) sweep(now time.Time) []string {
 		was := len(r.open)
 		r.open = slices.DeleteFunc(r.open, func(c *channel) bool {
 			switch {
-			case c.n == 1 || c.load() > 0:
+			case (c.n == 1 && r.m.Under == "") || c.load() > 0:
 				c.empty = time.Time{}
 			case c.empty.IsZero():
 				c.empty = now
@@ -208,15 +224,15 @@ func (w *World) Channels(id kernel.CharacterID, conn string) (model.Channels, er
 	return w.channels.loads(r), nil
 }
 
-// pickChannel is the channel of r character id goes to, as channels.pick picks it, with their party's channels in r, and what to call once they've landed or failed.
-func (w *World) pickChannel(id kernel.CharacterID, r *region, want int, over bool) (*instance.Instance, func(), error) {
+// pickChannel is the channel of r character id goes to on a hand-off to dest, as channels.pick picks it, with their party's channels in r, and what to call once they've landed or failed.
+func (w *World) pickChannel(id kernel.CharacterID, r *region, dest instance.Dest) (*instance.Instance, func(), error) {
 	party := map[int]int{}
 	for _, m := range w.deps.Parties.Party(id).Members {
 		if at, ok := w.presences.get(m); ok && m != id && at.inst.MapID() == r.m.ID {
 			party[at.inst.Channel()]++
 		}
 	}
-	c, err := w.channels.pick(r, want, over, party, w.openChannel)
+	c, err := w.channels.pick(r, dest, party, w.openChannel)
 	if err != nil {
 		return nil, nil, err
 	}

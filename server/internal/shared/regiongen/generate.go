@@ -19,6 +19,7 @@ type Region struct {
 	Props    []Prop       // set pieces, then scattered
 	Rivers   []RiverWater
 	Lakes    []LakeWater
+	Flames   []Flame    // a cave's torches' lights, in the props' order
 	Wet      []bool     // per terrain sample: under a river or a lake
 	Heights  [2]float64 // the lowest and highest sample
 }
@@ -135,7 +136,9 @@ func Generate(p Plan, k Kit, maxSlope float64) (*Region, error) {
 	var placed solidsNear
 	b.r.Geometry = sim.Geometry{SizeX: p.Size[0], SizeZ: p.Size[1], Terrain: t, Boxes: []sim.Box{}, Cylinders: []sim.Cylinder{}}
 	b.pieces(&placed)
+	b.torches(&placed)
 	b.scatter(steep, &placed)
+	b.flames()
 	b.r.Geometry = sim.Indexed(b.r.Geometry)
 	return &b.r, nil
 }

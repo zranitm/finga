@@ -577,6 +577,40 @@ describe('World', () => {
     expect(chunkWork.reloads).toBe(reloads + 1);
   });
 
+  // The World dropped a region's place with its scene, never the place's own dispose: a chunk whose last try failed after the player had gone still broke the region, and the page reloaded.
+  it.each([
+    ['leaves the game', (p: Playing) => leave(p)],
+    [
+      'goes to another map',
+      (p: Playing) => changeMap(p, { mapId: FLAT, x: 4, y: 0, z: 20, yaw: 0 }),
+    ],
+  ])(
+    'lets a region’s chunk work go as the player %s: a last try failing after reloads nothing',
+    async (_, go) => {
+      vi.spyOn(console, 'info').mockImplementation(() => undefined);
+      vi.spyOn(Math, 'random').mockReturnValue(0); // each wait at its floor: 0.25, 0.5, 1 and 2 s
+      chunkWork.failing = 'chunks/1_';
+      const p = await playing(REGIONED, 30, 60);
+      const reloads = chunkWork.reloads;
+      for (let i = 0; i < 4; i++) {
+        await Promise.allSettled(chunkWork.builds);
+        await new Promise<void>((r) => setImmediate(r));
+        p.frames(Math.ceil((250 * 2 ** i) / FRAME_MS) + 1); // past the wait: the fifth try is asked last
+      }
+      go(p); // with the fifth try in flight
+      vi.useFakeTimers({ toFake: ['setTimeout'] });
+      await Promise.allSettled(chunkWork.builds);
+      await new Promise<void>((r) => setImmediate(r));
+      vi.advanceTimersByTime(10_000);
+      expect(
+        toasts
+          .getState()
+          .toasts.filter((t) => t.text === 'The map’s ground didn’t load. Reloading…'),
+      ).toEqual([]);
+      expect(chunkWork.reloads).toBe(reloads);
+    },
+  );
+
   it('stands a region’s gate label on its ground once the chunk under it comes', async () => {
     const p = await playing(REGIONED, 86, 70);
     expect(p.label('portal:gate')).toBe(`To ${maps.find((m) => m.id === FLAT)!.name}`);
