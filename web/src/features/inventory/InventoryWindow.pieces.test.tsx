@@ -67,7 +67,7 @@ describe('a wardrobe piece in the inventory (outfits.md section 7)', () => {
     expect([button('Preview'), button('Add to wardrobe')]).toEqual([null, null]);
   });
 
-  it('adds only once asked, and once added the wardrobe holds it and a notice says so', async () => {
+  it('adds only once asked; the answer leaves the wardrobe and its notice to PiecesAdded', async () => {
     const { calls } = await setup();
     await select("Knight's Plate x1");
     await user.click(button('Add to wardrobe')!);
@@ -79,13 +79,11 @@ describe('a wardrobe piece in the inventory (outfits.md section 7)', () => {
     await user.click(screen.getByRole('button', { name: 'Yes, add' }));
     expect(withoutKeys(calls)).toEqual([{ t: 'addToWardrobe', d: { itemId: 'i-plate' } }]);
     expect(screen.queryByRole('alertdialog')).toBeNull();
-    await vi.waitFor(() =>
-      expect(wardrobe.getState().collected).toEqual(new Set(['knight_helm', 'knight_plate'])),
-    );
-    expect(toasts.getState().toasts).toMatchObject([
-      { text: "New in your wardrobe: Knight's Plate", kind: 'info' },
-    ]);
-    expect(button('Add to wardrobe')).toBeDisabled(); // till InventoryChanged takes the item
+    await vi.waitFor(() => expect(button('Add to wardrobe')).toBeEnabled()); // answered
+    expect(wardrobe.getState().collected).toEqual(new Set(['knight_helm']));
+    expect(toasts.getState().toasts).toEqual([]);
+    act(() => wardrobe.getState().add('knight_plate')); // as PiecesAdded tells
+    expect(button('Add to wardrobe')).toBeDisabled();
     expect(screen.getByText('Already in your wardrobe')).toBeInTheDocument();
   });
 

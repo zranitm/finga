@@ -851,6 +851,7 @@ type fakeItems struct {
 	discardMany []itemCall[item.DiscardManyRequest]
 	wardrobe    []itemCall[item.WardrobeRequest]
 	changed     []item.Slot
+	piece       string // the piece a wardrobe add makes
 	revision    uint64 // every answer's
 	err         error
 	gate        chan struct{} // when set, Inventory waits for it to close
@@ -901,7 +902,9 @@ func (f *fakeItems) AddToWardrobe(ctx context.Context, a item.Actor, r item.Ward
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.wardrobe = append(f.wardrobe, itemCall[item.WardrobeRequest]{a, r})
-	return f.result(ctx)
+	res, err := f.result(ctx)
+	res.Piece = f.piece
+	return res, err
 }
 
 func (*fakeItems) Wardrobe(context.Context, kernel.AccountID) ([]item.Piece, error) { return nil, nil }

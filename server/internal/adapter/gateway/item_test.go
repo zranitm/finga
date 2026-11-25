@@ -117,7 +117,7 @@ func TestEachItemResultKeepsItsFields(t *testing.T) {
 			"Changed.Item.EquipSlot": "an item in a tab is worn nowhere",
 			"Equipment":              "a move or a discard changes no worn item",
 			"Worn":                   "a move or a discard changes no worn item",
-			"Piece":                  "the client knows the piece of the item it added",
+			"Piece":                  "an add's piece comes beside its slots (TestAnAddKeepsItsPiece)",
 			"Look":                   "a move or a discard changes no look",
 		},
 	}
@@ -137,7 +137,7 @@ func TestEachItemResultKeepsItsFields(t *testing.T) {
 		},
 		"AddToWardrobe": func() model.InventoryChanged {
 			out, _ := items.AddToWardrobe(t.Context(), model.Actor{}, model.WardrobeAdd{})
-			return out
+			return out.Changed
 		},
 	} {
 		got := copytest.Diff(match, func(res item.Result) model.InventoryChanged {
@@ -147,6 +147,15 @@ func TestEachItemResultKeepsItsFields(t *testing.T) {
 		if len(got) > 0 {
 			t.Errorf("%s: %v", name, got)
 		}
+	}
+}
+
+// An add's piece reaches the use cases beside the slot it took from, its cause an item.
+func TestAnAddKeepsItsPiece(t *testing.T) {
+	m := &itemModule{res: item.Result{Piece: "knight_plate"}}
+	out, err := NewItems(m).AddToWardrobe(t.Context(), model.Actor{}, model.WardrobeAdd{})
+	if want := (model.AddedPiece{ID: "knight_plate", Cause: "item"}); err != nil || out.Piece != want {
+		t.Fatalf("got %+v, %v; want %+v", out.Piece, err, want)
 	}
 }
 

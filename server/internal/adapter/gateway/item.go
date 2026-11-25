@@ -104,13 +104,13 @@ func rollOf(s *progression.ItemStats) *model.ItemStats {
 	}
 }
 
-// AddToWardrobe adds the piece an item holds to the account's wardrobe and returns the slot it changed.
-func (i Items) AddToWardrobe(ctx context.Context, a model.Actor, in model.WardrobeAdd) (model.InventoryChanged, error) {
+// AddToWardrobe adds the piece an item holds to the account's wardrobe and returns the slot it changed and the piece.
+func (i Items) AddToWardrobe(ctx context.Context, a model.Actor, in model.WardrobeAdd) (model.WardrobeAdded, error) {
 	res, err := i.items.AddToWardrobe(ctx, actor(a), item.WardrobeRequest{Key: in.IdempotencyKey, ItemID: in.Item})
 	if err != nil {
-		return model.InventoryChanged{}, wrap(err)
+		return model.WardrobeAdded{}, wrap(err)
 	}
-	return changed(res), nil
+	return model.WardrobeAdded{Changed: changed(res), Piece: model.AddedPiece{ID: res.Piece, Cause: item.PieceFromItem}}, nil
 }
 
 // Pieces lists the account's wardrobe, oldest first.

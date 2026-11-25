@@ -104,6 +104,17 @@ type WaypointFound struct {
 	Waypoint string
 }
 
+// PiecesAdded tells of new wardrobe entries, each with what gave it.
+type PiecesAdded struct {
+	Pieces []AddedPiece
+}
+
+// AddedPiece is one new wardrobe entry: the piece and its cause, item, rank, quest or feat.
+type AddedPiece struct {
+	ID    string
+	Cause string
+}
+
 // TeleportCancel is what ended a teleport channel.
 type TeleportCancel int
 
@@ -292,6 +303,7 @@ func (PartySpots) push()        {}
 func (AreaEntered) push()       {}
 func (ArenaBar) push()          {}
 func (WaypointFound) push()     {}
+func (PiecesAdded) push()       {}
 func (Damage) push()            {}
 func (Died) push()              {}
 func (SkillUsed) push()         {}
