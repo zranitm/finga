@@ -108,6 +108,12 @@ biomes:
   - **Areas' own:** ids unique and a name each. A hunting area has levels, 1 ≤ lowest ≤ highest, and a boss mob, at or above its top level, its circle as wide as its body, on ground it fits, and wholly in the area: every square the circle overlaps is the area's (`AreaGrid.Under`), so a boss never wanders into a town, another band or the ring. A town has no levels, no boss and no camps. Each area has its own boss; a region's bosses aren't checked against the maps', since the test region shares theirs.
   - **Camps** name a hunting area, their circles wholly in it as a boss's is, so no mob spawns past its band. Their mobs are known, no boss, in its band, an elite only beside a normal mob, as on a map.
   - **Waypoints** have unique ids, and each one's arrival beside its stone is where a player fits. Gates, NPCs and the start are checked as portals, NPCs and the player spawn are. None of them, nor a waypoint, stands in the ring.
+  - **Camps keep clear of the stones** (from the waypoint stones' playtest). There, the test region's spore slimes, their circle 13.7 m from the North Field stone, followed a player to it. They hit them every 1–2 s, and each hit cancelled the 3 s teleport. Players come to a stone to find it, land beside it and get up there after a death, so no chase should follow them there.
+    - **Stones:** every camp's and area boss's circle keeps the mobs' `leash` and 4 m (20 m today) from each waypoint's stone. The arrival lies 2 m from the stone, so a player there stands 2 m past where any mob after them gives up.
+    - **Why the leash, not a mob's reach:** the leash is measured on the target. A mob drops a player once they're `leash` past its circle's edge, wherever it stands and however far it spits, so a longer reach adds nothing.
+    - **The start, each gate and each NPC** keep a mob's `sight` and 2 m (11.375 m today), the old maps' calm rule (3d-world.md section 4), so no mob sees a player arrive or talk. A gate hands a player off as they step in, so a chase to one costs nothing, and a town's NPCs are already out of sight.
+    - Both numbers are read from mobs.yaml, so retuning either keeps the rule true. The loader refuses a plan that breaks it, naming the camp or boss, the spot and the gap. A place below keeps it too, from its gates and waypoints.
+    - **The test region** moves its spore slimes and moths by North Field, and its glow slimes and snail by East Woods, out to keep it.
   - **Gates** lead to a map's portal or a region's gate, never to themselves, and the two lead to each other, judged from both sides.
   - **The region** isn't named as a map is, has a name, and isn't one block holds (`gamedata.Interest.Whole`, which the instances read too).
   - Every waypoint, gate, NPC, camp and area boss is reached from the start and each gate, at every speed: `TestEveryShippedRegionCanBeCrossed`.
@@ -696,6 +702,7 @@ Built with step 1, which says who watches a cell.
     - 3 cascades out to 80 m from the camera;
     - held steady as the camera moves (`stabilizeCascades`);
     - cast by see-through meshes too.
+    - **Every toon light takes the view matrix,** which a cascaded receiver needs to pick its cascade. Without it, a receiver's shader didn't compile on WebGL 2, so a region drew only its ink, with no ground or props.
   - An engine that can't cascade, such as WebGL 1, gets the one shadow map a map has, with the same casters out to about 220 m in it, so its shadows are coarser. Maps keep theirs.
   - **Casters:**
     - each chunk's props, and their faded copies, while the chunk's nearest edge is within 128 m of the camera's target, so props to about 220 m (the cascades reach 80 m from the camera, which stands up to 40 m back);

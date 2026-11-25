@@ -62,4 +62,5 @@ models:
   torch_mounted: {light: {height: 2.2, reach: 8}}
   tree_oak: {cylinder: {radius: 0.34, height: 6.5}}
   tree_pine: {cylinder: {radius: 0.34, height: 6.5}}
+  vent: {}
   well: {cylinder: {radius: 1.35, height: 0.6}}

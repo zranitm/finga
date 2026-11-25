@@ -1,11 +1,12 @@
 // The kit models solids and props draw with, by the model key a map names; a key with none draws a stand-in.
 
-/** A model file under /models, scaled evenly and raised y metres; one that sways bends in the water by its height, as kelp does. */
+/** A model file under /models, scaled evenly and raised y metres; one that sways bends in the water by its height, as kelp does, and a vent gives off bubbles from that high over its base. */
 export interface KitModel {
   readonly file: string;
   readonly scale: number;
   readonly y: number;
   readonly sway?: boolean;
+  readonly bubbles?: number;
 }
 
 /** KayKit Dungeon's torches and their flame, at the characters' scale (the Knight's 2.467 units drawn 1.75 m); each file has its cup's centre at its origin, so a torch stands raised to its flame, kit.yaml's light height. */
@@ -63,4 +64,5 @@ export const kitModels: Readonly<Record<string, KitModel>> = {
   sea_grass: { file: 'sea/sea_grass.glb', scale: 1, y: 0, sway: true },
   shell_conch: { file: 'sea/shell_conch.glb', scale: 1, y: 0 },
   shell_scallop: { file: 'sea/shell_scallop.glb', scale: 1, y: 0 },
+  vent: { file: 'kaykit/Rock_1_E.glb', scale: 0.45, y: 0, bubbles: 0.4 }, // a small rock, half a metre, that bubbles stream from
 };

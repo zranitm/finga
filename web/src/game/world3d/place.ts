@@ -248,8 +248,12 @@ export interface Place {
   follow(x: number, z: number): void;
   /** Whether what an arrival at (x, z) sees is drawn: a region's chunks round it, a map always. */
   ready(x: number, z: number): boolean;
+  /** Where bubbles stream from: the vents of a sea region's drawn chunks; none on a map. */
+  vents(): readonly Vector3[];
   dispose(): void;
 }
+
+const NO_VENTS: readonly Vector3[] = [];
 
 /** A kit model's placements on a map: its solids and props, each by its index among the map's. */
 interface Placed {
@@ -399,6 +403,7 @@ export async function buildPlace(
       // a map is drawn whole: nothing streams
     },
     ready: () => true,
+    vents: () => NO_VENTS,
     dispose: () => {
       root.dispose(false, false);
       scene.fogMode = Scene.FOGMODE_NONE;
