@@ -160,22 +160,27 @@ func (w *world) levelSpot(lvl, pick int) (spot, bool) {
 	return round(at.mapID, all), true
 }
 
-// campSpot is where a bot of a level hunts in region m (large-regions.md section 11): a camp of its prey in the area of the highest band that has any, the one pick names, so bots spread over them. An area's mobs are of its band, so that's the bot's own band while its level is in one with prey, else the highest under it.
+// campSpot is where a bot of a level hunts in region m (large-regions.md section 11): a camp of its prey in an area whose band holds its level, or with none, in the highest band under it; the one pick names, so bots spread over them.
 func (w *world) campSpot(m *gamedata.Map, lvl, pick int) (spot, bool) {
 	prey := w.levelPrey(lvl)
-	var camps []gamedata.Spawn
-	band := -1 // the top level of the band the camps are in
+	var camps, under []gamedata.Spawn
+	top := -1 // the top level of the band under lvl that under's camps are in
 	for _, s := range m.Spawns {
 		k := m.AreaAt(s.At.X, s.At.Z)
 		if k < 0 || !slices.Contains(prey, s.Mob) {
 			continue
 		}
-		switch top := m.Areas[k].MaxLevel; {
-		case top > band:
-			camps, band = []gamedata.Spawn{s}, top
-		case top == band:
+		switch a := m.Areas[k]; {
+		case a.MinLevel <= lvl && lvl <= a.MaxLevel:
 			camps = append(camps, s)
+		case a.MaxLevel < lvl && a.MaxLevel > top:
+			under, top = []gamedata.Spawn{s}, a.MaxLevel
+		case a.MaxLevel == top:
+			under = append(under, s)
 		}
+	}
+	if len(camps) == 0 {
+		camps = under
 	}
 	if len(camps) == 0 {
 		return spot{}, false

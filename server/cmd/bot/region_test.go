@@ -55,6 +55,7 @@ func TestARegionsBotHuntsACampOfItsBand(t *testing.T) {
 		{1, []string{"green_slime"}},
 		{5, []string{"green_slime", "orange_mushroom"}}, // between the west's band and the south's
 		{12, []string{"wild_boar"}},                     // the bats, 14, aren't its prey yet
+		{15, []string{"wild_boar", "cave_bat"}},         // its band's spore slimes, 15, aren't its prey yet
 		{16, []string{"spore_slime"}},
 		{30, []string{"glow_slime"}}, // past every band; the snail is an elite
 	} {
@@ -64,6 +65,24 @@ func TestARegionsBotHuntsACampOfItsBand(t *testing.T) {
 			if want := c.camps[pick%len(c.camps)]; !ok || s.mapID != "test_region" || k < 0 || m.Spawns[k].Mob != want {
 				t.Errorf("level %d, pick %d hunts at %+v; want the %s camp", c.level, pick, s, want)
 			}
+		}
+	}
+}
+
+// Where bands overlap, a bot hunts in every band that holds its level, not only the highest: the south's widened to 10–16 shares level 16 with the north's 15–18.
+func TestARegionsBotHuntsInEveryBandHoldingItsLevel(t *testing.T) {
+	data, w := regionWorld(t)
+	shipped, _ := data.Map("test_region")
+	m := *shipped
+	m.Areas = slices.Clone(shipped.Areas)
+	k := slices.IndexFunc(m.Areas, func(a gamedata.Area) bool { return a.ID == "south" })
+	m.Areas[k].MaxLevel = 16
+	want := []string{"wild_boar", "cave_bat", "spore_slime"}
+	for pick := range len(want) {
+		s, ok := w.campSpot(&m, 16, pick)
+		i := slices.IndexFunc(m.Spawns, func(sp gamedata.Spawn) bool { return point(sp.At) == s.at && sp.Radius == s.radius })
+		if !ok || i < 0 || m.Spawns[i].Mob != want[pick] {
+			t.Errorf("pick %d hunts at %+v; want the %s camp", pick, s, want[pick])
 		}
 	}
 }
