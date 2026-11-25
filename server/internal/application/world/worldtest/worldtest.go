@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"io/fs"
 	"log/slog"
 	"maps"
 	"os"
@@ -189,7 +190,7 @@ func LoadData(t testing.TB) *gamedata.Data {
 	return gamedatatest.Shipped(t)
 }
 
-// LoadDataWith is the game data the server ships, each file named in edits changed by its function first, or left out where it's nil; tests making the same edits share it.
+// LoadDataWith is the game data the server ships, each file named in edits changed by its function first, a new one from empty, or left out where it's nil; tests making the same edits share it.
 func LoadDataWith(t testing.TB, edits map[string]func(string) string) *gamedata.Data {
 	t.Helper()
 	src := gamedatatest.Dir()
@@ -201,7 +202,7 @@ func LoadDataWith(t testing.TB, edits map[string]func(string) string) *gamedata.
 			continue
 		}
 		raw, err := os.ReadFile(filepath.Join(src, name))
-		if err != nil {
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
 			t.Fatal(err)
 		}
 		texts[name] = edits[name](string(raw))
