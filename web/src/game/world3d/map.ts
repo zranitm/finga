@@ -7,7 +7,7 @@ import { height, terrain } from '@/sim/terrain';
 import type { MapWaypoint } from '@/state/map-view';
 
 import { loadRegion } from './region-bake';
-import type { Overview, Region, RegionRef } from './region-bake';
+import type { LightMap, Overview, Region, RegionRef } from './region-bake';
 import { RegionGround } from './region-ground';
 
 /** How far above or below a portal's ground feet in its circle stand in it, as the server's portalHeight. */
@@ -76,6 +76,8 @@ export interface RegionMap {
   readonly ref: RegionRef;
   readonly region: Region;
   readonly overview: Overview;
+  /** A cave's light map, which its toon materials take for the sun's light; null on the land. */
+  readonly light: LightMap | null;
   readonly ground: RegionGround;
   /** Its waypoints, whose stones its place draws. */
   readonly waypoints: readonly MapWaypoint[];
@@ -157,11 +159,12 @@ export async function loadMap(id: string): Promise<WorldMap> {
   if (typeof ref?.id !== 'string' || typeof ref.hash !== 'string') {
     throw new Error(`map ${String(json.id)}: its region names no bake`);
   }
-  const { region, overview } = await loadRegion(ref);
+  const { region, overview, light } = await loadRegion(ref);
   return parseMap(json, {
     ref,
     region,
     overview,
+    light,
     ground: new RegionGround(region, movement.max_slope),
     waypoints: (json.waypoints ?? []).map((w) => ({
       id: w.id,
@@ -285,7 +288,12 @@ function mulberry32(seed: number): () => number {
 }
 
 /** The ground under (x, z) for feet at y, as the server's groundUnder: the terrain, or a solid's top no more than a step above the higher of the two. */
-export function groundUnder(map: WorldMap, x: number, z: number, y = -Infinity): number {
+export function groundUnder(
+  map: Pick<WorldMap, 'geometry'>,
+  x: number,
+  z: number,
+  y = -Infinity,
+): number {
   const g = map.geometry;
   return ground(x, z, Math.max(y, height(g.terrain, x, z)) + movement.step, g);
 }

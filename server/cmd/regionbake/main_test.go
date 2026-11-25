@@ -18,10 +18,11 @@ const tinyPlan = "testdata/tiny.yaml"
 
 var update = flag.Bool("update", false, "rewrite the web client's fixtures from the test plans' bakes")
 
-// clientFixtures are the bakes the web client's tests read, their tiles aside, by plan: the tiny one, and one as steep as the wide plan gets for the movement vectors.
+// clientFixtures are the bakes the web client's tests read, their tiles aside, by plan: the tiny one, one as steep as the wide plan gets for the movement vectors, and a small cave below tiny for its light map.
 var clientFixtures = map[string]string{
-	tinyPlan:              "../../../web/src/testing/regions/tiny",
-	"testdata/steep.yaml": "../../../web/src/testing/regions/steep",
+	tinyPlan:               "../../../web/src/testing/regions/tiny",
+	"testdata/steep.yaml":  "../../../web/src/testing/regions/steep",
+	"testdata/hollow.yaml": "../../../web/src/testing/regions/hollow",
 }
 
 // A plan's bake lands under <id>/<hash>/, each file as the region bakes it, a tile as its pixels; a stale bake goes and nothing else under out is touched; the preview lands as <id>.png.

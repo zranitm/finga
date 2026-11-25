@@ -6,7 +6,7 @@ export interface Terrain {
   readonly nx: number; // samples along x
   readonly nz: number; // samples along z
   readonly heights: readonly number[] | Float32Array; // row by row from z = 0, each row from x = 0
-  readonly barrier?: Uint8Array; // per sample, as heights, 1 for water too deep to wade or a cave's rock; none on a map with neither
+  readonly barrier?: Uint8Array; // per sample, as heights, 1 for water too deep to wade, a cave's rock or a raised cliff's face; none on a map with none of them
   readonly steepX: Uint8Array; // per cell, 1 where a rise across either of its x edges exceeds max_slope × cell
   readonly steepZ: Uint8Array; // likewise across its z edges
 }

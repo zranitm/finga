@@ -107,7 +107,8 @@ export interface Still {
 
 export interface Lighting {
   readonly palette: Palette;
-  readonly shadows: ShadowGenerator;
+  /** The sun's shadows; none in a cave, which has no sun. */
+  readonly shadows: ShadowGenerator | null;
 }
 
 const CASCADES = 3;
@@ -161,7 +162,7 @@ export class Body implements Figure {
   private readonly casters: AbstractMesh[] = [];
   private casting = true;
   private fresh = true; // not yet posed
-  private readonly shadows: ShadowGenerator;
+  private readonly shadows: ShadowGenerator | null;
   private readonly inks: AbstractMesh[] = [];
   private faded = false;
   private still:
@@ -206,7 +207,7 @@ export class Body implements Figure {
       }
       lighting.palette.outline(m);
       this.inks.push(...m.getChildMeshes(true).filter((c) => c.name === `${m.name} ink`));
-      lighting.shadows.addShadowCaster(m, false);
+      lighting.shadows?.addShadowCaster(m, false);
       this.casters.push(m);
     }
     unstretched(model);
@@ -450,9 +451,9 @@ export class Body implements Figure {
     this.casting = on;
     for (const m of this.casters) {
       if (on) {
-        this.shadows.addShadowCaster(m, false);
+        this.shadows?.addShadowCaster(m, false);
       } else {
-        this.shadows.removeShadowCaster(m, false);
+        this.shadows?.removeShadowCaster(m, false);
       }
     }
   }
