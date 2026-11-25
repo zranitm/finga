@@ -35,11 +35,16 @@ func joinedSection(_ context.Context, _ kernel.CharacterID, joined model.Joined,
 	return nil
 }
 
-const toldTimeout = 5 * time.Second // marking a Welcome's missed matches told
+const (
+	missedTimeout = 2 * time.Second // reading a Welcome's missed matches, so a slow pvp store never holds up a login
+	toldTimeout   = 5 * time.Second // marking them told
+)
 
-// missedSection is the matches that ended while the player was away, marked told once the Welcome is written, so a Welcome lost on the way leaves them for the next; a reconnect just as one ends, or a second login at once, may hear one twice. A failed read logs and fails no login.
+// missedSection is the matches that ended while the player was away, marked told once the Welcome is written, so a Welcome lost on the way leaves them for the next; a reconnect just as one ends, or a second login at once, may hear one twice. A failed or slow read logs and fails no login.
 func (r *Registry) missedSection(ctx context.Context, character kernel.CharacterID, _ model.Joined, w *model.Welcome) error {
-	m, err := r.deps.Pvp.Missed(ctx, character)
+	readCtx, cancel := context.WithTimeout(ctx, missedTimeout)
+	m, err := r.deps.Pvp.Missed(readCtx, character)
+	cancel()
 	if err != nil {
 		r.deps.Logger.WarnContext(ctx, "the matches missed while away wait for the next Welcome", "character", character, "err", err)
 		return nil
