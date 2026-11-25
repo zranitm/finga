@@ -551,6 +551,21 @@ message Welcome {
   repeated SkillTimer skill_timers = 12;
   // The ids of every waypoint the character has found, in any region.
   repeated string waypoints = 13;
+  // The matches that ended while the player was away from them, held through a drop or gone, newest first and at most five; each is told once. A reconnect just as one ends may have had its MatchEnded live too.
+  repeated MissedMatch missed_matches = 14;
+  // How many older such matches there were besides.
+  int32 missed_more = 15;
+}
+
+// MissedMatch is a match that ended while the player was away from it.
+message MissedMatch {
+  // Its mode, as PvpQueue names it.
+  string mode = 1;
+  MatchOutcome result = 2;
+  // The player had left it, so lost whatever their side did.
+  bool left = 3;
+  // Unix milliseconds.
+  int64 ended_at = 4;
 }
 
 // SkillTimer is the time left on one of a skill's cooldown or buff.

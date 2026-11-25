@@ -93,7 +93,18 @@ type Fighter struct {
 	Tier          string
 	Left          bool
 	Downs         int
+	Untold        bool // away at the end, so their outcome waits for their next Welcome
 	Before, After Rating
+}
+
+// Untold is a stored match a character was away from at its end and hasn't been told of: its mode, end, winner, and their side and whether they left.
+type Untold struct {
+	Match  kernel.MatchID
+	Mode   string
+	Ended  time.Time
+	Winner int
+	Side   int
+	Left   bool
 }
 
 // Rated is what a match's outcome does: each character's rating after it, and each fighter's row.
@@ -142,4 +153,5 @@ type Outcome struct {
 	Tier      string
 	Left      bool
 	Downs     int
+	Away      bool // not in the match at its end, so told of it at their next Welcome
 }

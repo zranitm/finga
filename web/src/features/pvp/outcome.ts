@@ -1,4 +1,4 @@
-// A match's outcome in words (pvp.md section 13): the result card's title and rating, and the General line a team match's leaver gets instead of the card.
+// A match's outcome in words (pvp.md section 13): the result card's title and rating, the General line a team match's leaver gets instead of the card, and a Welcome's lines for matches that ended while the player was away.
 import { rankName } from '@/progression/names';
 import { MatchOutcome } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
@@ -42,4 +42,35 @@ export function leaverLine(d: Data<'matchEnded'>): string {
     }
   }
   return said.join(' ');
+}
+
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+
+/** How long ago something ms ago was: "moments ago", "12 min ago", "5 h ago", "3 days ago". */
+function ago(ms: number): string {
+  if (ms < MINUTE) {
+    return 'moments ago';
+  }
+  if (ms < HOUR) {
+    return `${Math.floor(ms / MINUTE)} min ago`;
+  }
+  if (ms < 48 * HOUR) {
+    return `${Math.floor(ms / HOUR)} h ago`;
+  }
+  return `${Math.floor(ms / (24 * HOUR))} days ago`;
+}
+
+/** "Your 1v1 match ended 2 h ago, while you were away: it counted as a loss.", one a match, timed by the server's clock, then "…and 3 more matches ended while you were away." */
+export function missedLines(d: Data<'welcome'>): string[] {
+  const said = d.missedMatches.map(
+    (m) =>
+      `Your ${modeName(m.mode)} match ended ${ago(Number(d.serverTime - m.endedAt))}, while you were away: ${m.left ? 'it counted as a loss' : TITLE[m.result]}.`,
+  );
+  if (d.missedMore > 0) {
+    said.push(
+      `…and ${d.missedMore} more ${d.missedMore === 1 ? 'match' : 'matches'} ended while you were away.`,
+    );
+  }
+  return said;
 }

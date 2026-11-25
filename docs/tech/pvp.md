@@ -156,7 +156,7 @@ bots:
     - **The return:** a `Hello` for a character whose place is held goes straight to the match instance, by the presence the world still holds, never through town or `back`. The player gets `Welcome` on the match's map, on the body as it stands, then `MatchState` and a `StatsChanged` with every timer. Nothing resets.
     - **Past the grace,** the drop is a forfeit and the leaver path runs (section 7), the stand-in taking the body as it stands then.
     - **A second drop** in the same match gets a fresh grace: with no bot during it, dropping gains nothing.
-    - **The match ends during the grace:** the held player is rated by the result, as anyone there, never as a leaver. No connection is there to follow a hand-off, so they're saved at `back`, where their next login lands. They miss `MatchEnded`; their rating shows in the Arena profile.
+    - **The match ends during the grace:** the held player is rated by the result, as anyone there, never as a leaver. No connection is there to follow a hand-off, so they're saved at `back`, where their next login lands. They miss `MatchEnded`, and are told at their next `Welcome` (below).
     - **No bot during the grace:** a stand-in starts with cooldowns ready and no statuses, so a free return would make a drop a reset. A player weaker than the match's bots could also drop to let one fight for them. The price is a team one short for up to 20 s on a long drop.
     - **As built (step 7a):**
       - **A drop or a logout:** the gateway tells them apart by how the session ended. A logout or an ended login (`session_expired`) is a `Leave`. Any other close is the world's `Drop`: a closed socket, a login elsewhere, or a presence on a connection the gateway doesn't know.
@@ -165,6 +165,10 @@ bots:
       - **The return:** `Join` first offers the account's presence to its match. The match puts the new connection on the body, with its inputs counted again from the new client's first, and retells the party. A join the match doesn't take, as with the outcome showing or the match's map stopped since the join looked, is a plain one. As this return loads no character, only the character's own account's presence is offered.
       - **A return whose connection closes** before it's on the body answers busy and holds the place again, to the grace's first end: failed returns buy no time.
       - **The match ending during the grace:** the held player isn't handed off with the rest, as no connection is there to follow. They're saved at `back` and dropped, so their next login lands there.
+  - **Told on return (as built):** a player away from a match at its end is told how it went at their next `Welcome`. That covers one held through a drop, a 1v1 duelist past the grace, and a 3v3 or 15v15 leaver.
+    - **Told once it's written:** the outcome stores their fighter row `untold`. A `Welcome` reads those rows and marks each one it lists or counts told once the socket's writer has written it, so a `Welcome` that never goes out leaves them for the next. A `MatchEnded` handed to them live, as to a team leaver playing elsewhere, marks it told then.
+    - **At most five:** the `Welcome` lists the newest five and counts the rest, so a long absence isn't a wall of lines.
+    - **Best effort:** a store that can't answer fails no login; the rows wait for the next `Welcome`. A double beats a loss, so these are left as is: a reconnect just as the match ends may hear it both live and at the `Welcome`, and two logins at once may both list it.
   - After a server stop or a crash, a match has no result and moves no rating.
   - A match that expected players and saw none by prep's end closes with no outcome. A match of bots alone runs to its end, as its test runs one; the queue never makes one.
 - **Teardown:** after the result phase, the instance hands everyone out and its `Run` returns. Then it's dropped from `w.matches`.
@@ -559,7 +563,8 @@ bots:
   - **`pvp_match_fighters`:**
     - `match_id`, `side` and `character_id`, null for a bot;
     - `bot_tier`, `left`, `downs` and `points`;
-    - `mu_before`, `sigma_before`, `mu_after` and `sigma_after`.
+    - `mu_before`, `sigma_before`, `mu_after` and `sigma_after`;
+    - as built (migration 00016), `untold`, set for a player away at the match's end until they're told (section 4), with the partial index `pvp_match_fighters_untold` on `character_id`.
   - **`pvp_builds`:** section 6, in its own migration with the arena builds (step 4, migration 00014).
 - **One transaction per result:**
   - It inserts the match. The id is the key, so a repeated result does nothing.
@@ -589,6 +594,7 @@ bots:
 | `MatchState{match, mode, phase, round, wins, ends_in_ms, sides, score, points}` | server | On entry and at each change, once a tick at most, as the tick left it; `sides` lists each fighter's id, name, class and `bot`; `points` each point's holder, progress and whether contested |
 | `MatchState.sides[].away` | server | Set while a fighter's dropped connection holds their place (section 4). A drop and a return each send `MatchState` |
 | `MatchEnded{result, wins, score, rating, mode, left}` | server | The outcome; `rating` has the mode's shown rating and rank before and after, and placement matches left; `left` is set for a player who left before the outcome |
+| `Welcome.missed_matches{mode, result, left, ended_at}`, `Welcome.missed_more` | server | The matches that ended while the player was away, newest first and at most five, and how many more (section 4, as built) |
 | `PlayerView.team`, `PlayerView.bot` | server | The side, 0 outside a match, and the bot flag |
 | `SkillUsed.target` | server | Becomes a ref |
 | `StatsChanged.timers` | server | Set when it replaces every cooldown and buff the client holds: into a match, at each round's reset, and back out |
@@ -730,6 +736,7 @@ As built after the 3v3 playtest:
   - Leaving a match under way, by Leave match or by a rejoin after a drop whose grace ran out, says at once: "You left the match: it counts as a loss. Your rating updates when the match ends."
   - Its end comes as a General line, never the result card: "Your 3v3 match ended: Defeat. Rating 1000 → 968 (−32)." The card is for those the match ended with. The leaver may be anywhere by then, even in another match, so the line is drawn from `MatchEnded`'s own `mode` and `left`, not from the match the store holds.
   - A 1v1 forfeit ends the match at once, so its forfeiter still gets the card.
+- **A match that ended while the player was away (as built):** each comes as a General line on their `Welcome`, timed by the server's clock: "Your 1v1 match ended 2 h ago, while you were away: it counted as a loss." A player held through a drop gets the result instead, "…while you were away: Victory." Past five, one more line: "…and 3 more matches ended while you were away."
 
 As built for 15v15 (step 6d-1, the client):
 
@@ -801,6 +808,7 @@ As built for 15v15 (step 6d-2, the points and bases drawn):
     - past it, the stand-in in 3v3 and 15v15, and the win in 1v1;
     - a second drop's fresh grace;
     - a match ending during the grace, rated by its result;
+    - a match ended while a player was away, told at their next `Welcome` once;
     - logout and Leave match forfeit at once.
   - **Combat between players:**
     - reach with the lock;

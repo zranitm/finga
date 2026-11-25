@@ -182,7 +182,8 @@ func partyOf(p *model.Party) *Party {
 	}
 	out := &Party{Leader: p.Leader, Members: make([]PartyMember, 0, len(p.Members))}
 	for _, m := range p.Members {
-		out.Members = append(out.Members, PartyMember{ID: m.ID, Name: m.Name, Class: m.Class, Level: m.Level, HP: m.HP, MaxHP: m.MaxHP, MapID: m.MapID, Channel: m.Channel, Online: m.Online})
+		s := m.Shown() // a frame shows only what Shown holds, so an unchanged Shown sends none
+		out.Members = append(out.Members, PartyMember{ID: s.ID, Name: s.Name, Class: s.Class, Level: s.Level, HP: s.HP, MaxHP: s.MaxHP, MapID: s.MapID, Channel: s.Channel, Online: s.Online})
 	}
 	return out
 }

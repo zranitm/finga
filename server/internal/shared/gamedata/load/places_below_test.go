@@ -26,7 +26,7 @@ areas:
   - {id: hollow, name: The Hollow, area: [[16, 16], [112, 16], [112, 112], [16, 112]], levels: [1, 5], biome: cave, kind: hunting,
      boss: {at: [80, 70], radius: 4, mob: slime_lord}}
 camps:
-  - {area: hollow, name: slimes, at: [56, 70], radius: 5, mob: green_slime, max: 3, respawn: 5s}
+  - {area: hollow, name: slimes, at: [64, 80], radius: 5, mob: green_slime, max: 3, respawn: 5s}
 waypoints:
   - {id: hollow_mouth, name: Hollow Mouth, at: [40, 64]}
 gates:
@@ -80,10 +80,11 @@ func TestPlaceBelowRejections(t *testing.T) {
 			{"regions/vale.yaml", "  - {name: down, at: [100, 64], radius: 1.6, to: {region: hollow, gate: up}}\n", ""},
 		}, []string{file, "needs a gate up to vale"}},
 		{"a gate leading elsewhere", []edit{{file, "to: {region: vale, gate: down}", "to: {region: town, gate: to_vale}"}}, []string{file, "gate up leads to town", "lead up to vale"}},
-		{"a gate with no waypoint near", []edit{{file, "at: [40, 64]}", "at: [90, 64]}"}}, []string{file, "gate up has no waypoint within 20 m"}},
+		{"a gate with no waypoint near", []edit{{file, "at: [40, 64]}", "at: [60, 44]}"}}, []string{file, "gate up has no waypoint within 20 m"}}, // clear of the boss and camp, as a stone keeps
+		{"a camp by its waypoint's stone", []edit{{file, "name: slimes, at: [64, 80]", "name: slimes, at: [56, 70]"}}, []string{file, `camp "slimes"`, "within 12.09 m of waypoint hollow_mouth's stone at [40 64]", "keeps 20 m"}},
 		{"a town below", []edit{
 			{file, "levels: [1, 5], biome: cave, kind: hunting,\n     boss: {at: [80, 70], radius: 4, mob: slime_lord}}", "biome: cave, kind: town}"},
-			{file, "camps:\n  - {area: hollow, name: slimes, at: [56, 70], radius: 5, mob: green_slime, max: 3, respawn: 5s}\n", ""},
+			{file, "camps:\n  - {area: hollow, name: slimes, at: [64, 80], radius: 5, mob: green_slime, max: 3, respawn: 5s}\n", ""},
 		}, []string{file, "it has no town"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

@@ -446,5 +446,8 @@ func (c *conn) write(ctx context.Context, m Message) *CloseError {
 	if err := c.ws.Write(wctx, c.frame, b); err != nil {
 		return &CloseError{Code: CloseInternal, Reason: "write failed", Err: err}
 	}
+	if m.Written != nil {
+		m.Written()
+	}
 	return nil
 }

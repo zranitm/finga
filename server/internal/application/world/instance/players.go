@@ -83,6 +83,7 @@ type player struct {
 	questChanges map[string]model.QuestChange // this tick's, told at its end
 	toldHP       int                          // the HP and max HP the party last heard
 	toldMaxHP    int
+	toldAt       uint64            // the tick the party last heard of them
 	hpCarry      int               // regen's fractions, in thousandths of a point
 	toldEnergy   int               // the energy the client last heard, as of its ack; -1 until the first frame
 	spentAhead   []energySpend     // spends for presses past lastSeq, which the client still takes off itself
