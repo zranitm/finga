@@ -819,15 +819,17 @@ func (s *Service) Record(ctx context.Context, r model.Result) {
 		}
 	}
 	if mode.Rated {
+		grantsCtx, cancel := context.WithTimeout(ctx, recordFor) // one budget for the match's grants, however many wait on a wardrobe that's down
+		defer cancel()
 		for _, f := range fighters {
 			if !f.Character.IsZero() {
-				s.grantRanks(ctx, f)
+				s.grantRanks(grantsCtx, f)
 			}
 		}
 	}
 }
 
-// grantRanks gives the fighter's account the piece of each rank their shown rating reaches, once they're placed, and tells them of those new to it (outfits.md section 4); one lost to a failure comes with their next rated match's.
+// grantRanks gives the fighter's account the piece of each rank their shown rating reaches, once they're placed, and tells them of those new to it (outfits.md section 4), retrying till ctx ends; one lost to a failure comes with their next rated match's.
 func (s *Service) grantRanks(ctx context.Context, f model.Fighter) {
 	if f.After.Matches < s.rules.Rating.Placement {
 		return // placing: no rank yet
@@ -854,7 +856,7 @@ func (s *Service) grantRanks(ctx context.Context, f model.Fighter) {
 			return nil, backoff.Permanent(err)
 		}
 		return nil, err
-	}, backoff.WithMaxElapsedTime(recordFor))
+	}, backoff.WithMaxElapsedTime(0))
 	if err != nil {
 		s.d.Logger.ErrorContext(ctx, "a rank's piece wasn't granted; the next rated match grants it", "character_id", f.Character, "err", err)
 		return

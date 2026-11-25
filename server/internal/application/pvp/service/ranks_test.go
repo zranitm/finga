@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 	"testing/synctest"
+	"time"
 
 	"finga/internal/application/pvp/service"
 	model "finga/internal/model/pvp"
@@ -148,6 +149,31 @@ func TestALostGrantComesWithTheNextMatch(t *testing.T) {
 		duel(f, ayla, gold, true)
 		if got, _ := added(f, ayla); !slices.Equal(got, []model.RankPiece{{Piece: "helm_silver", Rank: "silver"}, {Piece: "helm_gold", Rank: "gold"}}) {
 			t.Fatalf("the next match told of %+v, want gold's piece", got)
+		}
+	})
+}
+
+// A match's grants share one budget: with the wardrobe down, a 3v3's players give up together within a minute, not a minute each, so Outcomes never waits long on them.
+func TestAMatchsGrantsShareOneBudget(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newFixture(t)
+		f.items.fail = 1 << 20
+		var side []model.Outcome
+		for range 3 {
+			id := kernel.NewCharacterID()
+			f.chars.of[id] = model.Character{Account: kernel.NewAccountID(), Class: "warrior"}
+			f.store.ratings[id] = placedAt(1260)
+			side = append(side, model.Outcome{Character: id})
+		}
+		start := time.Now()
+		f.svc.Record(context.Background(), model.Result{Match: kernel.NewMatchID(), Mode: "team", Winner: 1, Sides: [2][]model.Outcome{side, {{Tier: "novice"}, {Tier: "novice"}, {Tier: "novice"}}}})
+		if took := time.Since(start); took > time.Minute {
+			t.Fatalf("the grants took %v with the wardrobe down, want one minute's budget for the match", took)
+		}
+		for _, o := range side {
+			if got, _ := added(f, o.Character); len(got) != 0 {
+				t.Fatalf("told of %+v with the wardrobe down", got)
+			}
 		}
 	})
 }
