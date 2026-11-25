@@ -1,19 +1,21 @@
 // The wardrobe (outfits.md section 7): the character in 3D, wearing what's tried on, beside a grid of every piece in each slot; Wear sends the collected picks, Reset goes back to what's worn.
-import { useEffect, useRef, useState } from 'react';
-import type { PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/Button';
 import { BesidePointer } from '@/features/shared/BesidePointer';
+import { FigureView } from '@/features/shared/FigureView';
 import { WorldWindow } from '@/features/shared/WorldWindow';
 import { idempotencyKey } from '@/lib/id';
 import type { Point } from '@/lib/placement';
 import type { RestClient } from '@/net/rest';
 import type { GameSocket } from '@/net/socket';
-import { howToGet, pieces, piecesFor } from '@/progression/pieces';
+import { howToGet, pieceById, pieces, piecesFor } from '@/progression/pieces';
 import type { Piece, Slot } from '@/progression/pieces';
 import { character } from '@/state/character';
 import { samePicks, wardrobe } from '@/state/wardrobe';
 import type { Picks, Portrait } from '@/state/wardrobe';
+
+import { loadWardrobe } from './load';
 
 const TABS: readonly { readonly slot: Slot; readonly label: string }[] = [
   { slot: 'outfit', label: 'Outfit' },
@@ -22,7 +24,6 @@ const TABS: readonly { readonly slot: Slot; readonly label: string }[] = [
   { slot: 'weapon', label: 'Weapon' },
   { slot: 'wings', label: 'Wings' },
 ];
-const TURN_PER_PX = 0.01; // radians a pixel of drag turns the figure
 
 export interface WardrobeProps {
   readonly socket: Pick<GameSocket, 'request'>;
@@ -44,6 +45,24 @@ function wearable(look: Picks, worn: Picks, has: (id: string) => boolean): Picks
     wings: keep('wings'),
     headwear: head ? look.headwear : worn.headwear,
     hideHeadwear: head ? look.hideHeadwear : worn.hideHeadwear,
+  };
+}
+
+/** The piece the inventory's Preview handed the wardrobe, if any. */
+function handed(): Piece | undefined {
+  const id = wardrobe.getState().trying;
+  return id ? pieceById(id) : undefined;
+}
+
+/** look with piece tried on in its slot, a hat showing; look itself for none. */
+function tryOn(look: Picks, piece: Piece | undefined): Picks {
+  if (!piece) {
+    return look;
+  }
+  return {
+    ...look,
+    [piece.slot]: piece.id,
+    ...(piece.slot === 'headwear' && { hideHeadwear: false }),
   };
 }
 
@@ -94,40 +113,31 @@ export function Wardrobe({ socket, rest, figureIn, onClose }: WardrobeProps) {
   const cls = character.use((s) => s.character?.class ?? '');
   const worn = wardrobe.use((s) => s.worn);
   const collected = wardrobe.use((s) => s.collected);
-  const [tab, setTab] = useState<Slot>('outfit');
-  const [look, setLook] = useState<Picks>(worn);
+  const [tab, setTab] = useState<Slot>(() => (handed()?.slot as Slot | undefined) ?? 'outfit');
+  const [look, setLook] = useState<Picks>(() => tryOn(worn, handed()));
   const [hovered, setHovered] = useState<{ piece: Piece; at: Point } | null>(null);
   const [asking, setAsking] = useState(false);
   const [refused, setRefused] = useState<string | null>(null);
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const figure = useRef<Portrait | null>(null);
-  const dragged = useRef<number | null>(null);
+
+  useEffect(
+    () =>
+      loadWardrobe(rest, () =>
+        setRefused('Your wardrobe didn’t load. Close and open it to try again.'),
+      ),
+    [rest],
+  );
 
   useEffect(() => {
-    let on = true;
-    rest.getWardrobe().then(
-      (w) => on && wardrobe.getState().collect(w.pieces.map((p) => p.id)),
-      () => on && setRefused('Your wardrobe didn’t load. Close and open it to try again.'),
-    );
-    return () => {
-      on = false;
-    };
-  }, [rest]);
-
-  useEffect(() => {
-    const f = figureIn(canvas.current!);
-    figure.current = f;
-    return () => {
-      figure.current = null;
-      f.close();
-    };
-  }, [figureIn]);
-
-  useEffect(() => {
-    if (cls) {
-      figure.current?.show(cls, look);
-    }
-  }, [cls, look]);
+    wardrobe.getState().preview(null); // a piece handed as the window opened is tried on already
+    return wardrobe.subscribe(() => {
+      const piece = handed();
+      if (piece) {
+        setTab(piece.slot as Slot);
+        setLook((l) => tryOn(l, piece));
+        wardrobe.getState().preview(null);
+      }
+    });
+  }, []);
 
   const has = (id: string) => collected?.has(id) ?? false;
   const sends = wearable(look, worn, has);
@@ -145,12 +155,6 @@ export function Wardrobe({ socket, rest, figureIn, onClose }: WardrobeProps) {
         setRefused(err instanceof Error ? err.message : String(err));
       },
     );
-  };
-  const drag = (e: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (dragged.current !== null && e.buttons & 1) {
-      figure.current?.turn((e.clientX - dragged.current) * TURN_PER_PX);
-    }
-    dragged.current = e.buttons & 1 ? e.clientX : null;
   };
   const known = pieces.filter((p) => has(p.id)).length;
   const own =
@@ -178,16 +182,12 @@ export function Wardrobe({ socket, rest, figureIn, onClose }: WardrobeProps) {
   return (
     <WorldWindow name="wardrobe" title="Wardrobe" onClose={onClose} initialX={300} initialY={90}>
       <div className="wardrobe">
-        <canvas
-          ref={canvas}
+        <FigureView
+          figureIn={figureIn}
+          cls={cls}
+          look={look}
+          label="Your character, dressed as picked"
           className="wardrobe-figure"
-          aria-label="Your character, dressed as picked"
-          onPointerDown={(e) => {
-            e.currentTarget.setPointerCapture(e.pointerId); // the drag keeps turning off the canvas
-            drag(e);
-          }}
-          onPointerMove={drag}
-          onPointerUp={() => (dragged.current = null)}
         />
         <div className="wardrobe-side">
           <div className="inventory-tabs" role="tablist">
@@ -224,11 +224,7 @@ export function Wardrobe({ socket, rest, figureIn, onClose }: WardrobeProps) {
                 className={`wardrobe-tile stars-${p.stars} ${has(p.id) ? 'collected' : 'missing'}`}
                 data-piece={p.id}
                 aria-pressed={look[tab] === p.id}
-                onClick={() =>
-                  pick(
-                    tab === 'headwear' ? { headwear: p.id, hideHeadwear: false } : { [tab]: p.id },
-                  )
-                }
+                onClick={() => pick(tryOn(look, p))}
                 onMouseEnter={(e) => setHovered({ piece: p, at: { x: e.clientX, y: e.clientY } })}
                 onMouseMove={(e) => setHovered({ piece: p, at: { x: e.clientX, y: e.clientY } })}
                 onMouseLeave={() => setHovered(null)}

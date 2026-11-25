@@ -28,10 +28,21 @@ export function pieceById(id: string): Piece | undefined {
   return pieces.find((p) => p.id === id);
 }
 
+const ITEM = 'piece.'; // a piece's item is its id after this, as the server's loader names it
+
+/** The piece an item template holds, if it holds one. */
+export function pieceOfItem(template: string): Piece | undefined {
+  return template.startsWith(ITEM) ? pieceById(template.slice(ITEM.length)) : undefined;
+}
+
+/** Whether a character of class cls can wear piece: any but a weapon look of another kind. */
+export function wearableBy(piece: Piece, cls: string): boolean {
+  return piece.slot !== 'weapon' || piece.kind === classes.find((c) => c.id === cls)?.weapon;
+}
+
 /** The pieces of slot a character of class cls can wear, in the data's order: of a weapon look, those of its kind alone. */
 export function piecesFor(slot: Slot, cls: string): Piece[] {
-  const kind = classes.find((c) => c.id === cls)?.weapon;
-  return pieces.filter((p) => p.slot === slot && (slot !== 'weapon' || p.kind === kind));
+  return pieces.filter((p) => p.slot === slot && wearableBy(p, cls));
 }
 
 /** The rated modes' names, as a rank is reached in: "1v1 or 3v3". */

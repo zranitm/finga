@@ -39,8 +39,12 @@ export const samePicks = (a: Picks, b: Picks) =>
 export interface WardrobeState {
   readonly collected: ReadonlySet<string> | null; // null till the list first answers
   readonly worn: Picks;
+  readonly trying: string | null; // a piece the inventory's Preview hands the wardrobe to try on
   /** The account's pieces, in place of any before. */
   collect(ids: readonly string[]): void;
+  /** One piece more, as an add from the inventory answers; none before the list is in, which will hold it. */
+  add(id: string): void;
+  preview(id: string | null): void;
   /** The character's own frame wears look; the store keeps its picks alone. */
   wear(look: Picks): void;
   clear(): void;
@@ -49,8 +53,18 @@ export interface WardrobeState {
 export const wardrobe = defineStore<WardrobeState>((set, get) => ({
   collected: null,
   worn: OWN_LOOK,
+  trying: null,
   collect: (ids) => {
     set({ collected: new Set(ids) });
+  },
+  add: (id) => {
+    const had = get().collected;
+    if (had && !had.has(id)) {
+      set({ collected: new Set([...had, id]) });
+    }
+  },
+  preview: (id) => {
+    set({ trying: id });
   },
   wear: (look) => {
     if (!samePicks(get().worn, look)) {
@@ -59,6 +73,6 @@ export const wardrobe = defineStore<WardrobeState>((set, get) => ({
     }
   },
   clear: () => {
-    set({ collected: null, worn: OWN_LOOK });
+    set({ collected: null, worn: OWN_LOOK, trying: null });
   },
 }));

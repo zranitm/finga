@@ -34,6 +34,7 @@ import { loadSettings, watchPlaySettings } from '@/features/shared/settings';
 import { watchArenaBuild } from '@/features/skills/saveArenaBuild';
 import { watchSkillBar } from '@/features/skills/saveSkillBar';
 import { SkillWindow } from '@/features/skills/SkillWindow';
+import { loadWardrobe } from '@/features/wardrobe/load';
 import { Wardrobe } from '@/features/wardrobe/Wardrobe';
 import type { Character } from '@/net/rest';
 import { ERR, errorText } from '@/protocol/errors';
@@ -215,6 +216,8 @@ function WorldOverlay({
     return () => keepSaves(stop());
   }, [rest, me, keepSaves]);
   useEffect(() => (me === '' ? undefined : watchPvpProfile(rest, socket, me)), [rest, socket, me]);
+  // The pieces as a character enters, for the inventory's Add; one that fails leaves the server to refuse a piece added twice.
+  useEffect(() => (me === '' ? undefined : loadWardrobe(rest, () => undefined)), [rest, me]);
   useEffect(() => watchPlaySettings(rest, (text) => toasts.getState().push(text)), [rest]);
   // Any call a rate limit refused says so, whether its caller tells its own failures or keeps quiet.
   useEffect(
@@ -255,7 +258,11 @@ function WorldOverlay({
           <InventoryWindow socket={socket} onClose={() => ui.getState().closeWindow('inventory')} />
         )}
         {characterOpen && (
-          <CharacterWindow socket={socket} onClose={() => ui.getState().closeWindow('character')} />
+          <CharacterWindow
+            socket={socket}
+            figureIn={figureIn}
+            onClose={() => ui.getState().closeWindow('character')}
+          />
         )}
         {skillsOpen && (
           <SkillWindow socket={socket} onClose={() => ui.getState().closeWindow('skills')} />
