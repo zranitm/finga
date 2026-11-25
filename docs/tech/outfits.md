@@ -75,7 +75,7 @@ feats:
 - **Sources (`from`):**
   - `{boss, chance}`: the loader adds the piece's item to that boss's drop list, rolled on each eligible player's own roll as today.
   - `{rank}`: a rank id from `pvp.yaml`, other than `bronze`.
-  - `{quest}`: the quest's hand-in grants the piece. As built (4b-1), the loader adds the piece to that quest's rewards, with no boss or chance beside it, and a piece names a quest once.
+  - `{quest}`: the quest's hand-in grants the piece. As built (4b-1), the loader adds the piece to that quest's rewards. A quest source names no boss or chance itself, though the piece may have a boss source of its own as well (one a boss drops and a quest gives, as `bone_staff` above); a piece names a quest once.
   - `{feat}`: a feat below.
   - `vendor` and `gacha` come with their features.
 - **Feats:** `when` is one condition the server sees as it happens:
@@ -126,6 +126,7 @@ feats:
   - **Quests:** a hand-in's rewards gain `pieces`, granted in the hand-in's transaction.
   - **As built (4b-1):**
     - The world sends a quest's pieces with its hand-in. A quest that gives a piece and nothing else still goes through the item module.
+    - A piece with a boss source and a quest source both is a dropped item and the quest's grant: the boss drops `piece.<id>`, and the hand-in grants the piece outright.
     - The item module refuses the hand-in if a piece doesn't name that quest as a source. Otherwise it grants each piece to the account in the hand-in's transaction (cause `quest`, `cause_ref` the quest), as `GrantPieces` does. A hand-in refused for its items grants none.
     - The stored reply keeps the pieces new to the account, so a repeat, or the join that finishes a hand-in the world missed, tells of them again. Another character of the account handing the quest in finds them there and hears of none.
     - The world pushes `PiecesAdded` (cause `quest`) once the quest finishes.
