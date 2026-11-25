@@ -31,12 +31,16 @@ function windowCanvas(w = 200, h = 160): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   Object.defineProperty(canvas, 'clientWidth', { value: w });
   Object.defineProperty(canvas, 'clientHeight', { value: h });
-  vi.spyOn(canvas, 'getContext').mockReturnValue({
+  const asked = vi.spyOn(canvas, 'getContext').mockReturnValue({
     drawImage,
     clearRect: vi.fn(),
   } as unknown as CanvasRenderingContext2D);
+  contextAsks.set(canvas, () => asked.mock.calls.length);
   return canvas;
 }
+
+/** How often each window canvas's context was asked for. */
+const contextAsks = new Map<HTMLCanvasElement, () => number>();
 
 beforeEach(() => {
   engine = new NullEngine();
@@ -108,10 +112,10 @@ describe('portraits (outfits.md section 7)', () => {
     await shown(p);
     expect(roots().map((n) => n.name)).toEqual([KNIGHT]);
     p.close();
-    const asked = vi.mocked(canvas.getContext).mock.calls.length;
+    const asked = contextAsks.get(canvas)!();
     portraits.draw(16, 16);
     expect([renders.mock.calls.length, drawImage.mock.calls.length]).toEqual([0, 0]);
-    expect(vi.mocked(canvas.getContext).mock.calls.length).toBe(asked);
+    expect(contextAsks.get(canvas)!()).toBe(asked);
     expect(roots()).toEqual([]);
   });
 
