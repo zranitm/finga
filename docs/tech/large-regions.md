@@ -531,7 +531,10 @@ Built with step 1, which says who watches a cell.
     - A beam rises and is gone by 0.6 s.
     - A ring spreads 7 m on the ground.
     - Then the found look holds. No light column stays over a found stone.
-    - **When it plays:** the first time the crystal is on screen after the find. At the near zoom the whole stone shows only within about 9 m of the player, and finds come at 12 m, so a flare played at once would mostly go unseen. The notice comes at once. A stone not on screen within 10 s of its find just shows lit, with no flare.
+    - **When it plays:** the first time the crystal is on screen after the find. At the near zoom the whole stone shows only within about 9 m of the player, and finds come at 12 m, so a flare played at once would mostly go unseen. The notice comes at once, and the map views show it lit at once.
+      - Until its flare, the stone keeps its unfound look. The flare lights it.
+      - A stone not on screen within 10 s of its find turns lit then, with no flare.
+      - One stone flares at a time. A newer find takes the flare over: a stone still waiting turns lit with no flare, and one mid-flare jumps to lit.
 - **Finding:**
   - Each tick, a player's cell lists the waypoints near it.
   - Coming within 12 m of an unfound one stores it and sends `WaypointFound{id}`.
