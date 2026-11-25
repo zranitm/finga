@@ -431,6 +431,25 @@ These steps follow the regions' build (large-regions.md section 14).
          - drifting under a metre a second, and round the player as they go;
          - thinned to nothing as they wrap.
        - **A sea region in the world:** a sun from nearly overhead with shadows, caustics on its ground, its sky and fog, and rays round the player, drifting.
+   - **As built (4b, the sea props and their sway).**
+     - **The kit:** kit.yaml gains the seven props: `coral_brain`, `coral_branch`, `coral_fan`, `kelp`, `sea_grass`, `shell_conch` and `shell_scallop`.
+       - All are looks only, so none changes a rule. Step 6's layout may give a large coral a solid.
+       - A new model changes every bake's list of models, so every golden hash and the client's four bake fixtures moved with it.
+       - The test sea `shoal` scatters kelp, sea grass, branch coral and scallops on its floor.
+     - **The client's kit** draws each at scale 1, as it was made, standing on its origin. Kelp and sea grass are marked `sway`.
+     - **The sway** is in the vertex shader of the toon material, of each of its fade steps and of its ink alike, so the ink line bends with the plant.
+       - A vertex `h` over its base (its thin instance's origin) moves along the current, (0.94, 0, 0.34), by `0.12 × tall × (h / tall)² × sin(2π t / 5 s − 2π d / 9 m)`.
+       - `tall` is the model's height as placed, from its meshes' bounds times its scale. `d` is how far its base stands along the current.
+       - So its base stays put and its stem rises straight, bending most near its top. The top swings 12% of its height either way: 36 cm for the 3 m kelp, 6 cm for sea grass.
+       - Plants side by side across the current sway together. The wave runs along it at 1.8 m a second, so a bed sways as one.
+     - **A swaying prop's shadow doesn't sway:** the shadow map draws the mesh as it stands. Under the sea's overhead sun, a plant's shadow falls nearly under it. The stills judge it.
+     - **Tests:**
+       - **The vertex term, run block by block:**
+         - the base still, the top swinging sideways only, between 5% and 20% of the height;
+         - halfway up, at most a third of the top's swing, so it bends rather than leans;
+         - plants across the current together, 3 m along it out of step;
+         - the ink drawn where its body is, and nothing swaying unless asked.
+       - **`kitParts` on the real files:** kelp scaled 1.5 gets the sway in every fade step and its ink, by its 4.5 m as placed; coral gets none.
 5. **Sea mobs:**
    - their models picked with the user from previews;
    - their data and stats, with the balance harness.
