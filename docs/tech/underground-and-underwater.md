@@ -284,6 +284,27 @@ These steps follow the regions' build (large-regions.md section 14).
    - `under`, rock, halls and tunnels, torches and the kit's `light`, the light map and `light.bin`;
    - the loader's rules for a place below;
    - test plans for a cave and a sea, with golden hashes.
+   - **As built (step 1a): rock, carving and the loader.**
+     - **The plan:** `under`, `rock` and the `hall` and `tunnel` features. Torches, `light` and the light map come in 1b.
+     - **The kit** gains `cave_floor`, `cave_rock`, `sea_sand` and `sea_rock`. Their colours are provisional, set with the stills of steps 3 and 4. A new ground moves every palette index, so every golden hash and the client's two bake fixtures moved with it.
+     - **Carving:**
+       - The rock is raised after the ground's noise and before the other features.
+       - A sample's distance to a hall's polygon or a tunnel's line is offset by noise 8 m across, its own seed, scaled to ±`rough`.
+       - Past the line, the wall rises to the rock over 2 samples, as a cliff does. At 0.5 m that's 4.5 m over 1 m, far past walkable.
+     - **Colours:** rock and walls take `cave_rock`, as roads take `dirt`. "Darkened at the top" isn't a colour of its own: no torch sees a rock top, so the light map leaves it dark (step 3).
+     - **Nothing is scattered on the rock,** only on carved floor.
+     - **The generator refuses:**
+       - rock on any sky but `cave`;
+       - a hall or a tunnel with no rock;
+       - one whose walls would reach the ring: every point keeps half its width, `rough` and the wall's rise inside the ring's face;
+       - a cave plan when the kit has no `cave_rock`.
+     - **The loader:**
+       - the region above is `Map.Under`, not a `gamedata.Region` field;
+       - a place below is under a region on the land, has a gate, leads every gate up to that region with a waypoint within 20 m, and has no town;
+       - "one hunting area at least" follows, as every square inside the edge is in an area;
+       - `linkMaps` checks each gate leads back.
+     - **Not yet:** reachability, mob reach and calm from the gates, since no place below ships until step 6. The shipped regions' crossing test already starts from every gate.
+     - **Test plans:** `regiongen/testdata/cave.yaml` (0.5 m, three halls and two tunnels) and `sea.yaml` (a basin with two reefs), hashed with the others. A test checks the test cave's gate, waypoint, start, camp and boss stand on carved floor.
 2. **The server,** after regions step 6 (waypoints):
    - the paired channel at a gate below;
    - death, notices and chat inside, by tests;

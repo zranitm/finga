@@ -54,6 +54,9 @@ func (w *World) rejoinMatch(ctx context.Context, account kernel.AccountID, id ke
 	switch {
 	case errors.Is(err, instance.ErrSinkClosed):
 		return model.View{}, model.ErrBusy // held again through conn, as the presence says; the gateway joins on its next stream
+	case errors.Is(err, model.ErrStopped):
+		w.presences.forget(id, at.gen) // the match stopped since the read and holds nobody, so the plain join lands them where they came from
+		return model.View{}, model.ErrNotInMatch
 	case err != nil:
 		w.presences.place(id, older) // for the plain join to take off
 		return model.View{}, err

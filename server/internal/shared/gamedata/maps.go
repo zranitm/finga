@@ -103,6 +103,7 @@ type Map struct {
 	Areas              []Area                   // a region's, in its plan's order; none on a map
 	AreaGrid           regiongen.AreaGrid       // which of Areas holds each 4 m square of a region
 	Waypoints          []Waypoint               // a region's, ids unique across every region; every town area holds one
+	Under              string                   // a place below's region above, which its gates lead up to; empty on the land and on a map
 }
 
 // Circle is a round area: At and what's within Radius of it.

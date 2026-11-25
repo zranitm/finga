@@ -407,11 +407,11 @@ func (i *Instance) drain() {
 		case *joinMsg:
 			i.add(m)
 		case inputMsg:
-			if p, ok := i.players[m.id]; ok {
+			if p, ok := i.players[m.id]; ok && !i.away(m.id) {
 				p.pending = enqueueInput(p.pending, m, p.lastSeq)
 			}
 		case attackMsg:
-			if p, ok := i.players[m.id]; ok {
+			if p, ok := i.players[m.id]; ok && !i.away(m.id) {
 				p.attackQueued, p.attackAim, p.attackTarget = true, m.aim, m.target
 				p.pressed()
 			}
@@ -440,6 +440,10 @@ func (i *Instance) drain() {
 				i.chooseTrait(m)
 			}
 		case skillMsg:
+			if i.away(m.id) {
+				m.done <- ErrSinkClosed
+				break
+			}
 			if p, ok := i.players[m.id]; ok {
 				p.pressed()
 			}
