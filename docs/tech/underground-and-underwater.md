@@ -318,6 +318,7 @@ These steps follow the regions' build (large-regions.md section 14).
      - **Flames** are every prop of a model with a light, set pieces first, in the props' order. A flame's group is its index modulo 2.
      - **The light map** is sampled at texel centres, with distances across the ground. Its line of sight reads the ground's interpolated height.
      - **`light.bin`'s header** has a third field, 2, for the bytes in each texel, as every bake header carries three.
+     - **The server builds the light map too,** overriding the design's "only the bake writes it". The loader names a region's folder by the hash of every baked file, `light.bin` among them, and the map is cheap.
      - **`region.json`** has `under` (empty on the land) and `lights`, each `{at, y, group}`, `[]` without torches.
      - **The test cave** hangs torches every 10 m, and has one standing torch as a piece.
 2. **The server,** after regions step 6 (waypoints):
