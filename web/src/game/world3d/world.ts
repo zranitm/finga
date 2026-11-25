@@ -388,7 +388,14 @@ const GAITS = {
   ],
 } as const satisfies Record<Gait['pace'], readonly [Gait, Gait]>;
 
-/** Moves the zoom setting by d, held between close and far. */
+/** The note under a player's name: BOT for a bot, Reconnecting for a fighter whose place is held through a drop (pvp.md section 13), none otherwise. */
+function nameNote(bot: boolean, reconnecting: boolean): string {
+  if (bot) {
+    return 'BOT';
+  }
+  return reconnecting ? 'Reconnecting' : '';
+}
+
 /** How far to each side every frame brings bodies on a map sizeX by sizeZ: the block's side columns, from anywhere in the player's cell; null on a map one block holds from every cell, which the server sends whole (large-regions.md section 5). */
 function sideEdge(sizeX: number, sizeZ: number): number | null {
   const nx = Math.max(1, Math.ceil(sizeX / interest.cell));
@@ -397,6 +404,7 @@ function sideEdge(sizeX: number, sizeZ: number): number | null {
   return whole ? null : interest.side * interest.cell;
 }
 
+/** Moves the zoom setting by d, held between close and far. */
 function zoomBy(d: number): void {
   const s = settings.getState();
   s.setZoom(Math.min(1, Math.max(0, s.zoom + d)));
@@ -1308,7 +1316,7 @@ export class World {
         s.y + movement.height + NAME_LIFT_M,
         s.z,
         0,
-        info?.bot ? 'BOT' : away.has(id) ? 'Reconnecting' : '',
+        nameNote(info?.bot === true, away.has(id)),
       );
     }
     if (changed) {
