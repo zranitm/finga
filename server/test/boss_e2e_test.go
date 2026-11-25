@@ -12,13 +12,16 @@ import (
 	"finga/test/e2etest"
 )
 
-// quickBoss: one-hit mushrooms that bite 0.03 m out, and a still, weak boss paying 1001 EXP and a boar tusk, back 3 s after it falls.
+// bossBack is how long after it falls quickBoss's king is back: room for both boxes' takes and then Dee's join, seen at up to 4.2 s and 1 s on CI, before it stands on its boxes again.
+const bossBack = 10 * time.Second
+
+// quickBoss: one-hit mushrooms that bite 0.03 m out, and a still, weak boss paying 1001 EXP and a boar tusk, back bossBack after it falls.
 func quickBoss() []e2etest.DataEdit {
 	return []e2etest.DataEdit{
 		{File: "mobs.yaml", Old: "    name: Orange Mushroom\n    level: 4\n    hp: 72\n", New: "    name: Orange Mushroom\n    level: 4\n    hp: 1\n"},
 		{File: "mobs.yaml", Old: "    attacks: [{use: charge, status: {id: poison, time: 1s, power: 0.15}}]\n    look: {model: mushnub, tint: 0xe08a3c}\n", New: "    attacks: [{use: bite, reach: 0.03}]\n    look: {model: mushnub, tint: 0xe08a3c}\n"},
 		{File: "maps/forest.yaml", Old: "mob: orange_mushroom, max: 4, respawn: 36s}", New: "mob: orange_mushroom, max: 4, respawn: 1s}"},
-		{File: "mobs.yaml", Old: "  respawn: 5m #", New: "  respawn: 3s #"},
+		{File: "mobs.yaml", Old: "  respawn: 5m #", New: "  respawn: " + bossBack.String() + " #"},
 		{File: "mobs.yaml", Old: "    name: King Slime\n    boss: true\n    level: 6\n    hp: 4530\n    attack: 24\n", New: "    name: King Slime\n    boss: true\n    level: 6\n    hp: 40\n    attack: 1\n"},
 		{File: "mobs.yaml", Old: "    exp: 840\n    speed: 0.75\n", New: "    exp: 1001\n    speed: 0\n"},
 		{File: "mobs.yaml", Old: kingSlimeDrops, New: "      - {item: boar_tusk, chance: 1, min: 1, max: 1}\n"},
@@ -126,7 +129,7 @@ func TestFieldBoss(t *testing.T) {
 		return
 	}
 
-	// Ann and Ben beat it and take their boxes before it's back on them, 3 s on: a box lies at its feet, which a returned king covers out of reach.
+	// Ann and Ben beat it and take their boxes before it's back on them, bossBack on: a box lies at its feet, which a returned king covers out of reach.
 	fightBoss(t, boss, reach, 60*time.Second, []*e2etest.Looter{ann, ben}, ls)
 
 	if !t.Run("C10/a-party-beats-it-and-each-member-gets-their-share-and-their-own-drop", func(t *testing.T) {
@@ -135,8 +138,8 @@ func TestFieldBoss(t *testing.T) {
 			e2etest.Take(t, l, "the boss's ExpGained", &l.Exp, 5*time.Second, func(e *clientv1.ExpGained) bool { return e.GetAmount() == want })
 		}
 		for _, l := range []*e2etest.Looter{ann, ben} {
-			if g := l.BossesGone[0].Msg; g.GetMobId() != boss || g.GetType() != "king_slime" || g.GetBackInMs() != 3000 {
-				t.Fatalf("%s heard the boss gone as %+v; want the king, back in 3 s", l.ID, g)
+			if g := l.BossesGone[0].Msg; g.GetMobId() != boss || g.GetType() != "king_slime" || g.GetBackInMs() != bossBack.Milliseconds() {
+				t.Fatalf("%s heard the boss gone as %+v; want the king, back in %v", l.ID, g, bossBack)
 			}
 		}
 		// Each sees a box of their own holding a tusk, and none of the other's; each takes theirs. A pouch from a mushroom killed in the fight is no box, and isn't counted.
@@ -175,7 +178,7 @@ func TestFieldBoss(t *testing.T) {
 
 	t.Run("C10/a-player-joining-while-it-is-down-sees-its-time-back-and-it-is-back-to-the-tick", func(t *testing.T) {
 		fell := ann.BossesGone[0].Tick
-		back := fell + 3*uint64(ann.TickHz)
+		back := fell + uint64(bossBack/time.Second)*uint64(ann.TickHz)
 		joined := dee.Joined
 		hearing := []*e2etest.Looter{ann, ben}
 		if joined < back {
