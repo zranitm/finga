@@ -6,6 +6,8 @@ import { Constants } from '@babylonjs/core/Engines/constants';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import type { HighlightLayer } from '@babylonjs/core/Layers/highlightLayer';
 import { CascadedShadowGenerator } from '@babylonjs/core/Lights/Shadows/cascadedShadowGenerator';
+import type { TextureBlock } from '@babylonjs/core/Materials/Node/Blocks/Dual/textureBlock';
+import type { FragmentOutputBlock } from '@babylonjs/core/Materials/Node/Blocks/Fragment/fragmentOutputBlock';
 import type { InputBlock } from '@babylonjs/core/Materials/Node/Blocks/Input/inputBlock';
 import type { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
 import type { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
@@ -13,8 +15,9 @@ import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Frustum } from '@babylonjs/core/Maths/math.frustum';
 import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
-import type { Mesh } from '@babylonjs/core/Meshes/mesh';
+import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
+import { PrecisionDate } from '@babylonjs/core/Misc/precisionDate';
 import { Node } from '@babylonjs/core/node';
 import type { Scene } from '@babylonjs/core/scene';
 import { create } from '@bufbuild/protobuf';
@@ -73,7 +76,7 @@ import { ui } from '@/state/ui';
 import { FakeWebSocket } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
 import { mapJson, servePublic } from '@/testing/public-on-disk';
-import { TINY, tinyFile } from '@/testing/region-fixture';
+import { fixtureFile, HOLLOW, TINY, tinyFile } from '@/testing/region-fixture';
 import { resetStores } from '@/testing/reset-stores';
 import { builtShaders } from '@/testing/shaders';
 
@@ -93,11 +96,15 @@ import type { Figure } from './body';
 import { buildChunk } from './chunk-build';
 import { Figures } from './figures';
 import { CHEST_M } from './follow';
+import type * as Kit from './kit-models';
+import { TORCH_SCALE } from './kit-models';
 import { classLook, mobLook } from './looks';
 import type { ModelLook } from './looks';
 import { loadMap } from './map';
 import { bakeUrl } from './region-bake';
+import { GLOW_ORDER } from './see-through';
 import { Palette } from './toon';
+import { flicker } from './torchlight';
 import { World } from './world';
 
 const ME = 'c-ayla';
@@ -107,12 +114,17 @@ const NEAR_MAP_M = 1000; // the test maps' size, well inside the warm's distance
 const MODELS = path.resolve(process.cwd(), 'public/models');
 const WAIT = { timeout: 3000, interval: 5 }; // polled every 5 ms, not 50; 3 s for a build on a CI runner under coverage
 
-vi.mock('./kit-models', () => ({ kitModels: {} })); // every key a stand-in: place.test draws town and forest with the real kit models
+// Every key but the torches a stand-in: place.test draws town and forest with the real kit models, and a cave's torches stand by their flames here.
+vi.mock('./kit-models', async (actual) => {
+  const real = await actual<typeof Kit>();
+  const { torch_mounted, torch_lit } = real.kitModels;
+  return { ...real, kitModels: { torch_mounted, torch_lit } };
+});
 
-/** Hunting maps with no NPCs, served flat and bare for the tests no map's own layout bears on: FLAT, the two a map change goes to, one served as a region, the widest a block holds, and that with a tower. */
-const [FLAT, FLAT2, FLAT3, REGIONED, WIDE, TOWERED] = maps
+/** Hunting maps with no NPCs, served flat and bare for the tests no map's own layout bears on: FLAT, the two a map change goes to, one served as a region, the widest a block holds, that with a tower, and one served as a cave. */
+const [FLAT, FLAT2, FLAT3, REGIONED, WIDE, TOWERED, CAVED] = maps
   .filter((m) => m.kind === 'hunting' && npcsOn(m.id).length === 0)
-  .map((m) => m.id) as [string, string, string, string, string, string];
+  .map((m) => m.id) as [string, string, string, string, string, string, string];
 
 /** Map id flat and bare, 72 by 40 m. */
 function bare(id: string) {
@@ -162,6 +174,11 @@ function regioned(id: string) {
   };
 }
 
+/** Map id drawn from the hollow bake, a cave below tiny, as mapjson writes a region. */
+function caved(id: string) {
+  return { ...bare(id), sky: 'cave', geometry: undefined, portals: [], region: HOLLOW };
+}
+
 /** The tiny bake's region.json with a town area besides its field, Market Square: where the server says the player stands is all the client reads of it. */
 function townedTiny(): unknown {
   const j = JSON.parse(new TextDecoder().decode(tinyFile('region.json'))) as { areas: unknown[] };
@@ -209,6 +226,7 @@ const SERVED = {
   [FLAT2]: bare(FLAT2),
   [FLAT3]: bare(FLAT3),
   [REGIONED]: regioned(REGIONED),
+  [CAVED]: caved(CAVED),
   [`regions/${TINY.id}/${TINY.hash}/region.json`]: townedTiny(),
   [WIDE]: wide(WIDE),
   [TOWERED]: towered(TOWERED),
@@ -746,11 +764,136 @@ describe('World', () => {
     expect(held()).toEqual([null, [expect.anything()], []]);
   });
 
+  it('lights a cave region by its torches: no sun and so no sun shadows, its ground sampling the light map, a round shadow under each body', async () => {
+    const p = await playing(CAVED, 24, 64);
+    const scene = p.scene()!;
+    expect(scene.lights).toEqual([]);
+    p.frames(1);
+    await Promise.allSettled(chunkWork.builds);
+    await new Promise<void>((r) => setImmediate(r));
+    p.frames(2);
+    const chunks = scene.meshes.filter((m) => m.name.startsWith('chunk '));
+    expect(chunks).toHaveLength(4);
+    const map = (chunks[0]!.material as NodeMaterial).getBlockByName('lightMap') as TextureBlock;
+    expect(map.texture?.getSize()).toEqual({ width: 128, height: 128 });
+    expect(scene.clearColor.toHexString().slice(0, 7)).toBe('#000000');
+    const round = scene.getMeshByName('round shadows') as Mesh;
+    await vi.waitFor(() => {
+      p.frames(1);
+      expect(round.thinInstanceCount).toBe(1); // the player's own, once drawn
+    }, WAIT);
+    const robin = () => [standing(24, 64), standing(27, 64, 'c-robin', 'thief')];
+    p.push('delta', { players: robin() }, { tick: 2 });
+    p.frames(1);
+    expect(round.thinInstanceCount).toBe(1); // Robin's model still coming: no shadow under nothing
+    let tick = 3;
+    await vi.waitFor(() => {
+      p.push('delta', { players: robin() }, { tick: tick++ });
+      p.frames(1);
+      expect(round.thinInstanceCount).toBe(2); // and Robin's, 3 m off
+    }, WAIT);
+  });
+
+  it('draws a cave’s torches with their flames: each torch’s cup at its light, the flame unlit at its group’s flicker, a glow card behind it turned to the camera', async () => {
+    const { lights } = JSON.parse(
+      new TextDecoder().decode(fixtureFile('hollow', 'region.json')),
+    ) as {
+      lights: { at: [number, number]; y: number; group: number }[];
+    };
+    expect(new Set(lights.map((l) => l.group))).toEqual(new Set([0, 1]));
+    const buffers = new Map<string, Float32Array>(); // each mesh's instances, as last handed it
+    const set = Object.getOwnPropertyDescriptor(Mesh.prototype, 'thinInstanceSetBuffer')!
+      .value as Mesh['thinInstanceSetBuffer']; // the unspied one, to call through
+    vi.spyOn(Mesh.prototype, 'thinInstanceSetBuffer').mockImplementation(function (
+      this: Mesh,
+      ...args
+    ) {
+      buffers.set(this.name, args[1]!);
+      set.apply(this, args);
+    });
+    const p = await playing(CAVED, 24, 64);
+    const scene = p.scene()!;
+    p.frames(1);
+    await Promise.allSettled(chunkWork.builds);
+    await new Promise<void>((r) => setImmediate(r));
+    const torches = () =>
+      scene.meshes.filter(
+        (m): m is Mesh =>
+          m instanceof Mesh &&
+          /^torch_(mounted|lit) /.test(m.name) &&
+          m.hasThinInstances &&
+          !m.name.endsWith(' ink'),
+      );
+    const flame = () =>
+      scene.meshes.find((m): m is Mesh => m instanceof Mesh && m.name.startsWith('flame '));
+    await vi.waitFor(() => {
+      p.frames(1);
+      expect(torches().reduce((n, m) => n + m.thinInstanceCount, 0)).toBe(lights.length);
+      expect(flame()).toBeDefined();
+    }, WAIT);
+    const cups = torches()
+      .flatMap((m) => m.thinInstanceGetWorldMatrices().map((w) => w.getTranslation()))
+      .map((v) => [v.x, v.y, v.z]);
+    const close = (v: number): unknown => expect.closeTo(v, 4);
+    const byPlace = (a: number[], b: number[]) => a[0]! - b[0]! || a[2]! - b[2]!;
+    expect(cups.sort(byPlace)).toEqual(
+      lights
+        .map((l) => [l.at[0], l.y, l.at[1]])
+        .sort(byPlace)
+        .map((v) => v.map(close)),
+    ); // standing and mounted alike, raised to the flame kit.yaml gives it
+    const at = 12_345; // a moment, in ms since the page loaded
+    const now = vi.spyOn(PrecisionDate, 'Now', 'get').mockReturnValue(at);
+    p.frames(1);
+    now.mockRestore();
+    const seconds = (at - scene.getEngine().startTime) / 1000;
+    const eye = scene.activeCamera!.position;
+    const f = buffers.get(flame()!.name)!;
+    const c = buffers.get('glow cards')!;
+    expect([
+      flame()!.thinInstanceCount,
+      (scene.getMeshByName('glow cards') as Mesh).thinInstanceCount,
+    ]).toEqual([lights.length, lights.length]);
+    lights.forEach((l, i) => {
+      const o = 16 * i;
+      const s = TORCH_SCALE * flicker(l.group, seconds);
+      expect([f[o], f[o + 5], f[o + 10], f[o + 12], f[o + 13], f[o + 14]]).toEqual(
+        [s, s, s, l.at[0], l.y, l.at[1]].map(close),
+      );
+      const toEye = new Vector3(eye.x - l.at[0], 0, eye.z - l.at[1]).normalize();
+      const facing = new Vector3(c[o + 8], c[o + 9], c[o + 10]).normalize();
+      expect(Vector3.Dot(facing, toEye)).toBeCloseTo(1, 4); // turned to the camera
+      expect(
+        Vector3.Dot(new Vector3(c[o + 12]! - l.at[0], 0, c[o + 14]! - l.at[1]), toEye),
+      ).toBeLessThan(0); // and behind the flame from it
+    });
+    const unlit = flame()!.material as NodeMaterial;
+    expect([unlit.getBlockByName('lightMap'), unlit.getBlockByName('light')]).toEqual([null, null]);
+    const glow = scene.getMeshByName('glow cards')!.material as NodeMaterial;
+    expect([
+      glow.getBlockByName('fog') !== null, // faded into the cave's black with its flame
+      (glow.getBlockByName('fragmentOutput') as FragmentOutputBlock).convertToGammaSpace,
+    ]).toEqual([true, true]);
+    expect([
+      glow.alphaMode,
+      glow.needAlphaBlending(),
+      glow.disableDepthWrite,
+      scene.getMeshByName('glow cards')!.alphaIndex,
+    ]).toEqual([
+      Constants.ALPHA_ADD,
+      true,
+      true,
+      GLOW_ORDER, // before a fight's effects
+    ]);
+  });
+
   it('draws a map whose data names a region from that bake, streaming its chunks round the camera', async () => {
     const p = await playing(REGIONED, 30, 60);
     const scene = p.scene()!;
     expect(scene.transformNodes.some((n) => n.name === `region ${TINY.id}`)).toBe(true);
     expect(scene.transformNodes.some((n) => n.name.startsWith('place '))).toBe(false);
+    expect(scene.lights.map((l) => l.name)).toEqual(['sun']);
+    expect(scene.getMeshByName('round shadows')).toBeNull(); // the sun's shadows instead
     p.frames(1);
     await Promise.allSettled(chunkWork.builds);
     await new Promise<void>((r) => setImmediate(r));

@@ -150,7 +150,7 @@ describe("a map's ground", () => {
       waypoints: [],
       props: [],
       portals: [],
-      region: { ref: TINY, region, overview, ground, waypoints: [] },
+      region: { ref: TINY, region, overview, light: null, ground, waypoints: [] },
     };
     expect(mapGround(tiny)).toEqual({ kind: 'tiles', folder: bakeUrl(TINY, 'tiles') });
     expect(mapGround(map())).toEqual({ kind: 'image', url: '' }); // the test page draws none
