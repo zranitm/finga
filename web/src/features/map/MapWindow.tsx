@@ -59,7 +59,7 @@ const kindOf = (m: MapData) =>
 
 /** A label on This map, in pixels: its text centred on x, sitting on bottom. */
 export interface MapLabel extends TagBox {
-  readonly kind: 'spawn' | 'portal' | 'npc' | 'boss' | 'me';
+  readonly kind: 'spawn' | 'portal' | 'npc' | 'point' | 'boss' | 'me';
   readonly text: string;
 }
 
@@ -112,7 +112,7 @@ function within(members: Spawn[]): Spawn[][] {
   return [near, ...(far.length > 0 ? within(far) : [])];
 }
 
-/** This map's labels at scale pixels a metre. A spawn group's label sits on one of its own circles, nearest the group's middle first, stepped up or down inside the circle, wherever it's in LABEL_REACH_M of all the group's circles and covers no quest mark, waypoint mark or label before it; failing that, it's lifted. Portals and NPCs follow, each lifted clear of everything before it; then a beaten boss's, under its crown or over it, wherever it has BOSS_ROOM_PX round it, else lifted as the rest are; then the player's. */
+/** This map's labels at scale pixels a metre. A spawn group's label sits on one of its own circles, nearest the group's middle first, stepped up or down inside the circle, wherever it's in LABEL_REACH_M of all the group's circles and covers no quest mark, waypoint mark or label before it; failing that, it's lifted. Portals, NPCs and a battle's points follow, each lifted clear of everything before it; then a beaten boss's, under its crown or over it, wherever it has BOSS_ROOM_PX round it, else lifted as the rest are; then the player's. */
 export function mapLabels(
   map: MapData,
   me: Spot | null,
@@ -190,6 +190,7 @@ export function mapLabels(
       box('portal', `To ${nameOf(p.to)}`, p.x, y(p.z) - Math.max(p.radius * scale, 2 * DOT_PX) - 2),
     ),
     ...here.map((n) => box('npc', n.name, n.x, y(n.z) - DOT_PX - 2)),
+    ...map.points.map((p) => box('point', p.name, p.x, y(p.z) - p.radius * scale - 2)),
   ];
   const markBottoms = stackTags(placed, marks);
   const settled = marks.map((l, i) => ({ ...l, bottom: markBottoms[i]! }));

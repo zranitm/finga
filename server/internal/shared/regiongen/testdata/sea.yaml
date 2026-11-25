@@ -1,0 +1,31 @@
+# A sea floor below small (underground-and-underwater.md section 4): a region's ground in a basin of steep rock, reefs and ledges its plateaus, for the generator's tests and its golden hash.
+name: Test Sea
+under: small
+size: [256, 128]
+cell: 1
+seed: 31
+look: {sky: sea}
+ground: {noise: {scale: 70, amplitude: 2, octaves: 3}}
+edge: {width: 16, height: [6, 10], biome: reef_wall}
+colour: {slope: 0.25, high: 100}
+features:
+  - {plateau: {area: [[60, 30], [100, 34], [96, 60], [64, 56]], height: 2, edge: ramp}}
+  - {plateau: {area: [[150, 70], [200, 66], [204, 100], [156, 104]], height: 3, edge: cliff}}
+areas:
+  - {id: shallows, name: The Shallows, area: [[16, 16], [240, 16], [240, 112], [16, 112]], levels: [15, 19], biome: seabed, kind: hunting,
+     boss: {at: [130, 64], radius: 6, mob: anglerfish}}
+camps:
+  - {area: shallows, name: fish, at: [210, 40], radius: 8, mob: clownfish, max: 5, respawn: 10s}
+waypoints:
+  - {id: test_sea_dive, name: The Dive, at: [36, 64]}
+gates:
+  - {name: dive, at: [26, 64], radius: 1.6, to: {region: small, gate: east}}
+start: {at: [30, 64], yaw: 90}
+biomes:
+  seabed:
+    colours: {flat: sea_sand, slope: sea_sand, steep: sea_rock, high: sea_rock}
+    scatter:
+      - {model: rock_small, spacing: 9, away: {camp: 2, waypoint: 3}}
+      - {model: pebbles, spacing: 5}
+  reef_wall:
+    colours: {flat: sea_rock, slope: sea_rock, steep: sea_rock, high: sea_rock}

@@ -377,10 +377,10 @@ func river(bed float64) sim.Geometry {
 		return 0
 	})
 	t := &g.Terrain
-	t.DeepWater = make([]bool, t.NX*t.NZ)
+	t.Barrier = make([]bool, t.NX*t.NZ)
 	for iz := range t.NZ {
 		for ix := range t.NX {
-			t.DeepWater[iz*t.NX+ix] = in(float64(ix), float64(iz))
+			t.Barrier[iz*t.NX+ix] = in(float64(ix), float64(iz))
 		}
 	}
 	return g
@@ -533,7 +533,7 @@ func baked(name string) sim.Geometry {
 	if err != nil {
 		panic(err)
 	}
-	r, err := regiongen.Generate(p, k, params.MaxSlope)
+	r, err := regiongen.Generate(p, k, params)
 	if err != nil {
 		panic(err)
 	}
@@ -645,9 +645,9 @@ func replay(v vector) []sim.State {
 		p = p.Faster(v.SpeedFactor)
 	}
 	g := v.Geometry
-	deep := g.Terrain.DeepWater
+	deep := g.Terrain.Barrier
 	g.Terrain = sim.NewTerrain(g.Terrain.Cell, g.Terrain.NX, g.Terrain.NZ, g.Terrain.Heights, p.MaxSlope)
-	g.Terrain.DeepWater = deep
+	g.Terrain.Barrier = deep
 	g = sim.Indexed(g)        // as every map is; the TS replay reads them the same way
 	var blocking sim.Blockers // bucketed as the world buckets its mobs
 	blocking.Set(g.Blockers, g.SizeX, g.SizeZ)

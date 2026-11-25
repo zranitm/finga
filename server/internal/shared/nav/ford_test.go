@@ -62,7 +62,7 @@ func banks(t *testing.T, g sim.Geometry, p sim.Params, river *regiongen.River, a
 	side := func(sign float64) nav.Point {
 		for off := river.Width/2 + min(river.Width/4, 2) + 1; off < river.Width+12; off += 0.5 {
 			pt := nav.Point{X: at[0] + sign*off*nx, Z: at[1] + sign*off*nz}
-			if nav.FitsAt(g, p.Step, pt, p.Radius) && !g.Terrain.Deep(pt.X, pt.Z) {
+			if nav.FitsAt(g, p.Step, pt, p.Radius) && !g.Terrain.Barred(pt.X, pt.Z) {
 				return pt
 			}
 		}
@@ -198,7 +198,7 @@ func generated(t *testing.T, id string, plan regiongen.Plan, p sim.Params) (*reg
 	if b, ok := built[id]; ok {
 		return b.r, b.grid
 	}
-	r, err := regiongen.Generate(plan, shippedKit(t), p.MaxSlope)
+	r, err := regiongen.Generate(plan, shippedKit(t), p)
 	if err != nil {
 		t.Fatal(err)
 	}

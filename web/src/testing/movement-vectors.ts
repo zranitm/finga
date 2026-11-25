@@ -17,7 +17,7 @@ export interface Vector {
   readonly speed_factor?: number;
   readonly geometry?: Omit<Geometry, 'terrain'> & {
     readonly terrain: Pick<Terrain, 'cell' | 'nx' | 'nz' | 'heights'> & {
-      readonly deep_water?: readonly boolean[];
+      readonly barrier?: readonly boolean[];
     };
   };
   readonly start: State;
@@ -66,7 +66,7 @@ export function mapGround(v: Vector): Geometry {
     ...v.geometry!,
     terrain: {
       ...terrain(t.cell, t.nx, t.nz, t.heights, v.params.max_slope),
-      ...(t.deep_water && { deepWater: Uint8Array.from(t.deep_water, Number) }),
+      ...(t.barrier && { barrier: Uint8Array.from(t.barrier, Number) }),
     },
   });
 }

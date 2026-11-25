@@ -8,10 +8,10 @@ type Terrain struct {
 	NX      int       `json:"nx"`      // samples along x
 	NZ      int       `json:"nz"`      // samples along z
 	Heights []float64 `json:"heights"` // row by row from z = 0, each row from x = 0
-	// DeepWater is per sample, as Heights: under water too deep to wade; none on a map without water.
-	DeepWater []bool `json:"deep_water,omitempty"`
-	steepX    []bool // per cell: a rise across either of its x edges exceeds MaxSlope × Cell
-	steepZ    []bool // likewise across its z edges
+	// Barrier is per sample, as Heights: water too deep to wade, or a cave's rock; none on a map with neither.
+	Barrier []bool `json:"barrier,omitempty"`
+	steepX  []bool // per cell: a rise across either of its x edges exceeds MaxSlope × Cell
+	steepZ  []bool // likewise across its z edges
 }
 
 // NewTerrain is the grid with its steep marks for maxSlope, a rise per metre.
@@ -58,15 +58,15 @@ func (t Terrain) Top(x, z float64) float64 {
 	return max(t.Heights[i], t.Heights[i+1], t.Heights[i+t.NX], t.Heights[i+t.NX+1])
 }
 
-// Deep reports whether any sample of the cell holding (x, z) is under deep water, which no body moves into.
-func (t Terrain) Deep(x, z float64) bool {
-	if t.DeepWater == nil {
+// Barred reports whether any sample of the cell holding (x, z) is a barrier, which no body moves into from outside it.
+func (t Terrain) Barred(x, z float64) bool {
+	if t.Barrier == nil {
 		return false
 	}
 	ix, _ := t.at(x, t.NX)
 	iz, _ := t.at(z, t.NZ)
 	i := iz*t.NX + ix
-	return t.DeepWater[i] || t.DeepWater[i+1] || t.DeepWater[i+t.NX] || t.DeepWater[i+t.NX+1]
+	return t.Barrier[i] || t.Barrier[i+1] || t.Barrier[i+t.NX] || t.Barrier[i+t.NX+1]
 }
 
 // Steep reports whether the cell holding (x, z) is steep along x, or along z when alongZ.

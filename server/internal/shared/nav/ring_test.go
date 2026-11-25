@@ -36,7 +36,7 @@ func TestNoPlayerReachesARegionsRingOrDeepWater(t *testing.T) {
 					if ringDepth(plan, x, z) > 0 {
 						t.Fatalf("a player reaches (%g, %g), %g m into the ring", x, z, ringDepth(plan, x, z))
 					}
-					if m.Geometry.Terrain.Deep(x, z) {
+					if m.Geometry.Terrain.Barred(x, z) {
 						t.Fatalf("a player reaches (%g, %g), in deep water", x, z)
 					}
 				}
@@ -83,7 +83,7 @@ func TestNoMoveGetsOntoARegionsRing(t *testing.T) {
 		regions[id] = region{plan, m.Geometry}
 	}
 	flat := flatRegion()
-	r, err := regiongen.Generate(flat, kit, p.MaxSlope)
+	r, err := regiongen.Generate(flat, kit, p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +212,7 @@ func TestADeepRiverIsCrossedAtItsFord(t *testing.T) {
 	p := data.Movement()
 	plan := flatRegion()
 	plan.Features = []regiongen.Feature{{River: &regiongen.River{Path: [][2]float64{{64, 0}, {64, 128}}, Width: 6, Depth: 2, Fords: [][2]float64{{64, 40}}}}}
-	r, err := regiongen.Generate(plan, shippedKit(t), p.MaxSlope)
+	r, err := regiongen.Generate(plan, shippedKit(t), p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +232,7 @@ func TestADeepRiverIsCrossedAtItsFord(t *testing.T) {
 		t.Fatalf("a path out of the deep water: %v", out)
 	}
 	for _, at := range out {
-		if g.Terrain.Deep(at.X, at.Z) {
+		if g.Terrain.Barred(at.X, at.Z) {
 			t.Fatalf("a path out of the deep water goes by %v, in it", at)
 		}
 	}
@@ -243,7 +243,7 @@ func TestADeepRiverIsCrossedAtItsFord(t *testing.T) {
 	deep := 0
 	for z := 0.25; z < 128; z += 0.5 {
 		for x := 0.25; x < 128; x += 0.5 {
-			if g.Terrain.Deep(x, z) {
+			if g.Terrain.Barred(x, z) {
 				deep++
 				if got.Has(nav.Point{X: x, Z: z}) {
 					t.Fatalf("a player reaches (%g, %g), in deep water", x, z)

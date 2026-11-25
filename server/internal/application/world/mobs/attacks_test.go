@@ -245,9 +245,9 @@ func TestASpitFliesToItsTargetUnlessAWallStopsIt(t *testing.T) {
 // Deep water stops bodies, not shots (large-regions.md decision 9): a bat spits across a strip of it, standing where it is, and the ball lands on the far side.
 func TestASpitFliesOverDeepWater(t *testing.T) {
 	g := sim.Geometry{SizeX: 40, SizeZ: 40, Terrain: sim.NewTerrain(1, 41, 41, make([]float64, 41*41), 0.7), Boxes: []sim.Box{}, Cylinders: []sim.Cylinder{}}
-	g.Terrain.DeepWater = make([]bool, 41*41)
+	g.Terrain.Barrier = make([]bool, 41*41)
 	for x := range 41 {
-		g.Terrain.DeepWater[17*41+x] = true // cells from z 16 to 18
+		g.Terrain.Barrier[17*41+x] = true // cells from z 16 to 18
 	}
 	a := newArena(t, meadow(t, g, spawn("cave_bat", 1, 20, 20, 0.01)), worldtest.FixedRoll{V: 0.5})
 	v := a.Views()[0]

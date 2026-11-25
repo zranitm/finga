@@ -31,6 +31,28 @@ type Map struct {
 	PrepWall       *Wall         `json:"prep_wall,omitempty"` // a pvp map's, standing before each round
 	Region         *Region       `json:"region,omitempty"`    // a region's bake, which draws its ground, solids and props: it has no models
 	Waypoints      []Waypoint    `json:"waypoints,omitempty"` // a region's, which the map window marks
+	Battle         *Battle       `json:"battle,omitempty"`    // a battle map's sides and points
+}
+
+// Battle is a battle map's sides as the client reads them: each side's base, the cylinders each side's geometry gains as the server's Kept appends them after its own, the other side's base standing, and the capture points.
+type Battle struct {
+	Bases  [2]Circle         `json:"bases"`
+	Kept   [2][]sim.Cylinder `json:"kept"`
+	Points []CapturePoint    `json:"points"`
+}
+
+// Circle is a base's ground.
+type Circle struct {
+	At     [2]float64 `json:"at"`
+	Radius float64    `json:"radius"`
+}
+
+// CapturePoint is a battle's point, in the map's order, as MatchState's points are.
+type CapturePoint struct {
+	ID     string     `json:"id"`
+	Name   string     `json:"name"`
+	At     [2]float64 `json:"at"`
+	Radius float64    `json:"radius"`
 }
 
 // Waypoint is a region's waypoint as the client draws its stone and the map window marks it: the stone's spot and the ground's height there, and whether it's in the region's main town, open to a teleport unfound.
@@ -172,6 +194,17 @@ func build(dataDir, id string, p sim.Params) (Map, error) {
 			}
 		}
 		m.PrepWall = w
+	}
+	if len(f.Bases) == 2 {
+		b := &Battle{Points: []CapturePoint{}}
+		for s, base := range f.Bases {
+			b.Bases[s] = Circle{At: base.At, Radius: base.Radius}
+			b.Kept[s] = built.Kept[s].Cylinders[len(built.Geometry.Cylinders):]
+		}
+		for _, p := range f.Points {
+			b.Points = append(b.Points, CapturePoint{ID: p.ID, Name: p.Name, At: p.At, Radius: p.Radius})
+		}
+		m.Battle = b
 	}
 	for _, pr := range f.Props {
 		out := Prop{At: pr.At, Yaw: pr.Yaw, Model: pr.Model}

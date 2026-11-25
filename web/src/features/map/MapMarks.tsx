@@ -1,4 +1,4 @@
-// A map's ground and marks as SVG in metres, x east and y south from the map's north edge, shared by the minimap and the map window (map-views.md sections 5 and 6).
+// A map's ground and marks as SVG in metres, x east and y south from the map's north edge, shared by the minimap and the map window (map-views.md sections 5 and 6); on a battle's map its bases and points too (pvp.md section 13).
 import type { ReactNode } from 'react';
 
 import { useQuestPlayer } from '@/features/shared/useQuestPlayer';
@@ -7,9 +7,11 @@ import { npcs } from '@/gamedata/npcs';
 import { mobById } from '@/progression/mobs';
 import { MARKER_TEXT, markerFor } from '@/progression/quests';
 import type { Marker } from '@/progression/quests';
+import { character } from '@/state/character';
 import { fieldBoss } from '@/state/field-boss';
 import { mapView } from '@/state/map-view';
 import type { MapGround } from '@/state/map-view';
+import { pvp, sideOf } from '@/state/pvp';
 
 const SPAWN_DEFAULT = 0x9a9a9a; // an untinted mob's circle
 const CROWN = '-1,0.6 -1,-0.6 -0.5,0 0,-0.9 0.5,0 1,-0.6 1,0.6'; // a boss's mark, a unit round its middle
@@ -77,6 +79,11 @@ function Ground({
   return tiles;
 }
 
+type MapData = (typeof maps)[number];
+
+/** A battle's sides from the player's, as the match bar colours them: theirs, the other, and no one's. */
+const SIDE_COLOR = { ally: '#5fd35f', enemy: '#e04848', none: '#b8b8b8' } as const;
+
 /** The quest mark over each NPC on the map that shows one, kept current with the player's quests. */
 export function useNpcMarkers(mapId: string | null): ReadonlyMap<string, Marker> {
   const player = useQuestPlayer();
@@ -85,6 +92,62 @@ export function useNpcMarkers(mapId: string | null): ReadonlyMap<string, Marker>
       const marker = n.map === mapId ? markerFor(n, player) : null;
       return marker ? [[n.id, marker] as const] : [];
     }),
+  );
+}
+
+/** A battle map's bases and points: the player's base and points their side holds in their colour, the others' in the enemy's, the rest grey; a contested point's edge dashed. With no match, all grey. */
+function Battle({
+  map,
+  unit,
+  y,
+}: {
+  readonly map: MapData;
+  readonly unit: number;
+  readonly y: (z: number) => number;
+}) {
+  const match = pvp.use((s) => s.match);
+  const me = character.use((s) => s.character?.id ?? '');
+  const side = sideOf(match, me);
+  const held = new Map(match?.points.map((p) => [p.id, p] as const));
+  const ours = (s: number) => (side === 0 || s === 0 ? 'none' : s === side ? 'ally' : 'enemy');
+  return (
+    <g className="map-battle">
+      {map.bases.map((b, i) => {
+        const color = SIDE_COLOR[ours(i + 1)];
+        return (
+          <circle
+            key={`b${i}`}
+            className="map-base"
+            cx={b.x}
+            cy={y(b.z)}
+            r={b.radius}
+            fill={color}
+            fillOpacity={0.15}
+            stroke={color}
+            strokeWidth={2 * unit}
+          />
+        );
+      })}
+      {map.points.map((p) => {
+        const now = held.get(p.id);
+        const color = SIDE_COLOR[ours(now?.holder ?? 0)];
+        return (
+          <circle
+            key={p.id}
+            className="map-point"
+            data-point={p.id}
+            cx={p.x}
+            cy={y(p.z)}
+            r={p.radius}
+            fill={color}
+            fillOpacity={0.3}
+            stroke={color}
+            strokeWidth={2 * unit}
+            {...(now?.contested && { strokeDasharray: `${4 * unit} ${3 * unit}` })}
+          />
+        );
+      })}
+    </g>
   );
 }
 
@@ -189,6 +252,7 @@ export function MapMarks({
             </g>
           );
         })}
+      {map.points.length > 0 && <Battle map={map} unit={unit} y={y} />}
       {beaten && (
         <polygon
           className="map-boss map-boss-down"

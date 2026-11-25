@@ -222,4 +222,36 @@ describe('MatchResult', () => {
     expect(card).toHaveTextContent('Draw');
     expect(card).not.toHaveTextContent('Rating');
   });
+
+  it('a battle shows the scores from the player’s side, not rounds, and no rating', () => {
+    act(() =>
+      pvp.getState().applyMatchState(
+        create(MatchStateSchema, {
+          match: 'mt-2',
+          mode: 'battle',
+          phase: MatchPhase.RESULT,
+          score: [290, 312],
+          sides: [
+            { fighters: [{ id: 'b-1', name: 'Ash', bot: true }] },
+            { fighters: [{ id: 'c-ayla', name: 'Ayla' }] },
+          ],
+        }),
+        0,
+      ),
+    );
+    render(<MatchResult />);
+    act(() =>
+      pvp
+        .getState()
+        .applyMatchEnded(
+          create(MatchEndedSchema, { result: MatchOutcome.WIN, score: [290, 312], mode: 'battle' }),
+          'c-ayla',
+        ),
+    );
+    const card = screen.getByRole('dialog', { name: 'Match result' });
+    expect(card).toHaveTextContent('15v15');
+    expect(card).toHaveTextContent('Score 312 – 290');
+    expect(card).not.toHaveTextContent('Rounds');
+    expect(card).not.toHaveTextContent('Rating');
+  });
 });

@@ -32,6 +32,7 @@
   - Each region runs in channels of up to 150 players (B4).
   - A player joins the least busy channel, with their party if there's room.
   - A full region opens another channel. A spare one with no one in it closes.
+  - Names show over the 40 nearest other players, and over party members and the locked enemy wherever they stand. A mob's HP bar shows while it's locked or for 5 seconds after it last lost HP. The same holds on every map.
 - **Region chat:** the General tab reaches everyone in the same region and channel (E1).
 - **Dying** brings the player back at the nearest waypoint or town in the region, with the usual death penalty (C3).
 - **Building it:** regions are generated from a plan that names their areas, mountains, rivers, roads, towns and camps (World). Towns, ruins and landmarks are placed by hand on top.
