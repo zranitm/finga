@@ -11,6 +11,13 @@ export interface Picks {
   readonly hideHeadwear: boolean;
 }
 
+/** A character drawn in 3D into a canvas of its own, as the game draws one for a window: dressed in a class and picks, turned by a drag, drawn each frame till it's closed. */
+export interface Portrait {
+  show(cls: string, look: Picks): void;
+  turn(radians: number): void;
+  close(): void;
+}
+
 /** The class's own look in every slot, and no wings. */
 export const OWN_LOOK: Picks = {
   outfit: '',

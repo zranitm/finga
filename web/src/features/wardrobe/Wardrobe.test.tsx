@@ -99,6 +99,8 @@ describe('the wardrobe (outfits.md section 7)', () => {
       outfit: 'barbarian_furs',
     });
     expect([wear, reset].map((b) => (b as HTMLButtonElement).disabled)).toEqual([true, false]); // nothing collected to send
+    const note = 'Pieces you haven’t collected stay as worn.';
+    expect(screen.getByText(note)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: "Knight's Plate" }));
     await tab('Headwear');
     await user.click(screen.getByRole('button', { name: 'Hidden' }));
@@ -131,6 +133,7 @@ describe('the wardrobe (outfits.md section 7)', () => {
       hideHeadwear: true,
     });
     expect([wear, reset].map((b) => (b as HTMLButtonElement).disabled)).toEqual([true, true]);
+    expect(screen.queryByText(note)).toBeNull();
   });
 
   it('shows the server’s refusal', async () => {
@@ -177,7 +180,10 @@ describe('the wardrobe (outfits.md section 7)', () => {
     await screen.findByText('Collected 2 of 12');
     const canvas = screen.getByLabelText('Your character, dressed as picked');
     expect(props.figureIn).toHaveBeenCalledWith(canvas);
+    const capture = vi.fn();
+    canvas.setPointerCapture = capture; // jsdom has none
     fireEvent.pointerDown(canvas, { clientX: 100, buttons: 1 });
+    expect(capture).toHaveBeenCalledOnce();
     fireEvent.pointerMove(canvas, { clientX: 130, buttons: 1 });
     fireEvent.pointerMove(canvas, { clientX: 150, buttons: 0 }); // released outside: no turn
     expect(figure.turn).toHaveBeenCalledOnce();

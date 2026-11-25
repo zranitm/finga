@@ -66,7 +66,6 @@ export interface PvpStanding {
   readonly place: number;
 }
 
-/** A character's PvP profile: each rated mode, in pvp.yaml's order, and their arena build, the saved one or the world bar's copy. */
 /** The account's wardrobe (outfits.md section 4): its pieces, oldest first, each with what gave it and when. */
 export interface Wardrobe {
   readonly pieces: readonly {
@@ -77,6 +76,7 @@ export interface Wardrobe {
   }[];
 }
 
+/** A character's PvP profile: each rated mode, in pvp.yaml's order, and their arena build, the saved one or the world bar's copy. */
 export interface PvpProfile {
   readonly standings: readonly PvpStanding[];
   readonly build: ArenaBuild;

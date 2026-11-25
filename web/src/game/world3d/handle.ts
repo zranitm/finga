@@ -1,9 +1,10 @@
 // The 3D world behind the game's handle (3d-world.md section 10): Babylon loads only once a world is entered, and the map's messages are held from the moment it is.
 import type { GameSocket } from '@/net/socket';
 import { toasts } from '@/state/toasts';
+import type { Portrait } from '@/state/wardrobe';
 
 import { Arrival } from '../systems/arrival';
-import type { GameView, Portrait, WorldEntry } from '../view';
+import type { GameView, WorldEntry } from '../view';
 
 import type { Running } from './run';
 
