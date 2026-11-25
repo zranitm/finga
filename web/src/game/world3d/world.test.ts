@@ -756,7 +756,7 @@ describe('World', () => {
     const map = (chunks[0]!.material as NodeMaterial).getBlockByName('lightMap') as TextureBlock;
     expect(map.texture?.getSize()).toEqual({ width: 128, height: 128 });
     expect(scene.clearColor.toHexString().slice(0, 7)).toBe('#000000');
-    const round = scene.getMeshByName('round shadows')!;
+    const round = scene.getMeshByName('round shadows') as Mesh;
     await vi.waitFor(() => {
       p.frames(1);
       expect(round.thinInstanceCount).toBe(1); // the player's own, once drawn
