@@ -762,6 +762,19 @@ Built with step 1, which says who watches a cell.
 - **Long trips** follow the road graph to the camp's nearest waypoint, then nav near the camp. Once the waypoint is found, the bot teleports.
 - **Gates and region changes** replace portals.
 - **The soak:** `make bots BOTS=150 REGION=<id>` starts its bots in one region and reports what section 5's budget needs.
+- **As built (step 7, the bots):**
+  - **A hunting spot in a region** is one camp, not a circle round the region's prey.
+    - The camps are those of the bot's prey in every hunting area whose band holds its level, as bands may overlap. With none, they're those in the highest band under its level.
+    - The bot's index picks among them, so bots spread over a band's camps.
+    - An area's boss is never prey. Every area's boss circle is kept clear, up or not, since a bot hears only its own area's boss.
+  - **Long trips:**
+    - The bot teleports to the camp's nearest waypoint once it has found it, when that lands it 60 m nearer the camp than it stands. It holds still through the channel.
+    - A refused or cancelled teleport is left for 10 s.
+    - Otherwise it walks, finding waypoints on the way. The road graph waits for a region whose trips need it, as the test region's 256 m don't.
+  - **`REGION`:** the bots teleport into the region's main town and only hunt there: no quests, town visits or promotion. A map that isn't a region with a main town is refused.
+  - **Sign-ups** run no more password hashes at once than the gateway does (`account.password.concurrent`, 4, a test holds the two equal), and each call refused 429 or 503 is tried again after 0.5 s, doubling to 16 s. Started together, 150 bots would find the slots taken, and a refused bot gave up, so the soak would run short.
+  - **The report** says how many bots played of those asked for, and names any that never got in. It adds each bot's downstream kB/s, and its busiest whole second's, against the 40 kB/s budget, over the bots that played. It also counts the refusals coded `UNAVAILABLE`, which a full inbox answers with. Ticks were already keyed by map and channel.
+  - **The budget run** waits for a region near section 5's size, about 1 km with 400 mobs. The test region has about 25.
 
 ## 12. Rollout and the old maps
 
@@ -886,6 +899,7 @@ Built with step 1, which says who watches a cell.
      - In a region, This map crowns each area's boss: its spot from the generated map data, and its time back from a `bosses` query, asked for as This map shows, as the channels are.
 6. **Waypoints and teleport:** finding, storage, `Teleport{waypoint}`, and the map views' waypoints.
 7. **The soak:** cmd/bot on regions, and the budget run. `world.channels.cap` is set.
+   - As built: the bots (section 11). The budget run and the road graph wait for a full-sized region.
    - Hollow cut models (3d-world.md section 10) cost about 0.25 ms on a dense woods view. If regions run tight, the per-instance swap is the fix: only the instances an opening shows draw hollow.
 8. **The green region:** its design first, then its build.
    - When regions join the world chart, its party names say each member's channel ("Bo · Ch. 2"), in a picked map's list and under its node. 4b-3b left these two lists alone, as no region was charted.

@@ -21,7 +21,11 @@ import (
 func testWorld(t *testing.T) (*gamedata.Data, *world) {
 	t.Helper()
 	data := gamedatatest.Shipped(t)
-	return data, newWorld(data)
+	w, err := newWorld(data, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data, w
 }
 
 func class(t *testing.T, data *gamedata.Data, id string) gamedata.Class {
@@ -65,7 +69,7 @@ func TestAMobIsHuntedAtItsWidestSpawnAndALevelRoundItsMapsPrey(t *testing.T) {
 		level int
 		mapID string
 	}{{1, "forest"}, {4, "forest"}, {5, "forest"}, {10, "forest"}, {11, "cave"}, {20, "cave"}} {
-		s, ok := w.levelSpot(c.level)
+		s, ok := w.levelSpot(c.level, 0)
 		if !ok || s.mapID != c.mapID {
 			t.Errorf("level %d hunts on %q, want %s", c.level, s.mapID, c.mapID)
 			continue
@@ -163,23 +167,34 @@ func TestAFullTabGivesUpItsLastItemNoQuestCollects(t *testing.T) {
 	}
 }
 
-func TestTheTabFullCodesAreTheGatewaysOwn(t *testing.T) {
+// codeEntry is one of the gateway's codes, as testdata/errors/codes.json lists them.
+type codeEntry struct {
+	Code int32  `json:"code"`
+	Name string `json:"name"`
+}
+
+func gatewayCodes(t *testing.T) []codeEntry {
+	t.Helper()
 	raw, err := os.ReadFile("../../testdata/errors/codes.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	type entry struct {
-		Code int32  `json:"code"`
-		Name string `json:"name"`
-	}
-	var codes []entry
+	var codes []codeEntry
 	if err := json.Unmarshal(raw, &codes); err != nil {
 		t.Fatal(err)
 	}
+	return codes
+}
+
+func TestTheTabFullCodesAreTheGatewaysOwn(t *testing.T) {
+	codes := gatewayCodes(t)
 	for code, tab := range tabFull {
-		if want := strings.ToUpper(tab) + "_TAB_FULL"; !slices.Contains(codes, entry{code, want}) {
+		if want := strings.ToUpper(tab) + "_TAB_FULL"; !slices.Contains(codes, codeEntry{code, want}) {
 			t.Errorf("code %d is not the gateway's %s", code, want)
 		}
+	}
+	if !slices.Contains(codes, codeEntry{busyCode, "UNAVAILABLE"}) {
+		t.Errorf("code %d is not the gateway's UNAVAILABLE", busyCode)
 	}
 }
 
