@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"finga/internal/application/item"
 	"finga/internal/application/world"
 	model "finga/internal/model/gateway"
 	"finga/internal/shared/kernel"
@@ -117,6 +118,13 @@ func TestEveryWorldEventKeepsItsValues(t *testing.T) {
 			return eventDiff[world.PartySpots](t, model.PartySpots{}, m)
 		},
 		"WaypointFound": func() []string { return eventDiff[world.WaypointFound](t, model.WaypointFound{}, match()) },
+		"PiecesAdded": func() []string {
+			m := match()
+			m.Renames["Event.Pieces"] = "Delivery.Push.Pieces.ID"
+			m.Skip["Event.Cause"] = "each piece names it as the item module does: TestPiecesAddedNamesEachPieceAndItsCause"
+			m.Computed["Delivery.Push.Pieces.Cause"] = "the cause's name: TestPiecesAddedNamesEachPieceAndItsCause"
+			return eventDiff[world.PiecesAdded](t, model.PiecesAdded{}, m)
+		},
 		"AreaEntered": func() []string {
 			m := match()
 			with(m.Renames, map[string]string{"Event.FieldBoss.Mob": "Delivery.Push.FieldBoss.MobID", "Event.FieldBossGone.Mob": "Delivery.Push.FieldBossGone.MobID", "Event.FieldBossGone.BackIn": "Delivery.Push.FieldBossGone.BackInMs"})
@@ -458,6 +466,16 @@ func TestEachWorldEnumKeepsItsValue(t *testing.T) {
 		push, _ := worldPush(world.NpcDialog{Gives: []world.QuestOffer{{Quest: "q", State: state}}})
 		if gives := push.(model.NpcDialog).Gives; len(gives) != 1 || gives[0].State != want {
 			t.Errorf("offer state %d: %+v, want %d", state, push, want)
+		}
+	}
+}
+
+// A PiecesAdded tells of each piece with what gave it, by the item module's name for the cause; an unknown cause names none.
+func TestPiecesAddedNamesEachPieceAndItsCause(t *testing.T) {
+	for cause, want := range map[world.PieceCause]string{world.PieceFromQuest: item.PieceFromQuest, world.PieceCause(9): ""} {
+		push, ok := worldPush(world.PiecesAdded{Pieces: []string{"bronze_sword", "bronze_knife"}, Cause: cause})
+		if got, is := push.(model.PiecesAdded); !ok || !is || !reflect.DeepEqual(got.Pieces, []model.AddedPiece{{ID: "bronze_sword", Cause: want}, {ID: "bronze_knife", Cause: want}}) {
+			t.Errorf("cause %d: %+v", cause, push)
 		}
 	}
 }

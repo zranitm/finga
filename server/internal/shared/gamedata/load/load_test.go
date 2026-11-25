@@ -334,9 +334,10 @@ points:
 		"outfits.yaml": `
 pieces:
   - {id: lord_robe, slot: outfit, name: Lord's Robe, stars: 3, look: mage_body, from: [{boss: slime_lord, chance: 0.05}]}
-  - {id: lord_bow, slot: weapon, kind: crossbow, name: Lord's Bow, stars: 4, look: crossbow_1h, from: [{boss: slime_lord, chance: 0.02}]}
+  - {id: lord_bow, slot: weapon, kind: crossbow, name: Lord's Bow, stars: 4, look: crossbow_1h, from: [{boss: slime_lord, chance: 0.02}, {quest: gel_for_me}]}
   - {id: lord_wings, slot: wings, name: Lord's Wings, stars: 6, look: bat_wings, from: [{boss: slime_lord, chance: 0.01}]}
   - {id: silver_visor, slot: headwear, name: Silver Visor, stars: 3, look: knight_helmet, from: [{rank: silver}]}
+  - {id: drill_blade, slot: weapon, kind: one_handed, name: Drill Blade, stars: 2, look: sword_bronze, from: [{quest: warrior_drill}]}
 `,
 		"pvp.yaml": `
 modes:
@@ -425,7 +426,7 @@ func TestValidDataLoads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Run("each class's weapon kind, and the wardrobe's pieces, each a boss drops with an item on its drops, a rank's with none", func(t *testing.T) {
+	t.Run("each class's weapon kind, and the wardrobe's pieces, each a boss drops with an item on its drops, a rank's or a quest's alone with none, each a quest gives on its rewards", func(t *testing.T) {
 		for id, want := range map[kernel.Class]gamedata.WeaponKind{"beginner": gamedata.OneHanded, "warrior": gamedata.OneHanded, "bowman": gamedata.Crossbow} {
 			if c, _ := d.Class(id); c.Weapon != want {
 				t.Errorf("%s holds %q, want %q", id, c.Weapon, want)
@@ -433,9 +434,10 @@ func TestValidDataLoads(t *testing.T) {
 		}
 		want := []gamedata.Piece{
 			{ID: "lord_robe", Slot: gamedata.OutfitSlot, Name: "Lord's Robe", Stars: 3, Look: "mage_body", Item: "piece.lord_robe", From: []gamedata.PieceSource{{Boss: "slime_lord", Chance: 0.05}}},
-			{ID: "lord_bow", Slot: gamedata.WeaponSlot, Kind: gamedata.Crossbow, Name: "Lord's Bow", Stars: 4, Look: "crossbow_1h", Item: "piece.lord_bow", From: []gamedata.PieceSource{{Boss: "slime_lord", Chance: 0.02}}},
+			{ID: "lord_bow", Slot: gamedata.WeaponSlot, Kind: gamedata.Crossbow, Name: "Lord's Bow", Stars: 4, Look: "crossbow_1h", Item: "piece.lord_bow", From: []gamedata.PieceSource{{Boss: "slime_lord", Chance: 0.02}, {Quest: "gel_for_me"}}},
 			{ID: "lord_wings", Slot: gamedata.WingsSlot, Name: "Lord's Wings", Stars: 6, Look: "bat_wings", Item: "piece.lord_wings", From: []gamedata.PieceSource{{Boss: "slime_lord", Chance: 0.01}}},
 			{ID: "silver_visor", Slot: gamedata.HeadwearSlot, Name: "Silver Visor", Stars: 3, Look: "knight_helmet", From: []gamedata.PieceSource{{Rank: "silver"}}},
+			{ID: "drill_blade", Slot: gamedata.WeaponSlot, Kind: gamedata.OneHanded, Name: "Drill Blade", Stars: 2, Look: "sword_bronze", From: []gamedata.PieceSource{{Quest: "warrior_drill"}}},
 		}
 		if got := d.Pieces(); !reflect.DeepEqual(got, want) {
 			t.Fatalf("pieces %+v, want %+v", got, want)
@@ -454,6 +456,14 @@ func TestValidDataLoads(t *testing.T) {
 		}
 		if _, ok := d.Item("piece.silver_visor"); ok {
 			t.Fatal("a rank's piece has an item")
+		}
+		if _, ok := d.Item("piece.drill_blade"); ok {
+			t.Fatal("a quest's piece has an item")
+		}
+		for quest, want := range map[string][]string{"first_hunt": nil, "gel_for_me": {"lord_bow"}, "warrior_drill": {"drill_blade"}} {
+			if q, _ := d.Quest(quest); !slices.Equal(q.Rewards.Pieces, want) {
+				t.Errorf("%s gives pieces %v, want %v", quest, q.Rewards.Pieces, want)
+			}
 		}
 		it, _ := d.Item("piece.lord_robe")
 		if wantItem := (gamedata.Item{ID: "piece.lord_robe", Name: "Lord's Robe", Tab: gamedata.Etc, Stars: 3, Description: "Adds Lord's Robe to your wardrobe.", MaxStack: 100}); !reflect.DeepEqual(it, wantItem) {
@@ -862,7 +872,11 @@ func TestRejections(t *testing.T) {
 		{"a piece from nowhere", "outfits.yaml", "from: [{boss: slime_lord, chance: 0.05}]", "from: []", []string{"outfits.yaml", "lord_robe", "a source"}},
 		{"a piece from a mob that's no boss", "outfits.yaml", "boss: slime_lord, chance: 0.05", "boss: green_slime, chance: 0.05", []string{"outfits.yaml", "lord_robe", "green_slime"}},
 		{"a piece at a chance past one", "outfits.yaml", "chance: 0.05", "chance: 1.5", []string{"outfits.yaml", "lord_robe", "chance"}},
-		{"a source this build doesn't have", "outfits.yaml", "{boss: slime_lord, chance: 0.02}", "{quest: slime_hunt}", []string{"outfits.yaml", "quest"}},
+		{"a source this build doesn't have", "outfits.yaml", "{boss: slime_lord, chance: 0.02}", "{feat: level_10}", []string{"outfits.yaml", "feat"}},
+		{"a piece of a quest quests.yaml lacks", "outfits.yaml", "{quest: warrior_drill}", "{quest: slime_hunt}", []string{"outfits.yaml", "drill_blade", "slime_hunt"}},
+		{"a quest's piece at a chance", "outfits.yaml", "{quest: warrior_drill}", "{quest: warrior_drill, chance: 0.5}", []string{"outfits.yaml", "drill_blade", "outright"}},
+		{"a piece naming its quest twice", "outfits.yaml", "from: [{quest: warrior_drill}]", "from: [{quest: warrior_drill}, {quest: warrior_drill}]", []string{"outfits.yaml", "drill_blade", "twice"}},
+		{"a rank's source naming a quest too", "outfits.yaml", "{rank: silver}", "{rank: silver, quest: warrior_drill}", []string{"outfits.yaml", "silver_visor", "outright"}},
 		{"a piece of the first rank, which everyone has", "outfits.yaml", "{rank: silver}", "{rank: bronze}", []string{"outfits.yaml", "silver_visor", "above the first", "bronze"}},
 		{"a piece of a rank pvp.yaml lacks", "outfits.yaml", "{rank: silver}", "{rank: gold}", []string{"outfits.yaml", "silver_visor", "gold"}},
 		{"a rank's piece at a chance", "outfits.yaml", "{rank: silver}", "{rank: silver, chance: 0.5}", []string{"outfits.yaml", "silver_visor", "outright"}},

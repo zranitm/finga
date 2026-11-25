@@ -49,7 +49,7 @@ type handedInMsg struct {
 	caller     *player // the join that made the call, whose count of calls in flight it ends
 	quest      string
 	completion int // the TimesFinished it makes
-	result     model.Inventory
+	result     model.HandedIn
 	err        error
 	done       chan error
 }
@@ -169,7 +169,7 @@ func (i *Instance) handIn(p *player, npc gamedata.NPC, m questMsg) error {
 		return nil
 	}
 	take, give := quests.Items(i.data, q, i.between)
-	call := model.HandInCall{Account: p.Account, Character: p.ID, Quest: q.ID, Completion: completion, Take: take, Give: give}
+	call := model.HandInCall{Account: p.Account, Character: p.ID, Quest: q.ID, Completion: completion, Take: take, Give: give, Pieces: q.Rewards.Pieces}
 	submitted := i.deps.ItemCalls.Submit(func(ctx context.Context) {
 		result, err := i.callHandIn(ctx, call)
 		select {
@@ -189,13 +189,13 @@ func (i *Instance) handIn(p *player, npc gamedata.NPC, m questMsg) error {
 }
 
 // callHandIn tries the hand-in until the item module answers or refuses, or callFor passes; the log hears each try that failed and a hand-in given up.
-func (i *Instance) callHandIn(ctx context.Context, call model.HandInCall) (model.Inventory, error) {
+func (i *Instance) callHandIn(ctx context.Context, call model.HandInCall) (model.HandedIn, error) {
 	ctx, cancel := context.WithTimeoutCause(ctx, callFor, fmt.Errorf("%w: the item module didn't answer the hand-in in time", transient.ErrUnavailable))
 	defer cancel()
 	who := []any{"character_id", call.Character, "quest_id", call.Quest, "completion", call.Completion}
 	tries := 0
 	wait := &backoff.ExponentialBackOff{InitialInterval: handInRetryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: handInRetryMax}
-	result, err := backoff.Retry(ctx, func() (model.Inventory, error) {
+	result, err := backoff.Retry(ctx, func() (model.HandedIn, error) {
 		tries++
 		tryCtx, cancelTry := context.WithTimeout(ctx, handInTimeout)
 		defer cancelTry()
@@ -226,12 +226,14 @@ func (i *Instance) settleHandIn(m handedInMsg) {
 	case !ok:
 		m.done <- fmt.Errorf("%w: the character left the map before the hand-in applied; its next join finishes the quest", transient.ErrUnavailable)
 	default:
-		i.handedIn(p, model.HandedIn{Quest: m.quest, Completion: m.completion, Items: m.result})
+		h := m.result
+		h.Quest, h.Completion = m.quest, m.completion
+		i.handedIn(p, h)
 		m.done <- nil
 	}
 }
 
-// handedIn finishes a completion the item module handed in, unless the log has moved past it: a join's and a reply's for one completion finish it once.
+// handedIn finishes a completion the item module handed in, unless the log has moved past it: a join's and a reply's for one completion finish it once; the player hears of the pieces it gave.
 func (i *Instance) handedIn(p *player, h model.HandedIn) bool {
 	entry, ok := p.Quests[h.Quest]
 	q, known := i.data.Quest(h.Quest)
@@ -239,6 +241,9 @@ func (i *Instance) handedIn(p *player, h model.HandedIn) bool {
 		return false
 	}
 	i.finish(p, q, h.Completion, h.Items)
+	if len(h.Pieces) > 0 {
+		p.private = append(p.private, model.PiecesAdded{Tick: i.tick, Pieces: h.Pieces, Cause: model.PieceFromQuest})
+	}
 	return true
 }
 

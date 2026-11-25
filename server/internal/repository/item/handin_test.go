@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -312,4 +313,57 @@ func TestHandedIn(t *testing.T) {
 			t.Fatalf("err = %v", err)
 		}
 	})
+}
+
+// A hand-in grants its quest's pieces to the account in its transaction, each told of once: the stored reply names those new then, another character's hand-in finds them there, and a refused one grants none.
+func TestAHandInGrantsItsPieces(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	h := newHarness(t)
+	trial := func(a model.Actor, completion int, take []model.Grant, pieces ...string) (application.Result, error) {
+		return h.svc.HandIn(ctx, a, application.HandInInput{Quest: "warriors_trial", Completion: completion, Take: take, Pieces: pieces})
+	}
+	t.Run("the piece's entry, for the quest, with no item", func(t *testing.T) {
+		res, err := trial(h.actor, 1, nil, "bronze_sword")
+		if err != nil || !slices.Equal(res.Pieces, []string{"bronze_sword"}) {
+			t.Fatalf("pieces %v, err %v", res.Pieces, err)
+		}
+		if h.count(t, `SELECT count(*) FROM account_pieces WHERE piece_id = 'bronze_sword' AND cause_type = 'quest' AND cause_ref = 'warriors_trial' AND item_id IS NULL`) != 1 {
+			t.Fatal("no entry for the quest")
+		}
+	})
+	t.Run("a repeat gets the stored reply, the piece in it, and grants nothing more", func(t *testing.T) {
+		res, err := trial(h.actor, 1, nil, "bronze_sword")
+		if err != nil || !slices.Equal(res.Pieces, []string{"bronze_sword"}) || h.count(t, `SELECT count(*) FROM account_pieces`) != 1 {
+			t.Fatalf("pieces %v, err %v", res.Pieces, err)
+		}
+	})
+	t.Run("another character of the account finds it there", func(t *testing.T) {
+		alt := model.Actor{Account: h.actor.Account, Character: kernel.NewCharacterID()}
+		res, err := trial(alt, 1, nil, "bronze_sword")
+		if err != nil || len(res.Pieces) != 0 || h.count(t, `SELECT count(*) FROM account_pieces`) != 1 {
+			t.Fatalf("pieces %v, err %v", res.Pieces, err)
+		}
+	})
+	t.Run("a hand-in refused for its items grants no piece", func(t *testing.T) {
+		other := model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
+		if _, err := trial(other, 1, gel(5), "bronze_sword"); !errors.Is(err, model.ErrNotEnoughItems) {
+			t.Fatalf("err = %v", err)
+		}
+		if h.count(t, `SELECT count(*) FROM account_pieces WHERE account_id = $1`, uuid.UUID(other.Account)) != 0 {
+			t.Fatal("a refused hand-in granted its piece")
+		}
+	})
+	t.Run("a piece the quest doesn't give refuses the hand-in, which records nothing", func(t *testing.T) {
+		other := model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
+		for _, bad := range []string{"bronze_staff", "knight_plate", "no_such_piece"} {
+			if _, err := trial(other, 1, nil, "bronze_sword", bad); !errors.Is(err, model.ErrBadCause) {
+				t.Errorf("handing in with %s: err = %v", bad, err)
+			}
+		}
+		if h.count(t, `SELECT count(*) FROM account_pieces WHERE account_id = $1`, uuid.UUID(other.Account)) != 0 || h.count(t, `SELECT count(*) FROM quest_hand_ins WHERE character_id = $1`, uuid.UUID(other.Character)) != 0 {
+			t.Fatal("a refused hand-in granted or recorded")
+		}
+	})
+	checkInvariants(t, h.pool, h.data)
 }

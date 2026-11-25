@@ -32,9 +32,10 @@ type sourceYAML struct {
 	Boss   string  `yaml:"boss"`
 	Chance float64 `yaml:"chance"`
 	Rank   string  `yaml:"rank"`
+	Quest  string  `yaml:"quest"`
 }
 
-// loadOutfits reads the wardrobe's pieces, and gives each a boss drops its item and a place on that boss's drops (outfits.md section 3); a rank gives at most one.
+// loadOutfits reads the wardrobe's pieces, and gives each a boss drops its item and a place on that boss's drops, and each a quest gives a place on that quest's rewards (outfits.md section 3); a rank gives at most one.
 func (l *loader) loadOutfits(dir string) error {
 	var file outfitsYAML
 	if err := readYAML(dir, outfitsFile, &file); err != nil {
@@ -55,7 +56,7 @@ func (l *loader) loadOutfits(dir string) error {
 	return nil
 }
 
-// pieceOf checks raw and makes its piece; one a boss drops gets its item, added to items and to each such boss's drops.
+// pieceOf checks raw and makes its piece; one a quest gives joins that quest's rewards, and one a boss drops gets its item, added to items and to each such boss's drops.
 func (l *loader) pieceOf(raw pieceYAML, held map[gamedata.WeaponKind]bool, ranked map[string]string) (gamedata.Piece, error) {
 	p := gamedata.Piece{ID: raw.ID, Slot: gamedata.LookSlot(raw.Slot), Kind: gamedata.WeaponKind(raw.Kind), Name: raw.Name, Stars: raw.Stars, Look: raw.Look}
 	switch {
@@ -85,6 +86,13 @@ func (l *loader) pieceOf(raw pieceYAML, held map[gamedata.WeaponKind]bool, ranke
 			}
 			ranked[s.Rank] = p.ID
 		}
+		if s.Quest != "" {
+			q := &l.quests.list[l.quests.idx[s.Quest]]
+			if slices.Contains(q.Rewards.Pieces, p.ID) {
+				return p, fmt.Errorf("names quest %s twice", s.Quest)
+			}
+			q.Rewards.Pieces = append(q.Rewards.Pieces, p.ID)
+		}
 		p.From = append(p.From, s)
 	}
 	if !slices.ContainsFunc(p.From, func(s gamedata.PieceSource) bool { return s.Boss != "" }) {
@@ -105,21 +113,30 @@ func (l *loader) pieceOf(raw pieceYAML, held map[gamedata.WeaponKind]bool, ranke
 	return p, nil
 }
 
-// sourceOf checks one of a piece's sources: a field boss at a chance in (0, 1], or a rank of pvp.yaml above the first, which everyone has.
+// sourceOf checks one of a piece's sources: a field boss at a chance in (0, 1], a rank of pvp.yaml above the first, which everyone has, or a quest of quests.yaml.
 func (l *loader) sourceOf(src sourceYAML) (gamedata.PieceSource, error) {
-	s := gamedata.PieceSource{Boss: src.Boss, Chance: src.Chance, Rank: src.Rank}
-	if src.Rank != "" {
-		if src.Boss != "" || src.Chance != 0 {
-			return s, fmt.Errorf("from rank %s: a rank gives its piece outright, with no boss or chance", src.Rank)
+	s := gamedata.PieceSource{Boss: src.Boss, Chance: src.Chance, Rank: src.Rank, Quest: src.Quest}
+	switch {
+	case src.Rank != "":
+		if src.Boss != "" || src.Chance != 0 || src.Quest != "" {
+			return s, fmt.Errorf("from rank %s: a rank gives its piece outright, with no boss, chance or quest", src.Rank)
 		}
 		if i := slices.IndexFunc(l.pvp.Ranks, func(r gamedata.Rank) bool { return r.ID == src.Rank }); i < 1 {
 			return s, fmt.Errorf("a rank source names a rank of %s above the first, got %q", pvpFile, src.Rank)
 		}
 		return s, nil
+	case src.Quest != "":
+		if src.Boss != "" || src.Chance != 0 {
+			return s, fmt.Errorf("from quest %s: a hand-in gives its piece outright, with no boss or chance", src.Quest)
+		}
+		if !l.quests.has(src.Quest) {
+			return s, fmt.Errorf("a quest source names a quest of %s, got %q", questsFile, src.Quest)
+		}
+		return s, nil
 	}
 	boss, ok := l.mobs.get(src.Boss)
 	if !ok || !boss.Boss {
-		return s, fmt.Errorf("a source names a field boss or a rank, got %q", src.Boss)
+		return s, fmt.Errorf("a source names a field boss, a rank or a quest, got %q", src.Boss)
 	}
 	if !(src.Chance > 0 && src.Chance <= 1) {
 		return s, fmt.Errorf("from %s: chance must be in (0, 1], got %v", src.Boss, src.Chance)

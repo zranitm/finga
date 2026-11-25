@@ -76,24 +76,30 @@ describe('the outfit pieces as the client draws them', () => {
     }
   });
 
-  it('writes each colourway as its file’s atlas at 128 px with its own swatches recoloured and nothing else, skin least of all', async () => {
-    for (const [key, c] of Object.entries(COLOURWAYS)) {
-      const source = (await read(SRC, c.file)).getRoot().listTextures()[0]!.getImage()!;
-      const atlas = await raw(source);
+  /** Each source file's atlas, decoded once for all its colourways. */
+  const sources = new Map<string, Promise<Raw>>();
+  const sourceAtlas = (file: string): Promise<Raw> => {
+    let atlas = sources.get(file);
+    if (!atlas) {
+      atlas = read(SRC, file).then((doc) => raw(doc.getRoot().listTextures()[0]!.getImage()!));
+      sources.set(file, atlas);
+    }
+    return atlas;
+  };
+
+  it.each(Object.entries(COLOURWAYS))(
+    'writes colourway %s as its file’s atlas at 128 px with its own swatches recoloured and nothing else, skin least of all',
+    async (key, c) => {
+      const atlas = await sourceAtlas(c.file);
       const shipped = await raw(readFileSync(path.join(OUT, colourwayFile(key))));
-      expect([shipped.width, shipped.height], key).toEqual([128, 128]);
+      expect([shipped.width, shipped.height]).toEqual([128, 128]);
       const plain = shrink(atlas, 128);
       const changed = changedSwatches(plain, shipped);
-      expect([...changed].sort(), key).toEqual(Object.keys(c.swatches).sort());
-      expect(
-        [...skinSwatches(atlas)].filter((s) => changed.has(s)),
-        key,
-      ).toEqual([]);
-      expect(changedSwatches(shrink(recolour(atlas, c.swatches), 128), shipped), key).toEqual(
-        new Set(),
-      ); // as the script writes it today
-    }
-  });
+      expect([...changed].sort()).toEqual(Object.keys(c.swatches).sort());
+      expect([...skinSwatches(atlas)].filter((s) => changed.has(s))).toEqual([]);
+      expect(changedSwatches(shrink(recolour(atlas, c.swatches), 128), shipped)).toEqual(new Set()); // as the script writes it today
+    },
+  );
 });
 
 describe('a KayKit atlas', () => {

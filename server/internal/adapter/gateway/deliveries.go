@@ -3,6 +3,7 @@ package gateway
 import (
 	"time"
 
+	"finga/internal/application/item"
 	"finga/internal/application/world"
 	model "finga/internal/model/gateway"
 	"finga/internal/shared/kernel"
@@ -72,6 +73,12 @@ func worldPush(e world.Event) (model.Push, bool) {
 		return model.AreaEntered{Area: ev.Area, FieldBoss: up, FieldBossGone: down}, true
 	case world.WaypointFound:
 		return model.WaypointFound{Waypoint: ev.Waypoint}, true
+	case world.PiecesAdded:
+		pieces := make([]model.AddedPiece, 0, len(ev.Pieces))
+		for _, p := range ev.Pieces {
+			pieces = append(pieces, model.AddedPiece{ID: p, Cause: pieceCauses[ev.Cause]})
+		}
+		return model.PiecesAdded{Pieces: pieces}, true
 	case world.LevelUp:
 		return model.LevelUp{Character: leveledView(ev)}, true
 	case world.Promoted:
@@ -141,7 +148,7 @@ func bossGone(b world.FieldBossGone) model.FieldBossGone {
 	return model.FieldBossGone{MobID: b.Mob, Type: b.Type, BackInMs: b.BackIn.Milliseconds()}
 }
 
-// lootKinds, pouchKinds, questChanges, questStatuses, offerStates, conditionKinds, mobPoses and teleportCancels are the world's enums as the gateway's; an unknown value is the zero one.
+// lootKinds, pouchKinds, questChanges, questStatuses, offerStates, conditionKinds, mobPoses, teleportCancels and pieceCauses are the world's enums as the gateway's; an unknown value is the zero one.
 var (
 	lootKinds = map[world.LootKind]model.LootKind{
 		world.LootTaken: model.LootTaken,
@@ -184,6 +191,9 @@ var (
 		world.TeleportActed: model.TeleportActed,
 		world.TeleportHit:   model.TeleportHit,
 		world.TeleportDied:  model.TeleportDied,
+	}
+	pieceCauses = map[world.PieceCause]string{
+		world.PieceFromQuest: item.PieceFromQuest,
 	}
 )
 

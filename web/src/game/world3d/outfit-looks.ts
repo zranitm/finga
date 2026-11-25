@@ -100,6 +100,16 @@ export const PIECE_LOOKS: Readonly<Record<string, PieceLook>> = {
   two_handed_axe: { slot: 'weapon', file: BARBARIAN, meshes: ['2H_Axe'] },
   wand: { slot: 'weapon', file: MAGE, meshes: ['1H_Wand'] },
   crossbow_1h: { slot: 'weapon', file: ROGUE, meshes: ['1H_Crossbow'] },
+  // Stand-ins for the trials' pieces till the catalogue is designed: each class's own weapon in bronze.
+  sword_bronze: { slot: 'weapon', file: KNIGHT, meshes: ['1H_Sword'], colourway: 'knight_bronze' },
+  knife_bronze: { slot: 'weapon', file: ROGUE, meshes: ['Knife'], colourway: 'rogue_bronze' },
+  crossbow_bronze: {
+    slot: 'weapon',
+    file: ROGUE,
+    meshes: ['2H_Crossbow'],
+    colourway: 'rogue_bronze',
+  },
+  staff_bronze: { slot: 'weapon', file: MAGE, meshes: ['2H_Staff'], colourway: 'mage_bronze' },
 };
 
 export const COLOURWAYS: Readonly<Record<string, Colourway>> = {
@@ -111,4 +121,8 @@ export const COLOURWAYS: Readonly<Record<string, Colourway>> = {
     file: KNIGHT,
     swatches: { '3,0': 0xeaf2f6, '7,0': 0xb4c8d6, '0,1': 0x5b6fc8 },
   },
+  // Stand-ins for the trials' pieces: the weapons' steel, swatches 2,1 and 3,1, in bronze.
+  knight_bronze: { file: KNIGHT, swatches: { '3,1': 0xb07a3c } },
+  rogue_bronze: { file: ROGUE, swatches: { '2,1': 0xb07a3c, '3,1': 0xb07a3c } },
+  mage_bronze: { file: MAGE, swatches: { '3,1': 0xb07a3c } },
 };

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -261,12 +262,13 @@ func TestEquipmentUsesAnItemAndSaysWhetherItReplayed(t *testing.T) {
 
 func TestHandInSendsTheQuestsLinesAndReadsWhatChanged(t *testing.T) {
 	gel := kernel.NewItemID()
-	f := &itemFake{result: item.Result{Revision: 9, Changed: []item.Slot{{Tab: gamedata.Etc, Slot: 0}, {Tab: gamedata.Etc, Slot: 1, Item: &item.Item{ID: gel, TemplateID: "slime_gel", Quantity: 3}}}}}
+	f := &itemFake{result: item.Result{Revision: 9, Changed: []item.Slot{{Tab: gamedata.Etc, Slot: 0}, {Tab: gamedata.Etc, Slot: 1, Item: &item.Item{ID: gel, TemplateID: "slime_gel", Quantity: 3}}}, Pieces: []string{"bronze_sword"}}}
 	roll := &progression.ItemStats{PhysicalDefense: 3}
 	call := model.HandInCall{
 		Account: kernel.NewAccountID(), Character: kernel.NewCharacterID(), Quest: "bounty", Completion: 2,
-		Take: []gamedata.Grant{{Item: "slime_gel", Quantity: 2}},
-		Give: []model.Reward{{Template: "leather_cap", Quantity: 1, Stats: roll}, {Template: "red_potion", Quantity: 3}},
+		Take:   []gamedata.Grant{{Item: "slime_gel", Quantity: 2}},
+		Give:   []model.Reward{{Template: "leather_cap", Quantity: 1, Stats: roll}, {Template: "red_potion", Quantity: 3}},
+		Pieces: []string{"bronze_sword", "bronze_knife"},
 	}
 	got, err := adapter.NewEquipment(f).HandIn(t.Context(), call)
 	if err != nil {
@@ -274,13 +276,17 @@ func TestHandInSendsTheQuestsLinesAndReadsWhatChanged(t *testing.T) {
 	}
 	want := item.HandInRequest{
 		Quest: "bounty", Completion: 2, Take: call.Take,
-		Give: []item.Give{{TemplateID: "leather_cap", Quantity: 1, Stats: roll}, {TemplateID: "red_potion", Quantity: 3}},
+		Give:   []item.Give{{TemplateID: "leather_cap", Quantity: 1, Stats: roll}, {TemplateID: "red_potion", Quantity: 3}},
+		Pieces: call.Pieces,
 	}
 	if len(f.handIns) != 1 || !reflect.DeepEqual(f.handIns[0], want) || f.actors[0] != (item.Actor{Account: call.Account, Character: call.Character}) {
 		t.Fatalf("sent %+v", f.handIns)
 	}
-	if got.Revision != 9 || len(got.Slots) != 2 || got.Slots[0].Item != nil || got.Slots[1].Item.ID != gel || got.Slots[1].Item.Quantity != 3 {
+	if inv := got.Items; got.Quest != "bounty" || got.Completion != 2 || inv.Revision != 9 || len(inv.Slots) != 2 || inv.Slots[0].Item != nil || inv.Slots[1].Item.ID != gel || inv.Slots[1].Item.Quantity != 3 {
 		t.Fatalf("got %+v", got)
+	}
+	if !slices.Equal(got.Pieces, []string{"bronze_sword"}) {
+		t.Fatalf("the pieces new to the account: %v", got.Pieces)
 	}
 }
 
@@ -301,7 +307,7 @@ func TestGiveAddsOneItemUnderTheGiftsKey(t *testing.T) {
 func TestHandedInAsksEachCompletionAndReadsWhatChanged(t *testing.T) {
 	gel := kernel.NewItemID()
 	f := &itemFake{handedIn: func(asked []item.Completion) []item.HandedIn {
-		return []item.HandedIn{{Quest: asked[0].Quest, Completion: asked[0].Completion, Result: item.Result{Revision: 9, Changed: []item.Slot{{Tab: gamedata.Etc, Slot: 1, Item: &item.Item{ID: gel, TemplateID: "slime_gel", Quantity: 3}}}}}}
+		return []item.HandedIn{{Quest: asked[0].Quest, Completion: asked[0].Completion, Result: item.Result{Revision: 9, Changed: []item.Slot{{Tab: gamedata.Etc, Slot: 1, Item: &item.Item{ID: gel, TemplateID: "slime_gel", Quantity: 3}}}, Pieces: []string{"bronze_sword"}}}}
 	}}
 	id := kernel.NewCharacterID()
 	got, err := adapter.NewEquipment(f).HandedIn(t.Context(), id, []model.Completion{{Quest: "bounty", Completion: 2}, {Quest: "errand", Completion: 1}})
@@ -311,7 +317,7 @@ func TestHandedInAsksEachCompletionAndReadsWhatChanged(t *testing.T) {
 	if !reflect.DeepEqual(f.lookups, [][]item.Completion{{{Quest: "bounty", Completion: 2}, {Quest: "errand", Completion: 1}}}) || f.owners[0] != id {
 		t.Fatalf("asked %+v of %v", f.lookups, f.owners)
 	}
-	want := []model.HandedIn{{Quest: "bounty", Completion: 2, Items: model.Inventory{Revision: 9, Slots: []model.Slot{{Tab: gamedata.Etc, Slot: 1, Item: &model.SlotItem{ID: gel, Template: "slime_gel", Quantity: 3}}}}}}
+	want := []model.HandedIn{{Quest: "bounty", Completion: 2, Items: model.Inventory{Revision: 9, Slots: []model.Slot{{Tab: gamedata.Etc, Slot: 1, Item: &model.SlotItem{ID: gel, Template: "slime_gel", Quantity: 3}}}}, Pieces: []string{"bronze_sword"}}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v", got)
 	}
@@ -458,7 +464,7 @@ func TestEachItemCallKeepsItsFields(t *testing.T) {
 			})
 		},
 		"HandIn": func() []string {
-			m := copytest.Match{Renames: callRenames(map[string]string{"Quest": "Quest", "Completion": "Completion", "Take": "Take", "Give": "Give", "Give.Template": "Give.TemplateID"})}
+			m := copytest.Match{Renames: callRenames(map[string]string{"Quest": "Quest", "Completion": "Completion", "Take": "Take", "Give": "Give", "Give.Template": "Give.TemplateID", "Pieces": "Pieces"})}
 			return copytest.Diff(m, func(c model.HandInCall) sent[item.HandInRequest] {
 				_, _ = e.HandIn(t.Context(), c)
 				return sent[item.HandInRequest]{last(f.actors), last(f.handIns)}
@@ -533,9 +539,10 @@ func unworn(m copytest.Match, from string) copytest.Match {
 	return unlooked(m, from)
 }
 
-// unlooked is m with a result's wardrobe piece and look skipped, for a call that changes neither.
+// unlooked is m with a result's wardrobe pieces and look skipped, for a call that changes neither.
 func unlooked(m copytest.Match, from string) copytest.Match {
 	m.Skip[from+".Piece"] = "only an add to the wardrobe makes a piece, which the world never asks for"
+	m.Skip[from+".Pieces"] = "only a hand-in gives pieces"
 	m.Skip[from+".Look"] = "only a look or a trainer's gift changes the look"
 	return m
 }
@@ -583,7 +590,11 @@ func TestEachItemAnswerKeepsItsFields(t *testing.T) {
 			})
 		},
 		"HandIn": func() []string {
-			return copytest.Diff(inventory, func(r result) model.Inventory {
+			handed := unworn(slotsMatch(copytest.Match{}, "R", "Items"), "R")
+			delete(handed.Skip, "R.Pieces")
+			handed.Renames["R.Pieces"] = "Pieces"
+			handed.Computed = map[string]string{"Quest": "the call's", "Completion": "the call's"}
+			return copytest.Diff(handed, func(r result) model.HandedIn {
 				f.result = r.R
 				out, _ := e.HandIn(t.Context(), model.HandInCall{})
 				return out
@@ -615,6 +626,8 @@ func TestEachItemAnswerKeepsItsFields(t *testing.T) {
 		},
 		"HandedIn": func() []string {
 			m := unworn(slotsMatch(copytest.Match{}, "Result", "Items"), "Result")
+			delete(m.Skip, "Result.Pieces")
+			m.Renames["Result.Pieces"] = "Pieces"
 			return copytest.Diff(m, func(handed []item.HandedIn) []model.HandedIn {
 				f.handedIn = func([]item.Completion) []item.HandedIn { return handed }
 				out, _ := e.HandedIn(t.Context(), kernel.CharacterID{}, []model.Completion{{}})

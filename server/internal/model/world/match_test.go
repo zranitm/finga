@@ -66,21 +66,30 @@ func TestABotWearsBossPiecesOfItsClass(t *testing.T) {
 	}
 }
 
-// A piece with any source but a boss never shows on a bot, the shipped ranks' pieces and one a boss drops too among them, so a rank piece always means a player earned it.
+// A piece with any source but a boss never shows on a bot, the shipped ranks' and quests' pieces and ones a boss drops too among them, so a rank or a quest piece always means a player earned it.
 func TestABotWearsNoPieceFromElsewhere(t *testing.T) {
 	d := gamedatatest.Shipped(t)
 	pieces := slices.Concat(d.Pieces(), []gamedata.Piece{
 		{ID: "ranked_plate", Slot: gamedata.OutfitSlot, From: []gamedata.PieceSource{{Boss: "king_slime", Chance: 0.05}, {Rank: "gold"}}},
+		{ID: "quested_sword", Slot: gamedata.WeaponSlot, Kind: gamedata.OneHanded, From: []gamedata.PieceSource{{Boss: "king_slime", Chance: 0.05}, {Quest: "warriors_trial"}}},
 		{ID: "sourceless_hat", Slot: gamedata.HeadwearSlot},
 	})
-	never := map[string]bool{"ranked_plate": true, "sourceless_hat": true}
+	never := map[string]bool{"ranked_plate": true, "quested_sword": true, "sourceless_hat": true}
+	ranked, quested := 0, 0
 	for _, rank := range d.Pvp().Ranks {
 		if p, ok := d.RankPiece(rank.ID); ok {
 			never[p.ID] = true
+			ranked++
 		}
 	}
-	if len(never) < 3 {
-		t.Fatalf("no shipped rank gives a piece: %v", never)
+	for _, p := range d.Pieces() {
+		if slices.ContainsFunc(p.From, func(s gamedata.PieceSource) bool { return s.Quest != "" }) {
+			never[p.ID] = true
+			quested++
+		}
+	}
+	if ranked == 0 || quested == 0 {
+		t.Fatalf("no shipped rank or no shipped quest gives a piece: %v", never)
 	}
 	for _, c := range d.Classes() {
 		for n := range sweep {

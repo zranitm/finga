@@ -101,7 +101,7 @@ type QuestChanged struct {
 
 func (QuestChanged) event() {}
 
-// HandInCall takes what a quest asks to collect and gives its item rewards, for the completion-th time it is handed in; the item module hands each completion in once.
+// HandInCall takes what a quest asks to collect and gives its item rewards and its pieces, for the completion-th time it is handed in; the item module hands each completion in once.
 type HandInCall struct {
 	Account    kernel.AccountID
 	Character  kernel.CharacterID
@@ -109,6 +109,7 @@ type HandInCall struct {
 	Completion int
 	Take       []gamedata.Grant
 	Give       []Reward
+	Pieces     []string
 }
 
 // Completion is one completion of a quest: 1 the first time it is handed in.
@@ -117,12 +118,30 @@ type Completion struct {
 	Completion int
 }
 
-// HandedIn is a completion the item module handed in, with what it did to the inventory.
+// HandedIn is a completion the item module handed in, with what it did to the inventory and the pieces it gave the account, each new to it then.
 type HandedIn struct {
 	Quest      string
 	Completion int
 	Items      Inventory
+	Pieces     []string
 }
+
+// PiecesAdded tells the player of wardrobe pieces new to their account, as Cause gave them.
+type PiecesAdded struct {
+	Tick   uint64
+	Pieces []string
+	Cause  PieceCause
+}
+
+func (PiecesAdded) event() {}
+
+// PieceCause is what gave the player's account a piece.
+type PieceCause uint8
+
+// The causes: a quest's hand-in.
+const (
+	PieceFromQuest PieceCause = iota + 1
+)
 
 // Reward is one item line a hand-in gives; equipment comes one per line, with its roll.
 type Reward struct {

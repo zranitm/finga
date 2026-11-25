@@ -106,17 +106,17 @@ func (e Equipment) Use(ctx context.Context, c model.UseCall) (model.Inventory, b
 	return inventoryOf(res), replayed, nil
 }
 
-// HandIn takes what a quest asks to collect and gives its item rewards, once per completion.
-func (e Equipment) HandIn(ctx context.Context, c model.HandInCall) (model.Inventory, error) {
-	r := item.HandInRequest{Quest: c.Quest, Completion: c.Completion, Take: c.Take}
+// HandIn takes what a quest asks to collect and gives its item rewards and its pieces, once per completion.
+func (e Equipment) HandIn(ctx context.Context, c model.HandInCall) (model.HandedIn, error) {
+	r := item.HandInRequest{Quest: c.Quest, Completion: c.Completion, Take: c.Take, Pieces: c.Pieces}
 	for _, g := range c.Give {
 		r.Give = append(r.Give, item.Give{TemplateID: g.Template, Quantity: g.Quantity, Stats: cloned(g.Stats)})
 	}
 	res, err := e.items.HandIn(ctx, item.Actor{Account: c.Account, Character: c.Character}, r)
 	if err != nil {
-		return model.Inventory{}, ruleOr(err)
+		return model.HandedIn{}, ruleOr(err)
 	}
-	return inventoryOf(res), nil
+	return model.HandedIn{Quest: c.Quest, Completion: c.Completion, Items: inventoryOf(res), Pieces: res.Pieces}, nil
 }
 
 // handedInMax is the most completions one HandedIn may ask about: the item module's MaxHandedIn.
@@ -171,7 +171,7 @@ func (e Equipment) HandedIn(ctx context.Context, id kernel.CharacterID, asked []
 			return nil, ruleOr(err)
 		}
 		for _, h := range got {
-			out = append(out, model.HandedIn{Quest: h.Quest, Completion: h.Completion, Items: inventoryOf(h.Result)})
+			out = append(out, model.HandedIn{Quest: h.Quest, Completion: h.Completion, Items: inventoryOf(h.Result), Pieces: h.Result.Pieces})
 		}
 	}
 	return out, nil

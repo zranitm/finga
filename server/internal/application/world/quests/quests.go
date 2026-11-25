@@ -92,9 +92,9 @@ func Count(entry model.Quest, k int) int {
 	return 0
 }
 
-// HandsItems is whether handing q in takes or gives items, and so goes through the item module.
+// HandsItems is whether handing q in takes or gives items, or gives pieces, and so goes through the item module.
 func HandsItems(q gamedata.Quest) bool {
-	return len(q.Rewards.Items) > 0 || slices.ContainsFunc(q.Objectives, func(o gamedata.Objective) bool { return o.Kind == gamedata.Collect })
+	return len(q.Rewards.Items) > 0 || len(q.Rewards.Pieces) > 0 || slices.ContainsFunc(q.Objectives, func(o gamedata.Objective) bool { return o.Kind == gamedata.Collect })
 }
 
 // Items is what handing q in asks the item module for: its collect objectives to take, and its item rewards to give, equipment rolled by between, which picks a whole number in a range.

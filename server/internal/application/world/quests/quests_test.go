@@ -69,7 +69,7 @@ func TestReadyLeavesCollectingToTheItemService(t *testing.T) {
 	}
 }
 
-func TestHandsItemsWhenItCollectsOrGivesAny(t *testing.T) {
+func TestHandsItemsWhenItCollectsOrGivesAnyItemOrPiece(t *testing.T) {
 	kill := gamedata.Objective{Kind: gamedata.Kill, Target: "green_slime", Count: 3}
 	collect := gamedata.Objective{Kind: gamedata.Collect, Target: "slime_gel", Count: 5}
 	potions := gamedata.Rewards{Exp: 5, Items: []gamedata.Grant{{Item: "red_potion", Quantity: 3}}}
@@ -81,6 +81,7 @@ func TestHandsItemsWhenItCollectsOrGivesAny(t *testing.T) {
 		{"kills for EXP alone", gamedata.Quest{Objectives: []gamedata.Objective{kill}, Rewards: gamedata.Rewards{Exp: 5}}, false},
 		{"something to collect", gamedata.Quest{Objectives: []gamedata.Objective{kill, collect}, Rewards: gamedata.Rewards{Exp: 5}}, true},
 		{"an item reward", gamedata.Quest{Objectives: []gamedata.Objective{kill}, Rewards: potions}, true},
+		{"a piece alone", gamedata.Quest{Objectives: []gamedata.Objective{kill}, Rewards: gamedata.Rewards{Exp: 5, Pieces: []string{"bronze_sword"}}}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

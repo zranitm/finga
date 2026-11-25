@@ -17,9 +17,17 @@ describe('the wardrobe’s pieces (outfits.md section 3)', () => {
     expect(piecesFor('outfit', 'warrior').map((p) => p.id)).toEqual(
       pieces.filter((p) => p.slot === 'outfit').map((p) => p.id),
     );
-    expect(piecesFor('weapon', 'warrior').map((p) => p.kind)).toEqual(['one_handed', 'one_handed']);
-    expect(piecesFor('weapon', 'magician').map((p) => p.id)).toEqual(['oak_wand']);
-    expect(piecesFor('weapon', 'bowman').map((p) => p.id)).toEqual(['hand_crossbow']);
+    expect(piecesFor('weapon', 'warrior').map((p) => p.kind)).toEqual([
+      'one_handed',
+      'one_handed',
+      'one_handed',
+    ]);
+    expect(piecesFor('weapon', 'magician').map((p) => p.id)).toEqual(['oak_wand', 'bronze_staff']);
+    expect(piecesFor('weapon', 'bowman').map((p) => p.id)).toEqual([
+      'hand_crossbow',
+      'bronze_crossbow',
+    ]);
+    expect(piecesFor('weapon', 'thief').map((p) => p.id)).toEqual(['bronze_knife']);
   });
 
   it('say how each is got, a line a source: a boss’s drop, a rank in the rated modes, a quest, a feat', () => {

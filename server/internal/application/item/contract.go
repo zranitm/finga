@@ -72,8 +72,9 @@ type Result struct {
 	Equipment []EquipSlot // the equip slots an equip, an unequip or a starter grant changed
 	Worn      []Item      // after an equip or unequip, every item worn
 	Revision  uint64
-	Piece     string // the piece an add to the wardrobe made
-	Look      *Look  // a look worn, or the one a trainer's gift left
+	Piece     string   // the piece an add to the wardrobe made
+	Pieces    []string // the pieces a hand-in gave, each new to the account
+	Look      *Look    // a look worn, or the one a trainer's gift left
 }
 
 // Look is a character's five picks, each a piece id, "" keeping the class's own, at the count of its changes.
@@ -87,10 +88,11 @@ type Look struct {
 	Revision     uint64 // 0 for a character that never set one; a request's is ignored
 }
 
-// The causes of pieces, as Piece.Cause and PieceGrant.Cause name them: an item added, or a PvP rank reached.
+// The causes of pieces, as Piece.Cause and PieceGrant.Cause name them: an item added, a PvP rank reached, or a quest handed in.
 const (
-	PieceFromItem = string(model.PieceFromItem)
-	PieceFromRank = string(model.PieceFromRank)
+	PieceFromItem  = string(model.PieceFromItem)
+	PieceFromRank  = string(model.PieceFromRank)
+	PieceFromQuest = string(model.PieceFromQuest)
 )
 
 // PieceGrant is a piece given outright for Cause, Ref naming which rank.
@@ -190,12 +192,13 @@ type UnequipRequest struct {
 	ToSlot    *int // nil: the first free slot
 }
 
-// HandInRequest takes what a quest's collect objectives ask for and gives its item rewards, for the completion-th time it is handed in.
+// HandInRequest takes what a quest's collect objectives ask for and gives its item rewards and its pieces, for the completion-th time it is handed in.
 type HandInRequest struct {
 	Quest      string
 	Completion int
 	Take       []gamedata.Grant
 	Give       []Give
+	Pieces     []string
 }
 
 // Give is one reward line; equipment comes one per line, with its roll.
@@ -251,7 +254,7 @@ func (r AddRequest) input(keyFirst bool) (application.AddInput, error) {
 }
 
 func (r HandInRequest) input() application.HandInInput {
-	in := application.HandInInput{Quest: r.Quest, Completion: r.Completion, Take: r.Take}
+	in := application.HandInInput{Quest: r.Quest, Completion: r.Completion, Take: r.Take, Pieces: r.Pieces}
 	for _, g := range r.Give {
 		in.Give = append(in.Give, application.Give(g))
 	}
@@ -287,7 +290,7 @@ func slotsOf(slots []model.Slot) []Slot {
 }
 
 func resultOf(res application.Result) Result {
-	out := Result{Changed: slotsOf(res.Changed), Worn: itemsOf(res.Worn), Revision: res.Revision, Piece: res.Piece}
+	out := Result{Changed: slotsOf(res.Changed), Worn: itemsOf(res.Worn), Revision: res.Revision, Piece: res.Piece, Pieces: res.Pieces}
 	if res.Look != nil {
 		look := Look(*res.Look)
 		out.Look = &look

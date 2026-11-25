@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"fmt"
 	"slices"
 	"strconv"
 	"time"
@@ -18,12 +19,13 @@ import (
 	"finga/pkg/uuidv7"
 )
 
-// HandInInput takes what a quest's collect objectives ask for and gives its item rewards, for the completion-th time the quest is handed in.
+// HandInInput takes what a quest's collect objectives ask for and gives its item rewards and its pieces, for the completion-th time the quest is handed in.
 type HandInInput struct {
 	Quest      string
 	Completion int
 	Take       []model.Grant
 	Give       []Give
+	Pieces     []string // each a piece the quest gives, granted to the account
 }
 
 // Give is one reward line; equipment comes one per line, with its roll.
@@ -63,17 +65,25 @@ func (in HandInInput) fingerprint(c kernel.CharacterID) []byte {
 	for _, g := range in.Give {
 		values = append(values, "give", g.TemplateID, strconv.Itoa(g.Quantity))
 	}
+	for _, p := range in.Pieces {
+		values = append(values, "piece", p)
+	}
 	return idempotency.Fingerprint("item.hand_in/1", values...)
 }
 
-// HandIn takes what a quest asks for, smallest stacks first and never worn items, then gives its rewards as Add places them; either side failing changes nothing.
+// HandIn takes what a quest asks for, smallest stacks first and never worn items, then gives its rewards as Add places them and its pieces as GrantPieces does; any part failing changes nothing.
 // Each completion is handed in once: a repeat, however late and whatever its lines, changes nothing and gets the stored reply.
 func (s *Service) HandIn(ctx context.Context, actor model.Actor, in HandInInput) (Result, error) {
 	if in.Quest == "" || in.Completion < 1 {
 		return Result{}, model.ErrBadCause
 	}
-	if len(in.Take)+len(in.Give) > MaxHandInLines {
+	if len(in.Take)+len(in.Give)+len(in.Pieces) > MaxHandInLines {
 		return Result{}, model.ErrBadBatch
+	}
+	for _, p := range in.Pieces {
+		if !s.grantable(model.PieceGrant{Piece: p, Cause: model.PieceFromQuest, Ref: in.Quest}) {
+			return Result{}, fmt.Errorf("%w: piece %q has no quest source %q", model.ErrBadCause, p, in.Quest)
+		}
 	}
 	for _, t := range in.Take {
 		if _, ok := s.content.Item(t.Item); !ok {
@@ -106,7 +116,7 @@ func (s *Service) HandIn(ctx context.Context, actor model.Actor, in HandInInput)
 			return nil
 		}
 		h := HandIn{Quest: in.Quest, Completion: in.Completion, ID: uuidv7.New(), Fingerprint: fp}
-		h.Result, err = s.handIn(ctx, uow, actor.Character, in, gives, model.Cause{Type: model.CauseQuest, ID: h.ID, Quest: in.Quest})
+		h.Result, err = s.handIn(ctx, uow, actor, in, gives, model.Cause{Type: model.CauseQuest, ID: h.ID, Quest: in.Quest})
 		if h.Result, err = revised(ctx, uow, actor.Character, h.Result, err); err != nil {
 			return err
 		}
@@ -127,8 +137,9 @@ func (s *Service) HandedIn(ctx context.Context, owner kernel.CharacterID, asked 
 	return s.store.HandedIn(ctx, owner, asked)
 }
 
-// handIn takes first, so the slots it empties can hold the rewards.
-func (s *Service) handIn(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, in HandInInput, gives []gamedata.Item, cause model.Cause) (Result, error) {
+// handIn takes first, so the slots it empties can hold the rewards; the pieces go to the actor's account.
+func (s *Service) handIn(ctx context.Context, uow UnitOfWork, actor model.Actor, in HandInInput, gives []gamedata.Item, cause model.Cause) (Result, error) {
+	owner := actor.Character
 	inv, err := s.lockInventory(ctx, uow, owner)
 	if err != nil {
 		return Result{}, err
@@ -182,7 +193,17 @@ func (s *Service) handIn(ctx context.Context, uow UnitOfWork, owner kernel.Chara
 		}
 		changed = merged(changed, res.Changed...)
 	}
-	return Result{Changed: changed}, nil
+	var added []string
+	for _, p := range in.Pieces {
+		ok, err := uow.Wardrobe().Grant(ctx, actor.Account, model.PieceGrant{Piece: p, Cause: model.PieceFromQuest, Ref: in.Quest})
+		if err != nil {
+			return Result{}, err
+		}
+		if ok {
+			added = append(added, p)
+		}
+	}
+	return Result{Changed: changed, Pieces: added}, nil
 }
 
 // merged puts each slot in out, in place of the one already there for its tab and slot, so each place shows how it ends.
