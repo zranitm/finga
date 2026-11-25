@@ -69,15 +69,17 @@ func duel(f fixture, ayla kernel.CharacterID, rt model.Rating, won bool) {
 	f.svc.Record(context.Background(), model.Result{Match: kernel.NewMatchID(), Mode: "duel", Winner: winner, Sides: [2][]model.Outcome{{{Character: ayla}}, {{Tier: "novice"}}}})
 }
 
-// added is every rank piece Ayla was told of, in order.
-func added(f fixture, ayla kernel.CharacterID) []model.RankPiece {
+// added is every rank piece Ayla was told of, in order, and in how many pushes.
+func added(f fixture, ayla kernel.CharacterID) ([]model.RankPiece, int) {
 	var out []model.RankPiece
+	pushes := 0
 	for _, d := range f.notes.of(ayla) {
 		if p, ok := d.(service.PiecesAdded); ok {
 			out = append(out, p.Pieces...)
+			pushes++
 		}
 	}
-	return out
+	return out, pushes
 }
 
 // outfits.md section 4: a rated match's end grants the piece of each rank the shown rating reaches, and tells of those new to the account, after its MatchEnded; falling and climbing again finds them there, so each comes once.
@@ -87,7 +89,7 @@ func TestARanksPieceComesOnceThroughAFallAndAClimb(t *testing.T) {
 		f, ayla, account := ranked(t, gold)
 		duel(f, ayla, gold, true)
 		silverGold := []model.RankPiece{{Piece: "helm_silver", Rank: "silver"}, {Piece: "helm_gold", Rank: "gold"}}
-		if got := added(f, ayla); !slices.Equal(got, silverGold) {
+		if got, _ := added(f, ayla); !slices.Equal(got, silverGold) {
 			t.Fatalf("reaching gold told of %+v, want %+v", got, silverGold)
 		}
 		if _, ok := f.notes.of(ayla)[0].(service.Ended); !ok {
@@ -95,11 +97,11 @@ func TestARanksPieceComesOnceThroughAFallAndAClimb(t *testing.T) {
 		}
 		duel(f, ayla, placedAt(1260), false) // down to silver
 		duel(f, ayla, gold, true)            // and back
-		if got := added(f, ayla); !slices.Equal(got, silverGold) {
-			t.Fatalf("after a fall and a climb Ayla was told of %+v, want gold's piece once", got)
+		if got, pushes := added(f, ayla); !slices.Equal(got, silverGold) || pushes != 1 {
+			t.Fatalf("after a fall and a climb Ayla was told of %+v in %d pushes, want gold's piece once", got, pushes)
 		}
 		duel(f, ayla, placedAt(1660), true)
-		if got := added(f, ayla); !slices.Equal(got, append(silverGold, model.RankPiece{Piece: "platinum_plate", Rank: "platinum"})) {
+		if got, _ := added(f, ayla); !slices.Equal(got, append(silverGold, model.RankPiece{Piece: "platinum_plate", Rank: "platinum"})) {
 			t.Fatalf("reaching platinum told of %+v", got)
 		}
 		if len(f.items.has[account]) != 3 {
@@ -120,8 +122,8 @@ func TestNoRankPieceWithoutARank(t *testing.T) {
 		f.store.ratings[ayla] = placedAt(1460)
 		f.store.mu.Unlock()
 		f.svc.Record(context.Background(), model.Result{Match: kernel.NewMatchID(), Mode: "battle", Winner: 1, Score: [2]int{1000, 640}, Sides: [2][]model.Outcome{{{Character: ayla}}, {{Tier: "novice"}}}})
-		if f.items.asks != 0 || len(added(f, ayla)) != 0 {
-			t.Fatalf("the wardrobe was asked %d times; Ayla told of %+v", f.items.asks, added(f, ayla))
+		if got, pushes := added(f, ayla); f.items.asks != 0 || pushes != 0 {
+			t.Fatalf("the wardrobe was asked %d times; Ayla told of %+v", f.items.asks, got)
 		}
 	})
 }
@@ -133,18 +135,18 @@ func TestALostGrantComesWithTheNextMatch(t *testing.T) {
 		f, ayla, _ := ranked(t, silver)
 		f.items.fail = 2
 		duel(f, ayla, silver, true)
-		if got := added(f, ayla); !slices.Equal(got, []model.RankPiece{{Piece: "helm_silver", Rank: "silver"}}) || f.items.asks != 3 {
+		if got, _ := added(f, ayla); !slices.Equal(got, []model.RankPiece{{Piece: "helm_silver", Rank: "silver"}}) || f.items.asks != 3 {
 			t.Fatalf("after two failures, told of %+v in %d asks", got, f.items.asks)
 		}
 		f.items.fail = 1 << 20
 		gold := placedAt(1460)
 		duel(f, ayla, gold, true)
-		if got := added(f, ayla); len(got) != 1 {
+		if got, pushes := added(f, ayla); len(got) != 1 || pushes != 1 {
 			t.Fatalf("a grant that never landed told of %+v", got)
 		}
 		f.items.fail = 0
 		duel(f, ayla, gold, true)
-		if got := added(f, ayla); !slices.Equal(got, []model.RankPiece{{Piece: "helm_silver", Rank: "silver"}, {Piece: "helm_gold", Rank: "gold"}}) {
+		if got, _ := added(f, ayla); !slices.Equal(got, []model.RankPiece{{Piece: "helm_silver", Rank: "silver"}, {Piece: "helm_gold", Rank: "gold"}}) {
 			t.Fatalf("the next match told of %+v, want gold's piece", got)
 		}
 	})

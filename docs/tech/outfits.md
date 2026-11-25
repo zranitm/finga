@@ -98,7 +98,7 @@ feats:
   - Every piece has a source this build has. A boss source names a `boss: true` mob, with a chance in (0, 1].
   - Every rank, quest and feat named exists, and every feat gives some piece.
   - A rank gives at most one piece.
-- **`gen-gamedata`** carries the pieces, without chances, and the feats' names, for the wardrobe's lists and "how to get". As built, it also writes each piece's item as the server's loader makes it (`piece.<id>`, Etc, the piece's name and stars), so the inventory names a dropped piece.
+- **`gen-gamedata`** carries the pieces, without chances, and the feats' names, for the wardrobe's lists and "how to get". As built, it also writes the item of each piece a boss drops as the server's loader makes it (`piece.<id>`, Etc, the piece's name and stars), so the inventory names a dropped piece.
 
 ## 4. Server: the wardrobe in the item module
 
@@ -118,13 +118,17 @@ feats:
   4. It answers with the inventory change. The client knows the piece from its item. Idempotent by key, as item actions are.
 - **Grants without items** (step 4, with their callers): `GrantPieces(actor, pieces, cause)` inserts with `ON CONFLICT DO NOTHING`, so a second grant of a piece is a no-op. It returns what was new.
   - **Ranks:** at a match's end, the pvp module grants the piece of each rank the new shown rating reaches. The account's row is the "first time": falling and climbing again finds it there.
+  - **As built (4a-2):**
+    - The item module's `GrantPieces(account, grants)` takes each grant as a piece, its cause and its rank, in one transaction. It refuses the whole call if a grant names a source its piece doesn't have. A grant writes no item event or notice, so checks 6 and 13 count none.
+    - The pvp module grants through an `Items` port once the match is stored, after `MatchEnded`, in a rated mode, for a placed player alone, since the result shows no rank while placing. It asks for every rank piece the shown rating reaches, so a grant lost to a failure (retried for a minute) comes with the next rated match.
+    - A piece no boss drops has no item, and `gen-gamedata` writes none for it either.
   - **Quests:** a hand-in's rewards gain `pieces`, granted in the hand-in's transaction.
   - **Feats:**
     - The world checks level, boss, promotion and quest feats where those happen, against the catalogue's feats.
     - The pvp module checks `pvp_wins` at a match's end.
     - Each grants as above.
 - **Notices** (step 4): a grant or an add that made a row pushes `PiecesAdded{pieces}` to the account's live session. Until then the add's answer is the only word.
-  - **Who pushes it:** the caller of the item module, on the stream it already has to the player; the item module keeps no stream of its own. Planned: a rank's or a feat's at a match's end through pvp's deliveries (4a-2), a quest's, a level's, a boss's and a promotion's through the world's (4b).
+  - **Who pushes it:** the caller of the item module, on the stream it already has to the player; the item module keeps no stream of its own. A rank's at a match's end goes through pvp's deliveries (as built, 4a-2); planned, a feat's there too, and a quest's, a level's, a boss's and a promotion's through the world's (4b).
   - **As built (4a-1):** only the add. The gateway delivers it to the adding session once the add succeeds; a refused add pushes none. A replayed add (the same idempotency key) pushes it again, and the client shows a piece's notice once each time the player enters the world.
 - **The look:**
   - `SetLook{look}` goes through the world, as `Equip` does. The world refuses a dead player (`CHARACTER_DEAD`) or one in combat (C20's 5 s clock, `IN_COMBAT`, as a trait change is).
@@ -327,7 +331,7 @@ Changing looks in combat is `IN_COMBAT` (330037), the code a trait change in com
    - `PlayerView.look`, `/api/wardrobe`, the failures and the invariant.
 2. **The client's looks:** parts files, binding to the class's rig, colourways, attach and fit, wings' hinges and motion, the cape hidden under wings, others redrawn, and the swing trail.
 3. **The wardrobe window,** the character window's figure, the inventory card actions, notices and the `wardrobe` key. Built in two parts: 3a the window and its key, 3b the character window, the inventory card and an add's notice.
-4. **Sources:** ranks from the pvp module, quest pieces and feats, with `GrantPieces` and `PiecesAdded`.
+4. **Sources:** ranks from the pvp module, quest pieces and feats, with `GrantPieces` and `PiecesAdded`. Built in three parts: 4a-1 `PiecesAdded`, which an add pushes; 4a-2 `GrantPieces` and the ranks' pieces, with stand-ins for silver, gold and platinum (the Knight's helm and plate in new colourways) till step 5; 4b quests and feats.
 5. **The catalogue:**
    - the Skeletons pack added, and the face pieces and wings modelled;
    - colourways and sources designed with the user from the preview sheet;

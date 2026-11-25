@@ -2,6 +2,7 @@ import { create } from '@bufbuild/protobuf';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { pieces } from '@/progression/pieces';
 import { ERR } from '@/protocol/errors';
 import { CharacterViewSchema, ResponseSchema, WelcomeSchema } from '@/protocol/messages';
 import { character } from '@/state/character';
@@ -41,6 +42,7 @@ const tiles = () =>
     b.textContent,
     b.classList.contains('missing') ? 'greyed' : 'lit',
   ]);
+const COUNTED = `Collected 2 of ${pieces.length}`; // the two the server answers, of the catalogue
 const tab = (name: string) => user.click(screen.getByRole('tab', { name }));
 
 describe('the wardrobe (outfits.md section 7)', () => {
@@ -59,7 +61,7 @@ describe('the wardrobe (outfits.md section 7)', () => {
   it('lists each slot’s pieces, the class’s own look first, headwear’s Hidden and wings’ None: collected ones lit, the rest greyed, and a weapon look of the class’s kind alone', async () => {
     open();
     expect(screen.getByText('Loading your wardrobe…')).toBeInTheDocument();
-    await screen.findByText('Collected 2 of 12');
+    await screen.findByText(COUNTED);
     expect(tiles()).toEqual([
       ['Class look', 'lit'],
       ["Knight's Plate", 'lit'],
@@ -67,6 +69,7 @@ describe('the wardrobe (outfits.md section 7)', () => {
       ["Rogue's Leathers", 'greyed'],
       ["Mage's Robe", 'greyed'],
       ['Crimson Plate', 'greyed'],
+      ['Platinum Plate', 'greyed'],
     ]);
     await tab('Headwear');
     expect(tiles().map(([n]) => n)).toEqual([
@@ -75,6 +78,8 @@ describe('the wardrobe (outfits.md section 7)', () => {
       "Knight's Helm",
       'Bear Hood',
       'Pointed Hat',
+      'Silver Visor',
+      'Gold Visor',
     ]);
     await tab('Weapon');
     expect(tiles()).toEqual([
@@ -88,7 +93,7 @@ describe('the wardrobe (outfits.md section 7)', () => {
 
   it('tries anything on, the figure dressed as picked; Wear sends the collected picks alone, and Reset goes back to what’s worn', async () => {
     const { figure, props } = open();
-    await screen.findByText('Collected 2 of 12');
+    await screen.findByText(COUNTED);
     expect(figure.show).toHaveBeenLastCalledWith('warrior', OWN_LOOK);
     const wear = screen.getByRole('button', { name: 'Wear' });
     const reset = screen.getByRole('button', { name: 'Reset' });
@@ -138,7 +143,7 @@ describe('the wardrobe (outfits.md section 7)', () => {
 
   it('shows the server’s refusal', async () => {
     open(() => Promise.reject(refusal(ERR.IN_COMBAT)));
-    await screen.findByText('Collected 2 of 12');
+    await screen.findByText(COUNTED);
     await user.click(screen.getByRole('button', { name: "Knight's Plate" }));
     await user.click(screen.getByRole('button', { name: 'Wear' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(refusal(ERR.IN_COMBAT).message);
@@ -159,7 +164,7 @@ describe('the wardrobe (outfits.md section 7)', () => {
 
   it('cards a piece on hover with its stars, slot, kind and how to get it', async () => {
     open();
-    await screen.findByText('Collected 2 of 12');
+    await screen.findByText(COUNTED);
     await tab('Weapon');
     fireEvent.mouseEnter(screen.getByRole('button', { name: 'Greatsword' }), {
       clientX: 40,
@@ -177,7 +182,7 @@ describe('the wardrobe (outfits.md section 7)', () => {
 
   it('draws its figure in its canvas, and lets it go as the window closes, which stops its drawing', async () => {
     const { figure, props, view } = open();
-    await screen.findByText('Collected 2 of 12');
+    await screen.findByText(COUNTED);
     expect(props.figureIn).toHaveBeenCalledWith(
       screen.getByLabelText('Your character, dressed as picked'),
     );
@@ -190,7 +195,7 @@ describe('the wardrobe (outfits.md section 7)', () => {
     act(() => wardrobe.getState().preview('pointed_hat'));
     const { figure } = open();
     expect(wardrobe.getState().trying).toBeNull(); // taken as it opened, so the list coming in puts nothing back
-    await screen.findByText('Collected 2 of 12');
+    await screen.findByText(COUNTED);
     expect(screen.getByRole('tab', { name: 'Headwear' })).toHaveAttribute('aria-selected', 'true');
     expect(figure.show).toHaveBeenLastCalledWith('warrior', {
       ...OWN_LOOK,
@@ -205,7 +210,7 @@ describe('the wardrobe (outfits.md section 7)', () => {
 
   it('tries on a piece handed while it’s open, over what’s tried on already', async () => {
     const { figure } = open();
-    await screen.findByText('Collected 2 of 12');
+    await screen.findByText(COUNTED);
     await user.click(screen.getByRole('button', { name: "Knight's Plate" }));
     act(() => wardrobe.getState().preview('greataxe'));
     expect(screen.getByRole('tab', { name: 'Weapon' })).toHaveAttribute('aria-selected', 'true');
