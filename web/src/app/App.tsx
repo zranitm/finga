@@ -35,7 +35,6 @@ import { watchArenaBuild } from '@/features/skills/saveArenaBuild';
 import { watchSkillBar } from '@/features/skills/saveSkillBar';
 import { SkillWindow } from '@/features/skills/SkillWindow';
 import { Wardrobe } from '@/features/wardrobe/Wardrobe';
-import type { Figure } from '@/features/wardrobe/Wardrobe';
 import type { Character } from '@/net/rest';
 import { ERR, errorText } from '@/protocol/errors';
 import { arenaBuild } from '@/state/arena-build';
@@ -47,6 +46,7 @@ import type { Account } from '@/state/session';
 import { skillBar } from '@/state/skill-bar';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
+import type { Portrait } from '@/state/wardrobe';
 
 import { GameMount } from './GameMount';
 import { watchKeyboardLayout } from './keyboard-layout';
@@ -180,7 +180,7 @@ function WorldOverlay({
   readonly socket: Services['socket'];
   readonly rest: Services['rest'];
   /** A character drawn into a window's canvas, as the game draws one. */
-  readonly figureIn: (canvas: HTMLCanvasElement) => Figure;
+  readonly figureIn: (canvas: HTMLCanvasElement) => Portrait;
   /** Takes each of the saves still running when the world is left. */
   readonly keepSaves: (pending: Promise<void>) => void;
   readonly onLeave: () => void;

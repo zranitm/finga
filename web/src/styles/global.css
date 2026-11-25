@@ -2395,7 +2395,8 @@ body {
 .wardrobe-tile[aria-pressed='true'] {
   border-color: var(--accent);
 }
-.wardrobe-count {
+.wardrobe-count,
+.wardrobe-note {
   margin: 0;
   font-size: 12px;
 }

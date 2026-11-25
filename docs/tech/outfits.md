@@ -233,9 +233,10 @@ Changing looks in combat is `IN_COMBAT` (330037), the code a trait change in com
 ## 7. Client: the wardrobe and the character window
 
 - **The wardrobe,** `features/wardrobe/Wardrobe.tsx`, on `wardrobe` (`KeyO`, key-bindings.md):
-  - **Left:** the character in 3D, wearing the picks, turned by a drag. As built (`world3d/portrait.ts`), it's a small scene of its own on the game's engine, drawn only while the window is open:
+  - **Left:** the character in 3D, wearing the picks, turned by a drag. As built (`world3d/portrait.ts`), it's drawn in a small scene of its own on the game's engine, only while the window is open:
     - each frame, before the world, it's drawn into the game canvas's bottom-left corner at the window canvas's size, then copied into that canvas with `drawImage`;
-    - closing the window disposes its scene.
+    - the scene and its models stay while the world is open, so a window opened again loads nothing; closing a window disposes only its figure;
+    - the scene is made before the world's, which stays the engine's last.
   - **Right:** tabs Outfit, Headwear, Face, Weapon and Wings. Each is a grid of every piece in that slot: collected ones lit, the rest greyed. The Weapon tab lists only looks of the class's weapon kind, the only ones the server takes.
   - **A card** on hover: the name, stars, slot, kind for a weapon look, and "How to get", written from its sources:
     - "Dropped by King Slime";

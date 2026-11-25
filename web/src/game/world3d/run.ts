@@ -2,9 +2,10 @@
 import { Engine } from '@babylonjs/core/Engines/engine';
 
 import type { GameSocket } from '@/net/socket';
+import type { Portrait } from '@/state/wardrobe';
 
 import type { Arrival } from '../systems/arrival';
-import type { Portrait, WorldEntry } from '../view';
+import type { WorldEntry } from '../view';
 
 import { workerChunks } from './chunk-workers';
 import { fetchLoader } from './models';
@@ -33,7 +34,7 @@ export function run(
   parent.appendChild(canvas);
   const engine = new Engine(canvas, true, { stencil: true }, true);
   const models = (file: string) => `${import.meta.env.BASE_URL}models/${file}`;
-  const portraits = new Portraits(engine, models);
+  const portraits = new Portraits(engine, models); // before the world, whose scene stays the engine's last
   const world = World.open(
     {
       engine,

@@ -1593,8 +1593,7 @@ export class World {
     return at && playerBody(at.x, at.y, at.z);
   }
 
-  /** Redraws the player when their class or what their newest frame says they wear has changed. */
-  /** Dresses the player as their latest frame says, and tells the wardrobe what's worn. */
+  /** Redraws the player when their class or what their newest frame says they wear has changed, and tells the wardrobe what's worn. */
   private dressMe(): void {
     this.me?.dress(this.meCls, this.latestMe?.look, this.dressing);
     wardrobe.getState().wear(this.latestMe?.look ?? OWN_LOOK);

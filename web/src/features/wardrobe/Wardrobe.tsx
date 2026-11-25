@@ -13,7 +13,7 @@ import { howToGet, pieces, piecesFor } from '@/progression/pieces';
 import type { Piece, Slot } from '@/progression/pieces';
 import { character } from '@/state/character';
 import { samePicks, wardrobe } from '@/state/wardrobe';
-import type { Picks } from '@/state/wardrobe';
+import type { Picks, Portrait } from '@/state/wardrobe';
 
 const TABS: readonly { readonly slot: Slot; readonly label: string }[] = [
   { slot: 'outfit', label: 'Outfit' },
@@ -24,18 +24,11 @@ const TABS: readonly { readonly slot: Slot; readonly label: string }[] = [
 ];
 const TURN_PER_PX = 0.01; // radians a pixel of drag turns the figure
 
-/** A character drawn in 3D into a canvas, as the game draws one for a window. */
-export interface Figure {
-  show(cls: string, look: Picks): void;
-  turn(radians: number): void;
-  close(): void;
-}
-
 export interface WardrobeProps {
   readonly socket: Pick<GameSocket, 'request'>;
   readonly rest: Pick<RestClient, 'getWardrobe'>;
   /** The figure drawn into canvas till it's closed. */
-  readonly figureIn: (canvas: HTMLCanvasElement) => Figure;
+  readonly figureIn: (canvas: HTMLCanvasElement) => Portrait;
   readonly onClose: () => void;
 }
 
@@ -107,7 +100,7 @@ export function Wardrobe({ socket, rest, figureIn, onClose }: WardrobeProps) {
   const [asking, setAsking] = useState(false);
   const [refused, setRefused] = useState<string | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const figure = useRef<Figure | null>(null);
+  const figure = useRef<Portrait | null>(null);
   const dragged = useRef<number | null>(null);
 
   useEffect(() => {
@@ -189,7 +182,10 @@ export function Wardrobe({ socket, rest, figureIn, onClose }: WardrobeProps) {
           ref={canvas}
           className="wardrobe-figure"
           aria-label="Your character, dressed as picked"
-          onPointerDown={drag}
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture(e.pointerId); // the drag keeps turning off the canvas
+            drag(e);
+          }}
           onPointerMove={drag}
           onPointerUp={() => (dragged.current = null)}
         />
@@ -244,6 +240,9 @@ export function Wardrobe({ socket, rest, figureIn, onClose }: WardrobeProps) {
           <p className="muted wardrobe-count">
             {collected ? `Collected ${known} of ${pieces.length}` : 'Loading your wardrobe…'}
           </p>
+          {!samePicks(look, sends) && (
+            <p className="muted wardrobe-note">Pieces you haven’t collected stay as worn.</p>
+          )}
           {refused && (
             <p className="wardrobe-refused" role="alert">
               {refused}
