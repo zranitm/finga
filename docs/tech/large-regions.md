@@ -590,15 +590,19 @@ Built with step 1, which says who watches a cell.
     - The loader no longer asks that a player fit on a waypoint's spot, as the stone stands there; its arrival must still fit.
     - The reach check counts a waypoint reached within 12 m, its finding circle.
   - **Where it's drawn:** mapjson adds the ground's height at each stone. The region's place draws the stones from its first frame, before any chunk comes, and lets them go with itself. They cast no shadow, even with 5b-3's cascades (section 10).
-  - **Found or not:** the model is copied twice, painted dim and lit, and each copy is drawn at the stones in its state. A find swaps a stone's copy at once, which is within the Look's 0.3 s.
+  - **Found or not:** the model is copied twice, painted dim and lit, and each copy is drawn at the stones in its state. A stone found swaps its copy as its flare starts, within the Look's 0.3 s.
   - **The halo** is drawn over the ground rather than added to it, as an added one read mint on grass.
-    - Even drawn over, a thin cyan over grass reads mint. So the halo is a firm disc with a short soft edge, out of `#00d0f4`, a touch bluer than the crystal's cyan. The unfound one is faint by being small: 1.35 m at alpha 0.7, against 2.2 m at 0.9 found.
-    - Its middle is clearer, so the crystal shows through.
-    - **Measured** on the forest's grass, the found halo's median hue went from 130° to 186°, with pure cyan about 183°. The unfound one went from 121° to 178°. Its soft edge is the only part still under 165°.
+    - Even drawn over, a cyan thinning to clear over grass passes through mint. So each halo is a soft dot whose colour deepens toward blue across it: solid out to 45% of its radius, then its alpha falls evenly to nothing at the rim.
+    - **Found:** 2.6 m across at alpha 0.9, `#00d8f0` in the middle to `#00b4ff` at the rim.
+    - **Unfound:** 1.35 m at alpha 0.7, a dark teal, `#006a8a` to `#00587a`. It's dim by its darkness, not by being thin.
+    - It stands 0.3 m north of the crystal and 0.3 m below it, behind it along the camera's look, so the crystal draws in front of it at either zoom.
+    - **Over the test region's grass,** the found halo's solid part blends to 183°–189°, with pure cyan about 183°, and the unfound one's to about 176°.
   - **The flare** comes only from a `WaypointFound`; a join's list lights stones without one.
     - The beam is gone by 0.6 s, and the ring spreads 7 m across over 0.8 s.
     - The halo swells to half as wide again and settles. A swell to twice as wide hid the obelisk behind a solid disc.
-    - One stone flares at a time; a newer find takes the flare over.
+    - **When it plays:** a find leaves its stone dim until the crystal's middle is first inside the camera's view, then lights and flares it. The notice comes at once. A stone not seen within 10 s of its find lights with no flare, and a join's list lights one still waiting, unflared.
+    - One stone flares at a time; the newest find to come on screen takes the flare over.
+    - The beam and ring keep `#00d0f4`, a touch bluer than the crystal's cyan.
     - **The ring** lies flat, so as it spreads it rides the highest ground under it. On East Woods' slope the flat ring had sunk into the ground for up to 98° of its circle.
   - **See-through:** a stone between the camera and the player fades as a tall prop does, its halo with it, and goes at the lens. They're a region's only see-through looks so far.
     - **While faded,** it leaves its thin instances and draws its own copy at the step's alpha, made when its model loads.
