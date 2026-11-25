@@ -9,12 +9,13 @@ import { WorldWindow } from '@/features/shared/WorldWindow';
 import { pvp as data } from '@/gamedata/pvp';
 import type { PvpStanding } from '@/net/rest';
 import type { GameSocket } from '@/net/socket';
+import { rankName } from '@/progression/names';
 import { pvp } from '@/state/pvp';
 import { pvpProfile, standingIn } from '@/state/pvp-profile';
 
 import type { BoardReader } from './boards';
 import { Leaderboard } from './Leaderboard';
-import { rankName, recordOf, waited } from './modes';
+import { recordOf, waited } from './modes';
 import type { Mode } from './modes';
 
 export interface ArenaWindowProps {

@@ -96,7 +96,7 @@ describe('App', () => {
     vi.stubGlobal('WebSocket', FakeWebSocket);
     close.mockReset();
     vi.mocked(run).mockReset();
-    vi.mocked(run).mockReturnValue(close);
+    vi.mocked(run).mockReturnValue({ close, portrait: vi.fn() });
     resetStores();
     parent = document.createElement('div');
     parent.id = 'game';

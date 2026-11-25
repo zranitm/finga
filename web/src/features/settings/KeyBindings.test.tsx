@@ -77,6 +77,7 @@ describe('KeyBindings', () => {
       'Quest log: J',
       'Map: M',
       'Arena: V',
+      'Wardrobe: O',
       'Zoom in: =',
       'Zoom out: -',
     ]);

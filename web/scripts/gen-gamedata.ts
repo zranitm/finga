@@ -114,6 +114,7 @@ const classes = must(classesFile.classes, isArray, 'classes.yaml classes').map((
     name: must(c.name, isString, `${id} name`),
     description: must(c.description, isString, `${id} description`),
     parent: c.parent === undefined ? null : must(c.parent, isString, `${id} parent`),
+    weapon: must(c.weapon, isString, `${id} weapon`), // the kind its weapon looks are
     look: {
       model: must(look.model, isString, `${id} look.model`),
       tint: look.tint === undefined ? null : must(look.tint, isNumber, `${id} look.tint`),
@@ -767,7 +768,8 @@ const pvp = {
   ),
 };
 
-// outfits.yaml: each wardrobe piece's id, slot and the client look it's drawn with (outfits.md section 3); its name, stars and sources come with the wardrobe window.
+// outfits.yaml: each wardrobe piece's id, slot, the client look it's drawn with, its name, stars, a weapon's kind and its sources without their chances; and each feat's name (outfits.md section 3), for the wardrobe's grid and "how to get".
+const SOURCES = ['boss', 'rank', 'quest', 'feat'] as const;
 const outfitsFile = must(load('outfits.yaml'), isRecord, 'outfits.yaml');
 const outfits = {
   pieces: must(outfitsFile.pieces, isArray, 'outfits.yaml pieces').map((raw) => {
@@ -777,7 +779,26 @@ const outfits = {
       id,
       slot: must(p.slot, isString, `piece ${id} slot`),
       look: must(p.look, isString, `piece ${id} look`),
+      name: must(p.name, isString, `piece ${id} name`),
+      stars: must(p.stars, isNumber, `piece ${id} stars`),
+      kind: p.kind === undefined ? null : must(p.kind, isString, `piece ${id} kind`),
+      from: must(p.from, isArray, `piece ${id} from`).map((rawFrom, i) => {
+        const f = must(rawFrom, isRecord, `piece ${id} source ${i + 1}`);
+        const kind = SOURCES.find((k) => f[k] !== undefined);
+        if (!kind) {
+          throw new Error(`gamedata: piece ${id} source ${i + 1} names no ${SOURCES.join(', ')}`);
+        }
+        return { kind, id: must(f[kind], isString, `piece ${id} source ${i + 1} ${kind}`) };
+      }),
     };
+  }),
+  feats: (outfitsFile.feats === undefined
+    ? []
+    : must(outfitsFile.feats, isArray, 'outfits.yaml feats')
+  ).map((raw) => {
+    const f = must(raw, isRecord, 'an outfits.yaml feat');
+    const id = must(f.id, isString, 'a feat id');
+    return { id, name: must(f.name, isString, `feat ${id} name`) };
   }),
 };
 

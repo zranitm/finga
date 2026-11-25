@@ -22,6 +22,7 @@ export type Action =
   | 'quests'
   | 'map'
   | 'arena'
+  | 'wardrobe'
   | 'zoomIn' // pulls the camera closer, as the wheel does
   | 'zoomOut'
   | 'chat'
@@ -62,6 +63,7 @@ export const actions: readonly Action[] = [
   'quests',
   'map',
   'arena',
+  'wardrobe',
   'zoomIn',
   'zoomOut',
   'chat',

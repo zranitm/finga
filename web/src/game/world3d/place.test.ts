@@ -7,10 +7,12 @@ import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import type { Material } from '@babylonjs/core/Materials/material';
+import type { InputBlock } from '@babylonjs/core/Materials/Node/Blocks/Input/inputBlock';
 import { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
 import { Matrix, Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
+import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Scene } from '@babylonjs/core/scene';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -26,7 +28,7 @@ import { groundUnder, loadMap } from './map';
 import type { Solid, WorldMap } from './map';
 import { Models } from './models';
 import type { ModelSource } from './models';
-import { buildPlace, fade, Look, LookGrid, placedBox } from './place';
+import { buildPlace, fade, kitParts, Look, LookGrid, placedBox } from './place';
 import type { Place } from './place';
 import { linearOf, Palette } from './toon';
 
@@ -510,6 +512,42 @@ describe('kit models', () => {
       [17, 20, 11, 8], // past it, at its roof's edge
       [12, 37, 12, 31], // the inn
     ]);
+  });
+
+  it('sway a model the water bends, kelp from its file: every fade step and its ink by the model’s height as placed; coral, none', async () => {
+    const root = new TransformNode('kits', scene);
+    const models = new Models(scene, source);
+    const kelp = await kitParts(
+      models,
+      { file: 'sea/kelp.glb', scale: 1.5, y: 0, sway: true },
+      'kelp',
+      lighting.palette,
+      null,
+      root,
+    );
+    const tall = 1.5 * Math.max(...kelp.map((p) => p.mesh.getBoundingInfo().maximum.y));
+    expect(tall).toBeCloseTo(4.5, 0); // the 3 m kelp, scaled
+    const swayBy = (m: Material) =>
+      ((m as NodeMaterial).getBlockByName('swayTall') as InputBlock | null)?.value as
+        number | undefined;
+    for (const part of kelp) {
+      for (const m of [...part.steps, part.ink!.material!]) {
+        expect(swayBy(m)).toBeCloseTo(1 / tall, 9);
+      }
+    }
+    const coral = await kitParts(
+      models,
+      { file: 'sea/coral_branch.glb', scale: 1, y: 0 },
+      'coral',
+      lighting.palette,
+      null,
+      root,
+    );
+    for (const part of coral) {
+      for (const m of [...part.steps, part.ink!.material!]) {
+        expect(swayBy(m)).toBeUndefined();
+      }
+    }
   });
 
   it('fades a prop taller than half a player out of the camera’s way, as the crag by the sandstone cliffs’ south bank, and gives a lower one no copy', async () => {

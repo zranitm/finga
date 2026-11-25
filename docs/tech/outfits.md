@@ -233,8 +233,11 @@ Changing looks in combat is `IN_COMBAT` (330037), the code a trait change in com
 ## 7. Client: the wardrobe and the character window
 
 - **The wardrobe,** `features/wardrobe/Wardrobe.tsx`, on `wardrobe` (`KeyO`, key-bindings.md):
-  - **Left:** the character in 3D, wearing the picks, turned by a drag. It's a second scene on the game's engine, drawn into the window's canvas with `engine.registerView`, only while the window is open.
-  - **Right:** tabs Outfit, Headwear, Face, Weapon and Wings. Each is a grid of every piece in that slot: collected ones lit, the rest greyed.
+  - **Left:** the character in 3D, wearing the picks, turned by a drag. As built (`world3d/portrait.ts`), it's drawn in a small scene of its own on the game's engine, only while the window is open:
+    - each frame, before the world, it's drawn into the game canvas's bottom-left corner at the window canvas's size, then copied into that canvas with `drawImage`;
+    - the scene and its models stay while the world is open, so a window opened again loads nothing; closing a window disposes only its figure;
+    - the scene is made before the world's, which stays the engine's last.
+  - **Right:** tabs Outfit, Headwear, Face, Weapon and Wings. Each is a grid of every piece in that slot: collected ones lit, the rest greyed. The Weapon tab lists only looks of the class's weapon kind, the only ones the server takes.
   - **A card** on hover: the name, stars, slot, kind for a weapon look, and "How to get", written from its sources:
     - "Dropped by King Slime";
     - "Reach Gold in 1v1 or 3v3";
@@ -317,7 +320,7 @@ Changing looks in combat is `IN_COMBAT` (330037), the code a trait change in com
    - the migration, adding, the look and its checks, promotion;
    - `PlayerView.look`, `/api/wardrobe`, the failures and the invariant.
 2. **The client's looks:** parts files, binding to the class's rig, colourways, attach and fit, wings' hinges and motion, the cape hidden under wings, others redrawn, and the swing trail.
-3. **The wardrobe window,** the character window's figure, the inventory card actions, notices and the `wardrobe` key.
+3. **The wardrobe window,** the character window's figure, the inventory card actions, notices and the `wardrobe` key. Built in two parts: 3a the window and its key, 3b the character window, the inventory card and the notices.
 4. **Sources:** ranks from the pvp module, quest pieces and feats, with `GrantPieces` and `PiecesAdded`.
 5. **The catalogue:**
    - the Skeletons pack added, and the face pieces and wings modelled;
@@ -357,4 +360,5 @@ The user's choices are in section 1. These calls were made in planning and logge
 - **Wings that slow a fall or glide:** offered, and the user chose looks only. It would have changed the shared movement rules, and made wings power in PvP.
 - **A bought wings pack** (CGTrader, about $19 for 15 rigged pairs): not CC0, and its licence doesn't clearly allow sending the files to browsers.
 - **An achievements window:** feats only grant pieces today, so the wardrobe shows them where they matter.
+- **`engine.registerView` for the wardrobe's figure:** it skips the main scene's own draw on frames it draws views, and resizes the master canvas to each view's. Here the master canvas is the game's visible one.
 - **A new module for outfits:** adding would cross two modules' transactions. The item module already holds possessions and the worn-gear read.

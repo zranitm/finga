@@ -5,6 +5,7 @@ import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
 import { Constants } from '@babylonjs/core/Engines/constants';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import type { HighlightLayer } from '@babylonjs/core/Layers/highlightLayer';
+import type { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import { CascadedShadowGenerator } from '@babylonjs/core/Lights/Shadows/cascadedShadowGenerator';
 import type { TextureBlock } from '@babylonjs/core/Materials/Node/Blocks/Dual/textureBlock';
 import type { FragmentOutputBlock } from '@babylonjs/core/Materials/Node/Blocks/Fragment/fragmentOutputBlock';
@@ -73,10 +74,11 @@ import { target } from '@/state/target';
 import { teleport } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
+import { OWN_LOOK, wardrobe } from '@/state/wardrobe';
 import { FakeWebSocket } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
 import { mapJson, servePublic } from '@/testing/public-on-disk';
-import { fixtureFile, HOLLOW, TINY, tinyFile } from '@/testing/region-fixture';
+import { fixtureFile, HOLLOW, SHOAL, TINY, tinyFile } from '@/testing/region-fixture';
 import { resetStores } from '@/testing/reset-stores';
 import { builtShaders } from '@/testing/shaders';
 
@@ -121,10 +123,10 @@ vi.mock('./kit-models', async (actual) => {
   return { ...real, kitModels: { torch_mounted, torch_lit } };
 });
 
-/** Hunting maps with no NPCs, served flat and bare for the tests no map's own layout bears on: FLAT, the two a map change goes to, one served as a region, the widest a block holds, that with a tower, and one served as a cave. */
-const [FLAT, FLAT2, FLAT3, REGIONED, WIDE, TOWERED, CAVED] = maps
+/** Hunting maps with no NPCs, served flat and bare for the tests no map's own layout bears on: FLAT, the two a map change goes to, one served as a region, the widest a block holds, that with a tower, one served as a cave and one as a sea. */
+const [FLAT, FLAT2, FLAT3, REGIONED, WIDE, TOWERED, CAVED, SUNK] = maps
   .filter((m) => m.kind === 'hunting' && npcsOn(m.id).length === 0)
-  .map((m) => m.id) as [string, string, string, string, string, string, string];
+  .map((m) => m.id) as [string, string, string, string, string, string, string, string];
 
 /** Map id flat and bare, 72 by 40 m. */
 function bare(id: string) {
@@ -179,6 +181,11 @@ function caved(id: string) {
   return { ...bare(id), sky: 'cave', geometry: undefined, portals: [], region: HOLLOW };
 }
 
+/** Map id drawn from the shoal bake, a sea below tiny, as mapjson writes a region. */
+function sunk(id: string) {
+  return { ...bare(id), sky: 'sea', geometry: undefined, portals: [], region: SHOAL };
+}
+
 /** The tiny bake's region.json with a town area besides its field, Market Square: where the server says the player stands is all the client reads of it. */
 function townedTiny(): unknown {
   const j = JSON.parse(new TextDecoder().decode(tinyFile('region.json'))) as { areas: unknown[] };
@@ -227,6 +234,7 @@ const SERVED = {
   [FLAT3]: bare(FLAT3),
   [REGIONED]: regioned(REGIONED),
   [CAVED]: caved(CAVED),
+  [SUNK]: sunk(SUNK),
   [`regions/${TINY.id}/${TINY.hash}/region.json`]: townedTiny(),
   [WIDE]: wide(WIDE),
   [TOWERED]: towered(TOWERED),
@@ -794,6 +802,58 @@ describe('World', () => {
       p.frames(1);
       expect(round.thinInstanceCount).toBe(2); // and Robin's, 3 m off
     }, WAIT);
+  });
+
+  it('lights a sea region by a sun nearly overhead, its shadows cascaded, its ground rippling with caustics, under a deep blue-green sky; its rays drift round the player', async () => {
+    const buffers = new Map<string, Float32Array>(); // each mesh's instances, as last handed it
+    const set = Object.getOwnPropertyDescriptor(Mesh.prototype, 'thinInstanceSetBuffer')!
+      .value as Mesh['thinInstanceSetBuffer']; // the unspied one, to call through
+    vi.spyOn(Mesh.prototype, 'thinInstanceSetBuffer').mockImplementation(function (
+      this: Mesh,
+      ...args
+    ) {
+      buffers.set(this.name, args[1]!);
+      set.apply(this, args);
+    });
+    const p = await playing(SUNK, 24, 64);
+    const scene = p.scene()!;
+    expect(scene.lights).toHaveLength(1);
+    const sun = scene.lights[0] as DirectionalLight;
+    expect(sun.direction.normalizeToNew().y).toBeLessThan(-0.95); // nearly straight down
+    expect(sun.getShadowGenerator()).not.toBeNull();
+    p.frames(1);
+    await Promise.allSettled(chunkWork.builds);
+    await new Promise<void>((r) => setImmediate(r));
+    p.frames(2);
+    const chunks = scene.meshes.filter((m) => m.name.startsWith('chunk '));
+    expect(chunks).toHaveLength(4);
+    for (const c of chunks) {
+      expect((c.material as NodeMaterial).getBlockByName('causticCells')).not.toBeNull();
+    }
+    const [r, g, b] = [scene.clearColor.r, scene.clearColor.g, scene.clearColor.b];
+    expect([g > r, b > r, Math.max(r, g, b) < 0.5]).toEqual([true, true, true]); // deep blue-green
+    expect([scene.fogStart, scene.fogEnd]).toEqual([20, 60]); // close up
+    const rays = scene.getMeshByName('sea rays') as Mesh;
+    expect(rays.thinInstanceCount).toBeGreaterThanOrEqual(6);
+    expect(rays.thinInstanceCount).toBeLessThanOrEqual(8);
+    const feet = (ms: number) => {
+      const now = vi.spyOn(PrecisionDate, 'Now', 'get').mockReturnValue(ms);
+      p.frames(1);
+      now.mockRestore();
+      const b = buffers.get('sea rays')!;
+      return Array.from({ length: rays.thinInstanceCount }, (_, i) => [
+        b[16 * i + 12]!,
+        b[16 * i + 14]!,
+      ]);
+    };
+    const first = feet(10_000);
+    const later = feet(14_000);
+    for (const [x, z] of [...first, ...later]) {
+      expect(Math.hypot(x! - 24, z! - 64)).toBeLessThan(40); // round the player
+    }
+    expect(later).not.toEqual(first); // drifting
+    expect(scene.getMeshByName('glow cards')).toBeNull(); // no torches
+    expect(scene.getMeshByName('round shadows')).toBeNull(); // the sun's shadows instead
   });
 
   it('draws a cave’s torches with their flames: each torch’s cup at its light, the flame unlit at its group’s flicker, a glow card behind it turned to the camera', async () => {
@@ -1500,7 +1560,7 @@ describe('World', () => {
     said.mockRestore();
   });
 
-  it('dresses the player in what their own frame says they wear, and keeps the figure through a look that wears nothing', async () => {
+  it('dresses the player in what their own frame says they wear, tells the wardrobe, and keeps the figure through a look that wears nothing', async () => {
     const make = vi.spyOn(Figures.prototype, 'make');
     const p = await playing(FLAT, 4, 20);
     const shown = (name: string) =>
@@ -1518,6 +1578,7 @@ describe('World', () => {
     await vi.waitFor(() => expect(shown('Mage_Hat worn')).toBe(true), WAIT);
     expect(shown('Knight_Helmet')).toBe(false);
     expect(make.mock.calls.length).toBe(made + 1);
+    expect(wardrobe.getState().worn).toEqual({ ...OWN_LOOK, headwear: 'pointed_hat' });
   });
 
   it('dresses the player from a Snapshot too, as one rejoining in a look gets', async () => {
@@ -1531,6 +1592,7 @@ describe('World', () => {
     );
     p.frames(1);
     await vi.waitFor(() => expect(shown('2H_Axe worn')).toBe(true), WAIT);
+    expect(wardrobe.getState().worn).toEqual({ ...OWN_LOOK, weapon: 'greataxe' });
   });
 
   it('poses another player every frame near the camera’s target, every 2nd frame 45 m off, and never behind the camera', async () => {
@@ -3137,6 +3199,7 @@ describe('World', () => {
   it.each([
     { code: 'KeyM', window: 'map' },
     { code: 'KeyV', window: 'arena' },
+    { code: 'KeyO', window: 'wardrobe' },
   ])('$code opens the $window window and closes it again', async ({ code, window }) => {
     await playing(FLAT, 10, 20);
     key(code, true);

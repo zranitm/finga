@@ -1,10 +1,11 @@
 // The kit models solids and props draw with, by the model key a map names; a key with none draws a stand-in.
 
-/** A model file under /models, scaled evenly and raised y metres. */
+/** A model file under /models, scaled evenly and raised y metres; one that sways bends in the water by its height, as kelp does. */
 export interface KitModel {
   readonly file: string;
   readonly scale: number;
   readonly y: number;
+  readonly sway?: boolean;
 }
 
 /** KayKit Dungeon's torches and their flame, at the characters' scale (the Knight's 2.467 units drawn 1.75 m); each file has its cup's centre at its origin, so a torch stands raised to its flame, kit.yaml's light height. */
@@ -54,4 +55,12 @@ export const kitModels: Readonly<Record<string, KitModel>> = {
   shop: { file: 'quaternius/MarketStand_1.glb', scale: 4, y: 0 },
   well: { file: 'quaternius/Well.glb', scale: 4, y: 0 },
   crate: { file: 'quaternius/Crate.glb', scale: 4, y: 0 },
+  // The sea's, our own (underground-and-underwater.md section 9), each made at its size standing on its origin.
+  coral_brain: { file: 'sea/coral_brain.glb', scale: 1, y: 0 },
+  coral_branch: { file: 'sea/coral_branch.glb', scale: 1, y: 0 },
+  coral_fan: { file: 'sea/coral_fan.glb', scale: 1, y: 0 },
+  kelp: { file: 'sea/kelp.glb', scale: 1, y: 0, sway: true },
+  sea_grass: { file: 'sea/sea_grass.glb', scale: 1, y: 0, sway: true },
+  shell_conch: { file: 'sea/shell_conch.glb', scale: 1, y: 0 },
+  shell_scallop: { file: 'sea/shell_scallop.glb', scale: 1, y: 0 },
 };
