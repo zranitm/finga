@@ -54,6 +54,9 @@ const RING_M = 7;
 /** A find's stone waits this long in ms to be on screen and flare; after, it just shows lit. */
 const SEEN_WITHIN_MS = 10_000;
 
+/** A halo's and a flare's beam's share of their alpha at each of their stone's STEPS: gone by its faded step, as a stone fades only between the camera and the player, whom a glow at the stone's own alpha would tint. */
+const GLOW_STEPS = [1, 0.3, 0, 0, 0] as const;
+
 /** The box a stone's see-through look takes round its spot, halo and all: as wide as the found halo, up to its top. */
 const SEE = { reach: 1.3, top: 4.5 };
 
@@ -219,10 +222,10 @@ export class WaypointStones {
     });
   }
 
-  /** s at its look's step: whole among the instances, else its see-through copy, gone at the last, its halo fading with it. */
+  /** s at its look's step: whole among the instances, else its see-through copy, gone at the last, its halo gone before it. */
   private see(s: Stone, step: number): void {
     s.step = step;
-    s.halo.visibility = STEPS[step]!;
+    s.halo.visibility = GLOW_STEPS[step]!;
     this.place();
   }
 
@@ -331,6 +334,7 @@ export class WaypointStones {
     this.haloOf(f.stone, Math.sin((Math.PI * k) / FLARE_MS));
     this.beam.position.set(x, y + CRYSTAL_Y + 4.5 * ease((1.5 * k) / BEAM_MS), z);
     this.beam.material!.alpha = 0.7 * (1 - Math.min(k / BEAM_MS, 1));
+    this.beam.visibility = GLOW_STEPS[f.stone.step]!; // its stone's glow, gone as the stone fades
     const across = 1.4 + (RING_M - 1.4) * ease(k / FLARE_MS);
     this.ring.scaling.set(across, 1, across);
     let top = y; // the ring lies flat, so it rides the highest ground under it, on a slope too

@@ -280,6 +280,30 @@ describe('a region’s waypoint stones', () => {
   });
 
   // From the stones' live pass: arrivals were north of the stone, which stood between the camera and the player. A stone still fades for the player walking behind it, as a tall prop does.
+  // From the wardrobe pass's stills: a found halo at the faded stone's 0.3 still tinted the player behind it teal at the near zoom.
+  it('fades a stone’s halo and its flare’s beam ahead of the stone, never past its alpha and gone by its faded step, and back with it', async () => {
+    await built();
+    const halo = mesh('waypoint west halo')!;
+    const beam = mesh('waypoint beam')!;
+    camera(WEST.x, WEST.z - 4);
+    waypoints.getState().find('west');
+    frame(1100);
+    expect([beam.isEnabled(), beam.visibility, halo.visibility]).toEqual([true, 1, 1]); // a whole stone's flare in full
+    const look = stones!.looks[0]!;
+    look.toward('gone', 0); // at rest, a change starts at once: one step
+    for (let step = 1; step < STEPS.length; step++) {
+      frame(1100 + 10 * step);
+      expect(halo.visibility).toBeLessThanOrEqual(STEPS[step]!);
+      expect(beam.visibility).toBe(halo.visibility);
+      expect(halo.visibility === 0).toBe(step >= 2);
+      look.toward('gone', 50);
+    }
+    look.toward('whole', 0);
+    STEPS.forEach(() => look.toward('whole', 50)); // a step each, back to whole
+    frame(1300);
+    expect([halo.visibility, beam.visibility]).toEqual([1, 1]);
+  });
+
   it('fades a stone out of the camera’s way to the player, halo and all, gone at the lens, and back whole after', async () => {
     await built();
     const instances = () => spots('waypoint stone');
@@ -302,7 +326,7 @@ describe('a region’s waypoint stones', () => {
         true,
       ]); // its toon at the faded step's alpha
     }
-    expect(westHalo.visibility).toBe(STEPS[2]);
+    expect(westHalo.visibility).toBe(0); // its glow gone already, though the stone shows at 0.3: over the player it would tint them
     camera(WEST.x, 72 + 16 * Math.cos((50 * Math.PI) / 180)); // the game's camera at the one fade has
     waypoints.getState().find('west');
     expect(faded.every((m) => !m.isEnabled())).toBe(true); // found while faded: its found copy shows instead
