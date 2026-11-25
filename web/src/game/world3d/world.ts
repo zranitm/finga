@@ -111,6 +111,7 @@ import type { ChunkSource } from './chunk-build';
 import { Combat, playerBody } from './combat';
 import { cutMobs } from './cut-mobs';
 import { Figures } from './figures';
+import { FishSchools } from './fish-schools';
 import { Flames } from './flames';
 import { CHEST_M, cameraAt, easeShare, heldView, yawOf } from './follow';
 import { Labels } from './labels';
@@ -134,6 +135,7 @@ import { PrepWall } from './prep-wall';
 import type { RegionArea } from './region-bake';
 import { buildRegion } from './region-place';
 import { RoundShadows } from './round-shadows';
+import { SeaBubbles } from './sea-bubbles';
 import { SeaRays } from './sea-rays';
 import { SEA_SUN } from './sealight';
 import { ShieldBubbles } from './shield-bubbles';
@@ -239,6 +241,7 @@ class Drawn {
   private posed: { p: Pose; at: number } = { p: 'up', at: 0 };
   private keyed: { cls: string; look: LookWire | undefined } | null = null;
   private readonly beat: number;
+  readonly height: number; // how tall it stands, its look's
   private readonly middle: number; // how high its bounds' middle is over its feet
   private readonly reach: number; // and how far they reach round it, a hover and gear past its cylinder too
 
@@ -252,6 +255,7 @@ class Drawn {
   ) {
     this.yaw = yaw;
     this.beat = pacing.beat();
+    this.height = look.height;
     this.middle = look.height / 2;
     this.reach = Math.hypot(look.height / 2, (look.width ?? look.height) / 2) + look.height / 2; // round its middle, and half its height more for a weapon or a wing swung out
     this.redraw(made, as);
@@ -432,6 +436,9 @@ export class World {
   private roundShadows: RoundShadows | null = null; // a cave's, which has no sun
   private flames: Flames | null = null; // its torches'
   private rays: SeaRays | null = null; // a sea's
+  private seaBubbles: SeaBubbles | null = null; // a sea's
+  private fish: FishSchools | null = null; // a sea's
+  private breathAt = 0; // the frame's moment, for the bubbles' walk over the bodies
   private pouchMarks: PouchMarks | null = null;
   private place: Place | null = null;
   private map: WorldMap | null = null;
@@ -657,7 +664,9 @@ export class World {
     ); // its cards turned to the camera where this frame draws from
     if (this.camera) {
       this.rays?.frame(seconds, this.camera.position, this.follow);
+      this.fish?.frame(seconds, this.camera.position, this.follow, this.floorAt);
     }
+    this.breatheBodies(now);
     this.unveil();
     this.combat?.frame(now);
     this.closeDialogOutOfReach();
@@ -725,6 +734,8 @@ export class World {
     let round: RoundShadows | null;
     let flames: Flames | null;
     let rays: SeaRays | null;
+    let seaBubbles: SeaBubbles | null;
+    let fish: FishSchools | null;
     let figures: Figures;
     let pouchMarks: PouchMarks;
     let fx: Fx;
@@ -739,6 +750,8 @@ export class World {
       rays = sea ? new SeaRays(scene, lighting.palette) : null;
       round = cave && new RoundShadows(scene, lighting.palette, map);
       const models = new Models(scene, this.deps.models);
+      seaBubbles = sea ? new SeaBubbles(scene) : null;
+      fish = sea ? new FishSchools(scene, lighting.palette, models, map.geometry) : null;
       flames = cave && new Flames(scene, lighting.palette, models, cave.region.lights);
       figures = new Figures(scene, lighting, models);
       pouchMarks = new PouchMarks(scene, models, lighting);
@@ -769,6 +782,8 @@ export class World {
     this.roundShadows = round;
     this.flames = flames;
     this.rays = rays;
+    this.seaBubbles = seaBubbles;
+    this.fish = fish;
     this.figures = figures;
     this.pouchMarks = pouchMarks;
     this.place = place;
@@ -1472,6 +1487,40 @@ export class World {
     this.npcViews.forEach(this.shadeNpc);
     round.end();
   }
+
+  /** A sea's bubbles this frame: its drawn vents near the camera's target stream, and each body drawn near it, the dying aside, breathes out a few now and then. */
+  private breatheBodies(now: number): void {
+    const bubbles = this.seaBubbles;
+    if (!bubbles || !this.place) {
+      return;
+    }
+    bubbles.frame(this.follow.x, this.follow.z, this.place.vents());
+    this.breathAt = now;
+    if (this.me) {
+      this.breathe(this.me);
+    }
+    this.remoteViews.forEach(this.breathe);
+    this.mobViews.forEach(this.breathe);
+    this.npcViews.forEach(this.breatheNpc);
+  }
+
+  // made once, so a frame's walk over the maps makes nothing
+  private readonly breathe = (v: Drawn) => {
+    const at = v.at;
+    if (at && v.shown) {
+      this.seaBubbles?.breathe(
+        v,
+        at.x,
+        at.y + v.height,
+        at.z,
+        this.follow.x,
+        this.follow.z,
+        this.breathAt,
+      );
+    }
+  };
+  private readonly breatheNpc = (n: { readonly view: Drawn }) => this.breathe(n.view);
+  private readonly floorAt = (x: number, z: number) => groundUnder(this.map!, x, z);
 
   /** v's round shadow, a body of radius r, if it's drawn: under its feet, on a solid's top it stands on too. */
   private shade(v: Drawn, r: number): void {
@@ -2680,6 +2729,8 @@ export class World {
     this.roundShadows = null;
     this.flames = null;
     this.rays = null;
+    this.seaBubbles = null;
+    this.fish = null;
     this.pouchMarks = null;
     this.lighting = null;
     this.map = null;

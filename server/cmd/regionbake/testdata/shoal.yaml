@@ -1,4 +1,4 @@
-# The smallest sea a bake makes, below tiny: a sea floor in a basin of steep rock with a reef on it, kelp, sea grass, coral and shells on it, for the client's sea look.
+# The smallest sea a bake makes, below tiny: a sea floor in a basin of steep rock with a reef on it, kelp, sea grass, coral, shells and vents on it, for the client's sea look.
 name: Shoal
 under: tiny
 size: [128, 128]
@@ -25,6 +25,7 @@ biomes:
       - {model: sea_grass, spacing: 3}
       - {model: coral_branch, spacing: 11, away: {waypoint: 3}}
       - {model: shell_scallop, spacing: 13}
+      - {model: vent, spacing: 20, away: {waypoint: 4}}
       - {model: rock_small, spacing: 12, away: {waypoint: 3}}
   reef_wall:
     colours: {flat: sea_rock, slope: sea_rock, steep: sea_rock, high: sea_rock}
