@@ -316,7 +316,7 @@ func (b *builder) river(r River) {
 		b.r.Wet[s], b.water[s] = true, max(b.water[s], level)
 	}
 	for i, at := range r.Fords {
-		c := fordCone{at: at, bed: fordBeds[i], floor: half - bk}
+		c := fordCone{at: at, bed: fordBeds[i], floor: half - bk, reach: fordR}
 		b.fords = append(b.fords, c)
 		for s := range b.h {
 			b.h[s] = min(b.h[s], c.under(b.g, s))
@@ -324,10 +324,16 @@ func (b *builder) river(r River) {
 	}
 }
 
-// fordCone is the ground a ford's ramp holds under: flat at bed within floor of it, then rising fordRamp a metre, so the river's banks there fall no steeper and a body walks into the ford and out of it every way.
+// fordCone is the ground a ford's ramp holds under: flat at bed within floor of it, then rising fordRamp a metre, so the river's banks there fall no steeper and a body walks into the ford and out of it every way; reach is the ford's own disc, where the river runs shallow.
 type fordCone struct {
-	at         [2]float64
-	bed, floor float64
+	at                [2]float64
+	bed, floor, reach float64
+}
+
+// holds is whether sample s lies in the ford's disc.
+func (c fordCone) holds(g grid, s int) bool {
+	dx, dz := g.x(s%g.nx)-c.at[0], g.x(s/g.nx)-c.at[1]
+	return float64(dx*dx)+float64(dz*dz) <= float64(c.reach*c.reach)
 }
 
 // under is the highest sample s may stand round the ford.
@@ -369,7 +375,7 @@ func (b *builder) lake(l Lake) {
 	}
 }
 
-// road flattens its smoothed path to the ground's mean along it, roadMean each way, easing back to the land over a shoulder as wide as the road; across water it's a causeway, but through a ford it wades it, held under the ford's ramp.
+// road flattens its smoothed path to the ground's mean along it, roadMean each way, easing back to the land over a shoulder as wide as the road; across water it's a causeway, but through a ford its path crosses it wades it, held under the ford's ramp.
 func (b *builder) road(r Road) {
 	path := smooth(r.Path)
 	s := along(path)
@@ -389,19 +395,25 @@ func (b *builder) road(r Road) {
 	}
 	r.Path = path
 	b.roads = append(b.roads, r)
+	var through []fordCone // the fords the road crosses; one it only passes leaves it as it was
+	for _, c := range b.fords {
+		if onPath(path, c.at, c.reach) {
+			through = append(through, c)
+		}
+	}
 	half := float64(r.Width / 2)
 	b.f.near(b.g, path, false, half+r.Width)
 	for _, t := range b.f.touched {
 		level := lerp(levels[b.f.seg[t]], levels[b.f.seg[t]+1], b.f.t[t])
 		d := math.Sqrt(b.f.d2[t])
-		h := lerp(level, b.h[t], smoothstep((d-half)/r.Width))
-		for _, c := range b.fords {
-			h = min(h, c.under(b.g, int(t))) // through a ford it wades
+		h, ford := lerp(level, b.h[t], smoothstep((d-half)/r.Width)), false
+		for _, c := range through {
+			h, ford = min(h, c.under(b.g, int(t))), ford || c.holds(b.g, int(t))
 		}
 		b.h[t] = h
 		if d <= half {
 			b.onRoad[t] = true
-			b.r.Wet[t] = b.r.Wet[t] && h < b.water[t] // over the water a causeway, dry; under it still in it
+			b.r.Wet[t] = b.r.Wet[t] && ford && h < b.water[t] // over water a causeway, dry; in a ford it crosses, wet where under the water
 		}
 	}
 }
