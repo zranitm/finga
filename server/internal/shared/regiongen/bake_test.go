@@ -249,6 +249,8 @@ func TestBakeHashes(t *testing.T) {
 	}
 	hash("small", small(t))
 	hash("wide", plan(t, "testdata/wide.yaml"))
+	hash("cave", plan(t, "testdata/cave.yaml"))
+	hash("sea", plan(t, "testdata/sea.yaml"))
 	for _, path := range plans {
 		raw, err := os.ReadFile(path)
 		if err != nil {
