@@ -427,7 +427,7 @@ func TestHandingInAQuest(t *testing.T) {
 			if len(changes(q.sink)) != 0 || len(q.cps.Drain()) != 0 {
 				t.Fatal("something changed")
 			}
-			if n := strings.Count(logs.String(), `"msg":"hand-in try failed; trying again"`); n == 0 || n > len(f.called()) || !strings.Contains(logs.String(), `"level":"ERROR","msg":"hand-in given up`) {
+			if n := strings.Count(logs.String(), `"call":"hand-in","try"`); n == 0 || n > len(f.called()) || !strings.Contains(logs.String(), `"level":"ERROR","msg":"hand-in given up`) {
 				t.Fatalf("%d calls, logged:\n%s", len(f.called()), logs.String())
 			}
 		})

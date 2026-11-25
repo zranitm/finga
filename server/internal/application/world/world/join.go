@@ -13,6 +13,7 @@ import (
 	"finga/internal/application/world/instance"
 	"finga/internal/application/world/quests"
 	model "finga/internal/model/world"
+	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 )
 
@@ -79,6 +80,7 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 		return model.View{}, err
 	}
 	w.grantStarter(ctx, account, id)
+	feats := w.joinFeats(ctx, account, c)
 	worn, err := w.worn(ctx, id) // after the grant, so starter equipment counts
 	if err != nil {
 		return model.View{}, err
@@ -107,7 +109,7 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	defer landed()
 	c = w.placed(ctx, c)
 	log := c.Quests.Clone() // the view's: from the join on, the map's tick changes the player's
-	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Points: c.Points, Skills: c.Skills, HP: c.HP, Energy: c.Energy, X: c.X, Y: c.Y, Z: c.Z, Yaw: c.Yaw, Connection: conn, Worn: worn, Look: look, Quests: c.Quests, Timers: running(c.Timers, now), Waypoints: c.Waypoints.Clone(), HandedIn: handedIn}
+	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Points: c.Points, Skills: c.Skills, HP: c.HP, Energy: c.Energy, X: c.X, Y: c.Y, Z: c.Z, Yaw: c.Yaw, Connection: conn, Worn: worn, Look: look, Quests: c.Quests, Timers: running(c.Timers, now), Waypoints: c.Waypoints.Clone(), HandedIn: handedIn, FeatPieces: feats}
 	at := w.presences.place(id, presence{inst: inst, conn: conn, account: account, sink: sink})
 	answerCtx, cancel := answerOf(ctx)
 	defer cancel()
@@ -176,6 +178,29 @@ func (w *World) load(ctx context.Context, id kernel.CharacterID, account kernel.
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
 	return w.deps.Characters.Load(ctx, id, account)
+}
+
+// joinFeats asks for the pieces of each feat the character meets that a join can see, a level reached, a promotion taken, a quest finished, so one whose grant was lost when it was met still comes; it gives the pieces new to the account. A failure is logged and leaves the join as it is: the next one asks again. A boss's feat has no record to see, and comes again with the next boss.
+func (w *World) joinFeats(ctx context.Context, account kernel.AccountID, c model.Character) []string {
+	class, _ := w.data.Class(c.Class)
+	pieces := instance.FeatPieces(w.data, func(f gamedata.FeatWhen) bool {
+		return f.Level > 0 && f.Level <= c.Level || f.Promoted && class.Parent != "" || f.Quest != "" && c.Quests[f.Quest].TimesFinished > 0
+	})
+	if len(pieces) == 0 {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, featsTimeout)
+	defer cancel()
+	added, err := w.deps.Feats.GrantFeatPieces(ctx, account, pieces)
+	if err != nil {
+		w.deps.Logger.WarnContext(ctx, "a join's feats not granted; the next join asks again", "character_id", c.ID, "err", err)
+		return nil
+	}
+	out := make([]string, 0, len(added))
+	for _, a := range added {
+		out = append(out, a.Piece)
+	}
+	return out
 }
 
 // grantStarter is a safety net for a creation whose grant failed: a failure is logged, and the next join tries again.

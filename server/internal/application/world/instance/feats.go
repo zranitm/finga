@@ -2,16 +2,10 @@ package instance
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"time"
-
-	"github.com/cenkalti/backoff/v5"
 
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
-	"finga/pkg/transient"
 )
 
 // featsMsg brings a feat grant's answer to the tick: the pieces new to the account.
@@ -22,19 +16,25 @@ type featsMsg struct {
 
 func (featsMsg) message() {}
 
+// FeatPieces is the pieces of each feat met gives, in file order.
+func FeatPieces(data *gamedata.Data, met func(gamedata.FeatWhen) bool) []model.FeatPiece {
+	var pieces []model.FeatPiece
+	for _, f := range data.Feats() {
+		if met(f.When) {
+			for _, piece := range data.FeatPieces(f.ID) {
+				pieces = append(pieces, model.FeatPiece{Piece: piece, Feat: f.ID})
+			}
+		}
+	}
+	return pieces
+}
+
 // grantFeats has a worker ask the item module for the pieces of each feat met gives (outfits.md section 4); the player hears of those new to the account. A feat asks each time it's met, so a grant lost to a failure, or to a pool too busy to take it, comes the next time; a bot does no feat.
 func (i *Instance) grantFeats(p *player, met func(gamedata.FeatWhen) bool) {
 	if p.bot != nil {
 		return
 	}
-	var pieces []model.FeatPiece
-	for _, f := range i.data.Feats() {
-		if met(f.When) {
-			for _, piece := range i.data.FeatPieces(f.ID) {
-				pieces = append(pieces, model.FeatPiece{Piece: piece, Feat: f.ID})
-			}
-		}
-	}
+	pieces := FeatPieces(i.data, met)
 	if len(pieces) == 0 {
 		return
 	}
@@ -54,26 +54,14 @@ func (i *Instance) grantFeats(p *player, met func(gamedata.FeatWhen) bool) {
 	}
 }
 
-// callFeats tries the grant until the item module answers or refuses, or callFor passes, as a hand-in does; the log hears a grant given up.
+// callFeats tries the grant as retried does; the log hears a grant given up.
 func (i *Instance) callFeats(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, pieces []model.FeatPiece) ([]model.FeatPiece, error) {
-	ctx, cancel := context.WithTimeoutCause(ctx, callFor, fmt.Errorf("%w: the item module didn't answer a feat's grant in time", transient.ErrUnavailable))
-	defer cancel()
-	tries := 0
-	wait := &backoff.ExponentialBackOff{InitialInterval: handInRetryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: handInRetryMax}
-	added, err := backoff.Retry(ctx, func() ([]model.FeatPiece, error) {
-		tries++
-		tryCtx, cancelTry := context.WithTimeout(ctx, handInTimeout)
-		defer cancelTry()
-		added, err := i.deps.Feats.GrantFeatPieces(tryCtx, account, pieces)
-		if err != nil && !errors.Is(err, transient.ErrUnavailable) {
-			return added, backoff.Permanent(err)
-		}
-		return added, err
-	}, backoff.WithBackOff(wait), backoff.WithMaxElapsedTime(0), backoff.WithNotify(func(err error, next time.Duration) {
-		i.log.WarnContext(ctx, "a feat's grant failed; trying again", "character_id", id, "try", tries, "next_in", next, "err", err)
-	}))
+	who := []any{"character_id", id}
+	added, tries, err := retried(ctx, i.log, "feat's grant", who, func(ctx context.Context) ([]model.FeatPiece, error) {
+		return i.deps.Feats.GrantFeatPieces(ctx, account, pieces)
+	})
 	if err != nil {
-		i.log.ErrorContext(ctx, "a feat's grant given up; the next time it's met grants it", "character_id", id, "tries", tries, "err", err)
+		i.log.ErrorContext(ctx, "a feat's grant given up; the next time it's met, or the next join, grants it", append(who, "tries", tries, "err", err)...)
 	}
 	return added, err
 }

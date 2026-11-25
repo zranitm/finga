@@ -6,23 +6,12 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"time"
-
-	"github.com/cenkalti/backoff/v5"
 
 	"finga/internal/application/world/quests"
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/pkg/transient"
-)
-
-// A hand-in's call to the item module is tried again after a timeout or an outage, as a completion is handed in once whatever the tries; a refusal is final.
-// Every try fits in callFor, so the outcome reaches the request.
-const (
-	handInTimeout    = 1500 * time.Millisecond // one try
-	handInRetryFirst = 200 * time.Millisecond
-	handInRetryMax   = time.Second
 )
 
 type questAction uint8
@@ -188,25 +177,10 @@ func (i *Instance) handIn(p *player, npc gamedata.NPC, m questMsg) error {
 	return nil
 }
 
-// callHandIn tries the hand-in until the item module answers or refuses, or callFor passes; the log hears each try that failed and a hand-in given up.
+// callHandIn tries the hand-in as retried does; the log hears a hand-in given up.
 func (i *Instance) callHandIn(ctx context.Context, call model.HandInCall) (model.HandedIn, error) {
-	ctx, cancel := context.WithTimeoutCause(ctx, callFor, fmt.Errorf("%w: the item module didn't answer the hand-in in time", transient.ErrUnavailable))
-	defer cancel()
 	who := []any{"character_id", call.Character, "quest_id", call.Quest, "completion", call.Completion}
-	tries := 0
-	wait := &backoff.ExponentialBackOff{InitialInterval: handInRetryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: handInRetryMax}
-	result, err := backoff.Retry(ctx, func() (model.HandedIn, error) {
-		tries++
-		tryCtx, cancelTry := context.WithTimeout(ctx, handInTimeout)
-		defer cancelTry()
-		result, err := i.deps.HandIns.HandIn(tryCtx, call)
-		if err != nil && !errors.Is(err, transient.ErrUnavailable) {
-			return result, backoff.Permanent(err)
-		}
-		return result, err
-	}, backoff.WithBackOff(wait), backoff.WithMaxElapsedTime(0), backoff.WithNotify(func(err error, next time.Duration) {
-		i.log.WarnContext(ctx, "hand-in try failed; trying again", append(who, "try", tries, "next_in", next, "err", err)...)
-	}))
+	result, tries, err := retried(ctx, i.log, "hand-in", who, func(ctx context.Context) (model.HandedIn, error) { return i.deps.HandIns.HandIn(ctx, call) })
 	if errors.Is(err, transient.ErrUnavailable) {
 		i.log.ErrorContext(ctx, "hand-in given up; if the item module took it, the next join finishes the quest", append(who, "tries", tries, "err", err)...)
 	}
