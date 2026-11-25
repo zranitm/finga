@@ -1601,6 +1601,33 @@ body {
   margin-left: auto;
   padding: 1px 10px;
 }
+.map-below {
+  margin-top: 6px;
+  font-size: 13px;
+}
+.map-below-place ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.map-below-waypoint {
+  padding: 1px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+.map-below-waypoint.found {
+  color: #00dce6;
+}
+.map-below-waypoint[aria-pressed='true'] {
+  border-color: var(--accent);
+}
 .map-picked-party {
   display: flex;
   flex-wrap: wrap;
