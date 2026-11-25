@@ -1,4 +1,4 @@
-# A region as steep as the wide plan gets, at 2 m a sample to stay a few tens of kB: a ridge a little higher than the wide plan's, so the ring's cliff steps up as far, and a plateau 12 m high with a cliff edge, oaks and boulders round them, for the movement vectors.
+# A region as steep as the wide plan gets, at 2 m a sample to stay a few tens of kB: a ridge a little higher than the wide plan's, so the ring's cliff steps up as far, and a plateau 12 m high with a cliff edge and a road up its south face, oaks and boulders round them, for the movement vectors.
 name: Steep
 size: [128, 128]
 cell: 2
@@ -10,6 +10,7 @@ colour: {slope: 0.25, high: 30}
 features:
   - {ridge: {path: [[20, 100], [60, 108]], width: 36, height: 28}}
   - {plateau: {area: [[56, 50], [84, 50], [84, 78], [56, 78]], height: 12, edge: cliff}}
+  - {road: {path: [[70, 14], [70, 66]], width: 6}}
 areas:
   - {id: field, name: Field, area: [[12, 12], [116, 12], [116, 116], [12, 116]], levels: [1, 2], biome: meadow, kind: hunting}
 waypoints:

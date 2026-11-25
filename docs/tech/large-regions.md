@@ -176,6 +176,10 @@ biomes:
   - **Ridge:** `height × (1 − d²/r²)²` at `d` from its path, `r` half its width.
   - **Plateau:** `height` is added over its area.
     - A cliff falls over 2 samples, too steep to walk.
+      - **As built (land cliffs, from #400's review):** a steep face is walked up slantwise, so a raised cliff's face is a barrier, as a cave's rock is. Each sample on it carries the mark, unless one of the four cells round it is no longer steep on the final ground, as under a road onto the plateau or by a ford's ramp.
+      - A road onto a cliff plateau eases its face and stays open, the only way onto its top, and a pit's cliff marks nothing. Nobody drops off a cliff: the barrier stops a body at the top's edge too.
+      - Banks, fords, ramps and the ring keep their steep marks only. A cell steep along one axis made steep along both was tried instead and dropped: it closed the wide plan's ford at (700, 540) and left two one-way pockets by the test region's river.
+      - **Test:** over every plan, a player from the start, walking or jumping, reaches no cliff plateau's top but by a road onto it, and does reach it by one (`TestNoPlayerClimbsACliff`).
     - A ramp falls at half `max_slope`, walkable.
   - **River:** its path is smoothed (Chaikin's method, 3 passes).
     - **Water:** 0.5 m below the lowest ground along it so far, so it never rises downstream.
@@ -683,6 +687,10 @@ Built with step 1, which says who watches a cell.
     - every triangle facing up, wound as the ground's are;
     - the water's colour and alpha, and the meshes going with the region;
     - region.json read with a lake, with none written as null, and refused with no water.
+  - **After 5b-2's review:**
+    - **A bend tighter than the ribbon's half** folded its inside back over itself. Each vertex's reach across is now cut so its bank's edge still goes downstream by a tenth of each step, along both ends' ways. Gentle bends keep the whole reach. The cut is local to each step, so a river that coils back across itself, as a spiral, can still overlap. Test: a hairpin's triangles all face up, either way it runs.
+    - **A lake whose grown surface crosses itself,** as a U whose arms stand closer than its two banks, is refused with the plan. The generator grows the lake's area as the client does (`regiongen/surface.go`) and refuses it if two sides not meeting at a corner touch or cross. Tests: a U 3 m apart is refused, and one 10 m apart builds. The two growths are kept in step by `server/testdata/water/lakes.json`: the generator writes three lakes' rings to it (`-update`), and the client's water test grows the same areas to them.
+    - **Draw order:** the water draws first of the blended meshes (`WATER_ORDER`, before the areas and the lock ring), so a near faded prop or a halo isn't hidden behind its region-wide surface.
 - **As built (step 5b-3): cascaded shadows.**
   - **The sun:** a region's sun casts through Babylon's `CascadedShadowGenerator`:
     - 3 cascades out to 80 m from the camera;
@@ -707,6 +715,7 @@ Built with step 1, which says who watches a cell.
   - **As built (step 5c-1):**
     - **On every map, not only regions,** so the game has one rule; the old maps are going.
     - **Names:** another player is named while among the 40 nearest the camera's target, in the party, or locked. Those past it keep their bodies and lose only the name.
+      - After 5c-1's review: a named player keeps their name till another comes 2 m nearer than them, so the 40th in a crowd doesn't flicker (`world3d/named.ts`). With 40 or fewer shown, everyone is named with no sort. Past 40, a frame measures each player once into arrays kept from frame to frame, and sorts only when someone crosses the 2 m band or a named player goes.
     - **Bars:** a mob's bar shows while it's locked or for 5 s after its HP last fell, whoever hit it. A heal, regeneration included, is no hit. A mob is seen anew when it comes back into sight or on a rejoin or map change, so a fall while out of sight doesn't count.
     - **The party's bars** are its HUD frames, as before. No player has a bar over their head.
     - **Tests:**
@@ -743,12 +752,14 @@ Built with step 1, which says who watches a cell.
   - **As built (step 5c-2b): This region pans and zooms.**
     - **The tab** reads "This region" on a region, "This map" elsewhere.
     - **Zoom:**
-      - the wheel zooms about the pointer, twice per 400 px of scroll;
+      - the wheel zooms about the pointer, twice per 400 px of scroll, or twice a notch where it counts lines or pages, as Firefox and line-mode mice send;
       - Zoom in and Zoom out buttons, in the plan's top right, double or halve it about the middle;
       - from whole to where a metre spans 4 screen pixels, a tile's finest: 12.8 times on a kilometre, 3.2 on the 256 m test region.
 
       The plan keeps its size on screen. Its labels, marks and tiles are drawn at the zoomed scale, and only the tiles in view are drawn.
     - **Pan:** a drag with the main button pans it. A press that moves under 4 px is still a click, so a waypoint is picked as before. A drag that starts on one picks nothing.
+      - Only the click the button's up makes is swallowed; a later click picks, as a screen reader's does with no press before it. A cancelled press, and one held as the window closes, let go at once.
+      - Moves aren't coalesced per frame on top: browsers already deliver pointermove once a frame.
     - **Held inside:** the view stays inside the region. A map change starts the new map's plan whole.
     - **Where it applies:** wherever the ground is tiles, including a region picked on the World tab. A map keeps its fit, with no buttons, and the wheel scrolls the page as before.
     - **Tests:**
@@ -756,6 +767,7 @@ Built with step 1, which says who watches a cell.
       - the wheel about the pointer, with no page scroll, and no further out than whole;
       - a drag held at both corners, the right button's none, and no pan after the button's up;
       - a drag over a waypoint picking nothing, one let go off the plan not swallowing the next click, a short press picking;
+      - a wheel in lines and in pages; a cancelled press panning no more; a press held as the window closes let go;
       - a 720 m map keeping its fit;
       - the tab's name.
   - **As built (step 5c-3a): the areas.**
@@ -843,7 +855,7 @@ Built with step 1, which says who watches a cell.
   - **Tests:**
     - the bake read back in the client: deep marks, every solid index filled once, and each refusal;
     - the ground: its grid, steep and deep marks as a whole map's, each solid as its chunk records it, and its buckets as indexing every solid at once, whatever order the chunks come in;
-    - ten movement vectors on two test plans' bakes, which Go replays on its generated ground and the client on a `RegionGround` from the chunks, to the bit. The tiny plan's: its seam, a house over it, its river and ford, a blink stopped by an oak a neighbouring chunk carries. The steep plan's, as steep as the wide plan gets (its ring a 42.9 m step in a cell, the wide plan's 42.1 m): cliffs, a fall, a ridge;
+    - eleven movement vectors on two test plans' bakes, which Go replays on its generated ground and the client on a `RegionGround` from the chunks, to the bit. The tiny plan's: its seam, a house over it, its river and ford, a blink stopped by an oak a neighbouring chunk carries. The steep plan's, as steep as the wide plan gets (its ring a 42.9 m step in a cell, the wide plan's 42.1 m): cliffs, the barrier at a cliff's top, the road up it, a ridge;
     - the world: the hold on arrival, its radius pinned at a missing chunk's edge, the veil, the notice let go with the region, a gate's label lowered onto the river bed, the reload once chunks fail every try, and none from a try failing after the player has left.
 
 ## 11. cmd/bot

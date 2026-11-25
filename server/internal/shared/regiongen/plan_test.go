@@ -70,6 +70,9 @@ func TestABadPlanIsRefused(t *testing.T) {
 			p.Features = []Feature{{Plateau: &Plateau{Area: [][2]float64{{1, 1}, {9, 1}, {9, 9}}, Height: 1, Edge: "wall"}}}
 		}, "a cliff or ramp edge"},
 		{"a dry river", func(p *Plan) { p.Features = []Feature{{River: &River{Path: [][2]float64{{1, 1}, {9, 9}}, Width: 4}}} }, "a depth up to 1000 m"},
+		{"a lake whose surface crosses itself", func(p *Plan) { // a U whose arms are 3 m apart, which its 2 m banks close
+			p.Features = []Feature{{Lake: &Lake{Area: [][2]float64{{10, 10}, {50, 10}, {50, 40}, {31.5, 40}, {31.5, 20}, {28.5, 20}, {28.5, 40}, {10, 40}}, Depth: 1}}}
+		}, "a lake whose surface, drawn 2 m past its sides, crosses itself"},
 		{"a ford off the region", func(p *Plan) {
 			p.Features = []Feature{{River: &River{Path: [][2]float64{{1, 1}, {9, 9}}, Width: 4, Depth: 1, Fords: [][2]float64{{-5, 5}}}}}
 		}, "fords in the region"},
@@ -182,6 +185,15 @@ func TestASharpCorneredHallBuilds(t *testing.T) {
 	p := flat()
 	cave(&p)
 	p.Features = []Feature{{Hall: &Hall{Area: [][2]float64{{40, 40}, {100, 52}, {40, 64}}}}}
+	if _, err := Generate(p, shippedKit(t), body(t)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A U-shaped lake whose arms stand 10 m apart builds: its banks, grown 2 m, leave the gap open, though its arms' tops lie along one line.
+func TestALakesArmsApartBuild(t *testing.T) {
+	p := flat()
+	p.Features = []Feature{{Lake: &Lake{Area: [][2]float64{{20, 20}, {80, 20}, {80, 60}, {55, 60}, {55, 35}, {45, 35}, {45, 60}, {20, 60}}, Depth: 1}}}
 	if _, err := Generate(p, shippedKit(t), body(t)); err != nil {
 		t.Fatal(err)
 	}

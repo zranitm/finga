@@ -6,11 +6,11 @@ import type { MapBox } from './MapMarks';
 
 const MAX_PX_PER_M = 4; // zoomed in no further than a tile's metre at this many screen pixels
 export const ZOOM_STEP = 2; // a button's zoom
-const WHEEL_PX = 400; // the wheel's scroll that zooms by ZOOM_STEP
+const WHEEL_PX = 400; // the wheel's scroll in pixels that zooms by ZOOM_STEP; a wheel counting lines or pages zooms a step a notch
 const DRAG_PX = 4; // a press that moves less is a click
 
 /** A view of a map size metres across, zoom times its whole, its west and north edges in metres. */
-export interface Zoomed {
+interface Zoomed {
   readonly zoom: number;
   readonly x: number;
   readonly y: number;
@@ -28,7 +28,7 @@ function held(v: Zoomed, [sx, sz]: readonly [number, number]): Zoomed {
 }
 
 /** v zoomed by factor, from 1 to most, keeping the spot at (ax, ay) metres where it is on screen. */
-export function zoomedBy(
+function zoomedBy(
   v: Zoomed,
   size: readonly [number, number],
   factor: number,
@@ -42,12 +42,7 @@ export function zoomedBy(
 }
 
 /** v moved dx and dy metres, held inside the map. */
-export function pannedBy(
-  v: Zoomed,
-  size: readonly [number, number],
-  dx: number,
-  dy: number,
-): Zoomed {
+function pannedBy(v: Zoomed, size: readonly [number, number], dx: number, dy: number): Zoomed {
   return held({ ...v, x: v.x + dx, y: v.y + dy }, size);
 }
 
@@ -61,6 +56,8 @@ export function usePanZoom(
   const [v, setV] = useState<Zoomed>({ zoom: 1, x: 0, y: 0 });
   const most = on ? Math.max(1, MAX_PX_PER_M / scale) : 1;
   const dragged = useRef(false);
+  const release = useRef<(() => void) | null>(null); // a held press's listeners off, and its drag forgotten
+  useEffect(() => () => release.current?.(), []);
   const [sx, sz] = size;
   useEffect(() => {
     const el = svg.current;
@@ -74,7 +71,9 @@ export function usePanZoom(
         zoomedBy(
           now,
           [sx, sz],
-          ZOOM_STEP ** (-e.deltaY / WHEEL_PX),
+          e.deltaMode === WheelEvent.DOM_DELTA_PIXEL
+            ? ZOOM_STEP ** (-e.deltaY / WHEEL_PX)
+            : ZOOM_STEP ** -Math.sign(e.deltaY),
           most,
           now.x + (e.clientX - box.left) / (scale * now.zoom),
           now.y + (e.clientY - box.top) / (scale * now.zoom),
@@ -85,11 +84,12 @@ export function usePanZoom(
     return () => el.removeEventListener('wheel', wheel);
   }, [svg, on, sx, sz, scale, most]);
   const view: MapBox = { x: v.x, y: v.y, w: sx / v.zoom, h: sz / v.zoom };
-  /** A press on the plan: a drag past DRAG_PX pans it till the button's up, and the click that ends it picks nothing. */
+  /** A press on the plan: a drag past DRAG_PX pans it till the button's up, and the click that ends it picks nothing; a later click, or one after a cancel, picks as ever. */
   const onPointerDown = (e: PointerEvent<SVGSVGElement>) => {
     if (!on || e.button !== 0) {
       return;
     }
+    release.current?.();
     const from = { x: e.clientX, y: e.clientY, v };
     dragged.current = false;
     const move = (m: globalThis.PointerEvent) => {
@@ -102,12 +102,28 @@ export function usePanZoom(
       const k = scale * from.v.zoom;
       setV(pannedBy(from.v, size, -dx / k, -dy / k));
     };
-    const up = () => {
+    let forget = 0;
+    const off = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+    };
+    const up = () => {
+      off();
+      forget = window.setTimeout(() => (dragged.current = false)); // after the click the button's up makes, in the same task
+    };
+    const cancel = () => {
+      off();
+      dragged.current = false;
+    };
+    release.current = () => {
+      off();
+      window.clearTimeout(forget);
+      dragged.current = false;
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
   };
   const onClickCapture = (e: MouseEvent<SVGSVGElement>) => {
     if (dragged.current) {
