@@ -26,11 +26,11 @@ let drawImage: Mock;
 let renders: MockInstance<Scene['render']>;
 const game = { width: 512, height: 256 } as HTMLCanvasElement; // the game's canvas, NullEngine's size
 
-/** A window's canvas laid out at w × h, its 2D context drawing into drawImage. */
-function windowCanvas(w = 200, h = 160): HTMLCanvasElement {
+/** A window's canvas laid out at box's w × h, as box stands when read, its 2D context drawing into drawImage. */
+function windowCanvas(box = { w: 200, h: 160 }): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
-  Object.defineProperty(canvas, 'clientWidth', { value: w });
-  Object.defineProperty(canvas, 'clientHeight', { value: h });
+  Object.defineProperty(canvas, 'clientWidth', { get: () => box.w });
+  Object.defineProperty(canvas, 'clientHeight', { get: () => box.h });
   const asked = vi.spyOn(canvas, 'getContext').mockReturnValue({
     drawImage,
     clearRect: vi.fn(),
@@ -104,6 +104,23 @@ describe('portraits (outfits.md section 7)', () => {
     expect(scene.activeCamera!.viewport).toBe(viewport); // the same one, set again
   });
 
+  it('draw at the canvas’s box as laid out each frame, in the engine’s pixels: a box laid out anew is drawn at its new size from the next frame', async () => {
+    const box = { w: 200, h: 160 };
+    const canvas = windowCanvas(box);
+    await shown(portraits.portrait(canvas));
+    portraits.draw(0, 16);
+    box.w = 140; // a narrower window
+    portraits.draw(16, 16);
+    expect([canvas.width, canvas.height]).toEqual([140, 160]);
+    expect(drawImage).toHaveBeenLastCalledWith(game, 0, 256 - 160, 140, 160, 0, 0, 140, 160);
+    expect(scene.activeCamera!.viewport.width).toBe(140 / 512);
+    vi.spyOn(engine, 'getHardwareScalingLevel').mockReturnValue(0.5); // a screen of two pixels a point, as an engine adapting to it says
+    [box.w, box.h] = [100, 80];
+    portraits.draw(32, 16);
+    expect([canvas.width, canvas.height]).toEqual([200, 160]);
+    expect(drawImage).toHaveBeenLastCalledWith(game, 0, 256 - 160, 200, 160, 0, 0, 200, 160);
+  });
+
   it('draw nothing till a figure is in, nor once it’s closed, which takes its figure and its canvas out of the frame', async () => {
     const canvas = windowCanvas();
     const p = portraits.portrait(canvas);
@@ -131,7 +148,7 @@ describe('portraits (outfits.md section 7)', () => {
 
   it('draw each of two open portraits with its own figure alone', async () => {
     const a = portraits.portrait(windowCanvas());
-    const b = portraits.portrait(windowCanvas(120, 120));
+    const b = portraits.portrait(windowCanvas({ w: 120, h: 120 }));
     await shown(a);
     await shown(b, HAT);
     const [mine, theirs] = roots();
