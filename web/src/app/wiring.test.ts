@@ -266,8 +266,11 @@ describe('wiring', () => {
       "New in your wardrobe: Knight's Plate",
       'New in your wardrobe: Pointed Hat',
     ]);
+    for (const t of toasts.getState().toasts) {
+      toasts.getState().dismiss(t.id); // gone, as a replay after a reconnect finds them
+    }
     ws.push('piecesAdded', { pieces: [{ id: 'knight_plate', cause: 'item' }] });
-    expect(toasts.getState().toasts).toHaveLength(2);
+    expect(toasts.getState().toasts).toEqual([]);
   });
 
   it('forgets the wardrobe as the character is left: the next one’s list and look are its own', () => {
