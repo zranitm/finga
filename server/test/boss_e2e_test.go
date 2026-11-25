@@ -126,10 +126,8 @@ func TestFieldBoss(t *testing.T) {
 		return
 	}
 
-	// Ann and Ben beat it, and Dee joins the moment they hear it fall, on this test's connections rather than a subtest's, which close with it.
+	// Ann and Ben beat it and take their boxes before it's back on them, 3 s on: a box lies at its feet, which a returned king covers out of reach.
 	fightBoss(t, boss, reach, 60*time.Second, []*e2etest.Looter{ann, ben}, ls)
-	p, deeSnap := s.Join(t, deeToken, deeID)
-	dee := e2etest.NewLooter(p, deeSnap)
 
 	if !t.Run("C10/a-party-beats-it-and-each-member-gets-their-share-and-their-own-drop", func(t *testing.T) {
 		// 1001 EXP for all its HP, 10% more for the second sharer, 1101 in two: Ann, first on the map, takes the odd one.
@@ -171,6 +169,9 @@ func TestFieldBoss(t *testing.T) {
 	}) {
 		return
 	}
+	// Dee joins once the boxes are taken, on this test's connections rather than a subtest's, which close with it.
+	p, deeSnap := s.Join(t, deeToken, deeID)
+	dee := e2etest.NewLooter(p, deeSnap)
 
 	t.Run("C10/a-player-joining-while-it-is-down-sees-its-time-back-and-it-is-back-to-the-tick", func(t *testing.T) {
 		fell := ann.BossesGone[0].Tick
