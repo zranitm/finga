@@ -1,0 +1,15 @@
+{
+  "tick": 81243,
+  "pieces_added": {
+    "pieces": [
+      {
+        "id": "knight_plate",
+        "cause": "item"
+      },
+      {
+        "id": "helm_gold",
+        "cause": "rank"
+      }
+    ]
+  }
+}

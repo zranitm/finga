@@ -7,6 +7,9 @@ import (
 	"finga/internal/shared/kernel"
 )
 
+// ChannelSweep is how often the World looks for idle channels, for the tests that wait one out.
+const ChannelSweep = channelSweep
+
 // MapActor is the map named mapID, for the external tests that hand a player off from it as its tick would.
 func (w *World) MapActor(mapID string) *instance.Instance { return w.instances[mapID] }
 

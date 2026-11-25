@@ -181,7 +181,7 @@ The steps of large-regions.md section 3, with these added. Everything keeps the 
 - **Sky and sun:**
   - The sky is deep blue-green, with fog from 20 to 60 m, scaled out with the zoom.
   - The sun is nearly overhead, cyan-tinted and softer. Its cascaded shadows stay, falling almost straight down.
-- **Light rippling on the ground:** the same material term draws caustics on surfaces facing up, from two scrolling layers of value noise in the shader, by x, z and time. There's no texture to fetch.
+- **Light rippling on the ground:** the same material term draws caustics on surfaces facing up, from 3D Worley noise in the shader, by x, z and time. There's no texture to fetch. (As built, step 4a: the plan had two scrolling layers of value noise.)
 - **Rays:** six to eight long, faint, additive cards slant down from above, drifting slowly. They stay out of the camera's line to the player's chest.
 - **Kelp and sea grass sway:** a kit model marked `sway` in `kit-models.ts` bends in the vertex shader by its height above its base. Its phase comes from its x and z, so a bed sways as a wave.
 - **Bubbles:**
@@ -411,6 +411,91 @@ These steps follow the regions' build (large-regions.md section 14).
    - caustics, rays, sway, bubbles and fish;
    - the Blender models;
    - stills for the user.
+   - **The models** came first, in #325: coral, kelp, sea grass, shells and a small fish, our own work.
+   - **In three PRs:** 4a the light (the sky, the sun, the caustics and the rays), 4b the sea props in the kit and their sway, 4c the bubbles and the fish. The stills follow 4c.
+   - **As built (4a, the light).**
+     - **The sky:** deep blue-green, `#15576a`, with fog from 20 to 60 m.
+     - **The sun:** nearly straight down, along (0.1, −1, 0.18). Its shadows are cascaded, as on the land's regions, so they fall almost under what casts them.
+     - **The tone:** the sun's light is banded as on the land, from a blue-green shade, (0.46, 0.6, 0.66), to the sun's cyan, (0.84, 0.97, 1), both sRGB. The shade is nearer the light than the land's, so the light is softer. The colours are provisional until the stills.
+     - **The caustics:** one layer of 3D Worley noise, Babylon's own block. Its web is where a fragment's nearest two points are nearly as near as each other: F2 − F1 under 0.08 of a cell.
+       - Its cells are 2.5 m across, over x and z only, so a body's head and the floor under it share the web.
+       - Time is its third axis, at 0.3 cells a second, so the web shifts. It also drifts 0.05 and 0.02 cells a second along x and z.
+       - It adds (0.3, 0.42, 0.42), linear, times the web, on faces turned up: none at 0.5 of straight up, all of it from 0.9.
+       - It adds only where the sun reaches, and the more as it does: the full band takes it all, the middle band half and the shade none, so a shadow has no caustics in it.
+     - **The rays:** seven cards, one thin-instanced plane. Each is 24 m long and 1.6 to 3.4 m wide, slanting up the sun's way from 2 m under the player's feet.
+       - They stand in a 48 m square round the player, fixed in the world as they drift. Each drifts at 0.25 m a second, all much the same way, and wraps to the square's far side.
+       - Each swells and thins by 15%, slowly, and turns about its length to the camera.
+       - A ray narrows to nothing over the 4 m before the square's edge, so none pops as it wraps. Near the camera's line to the chest, it narrows to keep 1 m from that line.
+       - **Its look:** the sun's cyan, 0.12 at its brightest. It fades to nothing at its sides, rises from nothing over the lower 70% of its length, and fades out over its top 10%. It's added to what's behind it and writes no depth. It's fogged into black, not the sea's colour, so a far ray fades away rather than tinting the water.
+     - **The shaders aren't compiled in CI:** the unit tests run on a null engine. The stills show them, and no shipped map uses the sea sky until step 6.
+     - **Tests:**
+       - **The fixture:** a small sea below tiny (`shoal`, a basin with a reef, at 2 m), baked by regionbake's tests into the client's fixtures.
+       - **The material's own node graph, run block by block for a fragment:**
+         - a cyan top band, and a shade nearer the light than the land's;
+         - caustics on the web where a face turns up in the sun; none inside a cell, on a wall or in shade; half in the middle band;
+         - the web by x, z and time;
+         - none on the land or in a cave.
+       - **The rays:**
+         - six to eight, faint, added, fogged into black;
+         - slanting from above, turned to the camera;
+         - never across the camera's line to the chest, over 400 spots, cameras and moments;
+         - drifting under a metre a second, and round the player as they go;
+         - thinned to nothing as they wrap.
+       - **A sea region in the world:** a sun from nearly overhead with shadows, caustics on its ground, its sky and fog, and rays round the player, drifting.
+   - **As built (4b, the sea props and their sway).**
+     - **The kit:** kit.yaml gains the seven props: `coral_brain`, `coral_branch`, `coral_fan`, `kelp`, `sea_grass`, `shell_conch` and `shell_scallop`.
+       - All are looks only, so none changes a rule. Step 6's layout may give a large coral a solid.
+       - Looks only still moves solids in a bake: each scatter line draws from its own random stream, numbered in order. So `shoal`'s four new lines, ahead of its rocks, gave the rocks new draws: 44 rock cylinders, not 48.
+       - A new model changes every bake's list of models, so every golden hash and the client's four bake fixtures moved with it.
+       - The test sea `shoal` scatters kelp, sea grass, branch coral and scallops on its floor.
+     - **The client's kit** draws each at scale 1, as it was made, standing on its origin. Kelp and sea grass are marked `sway`.
+     - **The sway** is in the vertex shader of the toon material, of each of its fade steps and of its ink alike, so the ink line bends with the plant.
+       - A vertex `h` over its base (its thin instance's origin) moves along the current, (0.94, 0, 0.34), by `0.12 × tall × (h / tall)² × sin(2π t / 5 s − 2π d / 9 m)`.
+       - `tall` is the model's height as placed, from its meshes' bounds times its scale. `d` is how far its base stands along the current.
+       - So its base stays put and its stem rises straight, bending most near its top. The top swings 12% of its height either way: 36 cm for the 3 m kelp, 6 cm for sea grass.
+       - Plants side by side across the current sway together. The wave runs along it at 1.8 m a second, so a bed sways as one.
+     - **A swaying prop's shadow doesn't sway:** the shadow map draws the mesh as it stands. Under the sea's overhead sun, a plant's shadow falls nearly under it. The stills judge it.
+     - **Accepted, as small:**
+       - **The normals don't bend:** a swayed plant is lit as if it stood straight. Its top tilts at most about 13°, the slope of the bend there (2 × 0.12).
+       - **The culling box doesn't sway:** a chunk's props are culled by one box round them as they stand. So at the screen's edge, a top swung past that box can vanish with its chunk for a frame.
+     - **Tests:**
+       - **The vertex term, run block by block:**
+         - the base still, the top swinging sideways only, between 5% and 20% of the height;
+         - halfway up, at most a third of the top's swing, so it bends rather than leans;
+         - plants across the current together, 3 m along it out of step;
+         - the ink drawn where its body is, and nothing swaying unless asked.
+       - **`kitParts` on the real files:** kelp scaled 1.5 gets the sway in every fade step and its ink, by its 4.5 m as placed; coral gets none.
+   - **As built (4c, the bubbles and the fish).**
+     - **Vents:** a kit model `vent`, KayKit's small rock at 0.45, about half a metre, marked `bubbles: 0.4`: bubbles start that high over its base. kit.yaml lists it looks only, and the hashes and fixtures moved again. `shoal` scatters one every 20 m.
+       - A region keeps each drawn chunk's vents from its bake, so a vent streams as its chunk draws, whether or not its model has loaded. `Place.vents()` gives them; a map has none.
+     - **The bubbles:** two particle systems, one for the vents and one for the heads, each placing every bubble's start itself.
+       - Up to 64 vents within 40 m of the camera's target stream, five bubbles a second each, from within 4 cm of the vent's mouth.
+       - Each body drawn within 25 m of it (the player, the others, the mobs and the NPCs, not the dying) breathes out 2 to 4 bubbles from the top of its look every 3 to 5 s. Its first breath comes at a moment of its own, within 5 s.
+       - **A frame's breaths** are the next bubbles the heads' system gives off. Those it doesn't take that frame, as when it's full in a crowd, are dropped, so no bubble starts where a head was.
+       - **A frame makes nothing:** the starts are a fixed pool of 256, and the near vents a list reused frame to frame.
+       - **A bubble:** a pale cyan ring with a bright fleck, drawn in code, 5 to 12 cm across. It rises at 0.5 to 0.9 m a second and 0.35 m a second faster each second, for 3 to 4.5 s. It blends over what's behind it, so the fog takes it.
+     - **The fish:** three schools of a dozen in a 48 m square round the player, fixed in the world and wrapping as the rays do.
+       - Each school loops 4 to 7 m round its middle, 4.8 to 7.2 m over the highest floor under its loop, bobbing 0.4 m. Its fish string out along 1.4 radians of the loop, each up to 0.6 m in or out and 0.3 m up or down, so every fish is 4 to 8 m over that floor. They swim at 1.2 m a second, nose first, the schools alternating ways.
+       - **The highest floor under a loop** is sampled at 32 points round each of its inner edge, its line and its outer edge. It's sampled again only when the loop's middle moves, so a school keeps together over a slope.
+       - **Each fish is also kept 4.1 m over the floor right under it,** for a thin wall between the samples.
+       - **Each loop keeps inside the region:** its middle stays its reach from every edge.
+       - **The floor is the terrain's:** a solid taller than a step is ignored, so a fish can pass through a large rock.
+       - **One thin-instanced model:** each part of #325's fish holds all three schools' 36 fish, one draw a part, not one model a school. They're drawn in the sea's light, caustics on their backs, with no ink line and no shadow.
+       - A fish shrinks to nothing within 4 m of the square's edge, so none pops. It also shrinks over the 1.5 m before it comes within 0.6 m of the camera's line to the chest, so its body never crosses that line.
+       - **The same clearance as the rays', measured to the middle:** a ray's edge keeps 1 m from the line, a fish's middle 0.6 m, so its 0.3 m body keeps about 0.45 m. A fish is small and dim, a ray wide and bright.
+     - **Tests:**
+       - **The bubbles:**
+         - only the near vents stream, the rate doubling with two;
+         - each bubble starts at a vent's mouth, or a head's top, and heads up;
+         - a body breathes 2 to 4 bubbles every 3 to 5 s, and none from 30 m off;
+         - breaths the system didn't take are dropped, so the next frame's bubbles start at their own head.
+       - A null engine never runs a particle system, since its shaders never load, so the tests read where each system places a bubble rather than watching it rise.
+       - **The fish, on the real model:**
+         - schools of a dozen in the sea's light;
+         - 4 to 8 m over a sloping floor, nose first, under 2.5 m a second, round a walking player;
+         - never across the camera's line to the chest, over 600 spots, cameras and moments;
+         - 4 m or more over a 40° slope and over 10 cm walls 20 m apart, each school within 0.6 m of itself on the slope, and every loop inside the region, at its edges too.
+       - **A sea region in the world:** its vents streaming as its chunks come, the player breathing within 6 s, and the fish drawn.
 5. **Sea mobs:**
    - their models picked with the user from previews;
    - their data and stats, with the balance harness.

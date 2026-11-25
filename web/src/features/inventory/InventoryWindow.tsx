@@ -9,6 +9,8 @@ import { initials, itemName, starClass, starMarks, starsOf } from '@/features/sh
 import { useItemRequests } from '@/features/shared/useItemRequests';
 import { WorldWindow } from '@/features/shared/WorldWindow';
 import type { GameSocket } from '@/net/socket';
+import { pieceOfItem, wearableBy } from '@/progression/pieces';
+import type { Piece } from '@/progression/pieces';
 import { healOf, missing, restores } from '@/progression/potions';
 import { ERR, errorText } from '@/protocol/errors';
 import type { ItemView } from '@/protocol/messages';
@@ -16,6 +18,8 @@ import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
 import { SLOTS_PER_TAB, inventory, tabs } from '@/state/inventory';
 import type { Tab } from '@/state/inventory';
+import { ui } from '@/state/ui';
+import { wardrobe } from '@/state/wardrobe';
 
 export interface InventoryWindowProps {
   readonly socket: Pick<GameSocket, 'request'>;
@@ -53,6 +57,9 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
   const [ticking, setTicking] = useState(false);
   const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set());
   const [confirmMany, setConfirmMany] = useState(false);
+  const [confirmAdd, setConfirmAdd] = useState<{ item: ItemView; piece: Piece } | null>(null);
+  const cls = character.use((s) => s.character?.class ?? '');
+  const collected = wardrobe.use((s) => s.collected);
   const { pending, notice, setNotice, run, retry } = useItemRequests('inventory');
   const hover = useItemHover<{ tab: Tab; slot: number }>();
 
@@ -189,7 +196,22 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
     }
   };
 
+  /** Adds the piece an item holds to the wardrobe, the item used up; PiecesAdded tells the wardrobe. */
+  const addToWardrobe = (item: ItemView) => {
+    setConfirmAdd(null);
+    run(item.itemId, (key) =>
+      socket.request('addToWardrobe', { idempotencyKey: key, itemId: item.itemId }),
+    );
+  };
+
+  /** Opens the wardrobe with the piece tried on. */
+  const preview = (piece: Piece) => {
+    wardrobe.getState().preview(piece.id);
+    ui.getState().openWindow('wardrobe');
+  };
+
   const selectedItem = selected ? (slots[tab].find((it) => it?.itemId === selected) ?? null) : null;
+  const selectedPiece = selectedItem ? pieceOfItem(selectedItem.template) : undefined;
   const selectedPending = selected ? pending.get(selected) : undefined;
   const shownPending = selectedPending ?? (ticking ? batch : undefined);
 
@@ -324,6 +346,29 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
               </Button>
             ) : (
               <>
+                {selectedPiece && (
+                  <>
+                    <Button
+                      variant="quiet"
+                      disabled={!wearableBy(selectedPiece, cls)}
+                      onClick={() => preview(selectedPiece)}
+                    >
+                      Preview
+                    </Button>
+                    <Button
+                      disabled={selectedPending !== undefined || !!collected?.has(selectedPiece.id)}
+                      onClick={() => setConfirmAdd({ item: selectedItem, piece: selectedPiece })}
+                    >
+                      Add to wardrobe
+                    </Button>
+                    {collected?.has(selectedPiece.id) && (
+                      <span className="muted">Already in your wardrobe</span>
+                    )}
+                    {!wearableBy(selectedPiece, cls) && (
+                      <span className="muted">Your class can’t carry it</span>
+                    )}
+                  </>
+                )}
                 {healOf(selectedItem.template) && (
                   <Button
                     disabled={selectedPending !== undefined}
@@ -375,6 +420,15 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
               Yes, discard
             </Button>
             <Button variant="quiet" onClick={() => setConfirmMany(false)}>
+              Keep
+            </Button>
+          </div>
+        )}
+        {confirmAdd && (
+          <div className="inventory-confirm" role="alertdialog" aria-label="Add to wardrobe">
+            <span>Add {confirmAdd.piece.name} to your wardrobe? It can’t be traded after.</span>
+            <Button onClick={() => addToWardrobe(confirmAdd.item)}>Yes, add</Button>
+            <Button variant="quiet" onClick={() => setConfirmAdd(null)}>
               Keep
             </Button>
           </div>

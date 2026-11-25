@@ -5,6 +5,7 @@ import type { DragEvent } from 'react';
 import { Button } from '@/components/Button';
 import { Modal } from '@/components/Modal';
 import { carried, carry } from '@/features/shared/drag';
+import { FigureView } from '@/features/shared/FigureView';
 import { ItemDetails, useItemHover } from '@/features/shared/ItemHover';
 import { initials, itemName, starClass, templateOf } from '@/features/shared/items';
 import { useItemRequests } from '@/features/shared/useItemRequests';
@@ -29,12 +30,16 @@ import { inventory } from '@/state/inventory';
 import type { EquipSlotId, Equipment } from '@/state/inventory';
 import { skillBar } from '@/state/skill-bar';
 import type { ActiveBuff } from '@/state/skill-bar';
+import { wardrobe } from '@/state/wardrobe';
+import type { Portrait } from '@/state/wardrobe';
 
 import { usePoints } from './usePoints';
 import type { Points } from './usePoints';
 
 export interface CharacterWindowProps {
   readonly socket: Pick<GameSocket, 'request'>;
+  /** The character drawn into the window's figure, as worn. */
+  readonly figureIn: (canvas: HTMLCanvasElement) => Portrait;
   readonly onClose: () => void;
 }
 
@@ -323,7 +328,8 @@ function Vitals({
   );
 }
 
-export function CharacterWindow({ socket, onClose }: CharacterWindowProps) {
+export function CharacterWindow({ socket, figureIn, onClose }: CharacterWindowProps) {
+  const worn = wardrobe.use((s) => s.worn);
   const c = character.use((s) => s.character);
   const expToNext = character.use((s) => s.expToNext);
   const equipment = inventory.use((s) => s.equipment);
@@ -437,7 +443,13 @@ export function CharacterWindow({ socket, onClose }: CharacterWindowProps) {
           <Vitals c={c} expToNext={expToNext} />
           <div className="character-equipment" role="group" aria-label="Equipment">
             <div className="equip-column">{left.map(slotButton)}</div>
-            <div className="character-figure" aria-hidden="true" />
+            <FigureView
+              figureIn={figureIn}
+              cls={c.class}
+              look={worn}
+              label="Your character, as worn"
+              className="character-figure"
+            />
             <div className="equip-column">{right.map(slotButton)}</div>
           </div>
           <PointsBar points={points} onReset={() => setConfirmingReset(true)} />

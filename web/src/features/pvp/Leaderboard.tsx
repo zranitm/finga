@@ -6,11 +6,12 @@ import { problemOf } from '@/features/shared/problem';
 import { pvp as data } from '@/gamedata/pvp';
 import type { LeaderboardRow } from '@/net/rest';
 import { className } from '@/progression/classes';
+import { rankName } from '@/progression/names';
 import { character } from '@/state/character';
 import { pvpProfile, standingIn } from '@/state/pvp-profile';
 
 import type { BoardReader } from './boards';
-import { rankName, recordOf } from './modes';
+import { recordOf } from './modes';
 
 const rated = data.modes.filter((m) => m.rated);
 

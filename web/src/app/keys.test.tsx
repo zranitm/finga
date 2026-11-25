@@ -11,6 +11,7 @@ import { defaults } from '@/input/bindings';
 import { isTyping } from '@/input/typing';
 import { settings } from '@/state/settings';
 import { ui } from '@/state/ui';
+import { fakePortrait } from '@/testing/portrait';
 import { resetStores } from '@/testing/reset-stores';
 import { user } from '@/testing/user';
 
@@ -33,6 +34,7 @@ function Overlay() {
       {characterOpen && (
         <CharacterWindow
           socket={{ request: vi.fn() } as never}
+          figureIn={fakePortrait}
           onClose={() => ui.getState().closeWindow('character')}
         />
       )}

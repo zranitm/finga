@@ -1,8 +1,7 @@
 // A region drawn (large-regions.md section 10): the overview under everything, its 64 m chunks streamed round the camera's target at three details, each chunk's props as thin instances per model, and each chunk's ground handed to the sim as it comes.
 import type { Material } from '@babylonjs/core/Materials/material';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
-import { Matrix } from '@babylonjs/core/Maths/math.vector';
-import type { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
@@ -117,13 +116,14 @@ export function buildRegion(
   return new RegionView(scene, region, lighting, models, chunks, hooks);
 }
 
-/** A chunk drawn: its ground at a detail, and its props, which come as their models load, with the looks of those that fade and the meshes that cast while it's near. */
+/** A chunk drawn: its ground at a detail, and its props, which come as their models load, with the looks of those that fade, the meshes that cast while it's near, and its vents. */
 interface Drawn {
   readonly built: BuiltChunk;
   readonly ground: Mesh;
   readonly props: TransformNode;
   readonly looks: Look[];
   readonly casters: Mesh[];
+  readonly vents: readonly Vector3[];
   detail: number;
   casting: boolean;
 }
@@ -151,6 +151,7 @@ class RegionView implements Place {
   private readonly kits = new Map<string, Promise<Kit | null>>();
   private toMake: BuiltChunk[] = []; // built, to be made a few a frame
   private holes = false; // whether the overview's holes need cutting again
+  private drawnVents: readonly Vector3[] | null = null; // its drawn chunks' vents, gathered again once one comes or goes
   private gone = false;
   private readonly region: Region;
   private readonly far: Overview;
@@ -208,6 +209,7 @@ class RegionView implements Place {
         }
         this.drawn.delete(k);
         this.holes = true;
+        this.drawnVents = null;
       }
     }
     for (const k of this.asked) {
@@ -266,6 +268,11 @@ class RegionView implements Place {
       this.skirts = this.mesh('overview skirts', s, s.indices);
       this.skirts.parent = this.root;
     }
+  }
+
+  vents(): readonly Vector3[] {
+    this.drawnVents ??= [...this.drawn.values()].flatMap((d) => d.vents);
+    return this.drawnVents;
   }
 
   ready(x: number, z: number): boolean {
@@ -340,7 +347,17 @@ class RegionView implements Place {
     ground.freezeWorldMatrix();
     const props = new TransformNode(`chunk ${k} props`, this.scene);
     props.parent = this.root;
-    const d: Drawn = { built: b, ground, props, looks: [], casters: [], detail, casting: false };
+    const vents: Vector3[] = [];
+    const d: Drawn = {
+      built: b,
+      ground,
+      props,
+      looks: [],
+      casters: [],
+      vents,
+      detail,
+      casting: false,
+    };
     const casts = (m: Mesh) => {
       d.casters.push(m);
       if (d.casting) {
@@ -349,12 +366,16 @@ class RegionView implements Place {
     };
     this.drawn.set(k, d);
     this.holes = true;
+    this.drawnVents = null;
     const byModel = new Map<number, Matrix[]>();
     b.models.forEach((m, i) => {
       const kit = kitModels[this.region.models[m]!];
       if (kit) {
         const [x, y, z, yaw] = b.props.subarray(4 * i, 4 * i + 4);
         byModel.set(m, [...(byModel.get(m) ?? []), placement(kit, x!, z!, yaw!, y!)]);
+        if (kit.bubbles !== undefined) {
+          vents.push(new Vector3(x, y! + kit.y + kit.bubbles, z)); // streaming as the chunk draws, its model or not
+        }
       }
     });
     for (const [m, at] of byModel) {

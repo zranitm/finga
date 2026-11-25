@@ -38,6 +38,7 @@ import { skillBar } from '@/state/skill-bar';
 import { teleport } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
+import { OWN_LOOK, wardrobe } from '@/state/wardrobe';
 import { waypoints } from '@/state/waypoints';
 import { FakeWebSocket } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
@@ -250,6 +251,34 @@ describe('wiring', () => {
     leaveCharacter();
     expect(waypoints.getState().found).toEqual(new Set());
     expect(waypoints.getState().last).toBeNull();
+  });
+
+  it('marks each piece PiecesAdded tells of collected, with a notice each, once: a replayed add tells again (outfits.md section 4)', async () => {
+    const { ws } = await connectedSocket();
+    ws.push('piecesAdded', {
+      pieces: [
+        { id: 'knight_plate', cause: 'item' },
+        { id: 'pointed_hat', cause: 'rank' },
+      ],
+    });
+    expect(wardrobe.getState().added).toEqual(new Set(['knight_plate', 'pointed_hat']));
+    expect(toasts.getState().toasts.map((t) => t.text)).toEqual([
+      "New in your wardrobe: Knight's Plate",
+      'New in your wardrobe: Pointed Hat',
+    ]);
+    for (const t of toasts.getState().toasts) {
+      toasts.getState().dismiss(t.id); // gone, as a replay after a reconnect finds them
+    }
+    ws.push('piecesAdded', { pieces: [{ id: 'knight_plate', cause: 'item' }] });
+    expect(toasts.getState().toasts).toEqual([]);
+  });
+
+  it('forgets the wardrobe as the character is left: the next one’s list and look are its own', () => {
+    wardrobe.getState().collect(['knight_plate']);
+    wardrobe.getState().wear({ ...OWN_LOOK, outfit: 'knight_plate' });
+    leaveCharacter();
+    expect(wardrobe.getState().collected).toBeNull();
+    expect(wardrobe.getState().worn).toEqual(OWN_LOOK);
   });
 
   it('a region’s area brings its own boss quietly as the player steps in, up or beaten, and a town none', async () => {

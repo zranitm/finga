@@ -242,6 +242,10 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 		{model.PartySpots{}, &clientv1.PartySpots{}},
 		{model.WaypointFound{Waypoint: "north"}, &clientv1.WaypointFound{Waypoint: "north"}},
 		{
+			model.PiecesAdded{Pieces: []model.AddedPiece{{ID: "knight_plate", Cause: "item"}, {ID: "helm_gold", Cause: "rank"}}},
+			&clientv1.PiecesAdded{Pieces: []*clientv1.AddedPiece{{Id: "knight_plate", Cause: "item"}, {Id: "helm_gold", Cause: "rank"}}},
+		},
+		{
 			model.AreaEntered{Area: "oasis", FieldBoss: &model.FieldBoss{MobID: 9, Type: "king_slime"}},
 			&clientv1.AreaEntered{Area: "oasis", FieldBoss: &clientv1.FieldBoss{MobId: 9, Type: "king_slime"}},
 		},

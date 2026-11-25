@@ -98,7 +98,7 @@ feats:
   - Every piece has a source this build has. A boss source names a `boss: true` mob, with a chance in (0, 1].
   - Every rank, quest and feat named exists, and every feat gives some piece.
   - A rank gives at most one piece.
-- **`gen-gamedata`** carries the pieces, without chances, and the feats' names, for the wardrobe's lists and "how to get".
+- **`gen-gamedata`** carries the pieces, without chances, and the feats' names, for the wardrobe's lists and "how to get". As built, it also writes each piece's item as the server's loader makes it (`piece.<id>`, Etc, the piece's name and stars), so the inventory names a dropped piece.
 
 ## 4. Server: the wardrobe in the item module
 
@@ -124,6 +124,8 @@ feats:
     - The pvp module checks `pvp_wins` at a match's end.
     - Each grants as above.
 - **Notices** (step 4): a grant or an add that made a row pushes `PiecesAdded{pieces}` to the account's live session. Until then the add's answer is the only word.
+  - **Who pushes it:** the caller of the item module, on the stream it already has to the player; the item module keeps no stream of its own. Planned: a rank's or a feat's at a match's end through pvp's deliveries (4a-2), a quest's, a level's, a boss's and a promotion's through the world's (4b).
+  - **As built (4a-1):** only the add. The gateway delivers it to the adding session once the add succeeds; a refused add pushes none. A replayed add (the same idempotency key) pushes it again, and the client shows a piece's notice once each time the player enters the world.
 - **The look:**
   - `SetLook{look}` goes through the world, as `Equip` does. The world refuses a dead player (`CHARACTER_DEAD`) or one in combat (C20's 5 s clock, `IN_COMBAT`, as a trait change is).
   - The item module then checks each pick, wings too, against the player's live class:
@@ -233,8 +235,11 @@ Changing looks in combat is `IN_COMBAT` (330037), the code a trait change in com
 ## 7. Client: the wardrobe and the character window
 
 - **The wardrobe,** `features/wardrobe/Wardrobe.tsx`, on `wardrobe` (`KeyO`, key-bindings.md):
-  - **Left:** the character in 3D, wearing the picks, turned by a drag. It's a second scene on the game's engine, drawn into the window's canvas with `engine.registerView`, only while the window is open.
-  - **Right:** tabs Outfit, Headwear, Face, Weapon and Wings. Each is a grid of every piece in that slot: collected ones lit, the rest greyed.
+  - **Left:** the character in 3D, wearing the picks, turned by a drag. As built (`world3d/portrait.ts`), it's drawn in a small scene of its own on the game's engine, only while the window is open:
+    - each frame, before the world, it's drawn into the game canvas's bottom-left corner at the window canvas's size, then copied into that canvas with `drawImage`;
+    - the scene and its models stay while the world is open, so a window opened again loads nothing; closing a window disposes only its figure;
+    - the scene is made before the world's, which stays the engine's last.
+  - **Right:** tabs Outfit, Headwear, Face, Weapon and Wings. Each is a grid of every piece in that slot: collected ones lit, the rest greyed. The Weapon tab lists only looks of the class's weapon kind, the only ones the server takes.
   - **A card** on hover: the name, stars, slot, kind for a weapon look, and "How to get", written from its sources:
     - "Dropped by King Slime";
     - "Reach Gold in 1v1 or 3v3";
@@ -244,11 +249,15 @@ Changing looks in combat is `IN_COMBAT` (330037), the code a trait change in com
   - Each slot has the class's own look first, headwear has Hidden, and wings have None.
   - A count, "Collected 12 of 45", sits under the grid.
   - A refusal shows the server's message.
-- **The character window:** its empty figure becomes the same 3D view of the character, as worn.
+- **The character window:** its empty figure becomes the same 3D view of the character, as worn. As built, both windows draw it with `features/shared/FigureView`.
 - **The inventory:**
   - A piece's item card gains Preview, which opens the wardrobe on it, and Add to wardrobe.
   - Add to wardrobe asks first: "Add <name> to your wardrobe? It can't be traded after." For a piece already collected it's greyed, with "Already in your wardrobe".
-- **Notices:** each new piece shows "New in your wardrobe: <name>".
+  - **As built:**
+    - the account's pieces load as a character enters the world, and again as the wardrobe opens, so the card knows a piece already collected;
+    - Preview opens the wardrobe at the piece's tab, tried on over what's worn; it's greyed for a weapon look the class can't carry, which can still be added for another character;
+    - once the server answers an add, the wardrobe holds the piece and its notice shows.
+- **Notices:** each new piece shows "New in your wardrobe: <name>". As built (4a-1), `PiecesAdded` shows it and marks the piece collected, once a piece; the inventory's add only asks.
 
 ## 8. Art
 
@@ -317,7 +326,7 @@ Changing looks in combat is `IN_COMBAT` (330037), the code a trait change in com
    - the migration, adding, the look and its checks, promotion;
    - `PlayerView.look`, `/api/wardrobe`, the failures and the invariant.
 2. **The client's looks:** parts files, binding to the class's rig, colourways, attach and fit, wings' hinges and motion, the cape hidden under wings, others redrawn, and the swing trail.
-3. **The wardrobe window,** the character window's figure, the inventory card actions, notices and the `wardrobe` key.
+3. **The wardrobe window,** the character window's figure, the inventory card actions, notices and the `wardrobe` key. Built in two parts: 3a the window and its key, 3b the character window, the inventory card and an add's notice.
 4. **Sources:** ranks from the pvp module, quest pieces and feats, with `GrantPieces` and `PiecesAdded`.
 5. **The catalogue:**
    - the Skeletons pack added, and the face pieces and wings modelled;
@@ -357,4 +366,5 @@ The user's choices are in section 1. These calls were made in planning and logge
 - **Wings that slow a fall or glide:** offered, and the user chose looks only. It would have changed the shared movement rules, and made wings power in PvP.
 - **A bought wings pack** (CGTrader, about $19 for 15 rigged pairs): not CC0, and its licence doesn't clearly allow sending the files to browsers.
 - **An achievements window:** feats only grant pieces today, so the wardrobe shows them where they matter.
+- **`engine.registerView` for the wardrobe's figure:** it skips the main scene's own draw on frames it draws views, and resizes the master canvas to each view's. Here the master canvas is the game's visible one.
 - **A new module for outfits:** adding would cross two modules' transactions. The item module already holds possessions and the worn-gear read.

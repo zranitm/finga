@@ -34,6 +34,12 @@ func (o *Outbox) body(p model.Push) any {
 		return &clientv1.AreaEntered{Area: p.Area, FieldBoss: up, FieldBossGone: down}
 	case model.WaypointFound:
 		return &clientv1.WaypointFound{Waypoint: p.Waypoint}
+	case model.PiecesAdded:
+		pieces := make([]*clientv1.AddedPiece, 0, len(p.Pieces))
+		for _, a := range p.Pieces {
+			pieces = append(pieces, &clientv1.AddedPiece{Id: a.ID, Cause: a.Cause})
+		}
+		return &clientv1.PiecesAdded{Pieces: pieces}
 	case model.Damage:
 		return &clientv1.Damage{Source: entityRef(p.Source), Target: entityRef(p.Target), Amount: int32(p.Amount), Crit: p.Crit, Miss: p.Miss, Dodge: p.Dodge, Block: p.Block, StatusId: p.Status, Shielded: int32(p.Shielded)}
 	case model.SkillUsed:
