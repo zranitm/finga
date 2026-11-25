@@ -42,12 +42,12 @@ func (n *Grid) ReachWithout(starts []Point, r, rise float64, without func(Point)
 	return Reached{n: n, at: at}
 }
 
-// steps calls visit with each cell a player goes to from cell i: walking as A* does, and jumping or dropping one or two cells along an axis if the feet rise at most rise, never into deep water from out of it, as the sim stops a body at any height.
+// steps calls visit with each cell a player goes to from cell i: walking as A* does, and jumping or dropping one or two cells along an axis if the feet rise at most rise, never onto a barrier from off one, as the sim stops a body at any height.
 func (n *Grid) steps(i int, r, rise float64, lv levels, visit func(j int)) {
 	n.moves(i, r, func(j int, _ bool) { visit(j) })
-	dry, ground := n.flags[i]&deep == 0, lv.ground[i]
+	dry, ground := n.flags[i]&barred == 0, lv.ground[i]
 	for k, j := range n.sides(i) {
-		if j < 0 || lv.over[j]-ground > rise || dry && n.flags[j]&deep != 0 {
+		if j < 0 || lv.over[j]-ground > rise || dry && n.flags[j]&barred != 0 {
 			continue
 		}
 		if n.fits(j, r) {
@@ -55,7 +55,7 @@ func (n *Grid) steps(i int, r, rise float64, lv levels, visit func(j int)) {
 			continue // a body fits on j, so whatever lies beyond it is reached from there
 		}
 		// j is too tight to stand in, as beside a solid, so the jump goes on to f if j has room for the body at the jump's height
-		if f := n.sides(j)[k]; f >= 0 && n.flags[f]&deep == 0 && n.fits(f, r) && lv.over[f]-ground <= rise && clearance(n.g, n.step, n.centre(j), ground+rise) >= r {
+		if f := n.sides(j)[k]; f >= 0 && n.flags[f]&barred == 0 && n.fits(f, r) && lv.over[f]-ground <= rise && clearance(n.g, n.step, n.centre(j), ground+rise) >= r {
 			visit(f)
 		}
 	}

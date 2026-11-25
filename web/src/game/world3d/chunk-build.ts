@@ -49,7 +49,7 @@ export async function buildChunk(req: ChunkRequest): Promise<BuiltChunk> {
       cz: c.cz,
       n: c.n,
       heights: c.heights.slice(), // its own buffer, not the file's, to hand over
-      deep: c.deep.slice(),
+      barrier: c.barrier.slice(),
       cylinders: c.cylinders,
       boxes: c.boxes,
     },
@@ -59,7 +59,7 @@ export async function buildChunk(req: ChunkRequest): Promise<BuiltChunk> {
 /** The buffers a built chunk hands over rather than copies. */
 export function transfers(b: BuiltChunk): ArrayBuffer[] {
   const { positions, normals, colors, details } = b.ground;
-  const { heights, deep, cylinders, boxes } = b.sim;
+  const { heights, barrier, cylinders, boxes } = b.sim;
   return [
     positions,
     normals,
@@ -68,7 +68,7 @@ export function transfers(b: BuiltChunk): ArrayBuffer[] {
     b.models,
     b.props,
     heights,
-    deep,
+    barrier,
     cylinders.index,
     cylinders.at,
     boxes.index,
