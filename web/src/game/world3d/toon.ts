@@ -1,4 +1,4 @@
-// The scene's materials (3d-world.md section 11): one toon NodeMaterial per base colour or texture, its light posterized into flat bands, the sun's or a cave's torches', an inverted hull for the ink line, and an unlit glow; all take the scene's fog.
+// The scene's materials (3d-world.md section 11): one toon NodeMaterial per base colour or texture, its light posterized into flat bands, the sun's, a sea's with its caustics or a cave's torches', an inverted hull for the ink line, and an unlit glow; all take the scene's fog.
 import { Constants } from '@babylonjs/core/Engines/constants';
 import type { Material } from '@babylonjs/core/Materials/material';
 import { AddBlock } from '@babylonjs/core/Materials/Node/Blocks/addBlock';
@@ -38,6 +38,7 @@ import { VectorSplitterBlock } from '@babylonjs/core/Materials/Node/Blocks/vecto
 import { BonesBlock } from '@babylonjs/core/Materials/Node/Blocks/Vertex/bonesBlock';
 import { InstancesBlock } from '@babylonjs/core/Materials/Node/Blocks/Vertex/instancesBlock';
 import { VertexOutputBlock } from '@babylonjs/core/Materials/Node/Blocks/Vertex/vertexOutputBlock';
+import { WorleyNoise3DBlock } from '@babylonjs/core/Materials/Node/Blocks/worleyNoise3DBlock';
 import { NodeMaterialBlockConnectionPointTypes } from '@babylonjs/core/Materials/Node/Enums/nodeMaterialBlockConnectionPointTypes';
 import { NodeMaterialSystemValues } from '@babylonjs/core/Materials/Node/Enums/nodeMaterialSystemValues';
 import { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
@@ -51,9 +52,12 @@ import { SubMesh } from '@babylonjs/core/Meshes/subMesh';
 import type { Scene } from '@babylonjs/core/scene';
 
 import { CUT_MOBS } from './cut-mobs';
+import { CAUSTICS, SEA_LIT, SEA_SHADE, SWAY } from './sealight';
 import { clearsMark, GHOST, markOthers, onPlace } from './see-through';
-import { FLICKERS, FLOOR, TORCH } from './torchlight';
-import type { Torchlight } from './torchlight';
+import { FLICKERS, FLOOR, Torchlight, TORCH } from './torchlight';
+
+/** What lights a palette's toon materials: the land's sun, a sea's, cyan and softer with its caustics, or a cave's torches. */
+export type Lit = 'sun' | 'sea' | Torchlight;
 
 /** The light bands a surface steps through: shade, mid and lit; in shade it keeps this share of its colour, a cool grey. */
 const BANDS = 3;
@@ -106,9 +110,10 @@ class Skinned {
   readonly worldPos = new TransformBlock('worldPos');
   readonly worldNormal = new TransformBlock('worldNormal');
   readonly vertex = new VertexOutputBlock('vertexOutput');
+  private readonly instances = new InstancesBlock('instances');
 
   constructor() {
-    const instances = new InstancesBlock('instances');
+    const instances = this.instances;
     this.attribute('world0').output.connectTo(instances.world0);
     this.attribute('world1').output.connectTo(instances.world1);
     this.attribute('world2').output.connectTo(instances.world2);
@@ -137,6 +142,64 @@ class Skinned {
     return b;
   }
 
+  /** The vertex's place in the world swayed by the water (underground-and-underwater.md section 7): bent along the current by the square of its share of tall, the model's height over its base at the mesh's origin, its top swinging SWAY.share of tall; the swing a wave running along the current from where its base stands, so a bed sways as one. */
+  swayed(tall: number): NodeMaterialConnectionPoint {
+    const origin = new InputBlock('swayOrigin');
+    origin.value = Vector3.Zero();
+    const base = new TransformBlock('swayBase');
+    origin.output.connectTo(base.vector);
+    this.instances.output.connectTo(base.transform);
+    const from = new VectorSplitterBlock('swayFrom');
+    base.output.connectTo(from.xyzw);
+    const at = new VectorSplitterBlock('swayAt');
+    this.worldPos.output.connectTo(at.xyzw);
+    const up = new SubtractBlock('swayUp');
+    at.y.connectTo(up.left);
+    from.y.connectTo(up.right);
+    const share = new ScaleBlock('swayShare');
+    up.output.connectTo(share.input);
+    constant('swayTall', 1 / tall).output.connectTo(share.factor);
+    const bent = new MultiplyBlock('swayBent');
+    share.output.connectTo(bent.left);
+    share.output.connectTo(bent.right);
+    const reach = new ScaleBlock('swayReach');
+    bent.output.connectTo(reach.input);
+    constant('swayTop', SWAY.share * tall).output.connectTo(reach.factor);
+    const k = (2 * Math.PI) / SWAY.wavelength;
+    const alongX = new ScaleBlock('swayAlongX');
+    from.x.connectTo(alongX.input);
+    constant('swayWaveX', SWAY.current[0] * k).output.connectTo(alongX.factor);
+    const alongZ = new ScaleBlock('swayAlongZ');
+    from.z.connectTo(alongZ.input);
+    constant('swayWaveZ', SWAY.current[1] * k).output.connectTo(alongZ.factor);
+    const phase = new AddBlock('swayPhase');
+    alongX.output.connectTo(phase.left);
+    alongZ.output.connectTo(phase.right);
+    const time = new InputBlock('time', undefined, NodeMaterialBlockConnectionPointTypes.Float);
+    time.animationType = AnimatedInputBlockTypes.RealTime;
+    const turned = new ScaleBlock('swayTurned');
+    time.output.connectTo(turned.input);
+    constant('swayRate', (2 * Math.PI) / SWAY.period).output.connectTo(turned.factor);
+    const phased = new SubtractBlock('swayPhased');
+    turned.output.connectTo(phased.left);
+    phase.output.connectTo(phased.right);
+    const sine = new TrigonometryBlock('swaySine');
+    sine.operation = TrigonometryBlockOperations.Sin;
+    phased.output.connectTo(sine.input);
+    const swing = new MultiplyBlock('swaySwing');
+    reach.output.connectTo(swing.left);
+    sine.output.connectTo(swing.right);
+    const way = new InputBlock('swayCurrent');
+    way.value = new Vector3(SWAY.current[0], 0, SWAY.current[1]);
+    const push = new ScaleBlock('swayPush');
+    way.output.connectTo(push.input);
+    swing.output.connectTo(push.factor);
+    const out = new AddBlock('swayed');
+    this.worldPos.xyz.connectTo(out.left);
+    push.output.connectTo(out.right);
+    return out.output;
+  }
+
   /** Draws the vertex at world, a point in the world. */
   place(world: NodeMaterialConnectionPoint): void {
     const clip = new TransformBlock('clipPos');
@@ -152,6 +215,13 @@ class Skinned {
 function constant(name: string, v: number): InputBlock {
   const b = new InputBlock(name);
   b.value = v;
+  return b;
+}
+
+/** A colour input set to c. */
+function constantColor(name: string, c: Color3): InputBlock {
+  const b = new InputBlock(name);
+  b.value = c;
   return b;
 }
 
@@ -377,8 +447,12 @@ function hole(
   return open;
 }
 
-/** rgb, a linear colour, fogged by its distance from the camera. */
-function fogged(s: Skinned, rgb: NodeMaterialConnectionPoint): NodeMaterialConnectionPoint {
+/** rgb, a linear colour, fogged by its distance from the camera: into the scene's fog colour, or into black for light added to what's behind, which the fog hides. */
+function fogged(
+  s: Skinned,
+  rgb: NodeMaterialConnectionPoint,
+  into: 'fog' | 'black' = 'fog',
+): NodeMaterialConnectionPoint {
   const fog = new FogBlock('fog');
   s.worldPos.output.connectTo(fog.worldPosition);
   s.system('view', NodeMaterialSystemValues.View).output.connectTo(fog.view);
@@ -388,7 +462,11 @@ function fogged(s: Skinned, rgb: NodeMaterialConnectionPoint): NodeMaterialConne
     undefined,
     NodeMaterialBlockConnectionPointTypes.Color3,
   );
-  fogColor.setAsSystemValue(NodeMaterialSystemValues.FogColor);
+  if (into === 'fog') {
+    fogColor.setAsSystemValue(NodeMaterialSystemValues.FogColor);
+  } else {
+    fogColor.value = Color3.Black();
+  }
   fogColor.output.connectTo(fog.fogColor);
   return fog.output;
 }
@@ -435,6 +513,7 @@ function sunlight(s: Skinned): NodeMaterialConnectionPoint {
   s.system('cameraPosition', NodeMaterialSystemValues.CameraPosition).output.connectTo(
     light.cameraPosition,
   );
+  s.system('view', NodeMaterialSystemValues.View).output.connectTo(light.view); // a cascaded shadow picks its cascade by view depth; without it the shader doesn't compile
   return light.diffuseOutput;
 }
 
@@ -494,6 +573,56 @@ function flickering(group: number, time: NodeMaterialConnectionPoint): NodeMater
   return f;
 }
 
+/** A sea's caustics at the fragment, 0 to 1: the web along the edges of 3D Worley noise's cells over x and z, time its third axis so the web shifts as it drifts, on what faces up. */
+function caustics(s: Skinned): NodeMaterialConnectionPoint {
+  const time = new InputBlock('time', undefined, NodeMaterialBlockConnectionPointTypes.Float);
+  time.animationType = AnimatedInputBlockTypes.RealTime;
+  const at = new VectorSplitterBlock('causticAt');
+  s.worldPos.output.connectTo(at.xyzw);
+  const seed = new VectorMergerBlock('causticSeed');
+  [at.x, at.z].forEach((v, k) => {
+    const axis = 'xz'[k]!;
+    const scaled = new ScaleBlock(`caustic${axis}`);
+    v.connectTo(scaled.input);
+    constant(`causticScale${axis}`, CAUSTICS.scale).output.connectTo(scaled.factor);
+    const drift = new ScaleBlock(`causticDrift${axis}`);
+    time.output.connectTo(drift.input);
+    constant(`causticDrifting${axis}`, CAUSTICS.drift[k]!).output.connectTo(drift.factor);
+    const drifted = new AddBlock(`causticDrifted${axis}`);
+    scaled.output.connectTo(drifted.left);
+    drift.output.connectTo(drifted.right);
+    drifted.output.connectTo(k === 0 ? seed.x : seed.y);
+  });
+  const shift = new ScaleBlock('causticShift');
+  time.output.connectTo(shift.input);
+  constant('causticShifting', CAUSTICS.shift).output.connectTo(shift.factor);
+  shift.output.connectTo(seed.z);
+  const cells = new WorleyNoise3DBlock('causticCells');
+  seed.xyzOut.connectTo(cells.seed);
+  constant('causticJitter', 1).output.connectTo(cells.jitter);
+  const gap = new SubtractBlock('causticGap'); // F2 − F1: 0 on a cell's edge
+  cells.y.connectTo(gap.left);
+  cells.x.connectTo(gap.right);
+  const off = new SmoothStepBlock('causticOff');
+  gap.output.connectTo(off.value);
+  constant('causticOn', 0).output.connectTo(off.edge0);
+  constant('causticWidth', CAUSTICS.width).output.connectTo(off.edge1);
+  const web = new OneMinusBlock('causticWeb');
+  off.output.connectTo(web.input);
+  const normal = new NormalizeBlock('causticNormal');
+  s.worldNormal.output.connectTo(normal.input);
+  const facing = new VectorSplitterBlock('causticFacing');
+  normal.output.connectTo(facing.xyzw); // w 0, as a normal transforms
+  const up = new SmoothStepBlock('causticUp');
+  facing.y.connectTo(up.value);
+  constant('causticUpFrom', CAUSTICS.up[0]).output.connectTo(up.edge0);
+  constant('causticUpTo', CAUSTICS.up[1]).output.connectTo(up.edge1);
+  const on = new MultiplyBlock('caustics');
+  web.output.connectTo(on.left);
+  up.output.connectTo(on.right);
+  return on.output;
+}
+
 function toonMaterial(
   name: string,
   scene: Scene,
@@ -502,12 +631,14 @@ function toonMaterial(
   cut: Cut | null,
   place = cut !== null,
   hollow = false,
-  torches: Torchlight | null = null,
+  lit: Lit = 'sun',
+  sway: number | null = null,
 ): NodeMaterial {
   const s = new Skinned();
-  s.place(s.worldPos.output);
+  s.place(sway === null ? s.worldPos.output : s.swayed(sway));
+  const torches = lit instanceof Torchlight ? lit : null;
 
-  // Posterize floors the light into 0, ⅓ and ⅔; stretched to 0, ½ and 1, the top band is the colour itself, or in a cave the torches' warm light.
+  // Posterize floors the light into 0, ⅓ and ⅔; stretched to 0, ½ and 1, the top band is the colour itself, in a sea the sun's cyan, or in a cave the torches' warm light.
   const steps = new InputBlock('bands');
   steps.value = BANDS;
   const floored = new PosterizeBlock('floored');
@@ -521,19 +652,36 @@ function toonMaterial(
   const banded = new ClampBlock('banded');
   stretched.output.connectTo(banded.value);
   const shade = new InputBlock('shade');
-  shade.value = torches ? FLOOR : SHADE;
-  const lit = new InputBlock('lit');
-  lit.value = Color3.White();
+  shade.value = torches ? FLOOR : lit === 'sea' ? SEA_SHADE : SHADE;
+  const white = new InputBlock('lit');
+  white.value = Color3.White();
   const tone = new LerpBlock('tone');
   shade.output.connectTo(tone.left);
   if (torches) {
     const torch = new InputBlock('torch');
     torch.value = TORCH;
     torch.output.connectTo(tone.right);
+  } else if (lit === 'sea') {
+    const sun = new InputBlock('seaLit');
+    sun.value = SEA_LIT;
+    sun.output.connectTo(tone.right);
   } else {
-    lit.output.connectTo(tone.right);
+    white.output.connectTo(tone.right);
   }
   banded.output.connectTo(tone.gradient);
+  let light = tone.output;
+  if (lit === 'sea') {
+    const ripple = new ScaleBlock('ripple');
+    constantColor('causticLight', CAUSTICS.light).output.connectTo(ripple.input);
+    caustics(s).connectTo(ripple.factor);
+    const reached = new MultiplyBlock('causticsLit'); // only where the sun reaches, the more as it does
+    ripple.output.connectTo(reached.left);
+    banded.output.connectTo(reached.right);
+    const rippled = new AddBlock('rippled');
+    tone.output.connectTo(rippled.left);
+    reached.output.connectTo(rippled.right);
+    light = rippled.output;
+  }
 
   const color = new InputBlock('color');
   color.value = base.color;
@@ -549,15 +697,15 @@ function toonMaterial(
     s.attribute('color').output.connectTo(vertex.rgba);
     vertex.rgbOut.connectTo(albedo.left);
   } else {
-    lit.output.connectTo(albedo.left);
+    white.output.connectTo(albedo.left);
   }
   color.output.connectTo(albedo.right);
 
   const shaded = new MultiplyBlock('shaded');
   albedo.output.connectTo(shaded.left);
-  tone.output.connectTo(shaded.right);
+  light.connectTo(shaded.right);
   const m = new NodeMaterial(name, scene, { emitComments: false });
-  let rgb = base.glow ? rimmed(s, albedo.output, lit.output) : shaded.output;
+  let rgb = base.glow ? rimmed(s, albedo.output, white.output) : shaded.output;
   let facing: NodeMaterialConnectionPoint | null = null;
   if (hollow) {
     facing = facesCamera();
@@ -638,7 +786,7 @@ function rimmed(
 }
 
 /** The ink: back faces only, pushed out along their normals by OUTLINE_M in the world, so every model's line is the same width. */
-function inkMaterial(scene: Scene, cut: Cut | null): NodeMaterial {
+function inkMaterial(scene: Scene, cut: Cut | null, sway: number | null): NodeMaterial {
   const s = new Skinned();
   const unit = new NormalizeBlock('unit');
   s.worldNormal.xyz.connectTo(unit.input);
@@ -648,7 +796,7 @@ function inkMaterial(scene: Scene, cut: Cut | null): NodeMaterial {
   unit.output.connectTo(push.input);
   width.output.connectTo(push.factor);
   const out = new AddBlock('out');
-  s.worldPos.xyz.connectTo(out.left);
+  (sway === null ? s.worldPos.xyz : s.swayed(sway)).connectTo(out.left);
   push.output.connectTo(out.right);
   s.place(out.output);
   const ink = new InputBlock('ink');
@@ -721,6 +869,67 @@ function discMaterial(
   return m;
 }
 
+const RAY = new Color3(0.75, 0.95, 1).toLinearSpace(); // a sea's light ray, sRGB, the sun's cyan
+const RAY_PEAK = 0.12; // a sea's light ray's strength at its brightest, high up its length
+const RAY_SOFT = 0.2; // the share of its half width it holds that across, fading from it to nothing at its sides
+const RAY_RISE = 0.7; // the share of its length over which it rises from nothing at its foot
+const RAY_TOP = 0.9; // and the share past which it fades to nothing at its top
+
+/** A sea's light ray: RAY at RAY_PEAK, fading to nothing at its sides, its foot and its top; a plane's uvs run 0 to 1 across it and up it. Added to what's behind and faded into black by the fog, so a far ray hides as murky water hides it; it writes no depth. */
+function rayMaterial(scene: Scene): NodeMaterial {
+  const s = new Skinned();
+  s.place(s.worldPos.output);
+  const uv = new VectorSplitterBlock('rayUv');
+  s.attribute('uv').output.connectTo(uv.xyIn);
+  const off = new SubtractBlock('rayOff');
+  uv.x.connectTo(off.left);
+  constant('rayMiddle', 0.5).output.connectTo(off.right);
+  const away = new TrigonometryBlock('rayAway');
+  away.operation = TrigonometryBlockOperations.Abs;
+  off.output.connectTo(away.input);
+  const side = new ScaleBlock('raySide'); // 0 down its middle, 1 at its sides
+  away.output.connectTo(side.input);
+  constant('toSide', 2).output.connectTo(side.factor);
+  const sides = new SmoothStepBlock('raySides');
+  side.output.connectTo(sides.value);
+  constant('raySoft', RAY_SOFT).output.connectTo(sides.edge0);
+  constant('raySideEdge', 1).output.connectTo(sides.edge1);
+  const across = new OneMinusBlock('rayAcross');
+  sides.output.connectTo(across.input);
+  const rise = new SmoothStepBlock('rayRise');
+  uv.y.connectTo(rise.value);
+  constant('rayFoot', 0).output.connectTo(rise.edge0);
+  constant('rayRisen', RAY_RISE).output.connectTo(rise.edge1);
+  const top = new SmoothStepBlock('rayTopFade');
+  uv.y.connectTo(top.value);
+  constant('rayTop', RAY_TOP).output.connectTo(top.edge0);
+  constant('rayEnd', 1).output.connectTo(top.edge1);
+  const below = new OneMinusBlock('rayBelowTop');
+  top.output.connectTo(below.input);
+  const along = new MultiplyBlock('rayAlong');
+  rise.output.connectTo(along.left);
+  below.output.connectTo(along.right);
+  const shaped = new MultiplyBlock('rayShape');
+  across.output.connectTo(shaped.left);
+  along.output.connectTo(shaped.right);
+  const alpha = new ScaleBlock('rayAlpha');
+  shaped.output.connectTo(alpha.input);
+  constant('rayPeak', RAY_PEAK).output.connectTo(alpha.factor);
+  const fragment = new FragmentOutputBlock('fragmentOutput');
+  fragment.convertToGammaSpace = true;
+  fogged(s, constantColor('rayColor', RAY).output, 'black').connectTo(fragment.rgb);
+  alpha.output.connectTo(fragment.a);
+  const m = new NodeMaterial('sea ray', scene, { emitComments: false });
+  m.addOutputNode(s.vertex);
+  m.addOutputNode(fragment);
+  m.build();
+  m.backFaceCulling = false;
+  m.forceAlphaBlending = true;
+  m.alphaMode = Constants.ALPHA_ADD;
+  m.disableDepthWrite = true;
+  return m;
+}
+
 /** base's texture times its colour at full strength, unlit, fogged: a torch's flame. */
 function unlitMaterial(name: string, scene: Scene, base: ToonBase): NodeMaterial {
   const s = new Skinned();
@@ -780,7 +989,7 @@ function decalMaterial(
 /** A scene's materials: toon ones by texture and colour, shared by every mesh drawn with them, and the ink; the place's open round the player's chest, and clear the stencil every other mesh marks. */
 export class Palette {
   private readonly made = new Map<string, NodeMaterial>();
-  private readonly inks = new Map<boolean, NodeMaterial>();
+  private readonly inks = new Map<string, NodeMaterial>();
   private readonly cut: Cut = {
     chest: new Vector3(),
     on: 0,
@@ -788,19 +997,25 @@ export class Palette {
     over: Array.from({ length: CUT_MOBS }, () => 0),
   };
 
-  /** A scene's palette, its toon materials lit by a cave's torches when given them, else by the sun. */
+  /** A scene's palette, its toon materials lit by the land's sun, a sea's, or a cave's torches. */
   constructor(
     private readonly scene: Scene,
-    private readonly torches: Torchlight | null = null,
+    private readonly lit: Lit = 'sun',
   ) {
     markOthers(scene);
   }
 
-  /** The toon material for base, drawn at alpha: 1, or less for a solid faded out of the camera's way; cut for the place, which opens round the player; a hollow one, a model the place stands, shows a dark inside where it's cut whole. */
-  toon(base: ToonBase, alpha = 1, cut = false, hollow = false): NodeMaterial {
+  /** The toon material for base, drawn at alpha: 1, or less for a solid faded out of the camera's way; cut for the place, which opens round the player; a hollow one, a model the place stands, shows a dark inside where it's cut whole; one with sway, a model that height, sways in the water. */
+  toon(
+    base: ToonBase,
+    alpha = 1,
+    cut = false,
+    hollow = false,
+    sway: number | null = null,
+  ): NodeMaterial {
     const color = base.color.clampToRef(0, 1, new Color3());
     const inside = hollow && cut && alpha === 1;
-    const key = `${base.texture?.uniqueId ?? '-'} ${color.toHexString()}${base.glow ? ' glow' : ''}${base.vertexColors ? ' vertex' : ''}${cut ? ' cut' : ''}${inside ? ' hollow' : ''}${alpha < 1 ? ` ${alpha}` : ''}`;
+    const key = `${base.texture?.uniqueId ?? '-'} ${color.toHexString()}${base.glow ? ' glow' : ''}${base.vertexColors ? ' vertex' : ''}${cut ? ' cut' : ''}${inside ? ' hollow' : ''}${alpha < 1 ? ` ${alpha}` : ''}${sway === null ? '' : ` sway ${sway}`}`;
     let m = this.made.get(key);
     if (!m) {
       m = toonMaterial(
@@ -811,7 +1026,8 @@ export class Palette {
         cut ? this.cut : null,
         cut,
         inside,
-        this.torches,
+        this.lit,
+        sway,
       );
       this.made.set(key, m);
     }
@@ -829,7 +1045,7 @@ export class Palette {
       null,
       true,
       false,
-      this.torches,
+      this.lit,
     );
   }
 
@@ -896,6 +1112,16 @@ export class Palette {
     return m;
   }
 
+  /** The material of a sea's light rays, made once: the sun's cyan, added to what's behind, fading to nothing at a ray's sides and ends. */
+  ray(): NodeMaterial {
+    let m = this.made.get('sea ray');
+    if (!m) {
+      m = rayMaterial(this.scene);
+      this.made.set('sea ray', m);
+    }
+    return m;
+  }
+
   /** base drawn unlit at full colour, made once a base: a torch's flame. */
   unlit(base: ToonBase): NodeMaterial {
     const key = `unlit ${base.texture?.uniqueId ?? '-'} ${base.color.toHexString()}`;
@@ -918,8 +1144,8 @@ export class Palette {
     return m;
   }
 
-  /** An ink line round mesh: a clone on it, sharing its geometry and skeleton, drawn in the ink; cut for the place, as its mesh. */
-  outline(mesh: AbstractMesh, cut = false): void {
+  /** An ink line round mesh: a clone on it, sharing its geometry and skeleton, drawn in the ink; cut for the place, as its mesh; swaying with it when it does, a model sway high. */
+  outline(mesh: AbstractMesh, cut = false, sway: number | null = null): void {
     const hull = mesh.clone(`${mesh.name} ink`, mesh, true);
     if (!hull) {
       return;
@@ -929,10 +1155,11 @@ export class Palette {
     hull.rotation.setAll(0);
     hull.scaling.setAll(1);
     hull.isPickable = false;
-    let ink = this.inks.get(cut);
+    const key = `${cut} ${sway}`;
+    let ink = this.inks.get(key);
     if (!ink) {
-      ink = inkMaterial(this.scene, cut ? this.cut : null);
-      this.inks.set(cut, ink);
+      ink = inkMaterial(this.scene, cut ? this.cut : null, sway);
+      this.inks.set(key, ink);
     }
     hull.material = ink;
   }

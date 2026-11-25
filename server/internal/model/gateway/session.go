@@ -176,6 +176,12 @@ type WardrobeAdd struct {
 	Item           kernel.ItemID
 }
 
+// WardrobeAdded is what an add changed: the slot it took one from, and the piece it made, a cause of item.
+type WardrobeAdded struct {
+	Changed InventoryChanged
+	Piece   AddedPiece
+}
+
 // LookSet wears a look of collected pieces.
 type LookSet struct {
 	IdempotencyKey string

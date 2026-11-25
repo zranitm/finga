@@ -68,6 +68,7 @@ import { teleport } from '@/state/teleport';
 import type { Destination } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
+import { OWN_LOOK, wardrobe } from '@/state/wardrobe';
 
 import { loadArt, Fx } from '../effects/fx';
 import type { Body } from '../effects/types';
@@ -110,6 +111,7 @@ import type { ChunkSource } from './chunk-build';
 import { Combat, playerBody } from './combat';
 import { cutMobs } from './cut-mobs';
 import { Figures } from './figures';
+import { FishSchools } from './fish-schools';
 import { Flames } from './flames';
 import { CHEST_M, cameraAt, easeShare, heldView, yawOf } from './follow';
 import { Labels } from './labels';
@@ -133,6 +135,9 @@ import { PrepWall } from './prep-wall';
 import type { RegionArea } from './region-bake';
 import { buildRegion } from './region-place';
 import { RoundShadows } from './round-shadows';
+import { SeaBubbles } from './sea-bubbles';
+import { SeaRays } from './sea-rays';
+import { SEA_SUN } from './sealight';
 import { ShieldBubbles } from './shield-bubbles';
 import { teleportGlow } from './teleport-glow';
 import { Palette } from './toon';
@@ -188,6 +193,12 @@ function sunLighting(scene: Scene, map: WorldMap): Lighting {
   };
 }
 
+/** A sea region's lighting (underground-and-underwater.md section 7): its sun nearly overhead, its shadows cascaded and falling almost straight down, its toon materials cyan and softer with the caustics. */
+function seaLighting(scene: Scene): Lighting {
+  const sun = new DirectionalLight('sun', SEA_SUN.normalizeToNew(), scene);
+  return { palette: new Palette(scene, 'sea'), shadows: regionShadows(sun, SHADOW_MAP) };
+}
+
 /** A cave region's lighting (underground-and-underwater.md section 7): no sun and so no shadows, its toon materials lit by its torches' light map; the old open-topped Cave keeps the sun. */
 function caveLighting(scene: Scene, cave: RegionMap): Lighting {
   return { palette: new Palette(scene, new Torchlight(scene, cave.light)), shadows: null };
@@ -230,6 +241,7 @@ class Drawn {
   private posed: { p: Pose; at: number } = { p: 'up', at: 0 };
   private keyed: { cls: string; look: LookWire | undefined } | null = null;
   private readonly beat: number;
+  readonly height: number; // how tall it stands, its look's
   private readonly middle: number; // how high its bounds' middle is over its feet
   private readonly reach: number; // and how far they reach round it, a hover and gear past its cylinder too
 
@@ -243,6 +255,7 @@ class Drawn {
   ) {
     this.yaw = yaw;
     this.beat = pacing.beat();
+    this.height = look.height;
     this.middle = look.height / 2;
     this.reach = Math.hypot(look.height / 2, (look.width ?? look.height) / 2) + look.height / 2; // round its middle, and half its height more for a weapon or a wing swung out
     this.redraw(made, as);
@@ -430,6 +443,10 @@ export class World {
   private lighting: Lighting | null = null;
   private roundShadows: RoundShadows | null = null; // a cave's, which has no sun
   private flames: Flames | null = null; // its torches'
+  private rays: SeaRays | null = null; // a sea's
+  private seaBubbles: SeaBubbles | null = null; // a sea's
+  private fish: FishSchools | null = null; // a sea's
+  private breathAt = 0; // the frame's moment, for the bubbles' walk over the bodies
   private pouchMarks: PouchMarks | null = null;
   private place: Place | null = null;
   private map: WorldMap | null = null;
@@ -647,11 +664,17 @@ export class World {
     this.drawNpcs(now, dt);
     this.shadeBodies();
     this.moveCamera(dt);
+    const seconds = (PrecisionDate.Now - this.deps.engine.startTime) / 1000; // the toon materials' clock for their light's flicker and the caustics
     this.flames?.frame(
-      (PrecisionDate.Now - this.deps.engine.startTime) / 1000, // the toon materials' clock for their light's flicker
+      seconds,
       this.camera?.position.x ?? this.follow.x,
       this.camera?.position.z ?? this.follow.z,
     ); // its cards turned to the camera where this frame draws from
+    if (this.camera) {
+      this.rays?.frame(seconds, this.camera.position, this.follow);
+      this.fish?.frame(seconds, this.camera.position, this.follow, this.floorAt);
+    }
+    this.breatheBodies(now);
     this.unveil();
     this.combat?.frame(now);
     this.closeDialogOutOfReach();
@@ -718,14 +741,25 @@ export class World {
     let lighting: Lighting;
     let round: RoundShadows | null;
     let flames: Flames | null;
+    let rays: SeaRays | null;
+    let seaBubbles: SeaBubbles | null;
+    let fish: FishSchools | null;
     let figures: Figures;
     let pouchMarks: PouchMarks;
     let fx: Fx;
     try {
       const cave = map.region?.region.sky === 'cave' ? map.region : null;
-      lighting = cave ? caveLighting(scene, cave) : sunLighting(scene, map);
+      const sea = map.region?.region.sky === 'sea';
+      lighting = cave
+        ? caveLighting(scene, cave)
+        : sea
+          ? seaLighting(scene)
+          : sunLighting(scene, map);
+      rays = sea ? new SeaRays(scene, lighting.palette) : null;
       round = cave && new RoundShadows(scene, lighting.palette, map);
       const models = new Models(scene, this.deps.models);
+      seaBubbles = sea ? new SeaBubbles(scene) : null;
+      fish = sea ? new FishSchools(scene, lighting.palette, models, map.geometry) : null;
       flames = cave && new Flames(scene, lighting.palette, models, cave.region.lights);
       figures = new Figures(scene, lighting, models);
       pouchMarks = new PouchMarks(scene, models, lighting);
@@ -755,6 +789,9 @@ export class World {
     this.lighting = lighting;
     this.roundShadows = round;
     this.flames = flames;
+    this.rays = rays;
+    this.seaBubbles = seaBubbles;
+    this.fish = fish;
     this.figures = figures;
     this.pouchMarks = pouchMarks;
     this.place = place;
@@ -989,6 +1026,7 @@ export class World {
       case 'quests':
       case 'map':
       case 'arena':
+      case 'wardrobe':
         ui.getState().toggleWindow(action);
         return;
       case 'walk': {
@@ -1458,6 +1496,40 @@ export class World {
     round.end();
   }
 
+  /** A sea's bubbles this frame: its drawn vents near the camera's target stream, and each body drawn near it, the dying aside, breathes out a few now and then. */
+  private breatheBodies(now: number): void {
+    const bubbles = this.seaBubbles;
+    if (!bubbles || !this.place) {
+      return;
+    }
+    bubbles.frame(this.follow.x, this.follow.z, this.place.vents());
+    this.breathAt = now;
+    if (this.me) {
+      this.breathe(this.me);
+    }
+    this.remoteViews.forEach(this.breathe);
+    this.mobViews.forEach(this.breathe);
+    this.npcViews.forEach(this.breatheNpc);
+  }
+
+  // made once, so a frame's walk over the maps makes nothing
+  private readonly breathe = (v: Drawn) => {
+    const at = v.at;
+    if (at && v.shown) {
+      this.seaBubbles?.breathe(
+        v,
+        at.x,
+        at.y + v.height,
+        at.z,
+        this.follow.x,
+        this.follow.z,
+        this.breathAt,
+      );
+    }
+  };
+  private readonly breatheNpc = (n: { readonly view: Drawn }) => this.breathe(n.view);
+  private readonly floorAt = (x: number, z: number) => groundUnder(this.map!, x, z);
+
   /** v's round shadow, a body of radius r, if it's drawn: under its feet, on a solid's top it stands on too. */
   private shade(v: Drawn, r: number): void {
     const at = v.at;
@@ -1599,9 +1671,10 @@ export class World {
     return at && playerBody(at.x, at.y, at.z);
   }
 
-  /** Redraws the player when their class or what their newest frame says they wear has changed. */
+  /** Redraws the player when their class or what their newest frame says they wear has changed, and tells the wardrobe what's worn. */
   private dressMe(): void {
     this.me?.dress(this.meCls, this.latestMe?.look, this.dressing);
+    wardrobe.getState().wear(this.latestMe?.look ?? OWN_LOOK);
   }
 
   private readonly dressing = (look: ModelLook) => this.made(look);
@@ -2448,6 +2521,7 @@ export class World {
   /** Into a region's area, on a join or a step: its banner, its name and a hunting area's levels. */
   private enteredArea(id: string): void {
     this.areaId = id;
+    mapView.getState().inArea(id);
     const a = this.area();
     if (a) {
       this.banner(a.kind === 'hunting' ? `${a.name} · Lv ${a.levels[0]}–${a.levels[1]}` : a.name);
@@ -2663,6 +2737,9 @@ export class World {
     this.figures = null;
     this.roundShadows = null;
     this.flames = null;
+    this.rays = null;
+    this.seaBubbles = null;
+    this.fish = null;
     this.pouchMarks = null;
     this.lighting = null;
     this.map = null;

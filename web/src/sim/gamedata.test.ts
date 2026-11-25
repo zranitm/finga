@@ -35,14 +35,25 @@ describe('generated gamedata', () => {
     expect(expCurve.exp_to_next).toHaveLength(expCurve.level_cap - 1);
   });
 
-  it('items equal items.yaml with the stack size the server applies', () => {
+  it('items equal items.yaml with the stack size the server applies, then an item for each wardrobe piece as the server makes it', () => {
     const raw = yaml('items.yaml').items as Record<string, unknown>[];
-    expect(items).toHaveLength(raw.length);
-    items.forEach((item, k) => {
-      const source = raw[k]!;
+    const pieces = yaml('outfits.yaml').pieces as { id: string; name: string; stars: number }[];
+    expect(items).toHaveLength(raw.length + pieces.length);
+    raw.forEach((source, k) => {
+      const item = items[k]!;
       expect(item).toMatchObject(source);
       expect(item.max_stack).toBe(source.max_stack ?? (item.tab === 'equip' ? 1 : 100));
     });
+    expect(items.slice(raw.length)).toEqual(
+      pieces.map((p) => ({
+        id: `piece.${p.id}`,
+        name: p.name,
+        tab: 'etc',
+        stars: p.stars,
+        description: `Adds ${p.name} to your wardrobe.`,
+        max_stack: 100,
+      })),
+    );
   });
 
   it('the equip slots equal items.yaml’s, in order, each naming its slot kind', () => {
@@ -288,7 +299,7 @@ describe('generated gamedata', () => {
     });
   });
 
-  it('maps carry their spawns, portals, boss spot and world chart place, a match’s map none', () => {
+  it('maps carry their spawns, portals, boss spot and world chart place, a match’s map none, and no areas', () => {
     const places = yaml('world.yaml').places as Record<string, [number, number]>;
     for (const m of maps.filter((x) => x.kind !== 'region')) {
       const raw = yaml(`maps/${m.id}.yaml`) as {
@@ -315,11 +326,12 @@ describe('generated gamedata', () => {
           ? { mob: raw.boss.mob, x: raw.boss.at[0], z: raw.boss.at[1], radius: raw.boss.radius }
           : null,
         place: places[m.id] ?? null,
+        areas: [],
       });
     }
   });
 
-  it('a region is a map of its plan: its own town, its camps as spawns and gates as portals, no boss, on no chart', () => {
+  it('a region is a map of its plan: its own town, its camps as spawns and gates as portals, its areas with their corners, levels and bosses, no boss of its own, on no chart', () => {
     const regions = maps.filter((m) => m.kind === 'region');
     expect(regions.map((m) => m.id)).toContain('test_region');
     for (const m of regions) {
@@ -328,6 +340,14 @@ describe('generated gamedata', () => {
         look: { sky: string };
         camps?: { mob: string; at: [number, number]; radius: number }[];
         gates?: { name: string; at: [number, number]; radius: number; to: { region: string } }[];
+        areas: {
+          id: string;
+          name: string;
+          kind: string;
+          levels?: [number, number];
+          area: [number, number][];
+          boss?: { mob: string; at: [number, number]; radius: number };
+        }[];
       };
       expect(m).toEqual({
         id: m.id,
@@ -354,10 +374,27 @@ describe('generated gamedata', () => {
         })),
         boss: null,
         place: null,
+        areas: raw.areas.map((a) => ({
+          id: a.id,
+          name: a.name,
+          kind: a.kind,
+          levels: a.levels ?? null,
+          area: a.area,
+          boss: a.boss
+            ? { mob: a.boss.mob, x: a.boss.at[0], z: a.boss.at[1], radius: a.boss.radius }
+            : null,
+        })),
         points: [],
         bases: [],
       });
     }
+    expect(maps.find((m) => m.id === 'test_region')!.areas.map((a) => [a.id, a.levels])).toEqual([
+      ['town', null],
+      ['west', [1, 4]],
+      ['south', [10, 14]],
+      ['north', [15, 18]],
+      ['woods', [19, 20]],
+    ]);
   });
 
   it('links each pair of maps a portal joins once, both ways', () => {

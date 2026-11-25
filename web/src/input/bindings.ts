@@ -51,6 +51,7 @@ export const defaults: KeyTable = {
   quests: ['KeyJ'],
   map: ['KeyM'],
   arena: ['KeyV'],
+  wardrobe: ['KeyO'],
   zoomIn: ['Equal'],
   zoomOut: ['Minus'],
   chat: ['Enter', 'NumpadEnter'],

@@ -19,7 +19,7 @@ type Sessions interface {
 	Rotate(ctx context.Context, sessionID kernel.SessionID) (string, error)
 }
 
-// World is the world module's commands; each is fire and forget, but Equip, Unequip, UseItem, SpendPoints, ResetPoints, SpendSkillPoints and ChooseTrait, which answer once the new stats apply, UseSkill, Promote and the quest commands, which answer once applied, Teleport and SwitchChannel, which answer once their channel starts, and Channels, which answers the list.
+// World is the world module's commands; each is fire and forget, but Equip, Unequip, UseItem, SpendPoints, ResetPoints, SpendSkillPoints and ChooseTrait, which answer once the new stats apply, UseSkill, Promote and the quest commands, which answer once applied, Teleport and SwitchChannel, which answer once their channel starts, and Channels and Bosses, which answer their lists.
 type World interface {
 	Input(ctx context.Context, p model.Presence, seq uint32, keys model.Keys, view uint32) error
 	Attack(ctx context.Context, p model.Presence, aim float32, target model.Target) error
@@ -27,6 +27,7 @@ type World interface {
 	Teleport(ctx context.Context, p model.Presence, mapID, waypoint string, seq uint32) error
 	SwitchChannel(ctx context.Context, p model.Presence, n int, seq uint32) error
 	Channels(ctx context.Context, p model.Presence) (model.Channels, error)
+	Bosses(ctx context.Context, p model.Presence) ([]model.AreaBoss, error)
 	Say(ctx context.Context, p model.Presence, name, text string) error
 	Equip(ctx context.Context, p model.Presence, in model.ItemEquip) error
 	Unequip(ctx context.Context, p model.Presence, in model.ItemUnequip) error
@@ -59,7 +60,7 @@ type Items interface {
 	Move(ctx context.Context, a model.Actor, in model.ItemMove) (model.InventoryChanged, error)
 	Discard(ctx context.Context, a model.Actor, in model.ItemDiscard) (model.InventoryChanged, error)
 	DiscardMany(ctx context.Context, a model.Actor, in model.ItemDiscardMany) (model.InventoryChanged, error)
-	AddToWardrobe(ctx context.Context, a model.Actor, in model.WardrobeAdd) (model.InventoryChanged, error)
+	AddToWardrobe(ctx context.Context, a model.Actor, in model.WardrobeAdd) (model.WardrobeAdded, error)
 }
 
 // Social is the social module's commands: parties and chat.

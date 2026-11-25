@@ -10,11 +10,13 @@ import (
 	"testing/synctest"
 	"time"
 
+	"finga/internal/application/world/world"
 	"finga/internal/application/world/worldtest"
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/sim"
+	"finga/pkg/transient"
 )
 
 // opens records the open counts and stopped channels the World tells, by region.
@@ -87,6 +89,12 @@ func (p *parties) Party(id kernel.CharacterID) model.Party {
 func (*parties) Update(model.MemberUpdate) {}
 func (*parties) Epoch() uint64             { return 0 }
 
+// idle is the tests' channel idle time: six sweeps, so a test waits one out in a fifth of the 5 minutes' ticks, each a turn of every goroutine, yet a close at half of it shows a second short of it; config's test holds the 5 minutes the game runs with.
+const idle = 6 * world.ChannelSweep
+
+// closed is how long after a channel empties it has surely closed: the first sweep finds it empty within a sweep, the one idle later shuts it, and a sweep spare.
+const closed = idle + 2*world.ChannelSweep
+
 // channelWorld runs a World with o in the bubble until the test ends.
 func channelWorld(t *testing.T, o worldtest.Options) *testWorld {
 	t.Helper()
@@ -130,6 +138,26 @@ func (w *testWorld) open(t *testing.T, p model.Player) []model.ChannelLoad {
 		t.Fatal(err)
 	}
 	return got.Open
+}
+
+// A Bosses query answers for the region channel the player is in: each hunting area's boss, up from the channel's start, in the plan's order. Off a region it's refused, and from a connection that doesn't hold the player, unavailable.
+func TestABossesQueryAnswersForThePlayersRegionChannel(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := channelWorld(t, worldtest.Options{})
+		ayla, _ := w.enterRegion(t, "Ayla")
+		want := []model.AreaBoss{{Area: "west", Up: true}, {Area: "south", Up: true}, {Area: "north", Up: true}, {Area: "woods", Up: true}}
+		if got, err := w.Bosses(t.Context(), ayla.ID, "c-Ayla"); err != nil || !slices.Equal(got, want) {
+			t.Fatalf("in the region: %+v, %v; want %+v", got, err, want)
+		}
+		if _, err := w.Bosses(t.Context(), ayla.ID, "c-elsewhere"); !errors.Is(err, transient.ErrUnavailable) {
+			t.Fatalf("from another connection: %v; want unavailable", err)
+		}
+		bo := at(t, "Bo", "town")
+		w.enter(t, bo, "town", "c-Bo", &worldtest.Sink{})
+		if _, err := w.Bosses(t.Context(), bo.ID, "c-Bo"); !errors.Is(err, model.ErrNotARegion) {
+			t.Fatalf("in town: %v; want ErrNotARegion", err)
+		}
+	})
 }
 
 // Joins fill a region's channels (large-regions.md section 4): the least full with room, a new one once all are full, and the list says how full each is.
@@ -227,7 +255,7 @@ func TestATeleportIntoARegionIsPicked(t *testing.T) {
 func TestAnIdleChannelCloses(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		heard := &opens{}
-		w := channelWorld(t, worldtest.Options{ChannelCap: 1, ChannelIdle: 5 * time.Minute, Channels: heard})
+		w := channelWorld(t, worldtest.Options{ChannelCap: 1, ChannelIdle: idle, Channels: heard})
 		ayla, _ := w.enterRegion(t, "Ayla")
 		kai, sk := w.enterRegion(t, "Kai")
 		if channelOf(t, sk) != 2 {
@@ -237,7 +265,7 @@ func TestAnIdleChannelCloses(t *testing.T) {
 		if err := w.Leave(context.Background(), kai.ID, "c-Kai"); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(5*time.Minute - time.Second)
+		time.Sleep(idle - time.Second)
 		synctest.Wait()
 		if got := w.open(t, ayla); !slices.Equal(got, []model.ChannelLoad{{Channel: 1, Players: 1}, {Channel: 2}}) {
 			t.Fatalf("a second short of the idle time: %+v", got)
@@ -259,7 +287,7 @@ func TestAnIdleChannelCloses(t *testing.T) {
 		if err := w.Leave(context.Background(), ayla.ID, "c-Ayla"); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(6 * time.Minute)
+		time.Sleep(closed)
 		synctest.Wait()
 		if _, s := w.enterRegion(t, "Nia"); channelOf(t, s) != 1 || w.MapActor("test_region").Players() != 1 {
 			t.Fatalf("Nia joined %d; want the first channel, open after it stood empty past the idle time", channelOf(t, s))
@@ -373,28 +401,30 @@ func TestASwitchMovesToTheSameSpotInAnotherChannel(t *testing.T) {
 // A switch's start restarts its channel's idle clock, so the channel doesn't close under it: cancelled, it closes the idle time after.
 func TestASwitchKeepsItsChannelOpen(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		w := channelWorld(t, worldtest.Options{ChannelCap: 1, ChannelIdle: 5 * time.Minute})
+		w := channelWorld(t, worldtest.Options{ChannelCap: 1, ChannelIdle: idle})
 		ayla, _ := w.enterRegion(t, "Ayla")
 		kai, _ := w.enterRegion(t, "Kai")
 		ctx := context.Background()
 		if err := w.Leave(ctx, kai.ID, "c-Kai"); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(4 * time.Minute)
+		before := idle - world.ChannelSweep // a sweep short of the idle time
+		time.Sleep(before)
 		synctest.Wait()
 		if err := w.SwitchChannel(ctx, ayla.ID, "c-Ayla", 2, 1); err != nil {
 			t.Fatal(err)
 		}
 		_ = w.Input(ayla.ID, "c-Ayla", 2, sim.Input{Up: true}, 0)
-		time.Sleep(90 * time.Second)
+		after := idle - world.ChannelSweep/2 // past when it would have closed unswitched, a sweep and the idle time on, and short of the idle time since the switch
+		time.Sleep(after)
 		synctest.Wait()
 		if got := w.open(t, ayla); len(got) != 2 {
-			t.Fatalf("5:30 after channel 2 emptied, 1:30 after the switch started: %+v; want it open", got)
+			t.Fatalf("%v after channel 2 emptied, %v after the switch started: %+v; want it open", before+after, after, got)
 		}
-		time.Sleep(4 * time.Minute)
+		time.Sleep(closed - after)
 		synctest.Wait()
 		if got := w.open(t, ayla); len(got) != 1 {
-			t.Fatalf("5:30 after the switch started: %+v; want channel 2 closed", got)
+			t.Fatalf("%v after the switch started: %+v; want channel 2 closed", closed, got)
 		}
 	})
 }
@@ -402,14 +432,15 @@ func TestASwitchKeepsItsChannelOpen(t *testing.T) {
 // A switch the map refuses, its player already channelling, leaves the channel it named to close on time: only a switch taken restarts the idle clock.
 func TestARefusedSwitchKeepsNoChannelOpen(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		w := channelWorld(t, worldtest.Options{ChannelCap: 1, ChannelIdle: 5 * time.Minute})
+		w := channelWorld(t, worldtest.Options{ChannelCap: 1, ChannelIdle: idle})
 		ayla, _ := w.enterRegion(t, "Ayla")
 		kai, _ := w.enterRegion(t, "Kai")
 		ctx := context.Background()
 		if err := w.Leave(ctx, kai.ID, "c-Kai"); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(4 * time.Minute)
+		before := idle - world.ChannelSweep // a sweep short of the idle time
+		time.Sleep(before)
 		synctest.Wait()
 		if err := w.Teleport(ctx, ayla.ID, "c-Ayla", "town", "", 1); err != nil {
 			t.Fatal(err)
@@ -417,10 +448,10 @@ func TestARefusedSwitchKeepsNoChannelOpen(t *testing.T) {
 		if err := w.SwitchChannel(ctx, ayla.ID, "c-Ayla", 2, 1); !errors.Is(err, model.ErrTeleportBusy) {
 			t.Fatalf("a switch while teleporting: %v; want refused as busy", err)
 		}
-		time.Sleep(90 * time.Second)
+		time.Sleep(closed - before)
 		synctest.Wait()
 		if w.Opened("test_region/2") != nil {
-			t.Fatal("5:30 after channel 2 emptied, 1:30 after a refused switch to it: still open")
+			t.Fatalf("%v after channel 2 emptied, %v after a refused switch to it: still open", closed, closed-before)
 		}
 	})
 }
@@ -429,7 +460,7 @@ func TestARefusedSwitchKeepsNoChannelOpen(t *testing.T) {
 func TestASweepThatPanicsKeepsSweeping(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		heard := &panicky{}
-		w := channelWorld(t, worldtest.Options{ChannelCap: 1, ChannelIdle: 5 * time.Minute, Channels: heard})
+		w := channelWorld(t, worldtest.Options{ChannelCap: 1, ChannelIdle: idle, Channels: heard})
 		w.enterRegion(t, "Ayla")
 		kai, _ := w.enterRegion(t, "Kai")
 		bo, _ := w.enterRegion(t, "Bo")
@@ -438,7 +469,7 @@ func TestASweepThatPanicsKeepsSweeping(t *testing.T) {
 		if err := w.Leave(ctx, kai.ID, "c-Kai"); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(6 * time.Minute)
+		time.Sleep(closed)
 		synctest.Wait()
 		if heard.armed.Load() {
 			t.Fatal("channel 2 closed telling no one")
@@ -446,10 +477,10 @@ func TestASweepThatPanicsKeepsSweeping(t *testing.T) {
 		if err := w.Leave(ctx, bo.ID, "c-Bo"); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(6 * time.Minute)
+		time.Sleep(closed)
 		synctest.Wait()
 		if w.Opened("test_region/3") != nil {
-			t.Fatal("channel 3 open 6 minutes after it emptied: the sweep stopped at the panic")
+			t.Fatalf("channel 3 open %v after it emptied: the sweep stopped at the panic", closed)
 		}
 	})
 }

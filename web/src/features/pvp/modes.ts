@@ -35,11 +35,6 @@ export function teamOf(id: string): number {
   return modeById(id)?.team ?? 1;
 }
 
-/** A rank id as a name: silver is Silver. */
-export function rankName(id: string): string {
-  return id.charAt(0).toUpperCase() + id.slice(1);
-}
-
 /** A standing's record: wins, losses and draws. */
 export function recordOf(s: {
   readonly wins: number;

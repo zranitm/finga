@@ -93,6 +93,7 @@ func samples() []wsconn.Message {
 		{Type: "Teleport", Seq: 121, ReqID: "r-21", Data: &clientv1.Teleport{MapId: "forest"}},
 		{Type: "SwitchChannel", Seq: 122, ReqID: "r-23", Data: &clientv1.SwitchChannel{Channel: 2}},
 		{Type: "Channels", ReqID: "r-24", Data: &clientv1.Channels{}},
+		{Type: "Bosses", ReqID: "r-25", Data: &clientv1.Bosses{}},
 		{Type: "ChatSend", Data: &clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Text: "hello there"}},
 		{Type: "PartyInvite", ReqID: "r-1", Data: &clientv1.PartyInvite{CharacterId: charB}},
 		{Type: "PartyRespond", ReqID: "r-2", Data: &clientv1.PartyRespond{InviteId: "inv-1", Accept: true}},
@@ -187,6 +188,7 @@ func samples() []wsconn.Message {
 		{Type: "ArenaBar", Tick: 2810, Data: &clientv1.ArenaBar{SkillBar: []string{"strike", "war_cry", "", "", "", "", "", "taunt"}}},
 		{Type: "AreaEntered", Tick: 81241, Data: &clientv1.AreaEntered{Area: "west", FieldBossGone: &clientv1.FieldBossGone{MobId: 12, Type: "king_slime", BackInMs: 180000}}},
 		{Type: "WaypointFound", Tick: 81242, Data: &clientv1.WaypointFound{Waypoint: "north"}},
+		{Type: "PiecesAdded", Tick: 81243, Data: &clientv1.PiecesAdded{Pieces: []*clientv1.AddedPiece{{Id: "knight_plate", Cause: "item"}, {Id: "helm_gold", Cause: "rank"}}}},
 		{Type: "PartySpots", Tick: 81240, Data: &clientv1.PartySpots{Spots: []*clientv1.PartySpot{{CharacterId: charB, X: 140.5, Z: 812.25}}}},
 		{Type: "PartyInvited", Data: &clientv1.PartyInvited{InviteId: "inv-1", From: charA, FromName: "Ayla"}},
 		// The guide's dialog for a level 1 character with the cleanup under way.

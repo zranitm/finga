@@ -168,6 +168,8 @@ type (
 		name string
 		text string
 	}
+	// bossesMsg asks how each hunting area's boss stands; done hears it on the next drain.
+	bossesMsg struct{ done chan []model.AreaBoss }
 	// holdMsg asks to hold a match fighter's place through conn's drop; done hears whether it's held.
 	holdMsg struct {
 		id   kernel.CharacterID
@@ -193,6 +195,7 @@ func (equipMsg) message()    {}
 func (equippedMsg) message() {}
 func (chatMsg) message()     {}
 func (useMsg) message()      {}
+func (bossesMsg) message()   {}
 func (holdMsg) message()     {}
 func (rejoinMsg) message()   {}
 func (usedMsg) message()     {}
@@ -486,6 +489,8 @@ func (i *Instance) drain() {
 			i.setBuild(m)
 		case usedMsg:
 			i.settleUse(m)
+		case bossesMsg:
+			m.done <- i.areaBosses()
 		case holdMsg:
 			m.done <- i.hold(m.id, m.conn)
 		case rejoinMsg:

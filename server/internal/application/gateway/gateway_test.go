@@ -77,8 +77,8 @@ func (idle) Discard(context.Context, model.Actor, model.ItemDiscard) (model.Inve
 func (idle) DiscardMany(context.Context, model.Actor, model.ItemDiscardMany) (model.InventoryChanged, error) {
 	return model.InventoryChanged{}, nil
 }
-func (idle) AddToWardrobe(context.Context, model.Actor, model.WardrobeAdd) (model.InventoryChanged, error) {
-	return model.InventoryChanged{}, nil
+func (idle) AddToWardrobe(context.Context, model.Actor, model.WardrobeAdd) (model.WardrobeAdded, error) {
+	return model.WardrobeAdded{}, nil
 }
 func (idle) Chat(_ context.Context, _ model.Player, channel model.ChatChannel, text string) (model.ChatLine, error) {
 	return model.ChatLine{Channel: channel, Text: text}, nil
@@ -472,6 +472,7 @@ func (w *world) SwitchChannel(context.Context, model.Presence, int, uint32) erro
 func (w *world) Channels(context.Context, model.Presence) (model.Channels, error) {
 	return model.Channels{}, nil
 }
+func (w *world) Bosses(context.Context, model.Presence) ([]model.AreaBoss, error)  { return nil, nil }
 func (w *world) Promote(context.Context, model.Presence, string, string) error     { return nil }
 func (w *world) Forfeit(context.Context, model.Presence) error                     { return nil }
 func (w *world) Talk(context.Context, model.Presence, string) error                { return nil }

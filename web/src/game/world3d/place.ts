@@ -46,6 +46,7 @@ const SKIES: Readonly<Record<string, Sky>> = {
   snow: { color: 0xd9e5ef, fog: [30, 95] },
   shroom: { color: 0x8c7fb8, fog: [26, 80] },
   cave: { color: 0x000000, fog: [14, 40] }, // no sky underground: black, the torches' light fading into it
+  sea: { color: 0x15576a, fog: [20, 60] }, // deep blue-green water, the sea floor fading into it
 };
 const FOG_OUT = 3.6; // zoomed right out, the fog starts and ends this many times as far: a day sky's from about 160 m to 500 m (large-regions.md section 9)
 
@@ -247,8 +248,12 @@ export interface Place {
   follow(x: number, z: number): void;
   /** Whether what an arrival at (x, z) sees is drawn: a region's chunks round it, a map always. */
   ready(x: number, z: number): boolean;
+  /** Where bubbles stream from: the vents of a sea region's drawn chunks; none on a map. */
+  vents(): readonly Vector3[];
   dispose(): void;
 }
+
+const NO_VENTS: readonly Vector3[] = [];
 
 /** A kit model's placements on a map: its solids and props, each by its index among the map's. */
 interface Placed {
@@ -398,6 +403,7 @@ export async function buildPlace(
       // a map is drawn whole: nothing streams
     },
     ready: () => true,
+    vents: () => NO_VENTS,
     dispose: () => {
       root.dispose(false, false);
       scene.fogMode = Scene.FOGMODE_NONE;
@@ -634,7 +640,7 @@ export interface KitPart {
   readonly steps: readonly Material[];
 }
 
-/** key's kit model, made once: each mesh baked into the model's space at an identity transform, toon-drawn, inked and casting shadows when given them; its clips and skeletons let go, as it stands still. */
+/** key's kit model, made once: each mesh baked into the model's space at an identity transform, toon-drawn, inked and casting shadows when given them, swaying in the water when the kit says so; its clips and skeletons let go, as it stands still. */
 export async function kitParts(
   models: Models,
   kit: KitModel,
@@ -657,8 +663,7 @@ export async function kitParts(
     .flatMap((r) => r.getChildMeshes(false))
     .filter((m): m is Mesh => m instanceof Mesh && m.material !== null && m.getTotalVertices() > 0);
   const worlds = meshes.map((m) => m.computeWorldMatrix(true).clone());
-  const parts = meshes.map((mesh, i): KitPart => {
-    const base = baseOf(mesh.material!);
+  for (const [i, mesh] of meshes.entries()) {
     mesh.makeGeometryUnique();
     if (mesh.skeleton) {
       mesh.skeleton.prepare(true);
@@ -672,11 +677,17 @@ export async function kitParts(
     mesh.rotation.setAll(0);
     mesh.scaling.setAll(1);
     mesh.refreshBoundingInfo();
-    const steps = STEPS.map((a) => palette.toon(base, a, true, true));
+  }
+  const sway = kit.sway
+    ? kit.scale * Math.max(...meshes.map((m) => m.getBoundingInfo().maximum.y))
+    : null; // its height over its base as placed
+  const parts = meshes.map((mesh): KitPart => {
+    const base = baseOf(mesh.material!);
+    const steps = STEPS.map((a) => palette.toon(base, a, true, true, sway));
     mesh.material = steps[0]!;
     mesh.receiveShadows = true;
     shadows?.addShadowCaster(mesh, false);
-    palette.outline(mesh, true);
+    palette.outline(mesh, true, sway);
     const ink = mesh
       .getChildMeshes(true)
       .find((c): c is Mesh => c instanceof Mesh && c.name === `${mesh.name} ink`);

@@ -34,6 +34,12 @@ func (o *Outbox) body(p model.Push) any {
 		return &clientv1.AreaEntered{Area: p.Area, FieldBoss: up, FieldBossGone: down}
 	case model.WaypointFound:
 		return &clientv1.WaypointFound{Waypoint: p.Waypoint}
+	case model.PiecesAdded:
+		pieces := make([]*clientv1.AddedPiece, 0, len(p.Pieces))
+		for _, a := range p.Pieces {
+			pieces = append(pieces, &clientv1.AddedPiece{Id: a.ID, Cause: a.Cause})
+		}
+		return &clientv1.PiecesAdded{Pieces: pieces}
 	case model.Damage:
 		return &clientv1.Damage{Source: entityRef(p.Source), Target: entityRef(p.Target), Amount: int32(p.Amount), Crit: p.Crit, Miss: p.Miss, Dodge: p.Dodge, Block: p.Block, StatusId: p.Status, Shielded: int32(p.Shielded)}
 	case model.SkillUsed:
@@ -109,6 +115,15 @@ func fieldBoss(b model.FieldBoss) *clientv1.FieldBoss {
 
 func bossGone(b model.FieldBossGone) *clientv1.FieldBossGone {
 	return &clientv1.FieldBossGone{MobId: uint32(b.MobID), Type: b.Type, BackInMs: b.BackInMs}
+}
+
+// BossList is each of a region's area bosses: up, or its time back.
+func BossList(bosses []model.AreaBoss) *clientv1.BossList {
+	out := &clientv1.BossList{}
+	for _, b := range bosses {
+		out.Bosses = append(out.Bosses, &clientv1.AreaBoss{Area: b.Area, Up: b.Up, BackInMs: b.BackInMs})
+	}
+	return out
 }
 
 // ChannelList is a region's open channels and how full each is.

@@ -108,6 +108,12 @@ biomes:
   - **Areas' own:** ids unique and a name each. A hunting area has levels, 1 ≤ lowest ≤ highest, and a boss mob, at or above its top level, its circle as wide as its body, on ground it fits, and wholly in the area: every square the circle overlaps is the area's (`AreaGrid.Under`), so a boss never wanders into a town, another band or the ring. A town has no levels, no boss and no camps. Each area has its own boss; a region's bosses aren't checked against the maps', since the test region shares theirs.
   - **Camps** name a hunting area, their circles wholly in it as a boss's is, so no mob spawns past its band. Their mobs are known, no boss, in its band, an elite only beside a normal mob, as on a map.
   - **Waypoints** have unique ids, and each one's arrival beside its stone is where a player fits. Gates, NPCs and the start are checked as portals, NPCs and the player spawn are. None of them, nor a waypoint, stands in the ring.
+  - **Camps keep clear of the stones** (from the waypoint stones' playtest). There, the test region's spore slimes, their circle 13.7 m from the North Field stone, followed a player to it. They hit them every 1–2 s, and each hit cancelled the 3 s teleport. Players come to a stone to find it, land beside it and get up there after a death, so no chase should follow them there.
+    - **Stones:** every camp's and area boss's circle keeps the mobs' `leash` and 4 m (20 m today) from each waypoint's stone. The arrival lies 2 m from the stone, so a player there stands 2 m past where any mob after them gives up.
+    - **Why the leash, not a mob's reach:** the leash is measured on the target. A mob drops a player once they're `leash` past its circle's edge, wherever it stands and however far it spits, so a longer reach adds nothing.
+    - **The start, each gate and each NPC** keep a mob's `sight` and 2 m (11.375 m today), the old maps' calm rule (3d-world.md section 4), so no mob sees a player arrive or talk. A gate hands a player off as they step in, so a chase to one costs nothing, and a town's NPCs are already out of sight.
+    - Both numbers are read from mobs.yaml, so retuning either keeps the rule true. The loader refuses a plan that breaks it, naming the camp or boss, the spot and the gap. A place below keeps it too, from its gates and waypoints.
+    - **The test region** moves its spore slimes and moths by North Field, and its glow slimes and snail by East Woods, out to keep it.
   - **Gates** lead to a map's portal or a region's gate, never to themselves, and the two lead to each other, judged from both sides.
   - **The region** isn't named as a map is, has a name, and isn't one block holds (`gamedata.Interest.Whole`, which the instances read too).
   - Every waypoint, gate, NPC, camp and area boss is reached from the start and each gate, at every speed: `TestEveryShippedRegionCanBeCrossed`.
@@ -467,7 +473,7 @@ Built with step 1, which says who watches a cell.
   - **Who hears of one:** on a map, everyone, as before. In a region, only those in its area: its `FieldBoss` as it comes back, its `FieldBossGone` as it falls, and its bar in the frame's part of its own, however far from it they stand. A Snapshot names the area's boss, and `AreaEntered` brings the boss of the area stepped into, up or beaten with its time back, so stepping in raises no "has appeared!"; a town brings none, and the client's boss state clears.
   - **Who it pays:** those alive when it falls, in its area or within its leash of its spot, as its fight may go over the area's line; a party's damage still counts all its members' tallies. Its fall is told before what it pays.
   - **The town line:** a boss holds at it as any mob does, through the one push.
-  - This map's crowns for each area's boss, with their time back on request, come with step 5c's map views.
+  - This map's crowns for each area's boss, with their time back on request, came with step 5c-3b's map views (section 10).
 
 ## 7. Sprint
 
@@ -696,6 +702,7 @@ Built with step 1, which says who watches a cell.
     - 3 cascades out to 80 m from the camera;
     - held steady as the camera moves (`stabilizeCascades`);
     - cast by see-through meshes too.
+    - **Every toon light takes the view matrix,** which a cascaded receiver needs to pick its cascade. Without it, a receiver's shader didn't compile on WebGL 2, so a region drew only its ink, with no ground or props.
   - An engine that can't cascade, such as WebGL 1, gets the one shadow map a map has, with the same casters out to about 220 m in it, so its shadows are coarser. Maps keep theirs.
   - **Casters:**
     - each chunk's props, and their faded copies, while the chunk's nearest edge is within 128 m of the camera's target, so props to about 220 m (the cascades reach 80 m from the camera, which stands up to 40 m back);
@@ -770,6 +777,38 @@ Built with step 1, which says who watches a cell.
       - a wheel in lines and in pages; a cancelled press panning no more; a press held as the window closes let go;
       - a 720 m map keeping its fit;
       - the tab's name.
+  - **As built (step 5c-3a): the areas.**
+    - **The data:** the generated map data gives each region its areas, from the plan: id, name, kind, a hunting area's levels, its corners, and its boss's mob and spot. A map has none.
+    - **The outlines:** both views draw each area's outline, faint white, and a town is tinted faintly gold.
+    - **The names:** This region names each area at its middle by area, which for an uneven area isn't its corners' average:
+      - a hunting area as "West Field Lv 1–4";
+      - a town by its name alone, in the NPCs' gold.
+
+      The names join the fixed labels after the camps and before the gates and NPCs, each lifted clear of those before it. The minimap names none.
+    - **Tests:**
+      - the generated areas against each plan;
+      - the test region's five names and their middles;
+      - an L-shaped area named at its middle by area (11, 11), not its corners' average (13.3);
+      - each outline, a town's tinted, north up;
+      - the minimap outlining without names, and a map outlining none.
+  - **As built (step 5c-3b): the bosses' crowns.**
+    - **The query:** `Bosses` (client message 41) answers in `Response.bosses` (field 7) with each hunting area's boss on the player's channel, in the plan's order: up, or its time back in ms. It's refused off a region with `NOT_A_REGION`, as `Channels` is, and has its own limit, one a second with a burst of 3.
+      - The instance answers on its tick, through its inbox, as the slots are its tick's alone.
+      - This region asks as it opens and every 5 s while it shows, as it asks for the channels. The minimap never asks.
+    - **The crowns** stand at each area boss's spot from the generated data:
+      - red while it's up, and grey with "<Boss>: back in m:ss" counting down while it's beaten, each label kept clear as a map's is;
+      - the player's own area's from its frames, as a hunting map's: grey while beaten, and while up only its live crown where it is, or red at its spot while the frames don't show it. Its frames are fresher than the query.
+      - None for an area until the query's first answer. A picked map on the World tab shows none.
+      - **A channel switch** or a map change clears the answer and asks again at once, so one channel's crowns never show on the next. An answer that lands after the move is dropped.
+    - **The player's area** reaches the map views from the world, from the Snapshot and each `AreaEntered`. A map change clears it till the new frames say.
+    - **Tests:**
+      - the instance: both areas up at the start, then the beaten one's time back as of the tick that answered, and none on a map;
+      - the world: the test region's four up in order, refused in town and from another connection;
+      - the adapter's milliseconds, the gateway's answer, and the protocol's sample and golden;
+      - This region's crowns and countdowns from an answer, none before it, the player's own area from its frames over the query's (red at its spot out of their view), the 5 s asks and their stop, a channel switch clearing them and asking at once with the old channel's late answer dropped, none off a region, and none on a picked map;
+      - the minimap's own area: red at its spot out of the frames' view, only the live crown in it;
+      - the minimap's own crown alone, and the area cleared by a map change;
+      - the world handing the area on.
 - **Loading a region:** the loading screen holds until the overview and the chunks within 128 m are built, then fades as today.
 - **As built (step 5a):**
   - **Wiring:** a map's JSON may name `region: {id, hash}`. The world then draws that bake in place of the map's own ground and props, and tells it the camera's target each frame. No map names one until 4b serves a region, so only tests and the preview draw one.

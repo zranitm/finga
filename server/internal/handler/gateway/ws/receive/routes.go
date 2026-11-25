@@ -30,6 +30,7 @@ var (
 	portals   = limit{group: "portal", perSecond: 2, burst: 2}
 	teleports = limit{group: "teleport", perSecond: 2, burst: 2}  // teleports and channel switches together
 	channels  = limit{group: "channels", perSecond: 1, burst: 3}  // the map window asks every 5 s while open
+	bosses    = limit{group: "bosses", perSecond: 1, burst: 3}    // so does a region's map window
 	inventory = limit{group: "inventory", perSecond: 5, burst: 5} // moves, discards, equips and unequips together
 	potions   = limit{group: "potion", perSecond: 5, burst: 5}    // potions have no cooldown, so this is the only bound on drinking
 	party     = limit{group: "party", perSecond: 2, burst: 5}     // the five party commands together; a leader may use each at once
@@ -59,7 +60,7 @@ const spanPrefix = "ws."
 
 // sampled are the commands whose traces are kept: each answers after calls across modules; the rest only queue work.
 var sampled = map[string]bool{
-	"Hello": true, "InventoryMove": true, "InventoryDiscard": true, "InventoryDiscardMany": true, "Equip": true, "Unequip": true, "AddToWardrobe": true, "SetLook": true, "TakeLoot": true, "UseItem": true, "SpendPoints": true, "ResetPoints": true, "SpendSkillPoints": true, "ChooseTrait": true, "UseSkill": true, "Teleport": true, "SwitchChannel": true, "Channels": true, "Promote": true, "ChatSend": true,
+	"Hello": true, "InventoryMove": true, "InventoryDiscard": true, "InventoryDiscardMany": true, "Equip": true, "Unequip": true, "AddToWardrobe": true, "SetLook": true, "TakeLoot": true, "UseItem": true, "SpendPoints": true, "ResetPoints": true, "SpendSkillPoints": true, "ChooseTrait": true, "UseSkill": true, "Teleport": true, "SwitchChannel": true, "Channels": true, "Bosses": true, "Promote": true, "ChatSend": true,
 	"PartyInvite": true, "PartyRespond": true, "PartyLeave": true, "PartyKick": true, "PartyPromote": true,
 	"Talk": true, "AcceptQuest": true, "AbandonQuest": true, "HandInQuest": true,
 	"PvpQueue": true, "PvpLeaveQueue": true, "PvpAnswer": true, "PvpForfeit": true,
@@ -88,6 +89,7 @@ func (h *Handler) routes() *wsrouter.Router[*Inbox] {
 	wsrouter.Handle(r, "Teleport", h.teleport, h.action(teleports, h.respond)...)
 	wsrouter.Handle(r, "SwitchChannel", h.switchChannel, h.action(teleports, h.respond)...)
 	wsrouter.Handle(r, "Channels", h.channels, h.command(channels, h.respond)...)
+	wsrouter.Handle(r, "Bosses", h.bosses, h.command(bosses, h.respond)...)
 	wsrouter.Handle(r, "TakeLoot", h.takeLoot, h.command(loot, h.respond)...)
 
 	wsrouter.Handle(r, "InventoryMove", h.inventoryMove, h.command(inventory, h.respond)...)

@@ -1,6 +1,7 @@
 import { TargetCamera } from '@babylonjs/core/Cameras/targetCamera';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
+import { LightBlock } from '@babylonjs/core/Materials/Node/Blocks/Dual/lightBlock';
 import { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
@@ -101,5 +102,29 @@ it('makes a toon hollow only while whole and cut: both faces drawn, the back one
     expect(m.name, why).not.toMatch(/hollow/);
     expect(m.backFaceCulling, why).toBe(true);
     expect(m.getBlockByName('cutBack'), why).toBeNull();
+  }
+});
+
+// A region's sun casts cascaded shadows on WebGL2, whose receivers pick a cascade by view depth: a light without the view matrix fails to compile there, and a null engine compiles nothing, so the graph is checked.
+it('gives every light in a toon material, land or sea, the view matrix cascaded shadows need', () => {
+  for (const palette of [new Palette(scene), new Palette(scene, 'sea')]) {
+    const base = { texture: null, color: Color3.White() };
+    palette.toon(base);
+    palette.toon(base, 0.5);
+    palette.toon(base, 1, true);
+    palette.toon(base, 1, true, true);
+    palette.toon({ ...base, vertexColors: true });
+    palette.toon({ ...base, glow: true });
+    palette.toon(base, 1, false, false, 3);
+    palette.apron(base);
+  }
+  const lit = scene.materials.filter(
+    (m): m is NodeMaterial => m instanceof NodeMaterial && !m.name.includes(' glow'), // a glow is unlit
+  );
+  expect(lit).toHaveLength(14);
+  for (const m of lit) {
+    const lights = m.attachedBlocks.filter((b): b is LightBlock => b instanceof LightBlock);
+    expect(lights).toHaveLength(1);
+    expect(lights[0]!.view.isConnected).toBe(true);
   }
 });

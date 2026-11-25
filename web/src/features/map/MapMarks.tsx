@@ -13,6 +13,9 @@ import { mapView } from '@/state/map-view';
 import type { MapGround } from '@/state/map-view';
 import { pvp, sideOf } from '@/state/pvp';
 
+import { crownsOf } from './crowns';
+import type { Crown } from './crowns';
+
 const SPAWN_DEFAULT = 0x9a9a9a; // an untinted mob's circle
 const CROWN = '-1,0.6 -1,-0.6 -0.5,0 0,-0.9 0.5,0 1,-0.6 1,0.6'; // a boss's mark, a unit round its middle
 
@@ -159,16 +162,18 @@ export interface OtherMap {
   readonly ground: MapGround;
 }
 
-/** The map's ground and marks at `unit` metres a pixel, seen in `view`, the whole map if none: the scene's map, or `other`; children, such as labels, go over the fixed marks and under the moving ones, which show only on the player's own map, as does a beaten boss's grey mark at its spot. */
+/** The map's ground and marks at `unit` metres a pixel, seen in `view`, the whole map if none: the scene's map, or `other`; children, such as labels, go over the fixed marks and under the moving ones, which show only on the player's own map, as do the bosses' crowns at their spots: `crowns`, else the player's own map's and area's. */
 export function MapMarks({
   unit,
   view,
   other,
+  crowns,
   children,
 }: {
   readonly unit: number;
   readonly view?: MapBox;
   readonly other?: OtherMap;
+  readonly crowns?: readonly Crown[];
   readonly children?: ReactNode;
 }) {
   const current = mapView.use((s) => s.mapId);
@@ -181,6 +186,7 @@ export function MapMarks({
     boss: mapView.use((s) => s.boss),
   };
   const down = fieldBoss.use((s) => s.down);
+  const area = mapView.use((s) => s.area);
   const mapId = other?.id ?? current;
   const markers = useNpcMarkers(mapId);
   const map = maps.find((m) => m.id === mapId);
@@ -192,7 +198,7 @@ export function MapMarks({
     mapId === current ? marks : { me: null, party: [], lock: null, boss: null }; // the client tracks positions only here
   const y = (z: number) => sz - z;
   const dot = 3 * unit; // a dot's radius: 3 pixels
-  const beaten = mapId === current && down ? map.boss : null;
+  const spots = crowns ?? crownsOf(map, area, down, null, boss !== null); // the window gives each plan's; the minimap draws the player's own map
   return (
     <>
       <Ground
@@ -201,6 +207,15 @@ export function MapMarks({
         unit={unit}
         view={view ?? { x: 0, y: 0, w: sx, h: sz }}
       />
+      {map.areas.map((a) => (
+        <polygon
+          key={a.id}
+          className={`map-area map-area-${a.kind}`}
+          data-area={a.id}
+          points={a.area.map(([x, z]) => `${x},${y(z)}`).join(' ')}
+          strokeWidth={unit}
+        />
+      ))}
       {map.spawns.map((s, i) => {
         const tint = hex(mobById(s.mob)?.look.tint ?? SPAWN_DEFAULT);
         return (
@@ -254,15 +269,16 @@ export function MapMarks({
           );
         })}
       {map.points.length > 0 && <Battle map={map} unit={unit} y={y} />}
-      {beaten && (
+      {spots.map((c) => (
         <polygon
-          className="map-boss map-boss-down"
-          data-mob={beaten.mob}
+          key={`${c.x} ${c.z}`}
+          className={c.down ? 'map-boss map-boss-down' : 'map-boss-spot'}
+          data-mob={c.mob}
           points={CROWN}
-          transform={`translate(${beaten.x} ${y(beaten.z)}) scale(${2 * dot})`}
-          fill="#8a8a8a"
+          transform={`translate(${c.x} ${y(c.z)}) scale(${2 * dot})`}
+          fill={c.down ? '#8a8a8a' : '#e04040'}
         />
-      )}
+      ))}
       {children}
       <g className="map-live" style={{ pointerEvents: 'none' }}>
         {/* drawn over the marks, but a click goes through to a mark under it */}

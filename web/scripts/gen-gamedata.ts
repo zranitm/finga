@@ -114,6 +114,7 @@ const classes = must(classesFile.classes, isArray, 'classes.yaml classes').map((
     name: must(c.name, isString, `${id} name`),
     description: must(c.description, isString, `${id} description`),
     parent: c.parent === undefined ? null : must(c.parent, isString, `${id} parent`),
+    weapon: must(c.weapon, isString, `${id} weapon`), // the kind its weapon looks are
     look: {
       model: must(look.model, isString, `${id} look.model`),
       tint: look.tint === undefined ? null : must(look.tint, isNumber, `${id} look.tint`),
@@ -564,6 +565,7 @@ for (const file of readdirSync(join(dataDir, 'maps'))
       };
     })(),
     place: pvp ? null : pair(places[id], `world.yaml place of ${id}`),
+    areas: [],
     points: (m.points === undefined ? [] : must(m.points, isArray, `${file} points`)).map((raw) => {
       const p = must(raw, isRecord, `a ${file} point`);
       const [x, z] = pair(p.at, `${file} point ${String(p.id)} at`);
@@ -583,7 +585,7 @@ for (const file of readdirSync(join(dataDir, 'maps'))
   });
   placeNpcs(file, id, m.npcs);
 }
-// regions/*.yaml: each region on the map list as a map of kind region, its own town and on no chart, so no link either: its name and sky, its camps as spawns, its gates as portals; its bake draws its ground (large-regions.md section 4).
+// regions/*.yaml: each region on the map list as a map of kind region, its own town and on no chart, so no link either: its name and sky, its camps as spawns, its gates as portals, and its areas with their corners, levels and bosses for the map views; its bake draws its ground (large-regions.md section 4).
 const regionsDir = join(dataDir, 'regions');
 for (const file of existsSync(regionsDir)
   ? readdirSync(regionsDir)
@@ -630,6 +632,29 @@ for (const file of existsSync(regionsDir)
     }),
     boss: null,
     place: null,
+    areas: (r.areas === undefined ? [] : must(r.areas, isArray, `${file} areas`)).map((raw) => {
+      const a = must(raw, isRecord, `a ${file} area`);
+      const name = must(a.id, isString, `a ${file} area id`);
+      const kind = must(a.kind, isString, `${file} area ${name} kind`);
+      const b = a.boss === undefined ? null : must(a.boss, isRecord, `${file} area ${name} boss`);
+      const at = b && pair(b.at, `${file} area ${name} boss at`);
+      return {
+        id: name,
+        name: must(a.name, isString, `${file} area ${name} name`),
+        kind,
+        levels: kind === 'town' ? null : pair(a.levels, `${file} area ${name} levels`),
+        area: must(a.area, isArray, `${file} area ${name} area`).map((c, i) =>
+          pair(c, `${file} area ${name} corner ${i + 1}`),
+        ),
+        boss: b &&
+          at && {
+            mob: must(b.mob, isString, `${file} area ${name} boss mob`),
+            x: at[0],
+            z: at[1],
+            radius: must(b.radius, isNumber, `${file} area ${name} boss radius`),
+          },
+      };
+    }),
     points: [],
     bases: [],
   });
@@ -743,7 +768,8 @@ const pvp = {
   ),
 };
 
-// outfits.yaml: each wardrobe piece's id, slot and the client look it's drawn with (outfits.md section 3); its name, stars and sources come with the wardrobe window.
+// outfits.yaml: each wardrobe piece's id, slot, the client look it's drawn with, its name, stars, a weapon's kind and its sources without their chances; and each feat's name (outfits.md section 3), for the wardrobe's grid and "how to get".
+const SOURCES = ['boss', 'rank', 'quest', 'feat'] as const;
 const outfitsFile = must(load('outfits.yaml'), isRecord, 'outfits.yaml');
 const outfits = {
   pieces: must(outfitsFile.pieces, isArray, 'outfits.yaml pieces').map((raw) => {
@@ -753,7 +779,26 @@ const outfits = {
       id,
       slot: must(p.slot, isString, `piece ${id} slot`),
       look: must(p.look, isString, `piece ${id} look`),
+      name: must(p.name, isString, `piece ${id} name`),
+      stars: must(p.stars, isNumber, `piece ${id} stars`),
+      kind: p.kind === undefined ? null : must(p.kind, isString, `piece ${id} kind`),
+      from: must(p.from, isArray, `piece ${id} from`).map((rawFrom, i) => {
+        const f = must(rawFrom, isRecord, `piece ${id} source ${i + 1}`);
+        const kind = SOURCES.find((k) => f[k] !== undefined);
+        if (!kind) {
+          throw new Error(`gamedata: piece ${id} source ${i + 1} names no ${SOURCES.join(', ')}`);
+        }
+        return { kind, id: must(f[kind], isString, `piece ${id} source ${i + 1} ${kind}`) };
+      }),
     };
+  }),
+  feats: (outfitsFile.feats === undefined
+    ? []
+    : must(outfitsFile.feats, isArray, 'outfits.yaml feats')
+  ).map((raw) => {
+    const f = must(raw, isRecord, 'an outfits.yaml feat');
+    const id = must(f.id, isString, 'a feat id');
+    return { id, name: must(f.name, isString, `feat ${id} name`) };
   }),
 };
 
@@ -787,10 +832,20 @@ const errorCodes = Object.fromEntries(
   }),
 );
 
+// Each piece's item, as the server's loader makes it: what a boss drops and the inventory adds to the wardrobe.
+const pieceItems = outfits.pieces.map((p) => ({
+  id: `piece.${p.id}`,
+  name: p.name,
+  tab: 'etc',
+  stars: p.stars,
+  description: `Adds ${p.name} to your wardrobe.`,
+  max_stack: 100,
+}));
+
 const files: Record<string, unknown> = {
   'movement.ts': movement,
   'exp-curve.ts': expCurve,
-  'items.ts': items,
+  'items.ts': [...items, ...pieceItems],
   'equip-slots.ts': equipSlots,
   'classes.ts': classes,
   'skills.ts': skills,

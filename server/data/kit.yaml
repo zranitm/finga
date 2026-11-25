@@ -22,6 +22,9 @@ models:
   cactus_round: {}
   cactus_small: {}
   cactus_tall: {}
+  coral_brain: {}
+  coral_branch: {}
+  coral_fan: {}
   crag: {}
   crate: {box: {width: 0.64, depth: 0.64, height: 0.64}}
   dead_shrub: {}
@@ -33,6 +36,7 @@ models:
   grass_tuft: {}
   house_large: {box: {width: 11, depth: 14.95, height: 14}}
   house_small: {box: {width: 6.1, depth: 7.4, height: 13.6}}
+  kelp: {}
   palm: {}
   palm_short: {}
   pebbles: {}
@@ -47,6 +51,9 @@ models:
   sandstone_pillar: {cylinder: {radius: 1.6, height: 4.5}}
   sandstone_small: {cylinder: {radius: 0.7, height: 1.13}}
   sandstone_wall: {cylinder: {radius: 2.33, height: 3.52}}
+  sea_grass: {}
+  shell_conch: {}
+  shell_scallop: {}
   shop: {box: {width: 2.4, depth: 4.8, height: 4.2}}
   small_mushrooms: {}
   stump: {cylinder: {radius: 0.5, height: 0.6}}
@@ -55,4 +62,5 @@ models:
   torch_mounted: {light: {height: 2.2, reach: 8}}
   tree_oak: {cylinder: {radius: 0.34, height: 6.5}}
   tree_pine: {cylinder: {radius: 0.34, height: 6.5}}
+  vent: {}
   well: {cylinder: {radius: 1.35, height: 0.6}}

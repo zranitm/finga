@@ -1,6 +1,7 @@
 package instance
 
 import (
+	"context"
 	"math"
 	"slices"
 	"time"
@@ -99,6 +100,38 @@ func (i *Instance) bossUp(s *bossSlot) model.FieldBoss {
 // bossDown is s's beaten boss as those who hear it are told, with the time until it's back from this tick.
 func (i *Instance) bossDown(s *bossSlot) model.FieldBossGone {
 	return model.FieldBossGone{Tick: i.tick, Mob: s.fallen, Type: s.spot.Mob, BackIn: time.Duration(s.back-i.tick) * i.tuning.TickInterval}
+}
+
+// Bosses is each hunting area's field boss on a region's channel, in its areas' order, as the tick last left it: none on a map, whose one boss its players hear of as it comes and goes.
+func (i *Instance) Bosses(ctx context.Context) ([]model.AreaBoss, error) {
+	m := bossesMsg{done: make(chan []model.AreaBoss, 1)}
+	if err := i.post(m); err != nil {
+		return nil, err
+	}
+	select {
+	case b := <-m.done:
+		return b, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-i.stopped:
+		return nil, model.ErrStopped
+	}
+}
+
+// areaBosses is Bosses on the tick.
+func (i *Instance) areaBosses() []model.AreaBoss {
+	var out []model.AreaBoss
+	for _, s := range i.bosses {
+		if s.area < 0 {
+			continue
+		}
+		b := model.AreaBoss{Area: i.areaID(s.area), Up: s.up != nil}
+		if s.up == nil {
+			b.BackIn = i.bossDown(s).BackIn
+		}
+		out = append(out, b)
+	}
+	return out
 }
 
 // bossUpAs is the slot whose boss is up as mob, nil for none.

@@ -75,6 +75,7 @@ type RequestType =
   | 'teleport'
   | 'switchChannel'
   | 'channels'
+  | 'bosses'
   | 'promote'
   | 'resetPoints'
   | 'talk'
@@ -85,7 +86,9 @@ type RequestType =
   | 'pvpLeaveQueue'
   | 'pvpAnswer'
   | 'pvpForfeit'
-  | 'takeLoot';
+  | 'takeLoot'
+  | 'setLook'
+  | 'addToWardrobe';
 type ActionType = 'attack' | 'enterPortal';
 
 /** A server message as handlers see it: the body's case and value, with the envelope's req and tick. */

@@ -47,6 +47,12 @@ const character = {
   map_id: 'town',
 };
 
+const wardrobeBody = {
+  pieces: [
+    { id: 'knight_plate', cause: 'item', item_id: 'i-1', added_at: '2026-11-25T01:00:00Z' },
+    { id: 'knight_helm', cause: 'rank', added_at: '2026-11-25T02:00:00Z' },
+  ],
+};
 const profile = {
   standings: [
     {
@@ -131,6 +137,16 @@ describe('rest client', () => {
       path: '/api/characters/c%201/pvp',
       sent: undefined,
       want: profile,
+    },
+    {
+      name: 'get the wardrobe',
+      run: (c: RestClient) => c.getWardrobe(),
+      status: 200,
+      body: wardrobeBody,
+      method: 'GET',
+      path: '/api/wardrobe',
+      sent: undefined,
+      want: wardrobeBody,
     },
     {
       name: 'put an arena build',

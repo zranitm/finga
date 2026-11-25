@@ -2728,6 +2728,18 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 				t.Fatalf("response %+v, want the two channels of 150", r)
 			}
 		})
+		part(t, "Bosses answers with each of the region's area bosses, up or its time back", func() {
+			h.world.mu.Lock()
+			h.world.bosses = []world.AreaBoss{{Area: "west", BackIn: 90 * time.Second}, {Area: "east", Up: true}}
+			h.world.mu.Unlock()
+			c.send(wsconn.Message{ReqID: "b-1", Data: &clientv1.Bosses{}})
+			r := c.expect("Response")
+			got := r.Data.(*clientv1.Response).GetBosses().GetBosses()
+			want := []*clientv1.AreaBoss{{Area: "west", BackInMs: 90000}, {Area: "east", Up: true}}
+			if r.ReqID != "b-1" || !r.Data.(*clientv1.Response).GetOk() || len(got) != 2 || !proto.Equal(got[0], want[0]) || !proto.Equal(got[1], want[1]) {
+				t.Fatalf("response %+v, want the west's back in 90 s and the east's up", r)
+			}
+		})
 		part(t, "Promote goes to the world as the sender, answering once applied, or with its refusal", func() {
 			c.send(wsconn.Message{ReqID: "p-1", Data: &clientv1.Promote{NpcId: "warrior_trainer", Class: "warrior"}})
 			if r := c.expect("Response"); r.ReqID != "p-1" || !r.Data.(*clientv1.Response).GetOk() {
@@ -2955,18 +2967,23 @@ func TestAFailedLeaveOrOfflineIsLogged(t *testing.T) {
 func TestTheWardrobesCommands(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		plate := item.Item{ID: kernel.NewItemID(), TemplateID: "piece.knight_plate", Tab: "etc", Slot: 4, Quantity: 2}
-		items := &fakeItems{inventory: []item.Item{plate}, revision: 4, changed: []item.Slot{{Tab: "etc", Slot: 4, Item: &item.Item{ID: plate.ID, TemplateID: plate.TemplateID, Tab: "etc", Slot: 4, Quantity: 1}}}}
+		items := &fakeItems{inventory: []item.Item{plate}, revision: 4, piece: "knight_plate", changed: []item.Slot{{Tab: "etc", Slot: 4, Item: &item.Item{ID: plate.ID, TemplateID: plate.TemplateID, Tab: "etc", Slot: 4, Quantity: 1}}}}
 		h := newHarness(t, func(d *deps) { d.Items = items })
 		c := h.dial(t)
 		c.hello(tokenAlice, aylaID)
 		c.expect("Welcome")
 		c.expect("Snapshot")
-		part(t, "AddToWardrobe answers with the slot it took one from", func() {
+		part(t, "AddToWardrobe answers with the slot it took one from, and tells of the piece it made", func() {
 			c.send(wsconn.Message{ReqID: "w-1", Data: &clientv1.AddToWardrobe{IdempotencyKey: "k-1", ItemId: plate.ID.String()}})
-			if r := c.expect("Response"); r.ReqID != "w-1" || !r.Data.(*clientv1.Response).GetOk() {
+			got := c.expectEach("PiecesAdded", "Response", "InventoryChanged") // the push comes on the session's stream, the answer on the request's
+			added := got["PiecesAdded"].Data.(*clientv1.PiecesAdded)
+			if p := added.GetPieces(); len(p) != 1 || p[0].GetId() != "knight_plate" || p[0].GetCause() != "item" {
+				t.Fatalf("pieces added %+v", added)
+			}
+			if r := got["Response"]; r.ReqID != "w-1" || !r.Data.(*clientv1.Response).GetOk() {
 				t.Fatalf("response %+v", r)
 			}
-			ic := c.expect("InventoryChanged").Data.(*clientv1.InventoryChanged)
+			ic := got["InventoryChanged"].Data.(*clientv1.InventoryChanged)
 			if len(ic.Slots) != 1 || ic.Slots[0].GetItem().GetQuantity() != 1 || ic.Revision != 4 {
 				t.Fatalf("inventory changed %+v", ic)
 			}
@@ -2976,12 +2993,23 @@ func TestTheWardrobesCommands(t *testing.T) {
 				t.Fatalf("wardrobe calls %+v", w)
 			}
 		})
-		part(t, "a piece the wardrobe has answers PIECE_COLLECTED", func() {
+		part(t, "a piece the wardrobe has answers PIECE_COLLECTED, and tells of none", func() {
 			time.Sleep(time.Second) // under the inventory limit
 			items.err = refusal(kernel.ErrPieceCollected)
 			c.send(wsconn.Message{ReqID: "w-2", Data: &clientv1.AddToWardrobe{IdempotencyKey: "k-2", ItemId: plate.ID.String()}})
-			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.PieceCollected.Code) {
-				t.Fatalf("response %+v", r)
+			time.Sleep(time.Second) // past the session's flush: a push the refusal made is on the wire before the Pong
+			c.send(wsconn.Message{ReqID: "p-1", Data: &clientv1.Ping{}})
+			var answer *clientv1.Response
+			for m, status := c.read(); m.Type != "Pong"; m, status = c.read() { // every message from the add to the Pong
+				if status != -1 || m.Type == "PiecesAdded" {
+					t.Fatalf("a refused add: %s, closed %d", m.Type, status)
+				}
+				if r, ok := m.Data.(*clientv1.Response); ok && m.ReqID == "w-2" {
+					answer = r
+				}
+			}
+			if answer == nil || answer.GetOk() || answer.Code != int32(model.PieceCollected.Code) {
+				t.Fatalf("response %+v", answer)
 			}
 			items.err = nil
 		})
