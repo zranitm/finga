@@ -5,7 +5,9 @@ import (
 	"log/slog"
 	"maps"
 	"reflect"
+	"slices"
 	"testing"
+	"time"
 
 	"finga/internal/application/world"
 	model "finga/internal/model/gateway"
@@ -23,6 +25,7 @@ type worldModule struct {
 	view     world.View
 	picks    []world.PickAnswer
 	channels world.Channels
+	bosses   []world.AreaBoss
 	err      error
 }
 
@@ -181,6 +184,11 @@ func (w *worldModule) SwitchChannel(_ context.Context, p world.Presence, n int, 
 func (w *worldModule) Channels(_ context.Context, p world.Presence) (world.Channels, error) {
 	_ = w.record(p, nil)
 	return w.channels, w.err
+}
+
+func (w *worldModule) Bosses(_ context.Context, p world.Presence) ([]world.AreaBoss, error) {
+	_ = w.record(p, nil)
+	return w.bosses, w.err
 }
 
 func (w *worldModule) Promote(_ context.Context, p world.Presence, npc string, class kernel.Class) error {
@@ -353,6 +361,12 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 				return err
 			})
 		},
+		"Bosses": func() []string {
+			return worldCall[struct{}, struct{}](w, nil, func(p model.Presence, _ struct{}) error {
+				_, err := a.Bosses(ctx, p)
+				return err
+			})
+		},
 		"ResetPoints": func() []string {
 			return worldCall[expected, resetArgs](w, nil, func(p model.Presence, in expected) error { return a.ResetPoints(ctx, p, in.Expected) })
 		},
@@ -456,6 +470,15 @@ func TestTheSheetSaysWhetherTheFreeResetIsLeft(t *testing.T) {
 }
 
 // The channel list the module answers reaches the use cases with every field.
+// A boss list keeps each area's boss, its time back in whole milliseconds.
+func TestABossListKeepsItsFields(t *testing.T) {
+	w := &worldModule{bosses: []world.AreaBoss{{Area: "west", BackIn: 1500 * time.Millisecond}, {Area: "east", Up: true}}}
+	got, err := NewWorld(w, slog.New(slog.DiscardHandler), nil).Bosses(t.Context(), model.Presence{})
+	if want := []model.AreaBoss{{Area: "west", BackInMs: 1500}, {Area: "east", Up: true}}; err != nil || !slices.Equal(got, want) {
+		t.Fatalf("%+v, %v; want %+v", got, err, want)
+	}
+}
+
 func TestAChannelListKeepsItsFields(t *testing.T) {
 	if got := copytest.Diff(copytest.Match{}, func(in world.Channels) model.Channels {
 		w := &worldModule{channels: in}

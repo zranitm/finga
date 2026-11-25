@@ -3,8 +3,14 @@ import { act, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { maps } from '@/gamedata/maps';
-import { MatchPhase, MatchStateSchema, WelcomeSchema } from '@/protocol/messages';
+import {
+  FieldBossGoneSchema,
+  MatchPhase,
+  MatchStateSchema,
+  WelcomeSchema,
+} from '@/protocol/messages';
 import { character } from '@/state/character';
+import { fieldBoss } from '@/state/field-boss';
 import { mapView, NO_GROUND } from '@/state/map-view';
 import { pvp } from '@/state/pvp';
 import { settings } from '@/state/settings';
@@ -122,6 +128,60 @@ describe('Minimap', () => {
     at(148, 64); // x 128–168: its west edge on the line, so the west tile's left out
     expect(tiles().map(([href]) => href)).toEqual(['bake/tiles/1/1_0.png']);
     expect(document.querySelectorAll('image:not(.map-tile)')).toHaveLength(0);
+  });
+
+  it('outlines a region’s areas, naming none, and a map none', () => {
+    render(<Minimap />);
+    at(30, 10);
+    expect(document.querySelectorAll('.map-area')).toHaveLength(0);
+    act(() => {
+      mapView.getState().showMap('test_region', [256, 256], NO_GROUND, []);
+    });
+    at(124, 80);
+    expect(
+      [...document.querySelectorAll('.map-area')].map((a) => a.getAttribute('data-area')),
+    ).toEqual(['town', 'west', 'south', 'north', 'woods']);
+    expect(document.querySelectorAll('text')).toHaveLength(0);
+  });
+
+  it('crowns the player’s own area’s beaten boss at its spot, and no other area’s, as This region alone asks', () => {
+    render(<Minimap />);
+    act(() => {
+      mapView.getState().showMap('test_region', [256, 256], NO_GROUND, []);
+      mapView.getState().inArea('west');
+      fieldBoss
+        .getState()
+        .applyGone(create(FieldBossGoneSchema, { mobId: 9, type: 'king_slime', backInMs: 9000n }));
+    });
+    at(50, 110);
+    const down = [...document.querySelectorAll('.map-boss-down')];
+    expect(down.map((c) => c.getAttribute('data-mob'))).toEqual(['king_slime']);
+    expect(down[0]!.getAttribute('transform')).toMatch(/^translate\(46 146\)/);
+    expect(document.querySelectorAll('.map-boss-spot')).toHaveLength(0);
+    act(() => {
+      mapView.getState().showMap('test_region', [256, 256], NO_GROUND, []); // a channel switch: its frames haven't said the area yet
+    });
+    at(50, 110);
+    expect(document.querySelectorAll('.map-boss-down')).toHaveLength(0);
+  });
+
+  it('crowns the player’s own area’s boss red at its spot while its frames say it’s up but don’t show it, and only its live crown while they do', () => {
+    render(<Minimap />);
+    act(() => {
+      mapView.getState().showMap('test_region', [256, 256], NO_GROUND, []);
+      mapView.getState().inArea('west');
+    });
+    at(50, 110);
+    const spots = () =>
+      [...document.querySelectorAll('.map-boss-spot')].map((c) => c.getAttribute('transform'));
+    expect(spots()).toEqual([expect.stringMatching(/^translate\(46 146\)/)]);
+    act(() =>
+      mapView
+        .getState()
+        .mark({ me: { x: 50, z: 110, yaw: 0 }, party: [], lock: null, boss: { x: 48, z: 140 } }),
+    );
+    expect(spots()).toEqual([]);
+    expect(document.querySelectorAll('.map-boss')).toHaveLength(1);
   });
 
   it('marks no waypoint, as the map window alone does (large-regions.md section 8)', () => {

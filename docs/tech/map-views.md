@@ -73,7 +73,7 @@ The minimap and the This map tab both draw from this one image. Neither redraws 
   - NPCs, as dots, with the quest mark the NPC shows in the world;
   - party members on this map, as green dots;
   - the lock, as a gold dot;
-  - the field boss while it's up, as a red crown;
+  - the field boss while it's up, as a red crown; in a region, every area's boss at its spot on This region (large-regions.md step 5c-3b);
   - the player, as a white arrow along the heading.
 - **Its name** (from large-regions.md step 4b-3b): over the square, the map's name, and in a region its channel, "Test Region · Ch. 2".
 - **Settings:** `showMinimap` (on by default) hides it. It's saved with the account's settings, as chat's pin is.
@@ -96,7 +96,7 @@ The minimap and the This map tab both draw from this one image. Neither redraws 
   - "<Mob> Lv <level>" by each spawn circle;
   - "You" by the player.
 - **Labels** keep clear of each other with the name-tag rule the world's labels use.
-- **In a region:** its channels (large-regions.md section 4) and its waypoints, marked grey till found and picked for a teleport (section 8, step 6c-1).
+- **In a region:** its channels (large-regions.md section 4) and its waypoints, marked grey till found and picked for a teleport (section 8, step 6c-1). Its areas are outlined, on the minimap too, and named here with a hunting area's levels (step 5c-3a).
 - **As built:**
   - the rule (`stackTags`) moved to `lib/tags.ts` for both to use;
   - labels go in order: spawns, portals, NPCs, then "You", each lifted clear of the NPCs' quest marks and the labels before it, so only "You" moves as the player walks;

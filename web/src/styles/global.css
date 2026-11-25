@@ -1434,6 +1434,23 @@ body {
   fill: #fff7c2;
   font-weight: 700;
 }
+.map-label-area {
+  fill: #f4f4f8;
+  font-weight: 700;
+}
+.map-label-town {
+  fill: #ffe08a;
+  font-weight: 700;
+}
+.map-area {
+  fill: none;
+  stroke: #f4f4f8;
+  stroke-opacity: 0.35;
+}
+.map-area-town {
+  fill: #ffe08a;
+  fill-opacity: 0.08;
+}
 .map-world {
   position: relative;
 }

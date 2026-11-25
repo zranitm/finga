@@ -27,6 +27,8 @@ import type { Destination } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
 import { waypoints } from '@/state/waypoints';
 
+import { crownsOf, useAreaBosses } from './crowns';
+import type { AreaBosses, Crown } from './crowns';
 import { MapMarks, useNpcMarkers } from './MapMarks';
 import { usePanZoom, ZOOM_STEP } from './pan-zoom';
 import { MARK_REACH_PX, WaypointMarks } from './WaypointMarks';
@@ -57,13 +59,29 @@ const levels = (m: MapData) => `Lv ${m.min_level}–${m.max_level}`;
 const kindOf = (m: MapData) =>
   m.kind === 'town' ? 'Town' : m.kind === 'region' ? 'Region' : levels(m);
 
-/** A label on This map, in pixels: its text centred on x, sitting on bottom. */
+/** A label on This map, in pixels: its text centred on x, sitting on bottom; a beaten boss's counts down to its time back. */
 export interface MapLabel extends TagBox {
-  readonly kind: 'spawn' | 'portal' | 'npc' | 'point' | 'boss' | 'me';
+  readonly kind: 'spawn' | 'area' | 'town' | 'portal' | 'npc' | 'point' | 'boss' | 'me';
   readonly text: string;
+  readonly down?: BossDown;
 }
 
 type Spawn = MapData['spawns'][number];
+
+/** Where a region's area is named: the middle of its corners' polygon, by area. */
+function areaMiddle(corners: readonly (readonly [number, number])[]): { x: number; z: number } {
+  let twice = 0;
+  let cx = 0;
+  let cz = 0;
+  corners.forEach(([x0, z0], i) => {
+    const [x1, z1] = corners[(i + 1) % corners.length]!;
+    const cross = x0 * z1 - x1 * z0;
+    twice += cross;
+    cx += (x0 + x1) * cross;
+    cz += (z0 + z1) * cross;
+  });
+  return { x: cx / (3 * twice), z: cz / (3 * twice) };
+}
 
 /** The map's spawn circles as labelled: those of one mob that meet or come within GROUP_GAP_M of another share one label, the chain cut where one label would leave a circle out of LABEL_REACH_M. Each group's circles come nearest its middle first. */
 function spawnGroups(spawns: MapData['spawns']): Spawn[][] {
@@ -112,14 +130,14 @@ function within(members: Spawn[]): Spawn[][] {
   return [near, ...(far.length > 0 ? within(far) : [])];
 }
 
-/** This map's labels at scale pixels a metre. A spawn group's label sits on one of its own circles, nearest the group's middle first, stepped up or down inside the circle, wherever it's in LABEL_REACH_M of all the group's circles and covers no quest mark, waypoint mark or label before it; failing that, it's lifted. Portals, NPCs and a battle's points follow, each lifted clear of everything before it; then a beaten boss's, under its crown or over it, wherever it has BOSS_ROOM_PX round it, else lifted as the rest are; then the player's. */
+/** This map's labels at scale pixels a metre. A spawn group's label sits on one of its own circles, nearest the group's middle first, stepped up or down inside the circle, wherever it's in LABEL_REACH_M of all the group's circles and covers no quest mark, waypoint mark or label before it; failing that, it's lifted. A region's areas, named at their middles with a hunting area's levels, then portals, NPCs and a battle's points follow, each lifted clear of everything before it; then each beaten boss's, under its crown or over it, wherever it has BOSS_ROOM_PX round it, else lifted as the rest are; then the player's. */
 export function mapLabels(
   map: MapData,
   me: Spot | null,
   scale: number,
   size: readonly [number, number],
   marked: ReadonlySet<string>,
-  down: BossDown | null,
+  crowns: readonly Crown[],
   stones: readonly Spot[],
 ): MapLabel[] {
   const y = (z: number) => (size[1] - z) * scale;
@@ -186,6 +204,13 @@ export function mapLabels(
       return label;
     });
   const marks: MapLabel[] = [
+    ...map.areas.map((a) => {
+      const middle = areaMiddle(a.area);
+      const bottom = y(middle.z) + LABEL_PX / 2; // centred on it
+      return a.levels
+        ? box('area', `${a.name} Lv ${a.levels[0]}–${a.levels[1]}`, middle.x, bottom)
+        : box('town', a.name, middle.x, bottom);
+    }),
     ...map.portals.map((p) =>
       box('portal', `To ${nameOf(p.to)}`, p.x, y(p.z) - Math.max(p.radius * scale, 2 * DOT_PX) - 2),
     ),
@@ -200,13 +225,16 @@ export function mapLabels(
       clashes({ ...t, bottom: t.bottom + BOSS_ROOM_PX, h: t.h + 2 * BOSS_ROOM_PX }, p),
     );
   const last: MapLabel[] = [];
-  if (down && map.boss) {
-    const text = backIn(down.type, 0);
+  for (const c of crowns) {
+    if (!c.down) {
+      continue;
+    }
+    const text = backIn(c.down.type, 0);
     const [under, over] = [
-      box('boss', text, map.boss.x, y(map.boss.z) + 2 * DOT_PX + LABEL_PX),
-      box('boss', text, map.boss.x, y(map.boss.z) - 3 * DOT_PX - 2),
+      box('boss', text, c.x, y(c.z) + 2 * DOT_PX + LABEL_PX),
+      box('boss', text, c.x, y(c.z) - 3 * DOT_PX - 2),
     ];
-    last.push([under, over].find(roomy) ?? over);
+    last.push({ ...([under, over].find(roomy) ?? over), down: c.down });
   }
   if (me) {
     last.push(box('me', 'You', me.x, y(me.z) - 3 * DOT_PX - 2));
@@ -254,11 +282,13 @@ function useChannel(onClose: () => void) {
 function Plan({
   map,
   layout,
+  others,
   picked,
   onPick,
 }: {
   readonly map: MapData;
   readonly layout?: MapLayout;
+  readonly others?: AreaBosses | null;
   readonly picked: string | null;
   readonly onPick: (id: string) => void;
 }) {
@@ -267,8 +297,10 @@ function Plan({
   const shown = mapView.use((s) => s.waypoints);
   const marks = layout?.waypoints ?? (map.id === current ? shown : []);
   const me = mapView.use((s) => s.me);
-  const beaten = fieldBoss.use((s) => s.down);
-  const down = map.id === current ? beaten : null;
+  const down = fieldBoss.use((s) => s.down);
+  const area = mapView.use((s) => s.area);
+  const live = mapView.use((s) => s.boss !== null); // the boss's crown where it is, drawn while the frames show it
+  const crowns = map.id === current ? crownsOf(map, area, down, others ?? null, live) : [];
   const markers = useNpcMarkers(map.id);
   const ground = mapView.use((s) => s.ground);
   const [sx, sz] = layout?.size ?? size;
@@ -287,7 +319,7 @@ function Plan({
     scale,
     [sx, sz],
     new Set(markers.keys()),
-    down,
+    crowns,
     marks,
   );
   const plan = (
@@ -302,7 +334,12 @@ function Plan({
       onPointerDown={onPointerDown}
       onClickCapture={onClickCapture}
     >
-      <MapMarks unit={1 / scale} view={view} {...(layout && { other: { id: map.id, ...layout } })}>
+      <MapMarks
+        unit={1 / scale}
+        crowns={crowns}
+        view={view}
+        {...(layout && { other: { id: map.id, ...layout } })}
+      >
         {labels.map((l, i) => (
           <text
             key={i}
@@ -312,7 +349,7 @@ function Plan({
             fontSize={LABEL_PX / scale}
             textAnchor="middle"
           >
-            {l.kind === 'boss' && down ? <BackIn down={down} /> : l.text}
+            {l.down ? <BackIn down={l.down} /> : l.text}
           </text>
         ))}
         <WaypointMarks
@@ -359,6 +396,7 @@ function ThisMap({ socket, onClose }: Pick<WorldProps, 'socket' | 'onClose'>) {
   const marks = mapView.use((s) => s.waypoints);
   const [picked, setPicked] = useState<string | null>(null);
   const map = maps.find((m) => m.id === mapId);
+  const others = useAreaBosses(socket, map?.kind === 'region', `${mapId} ${channel}`);
   if (!map) {
     return <p className="muted">No map yet.</p>;
   }
@@ -367,7 +405,7 @@ function ThisMap({ socket, onClose }: Pick<WorldProps, 'socket' | 'onClose'>) {
     <>
       {channel > 0 && <Channels socket={socket} onClose={onClose} />}
       {/* keyed so a new map's plan starts whole */}
-      <Plan key={map.id} map={map} picked={pick?.id ?? null} onPick={setPicked} />
+      <Plan key={map.id} map={map} others={others} picked={pick?.id ?? null} onPick={setPicked} />
       {pick && <WaypointPick waypoint={pick} socket={socket} onClose={onClose} />}
     </>
   );

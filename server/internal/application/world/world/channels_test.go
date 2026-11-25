@@ -16,6 +16,7 @@ import (
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/sim"
+	"finga/pkg/transient"
 )
 
 // opens records the open counts and stopped channels the World tells, by region.
@@ -137,6 +138,26 @@ func (w *testWorld) open(t *testing.T, p model.Player) []model.ChannelLoad {
 		t.Fatal(err)
 	}
 	return got.Open
+}
+
+// A Bosses query answers for the region channel the player is in: each hunting area's boss, up from the channel's start, in the plan's order. Off a region it's refused, and from a connection that doesn't hold the player, unavailable.
+func TestABossesQueryAnswersForThePlayersRegionChannel(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := channelWorld(t, worldtest.Options{})
+		ayla, _ := w.enterRegion(t, "Ayla")
+		want := []model.AreaBoss{{Area: "west", Up: true}, {Area: "south", Up: true}, {Area: "north", Up: true}, {Area: "woods", Up: true}}
+		if got, err := w.Bosses(t.Context(), ayla.ID, "c-Ayla"); err != nil || !slices.Equal(got, want) {
+			t.Fatalf("in the region: %+v, %v; want %+v", got, err, want)
+		}
+		if _, err := w.Bosses(t.Context(), ayla.ID, "c-elsewhere"); !errors.Is(err, transient.ErrUnavailable) {
+			t.Fatalf("from another connection: %v; want unavailable", err)
+		}
+		bo := at(t, "Bo", "town")
+		w.enter(t, bo, "town", "c-Bo", &worldtest.Sink{})
+		if _, err := w.Bosses(t.Context(), bo.ID, "c-Bo"); !errors.Is(err, model.ErrNotARegion) {
+			t.Fatalf("in town: %v; want ErrNotARegion", err)
+		}
+	})
 }
 
 // Joins fill a region's channels (large-regions.md section 4): the least full with room, a new one once all are full, and the list says how full each is.
