@@ -51,6 +51,9 @@ func (r *Region) Bake() (Bake, error) {
 		}
 	}
 	files = append(files, r.tiles()...)
+	if len(r.Flames) > 0 { // the server bakes it too, as the folder's name hashes every file
+		files = append(files, File{Path: "light.bin", Data: r.light()})
+	}
 	slices.SortFunc(files, func(a, b File) int { return strings.Compare(a.Path, b.Path) })
 	h := sha256.New()
 	for _, f := range files {
@@ -102,7 +105,7 @@ func (w *writer) header(magic string, a, b, c int) {
 	w.u16(c)
 }
 
-// chunk is one 64 m square: "FRCK", the format, its x and z, and its samples a side n (its edges shared with its neighbours); then (n+2)² heights, its own with a border one sample wide, held to the region at its edges, so a client takes an edge's normal from the same numbers on both sides; then n² colours and n² deep-water marks, 1 or 0, row by row from the south-west; and the props, cylinders and boxes whose centres it holds, each solid with its index in the region's list, so a client visits them in the server's order.
+// chunk is one 64 m square: "FRCK", the format, its x and z, and its samples a side n (its edges shared with its neighbours); then (n+2)² heights, its own with a border one sample wide, held to the region at its edges, so a client takes an edge's normal from the same numbers on both sides; then n² colours and n² barrier marks, 1 or 0, row by row from the south-west; and the props, cylinders and boxes whose centres it holds, each solid with its index in the region's list, so a client visits them in the server's order.
 func (r *Region) chunk(cx, cz int) []byte {
 	t := r.Geometry.Terrain
 	per := int(chunkM / t.Cell)
@@ -123,7 +126,7 @@ func (r *Region) chunk(cx, cz int) []byte {
 	for iz := range per + 1 {
 		for ix := range per + 1 {
 			w.b = append(w.b, 0)
-			if t.DeepWater[(cz*per+iz)*t.NX+cx*per+ix] {
+			if t.Barrier[(cz*per+iz)*t.NX+cx*per+ix] {
 				w.b[len(w.b)-1] = 1
 			}
 		}
@@ -222,6 +225,7 @@ func (r *Region) meta() ([]byte, error) {
 	m := struct {
 		Format    int        `json:"format"`
 		Name      string     `json:"name"`
+		Under     string     `json:"under"` // a place below's region above; empty on the land
 		Sky       string     `json:"sky"`
 		Size      [2]float64 `json:"size"`
 		Cell      float64    `json:"cell"`
@@ -240,8 +244,9 @@ func (r *Region) meta() ([]byte, error) {
 		NPCs      []NPC      `json:"npcs"`
 		Gates     []Gate     `json:"gates"`
 		Start     Place      `json:"start"`
+		Lights    []Flame    `json:"lights"` // each torch's flame, for its flicker; light.bin holds their light
 	}{
-		Format: Format, Name: p.Name, Sky: p.Look.Sky, Size: p.Size, Cell: p.Cell, Chunk: chunkM, Overview: overviewM, Heights: r.Heights,
+		Format: Format, Name: p.Name, Under: p.Under, Sky: p.Look.Sky, Lights: nonNil(r.Flames), Size: p.Size, Cell: p.Cell, Chunk: chunkM, Overview: overviewM, Heights: r.Heights,
 		Solids: solids{len(r.Geometry.Cylinders), len(r.Geometry.Boxes), solidReach(r.Geometry)},
 		Models: r.Models, Areas: nonNil(p.Areas), Camps: nonNil(p.Camps), Waypoints: nonNil(p.Waypoints), NPCs: nonNil(p.NPCs), Gates: nonNil(p.Gates), Start: p.Start,
 		Rivers: []river{}, Lakes: []lake{},

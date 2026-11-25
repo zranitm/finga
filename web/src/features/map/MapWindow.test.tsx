@@ -146,6 +146,18 @@ describe('MapWindow', () => {
     expect(outlines[1]!.getAttribute('points')).toBe('24,232 92,232 92,24 24,24'); // y down from the north
   });
 
+  it('This map names a battle’s points', () => {
+    act(() => {
+      mapView.getState().showMap('battlefield', [140, 90], NO_GROUND, []);
+      mapView.getState().mark({ me: { x: 20, z: 45, yaw: 0 }, party: [], lock: null, boss: null });
+    });
+    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
+    const svg = screen.getByRole('img', { name: 'Battlefield' });
+    expect(texts(svg, '.map-label-point')).toEqual(['West Ruin', 'Middle Ruin', 'East Ruin']);
+    expect(svg.querySelectorAll('.map-point')).toHaveLength(3);
+    expect(svg.querySelectorAll('.map-base')).toHaveLength(2);
+  });
+
   it('This map’s labels keep clear of each other and of the quest marks, on every map', () => {
     const overlap = (a: { x: number; bottom: number; w: number; h: number }, b: typeof a) =>
       Math.abs(a.x - b.x) * 2 < a.w + b.w && a.bottom > b.bottom - b.h && b.bottom > a.bottom - a.h;

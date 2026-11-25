@@ -26,13 +26,13 @@ export function TeamFrames() {
   ) : null;
 }
 
-/** The enemies in a team mode, under the match bar. */
+/** The enemies in a team mode with rounds, under the match bar; a battle's fifteen aren't framed. */
 export function EnemyFrames() {
   const match = pvp.use((s) => s.match);
   const me = character.use((s) => s.character?.id ?? '');
   const live = fighters.use((s) => s.live);
   const side = sideOf(match, me);
-  if (!match || side === 0 || teamOf(match.mode) <= 1) {
+  if (!match || side === 0 || teamOf(match.mode) <= 1 || roundsToWin(match.mode) === 0) {
     return null;
   }
   const foes = (match.sides[2 - side] ?? []).filter((f) => live[f.id]);

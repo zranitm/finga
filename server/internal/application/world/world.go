@@ -41,6 +41,7 @@ type Module struct {
 type service interface {
 	Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink instance.Sink) (model.View, error)
 	Leave(ctx context.Context, id kernel.CharacterID, conn string) error
+	Drop(ctx context.Context, id kernel.CharacterID, conn string) error
 	Offline(ctx context.Context, id kernel.CharacterID, do func(ctx context.Context) error) (bool, error)
 	Input(id kernel.CharacterID, conn string, seq uint32, in sim.Input, view uint32) error
 	Attack(id kernel.CharacterID, conn string, aim float32, target model.EntityRef) error
@@ -233,6 +234,13 @@ func (m *Module) Leave(ctx context.Context, p Presence) (err error) {
 	ctx, call := m.calls.Start(ctx, "Leave")
 	defer call.End(&err)
 	return m.svc.Leave(ctx, p.Character, p.Conn)
+}
+
+// Drop is the presence's connection lost, its tab closed or its network gone: a match fighter's place is held for the mode's reconnect, and anywhere else it's a Leave.
+func (m *Module) Drop(ctx context.Context, p Presence) (err error) {
+	ctx, call := m.calls.Start(ctx, "Drop")
+	defer call.End(&err)
+	return m.svc.Drop(ctx, p.Character, p.Conn)
 }
 
 // Offline runs do if the character is on no map and no save of it is pending, holding it so no join starts before do returns; ran is false, and do not run, while the world holds the character. A write the world would overwrite with its next save goes through it.

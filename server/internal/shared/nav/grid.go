@@ -27,11 +27,11 @@ const (
 	toEast                    // east
 	toSouth                   // south
 	toNorth                   // north
-	deep                      // the terrain cell under the centre is under deep water, which the sim lets no body move into
+	barred                    // the terrain cell under the centre is a barrier, which the sim lets no body move into
 )
 
 // blocked is the flags of a cell no body stands in.
-const blocked = raised | deep
+const blocked = raised | barred
 
 // What a cell's ground is, needed only while the grid is built.
 const (
@@ -59,7 +59,7 @@ func New(g sim.Geometry, step float64) *Grid {
 		c := n.centre(i)
 		s := stand(g, step, c)
 		ground[i], n.clear[i] = s.ground, uint16(math.Floor(s.clear/clearUnit)) // s.clear is at most maxClear
-		n.flags[i] = flag(s.raised, raised) | flag(s.deep, deep)
+		n.flags[i] = flag(s.raised, raised) | flag(s.barred, barred)
 		marks[i] = flag(s.onTop, onTop) | flag(g.Terrain.Steep(c.X, c.Z, false), steepX) | flag(g.Terrain.Steep(c.X, c.Z, true), steepZ)
 	}
 	for i := range size {
@@ -83,14 +83,14 @@ func flag(on bool, f uint8) uint8 {
 type spot struct {
 	ground        float64 // the highest of the terrain and any solid's top over the point
 	onTop, raised bool    // the ground is a solid's top, and more than step above the terrain
-	deep          bool    // the terrain cell under it is under deep water
+	barred        bool    // the terrain cell under it is a barrier
 	clear         float64 // from the point to the nearest wall to feet on that ground, up to maxClear
 }
 
 func stand(g sim.Geometry, step float64, p Point) spot {
 	terrain := g.Terrain.Height(p.X, p.Z)
 	s := spot{ground: sim.Ground(p.X, p.Z, math.Inf(1), g)}
-	s.onTop, s.raised, s.deep = s.ground > terrain, s.ground > terrain+step, g.Terrain.Deep(p.X, p.Z)
+	s.onTop, s.raised, s.barred = s.ground > terrain, s.ground > terrain+step, g.Terrain.Barred(p.X, p.Z)
 	s.clear = clearance(g, step, p, s.ground)
 	return s
 }
@@ -117,7 +117,7 @@ func FitsAt(g sim.Geometry, step float64, p Point, r float64) bool {
 		return false
 	}
 	s := stand(g, step, p)
-	return !s.raised && !s.deep && s.clear >= r
+	return !s.raised && !s.barred && s.clear >= r
 }
 
 // boxDistance is how far p lies outside b's footprint, 0 inside it.
@@ -146,7 +146,7 @@ func (n *Grid) index(p Point) (int, bool) {
 	return iz*n.nx + ix, true
 }
 
-// Fits reports whether a body of radius r can stand at p: inside the map, not up on a solid too tall to step onto nor in deep water, clear of walls.
+// Fits reports whether a body of radius r can stand at p: inside the map, not up on a solid too tall to step onto nor on a barrier, clear of walls.
 func (n *Grid) Fits(p Point, r float64) bool {
 	i, ok := n.index(p)
 	return ok && n.flags[i]&blocked == 0 && n.fits(i, r)
@@ -184,9 +184,9 @@ func (n *Grid) toward(a, b int) uint8 {
 	return toWest
 }
 
-// open reports whether a body may walk from a to side neighbour b, whatever its size, on the cells' ground and marks: not onto a solid over step up, nor uphill into or out of a cell whose terrain is steep that way, as in the sim, whose small steps end inside a first; nor into deep water from out of it.
+// open reports whether a body may walk from a to side neighbour b, whatever its size, on the cells' ground and marks: not onto a solid over step up, nor uphill into or out of a cell whose terrain is steep that way, as in the sim, whose small steps end inside a first; nor onto a barrier from off one.
 func (n *Grid) open(ground []float64, marks []uint8, a, b int) bool {
-	if n.flags[b]&deep != 0 && n.flags[a]&deep == 0 {
+	if n.flags[b]&barred != 0 && n.flags[a]&barred == 0 {
 		return false
 	}
 	way := steepX

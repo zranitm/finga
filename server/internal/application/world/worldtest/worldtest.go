@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"io/fs"
 	"log/slog"
 	"maps"
 	"os"
@@ -189,7 +190,7 @@ func LoadData(t testing.TB) *gamedata.Data {
 	return gamedatatest.Shipped(t)
 }
 
-// LoadDataWith is the game data the server ships, each file named in edits changed by its function first, or left out where it's nil; tests making the same edits share it.
+// LoadDataWith is the game data the server ships, each file named in edits changed by its function first, a new one from empty, or left out where it's nil; tests making the same edits share it.
 func LoadDataWith(t testing.TB, edits map[string]func(string) string) *gamedata.Data {
 	t.Helper()
 	src := gamedatatest.Dir()
@@ -201,7 +202,7 @@ func LoadDataWith(t testing.TB, edits map[string]func(string) string) *gamedata.
 			continue
 		}
 		raw, err := os.ReadFile(filepath.Join(src, name))
-		if err != nil {
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
 			t.Fatal(err)
 		}
 		texts[name] = edits[name](string(raw))
@@ -527,10 +528,11 @@ func (r *Results) All() []model.MatchResult {
 	return slices.Clone(r.got)
 }
 
-// Moves records the players a map hands off, and where to.
+// Moves records the players a map hands off, and where to, and the players it drops.
 type Moves struct {
-	mu  sync.Mutex
-	got []Move
+	mu    sync.Mutex
+	got   []Move
+	drops []kernel.CharacterID
 }
 
 // Move is one hand-off.
@@ -546,8 +548,19 @@ func (m *Moves) Transfer(_ *instance.Instance, p model.Player, _ instance.Sink, 
 	m.got = append(m.got, Move{Player: p, Dest: dest})
 }
 
-// Dropped does nothing.
-func (m *Moves) Dropped(*instance.Instance, kernel.CharacterID, string) {}
+// Dropped records the drop.
+func (m *Moves) Dropped(_ *instance.Instance, id kernel.CharacterID, _ string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.drops = append(m.drops, id)
+}
+
+// Drops is every player dropped, in order.
+func (m *Moves) Drops() []kernel.CharacterID {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return slices.Clone(m.drops)
+}
 
 // All is every hand-off recorded, in order.
 func (m *Moves) All() []Move {

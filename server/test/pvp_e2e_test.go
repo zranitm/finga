@@ -2,9 +2,13 @@ package e2e_test
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/coder/websocket"
+	"github.com/jackc/pgx/v5"
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/pkg/wsconn"
@@ -224,6 +228,85 @@ func TestAPartyOfTwoMeetsBotsIn3v3(t *testing.T) {
 		if err := s.DB.QueryRow(ctx, `SELECT matches FROM pvp_ratings WHERE character_id = $1 AND mode = 'team'`, ids[k]).Scan(&matches); err != nil || matches != 1 {
 			t.Fatalf("%s's 3v3 rating row: %d matches, %v", ids[k], matches, err)
 		}
+	}
+}
+
+// pvp.md section 4: a duelist whose socket drops mid-round and who says Hello again within the grace is on their body in the match, which runs on; dropped again and back past the grace, they've left, the match is rated, and they land where they queued. Every wait is for a message or the rating row, a minute its bound.
+func TestADroppedDuelistIsHeldThroughTheGraceButNotPastIt(t *testing.T) {
+	t.Parallel()
+	s := newStackOver(t, e2etest.GameData(t,
+		e2etest.DataEdit{File: "pvp.yaml", Old: "queue: {bots_after: 15s", New: "queue: {bots_after: 1s"},
+		e2etest.DataEdit{File: "pvp.yaml", Old: "rounds: {prep: 10s, countdown: 3s, between: 5s}", New: "rounds: {prep: 500ms, countdown: 500ms, between: 500ms}"},
+		e2etest.DataEdit{File: "pvp.yaml", Old: "result: 10s", New: "result: 500ms"},
+		e2etest.DataEdit{File: "pvp.yaml", Old: "length: 60s}, reconnect: 20s}", New: "length: 60s}, reconnect: 6s}"},
+	))
+	token, id := s.CreateCharacter(t, "dropper", "Dropper", "warrior")
+	p, snap := s.Join(t, token, id)
+	h := &heard{l: e2etest.NewLooter(p, snap)}
+	ask := func(req string, msg any) int {
+		t.Helper()
+		from := len(h.got)
+		h.l.Send(wsconn.Message{ReqID: req, Seq: h.l.Seq, Data: msg})
+		if k := h.since(from, time.Minute, func(m wsconn.Message) bool { return m.Type == "Response" && m.ReqID == req }); k < 0 || !h.got[k].Data.(*clientv1.Response).GetOk() {
+			t.Fatalf("%s: no ok Response", req)
+		}
+		return from
+	}
+	from := ask("queue", &clientv1.PvpQueue{Mode: "duel"})
+	k := h.since(from, time.Minute, func(m wsconn.Message) bool { return m.Type == "PvpOffer" })
+	if k < 0 {
+		t.Fatalf("no offer; heard %v", h.types(from))
+	}
+	from = ask("accept", &clientv1.PvpAnswer{Offer: h.got[k].Data.(*clientv1.PvpOffer).GetOffer(), Accept: true})
+	fighting := func(m wsconn.Message) bool {
+		st, ok := m.Data.(*clientv1.MatchState)
+		return ok && st.GetPhase() == clientv1.MatchPhase_MATCH_PHASE_FIGHT
+	}
+	if k = h.since(from, time.Minute, fighting); k < 0 {
+		t.Fatalf("no round under way; heard %v", h.types(from))
+	}
+
+	_ = h.l.Conn.Close(websocket.StatusNormalClosure, "dropped")
+	l, w := s.Hello(t, h.l.Token, id)
+	if w.GetMapId() != "ring" {
+		t.Fatalf("back within the grace on %q, want the ring", w.GetMapId())
+	}
+	back := &heard{l: l}
+	listed := func(m wsconn.Message) bool {
+		st, ok := m.Data.(*clientv1.MatchState)
+		if !ok {
+			return false
+		}
+		for _, side := range st.GetSides() {
+			for _, f := range side.GetFighters() {
+				if f.GetId() == id {
+					return !f.GetAway()
+				}
+			}
+		}
+		return false
+	}
+	if k = back.since(0, time.Minute, listed); k < 0 {
+		t.Fatalf("no MatchState listing the duelist back; heard %v", back.types(0))
+	}
+	if k = back.since(k, time.Minute, func(m wsconn.Message) bool { return m.Type == "Delta" && ownView(m, id) != nil }); k < 0 {
+		t.Fatalf("no frame of the duelist's body after the return; heard %v", back.types(0))
+	}
+	t.Logf("back on the ring at tick %d, the body in the frame at tick %d", w.GetTick(), back.got[k].Tick)
+
+	_ = l.Conn.Close(websocket.StatusNormalClosure, "dropped again")
+	ctx := context.Background()
+	var matches int
+	for deadline := time.Now().Add(time.Minute); matches == 0; time.Sleep(100 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("no rated outcome within a minute of the second drop")
+		}
+		if err := s.DB.QueryRow(ctx, `SELECT matches FROM pvp_ratings WHERE character_id = $1 AND mode = 'duel'`, id).Scan(&matches); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			t.Fatal(err)
+		}
+	}
+	if _, w = s.Hello(t, l.Token, id); w.GetMapId() != "town" {
+		t.Fatalf("back past the grace on %q, want the town they queued in", w.GetMapId())
 	}
 }
 

@@ -98,6 +98,7 @@ type MatchFighter struct {
 	Name  string
 	Class kernel.Class
 	Bot   bool
+	Away  bool // their connection dropped, and their place is held for them (pvp.md section 4)
 }
 
 func (MatchState) event() {}

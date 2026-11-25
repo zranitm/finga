@@ -373,6 +373,8 @@ describe('generated gamedata', () => {
             ? { mob: a.boss.mob, x: a.boss.at[0], z: a.boss.at[1], radius: a.boss.radius }
             : null,
         })),
+        points: [],
+        bases: [],
       });
     }
     expect(maps.find((m) => m.id === 'test_region')!.areas.map((a) => [a.id, a.levels])).toEqual([

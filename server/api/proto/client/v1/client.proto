@@ -1304,6 +1304,8 @@ message MatchFighter {
   string name = 2;
   string class = 3;
   bool bot = 4;
+  // Their connection dropped, and their place is held for them for the mode's reconnect.
+  bool away = 5;
 }
 
 // CapturePoint is a 15v15 point as the world has it now; the client moves its ring between updates at the rate data/pvp.yaml gives.

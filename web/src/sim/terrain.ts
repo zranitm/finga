@@ -6,7 +6,7 @@ export interface Terrain {
   readonly nx: number; // samples along x
   readonly nz: number; // samples along z
   readonly heights: readonly number[] | Float32Array; // row by row from z = 0, each row from x = 0
-  readonly deepWater?: Uint8Array; // per sample, as heights, 1 under water too deep to wade; none on a map without water
+  readonly barrier?: Uint8Array; // per sample, as heights, 1 for water too deep to wade or a cave's rock; none on a map with neither
   readonly steepX: Uint8Array; // per cell, 1 where a rise across either of its x edges exceeds max_slope × cell
   readonly steepZ: Uint8Array; // likewise across its z edges
 }
@@ -78,9 +78,9 @@ export function top(t: Terrain, x: number, z: number): number {
   return Math.max(t.heights[i]!, t.heights[i + 1]!, t.heights[i + t.nx]!, t.heights[i + t.nx + 1]!);
 }
 
-/** Whether any sample of the cell holding (x, z) is under deep water, which no body moves into. */
-export function deep(t: Terrain, x: number, z: number): boolean {
-  const w = t.deepWater;
+/** Whether any sample of the cell holding (x, z) is a barrier, which no body moves into from outside it. */
+export function barred(t: Terrain, x: number, z: number): boolean {
+  const w = t.barrier;
   if (!w) {
     return false;
   }

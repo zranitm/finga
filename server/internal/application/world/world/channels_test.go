@@ -12,6 +12,7 @@ import (
 
 	"finga/internal/application/world/worldtest"
 	model "finga/internal/model/world"
+	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/sim"
 	"finga/pkg/transient"
@@ -90,8 +91,14 @@ func (*parties) Epoch() uint64             { return 0 }
 // channelWorld runs a World with o in the bubble until the test ends.
 func channelWorld(t *testing.T, o worldtest.Options) *testWorld {
 	t.Helper()
+	return channelWorldOn(t, worldtest.LoadData(t), o)
+}
+
+// channelWorldOn is channelWorld on data.
+func channelWorldOn(t *testing.T, data *gamedata.Data, o worldtest.Options) *testWorld {
+	t.Helper()
 	o.CheckpointInterval = time.Hour
-	w := newWorld(t, &fakeSaver{}, o)
+	w := newWorldOn(t, data, &fakeSaver{}, o)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { defer close(done); _ = w.Run(ctx) }()

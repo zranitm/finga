@@ -3,9 +3,11 @@ import { act, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { maps } from '@/gamedata/maps';
-import { FieldBossGoneSchema } from '@/protocol/messages';
+import { FieldBossGoneSchema, MatchPhase, MatchStateSchema, WelcomeSchema } from '@/protocol/messages';
+import { character } from '@/state/character';
 import { fieldBoss } from '@/state/field-boss';
 import { mapView, NO_GROUND } from '@/state/map-view';
+import { pvp } from '@/state/pvp';
 import { settings } from '@/state/settings';
 import { resetStores } from '@/testing/reset-stores';
 
@@ -177,5 +179,61 @@ describe('Minimap', () => {
     at(30, 10);
     act(() => settings.getState().setShowMinimap(false));
     expect(screen.queryByRole('img', { name: 'Minimap' })).not.toBeInTheDocument();
+  });
+
+  it('on a battle’s map marks the bases and points, the player’s side’s in the ally green, the other’s in the enemy red, no one’s grey, a contested edge dashed; all grey with no match', () => {
+    act(() => {
+      character
+        .getState()
+        .applyWelcome(create(WelcomeSchema, { character: { id: 'c-ayla', name: 'Ayla' } }));
+      mapView.getState().showMap('battlefield', [140, 90], NO_GROUND, []);
+    });
+    render(<Minimap />);
+    at(110, 45);
+    const svg = screen.getByRole('img', { name: 'Minimap' });
+    const looks = () => [
+      ...[...svg.querySelectorAll('.map-base')].map((c) => [
+        c.getAttribute('cx'),
+        c.getAttribute('r'),
+        c.getAttribute('fill'),
+      ]),
+      ...[...svg.querySelectorAll('.map-point')].map((c) => [
+        c.getAttribute('data-point'),
+        c.getAttribute('fill'),
+        c.hasAttribute('stroke-dasharray'),
+      ]),
+    ];
+    expect(looks()).toEqual([
+      ['13', '9', '#b8b8b8'],
+      ['127', '9', '#b8b8b8'],
+      ['west', '#b8b8b8', false],
+      ['middle', '#b8b8b8', false],
+      ['east', '#b8b8b8', false],
+    ]);
+    const east = svg.querySelector('.map-point[data-point="east"]')!;
+    expect(['cx', 'cy', 'r'].map((a) => east.getAttribute(a))).toEqual(['102', '45', '5']); // y 90 − 45
+    act(() =>
+      pvp.getState().applyMatchState(
+        create(MatchStateSchema, {
+          match: 'mt-1',
+          mode: 'battle',
+          phase: MatchPhase.FIGHT,
+          points: [
+            { id: 'west', holder: 1 },
+            { id: 'middle', holder: 0, contested: true },
+            { id: 'east', holder: 2 },
+          ],
+          sides: [{ fighters: [{ id: 'c-ash' }] }, { fighters: [{ id: 'c-ayla' }] }],
+        }),
+        0,
+      ),
+    );
+    expect(looks()).toEqual([
+      ['13', '9', '#e04848'],
+      ['127', '9', '#5fd35f'], // Ayla is on side 2
+      ['west', '#e04848', false],
+      ['middle', '#b8b8b8', true],
+      ['east', '#5fd35f', false],
+    ]);
   });
 });

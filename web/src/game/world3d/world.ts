@@ -55,7 +55,7 @@ import { nearby } from '@/state/nearby';
 import { isMember, party } from '@/state/party';
 import type { PartyState } from '@/state/party';
 import { picksInReach, pouches } from '@/state/pouches';
-import { countdownTicks, pvp, walled } from '@/state/pvp';
+import { countdownTicks, pvp, sideOf, walled } from '@/state/pvp';
 import { questPlayer, quests } from '@/state/quests';
 import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
@@ -100,10 +100,11 @@ import { moveStart, wayFor } from '../systems/skill-way';
 import { relationOf } from '../systems/teams';
 
 import { Bars } from './bars';
+import { BattleMarks } from './battle-marks';
 import { beatsOf } from './beats';
 import type { Beats } from './beats';
 import type { Figure, Gait, Lighting, Pose } from './body';
-import { STILL, sunShadows } from './body';
+import { regionShadows, STILL, sunShadows } from './body';
 import type { ChunkSource } from './chunk-build';
 import { Combat, playerBody } from './combat';
 import { cutMobs } from './cut-mobs';
@@ -194,6 +195,8 @@ const ZOOM_STEP = 0.125; // a zoom key's press, or a wheel's notch, of the way f
 const WHEEL_PX = 800; // a wheel's pixels from close to far, so a notch of 100 px is a step
 const CAST_M = 25; // another player casts a shadow within this of the camera's target; past it the shadow map spares their draws
 const CAST_EDGE_M = 1; // starting at CAST_M less this, stopping at CAST_M more
+const NAMED = 40; // other players named over their heads, the nearest the camera's target, besides the party and the lock (large-regions.md section 10)
+const HURT_BAR_MS = 5000; // a mob's HP bar shows this long after it last lost HP, and while it's locked
 const FAR_PLANE_M = 1500; // the camera sees no farther (large-regions.md section 9)
 
 /** A figure drawn for one of the map's bodies, made in the background; its turn eases toward its facing. */
@@ -401,7 +404,9 @@ export class World {
   private ring: LockRing | null = null;
   private bubbles: ShieldBubbles | null = null;
   private prepWall: PrepWall | null = null;
+  private battleMarks: BattleMarks | null = null;
   private walledUp = false; // a match's prep wall stands, and attacks and skills wait for the round
+  private keptSide = 0; // in a battle past its prep, the player's side, whose geometry has the other side's base standing; 0 elsewhere
   private remoteLooks: ReadonlyMap<string, RemoteLook> = new Map(); // as drawn this frame
   private lockedAt: MapSpot | null = null; // the lock as drawn, for the map views
   private lockedId: string | null = null; // and its ref, which the place opens round
@@ -484,6 +489,7 @@ export class World {
   private readonly deadRemotes = new Set<string>();
   private bossSent: MobWire | null = null; // the field boss as the frames last sent it for its bar, wherever it stands; never drawn from
   private mobs = new MobTracker(this.timing.tickMs);
+  private readonly mobHurt = new Map<number, { hp: number; at: number }>(); // each mob's HP as last drawn, and when it last fell
   private readonly mobViews = new Map<number, Drawn>();
   private readonly mobTypes = new Map<number, string>();
   private readonly dying: {
@@ -525,16 +531,30 @@ export class World {
     return this.resets0 + (this.predictor?.resets ?? 0);
   }
 
-  /** A match's prep wall up through prep and the count into a round, as the match's state says: drawn, and walked against from the next step. */
-  private raiseWall(predictor: Predictor): void {
-    const wall = this.map?.prepWall;
-    const up = !!wall && walled(pvp.getState().match?.phase);
-    if (!wall || up === this.walledUp) {
+  /** What the player walks, as the world has them walk it and as the match's state says, from the next step: a match's prep wall, drawn, through prep and the count into a round (pvp.md section 3); in a battle after, their side's geometry, the other side's base standing (section 7); else the map's. */
+  private setGround(predictor: Predictor): void {
+    const map = this.map;
+    if (!map) {
       return;
     }
+    const match = pvp.getState().match;
+    const up = !!map.prepWall && walled(match?.phase);
+    const side = !up && map.battle ? sideOf(match, this.deps.player.characterId) : 0;
+    if (up === this.walledUp && side === this.keptSide) {
+      return;
+    }
+    if (up !== this.walledUp) {
+      this.prepWall?.show(up);
+    }
     this.walledUp = up;
-    this.prepWall?.show(up);
-    predictor.setGeometry(up ? wall.walled : this.map!.geometry);
+    this.keptSide = side;
+    if (up) {
+      predictor.setGeometry(map.prepWall.walled);
+    } else {
+      predictor.setGeometry(
+        map.battle && side ? map.battle.kept[side === 1 ? 0 : 1] : map.geometry,
+      );
+    }
   }
 
   /** One frame of dtMs: the player stepped and sent at the world's tick, every body drawn, the camera eased after the player, then rendered. */
@@ -548,7 +568,13 @@ export class World {
     const dt = Math.min(dtMs, MAX_FRAME_MS);
     const now = this.deps.now();
     this.setStalled(this.feed.stalled(now));
-    this.raiseWall(predictor);
+    this.setGround(predictor);
+    const match = pvp.getState().match;
+    this.battleMarks?.show(
+      match?.points ?? [],
+      sideOf(match, this.deps.player.characterId),
+      this.keptSide,
+    );
     predictor.holdFor(countdownTicks(pvp.getState().match, this.timing.tickMs)); // known from prep's or the gap's end, before the count's first Delta
     if (this.placed) {
       const held = this.holdForGround(predictor.state, now);
@@ -654,7 +680,10 @@ export class World {
     let fx: Fx;
     try {
       const sun = new DirectionalLight('sun', SUN.normalizeToNew(), scene);
-      lighting = { palette: new Palette(scene), shadows: sunShadows(sun, SHADOW_MAP) };
+      lighting = {
+        palette: new Palette(scene),
+        shadows: (map.region ? regionShadows : sunShadows)(sun, SHADOW_MAP),
+      };
       const models = new Models(scene, this.deps.models);
       figures = new Figures(scene, lighting, models);
       pouchMarks = new PouchMarks(scene, models, lighting);
@@ -671,10 +700,12 @@ export class World {
       throw err;
     }
     if (visit !== this.visit) {
+      place.dispose();
       scene.dispose();
       return;
     }
     if (arriving.mapId !== id) {
+      place.dispose();
       scene.dispose();
       return this.build(arriving, visit);
     }
@@ -691,6 +722,9 @@ export class World {
     this.ring = new LockRing(scene, map, lighting.palette);
     this.bubbles = new ShieldBubbles(scene);
     this.prepWall = map.prepWall && new PrepWall(scene, map.prepWall.boxes, map.geometry.terrain);
+    this.battleMarks =
+      map.battle &&
+      new BattleMarks(scene, map, map.battle.points, map.battle.bases, lighting.palette);
     fx.warm(); // every look's shaders built before a fight needs them
     mapView
       .getState()
@@ -1138,6 +1172,8 @@ export class World {
       return;
     }
     const { shown, looks, gone } = remotes.render(renderTime);
+    const named = nearest(shown, this.follow, NAMED);
+    const members = party.getState().party;
     this.remoteLooks = looks;
     let changed = gone.length > 0;
     for (const id of gone) {
@@ -1178,7 +1214,10 @@ export class World {
       v.show(edge !== 'hidden');
       v.fade(edge === 'faded' || (looks.get(id)?.dodging ?? false));
       v.castAt(Math.hypot(s.x - this.follow.x, s.z - this.follow.z));
-      if (edge === 'hidden') {
+      if (
+        edge === 'hidden' ||
+        !(named.has(id) || isMember(members, id) || this.lockedId === `p:${id}`)
+      ) {
         this.labels.delete(`p:${id}`);
         continue;
       }
@@ -1268,7 +1307,15 @@ export class World {
       const edge = this.edgeOf(mark.id, s.x);
       mark.inView = edge !== 'hidden' && this.overlay.within(s.x, middle, s.z, LOCK_INSET);
       mark.inFrame = edge !== 'hidden' && this.overlay.within(s.x, middle, s.z, 0);
-      if (m && !m.boss && s.hp > 0 && edge !== 'hidden') {
+      const hurt = this.mobHurt.get(id);
+      if (!hurt) {
+        this.mobHurt.set(id, { hp: s.hp, at: -Infinity });
+      } else if (s.hp !== hurt.hp) {
+        hurt.at = s.hp < hurt.hp ? now : hurt.at;
+        hurt.hp = s.hp;
+      }
+      const barred = now - (hurt?.at ?? -Infinity) < HURT_BAR_MS || this.lockedId === mark.id;
+      if (m && !m.boss && s.hp > 0 && edge !== 'hidden' && barred) {
         this.bars.set(id, s.x, s.y + m.height, s.z, s.hp, s.maxHp, m.elite);
       } else {
         this.bars.delete(id); // a boss's is the bar at the top; a killed one's is gone
@@ -1299,6 +1346,7 @@ export class World {
     this.mobViews.delete(id);
     this.mobTypes.delete(id);
     this.bars.delete(id);
+    this.mobHurt.delete(id);
     return v;
   }
 
@@ -1380,12 +1428,8 @@ export class World {
     camera.setTarget(look);
     if (this.place) {
       this.place.follow(look.x, look.z);
-      fade(
-        camera.position,
-        this.head.set(at.x, at.y + movement.height, at.z),
-        this.place.looks,
-        dtMs,
-      );
+      const head = this.head.set(at.x, at.y + movement.height, at.z);
+      fade(camera.position, head, this.place.looks.around(camera.position, head), dtMs);
     }
     const opened = cutMobs(
       at.x,
@@ -2460,6 +2504,7 @@ export class World {
     this.mobViews.clear();
     this.mobTypes.clear();
     this.bars.clear();
+    this.mobHurt.clear();
     this.marks.length = 0;
     for (const d of this.dying) {
       d.view.dispose();
@@ -2514,7 +2559,10 @@ export class World {
     this.bubbles = null;
     this.prepWall?.dispose();
     this.prepWall = null;
+    this.battleMarks?.dispose();
+    this.battleMarks = null;
     this.walledUp = false;
+    this.keptSide = 0;
     this.remoteLooks = new Map();
     target.getState().show(null);
     mapView.getState().clear();
@@ -2533,6 +2581,7 @@ export class World {
       connection.getState().setGroundLoading(false);
     }
     this.camera = null;
+    this.place?.dispose(); // a region's chunk work and stones' listener outlive the scene
     this.place = null;
     this.figures = null;
     this.pouchMarks = null;
@@ -2541,4 +2590,22 @@ export class World {
     this.scene?.dispose();
     this.scene = null;
   }
+}
+
+/** The ids of the n players in shown nearest at. */
+function nearest(
+  shown: ReadonlyMap<string, { readonly x: number; readonly z: number }>,
+  at: { readonly x: number; readonly z: number },
+  n: number,
+): Set<string> {
+  if (shown.size <= n) {
+    return new Set(shown.keys());
+  }
+  return new Set(
+    [...shown]
+      .map(([id, s]) => [id, Math.hypot(s.x - at.x, s.z - at.z)] as const)
+      .sort((a, b) => a[1] - b[1])
+      .slice(0, n)
+      .map(([id]) => id),
+  );
 }

@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -42,19 +44,27 @@ func main() {
 	prefix := flag.String("prefix", "bot", "account name prefix (letters and digits)")
 	metrics := flag.String("metrics", "http://localhost:9100", "the game's ops address, where the tick, grant batch and transaction metrics are")
 	dataDir := flag.String("data", "data", "the game data, for the classes' auto-assign splits")
+	region := flag.String("region", "", "a region the bots start in and only hunt in, for a soak; empty for the whole game")
+	hashes := flag.Int("hashes", gatewayHashes, "sign-ups and logins at once: the gateway's account.password.concurrent, past which a hash waits a second, then is refused")
 	flag.Parse()
-	if err := run(*url, *metrics, *dataDir, *n, *duration, *prefix); err != nil {
+	if err := run(*url, *metrics, *dataDir, *region, *n, *hashes, *duration, *prefix); err != nil {
 		fmt.Fprintln(os.Stderr, "bot:", err)
 		os.Exit(1)
 	}
 }
 
-func run(url, metrics, dataDir string, n int, duration time.Duration, prefix string) error {
+// gatewayHashes is config/config.yaml's account.password.concurrent, the password hashes the gateway runs at once.
+const gatewayHashes = 4
+
+func run(url, metrics, dataDir, region string, n, hashes int, duration time.Duration, prefix string) error {
 	data, err := load.Dir(dataDir)
 	if err != nil {
 		return err
 	}
-	w := newWorld(data)
+	w, err := newWorld(data, region)
+	if err != nil {
+		return err
+	}
 	start := time.Now()
 	stamp := start.Format("150405")
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
@@ -67,6 +77,7 @@ func run(url, metrics, dataDir string, n int, duration time.Duration, prefix str
 		}
 	}
 	bots := make([]*bot, 0, n)
+	hashing := make(chan struct{}, max(hashes, 1))
 	var wg sync.WaitGroup
 	for k := range n {
 		short := prefix
@@ -74,21 +85,39 @@ func run(url, metrics, dataDir string, n int, duration time.Duration, prefix str
 			short = short[:3]
 		}
 		b := newBot(url, fmt.Sprintf("%s%s%d", prefix, stamp, k), strings.ToUpper(short[:1])+short[1:]+stamp+strconv.Itoa(k), k)
-		b.future, b.data, b.world, b.start = future[k%len(future)], data, w, start
+		b.future, b.data, b.world, b.start, b.hashing = future[k%len(future)], data, w, start, hashing
 		bots = append(bots, b)
 		wg.Go(func() { b.play(ctx, bots) })
 	}
 	wg.Wait()
-	fmt.Printf("proof session: %d bots for %s against %s\n\n", n, time.Since(start).Round(time.Second), url)
+	session := time.Since(start)
+	played := 0
+	for _, b := range bots {
+		if b.snapshot().entries > 0 {
+			played++
+		}
+	}
+	fmt.Printf("proof session: %d of %d bots played, for %s against %s\n\n", played, n, session.Round(time.Second), url)
 	var total stats
+	var average, busiest []float64 // of the bots that played
 	for _, b := range bots {
 		s := b.snapshot()
 		total.add(s)
-		fmt.Printf("%-14s kills %3d  items taken %3d  deaths %2d  hops %3d  chat %3d  spends %2d  skills %4d  quests taken %2d  handed in %2d  messages %7d  refused %3d  reconnects %d  login failures %d  stalls %d\n",
-			b.name, s.kills, s.items, s.deaths, s.hops, s.chats, s.spends, s.skills, s.accepted, s.handedIn, s.messages, s.refused, s.reconnects, s.loginFailures, s.stalls)
+		if s.entries == 0 {
+			fmt.Printf("%-14s never played: it didn't sign up or get in\n", b.name)
+			continue
+		}
+		sent, peak := b.down.read()
+		average, busiest = append(average, float64(sent)/1000/session.Seconds()), append(busiest, float64(peak)/1000)
+		fmt.Printf("%-14s kills %3d  items taken %3d  deaths %2d  hops %3d  chat %3d  spends %2d  skills %4d  quests taken %2d  handed in %2d  messages %7d  refused %3d  busy %d  reconnects %d  login failures %d  stalls %d  down %.1f kB/s, busiest second %.1f\n",
+			b.name, s.kills, s.items, s.deaths, s.hops, s.chats, s.spends, s.skills, s.accepted, s.handedIn, s.messages, s.refused, s.busy, s.reconnects, s.loginFailures, s.stalls, average[len(average)-1], busiest[len(busiest)-1])
 	}
-	fmt.Printf("%-14s kills %3d  items taken %3d  deaths %2d  hops %3d  chat %3d  spends %2d  skills %4d  quests taken %2d  handed in %2d  messages %7d  refused %3d  reconnects %d  login failures %d  stalls %d\n\n",
-		"total", total.kills, total.items, total.deaths, total.hops, total.chats, total.spends, total.skills, total.accepted, total.handedIn, total.messages, total.refused, total.reconnects, total.loginFailures, total.stalls)
+	fmt.Printf("%-14s kills %3d  items taken %3d  deaths %2d  hops %3d  chat %3d  spends %2d  skills %4d  quests taken %2d  handed in %2d  messages %7d  refused %3d  busy %d  reconnects %d  login failures %d  stalls %d\n",
+		"total", total.kills, total.items, total.deaths, total.hops, total.chats, total.spends, total.skills, total.accepted, total.handedIn, total.messages, total.refused, total.busy, total.reconnects, total.loginFailures, total.stalls)
+	if len(average) > 0 {
+		slices.Sort(average)
+		fmt.Printf("downstream per bot: %.1f kB/s at the median, its busiest second %.1f kB/s at most, against the budget's 40\n\n", average[len(average)/2], slices.Max(busiest))
+	}
 	promoted := 0
 	for _, b := range bots {
 		s := b.snapshot()
@@ -104,7 +133,7 @@ func run(url, metrics, dataDir string, n int, duration time.Duration, prefix str
 }
 
 type stats struct {
-	messages, kills, items, deaths, hops, chats, spends, skills, accepted, handedIn, refused, reconnects, loginFailures, promotes, stalls int
+	messages, kills, items, deaths, hops, chats, spends, skills, accepted, handedIn, refused, busy, reconnects, loginFailures, promotes, stalls, entries int
 	// where the bot stands at the end, and when it promoted; 0 if it didn't
 	class      string
 	level      int
@@ -123,10 +152,12 @@ func (s *stats) add(o stats) {
 	s.accepted += o.accepted
 	s.handedIn += o.handedIn
 	s.refused += o.refused
+	s.busy += o.busy
 	s.reconnects += o.reconnects
 	s.loginFailures += o.loginFailures
 	s.promotes += o.promotes
 	s.stalls += o.stalls
+	s.entries += o.entries
 }
 
 type bot struct {
@@ -137,7 +168,8 @@ type bot struct {
 	future   gamedata.Class // the class it works toward, whose split it spends by
 	data     *gamedata.Data
 	world    *world
-	start    time.Time // the session's
+	start    time.Time     // the session's
+	hashing  chan struct{} // a slot for each password hash the gateway runs at once, which every bot shares
 	codec    *wsconn.ProtoCodec
 	rng      *rand.Rand
 
@@ -192,6 +224,38 @@ type bot struct {
 	portalAt    time.Time
 	frameTick   uint64               // its map's newest frame, the view each input names
 	bossBack    map[string]time.Time // when each map's beaten boss is back, as the bot heard on that map; a map's boss is up otherwise
+	found       map[string]bool      // the waypoints it has found, by id
+	teleportAt  time.Time            // when it started the teleport under way; zero with none
+	// when it may teleport again, after one refused or cancelled
+	teleportAfter time.Time
+	down          meter // what it is sent
+}
+
+// meter counts the bytes a bot is sent, and its busiest whole second's.
+type meter struct {
+	mu     sync.Mutex
+	total  int
+	second time.Time // the second being counted
+	now    int       // its bytes so far
+	peak   int
+}
+
+func (m *meter) add(n int, at time.Time) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.total += n
+	if s := at.Truncate(time.Second); !s.Equal(m.second) {
+		m.peak = max(m.peak, m.now)
+		m.second, m.now = s, 0
+	}
+	m.now += n
+}
+
+// read is the bytes sent all told, and in the busiest second that has ended.
+func (m *meter) read() (total, peak int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.total, m.peak
 }
 
 // kills finds a bot's kills. A blow that empties a mob's HP removes it, so no later blow lands on it: the last landed blow on a mob removed in a tick is its kill, known once the next tick starts.
@@ -285,6 +349,7 @@ func (b *bot) play(ctx context.Context, all []*bot) {
 		if err := b.enter(ctx, token); err != nil {
 			fmt.Fprintf(os.Stderr, "%s: enter: %v\n", b.name, err)
 		} else {
+			b.count(func(s *stats) { s.entries++ })
 			b.loop(ctx, all)
 			b.hangUp(ctx.Err() != nil)
 		}
@@ -292,16 +357,29 @@ func (b *bot) play(ctx context.Context, all []*bot) {
 	}
 }
 
+// signUp makes the bot's account, logs in and makes its character, each call tried again after a busy refusal, so a crowd of bots all get in.
 func (b *bot) signUp(ctx context.Context) (string, error) {
-	if _, err := b.rest(ctx, "POST", "/api/accounts", "", map[string]string{"username": b.name, "password": "correct horse"}); err != nil {
-		return "", err
-	}
-	token, err := b.login(ctx)
+	err := b.retried(ctx, func() error {
+		return b.hashed(ctx, func() error {
+			_, err := b.rest(ctx, "POST", "/api/accounts", "", map[string]string{"username": b.name, "password": "correct horse"})
+			return err
+		})
+	})
 	if err != nil {
 		return "", err
 	}
-	created, err := b.rest(ctx, "POST", "/api/characters", token, map[string]string{"name": b.charName})
-	if err != nil {
+	var token string
+	if err := b.retried(ctx, func() (err error) {
+		token, err = b.login(ctx)
+		return err
+	}); err != nil {
+		return "", err
+	}
+	var created map[string]any
+	if err := b.retried(ctx, func() (err error) {
+		created, err = b.rest(ctx, "POST", "/api/characters", token, map[string]string{"name": b.charName})
+		return err
+	}); err != nil {
 		return "", err
 	}
 	b.id, _ = created["id"].(string)
@@ -309,12 +387,65 @@ func (b *bot) signUp(ctx context.Context) (string, error) {
 }
 
 func (b *bot) login(ctx context.Context) (string, error) {
-	res, err := b.rest(ctx, "POST", "/api/sessions", "", map[string]string{"username": b.name, "password": "correct horse"})
+	var res map[string]any
+	err := b.hashed(ctx, func() (err error) {
+		res, err = b.rest(ctx, "POST", "/api/sessions", "", map[string]string{"username": b.name, "password": "correct horse"})
+		return err
+	})
 	if err != nil {
 		return "", err
 	}
 	token, _ := res["token"].(string)
 	return token, nil
+}
+
+// hashed runs call, which hashes a password at the gateway, once one of the bots' shared slots is free, so they never ask for more hashes at once than the gateway runs.
+func (b *bot) hashed(ctx context.Context, call func() error) error {
+	select {
+	case b.hashing <- struct{}{}:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	defer func() { <-b.hashing }()
+	return call()
+}
+
+// The wait before trying a busy call again: doubling from backoffFirst to backoffMost, each jittered by ±50%.
+const (
+	backoffFirst = 500 * time.Millisecond
+	backoffMost  = 16 * time.Second
+)
+
+// retried runs call until it isn't refused as busy, waiting longer each time, or until ctx ends.
+func (b *bot) retried(ctx context.Context, call func() error) error {
+	wait := backoffFirst
+	for {
+		err := call()
+		if !busy(err) {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(time.Duration(float64(wait) * (0.5 + b.rng.Float64()))):
+		}
+		wait = min(2*wait, backoffMost)
+	}
+}
+
+// refused is a REST call the gateway answered with an error status.
+type refused struct {
+	call   string
+	status int
+	body   []byte
+}
+
+func (e *refused) Error() string { return fmt.Sprintf("%s: %d %s", e.call, e.status, e.body) }
+
+// busy is whether err is a refusal worth trying again: 429 rate_limited, as a hash finding every slot taken answers, or a login past its rate, or 503.
+func busy(err error) bool {
+	var r *refused
+	return errors.As(err, &r) && (r.status == http.StatusTooManyRequests || r.status == http.StatusServiceUnavailable)
 }
 
 func (b *bot) rest(ctx context.Context, method, path, token string, body any) (map[string]any, error) {
@@ -343,7 +474,7 @@ func (b *bot) rest(ctx context.Context, method, path, token string, body any) (m
 		_ = json.Unmarshal(raw, &out)
 	}
 	if res.StatusCode >= 300 {
-		return out, fmt.Errorf("%s %s: %d %s", method, path, res.StatusCode, raw)
+		return out, &refused{call: method + " " + path, status: res.StatusCode, body: raw}
 	}
 	return out, nil
 }
@@ -365,6 +496,7 @@ func (b *bot) enter(ctx context.Context, token string) (err error) {
 			if err != nil {
 				return
 			}
+			b.down.add(len(data), time.Now())
 			m, err := b.codec.Decode(data)
 			if err != nil {
 				continue
@@ -458,19 +590,23 @@ func (b *bot) command(d proto.Message) {
 // request sends with a request ID, which the Response carries back; an attack, a skill or a portal goes after its tick's Input and names it, as the client's do, and the rest name none.
 func (b *bot) request(reqID string, d proto.Message) {
 	switch d.(type) {
-	case *clientv1.Attack, *clientv1.UseSkill, *clientv1.EnterPortal:
+	case *clientv1.Attack, *clientv1.UseSkill, *clientv1.EnterPortal, *clientv1.Teleport:
 		b.actions = append(b.actions, wsconn.Message{ReqID: reqID, Data: d})
 		return
 	}
 	_ = b.send(wsconn.Message{ReqID: reqID, Data: d})
 }
 
-// The request IDs of a Promote, a UseSkill and a TakeLoot, their type names as command gives the rest.
+// The request IDs of a Promote, a UseSkill, a TakeLoot and a Teleport, their type names as command gives the rest.
 const (
-	promoteReq = "Promote"
-	skillReq   = "UseSkill"
-	takeReq    = "TakeLoot"
+	promoteReq  = "Promote"
+	skillReq    = "UseSkill"
+	takeReq     = "TakeLoot"
+	teleportReq = "Teleport"
 )
+
+// busyCode is the gateway's UNAVAILABLE, as testdata/errors/codes.json lists it, which a map whose inbox is full answers with: the soak checks none comes (large-regions.md section 5).
+const busyCode int32 = 100011
 
 // skillBackoff is how long a bot leaves its skill after the world refuses a use.
 const skillBackoff = 5 * time.Second
@@ -547,7 +683,7 @@ func (b *bot) useSkill(aim float32) bool {
 
 // plan is what the bot knows of itself, for its next goal.
 func (b *bot) plan() plan {
-	return plan{class: b.class, level: b.level, own: b.own, invested: b.invested, quests: b.quests, holding: b.holding}
+	return plan{pick: b.index, class: b.class, level: b.level, own: b.own, invested: b.invested, quests: b.quests, holding: b.holding}
 }
 
 func (b *bot) killed(n int) {
@@ -573,6 +709,10 @@ func (b *bot) observe(m wsconn.Message) {
 		b.quests = map[string]*clientv1.QuestState{}
 		for _, q := range d.GetQuests() {
 			b.quests[q.GetQuestId()] = q
+		}
+		b.found = map[string]bool{}
+		for _, id := range d.GetWaypoints() {
+			b.found[id] = true
 		}
 		b.know(d.GetCharacter())
 		b.energy = int(d.GetCharacter().GetEnergy())
@@ -637,7 +777,15 @@ func (b *bot) observe(m wsconn.Message) {
 	case *clientv1.FieldBossGone:
 		b.bossBackIn(b.mapID, time.Duration(d.GetBackInMs())*time.Millisecond)
 		b.boss = 0
+	case *clientv1.WaypointFound:
+		if b.found == nil {
+			b.found = map[string]bool{}
+		}
+		b.found[d.GetWaypoint()] = true
+	case *clientv1.TeleportCancelled:
+		b.teleportEnded(true)
 	case *clientv1.MapChange:
+		b.teleportEnded(false)
 		b.frameTick = 0 // another map's ticks, from its Snapshot on
 		b.mapID, b.x, b.y, b.z = d.GetMapId(), d.GetX(), d.GetY(), d.GetZ()
 		b.onMap.Store(new(d.GetMapId()))
@@ -682,7 +830,15 @@ func (b *bot) observe(m wsconn.Message) {
 			}
 		}
 		if !d.GetOk() {
-			b.count(func(s *stats) { s.refused++ })
+			b.count(func(s *stats) {
+				s.refused++
+				if d.GetCode() == busyCode {
+					s.busy++
+				}
+			})
+			if m.ReqID == teleportReq {
+				b.teleportEnded(true)
+			}
 			fmt.Fprintf(os.Stderr, "%s: %s refused with %d\n", b.name, m.ReqID, d.GetCode())
 			if m.ReqID == skillReq {
 				b.skillReady = time.Now().Add(skillBackoff)
@@ -858,6 +1014,9 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 			b.input(&clientv1.Input{})
 			return
 		}
+		if b.channelling() || b.enterRegion() {
+			return
+		}
 		if m := b.inTheWay(); m != nil { // a mob in its way is fought, the way held into it, until it dies
 			b.stuck = steer.Stall{}
 			strike(m)
@@ -874,7 +1033,7 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 			}
 			nextInvite = time.Now().Add(15 * time.Second)
 		}
-		if b.mapID == town && b.visitNPCs() {
+		if b.world.region == nil && b.mapID == town && b.visitNPCs() {
 			return
 		}
 		g := b.goal()
@@ -892,7 +1051,7 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 		case talkGoal:
 			b.talkTo(g.npc)
 		case huntGoal:
-			if b.loot() {
+			if b.loot() || b.tripTo(g.spot) {
 				return
 			}
 			// The world plays a skill and an attack one a turn, so a skill puts the next attack off a cooldown.
@@ -941,12 +1100,12 @@ func (b *bot) townEvery() time.Duration { return time.Duration(8+b.index) * time
 
 // goal is a trip to the start town when one is due before promotion, else what the bot's plan says.
 func (b *bot) goal() goal {
-	if !b.promoted() && b.level < b.future.Promotion.Level && time.Now().After(b.townDue) {
+	if b.world.region == nil && !b.promoted() && b.level < b.future.Promotion.Level && time.Now().After(b.townDue) {
 		return goal{kind: tourGoal, why: "a visit to the town"}
 	}
 	g := b.world.next(b.future, b.plan())
 	if g.promote && b.heldAt == b.level {
-		s, _ := b.world.levelSpot(b.level)
+		s, _ := b.world.levelSpot(b.level, b.index)
 		return goal{kind: huntGoal, spot: s, prey: b.world.levelPrey(b.level), why: "for the next level, the trainer having said no"}
 	}
 	return g

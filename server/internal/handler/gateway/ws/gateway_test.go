@@ -567,13 +567,16 @@ func TestCloseLeavesTheMap(t *testing.T) {
 	})
 }
 
-// Deliveries already on their way to a connection that closed are not taken for a ghost's: its close leaves once.
+// Deliveries already on their way to a connection that closed are not taken for a ghost's: its close leaves once, as a drop, which a match holds a while.
 func TestACloseLeavesTheMapOnce(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t)
 		c := h.joined(t)
 		_ = c.c.Close(websocket.StatusNormalClosure, "bye")
 		waitFor(t, "the leave", h.world.leaves, 1)
+		if drops := h.world.dropList(); len(drops) != 1 {
+			t.Fatalf("drops %v, want the close's leave a drop", drops)
+		}
 		for range 3 {
 			h.world.delta(aylaID, 9, 0, world.Part{})
 		}
@@ -1480,7 +1483,7 @@ func TestADetachedConnectionJoinsAgain(t *testing.T) {
 	})
 }
 
-// Deliveries for a connection the gateway does not have mean a stray presence: the gateway takes it off its map, once.
+// Deliveries for a connection the gateway does not have mean a stray presence: the gateway takes it off its map, once, as a drop, since no logout came through it.
 func TestAPresenceWithoutAConnectionIsTakenOffItsMap(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t)
@@ -1492,8 +1495,8 @@ func TestAPresenceWithoutAConnectionIsTakenOffItsMap(t *testing.T) {
 		}
 		time.Sleep(time.Second)
 		left := waitFor(t, "the ghost's leave", h.world.leaves, 1)
-		if p := left[0]; len(left) != 1 || p.Conn != "c-ghost" || p.Character != brunoID {
-			t.Fatalf("leaves %v, want one for the ghost", left)
+		if p := left[0]; len(left) != 1 || p.Conn != "c-ghost" || p.Character != brunoID || len(h.world.dropList()) != 1 {
+			t.Fatalf("leaves %v, drops %v; want one for the ghost, a drop", left, h.world.dropList())
 		}
 	})
 }
@@ -2041,12 +2044,16 @@ func TestTheGatewayFollowsTheAccountServicesSessionEnds(t *testing.T) {
 		ends := h.account.ends
 		<-ends.subscribed // an end sent before the gateway subscribes is lost, as the module's would be
 
-		part(t, "a new login elsewhere kicks as logged_in_elsewhere", func() {
+		part(t, "a new login elsewhere kicks as logged_in_elsewhere, and its leave is a drop, for that login to land on a match's body", func() {
 			c := h.dial(t)
 			c.hello(tokenAlice, aylaID)
 			c.expect("Snapshot")
 			ends.send(account.Revoked{Account: alice, Reason: account.RevokeNewLogin})
 			c.expectKick(clientv1.KickReason_KICK_REASON_LOGGED_IN_ELSEWHERE)
+			waitFor(t, "the leave", h.world.leaves, 1)
+			if drops := h.world.dropList(); len(drops) != 1 {
+				t.Fatalf("drops %v, want the kick's leave a drop", drops)
+			}
 		})
 		part(t, "a session ended by reuse kicks as session_expired", func() {
 			c := h.dial(t)
@@ -2054,8 +2061,12 @@ func TestTheGatewayFollowsTheAccountServicesSessionEnds(t *testing.T) {
 			c.expect("Snapshot")
 			ends.send(account.SessionRevoked{Session: sessBob, Reason: account.RevokeTokenReuse})
 			c.expectKick(clientv1.KickReason_KICK_REASON_SESSION_EXPIRED)
+			waitFor(t, "the leave", h.world.leaves, 2)
+			if drops := h.world.dropList(); len(drops) != 1 {
+				t.Fatalf("drops %v, want the ended session's leave none", drops)
+			}
 		})
-		part(t, "logging out everywhere kicks as session_expired; an account with nobody connected changes nothing", func() {
+		part(t, "logging out everywhere kicks as session_expired, a leave that forfeits a match at once; an account with nobody connected changes nothing", func() {
 			c := h.dial(t)
 			c.hello(tokenAlice, robinID)
 			c.expect("Snapshot")
@@ -2063,6 +2074,10 @@ func TestTheGatewayFollowsTheAccountServicesSessionEnds(t *testing.T) {
 				ends.send(account.Revoked{Account: acc, Reason: account.RevokeLogout})
 			}
 			c.expectKick(clientv1.KickReason_KICK_REASON_SESSION_EXPIRED)
+			waitFor(t, "the leave", h.world.leaves, 3)
+			if drops := h.world.dropList(); len(drops) != 1 {
+				t.Fatalf("drops %v, want the logout's leave none", drops)
+			}
 		})
 		part(t, "after the stream breaks the gateway subscribes again, under its ID", func() {
 			ends.cut(t)

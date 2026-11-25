@@ -42,7 +42,7 @@ describe("a region's ground, built from its chunks", () => {
         for (let ix = 0; ix < c.n; ix++) {
           const s = (c.cz * 32 + iz) * 65 + c.cx * 32 + ix;
           expect(t.heights[s]).toBe(c.heights[(iz + 1) * (c.n + 2) + ix + 1]);
-          expect(t.deepWater![s]).toBe(c.deep[iz * c.n + ix]);
+          expect(t.barrier![s]).toBe(c.barrier[iz * c.n + ix]);
         }
       }
     }
@@ -50,7 +50,7 @@ describe("a region's ground, built from its chunks", () => {
     expect(t.steepX).toEqual(whole.steepX);
     expect(t.steepZ).toEqual(whole.steepZ);
     expect(whole.steepX.some((s) => s === 1)).toBe(true); // the river's banks
-    expect(Array.from(t.deepWater!).filter((d) => d === 1).length).toBeGreaterThan(50);
+    expect(Array.from(t.barrier!).filter((d) => d === 1).length).toBeGreaterThan(50);
   });
 
   it('holds each solid as its chunk records it, at its index', async () => {

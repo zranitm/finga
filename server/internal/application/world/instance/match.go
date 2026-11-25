@@ -65,6 +65,7 @@ type fighter struct {
 	left     bool // logged out, dropped or forfeited before the outcome
 	gone     bool // off the match's map
 	downs    int
+	away     uint64 // the tick a fighter whose connection dropped leaves at, their place held till then; 0 while connected
 }
 
 // The messages a match's players send besides the world's.
@@ -351,7 +352,7 @@ func (i *Instance) matchState() model.MatchState {
 	for s, side := range mt.order {
 		for _, id := range side {
 			f := mt.fighters[id]
-			st.Sides[s] = append(st.Sides[s], model.MatchFighter{ID: id, Name: f.name, Class: f.class, Bot: f.bot != nil})
+			st.Sides[s] = append(st.Sides[s], model.MatchFighter{ID: id, Name: f.name, Class: f.class, Bot: f.bot != nil, Away: f.away != 0})
 		}
 	}
 	return st
@@ -656,6 +657,13 @@ func (i *Instance) resetRound() {
 // closeMatch takes everyone back to where they came from and stops the instance.
 func (i *Instance) closeMatch() {
 	for _, id := range slices.Clone(i.order) {
+		if f := i.match.fighters[id]; f.away != 0 {
+			f.gone = true
+			conn := i.players[id].Connection
+			i.remove(id) // saved where they came from, which their next login lands on
+			i.mover.Dropped(i, id, conn)
+			continue
+		}
 		i.goBack(i.players[id])
 	}
 	i.match.phase = model.PhaseResult

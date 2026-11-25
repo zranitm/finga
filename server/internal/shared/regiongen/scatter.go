@@ -10,7 +10,7 @@ import (
 	"finga/internal/shared/sim"
 )
 
-// colours paints each sample: a road's dirt, a bed's sand, or else its biome's colour for ground too steep to walk (a cell touching it marked steep), above the plan's high mark, sloped past its slope, or flat. It returns the steep samples.
+// colours paints each sample: a road's dirt, a bed's sand, a cave's rock and its walls cave_rock, or else its biome's colour for ground too steep to walk (a cell touching it marked steep), above the plan's high mark, sloped past its slope, or flat. It returns the steep samples.
 func (b *builder) colours(t sim.Terrain) []bool {
 	index := map[string]uint8{}
 	for i, name := range b.r.Palette {
@@ -30,6 +30,8 @@ func (b *builder) colours(t sim.Terrain) []bool {
 				name = roadColour
 			case b.r.Wet[s]:
 				name = bedColour
+			case b.rocky != nil && b.rocky[s]:
+				name = rockColour
 			case steep[s]:
 				name = c.Steep
 			case b.h[s] >= b.p.Colour.High:
@@ -163,7 +165,7 @@ func (b *builder) scatter(steep []bool, placed *solidsNear) {
 				s := b.g.nearest(x, z)
 				ix, iz := s%b.g.nx, s/b.g.nx
 				switch {
-				case b.biomeOf(s) != name || steep[s] || (sc.Slope > 0 && b.slope2(ix, iz) > slope2):
+				case b.biomeOf(s) != name || steep[s] || (sc.Slope > 0 && b.slope2(ix, iz) > slope2) || (b.rocky != nil && b.rocky[s]):
 					continue
 				case x < r || z < r || x > b.p.Size[0]-r || z > b.p.Size[1]-r:
 					continue
@@ -306,13 +308,13 @@ func (n *solidsNear) overlaps(x, z, r float64) bool {
 
 // clearances are, per sample, how far it lies past the edge of the nearest road, water, camp, town and spot (waypoints, NPCs, gates, pieces, the start), 0 on one, up to a band past which none matters.
 type clearances struct {
-	road, water, camp, town, spot []float32
+	road, water, camp, town, spot, torch []float32
 }
 
 // allow is whether a solid reaching r stands at sample s clear of everything by a's distances.
 func (c clearances) allow(s int, a Away, r float64) bool {
 	return float64(c.road[s]) > a.Road+r && float64(c.water[s]) > a.Water+r && float64(c.camp[s]) > a.Camp+r &&
-		float64(c.town[s]) > a.Town+r && float64(c.spot[s]) > a.Waypoint+r
+		float64(c.town[s]) > a.Town+r && float64(c.spot[s]) > a.Waypoint+r && float64(c.torch[s]) > a.Torch+r
 }
 
 func (b *builder) clearances() clearances {
@@ -320,7 +322,7 @@ func (b *builder) clearances() clearances {
 	for _, name := range slices.Sorted(maps.Keys(b.p.Biomes)) {
 		for _, sc := range b.p.Biomes[name].Scatter {
 			a := sc.Away
-			band = max(band, max(a.Road, a.Water, a.Camp, a.Town, a.Waypoint)+b.k.Models[sc.Model].reach()+1)
+			band = max(band, max(a.Road, a.Water, a.Camp, a.Town, a.Waypoint, a.Torch)+b.k.Models[sc.Model].reach()+1)
 		}
 	}
 	far := func() []float32 {
@@ -330,7 +332,7 @@ func (b *builder) clearances() clearances {
 		}
 		return v
 	}
-	c := clearances{road: far(), water: far(), camp: far(), town: far(), spot: far()}
+	c := clearances{road: far(), water: far(), camp: far(), town: far(), spot: far(), torch: far()}
 	keep := func(into []float32, s int, d float64) { into[s] = min(into[s], float32(max(d, 0))) }
 	for _, r := range b.roads {
 		b.f.near(b.g, r.Path, false, float64(r.Width/2)+band)
@@ -379,6 +381,11 @@ func (b *builder) clearances() clearances {
 	}
 	for _, s := range b.p.spots() {
 		circle(c.spot, s.at, s.radius)
+	}
+	for _, pr := range b.r.Props {
+		if b.k.Models[b.r.Models[pr.Model]].Light != nil {
+			circle(c.torch, [2]float64{pr.X, pr.Z}, 0)
+		}
 	}
 	return c
 }

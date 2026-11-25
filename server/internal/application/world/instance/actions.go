@@ -32,22 +32,27 @@ func (a action) nextStart(kind actionKind) uint64 {
 	return a.end
 }
 
-// windUp is an action's hit still to land, in its tick, from where the player stands then.
+// windUp is what an action has still to land, in its tick: its hit, from where the player stands then, or an early skill's start.
 type windUp struct {
 	at   uint64
 	land func()
 }
 
-// begin starts p's action at start, landing its hit at once if it falls there, else when due; a skill up to castSlack early still counts from start.
+// begin starts p's action at start, landing its hit at once if it falls this tick, else when due: a skill up to castSlack early counts from start, its hit too.
 func (i *Instance) begin(p *player, kind actionKind, start, length uint64, t gamedata.Timing, cancelable bool, hit func()) {
 	i.cancelTeleport(p, model.TeleportActed)
 	hitAt, cancelAt := model.ActionPoints(length, t.Hit, t.Cancel)
 	p.action = action{kind: kind, cancelable: cancelable, cancelAt: start + cancelAt, end: start + length}
-	if hitAt == 0 {
-		hit()
+	i.landAt(p, start+hitAt, hit)
+}
+
+// landAt runs land in tick at: now if it has come, else with p's wind-ups, after those put before it.
+func (i *Instance) landAt(p *player, at uint64, land func()) {
+	if at <= i.tick {
+		land()
 		return
 	}
-	p.windUps = append(p.windUps, windUp{at: start + hitAt, land: hit})
+	p.windUps = append(p.windUps, windUp{at: at, land: land})
 }
 
 // landWindUps lands each hit whose tick has come, before this tick's skills and attacks.

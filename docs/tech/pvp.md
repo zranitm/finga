@@ -156,8 +156,15 @@ bots:
     - **The return:** a `Hello` for a character whose place is held goes straight to the match instance, by the presence the world still holds, never through town or `back`. The player gets `Welcome` on the match's map, on the body as it stands, then `MatchState` and a `StatsChanged` with every timer. Nothing resets.
     - **Past the grace,** the drop is a forfeit and the leaver path runs (section 7), the stand-in taking the body as it stands then.
     - **A second drop** in the same match gets a fresh grace: with no bot during it, dropping gains nothing.
-    - **The match ends during the grace:** the held player is handed out to `back` with the rest and rated by the result, as anyone there, never as a leaver. One not yet back misses `MatchEnded`; their rating shows in the Arena profile.
+    - **The match ends during the grace:** the held player is rated by the result, as anyone there, never as a leaver. No connection is there to follow a hand-off, so they're saved at `back`, where their next login lands. They miss `MatchEnded`; their rating shows in the Arena profile.
     - **No bot during the grace:** a stand-in starts with cooldowns ready and no statuses, so a free return would make a drop a reset. A player weaker than the match's bots could also drop to let one fight for them. The price is a team one short for up to 20 s on a long drop.
+    - **As built (step 7a):**
+      - **A drop or a logout:** the gateway tells them apart by how the session ended. A logout or an ended login (`session_expired`) is a `Leave`. Any other close is the world's `Drop`: a closed socket, a login elsewhere, or a presence on a connection the gateway doesn't know.
+      - **`Drop`** asks the match to hold the place. Off a match it's a `Leave`, and so is a drop the match holds no place for: another connection's, a mode with `reconnect: 0`, or the outcome showing.
+      - **The held body** keeps its presence under the dropped connection, and what's sent to it goes nowhere. Its held keys and queued inputs are cleared, so it stands. A hit still to land, a queued attack and a skill waiting its turn are dropped. Keys sent before the drop that come after it are refused.
+      - **The return:** `Join` first offers the account's presence to its match. The match puts the new connection on the body, with its inputs counted again from the new client's first, and retells the party. A join the match doesn't take, as with the outcome showing or the match's map stopped since the join looked, is a plain one. As this return loads no character, only the character's own account's presence is offered.
+      - **A return whose connection closes** before it's on the body answers busy and holds the place again, to the grace's first end: failed returns buy no time.
+      - **The match ending during the grace:** the held player isn't handed off with the rest, as no connection is there to follow. They're saved at `back` and dropped, so their next login lands there.
   - After a server stop or a crash, a match has no result and moves no rating.
   - A match that expected players and saw none by prep's end closes with no outcome. A match of bots alone runs to its end, as its test runs one; the queue never makes one.
 - **Teardown:** after the result phase, the instance hands everyone out and its `Run` returns. Then it's dropped from `w.matches`.
@@ -719,6 +726,26 @@ As built after the 3v3 playtest:
   - Its end comes as a General line, never the result card: "Your 3v3 match ended: Defeat. Rating 1000 → 968 (−32)." The card is for those the match ended with. The leaver may be anywhere by then, even in another match, so the line is drawn from `MatchEnded`'s own `mode` and `left`, not from the match the store holds.
   - A 1v1 forfeit ends the match at once, so its forfeiter still gets the card.
 
+As built for 15v15 (step 6d-1, the client):
+
+- **The map:** `mapjson` writes a battle map's `battle`: each side's base, its points in the map's order, and the cylinder each side's geometry gains, the other side's base standing 1,000 m tall. The client adds that cylinder after the map's own solids, as the server's `Kept` does. `gen-gamedata` gives each battle map's point names, each mode's map, and the battle's goal, length and respawn.
+- **Prediction:** through prep the player walks the map with its prep wall. In the fight and after, they walk their side's geometry, chosen from the match's sides. So a runner into the other base stops at its edge as the world stops them, never corrected.
+- **The match bar in a battle:**
+  - "You 312", the clock, then "290 Them": the scores from the player's side, in place of the pips. The phase reads "Battle".
+  - Under the clock, the three points, each named by its name's first word ("West"), in its holder's colour, grey for no one's. Each has a ring filled as far as the point has turned, in the colour of the side it turns toward, and a wavy underline while contested. Their labels say "West Ruin: yours, contested".
+  - The rings move with each `MatchState`: at each change of holder or contest, and every whole second with the score. They aren't moved between states.
+- **Colours:** the HUD and the 2D map views (the bar, the map window, the minimap) use the bar's pair, `--ally` `#5fd35f` and `--enemy` `#e04848`. Things drawn in the 3D world (the point rings and the base wall of step 6d-2) use the name tags' pair, `#7fe08a` and `#ff6b62`, to match the tags beside them under the world's light.
+- **The Arena card:** "15 against 15: first to 1,000 points, or the most in 12 minutes.", marked Unrated, with the record alone: no rating, rank or placement.
+- **The result:** "Score 312 – 290" from the player's side, in place of the rounds, and no rating.
+- **Down:** "Back in 7 s", counted from when the down showed to the battle's respawn, then "Back in a moment" till the world gets them up.
+- **Frames:** the party frames stay the party, and the enemies get no frames under the bar.
+
+As built for 15v15 (step 6d-2, the points and bases drawn):
+
+- **Map window and minimap:** both draw the bases and the three points as circles, in the bar's pair from the player's side: their base and the points their side holds in ally green, the other's in enemy red, no one's grey. A contested point's edge is dashed. With no match, all are grey. The map window labels each point by its name ("West Ruin"). `gen-gamedata` gives each point's spot and radius, and each base's.
+- **The points in the world:** each has a ring on the ground at its edge, 25 cm wide, and a soft glow over the rest, in the holder's colour from the player's side: the name tags' `#7fe08a` and `#ff6b62`, or grey for no one's. The ring and glow follow the ground 4 cm over it, as the telegraphs do; the glow is the boss areas' premultiplied glow, at 0.2.
+- **The other side's base:** while the player walks their side's ground (the fight and after, not prep), an open see-through wall in `#ff6b62` at 0.3 rings the other base, from under its lowest ground to 3 m over its highest. It marks the edge the player is stopped at.
+
 ## 14. Balance
 
 - **The harness,** `pvp_balance_test.go`, sits beside the rotation harness in `model/world`, on its helpers, against a player's kit, whom no blow MISSes. Its targets:
@@ -789,7 +816,7 @@ As built after the 3v3 playtest:
     1. A player queues for 1v1 and accepts.
     2. The match runs against a novice bot to its end.
     3. The player is back at their spot with their timers, and their rating row has moved.
-  - **A drop:** a player whose socket drops mid-round and reconnects within the grace is back in the match, on their body, and the match runs on.
+  - **A drop:** a player whose socket drops mid-round and reconnects within the grace is back in the match, on their body, and the match runs on. Dropped again and back past the grace, they've left: the match is rated, and they land where they queued (`TestADroppedDuelistIsHeldThroughTheGraceButNotPastIt`).
 - **Client:** the lock on players, the match bar, the counting of the offer and the queue tag, the Arena tab, and the result screen.
 - **Live:**
   - each mode with each class;
@@ -838,6 +865,7 @@ As built after the 3v3 playtest:
    - the 15v15 match bar and points on the maps.
    - As built, it lands as four PRs: the battle's rules on the server (6a), the deal and the bot cap (6b), bot roles (6c), then the client (6d).
    - 6a hides the 15v15 card in the Arena window, as the client has no battle HUD yet. 6d shows it again, gives a mode without rounds its own card line (a battle has no "best of"), and builds the HUD.
+   - 6d lands as two PRs: 6d-1 makes the battle playable (the map's battle data, prediction, the bar, the card, the result, the down and the frames); 6d-2 draws the points and bases on the map views and in the world.
    - 6c: the bots' nav blocks the other side's base, as the server's per-side geometry does.
    - 6d:
      - `mapjson` writes a battle map's bases and points for the client; 6a leaves it as it is;

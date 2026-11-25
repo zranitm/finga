@@ -339,7 +339,7 @@ pieces:
 `,
 		"pvp.yaml": `
 modes:
-  duel: {name: 1v1, team: 1, party: 1, map: pit, rated: true, rounds: {best_of: 3, most: 5, length: 60s}}
+  duel: {name: 1v1, team: 1, party: 1, map: pit, rated: true, rounds: {best_of: 3, most: 5, length: 60s}, reconnect: 20s}
   war: {name: 2v2, team: 2, party: 2, map: siege, rated: false, rating_from: duel}
 queue: {bots_after: 15s, offer: 10s, window: {start: 2, per_second: 0.2, most: 8}}
 rounds: {prep: 10s, countdown: 3s, between: 5s}
@@ -731,7 +731,7 @@ func TestValidDataLoads(t *testing.T) {
 			t.Fatalf("pit's boxes %+v, walled %+v: want the prep wall in the walled geometry alone", pit.Geometry.Boxes, pit.Walled.Boxes)
 		}
 		duel, ok := d.PvpMode("duel")
-		if !ok || duel != (gamedata.PvpMode{ID: "duel", Name: "1v1", Team: 1, Party: 1, Map: "pit", Rated: true, Rounds: gamedata.ModeRounds{BestOf: 3, Most: 5, Length: time.Minute}}) {
+		if !ok || duel != (gamedata.PvpMode{ID: "duel", Name: "1v1", Team: 1, Party: 1, Map: "pit", Rated: true, Rounds: gamedata.ModeRounds{BestOf: 3, Most: 5, Length: time.Minute}, Reconnect: 20 * time.Second}) {
 			t.Fatalf("duel %+v", duel)
 		}
 		r := d.Pvp()
@@ -1097,13 +1097,14 @@ func TestRejections(t *testing.T) {
 		{"actions.yaml with the lock's old range", "actions.yaml", "ready: 0.85\n", "ready: 0.85\nlock_range: 12\n", []string{"actions.yaml", "lock_range"}},
 		{"a map with no place on the world chart", "world.yaml", "  field: [60, 50]\n", "", []string{"world.yaml", "field", "no place"}},
 		{"a place for a pvp map", "world.yaml", "  field: [60, 50]\n", "  field: [60, 50]\n  pit: [10, 10]\n", []string{"world.yaml", "pit", "pvp"}},
-		{"pvp.yaml without modes", "pvp.yaml", "  duel: {name: 1v1, team: 1, party: 1, map: pit, rated: true, rounds: {best_of: 3, most: 5, length: 60s}}\n  war: {name: 2v2, team: 2, party: 2, map: siege, rated: false, rating_from: duel}\n", "", []string{"pvp.yaml", "no modes"}},
+		{"pvp.yaml without modes", "pvp.yaml", "  duel: {name: 1v1, team: 1, party: 1, map: pit, rated: true, rounds: {best_of: 3, most: 5, length: 60s}, reconnect: 20s}\n  war: {name: 2v2, team: 2, party: 2, map: siege, rated: false, rating_from: duel}\n", "", []string{"pvp.yaml", "no modes"}},
 		{"a mode on a hunting map", "pvp.yaml", "map: pit", "map: field", []string{"pvp.yaml", "duel", "field", "no pvp map"}},
 		{"a mode's team past its map's spots", "pvp.yaml", "team: 1, party: 1", "team: 2, party: 1", []string{"pvp.yaml", "duel", "fewer than 2 spots"}},
 		{"a party past the team", "pvp.yaml", "team: 1, party: 1", "team: 1, party: 2", []string{"pvp.yaml", "duel", "party"}},
 		{"an even best_of", "pvp.yaml", "best_of: 3", "best_of: 2", []string{"pvp.yaml", "duel", "odd best_of"}},
 		{"most rounds under best_of", "pvp.yaml", "most: 5", "most: 2", []string{"pvp.yaml", "duel", "most"}},
 		{"an unrated mode with no rating to read", "pvp.yaml", "rated: true", "rated: false", []string{"pvp.yaml", "duel", "rating_from"}},
+		{"a negative reconnect", "pvp.yaml", "reconnect: 20s", "reconnect: -1s", []string{"pvp.yaml", "duel", "reconnect"}},
 		{"an offer that never lapses", "pvp.yaml", "offer: 10s", "offer: 0s", []string{"pvp.yaml", "offer"}},
 		{"a battle on a round map", "pvp.yaml", "team: 2, party: 2, map: siege", "team: 1, party: 1, map: pit", []string{"pvp.yaml", "war", "bases and points"}},
 		{"half a battle's rounds", "pvp.yaml", "rating_from: duel}", "rating_from: duel, rounds: {best_of: 3}}", []string{"pvp.yaml", "war", "odd best_of"}},
