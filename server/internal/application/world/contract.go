@@ -38,6 +38,13 @@ type ChannelLoad struct {
 	Players int
 }
 
+// AreaBoss is a region's hunting area's field boss: up, or beaten and back in BackIn.
+type AreaBoss struct {
+	Area   string
+	Up     bool
+	BackIn time.Duration
+}
+
 // View is the joining player's own character, as Join answers it.
 type View struct {
 	ID     kernel.CharacterID

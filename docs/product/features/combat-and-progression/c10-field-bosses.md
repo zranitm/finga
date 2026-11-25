@@ -16,7 +16,7 @@
   - Once beaten, it comes back to its spot 5 minutes later.
   - It stays until it's beaten. It never leaves on its own.
   - Players on the map are told when it appears: "King Slime has appeared!" Nobody else is.
-  - While it's down, the map window marks its spot with when it's back, such as "back in 3:12".
+  - While it's down, the map window marks its spot with when it's back, such as "back in 3:12". In a region, This region crowns every area's boss at its spot: red while it's up, grey with its time back while it's down.
 - **The fight:**
   - It fights only once someone hits it.
   - A boss HP bar at the top of the screen shows its name and HP to everyone on the map.

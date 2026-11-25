@@ -2513,6 +2513,7 @@ export class World {
   /** Into a region's area, on a join or a step: its banner, its name and a hunting area's levels. */
   private enteredArea(id: string): void {
     this.areaId = id;
+    mapView.getState().inArea(id);
     const a = this.area();
     if (a) {
       this.banner(a.kind === 'hunting' ? `${a.name} · Lv ${a.levels[0]}–${a.levels[1]}` : a.name);

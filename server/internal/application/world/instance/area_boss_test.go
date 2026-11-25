@@ -1,6 +1,7 @@
 package instance_test
 
 import (
+	"slices"
 	"testing"
 	"testing/synctest"
 
@@ -95,6 +96,40 @@ func TestABossBeatenInOneAreaLeavesTheOther(t *testing.T) {
 		untilTick(ss, gone[0].Tick+40)
 		if ups := bossUps(ss); len(ups) != 1 || ups[0].Type != "king_slime" || len(bossUps(sf)) != 1 || len(bossUps(sc)) != 0 {
 			t.Fatalf("back: the slayer heard %+v, the far west player %+v, the east one %+v; want the king's return heard in the west alone", ups, bossUps(sf), bossUps(sc))
+		}
+	})
+}
+
+// A Bosses query finds each hunting area's boss as the tick left it, in the areas' order: both up from the start, then the beaten one's time back counting down while the other's still up. A map, whose players hear of its one boss as it comes and goes, has none.
+func TestABossesQueryFindsEachAreasBoss(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		inst, stop := runBossArena(t, bossData(t, 100, "2s", 0.01), fields(t, 80, 0.01), 0.5, worldtest.Options{})
+		defer stop()
+		slayer := armed("Slayer", line-2.75, 5000)
+		slayer.X = 80
+		s := join(t, inst, slayer)
+		got, err := inst.Bosses(t.Context())
+		if want := []model.AreaBoss{{Area: "west", Up: true}, {Area: "east", Up: true}}; err != nil || !slices.Equal(got, want) {
+			t.Fatalf("at the start: %+v, %v; want %+v", got, err, want)
+		}
+		swing(inst, slayer.ID)
+		gone := bossGones(s)[0]
+		untilTick(s, gone.Tick+10)
+		before := s.Last().Tick
+		got, err = inst.Bosses(t.Context())
+		after := s.Last().Tick
+		if err != nil || len(got) != 2 || got[0].Area != "west" || got[0].Up || got[1] != (model.AreaBoss{Area: "east", Up: true}) {
+			t.Fatalf("after the king fell: %+v, %v; want the west's beaten, the east's up", got, err)
+		}
+		back := got[0].BackIn
+		at := gone.Tick + uint64((gone.BackIn-back)/worldtest.TickInterval) // the tick that answered, by its time back
+		if back%worldtest.TickInterval != 0 || at < before || at > after+1 {
+			t.Fatalf("the king back in %v, fallen on tick %d back in %v: answered as of tick %d, asked between ticks %d and %d", back, gone.Tick, gone.BackIn, at, before, after)
+		}
+		mapped, stopMap := runBossArena(t, bossData(t, 100, "2s", 0.01), bossArena(t), 0.5, worldtest.Options{})
+		defer stopMap()
+		if got, err := mapped.Bosses(t.Context()); err != nil || len(got) != 0 {
+			t.Fatalf("on a map: %+v, %v; want none", got, err)
 		}
 	})
 }

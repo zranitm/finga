@@ -117,6 +117,15 @@ func bossGone(b model.FieldBossGone) *clientv1.FieldBossGone {
 	return &clientv1.FieldBossGone{MobId: uint32(b.MobID), Type: b.Type, BackInMs: b.BackInMs}
 }
 
+// BossList is each of a region's area bosses: up, or its time back.
+func BossList(bosses []model.AreaBoss) *clientv1.BossList {
+	out := &clientv1.BossList{}
+	for _, b := range bosses {
+		out.Bosses = append(out.Bosses, &clientv1.AreaBoss{Area: b.Area, Up: b.Up, BackInMs: b.BackInMs})
+	}
+	return out
+}
+
 // ChannelList is a region's open channels and how full each is.
 func ChannelList(c model.Channels) *clientv1.ChannelList {
 	out := &clientv1.ChannelList{Cap: uint32(c.Cap)}

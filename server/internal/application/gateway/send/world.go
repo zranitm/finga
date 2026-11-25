@@ -36,3 +36,8 @@ func (g *Gateway) SwitchChannel(ctx context.Context, s *session.Session, n int, 
 func (g *Gateway) Channels(ctx context.Context, s *session.Session) (model.Channels, error) {
 	return g.deps.World.Channels(ctx, s.Presence())
 }
+
+// Bosses is how each hunting area's field boss stands on the player's region channel.
+func (g *Gateway) Bosses(ctx context.Context, s *session.Session) ([]model.AreaBoss, error) {
+	return g.deps.World.Bosses(ctx, s.Presence())
+}
