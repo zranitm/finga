@@ -19,6 +19,15 @@ export const FLICKERS: readonly (readonly { amp: number; rate: number; phase: nu
   ],
 ];
 
+/** Group's flicker at seconds since the engine started, as the toon materials draw it, which a flame takes too: 1 ± 0.08. */
+export function flicker(group: number, seconds: number): number {
+  let f = 1;
+  for (const s of FLICKERS[group] ?? []) {
+    f += s.amp * Math.sin(s.rate * seconds + s.phase);
+  }
+  return f;
+}
+
 /** The light's floor where no torch reaches, sRGB, a little cool: dim, never black, so a body and a warning always show. */
 export const FLOOR = new Color3(0.3, 0.3, 0.34).toLinearSpace();
 /** The light at its top band, sRGB, warmed toward the torches' orange. */

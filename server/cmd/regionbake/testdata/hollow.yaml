@@ -1,4 +1,4 @@
-# The smallest cave a bake makes, below tiny: a hall and a tunnel carved from rock, torches on their walls, for the client's light map and cave look.
+# The smallest cave a bake makes, below tiny: a hall and a tunnel carved from rock, torches on their walls and one standing in the hall, for the client's light map and cave look.
 name: Hollow
 under: tiny
 size: [128, 128]
@@ -17,6 +17,8 @@ areas:
   - {id: hollow, name: Hollow, area: [[8, 8], [120, 8], [120, 120], [8, 120]], levels: [1, 2], biome: cave, kind: hunting}
 waypoints:
   - {id: hollow, name: Hollow, at: [26, 64]}
+pieces:
+  - {model: torch_lit, at: [40, 76], yaw: 0} # a standing torch in the hall
 gates:
   - {name: mouth, at: [20, 64], radius: 1.6, to: {region: tiny, gate: hollow}}
 start: {at: [24, 64], yaw: 90}

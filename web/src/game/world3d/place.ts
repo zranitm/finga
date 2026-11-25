@@ -761,7 +761,7 @@ export function placedBox(
 }
 
 /** The toon base for a glTF material: its texture and colour as authored. */
-function baseOf(source: Material): { texture: Texture | null; color: Color3 } {
+export function baseOf(source: Material): { texture: Texture | null; color: Color3 } {
   const pbr = source as Partial<Pick<PBRMaterial, 'albedoTexture' | 'albedoColor'>>;
   return {
     texture: pbr.albedoTexture instanceof Texture ? pbr.albedoTexture : null,

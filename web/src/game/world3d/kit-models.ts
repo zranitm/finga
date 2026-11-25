@@ -7,6 +7,9 @@ export interface KitModel {
   readonly y: number;
 }
 
+/** KayKit Dungeon's torches and their flame, at the characters' scale (the Knight's 2.467 units drawn 1.75 m); each file has its cup's centre at its origin, so a torch stands raised to its flame, kit.yaml's light height. */
+export const TORCH_SCALE = 0.71;
+
 export const kitModels: Readonly<Record<string, KitModel>> = {
   tree_oak: { file: 'kaykit/Tree_2_C.glb', scale: 1, y: 0 },
   tree_pine: { file: 'kaykit/Tree_4_A.glb', scale: 1.3, y: 0 },
@@ -27,6 +30,8 @@ export const kitModels: Readonly<Record<string, KitModel>> = {
   grass_tuft: { file: 'kaykit/Grass_1_A.glb', scale: 1, y: 0 },
   stump: { file: 'quaternius/TreeStump_Moss.glb', scale: 1, y: 0 },
   flowers: { file: 'quaternius/Flowers.glb', scale: 0.7, y: 0 },
+  torch_mounted: { file: 'kaykit/torch_mounted.glb', scale: TORCH_SCALE, y: 2.2 }, // its bracket behind it, on the wall it faces away from
+  torch_lit: { file: 'kaykit/torch_lit.glb', scale: TORCH_SCALE, y: 1.8 }, // on a stake to the ground
   fountain_flowers: { file: 'quaternius/Flowers.glb', scale: 1.2, y: 0 },
   // The desert's: KayKit's rocks recoloured to sandstone, at the grey ones' scales so every solid keeps its size, and Ultimate Nature's plants.
   sandstone_wall: { file: 'kaykit/Rock_1_M_Sand.glb', scale: 1, y: 0 },

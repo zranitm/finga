@@ -4,6 +4,7 @@ import type { AbstractEngine } from '@babylonjs/core/Engines/abstractEngine';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { PrecisionDate } from '@babylonjs/core/Misc/precisionDate';
 import { Scene } from '@babylonjs/core/scene';
 
 import { actions as actionData } from '@/gamedata/actions';
@@ -110,6 +111,7 @@ import type { ChunkSource } from './chunk-build';
 import { Combat, playerBody } from './combat';
 import { cutMobs } from './cut-mobs';
 import { Figures } from './figures';
+import { Flames } from './flames';
 import { CHEST_M, cameraAt, easeShare, heldView, yawOf } from './follow';
 import { Labels } from './labels';
 import { LockRing } from './lock-ring';
@@ -131,6 +133,7 @@ import { PouchMarks } from './pouch';
 import { PrepWall } from './prep-wall';
 import type { RegionArea } from './region-bake';
 import { buildRegion } from './region-place';
+import { RoundShadows } from './round-shadows';
 import { ShieldBubbles } from './shield-bubbles';
 import { teleportGlow } from './teleport-glow';
 import { Palette } from './toon';
@@ -337,6 +340,11 @@ class Drawn {
     return this.last ?? undefined;
   }
 
+  /** Whether it's drawn this frame: made, and not hidden. */
+  get shown(): boolean {
+    return this.figure?.root.isEnabled() ?? false;
+  }
+
   dispose(): void {
     this.gone = true;
     this.figure?.dispose();
@@ -413,6 +421,8 @@ export class World {
   private camera: TargetCamera | null = null;
   private figures: Figures | null = null;
   private lighting: Lighting | null = null;
+  private roundShadows: RoundShadows | null = null; // a cave's, which has no sun
+  private flames: Flames | null = null; // its torches'
   private pouchMarks: PouchMarks | null = null;
   private place: Place | null = null;
   private map: WorldMap | null = null;
@@ -628,7 +638,13 @@ export class World {
     this.showChains();
     this.publishMarks(now);
     this.drawNpcs(now, dt);
+    this.shadeBodies();
     this.moveCamera(dt);
+    this.flames?.frame(
+      (PrecisionDate.Now - this.deps.engine.startTime) / 1000, // the toon materials' clock for their light's flicker
+      this.camera?.position.x ?? this.follow.x,
+      this.camera?.position.z ?? this.follow.z,
+    ); // its cards turned to the camera where this frame draws from
     this.unveil();
     this.combat?.frame(now);
     this.closeDialogOutOfReach();
@@ -693,15 +709,17 @@ export class World {
     const scene = new Scene(this.deps.engine);
     let place: Place;
     let lighting: Lighting;
+    let round: RoundShadows | null;
+    let flames: Flames | null;
     let figures: Figures;
     let pouchMarks: PouchMarks;
     let fx: Fx;
     try {
-      lighting =
-        map.region?.region.sky === 'cave'
-          ? caveLighting(scene, map.region)
-          : sunLighting(scene, map);
+      const cave = map.region?.region.sky === 'cave' ? map.region : null;
+      lighting = cave ? caveLighting(scene, cave) : sunLighting(scene, map);
+      round = cave && new RoundShadows(scene, lighting.palette, map);
       const models = new Models(scene, this.deps.models);
+      flames = cave && new Flames(scene, lighting.palette, models, cave.region.lights);
       figures = new Figures(scene, lighting, models);
       pouchMarks = new PouchMarks(scene, models, lighting);
       fx = new Fx(scene, map, art, this.deps.now, lighting.palette);
@@ -728,6 +746,8 @@ export class World {
     }
     this.scene = scene;
     this.lighting = lighting;
+    this.roundShadows = round;
+    this.flames = flames;
     this.figures = figures;
     this.pouchMarks = pouchMarks;
     this.place = place;
@@ -1414,6 +1434,39 @@ export class World {
       view.draw(npc.x, y, npc.z, npc.yaw, now, dtMs, STILL);
     }
   }
+
+  /** A cave's round shadows this frame, under each body drawn near the camera's target: the player, the others, the mobs, the dying and the NPCs. */
+  private shadeBodies(): void {
+    const round = this.roundShadows;
+    if (!round) {
+      return;
+    }
+    round.begin(this.follow.x, this.follow.z);
+    if (this.me) {
+      this.shade(this.me, movement.radius);
+    }
+    this.remoteViews.forEach(this.shadePlayer);
+    this.mobViews.forEach(this.shadeMob);
+    this.dying.forEach(this.shadeDying);
+    this.npcViews.forEach(this.shadeNpc);
+    round.end();
+  }
+
+  /** v's round shadow, a body of radius r, if it's drawn: under its feet, on a solid's top it stands on too. */
+  private shade(v: Drawn, r: number): void {
+    const at = v.at;
+    if (at && v.shown) {
+      this.roundShadows?.add(at.x, at.y, at.z, r);
+    }
+  }
+
+  // made once, so a frame's walk over the maps makes nothing
+  private readonly shadePlayer = (v: Drawn) => this.shade(v, movement.radius);
+  private readonly shadeMob = (v: Drawn, id: number) =>
+    this.shade(v, mobById(this.mobTypes.get(id))?.radius ?? movement.radius);
+  private readonly shadeDying = (d: { readonly view: Drawn; readonly type: string | undefined }) =>
+    this.shade(d.view, mobById(d.type)?.radius ?? movement.radius);
+  private readonly shadeNpc = (n: { readonly view: Drawn }) => this.shade(n.view, movement.radius);
 
   /** Eases the camera toward the player's chest by the time passed, held so the map's edge stops it, fades what stands between them, and opens the place round the chest and the mobs fighting them. */
   private moveCamera(dtMs: number): void {
@@ -2604,6 +2657,8 @@ export class World {
     this.place?.dispose(); // a region's chunk work and stones' listener outlive the scene
     this.place = null;
     this.figures = null;
+    this.roundShadows = null;
+    this.flames = null;
     this.pouchMarks = null;
     this.lighting = null;
     this.map = null;
