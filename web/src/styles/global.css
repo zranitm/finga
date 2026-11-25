@@ -2461,3 +2461,24 @@ body {
   margin: 2px 0 0;
   padding-left: 16px;
 }
+
+/* A battle point both sides stand in, on the map window and the minimap: its colour from the player's side's to the other's and back each second (pvp.md section 13). */
+.map-point.contested {
+  animation: point-contested 1s ease-in-out infinite;
+}
+@keyframes point-contested {
+  0%,
+  100% {
+    fill: var(--ally);
+    stroke: var(--ally);
+  }
+  50% {
+    fill: var(--enemy);
+    stroke: var(--enemy);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-point.contested {
+    animation: none; /* its dashed edge still marks it */
+  }
+}

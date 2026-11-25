@@ -102,7 +102,7 @@ export function useNpcMarkers(mapId: string | null): ReadonlyMap<string, Marker>
   );
 }
 
-/** A battle map's bases and points: the player's base and points their side holds in their colour, the others' in the enemy's, the rest grey; a contested point's edge dashed. With no match, all grey. */
+/** A battle map's bases and points: the player's base and points their side holds in their colour, the others' in the enemy's, the rest grey; a contested point's edge dashed, and it pulses between the two sides' colours. With no match, all grey. */
 function Battle({
   map,
   unit,
@@ -141,7 +141,7 @@ function Battle({
         return (
           <circle
             key={p.id}
-            className="map-point"
+            className={now?.contested ? 'map-point contested' : 'map-point'}
             data-point={p.id}
             cx={p.x}
             cy={y(p.z)}

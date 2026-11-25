@@ -3177,7 +3177,7 @@ describe('World', () => {
     expect(p.root(classLook('warrior').file)!.position.x).toBeCloseTo(127 - 9 - movement.radius, 3);
   });
 
-  it('on a battle’s map rings each point on the ground in its holder’s colour from the player’s side, the name tags’ pair, grey with no match; the other side’s base is walled in red through the fight', async () => {
+  it('on a battle’s map rings each point on the ground in its holder’s colour from the player’s side, the name tags’ pair, grey with no match, a contested one in its pulsing look; the other side’s base is walled in red through the fight', async () => {
     const p = await playing('battlefield', 20, 45);
     const one = (name: string) => {
       const [m] = meshesOn(p, name);
@@ -3213,6 +3213,7 @@ describe('World', () => {
         points: [
           { id: 'west', holder: 1 },
           { id: 'middle', holder: 2, contested: true },
+          { id: 'east', holder: 2 },
         ],
         sides: [{ fighters: [{ id: ME }] }, { fighters: [{ id: 'c-robin' }] }],
       }),
@@ -3221,8 +3222,8 @@ describe('World', () => {
     p.frames(1);
     expect(looks()).toEqual([
       [decal('#7FE08A', 0.9), glow('#7fe08a')],
+      ['point contested ring', 'point contested glow'],
       [decal('#FF6B62', 0.9), glow('#ff6b62')],
-      grey,
     ]);
     expect(walls()).toEqual([false, true]); // side 1 kept from base 2
     expect(one('base wall 2').material!.name).toBe('base wall');
