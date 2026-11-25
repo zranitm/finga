@@ -832,10 +832,20 @@ const errorCodes = Object.fromEntries(
   }),
 );
 
+// Each piece's item, as the server's loader makes it: what a boss drops and the inventory adds to the wardrobe.
+const pieceItems = outfits.pieces.map((p) => ({
+  id: `piece.${p.id}`,
+  name: p.name,
+  tab: 'etc',
+  stars: p.stars,
+  description: `Adds ${p.name} to your wardrobe.`,
+  max_stack: 100,
+}));
+
 const files: Record<string, unknown> = {
   'movement.ts': movement,
   'exp-curve.ts': expCurve,
-  'items.ts': items,
+  'items.ts': [...items, ...pieceItems],
   'equip-slots.ts': equipSlots,
   'classes.ts': classes,
   'skills.ts': skills,

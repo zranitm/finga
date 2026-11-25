@@ -31,10 +31,12 @@ import { statuses } from '@/state/statuses';
 import { target } from '@/state/target';
 import { teleport } from '@/state/teleport';
 import { ui } from '@/state/ui';
+import { wardrobe } from '@/state/wardrobe';
 import { fakeFetch, sampleCharacter } from '@/testing/fake-fetch';
 import type { FakeFetch, Script } from '@/testing/fake-fetch';
 import { FakeWebSocket } from '@/testing/fake-socket';
 import { pointerReaches } from '@/testing/pointer';
+import { fakePortrait } from '@/testing/portrait';
 import { resetStores } from '@/testing/reset-stores';
 import { user } from '@/testing/user';
 
@@ -65,12 +67,19 @@ const welcome = {
   tickRateHz: 30,
 };
 
-/** The server: the script, and a fresh PvP profile for any character, which the world reads as it's entered. */
+/** The server: the script, a fresh PvP profile for any character, and the account's wardrobe, which the world reads as it's entered. */
 function fetching(script: Script): FakeFetch {
   const ff = fakeFetch((call) =>
     call.method === 'GET' && /^\/api\/characters\/[^/]+\/pvp$/.test(call.path)
       ? { status: 200, body: { standings: [], build: { skill_bar: [], traits: {} } } }
-      : script(call),
+      : call.method === 'GET' && call.path === '/api/wardrobe'
+        ? {
+            status: 200,
+            body: {
+              pieces: [{ id: 'knight_plate', cause: 'item', added_at: '2026-11-25T00:00:00Z' }],
+            },
+          }
+        : script(call),
   );
   vi.stubGlobal('fetch', ff.fetch);
   return ff;
@@ -96,7 +105,7 @@ describe('App', () => {
     vi.stubGlobal('WebSocket', FakeWebSocket);
     close.mockReset();
     vi.mocked(run).mockReset();
-    vi.mocked(run).mockReturnValue({ close, portrait: vi.fn() });
+    vi.mocked(run).mockReturnValue({ close, portrait: () => fakePortrait() });
     resetStores();
     parent = document.createElement('div');
     parent.id = 'game';
@@ -239,6 +248,7 @@ describe('App', () => {
       expect.any(GameSocket),
     ); // drawn in #game
 
+    await waitFor(() => expect(wardrobe.getState().collected).toEqual(new Set(['knight_plate']))); // for the inventory's Add
     act(() => ui.getState().openWindow('character'));
     ws.push('chatMessage', { sender: 'c-bruno', senderName: 'Bruno', text: 'hi Ayla' });
     act(() => combatLog.getState().questReady('slime_cleanup'));
@@ -247,6 +257,7 @@ describe('App', () => {
     await waitFor(() => expect(close).toHaveBeenCalledOnce());
     expect(ui.getState().windows).toEqual([]); // the next Play opens none
     expect([chat.getState().lines, combatLog.getState().lines]).toEqual([[], []]); // the next character starts with a clean chat
+    expect(wardrobe.getState().collected).toBeNull();
     expect(await screen.findByText("alice's characters")).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Log out' }));
     await waitFor(() => expect(screen.getByRole('form', { name: 'Log in' })).toBeInTheDocument());
@@ -342,6 +353,7 @@ describe('App', () => {
       fakeFetch(({ path }) => {
         if (path === '/api/sessions') return { status: 201, body: { token: 'tok-1' } };
         if (path.endsWith('/pvp')) return { status: 429, body: { code: ERR.RATE_LIMITED } };
+        if (path === '/api/wardrobe') return { status: 200, body: { pieces: [] } };
         return { status: 200, body: { characters: [sampleCharacter] } };
       }).fetch,
     );

@@ -1,5 +1,5 @@
 import { create } from '@bufbuild/protobuf';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ERR } from '@/protocol/errors';
@@ -175,23 +175,45 @@ describe('the wardrobe (outfits.md section 7)', () => {
     expect(document.querySelector('.piece-card')).toBeNull();
   });
 
-  it('turns the figure as it’s dragged, and lets it go as the window closes, which stops its drawing', async () => {
+  it('draws its figure in its canvas, and lets it go as the window closes, which stops its drawing', async () => {
     const { figure, props, view } = open();
     await screen.findByText('Collected 2 of 12');
-    const canvas = screen.getByLabelText('Your character, dressed as picked');
-    expect(props.figureIn).toHaveBeenCalledWith(canvas);
-    const capture = vi.fn();
-    canvas.setPointerCapture = capture; // jsdom has none
-    fireEvent.pointerDown(canvas, { clientX: 100, buttons: 1 });
-    expect(capture).toHaveBeenCalledOnce();
-    fireEvent.pointerMove(canvas, { clientX: 130, buttons: 1 });
-    fireEvent.pointerMove(canvas, { clientX: 150, buttons: 0 }); // released outside: no turn
-    expect(figure.turn).toHaveBeenCalledOnce();
-    expect(figure.turn.mock.calls[0]![0]).toBeCloseTo(0.3);
+    expect(props.figureIn).toHaveBeenCalledWith(
+      screen.getByLabelText('Your character, dressed as picked'),
+    );
     expect(figure.close).not.toHaveBeenCalled();
     view.unmount();
-    await waitFor(() => {
-      expect(figure.close).toHaveBeenCalledOnce();
+    expect(figure.close).toHaveBeenCalledOnce();
+  });
+
+  it('opens with a piece the inventory’s Preview handed it tried on, at its tab', async () => {
+    act(() => wardrobe.getState().preview('pointed_hat'));
+    const { figure } = open();
+    expect(wardrobe.getState().trying).toBeNull(); // taken as it opened, so the list coming in puts nothing back
+    await screen.findByText('Collected 2 of 12');
+    expect(screen.getByRole('tab', { name: 'Headwear' })).toHaveAttribute('aria-selected', 'true');
+    expect(figure.show).toHaveBeenLastCalledWith('warrior', {
+      ...OWN_LOOK,
+      headwear: 'pointed_hat',
     });
+    expect(screen.getByRole('button', { name: 'Pointed Hat' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(wardrobe.getState().trying).toBeNull(); // taken
+  });
+
+  it('tries on a piece handed while it’s open, over what’s tried on already', async () => {
+    const { figure } = open();
+    await screen.findByText('Collected 2 of 12');
+    await user.click(screen.getByRole('button', { name: "Knight's Plate" }));
+    act(() => wardrobe.getState().preview('greataxe'));
+    expect(screen.getByRole('tab', { name: 'Weapon' })).toHaveAttribute('aria-selected', 'true');
+    expect(figure.show).toHaveBeenLastCalledWith('warrior', {
+      ...OWN_LOOK,
+      outfit: 'knight_plate',
+      weapon: 'greataxe',
+    });
+    expect(wardrobe.getState().trying).toBeNull();
   });
 });
