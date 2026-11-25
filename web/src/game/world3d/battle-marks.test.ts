@@ -1,5 +1,8 @@
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
+import type { InputBlock } from '@babylonjs/core/Materials/Node/Blocks/Input/inputBlock';
+import type { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
+import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { Scene } from '@babylonjs/core/scene';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -138,11 +141,11 @@ describe('a battle’s marks in the world', () => {
   it('shows the other side’s base’s wall alone while the player walks their side’s ground, though no point changes hands', async () => {
     await built();
     const walls = () => [1, 2].map((i) => scene.getMeshByName(`base wall ${i}`)!.isEnabled());
-    marks!.show([], 1, 1);
+    marks!.show([], 1, 1, 0);
     expect(walls()).toEqual([false, true]);
-    marks!.show([], 2, 2);
+    marks!.show([], 2, 2, 0);
     expect(walls()).toEqual([true, false]);
-    marks!.show([], 2, 0); // in prep, behind the gates
+    marks!.show([], 2, 0, 0); // in prep, behind the gates
     expect(walls()).toEqual([false, false]);
   });
 
@@ -153,6 +156,48 @@ describe('a battle’s marks in the world', () => {
     marks!.dispose();
     marks = undefined;
     expect(scene.meshes.filter((m) => /^(point|base wall)/.test(m.name))).toEqual([]);
-    expect(before - scene.materials.length).toBe(7); // three rings', three glows', the wall's
+    expect(before - scene.materials.length).toBe(9); // four rings', four glows' (a contested one each), the wall's
+  });
+
+  /** The colour each point's ring and glow are drawn in, by point. */
+  const drawn = (kind: 'ring' | 'glow') =>
+    Object.fromEntries(
+      ['west', 'middle', 'east'].map((id) => {
+        const m = scene.getMeshByName(`point ${kind} ${id}`)!.material as NodeMaterial;
+        return [id, (m.getBlockByName('color') as InputBlock).value as Color3];
+      }),
+    );
+  const hex = (c: Color3) => c.toHexString().toLowerCase();
+
+  it('draws each point in its holder’s colour from the player’s side, grey for no one’s', async () => {
+    await built();
+    const held = [
+      { id: 'west', holder: 1, progress: -1, contested: false },
+      { id: 'east', holder: 2, progress: 1, contested: false },
+    ];
+    marks!.show(held, 1, 1, 0);
+    expect(Object.values(drawn('ring')).map(hex)).toEqual(['#7fe08a', '#d8d8d8', '#ff6b62']);
+    marks!.show(held, 2, 2, 0);
+    expect(Object.values(drawn('ring')).map(hex)).toEqual(['#ff6b62', '#d8d8d8', '#7fe08a']);
+  });
+
+  it('pulses a contested point, ring and glow, from the player’s side’s colour to the other’s and back each second, then shows its holder’s again', async () => {
+    await built();
+    const fight = (contested: boolean) => [{ id: 'middle', holder: 2, progress: 0.4, contested }];
+    const at = (now: number) => {
+      marks!.show(fight(true), 1, 1, now);
+      const glow = drawn('glow').middle!.scale(1 / 0.45); // the glow's colour is scaled by its alpha and glow
+      return [hex(drawn('ring').middle!), hex(glow)];
+    };
+    expect(at(0)).toEqual(['#7fe08a', '#7fe08a']);
+    expect(at(500)).toEqual(['#ff6b62', '#ff6b62']);
+    at(250);
+    expect(hex(drawn('ring').middle!)).toBe(
+      hex(Color3.Lerp(Color3.FromHexString('#7fe08a'), Color3.FromHexString('#ff6b62'), 0.5)),
+    );
+    expect(at(1000)).toEqual(['#7fe08a', '#7fe08a']);
+    expect(hex(drawn('ring').west!)).toBe('#d8d8d8'); // the others as they were
+    marks!.show(fight(false), 1, 1, 1250);
+    expect(hex(drawn('ring').middle!)).toBe('#ff6b62'); // the other side's, as it holds it
   });
 });
