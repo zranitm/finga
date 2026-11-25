@@ -190,7 +190,7 @@ export function Wardrobe({ socket, rest, figureIn, onClose }: WardrobeProps) {
           className="wardrobe-figure"
         />
         <div className="wardrobe-side">
-          <div className="inventory-tabs" role="tablist">
+          <div className="inventory-tabs wardrobe-tabs" role="tablist">
             {TABS.map((t) => (
               <button
                 key={t.slot}
