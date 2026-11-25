@@ -24,6 +24,36 @@ func (w *World) Leave(ctx context.Context, id kernel.CharacterID, conn string) e
 	return err
 }
 
+// Drop is conn's drop, its tab closed or its network gone, which the server can't tell apart: a match fighter's place is held for the mode's reconnect (pvp.md section 4), and anywhere else, or past what a match holds, it's a Leave.
+func (w *World) Drop(ctx context.Context, id kernel.CharacterID, conn string) error {
+	unlock, err := w.locks.Lock(ctx, id)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if w.hold(ctx, id, conn) {
+		return nil
+	}
+	_, _, err = w.takeOff(ctx, id, func(p presence) bool { return p.conn == conn })
+	return err
+}
+
+// hold has the character's match hold their place through conn's drop; false off a match, or where the match holds none. The caller holds the character's lock.
+func (w *World) hold(ctx context.Context, id kernel.CharacterID, conn string) bool {
+	p, ok := w.presences.at(id, conn)
+	if _, fighting := w.fighting.of(id); !ok || !fighting { // most drops are off a match, and skip asking a map
+		return false
+	}
+	answerCtx, cancel := answerOf(ctx)
+	defer cancel()
+	var held bool
+	err := whileBusy(answerCtx, func() (err error) {
+		held, err = p.inst.Hold(answerCtx, id, conn)
+		return err
+	})
+	return err == nil && held
+}
+
 // Input queues held keys, with the tick of the mobs the client drew.
 func (w *World) Input(id kernel.CharacterID, conn string, seq uint32, in sim.Input, view uint32) error {
 	return w.command(id, conn, func(i *instance.Instance) error { return i.Input(id, seq, in, view) })

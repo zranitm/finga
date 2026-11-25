@@ -196,6 +196,7 @@ type MatchFighter struct {
 	Name  string
 	Class kernel.Class
 	Bot   bool
+	Away  bool
 }
 
 // SkillUsed says a character used a skill at a stage, with an extra trait or its default, aimed along a yaw, for drawing; its damage comes as Damage.

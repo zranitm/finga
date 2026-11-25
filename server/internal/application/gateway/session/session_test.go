@@ -25,6 +25,7 @@ func (world) Join(context.Context, string, string, kernel.AccountID, kernel.Char
 }
 
 func (world) Leave(context.Context, model.Presence) error { return nil }
+func (world) Drop(context.Context, model.Presence) error  { return nil }
 
 // filled is d with the modules it leaves out answering that nothing went wrong.
 func filled(d session.Deps) session.Deps {
@@ -129,6 +130,7 @@ func (w *recordingWorld) Join(ctx context.Context, _, conn string, _ kernel.Acco
 }
 
 func (*recordingWorld) Leave(context.Context, model.Presence) error { return nil }
+func (*recordingWorld) Drop(context.Context, model.Presence) error  { return nil }
 
 func (w *recordingWorld) hold(conn string) chan struct{} {
 	w.mu.Lock()
@@ -216,6 +218,7 @@ func (w *seqWorld) Join(context.Context, string, string, kernel.AccountID, kerne
 }
 
 func (*seqWorld) Leave(context.Context, model.Presence) error { return nil }
+func (*seqWorld) Drop(context.Context, model.Presence) error  { return nil }
 
 // A registration carries the world's sequence of the session's join, its rejoin's once it rejoined, as social orders logins by it; a rejoin registers again by itself.
 func TestARegistrationCarriesItsJoinsSequence(t *testing.T) {

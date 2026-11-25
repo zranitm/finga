@@ -87,7 +87,7 @@ func matchState(st model.MatchState) *clientv1.MatchState {
 	for _, side := range st.Sides {
 		s := &clientv1.MatchSide{}
 		for _, f := range side {
-			s.Fighters = append(s.Fighters, &clientv1.MatchFighter{Id: f.ID, Name: f.Name, Class: f.Class, Bot: f.Bot})
+			s.Fighters = append(s.Fighters, &clientv1.MatchFighter{Id: f.ID, Name: f.Name, Class: f.Class, Bot: f.Bot, Away: f.Away})
 		}
 		out.Sides = append(out.Sides, s)
 	}

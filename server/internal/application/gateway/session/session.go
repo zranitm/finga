@@ -20,12 +20,13 @@ type Session struct {
 	connID string
 	outbox Outbox
 	// ctx ends at Remove, so a rejoin in flight stops.
-	ctx      context.Context
-	cancel   context.CancelFunc
-	isActive atomic.Bool
-	tickRate atomic.Int32  // the world's ticks a second, from the latest join; 0 before one
-	joinSeq  atomic.Uint64 // the world's sequence of the latest join, which social orders logins by
-	rejoin   atomic.Bool   // a rejoin is waiting to start, so another asked for meanwhile is the same one
+	ctx       context.Context
+	cancel    context.CancelFunc
+	isActive  atomic.Bool
+	loggedOut atomic.Bool   // an End was the login's: a logout, never a drop
+	tickRate  atomic.Int32  // the world's ticks a second, from the latest join; 0 before one
+	joinSeq   atomic.Uint64 // the world's sequence of the latest join, which social orders logins by
+	rejoin    atomic.Bool   // a rejoin is waiting to start, so another asked for meanwhile is the same one
 
 	// who the session plays: set whole by a join, never changed in place, so reading it takes no lock
 	id     atomic.Pointer[identity]
@@ -84,7 +85,15 @@ func (s *Session) deliver(d model.Delivery, world bool) {
 }
 
 // End ends the player's session; the first End wins.
-func (s *Session) End(reason model.EndReason) { s.outbox.End(reason) }
+func (s *Session) End(reason model.EndReason) {
+	if reason == model.EndSessionExpired {
+		s.loggedOut.Store(true)
+	}
+	s.outbox.End(reason)
+}
+
+// LoggedOut reports whether the session ended as its login did, by a logout or the login's expiry, which forfeits a match at once; any other end, or a connection closing, is a drop.
+func (s *Session) LoggedOut() bool { return s.loggedOut.Load() }
 
 // out holds deliveries until a join's Welcome or MapChange is out, and shifts ticks so they never go back on a restart.
 type out struct {

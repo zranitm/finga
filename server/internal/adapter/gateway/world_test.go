@@ -111,6 +111,8 @@ func (w *worldModule) Join(_ context.Context, gateway string, account kernel.Acc
 
 func (w *worldModule) Leave(_ context.Context, p world.Presence) error { return w.record(p, nil) }
 
+func (w *worldModule) Drop(_ context.Context, p world.Presence) error { return w.record(p, nil) }
+
 func (w *worldModule) Input(_ context.Context, p world.Presence, seq uint32, in sim.Input, view uint32) error {
 	return w.record(p, inputArgs{seq, in, view})
 }
@@ -284,6 +286,9 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 	for name, diff := range map[string]func() []string{
 		"Leave": func() []string {
 			return worldCall[struct{}, struct{}](w, nil, func(p model.Presence, _ struct{}) error { return a.Leave(ctx, p) })
+		},
+		"Drop": func() []string {
+			return worldCall[struct{}, struct{}](w, nil, func(p model.Presence, _ struct{}) error { return a.Drop(ctx, p) })
 		},
 		"Input": func() []string {
 			return worldCall[input, inputArgs](w, map[string]string{"In.Keys": "Args.In"}, func(p model.Presence, in input) error {

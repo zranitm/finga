@@ -196,6 +196,36 @@ func TestHelloAndTheAccountService(t *testing.T) {
 	}
 }
 
+// A connection that closes while its login stands is a drop, which a match holds a while, as is one ended by a login elsewhere, which then lands on the body held; one whose login ended first, by a logout or its expiry, is a leave, which forfeits a match at once.
+func TestAClosedConnectionDropsAndALogoutLeaves(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		ends  []model.EndReason // the session's, before its connection closes
+		drops int
+	}{
+		{"a connection closing", nil, 1},
+		{"a login elsewhere", []model.EndReason{model.EndLoggedInElsewhere}, 1},
+		{"a logout", []model.EndReason{model.EndSessionExpired}, 0},
+		{"a logout after another end", []model.EndReason{model.EndDeliveryBacklog, model.EndSessionExpired}, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := &world{}
+			g := newGatewayWith(w, &guard{}, time.Hour)
+			s := g.Open("c-1", &outbox{})
+			if err := g.Hello(t.Context(), s, token, ayla); err != nil {
+				t.Fatal(err)
+			}
+			for _, r := range tc.ends {
+				s.End(r)
+			}
+			g.Closed(s)
+			if w.left() != 1 || w.dropped() != tc.drops {
+				t.Fatalf("%d leaves, %d of them drops; want 1, %d", w.left(), w.dropped(), tc.drops)
+			}
+		})
+	}
+}
+
 // The minute check ends a session only when the account module says it ended; an outage or a hung call ends nobody.
 func TestTheSessionCheckKicksOnlyEndedSessions(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
@@ -348,6 +378,7 @@ type world struct {
 	deliver     func(model.WorldEvent)
 	following   chan struct{} // closed once the gateway follows the stream
 	leaves      int
+	drops       int // the leaves that were drops
 	tickRate    int // what Join reports
 }
 
@@ -355,6 +386,12 @@ func (w *world) left() int {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.leaves
+}
+
+func (w *world) dropped() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.drops
 }
 
 func (w *world) Join(_ context.Context, _, conn string, _ kernel.AccountID, c kernel.CharacterID) (model.Joined, error) {
@@ -399,6 +436,14 @@ func (w *world) Leave(context.Context, model.Presence) error {
 	defer w.mu.Unlock()
 	w.leaves++
 	return nil
+}
+
+// Drop is a leave off a match, as the world takes it; drops counts it.
+func (w *world) Drop(ctx context.Context, p model.Presence) error {
+	w.mu.Lock()
+	w.drops++
+	w.mu.Unlock()
+	return w.Leave(ctx, p)
 }
 func (w *world) Input(context.Context, model.Presence, uint32, model.Keys, uint32) error { return nil }
 func (w *world) Attack(context.Context, model.Presence, float32, model.Target) error     { return nil }

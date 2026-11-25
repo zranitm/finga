@@ -82,7 +82,7 @@ func hitsBy(s *worldtest.Sink, id kernel.CharacterID) []uint64 {
 	return out
 }
 
-// usedAt waits for a skill use to be answered and returns the tick it went.
+// usedAt waits for a skill use to be answered and returns the tick it went, which answered it: up to castSlack before its action starts.
 func usedAt(t *testing.T, s *worldtest.Sink, done <-chan error, most int) uint64 {
 	t.Helper()
 	for range most {
@@ -92,8 +92,7 @@ func usedAt(t *testing.T, s *worldtest.Sink, done <-chan error, most int) uint64
 			if err != nil {
 				t.Fatal(err)
 			}
-			used := eventsOf[model.SkillUsed](s)
-			return used[len(used)-1].Tick
+			return s.Last().Tick
 		default:
 		}
 	}
@@ -101,7 +100,7 @@ func usedAt(t *testing.T, s *worldtest.Sink, done <-chan error, most int) uint64
 	return 0
 }
 
-// A skill cuts off a basic attack at the attack's cancel point, not before. It may go up to castSlack early, but its action counts from the cancel point, so the attack after it waits as long as ever: the Thief's cancel point, 3 ticks in, is all slack, and gains nothing.
+// A skill cuts off a basic attack at the attack's cancel point, not before. It may go up to castSlack early, but it starts at the cancel point, shown and landing there, and the attack after it waits as long as ever: the Thief's cancel point, 3 ticks in, is all slack, and gains nothing.
 func TestASkillCutsOffAnAttackAtItsCancelPoint(t *testing.T) {
 	for _, class := range []kernel.Class{"warrior", "thief"} {
 		t.Run(string(class), func(t *testing.T) {
@@ -125,8 +124,11 @@ func TestASkillCutsOffAnAttackAtItsCancelPoint(t *testing.T) {
 				}
 				_ = inst.Attack(p.ID, 0, model.EntityRef{})
 				tick(int(cancel + strike))
-				if got, want := hitsBy(s, p.ID), []uint64{first, early, first + cancel + strike}; !slices.Equal(got, want) {
-					t.Fatalf("hits at %v, want %v: the next attack as Strike ends, counted from the cancel point", got, want)
+				if got, want := hitsBy(s, p.ID), []uint64{first, first + cancel, first + cancel + strike}; !slices.Equal(got, want) {
+					t.Fatalf("hits at %v, want %v: Strike's at the cancel point, and the next attack as Strike ends", got, want)
+				}
+				if used := eventsOf[model.SkillUsed](s); len(used) != 1 || used[0].Tick != first+cancel {
+					t.Fatalf("Strike shown as %+v, want once at the cancel point %d", used, first+cancel)
 				}
 			})
 		})
@@ -167,7 +169,7 @@ func TestAnAttackCutsOffOnlyACancelableSkill(t *testing.T) {
 	}
 }
 
-// Neither kind cuts off its own: a skill waits for the last skill's end, up to castSlack early with its action counted from that end, and an attack for the last attack's end.
+// Neither kind cuts off its own: a skill waits for the last skill's end, going up to castSlack early but starting and landing at that end, and an attack for the last attack's end.
 func TestTheSameKindWaitsForTheEnd(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := timelineData(t, strikeCancelable(t, true))
@@ -192,8 +194,8 @@ func TestTheSameKindWaitsForTheEnd(t *testing.T) {
 		_ = inst.Attack(p.ID, 0, model.EntityRef{})
 		tick(int(attack))
 		swing := first + rally + strikeCancel
-		if got, want := hitsBy(s, p.ID), []uint64{first + rally - slack, swing, swing + attack}; !slices.Equal(got, want) {
-			t.Fatalf("hits at %v, want %v", got, want)
+		if got, want := hitsBy(s, p.ID), []uint64{first + rally, swing, swing + attack}; !slices.Equal(got, want) {
+			t.Fatalf("hits at %v, want %v: Strike's at Rally's end", got, want)
 		}
 	})
 }
@@ -275,10 +277,11 @@ func TestAWindUpHitIsDroppedAtADeathOrALeave(t *testing.T) {
 	}
 }
 
-// A skill used early, within castSlack of an attack's cancel point, lands at once and leaves the attack's hit still to land in its tick.
+// A skill used early, within castSlack of an attack's cancel point, starts there, after the attack's own hit due in that tick, which still lands first.
 func TestAnEarlySkillKeepsTheAttacksHitToLand(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := timelineData(t, windUpAttack(t, "0.85"))
+		heavy := map[string]func(string) string{"skills.yaml": edit(t, "    cancel: 0.45\n    power: {base: 1.5,", "    cancel: 0.45\n    power: {base: 100,")} // Strike's blow known from the attack's by its size
+		data := timelineData(t, withEdits(windUpAttack(t, "0.85"), heavy))
 		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
@@ -294,8 +297,58 @@ func TestAnEarlySkillKeepsTheAttacksHitToLand(t *testing.T) {
 		tick(1)
 		used := usedAt(t, s, castAsync(inst, p.ID, "strike"), int(cancel))
 		tick(slack)
-		if got, want := hitsBy(s, p.ID), []uint64{used, used + slack}; !slices.Equal(got, want) {
-			t.Fatalf("hits at %v, want Strike's at %d and the attack's at its cancel point %d", got, used, used+slack)
+		at := used + slack // the cancel point
+		if got := hitsBy(s, p.ID); !slices.Equal(got, []uint64{at, at}) {
+			t.Fatalf("hits at %v, want the attack's and Strike's both at its cancel point %d", got, at)
+		}
+		var heard []string
+		var blows []int
+		for _, e := range s.All() {
+			switch e := e.(type) {
+			case model.Damage:
+				if e.Source.Player == p.ID {
+					heard, blows = append(heard, "hit"), append(blows, e.Amount)
+				}
+			case model.SkillUsed:
+				if e.Caster == p.ID {
+					heard = append(heard, "strike")
+				}
+			}
+		}
+		if want := []string{"hit", "strike", "hit"}; !slices.Equal(heard, want) || blows[1] < 10*blows[0] {
+			t.Fatalf("the map heard %v, blows of %v, want %v: the attack's hit, then Strike starting and landing its heavy blow", heard, blows, want)
+		}
+	})
+}
+
+// A skill pressed past an attack's cancel point goes at once: shown and landing in the tick that answers it.
+func TestASkillPressedPastTheCancelPointLandsAtOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := timelineData(t, nil)
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := caster(nextToSlime)
+		s := join(t, inst, p)
+		_, cancel := attackTicks(t, data, p)
+
+		_ = inst.Attack(p.ID, 0, model.EntityRef{})
+		tick(1)
+		hits := hitsBy(s, p.ID)
+		if len(hits) != 1 {
+			t.Fatalf("hits at %v, want the attack's as it starts", hits)
+		}
+		first := hits[0]
+		tick(int(cancel))
+		used := usedAt(t, s, castAsync(inst, p.ID, "strike"), 5)
+		if used <= first+cancel {
+			t.Fatalf("Strike went at %d, want past the cancel point %d", used, first+cancel)
+		}
+		if got := hitsBy(s, p.ID); !slices.Equal(got, []uint64{first, used}) {
+			t.Fatalf("hits at %v, want the attack's at %d and Strike's at once, at %d", got, first, used)
+		}
+		if got := eventsOf[model.SkillUsed](s); len(got) != 1 || got[0].Tick != used {
+			t.Fatalf("Strike shown as %+v, want once at %d", got, used)
 		}
 	})
 }
@@ -335,7 +388,7 @@ func TestASkillsWindUpSpendsAtTheStartAndLandsLate(t *testing.T) {
 	})
 }
 
-// A skill used with no action running, within castSlack before its own cooldown ends, still starts its action as the cooldown ends, so the attack after it waits from there.
+// A skill used with no action running, within castSlack before its own cooldown ends, still starts its action as the cooldown ends, landing there, so the attack after it waits from there.
 func TestASkillEarlyOnItsCooldownCountsItsActionFromTheCooldownsEnd(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := timelineData(t, strikeCancelable(t, false))
@@ -363,7 +416,7 @@ func TestASkillEarlyOnItsCooldownCountsItsActionFromTheCooldownsEnd(t *testing.T
 		}
 		_ = inst.Attack(p.ID, 0, model.EntityRef{})
 		tick(int(length + slack))
-		if got, want := hitsBy(s, p.ID), []uint64{first, first + cd - slack, first + cd + length}; !slices.Equal(got, want) {
+		if got, want := hitsBy(s, p.ID), []uint64{first, first + cd, first + cd + length}; !slices.Equal(got, want) {
 			t.Fatalf("hits at %v, want %v: the attack as Strike ends, counted from its cooldown's end", got, want)
 		}
 	})
@@ -411,11 +464,15 @@ func TestAnActionTellsItsAim(t *testing.T) {
 		go func() {
 			done <- inst.UseSkill(context.Background(), p.ID, "c1", model.SkillUse{Skill: "strike", Root: "strike", Aim: -1.5}, 0)
 		}()
-		usedAt(t, s, done, 120)
-		if got := eventsOf[model.SkillUsed](s); len(got) != 1 || got[0].Aim != -1.5 {
-			t.Fatalf("skill uses told %+v, want one aimed at -1.5", got)
+		used := usedAt(t, s, done, 120) // castSlack before the attack's cancel point
+		v, _ := s.Own(p.ID)
+		if got := eventsOf[model.SkillUsed](s); len(got) != 0 || v.Aim != 1.25 {
+			t.Fatalf("skill uses told %+v and view aim %v at the press, before Strike starts; want none and the attack's 1.25", got, v.Aim)
 		}
-		tick(1)
+		tick(slack)
+		if got := eventsOf[model.SkillUsed](s); len(got) != 1 || got[0].Aim != -1.5 || got[0].Tick != used+slack {
+			t.Fatalf("skill uses told %+v, want one aimed at -1.5 as it starts, at %d", got, used+slack)
+		}
 		if v, _ := s.Own(p.ID); v.Aim != -1.5 {
 			t.Fatalf("view aim %v, want the skill's -1.5", v.Aim)
 		}
