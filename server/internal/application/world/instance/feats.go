@@ -16,17 +16,26 @@ type featsMsg struct {
 
 func (featsMsg) message() {}
 
-// FeatPieces is the pieces of each feat met gives, in file order.
-func FeatPieces(data *gamedata.Data, met func(gamedata.FeatWhen) bool) []model.FeatPiece {
-	var pieces []model.FeatPiece
-	for _, f := range data.Feats() {
-		if met(f.When) {
-			for _, piece := range data.FeatPieces(f.ID) {
-				pieces = append(pieces, model.FeatPiece{Piece: piece, Feat: f.ID})
-			}
-		}
+// metFeatsMsg asks for the feats a joined character's save shows met.
+type metFeatsMsg struct{ id kernel.CharacterID }
+
+func (metFeatsMsg) message() {}
+
+// AskMetFeats has the map ask, without blocking, for the pieces of each feat the character's save shows met: a level reached, a promotion taken, a quest finished (outfits.md section 4). The world asks once a login or a reconnect has joined, so a grant lost when a one-shot feat was met still comes; ErrBusy when the inbox is full. A boss feat has no record to see, and comes again with the next boss.
+func (i *Instance) AskMetFeats(id kernel.CharacterID) error {
+	return i.post(metFeatsMsg{id: id})
+}
+
+// askMetFeats handles AskMetFeats.
+func (i *Instance) askMetFeats(m metFeatsMsg) {
+	p, ok := i.players[m.id]
+	if !ok {
+		return // gone already: the next join asks
 	}
-	return pieces
+	class, _ := i.data.Class(p.Class)
+	i.grantFeats(p, func(w gamedata.FeatWhen) bool {
+		return w.Level > 0 && w.Level <= p.Level || w.Promoted && class.Parent != "" || w.Quest != "" && p.Quests[w.Quest].TimesFinished > 0
+	})
 }
 
 // grantFeats has a worker ask the item module for the pieces of each feat met gives (outfits.md section 4); the player hears of those new to the account. A feat asks each time it's met, so a grant lost to a failure, or to a pool too busy to take it, comes the next time; a bot does no feat.
@@ -34,7 +43,14 @@ func (i *Instance) grantFeats(p *player, met func(gamedata.FeatWhen) bool) {
 	if p.bot != nil {
 		return
 	}
-	pieces := FeatPieces(i.data, met)
+	var pieces []model.FeatPiece
+	for _, f := range i.data.Feats() {
+		if met(f.When) {
+			for _, piece := range i.data.FeatPieces(f.ID) {
+				pieces = append(pieces, model.FeatPiece{Piece: piece, Feat: f.ID})
+			}
+		}
+	}
 	if len(pieces) == 0 {
 		return
 	}
@@ -50,7 +66,7 @@ func (i *Instance) grantFeats(p *player, met func(gamedata.FeatWhen) bool) {
 		}
 	})
 	if !submitted {
-		i.log.Warn("a feat's grant dropped, every item-call worker busy; the next time it's met grants it", "character_id", id, "pieces", len(pieces))
+		i.log.Warn("a feat's grant dropped, every item-call worker busy; the next time it's met, or the next join, grants it", "character_id", id, "pieces", len(pieces))
 	}
 }
 

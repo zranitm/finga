@@ -157,10 +157,6 @@ func (i *Instance) add(j *joinMsg) {
 		}
 	}
 	p.HandedIn = nil
-	if len(p.FeatPieces) > 0 {
-		p.private = append(p.private, model.PiecesAdded{Tick: i.tick, Pieces: p.FeatPieces, Cause: model.PieceFromFeat})
-		p.FeatPieces = nil
-	}
 	j.done <- nil
 }
 

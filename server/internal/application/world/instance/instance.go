@@ -478,6 +478,8 @@ func (i *Instance) drain() {
 			i.settlePromotion(m)
 		case featsMsg:
 			i.settleFeats(m)
+		case metFeatsMsg:
+			i.askMetFeats(m)
 		case useMsg:
 			if !i.refused(m.done) {
 				i.startUse(m)

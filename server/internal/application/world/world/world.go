@@ -28,7 +28,6 @@ const (
 	answerTimeout   = 5 * time.Second // a map's answer to a join or leave, waited for past the caller's deadline
 	callTimeout     = 5 * time.Second // one call to another module; past it the call counts as failed
 	starterTimeout  = time.Second     // the join's best-effort starter grant
-	featsTimeout    = time.Second     // the join's best-effort ask for the feats met
 
 	saveRetryFirst = 100 * time.Millisecond // the pause after a failed save, doubled by each failure in a row
 	saveRetryMax   = 5 * time.Second

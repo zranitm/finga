@@ -238,3 +238,43 @@ func TestAPromotionAsksForThePromotedFeat(t *testing.T) {
 		}
 	})
 }
+
+// AskMetFeats asks for each feat the save shows met, a level reached, a promotion taken, a quest finished, and for none a save short of them all.
+func TestAskMetFeatsAsksForWhatTheSaveShows(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		class  kernel.Class
+		level  int
+		quests model.Quests
+		want   []model.FeatPiece
+	}{
+		{"a promoted level 12 who ran the errand", "warrior", 12, model.Quests{"errand": {Status: model.QuestFinished, TimesFinished: 1}}, []model.FeatPiece{{Piece: "wanderer_hat", Feat: "level_10"}, {Piece: "veteran_plate", Feat: "promoted"}, {Piece: "errand_badge", Feat: "errand_done"}}},
+		{"a beginner of 9 on the errand", "beginner", 9, model.Quests{"errand": {Status: model.QuestActive, Progress: []int{1}}}, nil},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				data := featData(t)
+				p := besideNPC(t, data, "Ayla", "town_guide")
+				p.Class, p.Level, p.Quests, p.Connection, p.Account = c.class, c.level, c.quests, "c1", kernel.NewAccountID()
+				feats := &fakeFeats{}
+				inst, stop := worldtest.Run(t, data, &worldtest.Checkpoints{}, worldtest.Options{Feats: feats, CheckpointInterval: time.Hour, ItemCalls: runningPool(t)})
+				defer stop()
+				s := join(t, inst, p)
+				if err := inst.AskMetFeats(p.ID); err != nil {
+					t.Fatal(err)
+				}
+				tick(2)
+				asked, _ := feats.asked()
+				slices.SortFunc(asked, func(a, b model.FeatPiece) int { return strings.Compare(a.Piece, b.Piece) })
+				want := slices.Clone(c.want)
+				slices.SortFunc(want, func(a, b model.FeatPiece) int { return strings.Compare(a.Piece, b.Piece) })
+				if !slices.Equal(asked, want) {
+					t.Fatalf("asked %+v, want %+v", asked, want)
+				}
+				if told, _ := piecesTold(t, s); len(told) != len(want) {
+					t.Fatalf("told of %v", told)
+				}
+			})
+		})
+	}
+}

@@ -155,8 +155,6 @@ type Player struct {
 	Waypoints  Waypoints   // travels with the player too, and the checkpoint keeps it
 	// HandedIn are completions the item module handed in while the world missed the reply; the map's join finishes them.
 	HandedIn []HandedIn
-	// FeatPieces are the pieces the world's join found the character's feats give, new to the account; the map's join tells of them.
-	FeatPieces []string
 	// Back is where a player going into a match returns to; nil outside one.
 	Back *Return
 }
