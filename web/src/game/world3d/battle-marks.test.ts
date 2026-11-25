@@ -30,13 +30,17 @@ describe('a battle’s marks in the world', () => {
     vi.unstubAllGlobals();
   });
 
-  /** The battlefield, any point named in moved standing there instead, then its marks. */
-  async function built(moved: Record<string, number[]> = {}): Promise<WorldMap> {
+  /** The battlefield, any point named in moved standing there instead and any in grown that wide, then its marks. */
+  async function built(
+    moved: Record<string, number[]> = {},
+    grown: Record<string, number> = {},
+  ): Promise<WorldMap> {
     const raw = structuredClone(json('battlefield')) as {
-      battle: { points: { id: string; at: number[] }[] };
+      battle: { points: { id: string; at: number[]; radius: number }[] };
     };
     for (const p of raw.battle.points) {
       p.at = moved[p.id] ?? p.at;
+      p.radius = grown[p.id] ?? p.radius;
     }
     servePublic({ any: raw });
     const map = await loadMap('any');
@@ -71,6 +75,30 @@ describe('a battle’s marks in the world', () => {
         }
       }
     }
+  });
+
+  it('keeps a wide point’s ring and a base’s wall no more than half a metre straight between vertices round them', async () => {
+    await built({}, { middle: 30 });
+    const gaps = (name: string, ring: (x: number, z: number) => boolean) => {
+      const m = scene.getMeshByName(name) as Mesh;
+      const at = m.getVerticesData(VertexBuffer.PositionKind)!;
+      const round: [number, number][] = [];
+      for (let i = 0; i < at.length; i += 3) {
+        if (ring(at[i]!, at[i + 2]!)) {
+          round.push([at[i]!, at[i + 2]!]);
+        }
+      }
+      round.sort((a, b) => Math.atan2(a[0], a[1]) - Math.atan2(b[0], b[1]));
+      return round.map(([x, z], k) => {
+        const [nx, nz] = round[(k + 1) % round.length]!;
+        return Math.hypot(nx - x, nz - z);
+      });
+    };
+    const ring = gaps('point ring middle', (x, z) => Math.abs(Math.hypot(x, z) - 30) < 1e-6);
+    expect(ring.length).toBeGreaterThan(64);
+    expect(Math.max(...ring)).toBeLessThanOrEqual(0.5 + 1e-6);
+    const wall = gaps('base wall 1', () => true).filter((d) => d > 1e-6); // its top and bottom share each angle
+    expect(Math.max(...wall)).toBeLessThanOrEqual(0.5 + 1e-6);
   });
 
   it('lays a point whose middle stands on a mound on the ground round it, not at the middle’s height', async () => {

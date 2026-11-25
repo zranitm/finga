@@ -4,6 +4,7 @@ import { Scene } from '@babylonjs/core/scene';
 import { describe, expect, it } from 'vitest';
 
 import type { Lake, River } from './region-bake';
+import { AREA_ORDER } from './see-through';
 import { linearOf, Palette } from './toon';
 import { drawWater, lakeArrays, riverArrays } from './water';
 import type { WaterArrays } from './water';
@@ -118,6 +119,35 @@ describe('a region’s water', () => {
     }
   });
 
+  it('cuts a bend tighter than the ribbon’s half short on its inside rather than fold it: every triangle faces up, none reaches past half, and the straight start keeps it all', () => {
+    const hairpin: River = {
+      path: [
+        [0, 0],
+        [10, 0],
+        [14, 1],
+        [16, 4],
+        [14, 7],
+        [10, 8],
+        [0, 8],
+      ],
+      width: 6,
+      levels: Array<number>(7).fill(0),
+    };
+    for (const r of [hairpin, { ...hairpin, path: hairpin.path.toReversed() }]) {
+      const a = riverArrays(r);
+      for (const t of triangles(a)) {
+        expect(turn(t)).toBeLessThan(0);
+      }
+      const reach = r.path.map(([x, z], i) => {
+        const [lx, , lz, rx, , rz] = a.positions.slice(6 * i, 6 * i + 6);
+        return [Math.hypot(lx! - x, lz! - z), Math.hypot(rx! - x, rz! - z)];
+      });
+      expect(reach.flat().every((d) => d <= 5 + 1e-5)).toBe(true); // 3 m of channel, 2 of bank
+      expect(reach[0]).toEqual([expect.closeTo(5, 5), expect.closeTo(5, 5)]);
+      expect(Math.min(...reach.flat())).toBeLessThan(4); // the bend's inside cut short
+    }
+  });
+
   it('lays a lake over its area grown 2 m past every side, at its level, cut into triangles facing up, whichever way its corners run', () => {
     for (const lake of [TEST_LAKE, { ...TEST_LAKE, area: TEST_LAKE.area.toReversed() }]) {
       const a = lakeArrays(lake);
@@ -155,7 +185,7 @@ describe('a region’s water', () => {
     expect(Math.hypot(a.positions[3]! - 40, a.positions[5]! - 1)).toBeCloseTo(6, 5);
   });
 
-  it('draws each river and lake as a mesh of its own under the region, toon-drawn see-through in the water’s colour, and lets them go with it', () => {
+  it('draws each river and lake as a mesh of its own under the region, toon-drawn see-through in the water’s colour first of the blended meshes, and lets them go with it', () => {
     const engine = new NullEngine();
     const scene = new Scene(engine);
     const root = new TransformNode('region', scene);
@@ -170,6 +200,7 @@ describe('a region’s water', () => {
       expect(m.parent).toBe(root);
       expect(m.material?.name).toBe(`toon - ${linearOf(0x5b8fc7).toHexString()} cut 0.85`); // the water's colour, linear
       expect(m.receiveShadows).toBe(true);
+      expect(m.alphaIndex).toBeLessThan(AREA_ORDER); // first of the blended meshes, under every area, ring, halo and faded prop
       expect(m.getVerticesData('normal')!.every((v, k) => v === (k % 3 === 1 ? 1 : 0))).toBe(true);
     }
     root.dispose();
