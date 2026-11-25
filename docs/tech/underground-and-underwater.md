@@ -434,6 +434,7 @@ These steps follow the regions' build (large-regions.md section 14).
    - **As built (4b, the sea props and their sway).**
      - **The kit:** kit.yaml gains the seven props: `coral_brain`, `coral_branch`, `coral_fan`, `kelp`, `sea_grass`, `shell_conch` and `shell_scallop`.
        - All are looks only, so none changes a rule. Step 6's layout may give a large coral a solid.
+       - Looks only still moves solids in a bake: each scatter line draws from its own random stream, numbered in order. So `shoal`'s four new lines, ahead of its rocks, gave the rocks new draws: 44 rock cylinders, not 48.
        - A new model changes every bake's list of models, so every golden hash and the client's four bake fixtures moved with it.
        - The test sea `shoal` scatters kelp, sea grass, branch coral and scallops on its floor.
      - **The client's kit** draws each at scale 1, as it was made, standing on its origin. Kelp and sea grass are marked `sway`.
@@ -443,6 +444,9 @@ These steps follow the regions' build (large-regions.md section 14).
        - So its base stays put and its stem rises straight, bending most near its top. The top swings 12% of its height either way: 36 cm for the 3 m kelp, 6 cm for sea grass.
        - Plants side by side across the current sway together. The wave runs along it at 1.8 m a second, so a bed sways as one.
      - **A swaying prop's shadow doesn't sway:** the shadow map draws the mesh as it stands. Under the sea's overhead sun, a plant's shadow falls nearly under it. The stills judge it.
+     - **Accepted, as small:**
+       - **The normals don't bend:** a swayed plant is lit as if it stood straight. Its top tilts at most about 13°, the slope of the bend there (2 × 0.12).
+       - **The culling box doesn't sway:** a chunk's props are culled by one box round them as they stand. So at the screen's edge, a top swung past that box can vanish with its chunk for a frame.
      - **Tests:**
        - **The vertex term, run block by block:**
          - the base still, the top swinging sideways only, between 5% and 20% of the height;
@@ -450,6 +454,28 @@ These steps follow the regions' build (large-regions.md section 14).
          - plants across the current together, 3 m along it out of step;
          - the ink drawn where its body is, and nothing swaying unless asked.
        - **`kitParts` on the real files:** kelp scaled 1.5 gets the sway in every fade step and its ink, by its 4.5 m as placed; coral gets none.
+   - **As built (4c, the bubbles and the fish).**
+     - **Vents:** a kit model `vent`, KayKit's small rock at 0.45, about half a metre, marked `bubbles: 0.4`: bubbles start that high over its base. kit.yaml lists it looks only, and the hashes and fixtures moved again. `shoal` scatters one every 20 m.
+       - A region keeps each drawn chunk's vents from its bake, so a vent streams as its chunk draws, whether or not its model has loaded. `Place.vents()` gives them; a map has none.
+     - **The bubbles:** two particle systems, one for the vents and one for the heads, each placing every bubble's start itself.
+       - Up to 64 vents within 40 m of the camera's target stream, five bubbles a second each, from within 4 cm of the vent's mouth.
+       - Each body drawn within 25 m of it (the player, the others, the mobs and the NPCs, not the dying) breathes out 2 to 4 bubbles from the top of its look every 3 to 5 s. Its first breath comes at a moment of its own, within 5 s.
+       - **A bubble:** a pale cyan ring with a bright fleck, drawn in code, 5 to 12 cm across. It rises at 0.5 to 0.9 m a second and 0.35 m a second faster each second, for 3 to 4.5 s. It blends over what's behind it, so the fog takes it.
+     - **The fish:** three schools of a dozen in a 48 m square round the player, fixed in the world and wrapping as the rays do.
+       - Each school loops 4 to 7 m round its middle, 4.8 to 7.2 m over the floor there, bobbing 0.4 m. Its fish string out along 1.4 radians of the loop, each up to 0.6 m in or out and 0.3 m up or down, so every fish is 4 to 8 m up. They swim at 1.2 m a second, nose first, the schools alternating ways.
+       - **One thin-instanced model:** each part of #325's fish holds all three schools' 36 fish, one draw a part, not one model a school. They're drawn in the sea's light, caustics on their backs, with no ink line and no shadow.
+       - A fish shrinks to nothing within 4 m of the square's edge, so none pops. It also shrinks over the 1.5 m before it comes within 0.6 m of the camera's line to the chest, so its body never crosses that line.
+     - **Tests:**
+       - **The bubbles:**
+         - only the near vents stream, the rate doubling with two;
+         - each bubble starts at a vent's mouth, or a head's top, and heads up;
+         - a body breathes 2 to 4 bubbles every 3 to 5 s, and none from 30 m off.
+       - A null engine never runs a particle system, since its shaders never load, so the tests read where each system places a bubble rather than watching it rise.
+       - **The fish, on the real model:**
+         - schools of a dozen in the sea's light;
+         - 4 to 8 m over a sloping floor, nose first, under 2.5 m a second, round a walking player;
+         - never across the camera's line to the chest, over 600 spots, cameras and moments.
+       - **A sea region in the world:** its vents streaming as its chunks come, the player breathing within 6 s, and the fish drawn.
 5. **Sea mobs:**
    - their models picked with the user from previews;
    - their data and stats, with the balance harness.

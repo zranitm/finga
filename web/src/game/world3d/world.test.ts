@@ -115,11 +115,11 @@ const NEAR_MAP_M = 1000; // the test maps' size, well inside the warm's distance
 const MODELS = path.resolve(process.cwd(), 'public/models');
 const WAIT = { timeout: 3000, interval: 5 }; // polled every 5 ms, not 50; 3 s for a build on a CI runner under coverage
 
-// Every key but the torches a stand-in: place.test draws town and forest with the real kit models, and a cave's torches stand by their flames here.
+// Every key but the torches and the vent a stand-in: place.test draws town and forest with the real kit models, a cave's torches stand by their flames here, and a sea's vents give off its bubbles.
 vi.mock('./kit-models', async (actual) => {
   const real = await actual<typeof Kit>();
-  const { torch_mounted, torch_lit } = real.kitModels;
-  return { ...real, kitModels: { torch_mounted, torch_lit } };
+  const { torch_mounted, torch_lit, vent } = real.kitModels;
+  return { ...real, kitModels: { torch_mounted, torch_lit, vent } };
 });
 
 /** Hunting maps with no NPCs, served flat and bare for the tests no map's own layout bears on: FLAT, the two a map change goes to, one served as a region, the widest a block holds, that with a tower, one served as a cave and one as a sea. */
@@ -851,6 +851,32 @@ describe('World', () => {
     expect(later).not.toEqual(first); // drifting
     expect(scene.getMeshByName('glow cards')).toBeNull(); // no torches
     expect(scene.getMeshByName('round shadows')).toBeNull(); // the sun's shadows instead
+  });
+
+  it('gives a sea bubbles streaming from its vents near the player and rising from their head now and then, and schools of fish swimming round them', async () => {
+    const p = await playing(SUNK, 24, 64);
+    const scene = p.scene()!;
+    p.frames(1);
+    await Promise.allSettled(chunkWork.builds);
+    await new Promise<void>((r) => setImmediate(r));
+    const system = (name: string) => scene.particleSystems.find((s) => s.name === name)!;
+    await vi.waitFor(() => {
+      p.frames(1);
+      expect(system('vent bubbles').emitRate).toBeGreaterThan(0); // the shoal's vents, as its chunks come
+    }, WAIT);
+    let breathed = 0;
+    for (let i = 0; i < 6000 / FRAME_MS; i++) {
+      p.live(1);
+      breathed = Math.max(breathed, system('breath bubbles').manualEmitCount); // a null engine never emits them
+    }
+    expect(breathed).toBeGreaterThanOrEqual(2); // within 6 s, every breath 3–5 s apart
+    await vi.waitFor(() => {
+      p.frames(1);
+      const fish = scene.meshes.filter(
+        (m) => m.name.startsWith('fish ') && (m as Mesh).thinInstanceCount > 0,
+      );
+      expect(fish.length).toBeGreaterThan(0);
+    }, WAIT);
   });
 
   it('draws a cave’s torches with their flames: each torch’s cup at its light, the flame unlit at its group’s flicker, a glow card behind it turned to the camera', async () => {
