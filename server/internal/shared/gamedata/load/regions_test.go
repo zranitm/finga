@@ -242,6 +242,11 @@ func TestRegionRejections(t *testing.T) {
 		{"a boss in two areas", file, "biome: meadow, kind: town}", "levels: [1, 5], biome: meadow, kind: hunting, boss: {at: [30, 30], radius: 4, mob: slime_lord}}", []string{file, "area meadow", "slime_lord", "hamlet's already"}},
 		{"a boss where it doesn't fit", file, "pieces:\n", "pieces:\n  - {house: {area: [87, 87, 6, 6], height: 4, model: house_small}}\n", []string{file, "boss slime_lord", "fits"}},
 
+		// Camps and bosses keep clear of stones, the start, gates and NPCs: the fixture's leash is 16 and its sight 9.375.
+		{"a camp just inside a stone's reach", file, "name: slimes, at: [40, 80]", "name: slimes, at: [64, 56.9]", []string{file, `camp "slimes"`, "within 19.90 m of waypoint hamlet's stone at [64 32]", "keeps 20 m", "leash"}},
+		{"a boss just inside a stone's reach", file, "at: [90, 90], radius: 4", "at: [64, 55.9], radius: 4", []string{file, "boss slime_lord", "within 19.90 m of waypoint hamlet's stone at [64 32]", "keeps 20 m"}},
+		{"a camp in sight of a gate", file, "name: slimes, at: [40, 80]", "name: slimes, at: [40.3, 64]", []string{file, `camp "slimes"`, "within 11.30 m of gate west at [24 64]", "keeps 11.375 m", "sight"}},
+
 		// The camps.
 		{"a camp of no area", file, "area: meadow, name: slimes", "area: marsh, name: slimes", []string{file, "camp \"slimes\"", "marsh"}},
 		{"a camp in a town", file, "area: meadow, name: slimes, at: [40, 80]", "area: hamlet, name: slimes, at: [40, 30]", []string{file, "camp \"slimes\"", "town"}},
@@ -294,6 +299,34 @@ func TestRegionRejections(t *testing.T) {
 			}
 		})
 	}
+	t.Run("a camp in sight of the start", func(t *testing.T) {
+		files := regioned(t)
+		files[file] = strings.Replace(strings.Replace(files[file], "start: {at: [64, 28]", "start: {at: [100, 44]", 1), "name: slimes, at: [40, 80]", "name: slimes, at: [100, 58]", 1)
+		if _, err := load.Dir(write(t, files)); err == nil || !strings.Contains(err.Error(), `camp "slimes"'s circle comes within 9.00 m of the start at [100 44]; it keeps 11.375 m`) {
+			t.Fatalf("error %v", err)
+		}
+	})
+	t.Run("a camp in sight of an NPC", func(t *testing.T) {
+		files := regioned(t)
+		files["maps/field.yaml"] = strings.Replace(files["maps/field.yaml"], "  - {id: hunter, at: [20, 12], yaw: 180}\n", "", 1)
+		files[file] = strings.Replace(files[file], "start:", "npcs:\n  - {id: hunter, at: [40, 95], yaw: 0}\nstart:", 1)
+		if _, err := load.Dir(write(t, files)); err == nil || !strings.Contains(err.Error(), `camp "slimes"'s circle comes within 10.00 m of NPC hunter at [40 95]; it keeps 11.375 m`) {
+			t.Fatalf("error %v", err)
+		}
+	})
+	t.Run("a camp or boss exactly on the line", func(t *testing.T) {
+		for _, edit := range [][2]string{
+			{"name: slimes, at: [40, 80]", "name: slimes, at: [64, 57]"},     // 20 m from the stone
+			{"at: [90, 90], radius: 4", "at: [64, 56], radius: 4"},           // 20 m from the stone
+			{"name: slimes, at: [40, 80]", "name: slimes, at: [40.375, 64]"}, // 11.375 m from the gate
+		} {
+			files := regioned(t)
+			files[file] = strings.Replace(files[file], edit[0], edit[1], 1)
+			if _, err := load.Dir(write(t, files)); err != nil {
+				t.Errorf("%s: %v", edit[1], err)
+			}
+		}
+	})
 	t.Run("a region of a map's id", func(t *testing.T) {
 		files := regioned(t)
 		files["regions/field.yaml"] = vale

@@ -180,6 +180,9 @@ func (l *loader) loadRegion(id string, raw, kitRaw []byte, kit regiongen.Kit) er
 	if err := l.spots(m, bosses); err != nil {
 		return err
 	}
+	if err := l.clearance(p); err != nil {
+		return err
+	}
 	waypoints, err := l.waypointsOf(p, m, grid)
 	if err != nil {
 		return err
@@ -361,6 +364,64 @@ func (l *loader) regionSpots(p regiongen.Plan, m *mapfile.Map, areas regiongen.A
 		}
 	}
 	return bosses, nil
+}
+
+const (
+	stoneMargin   = 4 // metres past a mob's leash a camp or boss keeps from a waypoint's stone: a player arriving 2 m from it stands 2 m past where any chase gives up
+	arrivalMargin = 2 // metres past a mob's sight it keeps from the start, a gate or an NPC, the old maps' calm rule
+)
+
+// clearance refuses a camp or area boss whose circle's edge comes nearer a waypoint's stone than a mob's leash and stoneMargin, or nearer the start, a gate or an NPC than a mob's sight and arrivalMargin (large-regions.md section 3): no chase follows a player to a stone, and no mob sees one arrive or talk.
+func (l *loader) clearance(p regiongen.Plan) error {
+	type home struct {
+		what string
+		at   [2]float64
+		r    float64
+	}
+	var homes []home
+	for _, c := range p.Camps {
+		homes = append(homes, home{fmt.Sprintf("camp %q", c.Name), c.At, c.Radius})
+	}
+	for _, a := range p.Areas {
+		if b := a.Boss; b != nil {
+			homes = append(homes, home{"boss " + b.Mob, b.At, b.Radius})
+		}
+	}
+	type spot struct {
+		what string
+		at   [2]float64
+		keep float64
+		why  string
+	}
+	stone := spot{keep: l.mobRules.Leash + stoneMargin, why: fmt.Sprintf("a mob's leash and %d m more, so no chase follows a player there", stoneMargin)}
+	calm := spot{keep: l.mobRules.Sight + arrivalMargin, why: fmt.Sprintf("a mob's sight and %d m more, so no mob sees a player arrive or talk", arrivalMargin)}
+	var spots []spot
+	for _, w := range p.Waypoints {
+		s := stone
+		s.what, s.at = "waypoint "+w.ID+"'s stone", w.At
+		spots = append(spots, s)
+	}
+	s := calm
+	s.what, s.at = "the start", p.Start.At
+	spots = append(spots, s)
+	for _, g := range p.Gates {
+		s := calm
+		s.what, s.at = "gate "+g.Name, g.At
+		spots = append(spots, s)
+	}
+	for _, n := range p.NPCs {
+		s := calm
+		s.what, s.at = "NPC "+n.ID, n.At
+		spots = append(spots, s)
+	}
+	for _, s := range spots {
+		for _, h := range homes {
+			if gap := math.Hypot(h.at[0]-s.at[0], h.at[1]-s.at[1]) - h.r; gap < s.keep {
+				return fmt.Errorf("%s's circle comes within %.2f m of %s at %v; it keeps %g m, %s", h.what, gap, s.what, s.at, s.keep, s.why)
+			}
+		}
+	}
+	return nil
 }
 
 // areaRules are an area's own: a name, its straight edges on the squares' lines, and a hunting area's levels and boss, its circle wholly in it, or a town's none.

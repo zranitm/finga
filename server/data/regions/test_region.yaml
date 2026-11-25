@@ -29,10 +29,10 @@ camps:
   - {area: west, name: mushrooms, at: [75, 115], radius: 5, mob: orange_mushroom, max: 3, respawn: 36s}
   - {area: south, name: boars, at: [102, 45], radius: 5, mob: wild_boar, max: 3, respawn: 36s}
   - {area: south, name: bats, at: [140, 32], radius: 4, mob: cave_bat, max: 2, respawn: 45s}
-  - {area: north, name: spore_slimes, at: [100, 155], radius: 5, mob: spore_slime, max: 3, respawn: 30s}
-  - {area: north, name: moths, at: [140, 150], radius: 5, mob: dust_moth, max: 2, respawn: 30s}
-  - {area: woods, name: glow_slimes, at: [215, 100], radius: 6, mob: glow_slime, max: 3, respawn: 30s}
-  - {area: woods, name: snail, at: [170, 100], radius: 4, mob: elder_snail, max: 1, respawn: 45s}
+  - {area: north, name: spore_slimes, at: [98, 172], radius: 5, mob: spore_slime, max: 3, respawn: 30s}
+  - {area: north, name: moths, at: [145, 165], radius: 5, mob: dust_moth, max: 2, respawn: 30s}
+  - {area: woods, name: glow_slimes, at: [216, 114], radius: 6, mob: glow_slime, max: 3, respawn: 30s}
+  - {area: woods, name: snail, at: [168, 116], radius: 4, mob: elder_snail, max: 1, respawn: 45s}
 waypoints:
   - {id: town, name: Test Town, at: [124, 85]}
   - {id: west, name: West Field, at: [60, 85]}
