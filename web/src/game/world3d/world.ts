@@ -705,7 +705,7 @@ export class World {
     try {
       const cave = map.region?.region.sky === 'cave' ? map.region : null;
       lighting = cave ? caveLighting(scene, cave) : sunLighting(scene, map);
-      round = cave && new RoundShadows(scene, lighting.palette);
+      round = cave && new RoundShadows(scene, lighting.palette, map);
       const models = new Models(scene, this.deps.models);
       figures = new Figures(scene, lighting, models);
       pouchMarks = new PouchMarks(scene, models, lighting);
@@ -1419,39 +1419,40 @@ export class World {
     }
   }
 
-  /** Eases the camera toward the player's chest by the time passed, held so the map's edge stops it, fades what stands between them, and opens the place round the chest and the mobs fighting them. */
   /** A cave's round shadows this frame, under each body drawn near the camera's target: the player, the others, the mobs, the dying and the NPCs. */
   private shadeBodies(): void {
     const round = this.roundShadows;
-    const map = this.map;
-    if (!round || !map) {
+    if (!round) {
       return;
     }
     round.begin(this.follow.x, this.follow.z);
-    const under = (v: Drawn, r: number) => {
-      const at = v.at;
-      if (at && v.shown) {
-        round.add(at.x, groundUnder(map, at.x, at.z), at.z, r);
-      }
-    };
     if (this.me) {
-      under(this.me, movement.radius);
+      this.shade(this.me, movement.radius);
     }
-    for (const v of this.remoteViews.values()) {
-      under(v, movement.radius);
-    }
-    for (const [id, v] of this.mobViews) {
-      under(v, mobById(this.mobTypes.get(id))?.radius ?? movement.radius);
-    }
-    for (const d of this.dying) {
-      under(d.view, mobById(d.type)?.radius ?? movement.radius);
-    }
-    for (const n of this.npcViews.values()) {
-      under(n.view, movement.radius);
-    }
+    this.remoteViews.forEach(this.shadePlayer);
+    this.mobViews.forEach(this.shadeMob);
+    this.dying.forEach(this.shadeDying);
+    this.npcViews.forEach(this.shadeNpc);
     round.end();
   }
 
+  /** v's round shadow, a body of radius r, if it's drawn: under its feet, on a solid's top it stands on too. */
+  private shade(v: Drawn, r: number): void {
+    const at = v.at;
+    if (at && v.shown) {
+      this.roundShadows?.add(at.x, at.y, at.z, r);
+    }
+  }
+
+  // made once, so a frame's walk over the maps makes nothing
+  private readonly shadePlayer = (v: Drawn) => this.shade(v, movement.radius);
+  private readonly shadeMob = (v: Drawn, id: number) =>
+    this.shade(v, mobById(this.mobTypes.get(id))?.radius ?? movement.radius);
+  private readonly shadeDying = (d: { readonly view: Drawn; readonly type: string | undefined }) =>
+    this.shade(d.view, mobById(d.type)?.radius ?? movement.radius);
+  private readonly shadeNpc = (n: { readonly view: Drawn }) => this.shade(n.view, movement.radius);
+
+  /** Eases the camera toward the player's chest by the time passed, held so the map's edge stops it, fades what stands between them, and opens the place round the chest and the mobs fighting them. */
   private moveCamera(dtMs: number): void {
     const camera = this.camera;
     const map = this.map;

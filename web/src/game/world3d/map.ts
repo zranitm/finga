@@ -288,7 +288,12 @@ function mulberry32(seed: number): () => number {
 }
 
 /** The ground under (x, z) for feet at y, as the server's groundUnder: the terrain, or a solid's top no more than a step above the higher of the two. */
-export function groundUnder(map: WorldMap, x: number, z: number, y = -Infinity): number {
+export function groundUnder(
+  map: Pick<WorldMap, 'geometry'>,
+  x: number,
+  z: number,
+  y = -Infinity,
+): number {
   const g = map.geometry;
   return ground(x, z, Math.max(y, height(g.terrain, x, z)) + movement.step, g);
 }
