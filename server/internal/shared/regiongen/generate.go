@@ -76,15 +76,16 @@ type builder struct {
 	onRoad   []bool    // per sample: under a road
 	water    []float64 // per sample: the highest water surface over it, -Inf where none
 	f        *field
-	roads    []Road    // smoothed
-	rivers   []River   // smoothed
-	floor    []float64 // a cave's ground under its rock, which its halls and tunnels are carved down to
-	rocky    []bool    // a cave's, per sample: rock or a wall, not carved floor
-	cliffs   []bool    // per sample: on a cliff plateau's face, a barrier where it stays steep
-	past     []float64 // a cave's, per sample: the least distance past a carved space's wandering line, negative inside one
-	flat     []float64 // per feature: a flat hall's level, NaN for any other
-	tunnels  []carved  // a cave's tunnels carved so far
-	wander   *noise    // a cave's: how its carved walls' lines wander
+	roads    []Road     // smoothed
+	rivers   []River    // smoothed
+	fords    []fordCone // every river's fords so far, whose ramps a later road keeps
+	floor    []float64  // a cave's ground under its rock, which its halls and tunnels are carved down to
+	rocky    []bool     // a cave's, per sample: rock or a wall, not carved floor
+	cliffs   []bool     // per sample: on a cliff plateau's face, a barrier where it stays steep
+	past     []float64  // a cave's, per sample: the least distance past a carved space's wandering line, negative inside one
+	flat     []float64  // per feature: a flat hall's level, NaN for any other
+	tunnels  []carved   // a cave's tunnels carved so far
+	wander   *noise     // a cave's: how its carved walls' lines wander
 	r        Region
 }
 
@@ -315,17 +316,25 @@ func (b *builder) river(r River) {
 		b.r.Wet[s], b.water[s] = true, max(b.water[s], level)
 	}
 	for i, at := range r.Fords {
-		b.ramp(at, fordBeds[i], half-bk)
+		c := fordCone{at: at, bed: fordBeds[i], floor: half - bk}
+		b.fords = append(b.fords, c)
+		for s := range b.h {
+			b.h[s] = min(b.h[s], c.under(b.g, s))
+		}
 	}
 }
 
-// ramp holds the ground round a ford at at under a cone: flat at bed within floor of it, then rising fordRamp a metre, so the river's banks there fall no steeper and a body walks into the ford and out of it every way.
-func (b *builder) ramp(at [2]float64, bed, floor float64) {
-	for s := range b.h {
-		dx, dz := b.g.x(s%b.g.nx)-at[0], b.g.x(s/b.g.nx)-at[1]
-		d := math.Sqrt(float64(dx*dx) + float64(dz*dz))
-		b.h[s] = min(b.h[s], bed+float64(fordRamp*max(d-floor, 0)))
-	}
+// fordCone is the ground a ford's ramp holds under: flat at bed within floor of it, then rising fordRamp a metre, so the river's banks there fall no steeper and a body walks into the ford and out of it every way.
+type fordCone struct {
+	at         [2]float64
+	bed, floor float64
+}
+
+// under is the highest sample s may stand round the ford.
+func (c fordCone) under(g grid, s int) float64 {
+	dx, dz := g.x(s%g.nx)-c.at[0], g.x(s/g.nx)-c.at[1]
+	d := math.Sqrt(float64(dx*dx) + float64(dz*dz))
+	return c.bed + float64(fordRamp*max(d-c.floor, 0))
 }
 
 // carve lowers sample s to bed, or up a bank toward the ground at share up of its way.
@@ -360,7 +369,7 @@ func (b *builder) lake(l Lake) {
 	}
 }
 
-// road flattens its smoothed path to the ground's mean along it, roadMean each way, easing back to the land over a shoulder as wide as the road; across water it's a causeway.
+// road flattens its smoothed path to the ground's mean along it, roadMean each way, easing back to the land over a shoulder as wide as the road; across water it's a causeway, but through a ford it wades it, held under the ford's ramp.
 func (b *builder) road(r Road) {
 	path := smooth(r.Path)
 	s := along(path)
@@ -385,9 +394,14 @@ func (b *builder) road(r Road) {
 	for _, t := range b.f.touched {
 		level := lerp(levels[b.f.seg[t]], levels[b.f.seg[t]+1], b.f.t[t])
 		d := math.Sqrt(b.f.d2[t])
-		b.h[t] = lerp(level, b.h[t], smoothstep((d-half)/r.Width))
-		if d <= half { // a road over water is a causeway
-			b.onRoad[t], b.r.Wet[t] = true, false
+		h := lerp(level, b.h[t], smoothstep((d-half)/r.Width))
+		for _, c := range b.fords {
+			h = min(h, c.under(b.g, int(t))) // through a ford it wades
+		}
+		b.h[t] = h
+		if d <= half {
+			b.onRoad[t] = true
+			b.r.Wet[t] = b.r.Wet[t] && h < b.water[t] // over the water a causeway, dry; under it still in it
 		}
 	}
 }
