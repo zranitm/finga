@@ -8,7 +8,7 @@ type Terrain struct {
 	NX      int       `json:"nx"`      // samples along x
 	NZ      int       `json:"nz"`      // samples along z
 	Heights []float64 `json:"heights"` // row by row from z = 0, each row from x = 0
-	// Barrier is per sample, as Heights: water too deep to wade, or a cave's rock; none on a map with neither.
+	// Barrier is per sample, as Heights: water too deep to wade, a cave's rock, or a raised cliff's face; none on a map with none of them.
 	Barrier []bool `json:"barrier,omitempty"`
 	steepX  []bool // per cell: a rise across either of its x edges exceeds MaxSlope × Cell
 	steepZ  []bool // likewise across its z edges

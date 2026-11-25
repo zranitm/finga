@@ -1,4 +1,4 @@
-// The scene's materials (3d-world.md section 11): one toon NodeMaterial per base colour or texture, its light posterized into flat bands, an inverted hull for the ink line, and an unlit glow; all take the scene's fog.
+// The scene's materials (3d-world.md section 11): one toon NodeMaterial per base colour or texture, its light posterized into flat bands, the sun's or a cave's torches', an inverted hull for the ink line, and an unlit glow; all take the scene's fog.
 import { Constants } from '@babylonjs/core/Engines/constants';
 import type { Material } from '@babylonjs/core/Materials/material';
 import { AddBlock } from '@babylonjs/core/Materials/Node/Blocks/addBlock';
@@ -13,6 +13,7 @@ import { DiscardBlock } from '@babylonjs/core/Materials/Node/Blocks/Fragment/dis
 import { FragCoordBlock } from '@babylonjs/core/Materials/Node/Blocks/Fragment/fragCoordBlock';
 import { FragmentOutputBlock } from '@babylonjs/core/Materials/Node/Blocks/Fragment/fragmentOutputBlock';
 import { FrontFacingBlock } from '@babylonjs/core/Materials/Node/Blocks/Fragment/frontFacingBlock';
+import { AnimatedInputBlockTypes } from '@babylonjs/core/Materials/Node/Blocks/Input/animatedInputBlockTypes';
 import { InputBlock } from '@babylonjs/core/Materials/Node/Blocks/Input/inputBlock';
 import { LengthBlock } from '@babylonjs/core/Materials/Node/Blocks/lengthBlock';
 import { LerpBlock } from '@babylonjs/core/Materials/Node/Blocks/lerpBlock';
@@ -28,6 +29,10 @@ import { SmoothStepBlock } from '@babylonjs/core/Materials/Node/Blocks/smoothSte
 import { StepBlock } from '@babylonjs/core/Materials/Node/Blocks/stepBlock';
 import { SubtractBlock } from '@babylonjs/core/Materials/Node/Blocks/subtractBlock';
 import { TransformBlock } from '@babylonjs/core/Materials/Node/Blocks/transformBlock';
+import {
+  TrigonometryBlock,
+  TrigonometryBlockOperations,
+} from '@babylonjs/core/Materials/Node/Blocks/trigonometryBlock';
 import { VectorMergerBlock } from '@babylonjs/core/Materials/Node/Blocks/vectorMergerBlock';
 import { VectorSplitterBlock } from '@babylonjs/core/Materials/Node/Blocks/vectorSplitterBlock';
 import { BonesBlock } from '@babylonjs/core/Materials/Node/Blocks/Vertex/bonesBlock';
@@ -47,6 +52,8 @@ import type { Scene } from '@babylonjs/core/scene';
 
 import { CUT_MOBS } from './cut-mobs';
 import { clearsMark, GHOST, markOthers, onPlace } from './see-through';
+import { FLICKERS, FLOOR, TORCH } from './torchlight';
+import type { Torchlight } from './torchlight';
 
 /** The light bands a surface steps through: shade, mid and lit; in shade it keeps this share of its colour, a cool grey. */
 const BANDS = 3;
@@ -370,16 +377,8 @@ function hole(
   return open;
 }
 
-/** Finishes m: rgb, a linear colour, fogged by its distance from the camera, out in gamma space at alpha; the place's clears the stencil for ghosts and decals, and with cut opens round the player's chest. */
-function built(
-  m: NodeMaterial,
-  s: Skinned,
-  rgb: NodeMaterialConnectionPoint,
-  alpha = 1,
-  cut: Cut | null = null,
-  place = cut !== null,
-  facing: NodeMaterialConnectionPoint | null = null,
-) {
+/** rgb, a linear colour, fogged by its distance from the camera. */
+function fogged(s: Skinned, rgb: NodeMaterialConnectionPoint): NodeMaterialConnectionPoint {
   const fog = new FogBlock('fog');
   s.worldPos.output.connectTo(fog.worldPosition);
   s.system('view', NodeMaterialSystemValues.View).output.connectTo(fog.view);
@@ -391,9 +390,22 @@ function built(
   );
   fogColor.setAsSystemValue(NodeMaterialSystemValues.FogColor);
   fogColor.output.connectTo(fog.fogColor);
+  return fog.output;
+}
+
+/** Finishes m: rgb, a linear colour, fogged by its distance from the camera, out in gamma space at alpha; the place's clears the stencil for ghosts and decals, and with cut opens round the player's chest. */
+function built(
+  m: NodeMaterial,
+  s: Skinned,
+  rgb: NodeMaterialConnectionPoint,
+  alpha = 1,
+  cut: Cut | null = null,
+  place = cut !== null,
+  facing: NodeMaterialConnectionPoint | null = null,
+) {
   const fragment = new FragmentOutputBlock('fragmentOutput');
   fragment.convertToGammaSpace = true;
-  fog.output.connectTo(fragment.rgb);
+  fogged(s, rgb).connectTo(fragment.rgb);
   if (alpha < 1) {
     const a = new InputBlock('alpha');
     a.value = alpha;
@@ -413,6 +425,75 @@ function built(
   return m;
 }
 
+/** The sun's diffuse light at the fragment: every light on the mesh, the sun alone here. */
+function sunlight(s: Skinned): NodeMaterialConnectionPoint {
+  const light = new LightBlock('light');
+  const normal = new NormalizeBlock('normal'); // the world matrix carries the model's scale
+  s.worldNormal.output.connectTo(normal.input);
+  s.worldPos.output.connectTo(light.worldPosition);
+  normal.output.connectTo(light.worldNormal);
+  s.system('cameraPosition', NodeMaterialSystemValues.CameraPosition).output.connectTo(
+    light.cameraPosition,
+  );
+  return light.diffuseOutput;
+}
+
+/** A cave's light at the fragment: the light map at its x and z, each group's times its flicker, their sum held to 1. */
+function torchlight(s: Skinned, t: Torchlight): NodeMaterialConnectionPoint {
+  const at = new VectorSplitterBlock('at');
+  s.worldPos.output.connectTo(at.xyzw);
+  const xz = new VectorMergerBlock('xz');
+  at.x.connectTo(xz.x);
+  at.z.connectTo(xz.y);
+  const size = new InputBlock('lightSize');
+  size.value = new Vector2(...t.size);
+  const uv = new DivideBlock('lightUv');
+  xz.xyOut.connectTo(uv.left);
+  size.output.connectTo(uv.right);
+  const map = new TextureBlock('lightMap');
+  map.texture = t.texture;
+  uv.output.connectTo(map.uv);
+  const time = new InputBlock('time', undefined, NodeMaterialBlockConnectionPointTypes.Float);
+  time.animationType = AnimatedInputBlockTypes.RealTime;
+  const lit = [map.r, map.g].map((group, g) => {
+    const lit = new MultiplyBlock(`group${g}`);
+    group.connectTo(lit.left);
+    flickering(g, time.output).connectTo(lit.right);
+    return lit.output;
+  });
+  const sum = new AddBlock('torches');
+  lit[0]!.connectTo(sum.left);
+  lit[1]!.connectTo(sum.right);
+  const held = new MinBlock('torchlight');
+  sum.output.connectTo(held.left);
+  constant('full', 1).output.connectTo(held.right);
+  return held.output;
+}
+
+/** Group's flicker at time, in seconds: 1 plus each of its sines. */
+function flickering(group: number, time: NodeMaterialConnectionPoint): NodeMaterialConnectionPoint {
+  let f: NodeMaterialConnectionPoint = constant(`flicker${group}`, 1).output;
+  FLICKERS[group]!.forEach(({ amp, rate, phase }, k) => {
+    const turned = new ScaleBlock(`turned${group}${k}`);
+    time.connectTo(turned.input);
+    constant(`rate${group}${k}`, rate).output.connectTo(turned.factor);
+    const phased = new AddBlock(`phased${group}${k}`);
+    turned.output.connectTo(phased.left);
+    constant(`phase${group}${k}`, phase).output.connectTo(phased.right);
+    const sine = new TrigonometryBlock(`sine${group}${k}`);
+    sine.operation = TrigonometryBlockOperations.Sin;
+    phased.output.connectTo(sine.input);
+    const swing = new ScaleBlock(`swing${group}${k}`);
+    sine.output.connectTo(swing.input);
+    constant(`amp${group}${k}`, amp).output.connectTo(swing.factor);
+    const next = new AddBlock(`flickered${group}${k}`);
+    f.connectTo(next.left);
+    swing.output.connectTo(next.right);
+    f = next.output;
+  });
+  return f;
+}
+
 function toonMaterial(
   name: string,
   scene: Scene,
@@ -421,24 +502,16 @@ function toonMaterial(
   cut: Cut | null,
   place = cut !== null,
   hollow = false,
+  torches: Torchlight | null = null,
 ): NodeMaterial {
   const s = new Skinned();
   s.place(s.worldPos.output);
 
-  const light = new LightBlock('light'); // every light on the mesh: the sun alone, here
-  const normal = new NormalizeBlock('normal'); // the world matrix carries the model's scale
-  s.worldNormal.output.connectTo(normal.input);
-  s.worldPos.output.connectTo(light.worldPosition);
-  normal.output.connectTo(light.worldNormal);
-  s.system('cameraPosition', NodeMaterialSystemValues.CameraPosition).output.connectTo(
-    light.cameraPosition,
-  );
-
-  // Posterize floors the light into 0, ⅓ and ⅔; stretched to 0, ½ and 1, the top band is the colour itself.
+  // Posterize floors the light into 0, ⅓ and ⅔; stretched to 0, ½ and 1, the top band is the colour itself, or in a cave the torches' warm light.
   const steps = new InputBlock('bands');
   steps.value = BANDS;
   const floored = new PosterizeBlock('floored');
-  light.diffuseOutput.connectTo(floored.value);
+  (torches ? torchlight(s, torches) : sunlight(s)).connectTo(floored.value);
   steps.output.connectTo(floored.steps);
   const stretch = new InputBlock('stretch');
   stretch.value = BANDS / (BANDS - 1);
@@ -448,12 +521,18 @@ function toonMaterial(
   const banded = new ClampBlock('banded');
   stretched.output.connectTo(banded.value);
   const shade = new InputBlock('shade');
-  shade.value = SHADE;
+  shade.value = torches ? FLOOR : SHADE;
   const lit = new InputBlock('lit');
   lit.value = Color3.White();
   const tone = new LerpBlock('tone');
   shade.output.connectTo(tone.left);
-  lit.output.connectTo(tone.right);
+  if (torches) {
+    const torch = new InputBlock('torch');
+    torch.value = TORCH;
+    torch.output.connectTo(tone.right);
+  } else {
+    lit.output.connectTo(tone.right);
+  }
   banded.output.connectTo(tone.gradient);
 
   const color = new InputBlock('color');
@@ -590,6 +669,78 @@ function glowMaterial(name: string, scene: Scene, color: Color3, alpha: number):
   return built(m, s, c.output, alpha);
 }
 
+const DISC_DARK = 0.55; // a round shadow's darkness at its middle
+const DISC_SOFT = 0.35; // and the share of its radius it holds that before fading to nothing at its rim
+const GLOW = new Color3(1, 0.55, 0.18).toLinearSpace(); // a flame's glow card, sRGB, the torches' orange
+const GLOW_PEAK = 0.5; // its strength at its middle, fading from it to nothing at its rim
+
+/** A soft disc of color, a linear colour, peak at its middle, held to soft of its radius and fading to nothing at its rim; a disc's or plane's uvs run 0 to 1 across it. Fogged, so a glow fades into a cave's black with the flame it's behind; it writes no depth, and blends by mode. */
+function discMaterial(
+  name: string,
+  scene: Scene,
+  color: Color3,
+  peak: number,
+  soft: number,
+  mode: number,
+): NodeMaterial {
+  const s = new Skinned();
+  s.place(s.worldPos.output);
+  const middle = new InputBlock('middle');
+  middle.value = new Vector2(0.5, 0.5);
+  const off = new SubtractBlock('off');
+  s.attribute('uv').output.connectTo(off.left);
+  middle.output.connectTo(off.right);
+  const away = new LengthBlock('away');
+  off.output.connectTo(away.value);
+  const rim = new ScaleBlock('rimShare');
+  away.output.connectTo(rim.input);
+  constant('toRim', 2).output.connectTo(rim.factor);
+  const fade = new SmoothStepBlock('fade');
+  rim.output.connectTo(fade.value);
+  constant('soft', soft).output.connectTo(fade.edge0);
+  constant('edge', 1).output.connectTo(fade.edge1);
+  const held = new OneMinusBlock('held');
+  fade.output.connectTo(held.input);
+  const alpha = new ScaleBlock('discAlpha');
+  held.output.connectTo(alpha.input);
+  constant('peak', peak).output.connectTo(alpha.factor);
+  const c = new InputBlock('color');
+  c.value = color;
+  const fragment = new FragmentOutputBlock('fragmentOutput');
+  fragment.convertToGammaSpace = true;
+  fogged(s, c.output).connectTo(fragment.rgb);
+  alpha.output.connectTo(fragment.a);
+  const m = new NodeMaterial(name, scene, { emitComments: false });
+  m.addOutputNode(s.vertex);
+  m.addOutputNode(fragment);
+  m.build();
+  m.backFaceCulling = false;
+  m.forceAlphaBlending = true;
+  m.alphaMode = mode;
+  m.disableDepthWrite = true;
+  return m;
+}
+
+/** base's texture times its colour at full strength, unlit, fogged: a torch's flame. */
+function unlitMaterial(name: string, scene: Scene, base: ToonBase): NodeMaterial {
+  const s = new Skinned();
+  s.place(s.worldPos.output);
+  const color = new InputBlock('color');
+  color.value = base.color;
+  const albedo = new MultiplyBlock('albedo');
+  if (base.texture) {
+    const texture = new TextureBlock('texture');
+    texture.texture = base.texture;
+    texture.convertToLinearSpace = true;
+    s.attribute('uv').output.connectTo(texture.uv);
+    texture.rgb.connectTo(albedo.left);
+  } else {
+    constant('white', 1).output.connectTo(albedo.left);
+  }
+  color.output.connectTo(albedo.right);
+  return built(new NodeMaterial(name, scene, { emitComments: false }), s, albedo.output);
+}
+
 /** An unlit colour, as written, at alpha: a decal laid on the place, faint where cut opens the place; a premultiplied one's colour fades there with its alpha. */
 function decalMaterial(
   name: string,
@@ -637,7 +788,11 @@ export class Palette {
     over: Array.from({ length: CUT_MOBS }, () => 0),
   };
 
-  constructor(private readonly scene: Scene) {
+  /** A scene's palette, its toon materials lit by a cave's torches when given them, else by the sun. */
+  constructor(
+    private readonly scene: Scene,
+    private readonly torches: Torchlight | null = null,
+  ) {
     markOthers(scene);
   }
 
@@ -656,6 +811,7 @@ export class Palette {
         cut ? this.cut : null,
         cut,
         inside,
+        this.torches,
       );
       this.made.set(key, m);
     }
@@ -672,6 +828,8 @@ export class Palette {
       1,
       null,
       true,
+      false,
+      this.torches,
     );
   }
 
@@ -707,6 +865,45 @@ export class Palette {
     m.disableDepthWrite = true; // under whatever stands on it
     m.zOffset = -2;
     onPlace(m);
+    return m;
+  }
+
+  /** The material of a round shadow, made once: black, DISC_DARK at its middle, fading from DISC_SOFT of its radius. Drawn over the ground, it clears the stencil as the place does, so a hidden telegraph's ghost shows over it as over the ground. */
+  disc(): NodeMaterial {
+    let m = this.made.get('disc');
+    if (!m) {
+      m = discMaterial(
+        'round shadow',
+        this.scene,
+        Color3.Black(),
+        DISC_DARK,
+        DISC_SOFT,
+        Constants.ALPHA_COMBINE,
+      );
+      clearsMark(m);
+      this.made.set('disc', m);
+    }
+    return m;
+  }
+
+  /** The material of a flame's glow card, made once: the torches' orange, added to what's behind, fading from its middle. */
+  flameGlow(): NodeMaterial {
+    let m = this.made.get('flame glow');
+    if (!m) {
+      m = discMaterial('flame glow', this.scene, GLOW, GLOW_PEAK, 0, Constants.ALPHA_ADD);
+      this.made.set('flame glow', m);
+    }
+    return m;
+  }
+
+  /** base drawn unlit at full colour, made once a base: a torch's flame. */
+  unlit(base: ToonBase): NodeMaterial {
+    const key = `unlit ${base.texture?.uniqueId ?? '-'} ${base.color.toHexString()}`;
+    let m = this.made.get(key);
+    if (!m) {
+      m = unlitMaterial(key, this.scene, base);
+      this.made.set(key, m);
+    }
     return m;
   }
 

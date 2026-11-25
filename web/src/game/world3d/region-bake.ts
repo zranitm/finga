@@ -1,4 +1,4 @@
-// A region's bake as cmd/regionbake writes it (large-regions.md section 3): region.json, the 8 m overview and the 64 m chunks, all little-endian.
+// A region's bake as cmd/regionbake writes it (large-regions.md section 3): region.json, the 8 m overview, the 64 m chunks and a cave's light map, all little-endian.
 
 /** The bake format this client reads; any other is refused. */
 export const BAKE_FORMAT = 3;
@@ -12,6 +12,8 @@ export interface RegionRef {
 /** What the client draws a region by, from region.json. */
 export interface Region {
   readonly ref: RegionRef;
+  /** A place below's region above; empty on the land. */
+  readonly under: string;
   readonly sky: string;
   readonly size: readonly [number, number];
   readonly cell: number;
@@ -31,6 +33,23 @@ export interface Region {
   readonly water: number;
   readonly rivers: readonly River[];
   readonly lakes: readonly Lake[];
+  /** Its torches' flames, whose light light.bin holds; none on the land. */
+  readonly lights: readonly Flame[];
+}
+
+/** A torch's flame: its x and z, its height, and the flicker group its light takes. */
+export interface Flame {
+  readonly x: number;
+  readonly z: number;
+  readonly y: number;
+  readonly group: number;
+}
+
+/** A cave's light map: nx by nz texels a metre a side, row by row from the south-west, each two bytes, its two flicker groups' light 0–255 at its centre. */
+export interface LightMap {
+  readonly nx: number;
+  readonly nz: number;
+  readonly texels: Uint8Array;
 }
 
 /** A river as carved: its smoothed path downstream, x and z, its channel's width, and its water's level at each point. */
@@ -99,14 +118,20 @@ export function chunkFile(cx: number, cz: number): string {
   return `chunks/${cx}_${cz}.bin`;
 }
 
-/** The region ref names and its overview, from its bake. */
-export async function loadRegion(ref: RegionRef): Promise<{ region: Region; overview: Overview }> {
+/** The region ref names, its overview, and its light map if it has torches, from its bake. */
+export async function loadRegion(
+  ref: RegionRef,
+): Promise<{ region: Region; overview: Overview; light: LightMap | null }> {
   const [meta, overview] = await Promise.all([
     fetched(bakeUrl(ref, 'region.json')).then((r) => r.json() as Promise<RegionJson>),
     fetched(bakeUrl(ref, 'overview.bin')).then((r) => r.arrayBuffer()),
   ]);
   const region = parseRegion(ref, meta);
-  return { region, overview: readOverview(overview, region.cell) };
+  const light =
+    region.lights.length > 0
+      ? readLight(await fetched(bakeUrl(ref, 'light.bin')).then((r) => r.arrayBuffer()))
+      : null;
+  return { region, overview: readOverview(overview, region.cell), light };
 }
 
 /** The response from url, or an error naming it. */
@@ -132,6 +157,12 @@ interface RegionJson {
   readonly areas: readonly RegionArea[];
   readonly rivers: readonly River[] | null;
   readonly lakes: readonly Lake[] | null;
+  readonly under: string;
+  readonly lights: readonly {
+    readonly at: [number, number];
+    readonly y: number;
+    readonly group: number;
+  }[];
 }
 
 function parseRegion(ref: RegionRef, j: RegionJson): Region {
@@ -144,6 +175,7 @@ function parseRegion(ref: RegionRef, j: RegionJson): Region {
   }
   return {
     ref,
+    under: j.under,
     sky: j.sky,
     size: j.size,
     cell: j.cell,
@@ -157,6 +189,7 @@ function parseRegion(ref: RegionRef, j: RegionJson): Region {
     water: parseInt(water.rgb.slice(1), 16),
     rivers: (j.rivers ?? []).map(({ path, width, levels }) => ({ path, width, levels })),
     lakes: (j.lakes ?? []).map(({ area, level }) => ({ area, level })),
+    lights: j.lights.map(({ at, y, group }) => ({ x: at[0], z: at[1], y, group })),
   };
 }
 
@@ -174,6 +207,17 @@ function header(buf: ArrayBuffer, magic: string): [number, number, number] {
 }
 
 const HEADER = 12;
+
+const LIGHT_GROUPS = 2;
+
+/** light.bin: "FRLT", its texels along x and z and the bytes in each, which must be the two flicker groups'; then the texels. */
+export function readLight(buf: ArrayBuffer): LightMap {
+  const [nx, nz, groups] = header(buf, 'FRLT');
+  if (groups !== LIGHT_GROUPS || buf.byteLength !== HEADER + groups * nx * nz) {
+    throw new Error(`light.bin: ${groups} groups and ${buf.byteLength} bytes for ${nx} × ${nz}`);
+  }
+  return { nx, nz, texels: new Uint8Array(buf, HEADER) };
+}
 
 /** overview.bin, of a region whose samples are cell metres apart: "FROV", its samples along x and z and its step in samples; then its heights, then its colours. */
 export function readOverview(buf: ArrayBuffer, cell: number): Overview {
