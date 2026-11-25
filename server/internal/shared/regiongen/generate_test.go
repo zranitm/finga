@@ -280,9 +280,10 @@ func TestEveryFordHoldsShallowWater(t *testing.T) {
 			water := r.Rivers[rivers]
 			rivers++
 			for _, at := range f.River.Fords {
+				d2 := func(q [2]float64) float64 { return float64((q[0]-at[0])*(q[0]-at[0])) + float64((q[1]-at[1])*(q[1]-at[1])) }
 				near := 0 // the river's point nearest the ford, whose level is the water over it
 				for k, q := range water.Path {
-					if math.Hypot(q[0]-at[0], q[1]-at[1]) < math.Hypot(water.Path[near][0]-at[0], water.Path[near][1]-at[1]) {
+					if d2(q) < d2(water.Path[near]) {
 						near = k
 					}
 				}
