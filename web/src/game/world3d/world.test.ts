@@ -743,7 +743,7 @@ describe('World', () => {
     expect(held()).toEqual([null, [expect.anything()], []]);
   });
 
-  it('lights a cave region by its torches: no sun and so no sun shadows, its ground sampling the light map', async () => {
+  it('lights a cave region by its torches: no sun and so no sun shadows, its ground sampling the light map, a round shadow under each body', async () => {
     const p = await playing(CAVED, 24, 64);
     const scene = p.scene()!;
     expect(scene.lights).toEqual([]);
@@ -756,6 +756,21 @@ describe('World', () => {
     const map = (chunks[0]!.material as NodeMaterial).getBlockByName('lightMap') as TextureBlock;
     expect(map.texture?.getSize()).toEqual({ width: 128, height: 128 });
     expect(scene.clearColor.toHexString().slice(0, 7)).toBe('#000000');
+    const round = scene.getMeshByName('round shadows')!;
+    await vi.waitFor(() => {
+      p.frames(1);
+      expect(round.thinInstanceCount).toBe(1); // the player's own, once drawn
+    }, WAIT);
+    const robin = () => [standing(24, 64), standing(27, 64, 'c-robin', 'thief')];
+    p.push('delta', { players: robin() }, { tick: 2 });
+    p.frames(1);
+    expect(round.thinInstanceCount).toBe(1); // Robin's model still coming: no shadow under nothing
+    let tick = 3;
+    await vi.waitFor(() => {
+      p.push('delta', { players: robin() }, { tick: tick++ });
+      p.frames(1);
+      expect(round.thinInstanceCount).toBe(2); // and Robin's, 3 m off
+    }, WAIT);
   });
 
   it('draws a map whose data names a region from that bake, streaming its chunks round the camera', async () => {
@@ -764,6 +779,7 @@ describe('World', () => {
     expect(scene.transformNodes.some((n) => n.name === `region ${TINY.id}`)).toBe(true);
     expect(scene.transformNodes.some((n) => n.name.startsWith('place '))).toBe(false);
     expect(scene.lights.map((l) => l.name)).toEqual(['sun']);
+    expect(scene.getMeshByName('round shadows')).toBeNull(); // the sun's shadows instead
     p.frames(1);
     await Promise.allSettled(chunkWork.builds);
     await new Promise<void>((r) => setImmediate(r));

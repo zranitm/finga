@@ -129,6 +129,7 @@ import { PouchMarks } from './pouch';
 import { PrepWall } from './prep-wall';
 import type { RegionArea } from './region-bake';
 import { buildRegion } from './region-place';
+import { RoundShadows } from './round-shadows';
 import { ShieldBubbles } from './shield-bubbles';
 import { teleportGlow } from './teleport-glow';
 import { Palette } from './toon';
@@ -335,6 +336,11 @@ class Drawn {
     return this.last ?? undefined;
   }
 
+  /** Whether it's drawn this frame: made, and not hidden. */
+  get shown(): boolean {
+    return this.figure?.root.isEnabled() ?? false;
+  }
+
   dispose(): void {
     this.gone = true;
     this.figure?.dispose();
@@ -411,6 +417,7 @@ export class World {
   private camera: TargetCamera | null = null;
   private figures: Figures | null = null;
   private lighting: Lighting | null = null;
+  private roundShadows: RoundShadows | null = null; // a cave's, which has no sun
   private pouchMarks: PouchMarks | null = null;
   private place: Place | null = null;
   private map: WorldMap | null = null;
@@ -625,6 +632,7 @@ export class World {
     this.showChains();
     this.publishMarks(now);
     this.drawNpcs(now, dt);
+    this.shadeBodies();
     this.moveCamera(dt);
     this.unveil();
     this.combat?.frame(now);
@@ -690,14 +698,14 @@ export class World {
     const scene = new Scene(this.deps.engine);
     let place: Place;
     let lighting: Lighting;
+    let round: RoundShadows | null;
     let figures: Figures;
     let pouchMarks: PouchMarks;
     let fx: Fx;
     try {
-      lighting =
-        map.region?.region.sky === 'cave'
-          ? caveLighting(scene, map.region)
-          : sunLighting(scene, map);
+      const cave = map.region?.region.sky === 'cave' ? map.region : null;
+      lighting = cave ? caveLighting(scene, cave) : sunLighting(scene, map);
+      round = cave && new RoundShadows(scene, lighting.palette);
       const models = new Models(scene, this.deps.models);
       figures = new Figures(scene, lighting, models);
       pouchMarks = new PouchMarks(scene, models, lighting);
@@ -725,6 +733,7 @@ export class World {
     }
     this.scene = scene;
     this.lighting = lighting;
+    this.roundShadows = round;
     this.figures = figures;
     this.pouchMarks = pouchMarks;
     this.place = place;
@@ -1411,6 +1420,38 @@ export class World {
   }
 
   /** Eases the camera toward the player's chest by the time passed, held so the map's edge stops it, fades what stands between them, and opens the place round the chest and the mobs fighting them. */
+  /** A cave's round shadows this frame, under each body drawn near the camera's target: the player, the others, the mobs, the dying and the NPCs. */
+  private shadeBodies(): void {
+    const round = this.roundShadows;
+    const map = this.map;
+    if (!round || !map) {
+      return;
+    }
+    round.begin(this.follow.x, this.follow.z);
+    const under = (v: Drawn, r: number) => {
+      const at = v.at;
+      if (at && v.shown) {
+        round.add(at.x, groundUnder(map, at.x, at.z), at.z, r);
+      }
+    };
+    if (this.me) {
+      under(this.me, movement.radius);
+    }
+    for (const v of this.remoteViews.values()) {
+      under(v, movement.radius);
+    }
+    for (const [id, v] of this.mobViews) {
+      under(v, mobById(this.mobTypes.get(id))?.radius ?? movement.radius);
+    }
+    for (const d of this.dying) {
+      under(d.view, mobById(d.type)?.radius ?? movement.radius);
+    }
+    for (const n of this.npcViews.values()) {
+      under(n.view, movement.radius);
+    }
+    round.end();
+  }
+
   private moveCamera(dtMs: number): void {
     const camera = this.camera;
     const map = this.map;
@@ -2597,6 +2638,7 @@ export class World {
     this.place?.dispose(); // a region's chunk work and stones' listener outlive the scene
     this.place = null;
     this.figures = null;
+    this.roundShadows = null;
     this.pouchMarks = null;
     this.lighting = null;
     this.map = null;
