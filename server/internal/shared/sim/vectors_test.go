@@ -92,7 +92,7 @@ var requiredVectors = []string{
 	"deep-walk-stops-at-bank", "deep-jump-stops-in-air", "deep-dash-stops-at-bank", "deep-leap-stops-at-bank", "deep-blink-stops-short",
 	"deep-ford-crosses", "deep-slides-into-ford", "deep-walks-out", "deep-corners-west-bank", "deep-corners-east-bank",
 	"bake-tiny-seam-sprint", "bake-tiny-house-seam", "bake-tiny-river-bank", "bake-tiny-ford", "bake-tiny-blink-seam",
-	"bake-steep-cliff", "bake-steep-cliff-leap", "bake-steep-ring", "bake-steep-off-plateau", "bake-steep-ridge",
+	"bake-steep-cliff", "bake-steep-cliff-leap", "bake-steep-ring", "bake-steep-off-plateau", "bake-steep-road-up", "bake-steep-ridge",
 }
 
 // params are §3's starting values in metres.
@@ -540,7 +540,7 @@ func baked(name string) sim.Geometry {
 	return r.Geometry
 }
 
-// bakeScenarios walk the test plans' bakes, which the client reads chunk by chunk: its seams, the solids each chunk carries at the server's indices, deep water, and the steepest ground the wide plan has.
+// bakeScenarios walk the test plans' bakes, which the client reads chunk by chunk: its seams, the solids each chunk carries at the server's indices, deep water, a cliff's barrier and the road up it, and the steepest ground the wide plan has.
 func bakeScenarios() []vector {
 	tiny, steep := baked("tiny"), baked("steep")
 	on := func(g sim.Geometry, x, z float64) sim.State { return standing(x, g.Terrain.Height(x, z), z) }
@@ -561,8 +561,10 @@ func bakeScenarios() []vector {
 			Region: "steep", Params: params, Geometry: steep, Start: on(steep, 50, 60), Inputs: moving(leap(1, 0, 8), still, 40)},
 		{Name: "bake-steep-ring", Notes: "Walking west into the ring's cliff, a step over 40 m, then south-west along its foot.",
 			Region: "steep", Params: params, Geometry: steep, Start: on(steep, 22, 40), Inputs: runs(west, 120, sim.Input{Down: true, Left: true}, 180)},
-		{Name: "bake-steep-off-plateau", Notes: "Walking west off the plateau's top over its cliff: the body falls 12 m and lands.",
+		{Name: "bake-steep-off-plateau", Notes: "Walking west on the plateau's top at its cliff: the face is a barrier, so the body stops at the edge and doesn't fall.",
 			Region: "steep", Params: params, Geometry: steep, Start: on(steep, 70, 60), Inputs: runs(west, 240)},
+		{Name: "bake-steep-road-up", Notes: "Walking north up the road onto the plateau: the road eases its cliff, so the body climbs to the top.",
+			Region: "steep", Params: params, Geometry: steep, Start: on(steep, 70, 34), Inputs: runs(north, 360)},
 		{Name: "bake-steep-ridge", Notes: "Walking north at the ridge 28 m high: its flank is steep from the foot, so the body stops; then north-east it slides along the foot.",
 			Region: "steep", Params: params, Geometry: steep, Start: on(steep, 40, 84), Inputs: runs(north, 60, northEast, 180)},
 	}

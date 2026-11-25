@@ -123,6 +123,7 @@ const required = [
   'bake-steep-cliff-leap',
   'bake-steep-ring',
   'bake-steep-off-plateau',
+  'bake-steep-road-up',
   'bake-steep-ridge',
 ];
 

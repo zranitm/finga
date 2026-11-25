@@ -80,6 +80,7 @@ type builder struct {
 	rivers   []River   // smoothed
 	floor    []float64 // a cave's ground under its rock, which its halls and tunnels are carved down to
 	rocky    []bool    // a cave's, per sample: rock or a wall, not carved floor
+	cliffs   []bool    // per sample: on a cliff plateau's face, a barrier where it stays steep
 	past     []float64 // a cave's, per sample: the least distance past a carved space's wandering line, negative inside one
 	flat     []float64 // per feature: a flat hall's level, NaN for any other
 	tunnels  []carved  // a cave's tunnels carved so far
@@ -135,7 +136,7 @@ func Generate(p Plan, k Kit, body sim.Params) (*Region, error) {
 	t := sim.NewTerrain(p.Cell, nx, nz, b.h, maxSlope)
 	t.Barrier = make([]bool, nx*nz)
 	for s, wet := range b.r.Wet { // judged on the final ground, which roads, towns and the edge reshape after the water
-		t.Barrier[s] = wet && b.water[s]-b.h[s] > wadeDepth || b.walled(s)
+		t.Barrier[s] = wet && b.water[s]-b.h[s] > wadeDepth || b.walled(s) || b.cliff(t, s)
 	}
 	steep := b.colours(t)
 	var placed solidsNear
@@ -225,6 +226,23 @@ func (b *builder) ridge(r Ridge) {
 	}
 }
 
+// cliff is whether sample s is on a raised cliff's face with every cell round it still steep on the final ground t: a wall at any height, as a body walks up a steep face slantwise, while a cell a road or a ford's ramp eased stays open.
+func (b *builder) cliff(t sim.Terrain, s int) bool {
+	if b.cliffs == nil || !b.cliffs[s] {
+		return false
+	}
+	ix, iz := s%b.g.nx, s/b.g.nx
+	for cz := max(iz-1, 0); cz <= min(iz, b.g.nz-2); cz++ {
+		for cx := max(ix-1, 0); cx <= min(ix, b.g.nx-2); cx++ {
+			x, z := float64(float64(cx)+0.5)*b.g.cell, float64(float64(cz)+0.5)*b.g.cell
+			if !t.Steep(x, z, false) && !t.Steep(x, z, true) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // plateau raises Height over its area, falling straight to nothing outside it: over two samples for a cliff, at half the walkable slope for a ramp.
 func (b *builder) plateau(p Plateau) {
 	edge := float64(cliffCells * b.g.cell)
@@ -233,9 +251,16 @@ func (b *builder) plateau(p Plateau) {
 	}
 	b.f.near(b.g, p.Area, true, edge)
 	inside := b.inside(p.Area)
+	raised := p.Edge == Cliff && p.Height > 0 // a pit's cliff marks nothing: none ships, as nothing climbs out
+	if raised && b.cliffs == nil {
+		b.cliffs = make([]bool, len(b.h))
+	}
 	for _, s := range b.f.touched {
 		if !inside[s] {
 			b.h[s] += float64(p.Height * (1 - math.Sqrt(b.f.d2[s])/edge))
+			if raised {
+				b.cliffs[s] = true
+			}
 		}
 	}
 	for s, in := range inside {

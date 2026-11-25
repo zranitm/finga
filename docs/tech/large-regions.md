@@ -176,6 +176,10 @@ biomes:
   - **Ridge:** `height × (1 − d²/r²)²` at `d` from its path, `r` half its width.
   - **Plateau:** `height` is added over its area.
     - A cliff falls over 2 samples, too steep to walk.
+      - **As built (land cliffs, from #400's review):** a steep face is walked up slantwise, so a raised cliff's face is a barrier, as a cave's rock is. Each sample on it carries the mark, unless one of the four cells round it is no longer steep on the final ground, as under a road onto the plateau or by a ford's ramp.
+      - A road onto a cliff plateau eases its face and stays open, the only way onto its top, and a pit's cliff marks nothing. Nobody drops off a cliff: the barrier stops a body at the top's edge too.
+      - Banks, fords, ramps and the ring keep their steep marks only. A cell steep along one axis made steep along both was tried instead and dropped: it closed the wide plan's ford at (700, 540) and left two one-way pockets by the test region's river.
+      - **Test:** over every plan, a player from the start, walking or jumping, reaches no cliff plateau's top but by a road onto it, and does reach it by one (`TestNoPlayerClimbsACliff`).
     - A ramp falls at half `max_slope`, walkable.
   - **River:** its path is smoothed (Chaikin's method, 3 passes).
     - **Water:** 0.5 m below the lowest ground along it so far, so it never rises downstream.
@@ -761,7 +765,7 @@ Built with step 1, which says who watches a cell.
   - **Tests:**
     - the bake read back in the client: deep marks, every solid index filled once, and each refusal;
     - the ground: its grid, steep and deep marks as a whole map's, each solid as its chunk records it, and its buckets as indexing every solid at once, whatever order the chunks come in;
-    - ten movement vectors on two test plans' bakes, which Go replays on its generated ground and the client on a `RegionGround` from the chunks, to the bit. The tiny plan's: its seam, a house over it, its river and ford, a blink stopped by an oak a neighbouring chunk carries. The steep plan's, as steep as the wide plan gets (its ring a 42.9 m step in a cell, the wide plan's 42.1 m): cliffs, a fall, a ridge;
+    - eleven movement vectors on two test plans' bakes, which Go replays on its generated ground and the client on a `RegionGround` from the chunks, to the bit. The tiny plan's: its seam, a house over it, its river and ford, a blink stopped by an oak a neighbouring chunk carries. The steep plan's, as steep as the wide plan gets (its ring a 42.9 m step in a cell, the wide plan's 42.1 m): cliffs, the barrier at a cliff's top, the road up it, a ridge;
     - the world: the hold on arrival, its radius pinned at a missing chunk's edge, the veil, the notice let go with the region, a gate's label lowered onto the river bed, the reload once chunks fail every try, and none from a try failing after the player has left.
 
 ## 11. cmd/bot
