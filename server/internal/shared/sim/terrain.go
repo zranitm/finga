@@ -8,7 +8,7 @@ type Terrain struct {
 	NX      int       `json:"nx"`      // samples along x
 	NZ      int       `json:"nz"`      // samples along z
 	Heights []float64 `json:"heights"` // row by row from z = 0, each row from x = 0
-	// DeepWater is per sample, as Heights: under water too deep to wade; none on a map without water.
+	// DeepWater is per sample, as Heights: under water too deep to wade, or a cave's rock; none on a map with neither.
 	DeepWater []bool `json:"deep_water,omitempty"`
 	steepX    []bool // per cell: a rise across either of its x edges exceeds MaxSlope × Cell
 	steepZ    []bool // likewise across its z edges
@@ -58,7 +58,7 @@ func (t Terrain) Top(x, z float64) float64 {
 	return max(t.Heights[i], t.Heights[i+1], t.Heights[i+t.NX], t.Heights[i+t.NX+1])
 }
 
-// Deep reports whether any sample of the cell holding (x, z) is under deep water, which no body moves into.
+// Deep reports whether any sample of the cell holding (x, z) is under deep water or a cave's rock, which no body moves into.
 func (t Terrain) Deep(x, z float64) bool {
 	if t.DeepWater == nil {
 		return false

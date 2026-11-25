@@ -29,6 +29,7 @@ function map(boxes: Box[] = []): WorldMap {
     },
     solids: [],
     prepWall: null,
+    battle: null,
     waypoints: [],
     props: [],
     portals: [],
@@ -143,6 +144,12 @@ describe("a map's ground", () => {
       ...map(),
       id: 'tiny',
       geometry: ground.geometry,
+      solids: [],
+      prepWall: null,
+      battle: null,
+      waypoints: [],
+      props: [],
+      portals: [],
       region: { ref: TINY, region, overview, ground, waypoints: [] },
     };
     expect(mapGround(tiny)).toEqual({ kind: 'tiles', folder: bakeUrl(TINY, 'tiles') });

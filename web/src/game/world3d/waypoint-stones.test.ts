@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
+import { TargetCamera } from '@babylonjs/core/Cameras/targetCamera';
 import { Constants } from '@babylonjs/core/Engines/constants';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import type { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
@@ -49,6 +50,42 @@ describe('a region’s waypoint stones', () => {
     clock = t;
     scene.onBeforeRenderObservable.notifyObservers(scene);
   };
+  /** The game's camera on the player at x, z, from the south, back and down by zoom: 16 m at 50°, or 40 m at 35°. */
+  const camera = (x: number, z: number, zoom: 'near' | 'far' = 'near') => {
+    const [back, pitch] = zoom === 'near' ? [16, 50] : [40, 35];
+    const a = (pitch * Math.PI) / 180;
+    scene.activeCamera?.dispose();
+    const c = new TargetCamera(
+      'camera',
+      new Vector3(x, 0.9 + back * Math.sin(a), z - back * Math.cos(a)),
+      scene,
+    );
+    c.fov = 0.8;
+    c.setTarget(new Vector3(x, 0.9, z));
+    scene.activeCamera = c;
+    return c;
+  };
+  /** Halo id's dot r of its radius out from its middle: its sRGB colour, 0 to 1, and its alpha. */
+  const dotAt = (id: string, r: number) => {
+    const m = mesh(`waypoint ${id} halo`)!.material as StandardMaterial;
+    const t = m.emissiveTexture!;
+    const px = t.getInternalTexture()!._bufferView as Uint8Array; // as the engine was handed it
+    const n = t.getSize().width;
+    const mid = (n - 1) / 2;
+    const i = (Math.floor(mid) * n + Math.min(n - 1, Math.round(mid + r * mid))) * 4;
+    return {
+      color: new Color3(px[i]! / 255, px[i + 1]! / 255, px[i + 2]! / 255),
+      alpha: px[i + 3]! / 255,
+    };
+  };
+  const grass = () =>
+    Color3.FromHexString(
+      (
+        JSON.parse(new TextDecoder().decode(tinyFile('region.json'))) as {
+          palette: { name: string; rgb: string }[];
+        }
+      ).palette.find((c) => c.name === 'grass')!.rgb,
+    );
 
   async function built(): Promise<void> {
     const models = new Models(scene, (f) => new Uint8Array(readFileSync(path.join(MODELS, f))));
@@ -96,26 +133,63 @@ describe('a region’s waypoint stones', () => {
     const west = mesh('waypoint west halo')!;
     const town = mesh('waypoint town halo')!;
     expect(town.scaling.x).toBeGreaterThan(west.scaling.x);
-    expect(town.material!.alpha).toBeGreaterThan(west.material!.alpha);
-    expect(west.position.asArray()).toEqual([60, 1.5 + 3.24, 85]); // round the crystal
     expect(mesh('waypoint ring')!.isEnabled()).toBe(false); // the join's flares none
   });
 
-  // From the look's pick: an added halo read mint on grass; drawn over it, its solid part must read the map's cyan.
-  it('draws each halo over the ground, not added to it, its solid part reading cyan on a region’s grass', async () => {
+  // From the halo's pick: a cyan thinning to clear over grass passes through mint, so a solid core whose edge deepens toward blue, and an unfound one dim by its darkness.
+  it('draws each halo over the ground, solid to about 45% of its radius and fading bluer past it, found reading cyan on a region’s grass and unfound a darker teal, not a thinner one', async () => {
+    waypoints.getState().applyWelcome(['town']);
     await built();
-    const grass = (
-      JSON.parse(new TextDecoder().decode(tinyFile('region.json'))) as {
-        palette: { name: string; rgb: string }[];
-      }
-    ).palette.find((c) => c.name === 'grass')!.rgb;
-    const ground = Color3.FromHexString(grass);
+    const ground = grass();
+    const seen = (d: { color: Color3; alpha: number }) =>
+      d.color
+        .scale(d.alpha)
+        .add(ground.scale(1 - d.alpha))
+        .toHSV();
     for (const id of ['west', 'town']) {
       const m = mesh(`waypoint ${id} halo`)!.material as StandardMaterial;
-      expect(m.alphaMode).toBe(Constants.ALPHA_COMBINE);
-      const seen = m.emissiveColor.scale(m.alpha).add(ground.scale(1 - m.alpha));
-      expect(seen.toHSV().r).toBeGreaterThanOrEqual(178); // cyan; grass is 95, mint about 150
-      expect(seen.toHSV().r).toBeLessThanOrEqual(195);
+      expect([m.alphaMode, m.alpha, m.opacityTexture]).toEqual([
+        Constants.ALPHA_COMBINE,
+        1,
+        m.emissiveTexture,
+      ]); // drawn over the ground at the dot's own alpha
+      const core = dotAt(id, 0).alpha;
+      for (const r of [0.2, 0.4]) {
+        expect(dotAt(id, r).alpha).toBeCloseTo(core, 2);
+      }
+      expect(dotAt(id, 0.55).alpha).toBeLessThan(0.9 * core);
+      expect(dotAt(id, 1).alpha).toBeLessThan(0.03);
+    }
+    for (const r of [0, 0.2, 0.4]) {
+      expect(seen(dotAt('town', r)).r).toBeGreaterThanOrEqual(178); // cyan; grass is 95, mint about 150
+      expect(seen(dotAt('town', r)).r).toBeLessThanOrEqual(195);
+      expect(seen(dotAt('west', r)).r).toBeGreaterThanOrEqual(170); // teal
+      expect(seen(dotAt('west', r)).r).toBeLessThanOrEqual(195);
+    }
+    expect(dotAt('town', 0.9).color.toHSV().r).toBeGreaterThan(
+      dotAt('town', 0).color.toHSV().r + 5,
+    ); // deepening toward blue at the edge
+    const [dim, lit] = [dotAt('west', 0), dotAt('town', 0)];
+    expect(dim.alpha).toBeGreaterThan(0.75 * lit.alpha); // not thin
+    expect(dim.color.toHSV().b).toBeLessThan(0.65 * lit.color.toHSV().b); // dark
+  });
+
+  it('stands each halo behind its crystal for the game’s camera at either zoom, so the crystal draws in front of it', async () => {
+    waypoints.getState().applyWelcome(['town']);
+    await built();
+    const m = mesh('waypoint stone Crystal')!;
+    const [west] = m.thinInstanceGetWorldMatrices(); // the one unfound stone
+    const v = m.getVerticesData('position')!;
+    const crystal = Array.from({ length: v.length / 3 }, (_, i) =>
+      Vector3.TransformCoordinates(Vector3.FromArray(v, 3 * i), west!),
+    );
+    const halo = mesh('waypoint west halo')!.position;
+    for (const zoom of ['near', 'far'] as const) {
+      const c = camera(WEST.x, WEST.z - 4, zoom);
+      const look = c.getDirection(Vector3.Forward());
+      const depth = (v: Vector3) => Vector3.Dot(v.subtract(c.position), look);
+      const farthest = Math.max(...crystal.map(depth));
+      expect(depth(halo)).toBeGreaterThan(farthest);
     }
   });
 
@@ -132,8 +206,9 @@ describe('a region’s waypoint stones', () => {
     ]);
   });
 
-  it('a find lights its stone at once and flares it: a beam gone by 0.6 s, a ring spreading 7 m across, the halo swelling and settling, then nothing more', async () => {
+  it('a find of a stone on screen lights it at once and flares it: a beam gone by 0.6 s, a ring spreading 7 m across, the halo swelling and settling, then nothing more', async () => {
     await built();
+    camera(WEST.x, WEST.z - 4);
     waypoints.getState().find('west');
     expect(spots('waypoint stone found')).toEqual([[60, 1.5, 85]]);
     expect(spots('waypoint stone')).toEqual([[124, 2, 85]]);
@@ -153,6 +228,55 @@ describe('a region’s waypoint stones', () => {
     frame(1800);
     expect([beam.isEnabled(), ring.isEnabled()]).toEqual([false, false]);
     expect(halo.scaling.x).toBe(found);
+  });
+
+  // From the flare's call: at the near zoom the whole stone shows only within about 9 m, and finds come at 12 m, so a flare played at once would mostly go unseen.
+  it('a find of a stone off screen leaves it dim and unflared till its crystal first comes on screen, then lights and flares it', async () => {
+    await built();
+    camera(TOWN.x, TOWN.z);
+    waypoints.getState().find('west');
+    expect(waypoints.getState().found.has('west')).toBe(true);
+    expect(spots('waypoint stone')).toEqual([
+      [60, 1.5, 85],
+      [124, 2, 85],
+    ]);
+    frame(9000);
+    expect(mesh('waypoint ring')!.isEnabled()).toBe(false);
+    expect(spots('waypoint stone found')).toEqual([]);
+    camera(WEST.x - 20, WEST.z, 'far'); // the crystal just on screen, toward its right
+    frame(9500);
+    expect(spots('waypoint stone found')).toEqual([[60, 1.5, 85]]);
+    const [beam, ring] = [mesh('waypoint beam')!, mesh('waypoint ring')!];
+    expect([beam.isEnabled(), ring.isEnabled()]).toEqual([true, true]);
+    frame(10_100);
+    expect([beam.isEnabled(), ring.isEnabled()]).toEqual([false, true]); // the flare's clock starts when seen
+    frame(10_300);
+    expect(ring.isEnabled()).toBe(false);
+  });
+
+  it('a find whose stone isn’t on screen within 10 s shows it lit after, with no flare', async () => {
+    await built();
+    camera(TOWN.x, TOWN.z);
+    waypoints.getState().find('west');
+    frame(10_999);
+    expect(spots('waypoint stone found')).toEqual([]);
+    frame(11_000);
+    expect(spots('waypoint stone found')).toEqual([[60, 1.5, 85]]);
+    camera(WEST.x, WEST.z - 4);
+    frame(11_100);
+    expect(mesh('waypoint ring')!.isEnabled()).toBe(false);
+    expect(mesh('waypoint west halo')!.scaling.x).toBe(mesh('waypoint west halo')!.scaling.y); // and no swell
+  });
+
+  it('a join while a find waits to be seen lights its stone at once, unflared, as the join’s list does', async () => {
+    await built();
+    camera(TOWN.x, TOWN.z);
+    waypoints.getState().find('west');
+    waypoints.getState().applyWelcome(['west']);
+    expect(spots('waypoint stone found')).toEqual([[60, 1.5, 85]]);
+    camera(WEST.x, WEST.z - 4);
+    frame(2000);
+    expect(mesh('waypoint ring')!.isEnabled()).toBe(false);
   });
 
   // From the stones' live pass: arrivals were north of the stone, which stood between the camera and the player. A stone still fades for the player walking behind it, as a tall prop does.
@@ -179,6 +303,7 @@ describe('a region’s waypoint stones', () => {
       ]); // its toon at the faded step's alpha
     }
     expect(westHalo.visibility).toBe(STEPS[2]);
+    camera(WEST.x, 72 + 16 * Math.cos((50 * Math.PI) / 180)); // the game's camera at the one fade has
     waypoints.getState().find('west');
     expect(faded.every((m) => !m.isEnabled())).toBe(true); // found while faded: its found copy shows instead
     expect(copy('found').every((m) => m.isEnabled())).toBe(true);
@@ -194,12 +319,14 @@ describe('a region’s waypoint stones', () => {
   it('lifts the flare’s ring over the highest ground under it, on a slope too', async () => {
     heightAt = (x) => 1.5 + 0.1 * (x - WEST.x); // rising east
     await built();
+    camera(WEST.x, WEST.z - 4);
     waypoints.getState().find('west');
     const ring = mesh('waypoint ring')!;
     frame(1799); // at its widest, 7 m across
     expect(ring.position.y).toBeCloseTo(1.5 + 0.1 * 3.5 + 0.08, 2);
     heightAt = () => TOWN.y;
-    waypoints.getState().find('town');
+    camera(TOWN.x, TOWN.z - 4);
+    waypoints.getState().find('town'); // a newer find on screen takes the flare over
     expect(ring.position.y).toBeCloseTo(TOWN.y + 0.08, 5); // on flat ground, just over it
   });
 

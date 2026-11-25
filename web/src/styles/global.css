@@ -2227,6 +2227,53 @@ body {
   font-size: 18px;
   font-weight: 600;
 }
+.match-score {
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.match-points {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+/* A battle's point: its name in its holder's colour, grey when no one's, and a ring filled as far as it has turned, in the colour of the side it turns toward. */
+.match-point {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.match-point.point-ally {
+  color: var(--ally);
+}
+.match-point.point-enemy {
+  color: var(--enemy);
+}
+.match-point svg {
+  width: 16px;
+  height: 16px;
+  transform: rotate(-90deg); /* the ring fills from the top */
+}
+.match-point-track {
+  fill: none;
+  stroke: var(--panel-border);
+  stroke-width: 3;
+}
+.match-point-ring {
+  fill: none;
+  stroke-width: 3;
+}
+.match-point-ring.point-ally {
+  stroke: var(--ally);
+}
+.match-point-ring.point-enemy {
+  stroke: var(--enemy);
+}
+.match-point.contested .match-point-name {
+  text-decoration: underline wavy;
+}
 .match-bar > .btn,
 .match-leave,
 .match-bar > .error {

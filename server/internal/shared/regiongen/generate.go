@@ -19,6 +19,7 @@ type Region struct {
 	Props    []Prop       // set pieces, then scattered
 	Rivers   []RiverWater
 	Lakes    []LakeWater
+	Flames   []Flame    // a cave's torches' lights, in the props' order
 	Wet      []bool     // per terrain sample: under a river or a lake
 	Heights  [2]float64 // the lowest and highest sample
 }
@@ -69,24 +70,32 @@ type builder struct {
 	k        Kit
 	g        grid
 	maxSlope float64
+	radius   float64 // a body's
 	h        []float64
 	area     []int16   // per sample, the plan's area holding it, or -1
 	onRoad   []bool    // per sample: under a road
 	water    []float64 // per sample: the highest water surface over it, -Inf where none
 	f        *field
-	roads    []Road  // smoothed
-	rivers   []River // smoothed
+	roads    []Road    // smoothed
+	rivers   []River   // smoothed
+	floor    []float64 // a cave's ground under its rock, which its halls and tunnels are carved down to
+	rocky    []bool    // a cave's, per sample: rock or a wall, not carved floor
+	past     []float64 // a cave's, per sample: the least distance past a carved space's wandering line, negative inside one
+	flat     []float64 // per feature: a flat hall's level, NaN for any other
+	tunnels  []carved  // a cave's tunnels carved so far
+	wander   *noise    // a cave's: how its carved walls' lines wander
 	r        Region
 }
 
-// Generate builds p with kit k for the sim's maxSlope, a rise per metre, the same bits on every CPU.
-func Generate(p Plan, k Kit, maxSlope float64) (*Region, error) {
-	if err := p.check(k); err != nil {
+// Generate builds p with kit k for the sim's body, its slope and radius, the same bits on every CPU.
+func Generate(p Plan, k Kit, body sim.Params) (*Region, error) {
+	if err := p.check(k, body.Radius); err != nil {
 		return nil, err
 	}
+	maxSlope := body.MaxSlope
 	nx, nz := samples(p.Size[0], p.Cell), samples(p.Size[1], p.Cell)
 	g := grid{nx: nx, nz: nz, cell: p.Cell}
-	b := &builder{p: p, k: k, g: g, maxSlope: maxSlope, h: make([]float64, nx*nz), onRoad: make([]bool, nx*nz), water: make([]float64, nx*nz), f: newField(nx * nz)}
+	b := &builder{p: p, k: k, g: g, maxSlope: maxSlope, radius: body.Radius, h: make([]float64, nx*nz), onRoad: make([]bool, nx*nz), water: make([]float64, nx*nz), f: newField(nx * nz)}
 	for i := range b.water {
 		b.water[i] = math.Inf(-1)
 	}
@@ -96,7 +105,8 @@ func Generate(p Plan, k Kit, maxSlope float64) (*Region, error) {
 	}
 	b.areas()
 	b.ground()
-	for _, f := range p.Features {
+	b.rock()
+	for i, f := range p.Features {
 		switch {
 		case f.Ridge != nil:
 			b.ridge(*f.Ridge)
@@ -106,6 +116,10 @@ func Generate(p Plan, k Kit, maxSlope float64) (*Region, error) {
 			b.river(*f.River)
 		case f.Lake != nil:
 			b.lake(*f.Lake)
+		case f.Hall != nil:
+			b.hall(i, *f.Hall)
+		case f.Tunnel != nil:
+			b.tunnel(*f.Tunnel)
 		default:
 			b.road(*f.Road)
 		}
@@ -121,13 +135,15 @@ func Generate(p Plan, k Kit, maxSlope float64) (*Region, error) {
 	t := sim.NewTerrain(p.Cell, nx, nz, b.h, maxSlope)
 	t.DeepWater = make([]bool, nx*nz)
 	for s, wet := range b.r.Wet { // judged on the final ground, which roads, towns and the edge reshape after the water
-		t.DeepWater[s] = wet && b.water[s]-b.h[s] > wadeDepth
+		t.DeepWater[s] = wet && b.water[s]-b.h[s] > wadeDepth || b.walled(s)
 	}
 	steep := b.colours(t)
 	var placed solidsNear
 	b.r.Geometry = sim.Geometry{SizeX: p.Size[0], SizeZ: p.Size[1], Terrain: t, Boxes: []sim.Box{}, Cylinders: []sim.Cylinder{}}
 	b.pieces(&placed)
+	b.torches(&placed)
 	b.scatter(steep, &placed)
+	b.flames()
 	b.r.Geometry = sim.Indexed(b.r.Geometry)
 	return &b.r, nil
 }

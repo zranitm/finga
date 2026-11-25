@@ -108,10 +108,10 @@ const WAIT = { timeout: 3000, interval: 5 }; // polled every 5 ms, not 50; 3 s f
 
 vi.mock('./kit-models', () => ({ kitModels: {} })); // every key a stand-in: place.test draws town and forest with the real kit models
 
-/** Hunting maps with no NPCs, served flat and bare for the tests no map's own layout bears on: FLAT, the two a map change goes to, one served as a region, and the widest a block holds. */
-const [FLAT, FLAT2, FLAT3, REGIONED, WIDE] = maps
+/** Hunting maps with no NPCs, served flat and bare for the tests no map's own layout bears on: FLAT, the two a map change goes to, one served as a region, the widest a block holds, and that with a tower. */
+const [FLAT, FLAT2, FLAT3, REGIONED, WIDE, TOWERED] = maps
   .filter((m) => m.kind === 'hunting' && npcsOn(m.id).length === 0)
-  .map((m) => m.id) as [string, string, string, string, string];
+  .map((m) => m.id) as [string, string, string, string, string, string];
 
 /** Map id flat and bare, 72 by 40 m. */
 function bare(id: string) {
@@ -189,6 +189,19 @@ function wide(id: string) {
   };
 }
 
+/** Map id as WIDE with a 14 m tower 8.6 m south of (60, 40): at the camera's end of its line to a player there. */
+function towered(id: string) {
+  const m = wide(id);
+  return {
+    ...m,
+    geometry: {
+      ...m.geometry,
+      boxes: [{ x: 60, z: 31.4, half_w: 1, half_d: 0.5, ux: 1, uz: 0, top: 14 }], // south of the 8 m cell the player's head is in
+    },
+    box_models: [{ model: 'tower', yaw: 0 }],
+  };
+}
+
 /** The maps served in place of the real ones, made once; the rest come from disk. */
 const SERVED = {
   [FLAT]: bare(FLAT),
@@ -197,8 +210,13 @@ const SERVED = {
   [REGIONED]: regioned(REGIONED),
   [`regions/${TINY.id}/${TINY.hash}/region.json`]: townedTiny(),
   [WIDE]: wide(WIDE),
+  [TOWERED]: towered(TOWERED),
   town: slim('town'),
   ring: { ...bare('ring'), prep_wall: (mapJson('ring') as { prep_wall: unknown }).prep_wall }, // flat, with its own prep wall
+  battlefield: {
+    ...slim('battlefield'), // its own size, flat, with its bases and points
+    battle: (mapJson('battlefield') as { battle: unknown }).battle,
+  },
 };
 
 type PlayerWire = NonNullable<ServerInit<'snapshot'>['players']>[number];
@@ -559,6 +577,40 @@ describe('World', () => {
     vi.advanceTimersByTime(100);
     expect(chunkWork.reloads).toBe(reloads + 1);
   });
+
+  // The World dropped a region's place with its scene, never the place's own dispose: a chunk whose last try failed after the player had gone still broke the region, and the page reloaded.
+  it.each([
+    ['leaves the game', (p: Playing) => leave(p)],
+    [
+      'goes to another map',
+      (p: Playing) => changeMap(p, { mapId: FLAT, x: 4, y: 0, z: 20, yaw: 0 }),
+    ],
+  ])(
+    'lets a region’s chunk work go as the player %s: a last try failing after reloads nothing',
+    async (_, go) => {
+      vi.spyOn(console, 'info').mockImplementation(() => undefined);
+      vi.spyOn(Math, 'random').mockReturnValue(0); // each wait at its floor: 0.25, 0.5, 1 and 2 s
+      chunkWork.failing = 'chunks/1_';
+      const p = await playing(REGIONED, 30, 60);
+      const reloads = chunkWork.reloads;
+      for (let i = 0; i < 4; i++) {
+        await Promise.allSettled(chunkWork.builds);
+        await new Promise<void>((r) => setImmediate(r));
+        p.frames(Math.ceil((250 * 2 ** i) / FRAME_MS) + 1); // past the wait: the fifth try is asked last
+      }
+      go(p); // with the fifth try in flight
+      vi.useFakeTimers({ toFake: ['setTimeout'] });
+      await Promise.allSettled(chunkWork.builds);
+      await new Promise<void>((r) => setImmediate(r));
+      vi.advanceTimersByTime(10_000);
+      expect(
+        toasts
+          .getState()
+          .toasts.filter((t) => t.text === 'The map’s ground didn’t load. Reloading…'),
+      ).toEqual([]);
+      expect(chunkWork.reloads).toBe(reloads);
+    },
+  );
 
   it('stands a region’s gate label on its ground once the chunk under it comes', async () => {
     const p = await playing(REGIONED, 86, 70);
@@ -1083,7 +1135,10 @@ describe('World', () => {
           { ...standing(94, 20, 'c-robin', 'thief'), statuses: slow, shield: 10 },
           { ...standing(x, 20, 'c-jade', 'bowman'), statuses: slow, shield: 10 },
         ];
-        const mobs = [mob(1, 'green_slime', x), ...(boarGone ? [] : [boar])];
+        const mobs = [
+          { ...mob(1, 'green_slime', x), hp: 34 - (tick % 30) }, // hurt each frame, so it shows its bar while drawn
+          ...(boarGone ? [] : [boar]),
+        ];
         p.push(
           'delta',
           { players, mobs, ...(leaving && { unseen: { mobs: [2] } }) },
@@ -1547,6 +1602,44 @@ describe('World', () => {
     expect(p.root(classLook('warrior').file)).toBeUndefined();
   });
 
+  it('names the 40 other players nearest, a party member and the lock however far, and no one else', async () => {
+    const p = await playing(FLAT, 4, 20);
+    const near = Array.from({ length: 40 }, (_, i) => ({
+      ...standing(2 + (i % 10) / 2, 19 + Math.floor(i / 10) / 2, `c-${i}`),
+      name: `P${i}`,
+      team: 1,
+    })); // within 2.7 m
+    const robin = { ...standing(4, 25, 'c-robin', 'thief'), team: 2 }; // 5 m north: the enemy, locked
+    const jade = { ...standing(10, 24, 'c-jade', 'bowman'), name: 'Jade', team: 1 }; // the party's, 7.2 m
+    const lee = { ...standing(7, 22, 'c-lee', 'bowman'), name: 'Lee', team: 1 }; // 3.6 m, the 41st nearest, and no one's
+    party.getState().applyPartyState(
+      create(PartyStateSchema, {
+        party: create(PartyViewSchema, {
+          leader: ME,
+          members: [
+            { characterId: ME, name: 'Ayla', mapId: FLAT, online: true },
+            { characterId: 'c-jade', name: 'Jade', mapId: FLAT, online: true },
+          ],
+        }),
+      }),
+    );
+    for (let tick = 2; tick <= 10; tick++) {
+      p.push(
+        'delta',
+        { players: [{ ...standing(4, 20), team: 1 }, ...near, robin, jade, lee] },
+        { tick },
+      );
+      p.frames(1);
+    }
+    expect(target.getState().target?.ref).toBe('p:c-robin');
+    expect(near.every((n) => p.label(`p:${n.id}`) === n.name)).toBe(true);
+    expect([p.label('p:c-robin'), p.label('p:c-jade'), p.label('p:c-lee')]).toEqual([
+      'Robin',
+      'Jade',
+      undefined,
+    ]);
+  });
+
   it('in a match names enemies red and teammates green, tags a bot, and locks and attacks an enemy as a mob, never a teammate', async () => {
     const cut = vi.spyOn(Palette.prototype, 'cutAround');
     const p = await playing(FLAT, 4, 20);
@@ -1754,20 +1847,49 @@ describe('World', () => {
       make.mockRestore();
     });
 
-    it('show an HP bar over each one’s head, an elite’s in gold, none over a boss or a killed one', async () => {
+    it('show an HP bar over a mob’s head while it’s locked or for 5 s after it last lost HP, an elite’s in gold, none over a boss or a killed one', async () => {
       const p = await playing(FLAT, 4, 20);
       const bar = (id: number) => p.parent.querySelector<HTMLElement>(`[data-bar="${id}"]`);
       const all = [mob(1, 'green_slime', 6), mob(2, 'sun_slime', 8), mob(3, 'king_slime', 10)];
       frames(p, 2, 8, all);
+      expect(target.getState().target?.ref).toBe('m:1'); // the nearest, locked as it's seen
+      expect([bar(1) !== null, bar(2), bar(3)]).toEqual([true, null, null]); // the lock's alone: none hurt yet, however far down
+      const hurt = all.map((m) => ({ ...m, hp: 28 }));
+      frames(p, 9, 12, hurt);
       expect(bar(1)?.style.display).toBe('');
-      expect((bar(1)?.firstElementChild as HTMLElement).style.width).toBe(`${(30 / 34) * 100}%`);
+      expect((bar(1)?.firstElementChild as HTMLElement).style.width).toBe(`${(28 / 34) * 100}%`);
       expect([bar(1)?.style.outline, bar(2)?.style.outline]).toEqual(['', '2px solid #f2c14e']);
       expect(bar(3)).toBeNull(); // the boss bar at the top shows its HP
-      frames(p, 9, 12, [{ ...mob(1, 'green_slime', 6, MobPose.DOWN), hp: 0 }, ...all.slice(1)]);
-      expect(bar(1)).toBeNull();
-      p.push('delta', { removedMobs: [2] }, { tick: 13 });
+      frames(p, 13, 13 + 5000 / FRAME_MS, hurt); // 5 s on, none hurt again
+      expect([bar(1) !== null, bar(2)]).toEqual([true, null]); // the lock's kept
+      const healed = { ...hurt[1]!, hp: 30 };
+      const nearer = mob(4, 'green_slime', 5);
+      const king = hurt[2]!;
+      frames(p, 330, 333, [
+        { ...mob(1, 'green_slime', 6, MobPose.DOWN), hp: 0 },
+        nearer,
+        healed,
+        king,
+      ]);
+      expect(target.getState().target?.ref).toBe('m:4'); // the lock moves on
+      expect([bar(1), bar(2)]).toEqual([null, null]); // killed, and a heal's no hurt
+      p.push('delta', { removedMobs: [2] }, { tick: 334 });
       p.frames(4);
-      expect(bar(2)).toBeNull();
+      frames(p, 335, 338, [nearer, { ...healed, hp: 20 }, king]);
+      expect(bar(2)).toBeNull(); // back in sight, seen anew
+      changeMap(p, { mapId: FLAT, x: 4, y: 0, z: 20, yaw: 0 }); // as a rejoin
+      p.push(
+        'snapshot',
+        { players: [standing(4, 20)], mobs: [nearer, { ...healed, hp: 10 }] },
+        { tick: 339 },
+      );
+      await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), WAIT);
+      frames(p, 340, 343, [nearer, { ...healed, hp: 10 }]);
+      frames(p, 344, 347, [
+        { ...nearer, hp: 25 },
+        { ...healed, hp: 10 },
+      ]);
+      expect([bar(4) !== null, bar(2)]).toEqual([true, null]); // one hurt on the new map, and one seen there anew
     });
 
     it('play a boss’s attack as the drawn frames reach its windup, laying its area then', async () => {
@@ -2714,6 +2836,111 @@ describe('World', () => {
     key('KeyX', true);
     key('KeyX', false);
     expect(p.sent('attack')).toHaveLength(1); // a match's map fights as a hunting map does
+  });
+
+  it('takes a solid at the camera’s end of its line to the player from the view, 8 m from the player, and gives it back as the player walks clear', async () => {
+    expect(TOWERED).toBeDefined();
+    const p = await playing(TOWERED, 60, 40);
+    p.live(2);
+    const tower = () => meshesOn(p, 'tower')[0]!.material!.name;
+    expect(tower()).toMatch(/ cut 0$/); // the camera 10.3 m south and 12.3 m up, 1.2 m from its face
+    p.push('snapshot', { players: [standing(20, 40)] }, { tick: 100 });
+    p.live(4);
+    expect(tower()).not.toMatch(/ 0(\.\d+)?$/);
+  });
+
+  it('in a battle’s fight the player walks their side’s ground: the other side’s base stands, their own doesn’t, and again once the map is entered afresh', async () => {
+    const p = await playing('battlefield', 112, 45);
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: 'battlefield',
+        character: { id: ME, name: 'Ayla', class: 'warrior', level: 30, hp: 50, maxHp: 50 },
+      }),
+    );
+    const onSide = (side: number) =>
+      pvp.getState().applyMatchState(
+        create(MatchStateSchema, {
+          match: 'mt-1',
+          mode: 'battle',
+          phase: MatchPhase.FIGHT,
+          endsInMs: 600_000,
+          sides:
+            side === 1
+              ? [{ fighters: [{ id: ME }] }, { fighters: [{ id: 'c-robin' }] }]
+              : [{ fighters: [{ id: 'c-robin' }] }, { fighters: [{ id: ME }] }],
+        }),
+        0,
+      );
+    onSide(1);
+    key('ArrowRight', true);
+    p.live(60);
+    const me = p.root(classLook('warrior').file)!;
+    expect(me.position.x).toBeCloseTo(127 - 9 - movement.radius, 3); // side 2's base, at (127, 45), 9 m round
+    onSide(2);
+    p.live(20);
+    key('ArrowRight', false);
+    expect(me.position.x).toBeGreaterThan(120); // on into its own
+    onSide(1);
+    p.live(1); // tick 82
+    changeMap(p, { mapId: 'battlefield', x: 112, y: 0, z: 45, yaw: 0 }); // as a return to the same battle
+    p.push('snapshot', { players: [standing(112, 45)] }, { tick: 82 });
+    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), WAIT);
+    key('ArrowRight', true);
+    p.live(60);
+    key('ArrowRight', false);
+    expect(p.root(classLook('warrior').file)!.position.x).toBeCloseTo(127 - 9 - movement.radius, 3);
+  });
+
+  it('on a battle’s map rings each point on the ground in its holder’s colour from the player’s side, the name tags’ pair, grey with no match; the other side’s base is walled in red through the fight', async () => {
+    const p = await playing('battlefield', 20, 45);
+    const one = (name: string) => {
+      const [m] = meshesOn(p, name);
+      return m!;
+    };
+    const decal = (hex: string, alpha: number) => `decal ${hex} ${alpha}`;
+    const glow = (hex: string) => decal(Color3.FromHexString(hex).scale(0.45).toHexString(), 0.2);
+    const looks = () =>
+      ['west', 'middle', 'east'].map((id) => [
+        one(`point ring ${id}`).material!.name,
+        one(`point glow ${id}`).material!.name,
+      ]);
+    const walls = () => [1, 2].map((i) => one(`base wall ${i}`).isEnabled());
+    p.frames(1);
+    const grey = [decal('#D8D8D8', 0.9), glow('#d8d8d8')];
+    expect(looks()).toEqual([grey, grey, grey]);
+    expect(walls()).toEqual([false, false]);
+    const ring = one('point ring east');
+    ring.refreshBoundingInfo({});
+    const box = ring.getBoundingInfo().boundingBox;
+    expect([ring.position.x, ring.position.z, box.extendSize.x, box.extendSize.z]).toEqual([
+      102, 45, 5, 5,
+    ]); // round the east point, 5 m out
+    expect(box.minimumWorld.y).toBeCloseTo(0.04, 3); // just over the flat ground
+    const wall = one('base wall 2');
+    wall.refreshBoundingInfo({});
+    expect([wall.position.x, wall.getBoundingInfo().boundingBox.extendSize.x]).toEqual([127, 9]);
+    pvp.getState().applyMatchState(
+      create(MatchStateSchema, {
+        match: 'mt-1',
+        mode: 'battle',
+        phase: MatchPhase.FIGHT,
+        points: [
+          { id: 'west', holder: 1 },
+          { id: 'middle', holder: 2, contested: true },
+        ],
+        sides: [{ fighters: [{ id: ME }] }, { fighters: [{ id: 'c-robin' }] }],
+      }),
+      0,
+    );
+    p.frames(1);
+    expect(looks()).toEqual([
+      [decal('#7FE08A', 0.9), glow('#7fe08a')],
+      [decal('#FF6B62', 0.9), glow('#ff6b62')],
+      grey,
+    ]);
+    expect(walls()).toEqual([false, true]); // side 1 kept from base 2
+    expect(one('base wall 2').material!.name).toBe('base wall');
   });
 
   it.each([

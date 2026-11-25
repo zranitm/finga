@@ -36,15 +36,15 @@ type generation struct {
 	err      error
 }
 
-// generate is p's ground and its bake's folder, made once in the process for every load of the same plan, kit and slope.
-func generate(p regiongen.Plan, raw, kitRaw []byte, kit regiongen.Kit, maxSlope float64) (sim.Geometry, string, error) {
+// generate is p's ground and its bake's folder, made once in the process for every load of the same plan, kit, slope and radius.
+func generate(p regiongen.Plan, raw, kitRaw []byte, kit regiongen.Kit, body sim.Params) (sim.Geometry, string, error) {
 	h := sha256.New()
-	for _, part := range [][]byte{raw, kitRaw, binary.LittleEndian.AppendUint64(nil, math.Float64bits(maxSlope))} {
+	for _, part := range [][]byte{raw, kitRaw, binary.LittleEndian.AppendUint64(nil, math.Float64bits(body.MaxSlope)), binary.LittleEndian.AppendUint64(nil, math.Float64bits(body.Radius))} {
 		h.Write(binary.LittleEndian.AppendUint64(nil, uint64(len(part))))
 		h.Write(part)
 	}
 	return shared([sha256.Size]byte(h.Sum(nil)), func() (sim.Geometry, string, error) {
-		r, err := regiongen.Generate(p, kit, maxSlope)
+		r, err := regiongen.Generate(p, kit, body)
 		if err != nil {
 			return sim.Geometry{}, "", err
 		}
@@ -106,7 +106,44 @@ func (l *loader) loadRegions(dir string) error {
 			return fmt.Errorf("%s: %w", file, err)
 		}
 	}
-	return l.uniqueWaypoints()
+	if err := l.uniqueWaypoints(); err != nil {
+		return err
+	}
+	return l.placesBelow()
+}
+
+// gateWaypoint is how near each gate of a place below a waypoint stands.
+const gateWaypoint = 20
+
+// placesBelow checks each place below against the region above it (underground-and-underwater.md section 3): that region is one, on the land; every gate leads up to it, a waypoint within gateWaypoint; and it's all hunting, no town. linkMaps checks each gate leads back.
+func (l *loader) placesBelow() error {
+	for _, id := range slices.Sorted(maps.Keys(l.regions)) {
+		r := l.regions[id]
+		if r.under == "" {
+			continue
+		}
+		file := filepath.Join(regionsDir, id+mapExt)
+		above, ok := l.regions[r.under]
+		switch {
+		case !ok:
+			return fmt.Errorf("%s: under %s, which is no region", file, r.under)
+		case above.under != "":
+			return fmt.Errorf("%s: under %s, which is itself below %s; a place below is under a region on the land", file, r.under, above.under)
+		case len(r.gates) == 0:
+			return fmt.Errorf("%s: a place below needs a gate up to %s", file, r.under)
+		case slices.ContainsFunc(r.areas, func(a gamedata.Area) bool { return a.Kind == gamedata.Town }):
+			return fmt.Errorf("%s: a place below hunts all through; it has no town", file)
+		}
+		for _, g := range r.gates {
+			if g.To.Region != r.under {
+				return fmt.Errorf("%s: gate %s leads to %s; a place below's gates lead up to %s", file, g.Name, g.To.Region, r.under)
+			}
+			if !slices.ContainsFunc(r.waypoints, func(w gamedata.Waypoint) bool { return math.Hypot(w.At.X-g.At[0], w.At.Z-g.At[1]) <= gateWaypoint }) {
+				return fmt.Errorf("%s: gate %s has no waypoint within %d m, where those inside die back to and teleport", file, g.Name, gateWaypoint)
+			}
+		}
+	}
+	return nil
 }
 
 // uniqueWaypoints refuses one waypoint id in two regions: a teleport, a find and a character's row name a waypoint by its id alone.
@@ -131,7 +168,7 @@ func (l *loader) loadRegion(id string, raw, kitRaw []byte, kit regiongen.Kit) er
 	if err != nil {
 		return err
 	}
-	geometry, folder, err := generate(p, raw, kitRaw, kit, l.movement.MaxSlope)
+	geometry, folder, err := generate(p, raw, kitRaw, kit, l.movement)
 	if err != nil {
 		return err
 	}
@@ -190,16 +227,18 @@ func (l *loader) waypointsOf(p regiongen.Plan, m *mapfile.Map, areas regiongen.A
 	return out, nil
 }
 
-// regionParts is what a region adds to its map: its bake folder, its areas and where they lie, and its waypoints.
+// regionParts is what a region adds to its map: its bake folder, its areas and where they lie, its waypoints, and for a place below the region above and its gates up.
 type regionParts struct {
 	bake      string
 	areas     []gamedata.Area
 	grid      regiongen.AreaGrid
 	waypoints []gamedata.Waypoint
+	under     string
+	gates     []regiongen.Gate
 }
 
 func partsOf(p regiongen.Plan, grid regiongen.AreaGrid, bake string, waypoints []gamedata.Waypoint) regionParts {
-	out := regionParts{bake: bake, grid: grid, waypoints: waypoints}
+	out := regionParts{bake: bake, grid: grid, waypoints: waypoints, under: p.Under, gates: p.Gates}
 	for _, a := range p.Areas {
 		area := gamedata.Area{ID: a.ID, Name: a.Name, Kind: gamedata.MapKind(a.Kind), MinLevel: a.Levels[0], MaxLevel: a.Levels[1]}
 		if b := a.Boss; b != nil {

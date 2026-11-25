@@ -41,6 +41,44 @@ func (g grid) height(h []float64, x, z float64) float64 {
 	return south + float64(tz*(north-south))
 }
 
+// across is how far the ray from at along unit dir runs before it crosses an edge of poly, those skip names left out; +Inf if it crosses none.
+func across(poly [][2]float64, at, dir [2]float64, skip func(edge int) bool) float64 {
+	best := math.Inf(1)
+	for i, a := range poly {
+		if skip(i) {
+			continue
+		}
+		b := poly[(i+1)%len(poly)]
+		ex, ez := b[0]-a[0], b[1]-a[1]
+		den := float64(dir[0]*ez) - float64(dir[1]*ex)
+		if den == 0 {
+			continue
+		}
+		wx, wz := a[0]-at[0], a[1]-at[1]
+		t := (float64(wx*ez) - float64(wz*ex)) / den
+		u := (float64(wx*dir[1]) - float64(wz*dir[0])) / den
+		if t > 0 && u >= 0 && u <= 1 {
+			best = min(best, t)
+		}
+	}
+	return best
+}
+
+// contains is whether at lies inside poly, by fill's rule: an edge's lower end counted and its upper not.
+func contains(poly [][2]float64, at [2]float64) bool {
+	in := false
+	for i, a := range poly {
+		b := poly[(i+1)%len(poly)]
+		if (a[1] <= at[1]) != (b[1] <= at[1]) {
+			t := (at[1] - a[1]) / (b[1] - a[1])
+			if a[0]+float64(t*(b[0]-a[0])) < at[0] {
+				in = !in
+			}
+		}
+	}
+	return in
+}
+
 // fill calls in for every sample inside poly, row by row: a row's samples between pairs of its crossings, each edge's lower end counted and its upper not.
 func (g grid) fill(poly [][2]float64, in func(s int)) {
 	z0, z1 := poly[0][1], poly[0][1]

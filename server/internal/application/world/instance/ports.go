@@ -30,6 +30,7 @@ type Dest struct {
 	ID      string
 	Channel int // a region's; 0, the World picks
 	Switch  bool
+	Paired  bool // through a gate between a region and a place below: Channel, opened if it's closed
 }
 
 // Mover moves a player to another instance; it must not block the calling tick.

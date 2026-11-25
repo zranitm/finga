@@ -25,7 +25,7 @@ func TestNoRegionHasAOneWayPocket(t *testing.T) {
 	t.Run("a pit", func(t *testing.T) {
 		plan := flatRegion()
 		plan.Features = []regiongen.Feature{{Plateau: &regiongen.Plateau{Area: [][2]float64{{40, 40}, {56, 40}, {56, 56}, {40, 56}}, Height: -4, Edge: regiongen.Cliff}}}
-		r, err := regiongen.Generate(plan, shippedKit(t), p.MaxSlope)
+		r, err := regiongen.Generate(plan, shippedKit(t), p)
 		if err != nil {
 			t.Fatal(err)
 		}

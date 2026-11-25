@@ -251,10 +251,74 @@ func (b *bot) bossAt(mapID string) (nav.Point, float64, bool) {
 	return point(m.Boss.At), m.Boss.Radius + bossClear, true
 }
 
-// nearBoss reports whether p on a map is where a bot's blows could reach its field boss, which fights only once hit: a square, as far either way in x and z, so further clear than a circle.
+// nearBoss reports whether p on a map is where a bot's blows could reach its field boss, which fights only once hit: a square, as far either way in x and z, so further clear than a circle. In a region, every area's boss circle is kept clear, up or not, as a bot hears only its own area's.
 func (b *bot) nearBoss(mapID string, p nav.Point) bool {
-	at, r, ok := b.bossAt(mapID)
-	return ok && max(math.Abs(p.X-at.X), math.Abs(p.Z-at.Z)) < r
+	within := func(at nav.Point, r float64) bool { return max(math.Abs(p.X-at.X), math.Abs(p.Z-at.Z)) < r }
+	if at, r, ok := b.bossAt(mapID); ok && within(at, r) {
+		return true
+	}
+	m, ok := b.data.Map(mapID)
+	return ok && slices.ContainsFunc(m.Areas, func(a gamedata.Area) bool { return a.Boss != nil && within(point(a.Boss.At), a.Boss.Radius+bossClear) })
+}
+
+// tripFar is how much nearer a spot a teleport must land a bot than it stands, for a trip worth one.
+const tripFar = 60.0
+
+// teleportWait is how long a bot holds still for a teleport's channel to end in a MapChange or a TeleportCancelled, past which it gives up on it.
+const teleportWait = 6 * time.Second
+
+// teleportBackoff is how long a bot leaves teleports after one was refused or cancelled.
+const teleportBackoff = 10 * time.Second
+
+// channelling is whether a teleport the bot started may still end; teleport let its keys go, so it stands still till then.
+func (b *bot) channelling() bool {
+	return !b.teleportAt.IsZero() && time.Since(b.teleportAt) <= teleportWait
+}
+
+// teleport starts a teleport to a waypoint, holding the bot still from this tick, unless teleports are backed off.
+func (b *bot) teleport(waypoint string) bool {
+	if time.Now().Before(b.teleportAfter) {
+		return false
+	}
+	b.request(teleportReq, &clientv1.Teleport{Waypoint: waypoint})
+	b.teleportAt = time.Now()
+	b.input(&clientv1.Input{})
+	return true
+}
+
+// teleportEnded ends the teleport under way, backed off when it failed.
+func (b *bot) teleportEnded(failed bool) {
+	b.teleportAt = time.Time{}
+	if failed {
+		b.teleportAfter = time.Now().Add(teleportBackoff)
+	}
+}
+
+// enterRegion teleports a soak's bot off its region to the region's main town, holding it still till it lands; true while it isn't there.
+func (b *bot) enterRegion() bool {
+	r := b.world.region
+	if r == nil || b.mapID == r.ID {
+		return false
+	}
+	if !b.teleport(mainWaypoint(r).ID) {
+		b.input(&clientv1.Input{})
+	}
+	return true
+}
+
+// tripTo teleports to the nearest waypoint of a spot on the bot's map (large-regions.md section 11) when the bot has found it and it stands tripFar nearer the spot than the bot; true once a teleport started. Only a region has waypoints.
+func (b *bot) tripTo(s spot) bool {
+	m := b.mapNow()
+	if m == nil || len(m.Waypoints) == 0 {
+		return false
+	}
+	wp := slices.MinFunc(m.Waypoints, func(a, c gamedata.Waypoint) int {
+		return cmp.Compare(nav.Distance(point(a.Arrive), s.at), nav.Distance(point(c.Arrive), s.at))
+	})
+	if !b.found[wp.ID] || nav.Distance(b.at(), s.at)-nav.Distance(point(wp.Arrive), s.at) < tripFar {
+		return false
+	}
+	return b.teleport(wp.ID)
 }
 
 // townNPCs are the NPCs of a map in the order a visit talks to them: from the one nearest where players appear, each next the nearest left.
