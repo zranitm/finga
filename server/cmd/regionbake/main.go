@@ -12,6 +12,7 @@ import (
 
 	"finga/internal/shared/gamedata/load"
 	"finga/internal/shared/regiongen"
+	"finga/internal/shared/sim"
 )
 
 func main() {
@@ -56,7 +57,7 @@ func run(dataDir, out, preview, plan string) error {
 	}
 	for _, path := range plans {
 		id := strings.TrimSuffix(filepath.Base(path), ".yaml")
-		if err := build(path, id, kit, params.MaxSlope, out, preview); err != nil {
+		if err := build(path, id, kit, params, out, preview); err != nil {
 			return fmt.Errorf("%s: %w", id, err)
 		}
 	}
@@ -90,7 +91,7 @@ func clear(out string) error {
 // partSuffix marks a bake being written: it's renamed to its hash once whole, so a crash never leaves a folder that looks complete.
 const partSuffix = ".part"
 
-func build(path, id string, kit regiongen.Kit, maxSlope float64, out, preview string) error {
+func build(path, id string, kit regiongen.Kit, body sim.Params, out, preview string) error {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return err
@@ -99,7 +100,7 @@ func build(path, id string, kit regiongen.Kit, maxSlope float64, out, preview st
 	if err != nil {
 		return err
 	}
-	r, err := regiongen.Generate(p, kit, maxSlope)
+	r, err := regiongen.Generate(p, kit, body)
 	if err != nil {
 		return err
 	}

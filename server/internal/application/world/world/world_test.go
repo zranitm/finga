@@ -17,6 +17,7 @@ import (
 	"finga/internal/application/world/world"
 	"finga/internal/application/world/worldtest"
 	model "finga/internal/model/world"
+	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/sim"
 )
@@ -114,9 +115,15 @@ type testWorld struct {
 
 func newWorld(t *testing.T, saver world.Saver, opts worldtest.Options) *testWorld {
 	t.Helper()
+	return newWorldOn(t, worldtest.LoadData(t), saver, opts)
+}
+
+// newWorldOn is newWorld on data.
+func newWorldOn(t *testing.T, data *gamedata.Data, saver world.Saver, opts worldtest.Options) *testWorld {
+	t.Helper()
 	chars := &fakeCharacters{chars: map[kernel.CharacterID]model.Character{}}
 	opts.Characters = chars
-	return &testWorld{World: worldtest.NewWorld(worldtest.LoadData(t), saver, opts), chars: chars}
+	return &testWorld{World: worldtest.NewWorld(data, saver, opts), chars: chars}
 }
 
 // enter saves p on mapID and joins it there through conn; the World must be running.

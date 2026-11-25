@@ -12,6 +12,8 @@ EDGE_URL ?= http://localhost:4173
 METRICS_URL ?= http://localhost:9100
 # How long make bots plays: 30m is the proof session; bots promote about half an hour in, so a longer run sees all four do it.
 BOTS_DURATION ?= 30m
+BOTS ?= 4
+REGION ?=
 NPM       ?= npm --prefix web
 # The build's version, which logs and spans carry: the nearest tag and the commits since, or the commit alone.
 VERSION   ?= $(shell git describe --tags --always --dirty --abbrev=12 2>/dev/null || echo dev)
@@ -135,8 +137,8 @@ region-preview: ## a region from above to design it by, areas and camps marked: 
 gen:           ## regenerate the sqlc queries and the Go code of the client contract
 	cd $(SERVER) && $(GO) tool sqlc generate && $(GO) tool buf generate
 
-bots:          ## the proof session: 4 bots play for BOTS_DURATION (30m) against SMOKE_URL, each working toward its own first class, and print the promotions, the tick p99, grant batch sizes and AddMany times from the game's ops address (METRICS_URL)
-	cd $(SERVER) && $(GO) run ./cmd/bot -url $(SMOKE_URL) -metrics $(METRICS_URL) -bots 4 -duration $(BOTS_DURATION)
+bots:          ## the proof session: BOTS (4) bots play for BOTS_DURATION (30m) against SMOKE_URL, each working toward its own first class, or with REGION a soak, hunting in that region alone; then print the promotions, each bot's downstream kB/s, the tick p99 by map and channel, grant batch sizes and AddMany times from the game's ops address (METRICS_URL)
+	cd $(SERVER) && $(GO) run ./cmd/bot -url $(SMOKE_URL) -metrics $(METRICS_URL) -bots $(BOTS) -region "$(REGION)" -duration $(BOTS_DURATION)
 
 testers:       ## the test accounts (README), kept on the running stack from its own network; a stack that has them changes nothing
 	$(COMPOSE) --profile tools run --rm --build --no-deps testers

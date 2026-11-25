@@ -114,7 +114,7 @@ func TestABotKeepsClearOfAFieldBoss(t *testing.T) {
 			t.Errorf("%s: near %v, want %v", c.name, got, c.want)
 		}
 	}
-	slimes, _ := w.levelSpot(1)
+	slimes, _ := w.levelSpot(1, 0)
 	b.mobs, b.boss = map[uint32]*clientv1.MobView{9: {Id: 9, Type: "king_slime", X: at.X, Z: at.Z, Hp: 100}}, 9 // on its map, a bot sees the boss
 	for range 200 {
 		if p := b.roll(slimes); b.nearBoss("forest", p) {

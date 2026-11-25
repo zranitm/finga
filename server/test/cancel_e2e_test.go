@@ -38,6 +38,7 @@ func TestAChainLandsSoonerThanOneAtATime(t *testing.T) {
 	strike := func(req string) {
 		p.Send(wsconn.Message{ReqID: req, Data: &clientv1.UseSkill{Skill: "strike", Aim: east}})
 	}
+	var used uint64 // the tick of the player's last SkillUsed read
 	// hit is the tick of the player's next blow, a MISS included.
 	hit := func() uint64 {
 		t.Helper()
@@ -47,6 +48,10 @@ func TestAChainLandsSoonerThanOneAtATime(t *testing.T) {
 			case *clientv1.Damage:
 				at = m.Tick
 				return d.GetSource() == "p:"+id
+			case *clientv1.SkillUsed:
+				if d.GetCaster() == id {
+					used = m.Tick
+				}
 			case *clientv1.Response:
 				if !d.GetOk() {
 					t.Fatalf("%s refused: %+v", m.ReqID, d)
@@ -71,15 +76,24 @@ func TestAChainLandsSoonerThanOneAtATime(t *testing.T) {
 	apart := last - first
 
 	p.Reach(last + ticks(1200*time.Millisecond)) // the attack ends, and Strike's cooldown with it
-	// Chained: Strike and the attack sent as the first attack lands; the world holds each to the chain.
+	// Chained: Strike and the attack sent as the first attack lands, which is as it starts; the world holds each to the chain.
 	attack()
 	first = hit()
+	used = 0
 	strike("chained")
 	attack()
 	hit()
-	chained := hit() - first
-	const perfect = 6 + 9 // the attack's 21 ticks cut short at 6, Strike's 20 at 9, each 450 ms in at most
-	if chained != perfect || chained >= apart {
-		t.Fatalf("chained, the third blow came %d ticks after the first, one at a time %d; want %d, the chain's own pace", chained, apart, perfect)
+	third := hit()
+	if used == 0 {
+		t.Fatal("no SkillUsed for the chained Strike before the third blow")
+	}
+	const attackCut, strikeCut = 6, 9 // the attack's 21 ticks cut short at 0.3, Strike's 20 at 0.45
+	// Strike starts at the attack's cut, or as it's cast if its press reached the world after: a late press starts late, by the game's rules.
+	began := max(first+attackCut, used)
+	if began > first+attackCut {
+		t.Logf("the chained Strike reached the world %d ticks past the attack's cut, so the chain ran from its cast", began-first-attackCut)
+	}
+	if third != began+strikeCut || third-first >= apart {
+		t.Fatalf("chained, the third blow came %d ticks after the first, Strike cast at %d and starting at %d, one at a time %d; want it %d ticks after Strike's start, the chain's own pace, and sooner than one at a time", third-first, used-first, began-first, apart, strikeCut)
 	}
 }

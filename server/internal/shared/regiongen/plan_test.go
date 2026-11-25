@@ -43,6 +43,9 @@ func TestABadPlanIsRefused(t *testing.T) {
 		{"an endless away", func(p *Plan) {
 			p.Biomes["meadow"] = Biome{Colours: flat().Biomes["meadow"].Colours, Scatter: []Scatter{{Model: "tree_oak", Spacing: 4, Away: Away{Road: 1e9}}}}
 		}, "away distances of 0 to 512 m"},
+		{"an endless torch away", func(p *Plan) {
+			p.Biomes["meadow"] = Biome{Colours: flat().Biomes["meadow"].Colours, Scatter: []Scatter{{Model: "tree_oak", Spacing: 4, Away: Away{Torch: 1e9}}}}
+		}, "away distances of 0 to 512 m"},
 		{"two features in one", func(p *Plan) {
 			p.Features = []Feature{{Ridge: &Ridge{Path: [][2]float64{{1, 1}, {2, 2}}, Width: 1, Height: 1}, Road: &Road{Path: [][2]float64{{1, 1}, {2, 2}}, Width: 1}}}
 		}, "one of a ridge"},
@@ -100,28 +103,40 @@ func TestABadPlanIsRefused(t *testing.T) {
 			cave(p)
 			p.Features = []Feature{{Tunnel: &Tunnel{Path: [][2]float64{{64, 64}, {120, 64}}, Width: 6}}}
 		}, "a tunnel needs a width up to 512 m and a path in the region, its walls clear of the ring: at least 5 m inside the ring's face"},
+		{"torches with no rock", func(p *Plan) { p.Torches = &Torches{Spacing: 10, Model: "torch_mounted"} }, "torches hang on a cave's walls, and the plan has no rock"},
+		{"torches too close", func(p *Plan) { cave(p); p.Torches = &Torches{Spacing: 5, Model: "torch_mounted"} }, "torches 5 m apart: 6 to 512 m"},
+		{"a torch model with no light", func(p *Plan) { cave(p); p.Torches = &Torches{Spacing: 10, Model: "rock_small"} }, `torch model "rock_small": a kit model with a light`},
 		{"a tunnel of no width", func(p *Plan) {
 			cave(p)
 			p.Features = []Feature{{Tunnel: &Tunnel{Path: [][2]float64{{40, 64}, {80, 64}}}}}
 		}, "a tunnel needs a width"},
+		{"a hall too narrow for a body", func(p *Plan) {
+			cave(p)
+			p.Features = []Feature{{Hall: &Hall{Area: [][2]float64{{40, 100}, {40, 30}, {40.5, 30}, {40.5, 100}}}}}
+		}, "a hall 0.5 m across at [40 99.5]: at least 3.75 m, as a tunnel"},
+		{"a tunnel its wander may close", func(p *Plan) {
+			cave(p)
+			p.Rock.Rough = 1.5
+			p.Features = []Feature{{Tunnel: &Tunnel{Path: [][2]float64{{40, 64}, {80, 64}}, Width: 6}}}
+		}, "a tunnel 6 m wide: at least 6.75 m, so a metre stays open past each wall's wander, a body's radius and a cell of the rock's marks"},
 	} {
 		p := flat()
 		c.edit(&p)
-		_, err := Generate(p, shippedKit(t), maxSlope(t))
+		_, err := Generate(p, shippedKit(t), body(t))
 		if err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("%s: error %v; want one saying %q", c.name, err, c.want)
 		}
 	}
 	k := shippedKit(t)
 	delete(k.Grounds, roadColour)
-	if _, err := Generate(flat(), k, maxSlope(t)); err == nil || !strings.Contains(err.Error(), "needs a dirt ground") {
+	if _, err := Generate(flat(), k, body(t)); err == nil || !strings.Contains(err.Error(), "needs a dirt ground") {
 		t.Errorf("a kit without dirt: error %v; want one saying it needs a dirt ground", err)
 	}
 	k = shippedKit(t)
 	delete(k.Grounds, rockColour)
 	p := flat()
 	cave(&p)
-	if _, err := Generate(p, k, maxSlope(t)); err == nil || !strings.Contains(err.Error(), "needs a cave_rock ground") {
+	if _, err := Generate(p, k, body(t)); err == nil || !strings.Contains(err.Error(), "needs a cave_rock ground") {
 		t.Errorf("a cave's kit without cave_rock: error %v; want one saying it needs a cave_rock ground", err)
 	}
 }
@@ -143,9 +158,31 @@ func TestABadKitIsRefused(t *testing.T) {
 		{"grounds: {grass: '#8cc265'}\nmodels: {rock: {cylinder: {radius: 1e300, height: 1}}}\n", "a radius up to 512 m"},
 		{"grounds: {grass: '#8cc265'}\nmodels: {hut: {box: {width: 2, depth: 2}}}\n", "a height up to 1000 m"},
 		{"grounds: {grass: '#8cc265'}\nsizes: {}\n", "sizes"},
+		{"grounds: {grass: '#8cc265'}\nmodels: {torch: {light: {height: 2, reach: 40}}}\n", "a light needs a height up to 1000 m and a reach up to 32 m"},
+		{"grounds: {grass: '#8cc265'}\nmodels: {torch: {light: {reach: 8}}}\n", "a light needs a height"},
 	} {
 		if _, err := DecodeKit([]byte(c.kit)); err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("kit %q: error %v; want one saying %q", c.kit, err, c.want)
 		}
+	}
+}
+
+// The narrowest a hall may be leaves room for a torch's step in from its edge, rough + 1 m, from both sides, however small the body.
+func TestTheNarrowestHallFitsATorchsStepIn(t *testing.T) {
+	p := flat()
+	cave(&p)
+	p.Cell, p.Rock.Rough = 0.25, 1.5
+	if got := p.leastTunnel(0); got != 5 {
+		t.Errorf("the narrowest for a body of no radius: %g m; want 5, twice the 2.5 m step in", got)
+	}
+}
+
+// A hall's sharp corner narrows to nothing, but the width check measures away from it: a triangle with a 22° corner builds.
+func TestASharpCorneredHallBuilds(t *testing.T) {
+	p := flat()
+	cave(&p)
+	p.Features = []Feature{{Hall: &Hall{Area: [][2]float64{{40, 40}, {100, 52}, {40, 64}}}}}
+	if _, err := Generate(p, shippedKit(t), body(t)); err != nil {
+		t.Fatal(err)
 	}
 }

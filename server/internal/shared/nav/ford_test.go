@@ -198,7 +198,7 @@ func generated(t *testing.T, id string, plan regiongen.Plan, p sim.Params) (*reg
 	if b, ok := built[id]; ok {
 		return b.r, b.grid
 	}
-	r, err := regiongen.Generate(plan, shippedKit(t), p.MaxSlope)
+	r, err := regiongen.Generate(plan, shippedKit(t), p)
 	if err != nil {
 		t.Fatal(err)
 	}
