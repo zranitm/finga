@@ -10,7 +10,7 @@ import (
 	"finga/internal/shared/sim"
 )
 
-// colours paints each sample: a road's dirt, a bed's sand, or else its biome's colour for ground too steep to walk (a cell touching it marked steep), above the plan's high mark, sloped past its slope, or flat. It returns the steep samples.
+// colours paints each sample: a road's dirt, a bed's sand, a cave's rock and its walls cave_rock, or else its biome's colour for ground too steep to walk (a cell touching it marked steep), above the plan's high mark, sloped past its slope, or flat. It returns the steep samples.
 func (b *builder) colours(t sim.Terrain) []bool {
 	index := map[string]uint8{}
 	for i, name := range b.r.Palette {
@@ -30,6 +30,8 @@ func (b *builder) colours(t sim.Terrain) []bool {
 				name = roadColour
 			case b.r.Wet[s]:
 				name = bedColour
+			case b.rocky != nil && b.rocky[s]:
+				name = rockColour
 			case steep[s]:
 				name = c.Steep
 			case b.h[s] >= b.p.Colour.High:
@@ -163,7 +165,7 @@ func (b *builder) scatter(steep []bool, placed *solidsNear) {
 				s := b.g.nearest(x, z)
 				ix, iz := s%b.g.nx, s/b.g.nx
 				switch {
-				case b.biomeOf(s) != name || steep[s] || (sc.Slope > 0 && b.slope2(ix, iz) > slope2):
+				case b.biomeOf(s) != name || steep[s] || (sc.Slope > 0 && b.slope2(ix, iz) > slope2) || (b.rocky != nil && b.rocky[s]):
 					continue
 				case x < r || z < r || x > b.p.Size[0]-r || z > b.p.Size[1]-r:
 					continue

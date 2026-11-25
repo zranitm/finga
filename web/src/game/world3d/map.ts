@@ -49,6 +49,26 @@ export interface WorldMap {
   readonly region: RegionMap | null;
   /** A region's waypoints, as the map views mark them; none elsewhere. */
   readonly waypoints: readonly MapWaypoint[];
+  /** A battle map's sides and points (pvp.md section 7); null elsewhere. */
+  readonly battle: BattleMap | null;
+}
+
+/** A battle's ground: each side's base, what each side walks through the fight, the map's geometry with the other side's base standing after its own solids, as the world builds it, and the capture points in the map's order, as MatchState's are. */
+export interface BattleMap {
+  readonly bases: readonly [Circle, Circle];
+  readonly kept: readonly [Geometry, Geometry];
+  readonly points: readonly CapturePoint[];
+}
+
+export interface Circle {
+  readonly x: number;
+  readonly z: number;
+  readonly radius: number;
+}
+
+export interface CapturePoint extends Circle {
+  readonly id: string;
+  readonly name: string;
 }
 
 /** A region as the world reads it from its bake: what draws it, and the ground its sim walks, which its geometry is, filled as its chunks come (large-regions.md section 10). */
@@ -102,6 +122,11 @@ interface MapJson {
     readonly cylinders: readonly Cylinder[] | null;
   };
   readonly region?: RegionRef;
+  readonly battle?: {
+    readonly bases: readonly [CircleJson, CircleJson];
+    readonly kept: readonly [readonly Cylinder[], readonly Cylinder[]];
+    readonly points: readonly (CircleJson & { readonly id: string; readonly name: string })[];
+  };
   readonly waypoints?: readonly {
     readonly id: string;
     readonly name: string;
@@ -110,6 +135,13 @@ interface MapJson {
     readonly main: boolean;
   }[];
 }
+
+interface CircleJson {
+  readonly at: readonly [number, number];
+  readonly radius: number;
+}
+
+const circle = (c: CircleJson): Circle => ({ x: c.at[0], z: c.at[1], radius: c.radius });
 
 /** The map with id, from its JSON in the page's maps folder. */
 export async function loadMap(id: string): Promise<WorldMap> {
@@ -165,6 +197,15 @@ function parseMap(m: MapJson, region: RegionMap | null): WorldMap {
       boxes,
       cylinders,
     });
+  /** The map's geometry with a battle side's base standing, its own index, as the prep wall's. */
+  const withBase = (base: readonly Cylinder[]): Geometry =>
+    indexed({
+      size_x: geometry.size_x,
+      size_z: geometry.size_z,
+      terrain: geometry.terrain,
+      boxes,
+      cylinders: [...cylinders, ...base],
+    });
   return {
     id: m.id,
     ground: m.ground,
@@ -205,6 +246,13 @@ function parseMap(m: MapJson, region: RegionMap | null): WorldMap {
       : null,
     region,
     waypoints: region?.waypoints ?? [],
+    battle: m.battle
+      ? {
+          bases: [circle(m.battle.bases[0]), circle(m.battle.bases[1])],
+          kept: [withBase(m.battle.kept[0]), withBase(m.battle.kept[1])],
+          points: m.battle.points.map((p) => ({ id: p.id, name: p.name, ...circle(p) })),
+        }
+      : null,
   };
 }
 
