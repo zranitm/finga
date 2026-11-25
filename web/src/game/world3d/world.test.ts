@@ -6,6 +6,7 @@ import { Constants } from '@babylonjs/core/Engines/constants';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import type { HighlightLayer } from '@babylonjs/core/Layers/highlightLayer';
 import { CascadedShadowGenerator } from '@babylonjs/core/Lights/Shadows/cascadedShadowGenerator';
+import type { TextureBlock } from '@babylonjs/core/Materials/Node/Blocks/Dual/textureBlock';
 import type { InputBlock } from '@babylonjs/core/Materials/Node/Blocks/Input/inputBlock';
 import type { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
 import type { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
@@ -73,7 +74,7 @@ import { ui } from '@/state/ui';
 import { FakeWebSocket } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
 import { mapJson, servePublic } from '@/testing/public-on-disk';
-import { TINY, tinyFile } from '@/testing/region-fixture';
+import { HOLLOW, TINY, tinyFile } from '@/testing/region-fixture';
 import { resetStores } from '@/testing/reset-stores';
 import { builtShaders } from '@/testing/shaders';
 
@@ -109,10 +110,10 @@ const WAIT = { timeout: 3000, interval: 5 }; // polled every 5 ms, not 50; 3 s f
 
 vi.mock('./kit-models', () => ({ kitModels: {} })); // every key a stand-in: place.test draws town and forest with the real kit models
 
-/** Hunting maps with no NPCs, served flat and bare for the tests no map's own layout bears on: FLAT, the two a map change goes to, one served as a region, the widest a block holds, and that with a tower. */
-const [FLAT, FLAT2, FLAT3, REGIONED, WIDE, TOWERED] = maps
+/** Hunting maps with no NPCs, served flat and bare for the tests no map's own layout bears on: FLAT, the two a map change goes to, one served as a region, the widest a block holds, that with a tower, and one served as a cave. */
+const [FLAT, FLAT2, FLAT3, REGIONED, WIDE, TOWERED, CAVED] = maps
   .filter((m) => m.kind === 'hunting' && npcsOn(m.id).length === 0)
-  .map((m) => m.id) as [string, string, string, string, string, string];
+  .map((m) => m.id) as [string, string, string, string, string, string, string];
 
 /** Map id flat and bare, 72 by 40 m. */
 function bare(id: string) {
@@ -162,6 +163,11 @@ function regioned(id: string) {
   };
 }
 
+/** Map id drawn from the hollow bake, a cave below tiny, as mapjson writes a region. */
+function caved(id: string) {
+  return { ...bare(id), sky: 'cave', geometry: undefined, portals: [], region: HOLLOW };
+}
+
 /** The tiny bake's region.json with a town area besides its field, Market Square: where the server says the player stands is all the client reads of it. */
 function townedTiny(): unknown {
   const j = JSON.parse(new TextDecoder().decode(tinyFile('region.json'))) as { areas: unknown[] };
@@ -209,6 +215,7 @@ const SERVED = {
   [FLAT2]: bare(FLAT2),
   [FLAT3]: bare(FLAT3),
   [REGIONED]: regioned(REGIONED),
+  [CAVED]: caved(CAVED),
   [`regions/${TINY.id}/${TINY.hash}/region.json`]: townedTiny(),
   [WIDE]: wide(WIDE),
   [TOWERED]: towered(TOWERED),
@@ -746,11 +753,27 @@ describe('World', () => {
     expect(held()).toEqual([null, [expect.anything()], []]);
   });
 
+  it('lights a cave region by its torches: no sun and so no sun shadows, its ground sampling the light map', async () => {
+    const p = await playing(CAVED, 24, 64);
+    const scene = p.scene()!;
+    expect(scene.lights).toEqual([]);
+    p.frames(1);
+    await Promise.allSettled(chunkWork.builds);
+    await new Promise<void>((r) => setImmediate(r));
+    p.frames(2);
+    const chunks = scene.meshes.filter((m) => m.name.startsWith('chunk '));
+    expect(chunks).toHaveLength(4);
+    const map = (chunks[0]!.material as NodeMaterial).getBlockByName('lightMap') as TextureBlock;
+    expect(map.texture?.getSize()).toEqual({ width: 128, height: 128 });
+    expect(scene.clearColor.toHexString().slice(0, 7)).toBe('#000000');
+  });
+
   it('draws a map whose data names a region from that bake, streaming its chunks round the camera', async () => {
     const p = await playing(REGIONED, 30, 60);
     const scene = p.scene()!;
     expect(scene.transformNodes.some((n) => n.name === `region ${TINY.id}`)).toBe(true);
     expect(scene.transformNodes.some((n) => n.name.startsWith('place '))).toBe(false);
+    expect(scene.lights.map((l) => l.name)).toEqual(['sun']);
     p.frames(1);
     await Promise.allSettled(chunkWork.builds);
     await new Promise<void>((r) => setImmediate(r));

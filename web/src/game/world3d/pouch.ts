@@ -95,7 +95,7 @@ export class PouchMarks {
           }
           m.material = palette.toon(baseOf(m.material));
           m.receiveShadows = true;
-          shadows.addShadowCaster(m, false);
+          shadows?.addShadowCaster(m, false);
           palette.outline(m);
         }
       })

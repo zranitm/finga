@@ -360,6 +360,20 @@ These steps follow the regions' build (large-regions.md section 14).
    - KayKit's torches;
    - map-view icons and party at the gate;
    - stills for the user.
+   - **In four PRs:** 3a-1 the light, 3a-2 the round shadows, 3b KayKit's torches and their flames, 3c the map views and teleport; the stills follow 3b.
+   - **As built (3a-1, the light).**
+     - **The bake, read:** `Region` gains `under` and `lights` (each flame's x, z, height and group). `light.bin` is fetched with `region.json` when there are flames, and refused unless it holds two groups and is whole. The map carries the light map beside its overview.
+     - **A cave region has no sun:** no directional light and no shadow generator, so `Lighting.shadows` is null there. The old open-topped Cave map, which isn't a region, keeps the sun till step 6 replaces it.
+     - **The texture:** the light map as RGBA, red and green its groups', sampled bilinearly between texel centres and held at its edges, at `x / nx` and `z / nz`. A cave with no torches gets one dark texel.
+     - **The term:** `min(1, a × fA(t) + b × fB(t))`, each group's flicker `1 + Σ amp × sin(rate × t + phase)` over two sines whose amplitudes add to 0.08. `t` is the engine's seconds (`RealTime`), the same for every material, so the flicker runs in the shader.
+       - It's banded as the sun's light is: floored into thirds and stretched to 0, ½ and 1. The tone runs from the floor, 0.3 grey a little cool, to the torches' warm light, (1, 0.86, 0.66), both sRGB.
+       - With a torch's 8 m reach, the full band holds within about 3.4 m of a lone flame, and the half band to about 5.2 m. The colours and bands are provisional until the stills.
+       - Decals and glows aren't toon materials, so warnings, ghosts and glows draw as on the land.
+     - **The sky:** black, with fog from 14 to 40 m.
+     - **Tests:**
+       - a small cave below tiny (`hollow`, a hall and a tunnel at 2 m), baked by regionbake's tests into the client's fixtures: its flames in both groups, light under each flame, none on the rock, and a light map refused;
+       - the material's own node graph run block by block for a texel: the full band under a flame at every flicker, the floor where no torch reaches, each group swinging ±8% at its own rates, and two torches held to full;
+       - a cave region in the world: no sun, its ground sampling the light map, its sky black; a region on the land keeps the sun.
 4. **The sea look:**
    - caustics, rays, sway, bubbles and fish;
    - the Blender models;

@@ -677,13 +677,13 @@ describe('posing', () => {
 describe('shadows', () => {
   it('casts from every mesh it draws until told not to, and again when told to, once each way', async () => {
     const b = await body(classLook('warrior'));
-    const list = () => lighting.shadows.getShadowMap()!.renderList!;
+    const list = () => lighting.shadows!.getShadowMap()!.renderList!;
     const mine = () => list().filter((m) => b.root.getChildMeshes(false).includes(m));
     const drawn = meshes(b);
     expect(mine()).toEqual(expect.arrayContaining(drawn));
     const all = list().length;
-    const removed = vi.spyOn(lighting.shadows, 'removeShadowCaster');
-    const added = vi.spyOn(lighting.shadows, 'addShadowCaster');
+    const removed = vi.spyOn(lighting.shadows!, 'removeShadowCaster');
+    const added = vi.spyOn(lighting.shadows!, 'addShadowCaster');
     b.cast(false);
     b.cast(false);
     expect([mine(), list().length]).toEqual([[], all - drawn.length]);
