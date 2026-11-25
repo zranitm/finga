@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -90,9 +91,13 @@ func TestASignUpRetriesABusyRefusal(t *testing.T) {
 		http.Error(rec, `{"code":110001,"message":"username taken"}`, http.StatusConflict)
 		return rec.Result(), nil
 	})
-	if _, err := signUpBot("http://gateway", 0, make(chan struct{}, 1)).signUp(t.Context()); err == nil || busy(err) {
-		t.Errorf("a conflict: %v", err)
-	}
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+		defer cancel()
+		if _, err := signUpBot("http://gateway", 0, make(chan struct{}, 1)).signUp(ctx); err == nil || busy(err) || ctx.Err() != nil {
+			t.Errorf("a conflict: %v, retried till %v", err, ctx.Err())
+		}
+	})
 }
 
 type roundTrip func(*http.Request) (*http.Response, error)

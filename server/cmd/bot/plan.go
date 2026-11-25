@@ -171,7 +171,7 @@ func (w *world) campSpot(m *gamedata.Map, lvl, pick int) (spot, bool) {
 			continue
 		}
 		switch a := m.Areas[k]; {
-		case a.MinLevel <= lvl && lvl <= a.MaxLevel:
+		case lvl <= a.MaxLevel: // its band holds lvl, as no band above holds prey
 			camps = append(camps, s)
 		case a.MaxLevel < lvl && a.MaxLevel > top:
 			under, top = []gamedata.Spawn{s}, a.MaxLevel

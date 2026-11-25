@@ -87,6 +87,22 @@ func TestARegionsBotHuntsInEveryBandHoldingItsLevel(t *testing.T) {
 	}
 }
 
+// Past every band, a bot hunts in the highest band under its level alone, whatever order the plan lists the camps in.
+func TestARegionsBotPastEveryBandHuntsInTheHighest(t *testing.T) {
+	data, w := regionWorld(t)
+	shipped, _ := data.Map("test_region")
+	m := *shipped
+	m.Spawns = slices.Clone(shipped.Spawns)
+	slices.Reverse(m.Spawns)
+	for pick := range 3 {
+		s, ok := w.campSpot(&m, 30, pick)
+		i := slices.IndexFunc(m.Spawns, func(sp gamedata.Spawn) bool { return point(sp.At) == s.at && sp.Radius == s.radius })
+		if !ok || i < 0 || m.Spawns[i].Mob != "glow_slime" {
+			t.Errorf("pick %d hunts at %+v; want the glow slimes' camp", pick, s)
+		}
+	}
+}
+
 // A soak's bot off its region teleports to its main town, holding still till it lands; once there it stays.
 func TestASoaksBotTeleportsIntoItsRegion(t *testing.T) {
 	data, w := regionWorld(t)
