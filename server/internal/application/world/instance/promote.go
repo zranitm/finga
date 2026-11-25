@@ -2,11 +2,8 @@ package instance
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"time"
 
-	"github.com/cenkalti/backoff/v5"
 	"github.com/google/uuid"
 
 	"finga/internal/application/world/promotions"
@@ -119,25 +116,11 @@ func (i *Instance) giftOf(p *player, class gamedata.Class) model.GiftCall {
 	return call
 }
 
-// callGift tries the gift until the item module answers or refuses, or callFor passes, as a hand-in does.
+// callGift tries the gift as retried does, as a hand-in is.
 func (i *Instance) callGift(ctx context.Context, call model.GiftCall) (model.Gift, error) {
-	ctx, cancel := context.WithTimeoutCause(ctx, callFor, fmt.Errorf("%w: the item module didn't answer the trainer's gift in time", transient.ErrUnavailable))
-	defer cancel()
 	who := []any{"character_id", call.Character, "template_id", call.Template}
-	tries := 0
-	wait := &backoff.ExponentialBackOff{InitialInterval: handInRetryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: handInRetryMax}
-	return backoff.Retry(ctx, func() (model.Gift, error) {
-		tries++
-		tryCtx, cancelTry := context.WithTimeout(ctx, handInTimeout)
-		defer cancelTry()
-		result, err := i.deps.Gifts.Give(tryCtx, call)
-		if err != nil && !errors.Is(err, transient.ErrUnavailable) {
-			return result, backoff.Permanent(err)
-		}
-		return result, err
-	}, backoff.WithBackOff(wait), backoff.WithMaxElapsedTime(0), backoff.WithNotify(func(err error, next time.Duration) {
-		i.log.WarnContext(ctx, "trainer's gift try failed; trying again", append(who, "try", tries, "next_in", next, "err", err)...)
-	}))
+	gift, _, err := retried(ctx, i.log, "trainer's gift", who, func(ctx context.Context) (model.Gift, error) { return i.deps.Gifts.Give(ctx, call) })
+	return gift, err
 }
 
 // settlePromotion promotes the character on this map, whatever its connection, once the trainer's weapon is theirs, checking again that they still may: alive, and meeting every condition, though they may have stepped away from the trainer. A refusal of the gift changed nothing anywhere; a later one keeps the weapon, and promoting again within the key retention gives no second one.
@@ -169,6 +152,7 @@ func (i *Instance) settlePromotion(m giftedMsg) {
 	}
 	i.wear(p, m.result.Look) // a weapon look the new class can't hold went with the gift
 	i.promoteTo(p, class)
+	i.grantFeats(p, func(w gamedata.FeatWhen) bool { return w.Promoted })
 	m.done <- nil
 }
 

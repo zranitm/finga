@@ -124,7 +124,7 @@ func (s *Service) GrantPieces(ctx context.Context, account kernel.AccountID, gra
 	return added, err
 }
 
-// grantable is whether g names a source its piece has: the rank or the quest that gives it.
+// grantable is whether g names a source its piece has: the rank, the quest or the feat that gives it.
 func (s *Service) grantable(g model.PieceGrant) bool {
 	p, ok := s.content.Piece(g.Piece)
 	return ok && g.Ref != "" && slices.ContainsFunc(p.From, func(src gamedata.PieceSource) bool {
@@ -133,6 +133,8 @@ func (s *Service) grantable(g model.PieceGrant) bool {
 			return src.Rank == g.Ref
 		case model.PieceFromQuest:
 			return src.Quest == g.Ref
+		case model.PieceFromFeat:
+			return src.Feat == g.Ref
 		}
 		return false
 	})

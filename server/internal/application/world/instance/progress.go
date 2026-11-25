@@ -77,6 +77,7 @@ func (i *Instance) award(p *player, amount int64) {
 	})
 	i.tellParty(p, i.m.ID, i.channel)
 	i.checkpoint(p)
+	i.grantFeats(p, func(w gamedata.FeatWhen) bool { return w.Level > 0 && w.Level <= p.Level })
 }
 
 // retellParties tells every player's state again once the party stream subscribed again: a party that changed during the break may not have heard it.

@@ -117,6 +117,9 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 		w.undo(ctx, id, at) // the caller counts the join failed, so the map must not keep it
 		return model.View{}, ctx.Err()
 	case err == nil:
+		if err := inst.AskMetFeats(id); err != nil {
+			w.deps.Logger.WarnContext(ctx, "a join's feats not asked for; the next join asks again", "character_id", id, "err", err)
+		}
 	case answerCtx.Err() != nil:
 		w.leaveBehind(inst, id, conn) // posted, and the map has not answered: it may still land
 		w.presences.forget(id, at.gen)

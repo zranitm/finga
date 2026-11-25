@@ -44,6 +44,7 @@ type Services struct {
 	Equipment Equipment
 	HandIns   HandIns
 	Gifts     Gifts
+	Feats     Feats
 	Looks     Looks
 	Potions   Potions
 	ItemCalls *itemcalls.Pool
@@ -475,6 +476,10 @@ func (i *Instance) drain() {
 			i.settleLook(m)
 		case giftedMsg:
 			i.settlePromotion(m)
+		case featsMsg:
+			i.settleFeats(m)
+		case metFeatsMsg:
+			i.askMetFeats(m)
 		case useMsg:
 			if !i.refused(m.done) {
 				i.startUse(m)

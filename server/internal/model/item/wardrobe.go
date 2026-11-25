@@ -9,14 +9,15 @@ import (
 // PieceCause says what gave an account a piece.
 type PieceCause string
 
-// The causes: an item added, a PvP rank's piece the first time the account reached it, or a quest's piece with its hand-in; feats come with their source (outfits.md section 10, step 4).
+// The causes: an item added, a PvP rank's piece the first time the account reached it, a quest's piece with its hand-in, or a feat's the first time the account did it.
 const (
 	PieceFromItem  PieceCause = "item"
 	PieceFromRank  PieceCause = "rank"
 	PieceFromQuest PieceCause = "quest"
+	PieceFromFeat  PieceCause = "feat"
 )
 
-// PieceGrant is a piece given outright for Cause, Ref naming which rank or quest.
+// PieceGrant is a piece given outright for Cause, Ref naming which rank, quest or feat.
 type PieceGrant struct {
 	Piece string
 	Cause PieceCause

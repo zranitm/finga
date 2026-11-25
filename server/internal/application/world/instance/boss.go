@@ -178,7 +178,7 @@ func (i *Instance) bossGroups(s *bossSlot) []bossGroup {
 	return groups
 }
 
-// bossFell pays out s's beaten boss: each group's EXP by its share of the boss's HP, and its own drop roll for each player whose group dealt the drop share. Damage of those not there to collect goes to no one, and the killer's kill counts for quests as any does.
+// bossFell pays out s's beaten boss: each group's EXP by its share of the boss's HP, and its own drop roll and the boss's feats for each player whose group dealt the drop share. Damage of those not there to collect goes to no one, and the killer's kill counts for quests as any does.
 func (i *Instance) bossFell(s *bossSlot, killer *player, k *mobs.Kill) {
 	b := s.up
 	s.up, s.fallen, s.back = nil, b.id, i.tick+i.ticksFor(i.data.FieldBoss().Respawn)
@@ -195,6 +195,7 @@ func (i *Instance) bossFell(s *bossSlot, killer *player, k *mobs.Kill) {
 		}
 		for _, m := range g.present {
 			i.ground.Box(b.def, k.X, k.Y, k.Z, ownerOf(m))
+			i.grantFeats(m, func(w gamedata.FeatWhen) bool { return w.Boss == gamedata.AnyBoss || w.Boss == b.def.ID })
 		}
 	}
 	i.countKill(killer, b.def.ID)

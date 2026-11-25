@@ -25,14 +25,14 @@ func picks(l model.Look) map[gamedata.LookSlot]string {
 	return map[gamedata.LookSlot]string{gamedata.OutfitSlot: l.Outfit, gamedata.HeadwearSlot: l.Headwear, gamedata.FaceSlot: l.Face, gamedata.WeaponSlot: l.Weapon, gamedata.WingsSlot: l.Wings}
 }
 
-// Every class's bots, over ids the same each run: one id wears one look; each slot is the class's own or a boss piece of that slot, a weapon look of the class's kind; and every such piece comes up.
-func TestABotWearsBossPiecesOfItsClass(t *testing.T) {
+// Every class's bots, over ids the same each run: one id wears one look; each slot is the class's own or a boss or feat piece of that slot, a weapon look of the class's kind; and every such piece comes up.
+func TestABotWearsBossAndFeatPiecesOfItsClass(t *testing.T) {
 	d := gamedatatest.Shipped(t)
 	for _, c := range d.Classes() {
 		wearable, seen, own := map[string]bool{}, map[string]bool{}, map[gamedata.LookSlot]bool{}
 		for _, p := range d.Pieces() {
-			dropped := !slices.ContainsFunc(p.From, func(s gamedata.PieceSource) bool { return s.Boss == "" })
-			if dropped && (p.Slot != gamedata.WeaponSlot || p.Kind == c.Weapon) {
+			bossOrFeat := !slices.ContainsFunc(p.From, func(s gamedata.PieceSource) bool { return s.Boss == "" && s.Feat == "" })
+			if bossOrFeat && (p.Slot != gamedata.WeaponSlot || p.Kind == c.Weapon) {
 				wearable[p.ID] = true
 			}
 		}

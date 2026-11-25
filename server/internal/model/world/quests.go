@@ -138,10 +138,17 @@ func (PiecesAdded) event() {}
 // PieceCause is what gave the player's account a piece.
 type PieceCause uint8
 
-// The causes: a quest's hand-in.
+// The causes: a quest's hand-in, or a feat.
 const (
 	PieceFromQuest PieceCause = iota + 1
+	PieceFromFeat
 )
+
+// FeatPiece is a piece a feat gives.
+type FeatPiece struct {
+	Piece string
+	Feat  string
+}
 
 // Reward is one item line a hand-in gives; equipment comes one per line, with its roll.
 type Reward struct {

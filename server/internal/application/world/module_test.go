@@ -62,6 +62,10 @@ func (saver) Refused(error) bool                                     { return fa
 // idle stands in for every world port these tests leave alone.
 type idle struct{}
 
+func (idle) GrantFeatPieces(context.Context, kernel.AccountID, []model.FeatPiece) ([]model.FeatPiece, error) {
+	return nil, nil
+}
+
 func (idle) Party(kernel.CharacterID) model.Party { return model.Party{} }
 func (idle) Epoch() uint64                        { return 0 }
 func (idle) Update(model.MemberUpdate)            {}
@@ -144,7 +148,7 @@ func newStackWearing(t *testing.T, eq wears) *stack {
 	rec := panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
 	calls := itemcalls.NewPool(itemcalls.Deps{Observer: idle{}, Panics: rec}, itemcalls.Options{Workers: 1})
 	w := game.New(game.Deps{
-		Data: data, NewRoll: func() model.Roll { return idle{} }, Observer: idle{}, Items: idle{}, Batches: idle{}, Equipment: eq, HandIns: eq, Potions: eq, HandedIns: eq, Wardrobe: eq, ItemCalls: calls, Parties: idle{}, Traces: noop.NewTracerProvider(),
+		Data: data, NewRoll: func() model.Roll { return idle{} }, Observer: idle{}, Items: idle{}, Batches: idle{}, Equipment: eq, HandIns: eq, Potions: eq, HandedIns: eq, Wardrobe: eq, Feats: idle{}, ItemCalls: calls, Parties: idle{}, Traces: noop.NewTracerProvider(),
 		Saver: saver{}, Characters: chars, Starter: idle{}, Panics: rec, Logger: slog.New(slog.DiscardHandler), SaveObserver: idle{}, Channels: idle{},
 	}, game.Tuning{TickInterval: tick, CheckpointInterval: time.Minute, FlushTimeout: time.Second, BatchMax: 32, ChannelCap: 150, ChannelIdle: 5 * time.Minute})
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)

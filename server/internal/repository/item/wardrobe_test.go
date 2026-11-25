@@ -145,6 +145,23 @@ func TestAGrantMakesItsEntryOnce(t *testing.T) {
 			t.Fatalf("wearing the gold visor: %+v, %v", res, err)
 		}
 	})
+	t.Run("a feat's piece, for the feat that gives it alone", func(t *testing.T) {
+		boss := model.PieceGrant{Piece: "crimson_helm", Cause: model.PieceFromFeat, Ref: "first_boss"}
+		if added, err := h.svc.GrantPieces(ctx, h.actor.Account, []model.PieceGrant{boss}); err != nil || !slices.Equal(added, []model.PieceGrant{boss}) {
+			t.Fatalf("added %+v, err %v", added, err)
+		}
+		if h.count(t, `SELECT count(*) FROM account_pieces WHERE piece_id = 'crimson_helm' AND cause_type = 'feat' AND cause_ref = 'first_boss' AND item_id IS NULL`) != 1 {
+			t.Fatal("no entry for the feat")
+		}
+		for _, bad := range []model.PieceGrant{
+			{Piece: "veteran_plate", Cause: model.PieceFromFeat, Ref: "first_boss"},
+			{Piece: "veteran_plate", Cause: model.PieceFromRank, Ref: "promoted"},
+		} {
+			if added, err := h.svc.GrantPieces(ctx, h.actor.Account, []model.PieceGrant{bad}); err == nil {
+				t.Errorf("granting %+v: %+v", bad, added)
+			}
+		}
+	})
 	checkInvariants(t, h.pool, h.data)
 }
 

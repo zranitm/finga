@@ -131,13 +131,13 @@ type FighterResult struct {
 	Away      bool // not in the match at its end: held through a drop, or gone, so told of it at their next Welcome
 }
 
-// BotLook is a bot's look, the same for one id: each slot its class's own half the time, else a piece of that slot every source of which is a boss, and a weapon look of weapon's kind. A rank, quest or feat piece never shows on a bot, so a rank piece always means a player earned it; feat pieces join with feats.
+// BotLook is a bot's look, the same for one id: each slot its class's own half the time, else a piece of that slot every source of which is a boss or a feat, and a weapon look of weapon's kind. A rank or quest piece never shows on a bot, so one always means a player earned it.
 func BotLook(pieces []gamedata.Piece, weapon gamedata.WeaponKind, id kernel.CharacterID) Look {
 	seed := [16]byte(id)
 	r := rand.New(rand.NewPCG(binary.BigEndian.Uint64(seed[:8]), binary.BigEndian.Uint64(seed[8:]))) //nolint:gosec // a bot's looks, not a secret
 	worn := map[gamedata.LookSlot][]string{}
 	for _, p := range pieces {
-		if dropped(p) && (p.Slot != gamedata.WeaponSlot || p.Kind == weapon) {
+		if botWears(p) && (p.Slot != gamedata.WeaponSlot || p.Kind == weapon) {
 			worn[p.Slot] = append(worn[p.Slot], p.ID)
 		}
 	}
@@ -150,7 +150,7 @@ func BotLook(pieces []gamedata.Piece, weapon gamedata.WeaponKind, id kernel.Char
 	return Look{Outfit: pick(gamedata.OutfitSlot), Headwear: pick(gamedata.HeadwearSlot), Face: pick(gamedata.FaceSlot), Weapon: pick(gamedata.WeaponSlot), Wings: pick(gamedata.WingsSlot), Revision: 1}
 }
 
-// dropped is whether every source of p is a boss.
-func dropped(p gamedata.Piece) bool {
-	return len(p.From) > 0 && !slices.ContainsFunc(p.From, func(s gamedata.PieceSource) bool { return s.Boss == "" })
+// botWears is whether every source of p is a boss or a feat.
+func botWears(p gamedata.Piece) bool {
+	return len(p.From) > 0 && !slices.ContainsFunc(p.From, func(s gamedata.PieceSource) bool { return s.Boss == "" && s.Feat == "" })
 }

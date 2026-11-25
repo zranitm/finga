@@ -33,6 +33,8 @@ type itemFake struct {
 	lookups  [][]item.Completion
 	looks    []item.LookRequest
 	owners   []kernel.CharacterID
+	accounts []kernel.AccountID
+	grants   [][]item.PieceGrant
 
 	batch     item.Batch
 	result    item.Result
@@ -40,7 +42,14 @@ type itemFake struct {
 	inventory item.Inventory
 	look      item.Look
 	handedIn  func(asked []item.Completion) []item.HandedIn
+	granted   []item.PieceGrant
 	err       error
+}
+
+func (f *itemFake) GrantPieces(_ context.Context, account kernel.AccountID, grants []item.PieceGrant) ([]item.PieceGrant, error) {
+	f.accounts = append(f.accounts, account)
+	f.grants = append(f.grants, grants)
+	return f.granted, f.err
 }
 
 func (f *itemFake) Inventory(_ context.Context, owner kernel.CharacterID) (item.Inventory, error) {
@@ -107,6 +116,23 @@ func (f *itemFake) HandedIn(_ context.Context, owner kernel.CharacterID, asked [
 		return nil, f.err
 	}
 	return f.handedIn(asked), f.err
+}
+
+// A feat's pieces go to the account as grants of cause feat, each naming its feat, and those new come back.
+func TestGrantFeatPiecesGrantsEachUnderItsFeat(t *testing.T) {
+	f := &itemFake{granted: []item.PieceGrant{{Piece: "crimson_helm", Cause: item.PieceFromFeat, Ref: "first_boss"}}}
+	account := kernel.NewAccountID()
+	got, err := adapter.NewEquipment(f).GrantFeatPieces(t.Context(), account, []model.FeatPiece{{Piece: "crimson_helm", Feat: "first_boss"}, {Piece: "wanderer_hat", Feat: "level_10"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []item.PieceGrant{{Piece: "crimson_helm", Cause: item.PieceFromFeat, Ref: "first_boss"}, {Piece: "wanderer_hat", Cause: item.PieceFromFeat, Ref: "level_10"}}
+	if !reflect.DeepEqual(f.grants, [][]item.PieceGrant{want}) || f.accounts[0] != account {
+		t.Fatalf("sent %+v for %v", f.grants, f.accounts)
+	}
+	if !reflect.DeepEqual(got, []model.FeatPiece{{Piece: "crimson_helm", Feat: "first_boss"}}) {
+		t.Fatalf("added %+v", got)
+	}
 }
 
 func TestLootAsksForAnOwnersDropsEachUnderItsOwnKey(t *testing.T) {
@@ -378,6 +404,10 @@ func TestEquipmentFailuresKeepARuleAndOtherwiseAreTransient(t *testing.T) {
 		"Use":     func(e adapter.Equipment) error { _, _, err := e.Use(ctx, model.UseCall{}); return err },
 		"HandIn":  func(e adapter.Equipment) error { _, err := e.HandIn(ctx, model.HandInCall{}); return err },
 		"Give":    func(e adapter.Equipment) error { _, err := e.Give(ctx, model.GiftCall{}); return err },
+		"GrantFeatPieces": func(e adapter.Equipment) error {
+			_, err := e.GrantFeatPieces(ctx, kernel.NewAccountID(), []model.FeatPiece{{Piece: "p", Feat: "f"}})
+			return err
+		},
 		"HandedIn": func(e adapter.Equipment) error {
 			_, err := e.HandedIn(ctx, id, []model.Completion{{Quest: "q"}})
 			return err

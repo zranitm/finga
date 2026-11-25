@@ -94,6 +94,21 @@ export const PIECE_LOOKS: Readonly<Record<string, PieceLook>> = {
     fit: { [ROGUE]: OVER_EARRING, [ROGUE_HOODED]: OVER_EARRING },
     colourway: 'knight_gold',
   },
+  // Stand-ins for the feats' pieces till the catalogue is designed: looks the art has, in new colours.
+  knight_helmet_crimson: {
+    slot: 'headwear',
+    file: KNIGHT,
+    meshes: ['Knight_Helmet'],
+    fit: { [ROGUE]: OVER_EARRING, [ROGUE_HOODED]: OVER_EARRING },
+    colourway: 'knight_crimson',
+  },
+  mage_hat_green: { slot: 'headwear', file: MAGE, meshes: ['Mage_Hat'], colourway: 'mage_green' },
+  knight_veteran: {
+    slot: 'outfit',
+    file: KNIGHT,
+    meshes: body('Knight'),
+    colourway: 'knight_veteran',
+  },
   barbarian_hat: { slot: 'headwear', file: BARBARIAN, meshes: ['Barbarian_Hat'] },
   mage_hat: { slot: 'headwear', file: MAGE, meshes: ['Mage_Hat'] },
   two_handed_sword: { slot: 'weapon', file: KNIGHT, meshes: ['2H_Sword'] },
@@ -125,4 +140,7 @@ export const COLOURWAYS: Readonly<Record<string, Colourway>> = {
   knight_bronze: { file: KNIGHT, swatches: { '3,1': 0xb07a3c } },
   rogue_bronze: { file: ROGUE, swatches: { '2,1': 0xb07a3c, '3,1': 0xb07a3c } },
   mage_bronze: { file: MAGE, swatches: { '3,1': 0xb07a3c } },
+  // Stand-ins for the feats' pieces: the Mage's hat in green, the Knight's plate in dark steel with a blue tabard.
+  mage_green: { file: MAGE, swatches: { '1,1': 0x4f7f3a } },
+  knight_veteran: { file: KNIGHT, swatches: { '3,0': 0x59626e, '7,0': 0x3a4049, '0,1': 0x2c5aa0 } },
 };

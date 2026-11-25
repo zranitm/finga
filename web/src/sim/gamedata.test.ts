@@ -14,6 +14,7 @@ import { maps } from '@/gamedata/maps';
 import { mobs } from '@/gamedata/mobs';
 import { movement } from '@/gamedata/movement';
 import { npcs } from '@/gamedata/npcs';
+import { outfits } from '@/gamedata/outfits';
 import { quests } from '@/gamedata/quests';
 import { skills } from '@/gamedata/skills';
 import { stats } from '@/gamedata/stats';
@@ -25,6 +26,12 @@ function yaml(name: string): Record<string, unknown> {
 }
 
 describe('generated gamedata', () => {
+  it('feats are outfits.yaml’s, each its id and name alone, the server keeping its condition', () => {
+    const raw = yaml('outfits.yaml').feats as { id: string; name: string }[];
+    expect(raw.length).toBeGreaterThan(0);
+    expect(outfits.feats).toEqual(raw.map((f) => ({ id: f.id, name: f.name })));
+  });
+
   it('movement equals movement.yaml', () => {
     expect(movement).toEqual(yaml('movement.yaml'));
   });
@@ -35,7 +42,7 @@ describe('generated gamedata', () => {
     expect(expCurve.exp_to_next).toHaveLength(expCurve.level_cap - 1);
   });
 
-  it('items equal items.yaml with the stack size the server applies, then an item for each wardrobe piece a boss drops as the server makes it, none for one a rank or a quest gives', () => {
+  it('items equal items.yaml with the stack size the server applies, then an item for each wardrobe piece a boss drops as the server makes it, none for one a rank, a quest or a feat gives', () => {
     const raw = yaml('items.yaml').items as Record<string, unknown>[];
     const all = yaml('outfits.yaml').pieces as {
       id: string;
@@ -52,6 +59,9 @@ describe('generated gamedata', () => {
       'bronze_knife',
       'bronze_crossbow',
       'bronze_staff',
+      'wanderer_hat',
+      'crimson_helm',
+      'veteran_plate',
     ]);
     expect(items).toHaveLength(raw.length + pieces.length);
     raw.forEach((source, k) => {

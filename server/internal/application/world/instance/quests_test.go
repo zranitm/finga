@@ -55,7 +55,7 @@ func questData(t *testing.T) *gamedata.Data {
 `
 		},
 		"outfits.yaml": func(s string) string {
-			return s + "  - {id: bounty_badge, slot: headwear, name: Bounty Badge, stars: 1, look: knight_helmet, from: [{quest: bounty}]}\n"
+			return strings.Replace(s, "\nfeats:\n", "\n  - {id: bounty_badge, slot: headwear, name: Bounty Badge, stars: 1, look: knight_helmet, from: [{quest: bounty}]}\nfeats:\n", 1)
 		},
 	})
 }
@@ -427,7 +427,7 @@ func TestHandingInAQuest(t *testing.T) {
 			if len(changes(q.sink)) != 0 || len(q.cps.Drain()) != 0 {
 				t.Fatal("something changed")
 			}
-			if n := strings.Count(logs.String(), `"msg":"hand-in try failed; trying again"`); n == 0 || n > len(f.called()) || !strings.Contains(logs.String(), `"level":"ERROR","msg":"hand-in given up`) {
+			if n := strings.Count(logs.String(), `"call":"hand-in","try"`); n == 0 || n > len(f.called()) || !strings.Contains(logs.String(), `"level":"ERROR","msg":"hand-in given up`) {
 				t.Fatalf("%d calls, logged:\n%s", len(f.called()), logs.String())
 			}
 		})

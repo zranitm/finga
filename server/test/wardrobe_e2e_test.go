@@ -63,8 +63,17 @@ func TestAPieceIsCollectedWornAndSeen(t *testing.T) {
 	wardrobe := s.Call("GET", "/api/wardrobe", p.Token, nil)
 	s.MustStatus(wardrobe, http.StatusOK)
 	pieces, _ := wardrobe.Body["pieces"].([]any)
-	if len(pieces) != 1 || pieces[0].(map[string]any)["id"] != "knight_plate" || pieces[0].(map[string]any)["cause"] != "item" || pieces[0].(map[string]any)["item_id"] != plate {
-		t.Fatalf("wardrobe %v, want the plate from its item", wardrobe.Body)
+	plates := 0
+	for _, raw := range pieces {
+		switch piece := raw.(map[string]any); {
+		case piece["id"] == "knight_plate" && piece["cause"] == "item" && piece["item_id"] == plate:
+			plates++
+		case piece["cause"] != "feat": // a warrior's login asks for the promotion feat's piece
+			t.Fatalf("wardrobe %v holds %v", wardrobe.Body, piece)
+		}
+	}
+	if plates != 1 {
+		t.Fatalf("wardrobe %v, want the plate from its item once", wardrobe.Body)
 	}
 
 	s.Restart()

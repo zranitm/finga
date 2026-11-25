@@ -319,6 +319,7 @@ type Options struct {
 	Equipment          instance.Equipment
 	HandIns            instance.HandIns
 	Gifts              instance.Gifts
+	Feats              instance.Feats
 	Looks              instance.Looks
 	Potions            instance.Potions
 	ItemCalls          *itemcalls.Pool
@@ -366,6 +367,9 @@ func (o Options) Fill() Options {
 	if o.Gifts == nil {
 		o.Gifts = nobody{}
 	}
+	if o.Feats == nil {
+		o.Feats = nobody{}
+	}
 	if o.Looks == nil {
 		o.Looks = nobody{}
 	}
@@ -410,7 +414,7 @@ func (o Options) Fill() Options {
 
 // Services are the filled options every map takes.
 func (o Options) Services() instance.Services {
-	return instance.Services{NewRoll: o.NewRoll, Observer: o.Observer, Items: o.Items, Batches: o.Batches, Equipment: o.Equipment, HandIns: o.HandIns, Gifts: o.Gifts, Looks: o.Looks, Potions: o.Potions, ItemCalls: o.ItemCalls, Parties: o.Parties, Traces: o.Traces}
+	return instance.Services{NewRoll: o.NewRoll, Observer: o.Observer, Items: o.Items, Batches: o.Batches, Equipment: o.Equipment, HandIns: o.HandIns, Gifts: o.Gifts, Feats: o.Feats, Looks: o.Looks, Potions: o.Potions, ItemCalls: o.ItemCalls, Parties: o.Parties, Traces: o.Traces}
 }
 
 // Checkpoints records what a map puts for saving.
@@ -663,6 +667,11 @@ func (nobody) HandedIn(context.Context, kernel.CharacterID, []model.Completion) 
 // HandIn refuses.
 func (nobody) HandIn(context.Context, model.HandInCall) (model.HandedIn, error) {
 	return model.HandedIn{}, errNobody
+}
+
+// GrantFeatPieces refuses.
+func (nobody) GrantFeatPieces(context.Context, kernel.AccountID, []model.FeatPiece) ([]model.FeatPiece, error) {
+	return nil, errNobody
 }
 
 // Give refuses.

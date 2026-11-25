@@ -2,6 +2,7 @@
 # A boss source puts the piece's item, piece.<id>, on that boss's drops, rolled on each eligible player's own roll.
 # A rank source grants the piece outright, the first time the account reaches that rank in a rated mode; no item holds it.
 # A quest source grants it outright with the quest's hand-in, as its rewards; no item holds it.
+# A feat source grants it outright the first time the account does the feat, below; no item holds it.
 # The starter catalogue; the full one is designed with the user from the preview sheet (section 8).
 pieces:
   - {id: knight_plate,   slot: outfit,   name: Knight's Plate,   stars: 3, look: knight_body,      from: [{boss: king_slime, chance: 0.05}]}
@@ -25,3 +26,12 @@ pieces:
   - {id: bronze_knife,    slot: weapon, kind: knife,      name: Bronze Knife,    stars: 2, look: knife_bronze,    from: [{quest: thiefs_trial}]}
   - {id: bronze_crossbow, slot: weapon, kind: crossbow,   name: Bronze Crossbow, stars: 2, look: crossbow_bronze, from: [{quest: bowmans_trial}]}
   - {id: bronze_staff,    slot: weapon, kind: staff,      name: Bronze Staff,    stars: 2, look: staff_bronze,    from: [{quest: magicians_trial}]}
+  # Stand-ins for the feats' pieces till the catalogue is designed (section 8): looks the art has, in new colours.
+  - {id: wanderer_hat,    slot: headwear, name: Wanderer's Hat,  stars: 2, look: mage_hat_green,        from: [{feat: level_10}]}
+  - {id: crimson_helm,    slot: headwear, name: Crimson Helm,    stars: 3, look: knight_helmet_crimson, from: [{feat: first_boss}]}
+  - {id: veteran_plate,   slot: outfit,   name: Veteran's Plate, stars: 3, look: knight_veteran,        from: [{feat: promoted}]}
+# Feats: each one condition the server sees as it happens, giving its pieces the first time an account meets it; a lost grant comes the next time it's met.
+feats:
+  - {id: level_10,   name: Reach level 10,      when: {level: 10}}
+  - {id: first_boss, name: Beat a field boss,   when: {boss: any}}
+  - {id: promoted,   name: Take a second class, when: {promoted: true}}
