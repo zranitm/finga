@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type * as MapViewModule from '@/state/map-view';
+import { NO_GROUND } from '@/state/map-view';
 import type * as TeleportModule from '@/state/teleport';
 import type * as WaypointsModule from '@/state/waypoints';
 import type * as ResetModule from '@/testing/reset-stores';
@@ -43,7 +44,7 @@ const NORTH = { id: 'north', name: 'North Field', x: 118, z: 150, y: 0, main: fa
 const layoutOf = vi.fn((id: string) =>
   Promise.resolve({
     size: id === 'test_region' ? ([256, 256] as const) : ([48, 32] as const),
-    image: '',
+    ground: id === 'test_region' ? ({ kind: 'tiles', folder: 'bake/tiles' } as const) : NO_GROUND,
     waypoints: id === 'test_region' ? [TOWN, WEST, NORTH] : [],
   }),
 );
@@ -52,7 +53,7 @@ describe('MapWindow, with a region on the chart', () => {
   beforeEach(() => {
     resetStores();
     act(() => {
-      mapView.getState().showMap('town', [48, 32], '', []);
+      mapView.getState().showMap('town', [48, 32], NO_GROUND, []);
       waypoints.getState().find('west');
     });
   });
@@ -74,6 +75,7 @@ describe('MapWindow, with a region on the chart', () => {
     const svg = await screen.findByRole('img', { name: 'Test Region' });
     expect(layoutOf).toHaveBeenCalledWith('test_region');
     expect(screen.getByText('Region')).toBeInTheDocument();
+    expect(svg.querySelectorAll('image.map-tile')).toHaveLength(4); // its tiles, from its layout
     expect(screen.queryByRole('button', { name: 'Teleport here' })).not.toBeInTheDocument(); // none by the region's id
     expect(
       [...svg.querySelectorAll('.map-waypoint-found')].map((g) => g.getAttribute('data-waypoint')),

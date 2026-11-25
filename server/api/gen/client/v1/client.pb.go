@@ -9637,11 +9637,13 @@ func (x *MatchSide) GetFighters() []*MatchFighter {
 
 // MatchFighter is a player or a bot in a match; a bot's id is its own, never a character's.
 type MatchFighter struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Class         string                 `protobuf:"bytes,3,opt,name=class,proto3" json:"class,omitempty"`
-	Bot           bool                   `protobuf:"varint,4,opt,name=bot,proto3" json:"bot,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name  string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Class string                 `protobuf:"bytes,3,opt,name=class,proto3" json:"class,omitempty"`
+	Bot   bool                   `protobuf:"varint,4,opt,name=bot,proto3" json:"bot,omitempty"`
+	// Their connection dropped, and their place is held for them for the mode's reconnect.
+	Away          bool `protobuf:"varint,5,opt,name=away,proto3" json:"away,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -9700,6 +9702,13 @@ func (x *MatchFighter) GetClass() string {
 func (x *MatchFighter) GetBot() bool {
 	if x != nil {
 		return x.Bot
+	}
+	return false
+}
+
+func (x *MatchFighter) GetAway() bool {
+	if x != nil {
+		return x.Away
 	}
 	return false
 }
@@ -10669,12 +10678,13 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x05score\x18\b \x03(\x05R\x05score\x12/\n" +
 	"\x06points\x18\t \x03(\v2\x17.client.v1.CapturePointR\x06points\"@\n" +
 	"\tMatchSide\x123\n" +
-	"\bfighters\x18\x01 \x03(\v2\x17.client.v1.MatchFighterR\bfighters\"Z\n" +
+	"\bfighters\x18\x01 \x03(\v2\x17.client.v1.MatchFighterR\bfighters\"n\n" +
 	"\fMatchFighter\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
 	"\x05class\x18\x03 \x01(\tR\x05class\x12\x10\n" +
-	"\x03bot\x18\x04 \x01(\bR\x03bot\"p\n" +
+	"\x03bot\x18\x04 \x01(\bR\x03bot\x12\x12\n" +
+	"\x04away\x18\x05 \x01(\bR\x04away\"p\n" +
 	"\fCapturePoint\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
 	"\x06holder\x18\x02 \x01(\x05R\x06holder\x12\x1a\n" +

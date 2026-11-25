@@ -528,10 +528,11 @@ func (r *Results) All() []model.MatchResult {
 	return slices.Clone(r.got)
 }
 
-// Moves records the players a map hands off, and where to.
+// Moves records the players a map hands off, and where to, and the players it drops.
 type Moves struct {
-	mu  sync.Mutex
-	got []Move
+	mu    sync.Mutex
+	got   []Move
+	drops []kernel.CharacterID
 }
 
 // Move is one hand-off.
@@ -547,8 +548,19 @@ func (m *Moves) Transfer(_ *instance.Instance, p model.Player, _ instance.Sink, 
 	m.got = append(m.got, Move{Player: p, Dest: dest})
 }
 
-// Dropped does nothing.
-func (m *Moves) Dropped(*instance.Instance, kernel.CharacterID, string) {}
+// Dropped records the drop.
+func (m *Moves) Dropped(_ *instance.Instance, id kernel.CharacterID, _ string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.drops = append(m.drops, id)
+}
+
+// Drops is every player dropped, in order.
+func (m *Moves) Drops() []kernel.CharacterID {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return slices.Clone(m.drops)
+}
 
 // All is every hand-off recorded, in order.
 func (m *Moves) All() []Move {

@@ -36,8 +36,9 @@ type PvpMode struct {
 	Party      int
 	Map        string
 	Rated      bool
-	RatingFrom string     // an unrated mode's ticket reads this mode's rating
-	Rounds     ModeRounds // a round mode's
+	RatingFrom string        // an unrated mode's ticket reads this mode's rating
+	Rounds     ModeRounds    // a round mode's
+	Reconnect  time.Duration // how long a fighter whose connection dropped keeps their place; 0 leaves at once
 }
 
 // Battle reports whether the mode is fought for points, as PvpBattle rules, rather than in rounds.

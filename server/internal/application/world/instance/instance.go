@@ -168,6 +168,19 @@ type (
 		name string
 		text string
 	}
+	// holdMsg asks to hold a match fighter's place through conn's drop; done hears whether it's held.
+	holdMsg struct {
+		id   kernel.CharacterID
+		conn string
+		done chan bool
+	}
+	// rejoinMsg puts a new connection on a match fighter's body; done hears the view or why not.
+	rejoinMsg struct {
+		id   kernel.CharacterID
+		conn string
+		sink Sink
+		done chan rejoined
+	}
 )
 
 func (*joinMsg) message()    {}
@@ -180,6 +193,8 @@ func (equipMsg) message()    {}
 func (equippedMsg) message() {}
 func (chatMsg) message()     {}
 func (useMsg) message()      {}
+func (holdMsg) message()     {}
+func (rejoinMsg) message()   {}
 func (usedMsg) message()     {}
 
 // Errors a join can end with besides the model's.
@@ -332,6 +347,7 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.later = i.later[:0]
 	i.ground.Begin(n)
 	i.drain()
+	i.dropAway()
 	i.stepMatch()
 	i.pendingMatches()
 	i.pendingPortals()
@@ -391,11 +407,11 @@ func (i *Instance) drain() {
 		case *joinMsg:
 			i.add(m)
 		case inputMsg:
-			if p, ok := i.players[m.id]; ok {
+			if p, ok := i.players[m.id]; ok && !i.away(m.id) {
 				p.pending = enqueueInput(p.pending, m, p.lastSeq)
 			}
 		case attackMsg:
-			if p, ok := i.players[m.id]; ok {
+			if p, ok := i.players[m.id]; ok && !i.away(m.id) {
 				p.attackQueued, p.attackAim, p.attackTarget = true, m.aim, m.target
 				p.pressed()
 			}
@@ -424,6 +440,10 @@ func (i *Instance) drain() {
 				i.chooseTrait(m)
 			}
 		case skillMsg:
+			if i.away(m.id) {
+				m.done <- ErrSinkClosed
+				break
+			}
 			if p, ok := i.players[m.id]; ok {
 				p.pressed()
 			}
@@ -466,6 +486,11 @@ func (i *Instance) drain() {
 			i.setBuild(m)
 		case usedMsg:
 			i.settleUse(m)
+		case holdMsg:
+			m.done <- i.hold(m.id, m.conn)
+		case rejoinMsg:
+			v, err := i.rejoin(m.id, m.conn, m.sink)
+			m.done <- rejoined{view: v, err: err}
 		case chatMsg:
 			if _, ok := i.players[m.from]; ok {
 				i.events = append(i.events, model.Chat{Tick: i.tick, Sender: m.from, SenderName: m.name, Text: m.text})

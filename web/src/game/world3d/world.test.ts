@@ -96,6 +96,7 @@ import { CHEST_M } from './follow';
 import { classLook, mobLook } from './looks';
 import type { ModelLook } from './looks';
 import { loadMap } from './map';
+import { bakeUrl } from './region-bake';
 import { Palette } from './toon';
 import { World } from './world';
 
@@ -643,7 +644,11 @@ describe('World', () => {
       vi.spyOn(console, 'info').mockImplementation(() => undefined);
       const p = await playing(REGIONED, 30, 20);
       p.push('snapshot', { players: [standing(30, 20)], channel: 2 }, { tick: 2 });
-      expect(mapView.getState()).toMatchObject({ mapId: REGIONED, channel: 2 });
+      expect(mapView.getState()).toMatchObject({
+        mapId: REGIONED,
+        channel: 2,
+        ground: { kind: 'tiles', folder: bakeUrl(TINY, 'tiles') }, // its bake's map tiles
+      });
       vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
       p.push('mapChange', { mapId: REGIONED, x: 30, y: 0, z: 20, yaw: 0 }, { tick: 3 }); // a switch to channel 3
       const snapshot = () =>
@@ -1646,7 +1651,7 @@ describe('World', () => {
     ]);
   });
 
-  it('in a match names enemies red and teammates green, tags a bot, and locks and attacks an enemy as a mob, never a teammate', async () => {
+  it('in a match names enemies red and teammates green, tags a bot, tags a fighter whose place is held Reconnecting, and locks and attacks an enemy as a mob, never a teammate', async () => {
     const cut = vi.spyOn(Palette.prototype, 'cutAround');
     const p = await playing(FLAT, 4, 20);
     character.getState().applyWelcome(
@@ -1747,6 +1752,31 @@ describe('World', () => {
       p.frames(1);
     }
     expect(target.getState().target?.ref).toBe('p:c-robin'); // the round's reset: up, and locked on again
+    const held = (away: boolean) =>
+      pvp.getState().applyMatchState(
+        create(MatchStateSchema, {
+          match: 'mt-1',
+          mode: 'team',
+          phase: MatchPhase.FIGHT,
+          sides: [
+            { fighters: [{ id: ME }, { id: 'c-kai', name: 'Kai', away }] },
+            { fighters: [{ id: 'c-robin', name: 'Robin', bot: true }] },
+          ],
+        }),
+        28,
+      );
+    held(true);
+    p.push('delta', { players: players(1) }, { tick: 28 });
+    p.frames(1);
+    expect([tag('c-kai').textContent, tag('c-kai').hidden, tag('c-robin').textContent]).toEqual([
+      'Reconnecting',
+      false,
+      'BOT',
+    ]);
+    held(false);
+    p.push('delta', { players: players(1) }, { tick: 29 });
+    p.frames(1);
+    expect(tag('c-kai').hidden).toBe(true); // back
     cut.mockRestore();
   });
 
@@ -2965,6 +2995,7 @@ describe('World', () => {
   it('tells the map views the map, and about ten times a second the player, the party members here, the lock and the field boss while it’s up', async () => {
     const p = await playing(FLAT, 10, 20);
     expect([mapView.getState().mapId, mapView.getState().size]).toEqual([FLAT, [72, 40]]);
+    expect(mapView.getState().ground.kind).toBe('image'); // a map's own
     party.getState().applyPartyState(
       create(PartyStateSchema, {
         party: create(PartyViewSchema, {

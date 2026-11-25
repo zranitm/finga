@@ -61,7 +61,7 @@ places:
   - the pixels are a pure function (`groundPixels`), tested without a canvas, which the test runner lacks; the page puts them on a canvas and keeps its data URL;
   - a footprint is 6% of the ground's colour, and steep ground keeps the 3D ground's 60% (`CLIFF`); the ground colours moved to `world3d/grounds.ts` for both to share.
 
-The minimap and the This map tab both draw from this one image. Neither redraws the ground.
+The minimap and the This map tab both draw from this one image. Neither redraws the ground. A region's ground is its bake's tiles instead (large-regions.md step 5c-2a).
 
 ## 5. The minimap
 

@@ -55,7 +55,7 @@ import { nearby } from '@/state/nearby';
 import { isMember, party } from '@/state/party';
 import type { PartyState } from '@/state/party';
 import { picksInReach, pouches } from '@/state/pouches';
-import { countdownTicks, pvp, sideOf, walled } from '@/state/pvp';
+import { awayIn, countdownTicks, pvp, sideOf, walled } from '@/state/pvp';
 import { questPlayer, quests } from '@/state/quests';
 import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
@@ -71,7 +71,7 @@ import { ui } from '@/state/ui';
 import { loadArt, Fx } from '../effects/fx';
 import type { Body } from '../effects/types';
 import { warnOnce } from '../effects/warn';
-import { groundImage } from '../map-image';
+import { mapGround } from '../map-image';
 import { ActionClock, attackIn, attackTiming, skillTiming } from '../systems/actions';
 import type { ActionTiming } from '../systems/actions';
 import { aimYaw } from '../systems/aim';
@@ -730,7 +730,7 @@ export class World {
     fx.warm(); // every look's shaders built before a fight needs them
     mapView
       .getState()
-      .showMap(map.id, [map.geometry.size_x, map.geometry.size_z], groundImage(map), map.waypoints);
+      .showMap(map.id, [map.geometry.size_x, map.geometry.size_z], mapGround(map), map.waypoints);
     this.start(arriving, fx);
   }
 
@@ -1190,6 +1190,7 @@ export class World {
       this.remoteAims.delete(id);
       this.combat?.forget(id);
     }
+    const away = awayIn(pvp.getState().match);
     for (const [id, s] of shown) {
       let v = this.remoteViews.get(id);
       const cls = remotes.classOf(id);
@@ -1233,7 +1234,7 @@ export class World {
         s.y + movement.height + NAME_LIFT_M,
         s.z,
         0,
-        info?.bot ? 'BOT' : '',
+        info?.bot ? 'BOT' : away.has(id) ? 'Reconnecting' : '',
       );
     }
     if (changed) {

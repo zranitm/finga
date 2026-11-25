@@ -223,10 +223,14 @@ func (i *Instance) cast(u use, start uint64) {
 	p.Energy -= st.Energy
 	p.spendAhead(u.seq, st.Energy)
 	p.skillReady[s.ID] = start + model.SkillCooldownTicks(st.Cooldown, p.derived.CooldownSpeed, i.tuning.TickInterval)
-	p.aimAt(u.aim)
-	i.events = append(i.events, model.SkillUsed{Tick: i.tick, Caster: p.ID, Skill: s.ID, Stage: u.stage, Trait: u.trait, Aim: u.aim, Target: u.target})
+	used := model.SkillUsed{Caster: p.ID, Skill: s.ID, Stage: u.stage, Trait: u.trait, Aim: u.aim, Target: u.target}
 	length, hit := model.TicksIn(st.Length, i.tuning.TickInterval), i.effect(u)
-	i.seenStarting(p, start, length, st.Timing, st.Cancelable, s.Effect == gamedata.DamageEffect || s.Effect == gamedata.StatusEffect, st.Shape, u.target, st.Move)
+	i.landAt(p, start, func() { // seen by the map and its bots as it starts, not at a press up to castSlack early
+		p.aimAt(u.aim)
+		used.Tick = i.tick
+		i.events = append(i.events, used)
+		i.seenStarting(p, start, length, st.Timing, st.Cancelable, s.Effect == gamedata.DamageEffect || s.Effect == gamedata.StatusEffect, st.Shape, u.target, st.Move)
+	})
 	i.begin(p, skillAction, start, length, st.Timing, st.Cancelable, hit)
 	hitAt, _ := model.ActionPoints(length, st.Hit, st.Cancel)
 	p.hitSeqs[s.ID] = uint64(u.seq) + hitAt

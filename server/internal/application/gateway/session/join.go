@@ -180,7 +180,7 @@ func (r *Registry) rejoin(ctx context.Context, s *Session) {
 	if err != nil {
 		s.out.abort()
 		if s.ctx.Err() != nil {
-			r.leave(ctx, s.Presence()) // closed mid-join; the world may have joined it anyway
+			r.leaveAs(ctx, s) // closed mid-join; the world may have joined it anyway
 			return
 		}
 		if errors.Is(err, model.ErrNotSubscribed) {
@@ -215,7 +215,7 @@ func (r *Registry) rejoin(ctx context.Context, s *Session) {
 	closed := s.closed
 	r.mu.Unlock()
 	if closed {
-		r.leave(ctx, s.Presence())
+		r.leaveAs(ctx, s)
 		return
 	}
 	r.Register(s) // the Welcome emptied the client's party; Online sends it again, as after a login
@@ -264,7 +264,7 @@ func (r *Registry) LeaveGhost(p model.Presence) {
 		return
 	}
 	r.job(context.Background(), "gateway.leave_ghost", func(ctx context.Context) {
-		r.leave(ctx, p)
+		r.leave(ctx, p, true) // no logout came through a connection the gateway doesn't know
 		r.mu.Lock()
 		r.ghosts[p.Connection] = time.Now().Add(ghostQuiet)
 		r.mu.Unlock()
@@ -281,12 +281,22 @@ func (r *Registry) quiet(conn string, now time.Time) {
 	r.ghosts[conn] = now.Add(leaveTimeout + ghostQuiet)
 }
 
-// leave takes the presence off its map, retrying while the world is busy, for up to leaveTimeout even past ctx's end; failures are logged.
-func (r *Registry) leave(ctx context.Context, p model.Presence) {
+// leaveAs takes the closed session's player off their map as its end was: a logout leaves, and anything else is a drop, which a match holds a while.
+func (r *Registry) leaveAs(ctx context.Context, s *Session) {
+	r.leave(ctx, s.Presence(), !s.LoggedOut())
+}
+
+// leave takes the presence off its map, or for a dropped connection lets the world hold its place, retrying while the world is busy, for up to leaveTimeout even past ctx's end; failures are logged.
+func (r *Registry) leave(ctx context.Context, p model.Presence, drop bool) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), leaveTimeout)
 	defer cancel()
 	_, err := backoff.Retry(ctx, func() (struct{}, error) {
-		err := r.deps.World.Leave(ctx, p)
+		var err error
+		if drop {
+			err = r.deps.World.Drop(ctx, p)
+		} else {
+			err = r.deps.World.Leave(ctx, p)
+		}
 		if err != nil && !errors.Is(err, model.ErrUnavailable) {
 			return struct{}{}, backoff.Permanent(err)
 		}
