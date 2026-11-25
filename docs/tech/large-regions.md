@@ -615,8 +615,11 @@ Built with step 1, which says who watches a cell.
     - One stone flares at a time; the newest find to come on screen takes the flare over.
     - The beam and ring keep `#00d0f4`, a touch bluer than the crystal's cyan.
     - **The ring** lies flat, so as it spreads it rides the highest ground under it. On East Woods' slope the flat ring had sunk into the ground for up to 98° of its circle.
-  - **See-through:** a stone between the camera and the player fades as a tall prop does, its halo with it, and goes at the lens. They're a region's only see-through looks so far.
+  - **See-through:** a stone between the camera and the player fades as a tall prop does, its halo ahead of it (below), and goes at the lens. They're a region's only see-through looks so far.
     - **While faded,** it leaves its thin instances and draws its own copy at the step's alpha, made when its model loads.
+    - **Its glow goes first (as built after the wardrobe stills):** at the stone's own steps, a found halo at the faded 0.3 still tinted the player behind it teal at the near zoom. A bright glow over a body reads far stronger than a see-through solid at the same alpha.
+      - The halo now steps 1, 0.3, then nothing from the stone's faded step on, so it's gone by the time the stone sits at 0.3. The beam of a flaring stone takes the same steps.
+      - A stone fades only when it stands between the camera and the player, so its glow there has nothing to mark. The see-through stone still shows where it stands.
 
 ## 9. The camera
 
