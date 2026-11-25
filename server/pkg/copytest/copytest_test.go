@@ -199,6 +199,23 @@ func TestEveryTwoBooleansDifferInSomeFill(t *testing.T) {
 	}
 }
 
+// A nil func in the target, a hook set later, is a path with no value, as a nil pointer is: nothing to compare, and declaring it computed names a path that exists.
+func TestANilFuncIsAPathWithNoValue(t *testing.T) {
+	type hooked struct {
+		Name string
+		Done func()
+	}
+	convert := func(f flatPart) hooked { return hooked{Name: f.Name} }
+	m := copytest.Match{Skip: map[string]string{"Low": "dropped", "High": "dropped"}}
+	if got := copytest.Diff(m, convert); len(got) != 0 {
+		t.Fatalf("a nil func: %v", got)
+	}
+	m.Computed = map[string]string{"Done": "set later"}
+	if got := copytest.Diff(m, convert); len(got) != 0 {
+		t.Fatalf("a nil func declared computed: %v", got)
+	}
+}
+
 // A value past what a small integer holds would wrap and repeat, so the fill refuses it.
 func TestAnIntegerTooSmallForItsValueIsRefused(t *testing.T) {
 	type wide struct {

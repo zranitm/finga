@@ -105,12 +105,12 @@ func (p *Postgres) Record(ctx context.Context, match model.Match, characters []k
 	return fighters, failures.Classify(err)
 }
 
-// TakeUntold is each stored match the character was away from at its end and hasn't been told of, each marked told as it's taken, so it's told once.
-func (p *Postgres) TakeUntold(ctx context.Context, id kernel.CharacterID) ([]model.Untold, error) {
+// Untold is each stored match the character was away from at its end and hasn't been told of.
+func (p *Postgres) Untold(ctx context.Context, id kernel.CharacterID) ([]model.Untold, error) {
 	var out []model.Untold
 	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
 		c := uuid.UUID(id)
-		rows, err := db.New(tx).TakeUntold(ctx, db.TakeUntoldParams{Now: dbx.Now(), CharacterID: &c})
+		rows, err := db.New(tx).Untold(ctx, &c)
 		if err != nil {
 			return err
 		}
@@ -123,11 +123,15 @@ func (p *Postgres) TakeUntold(ctx context.Context, id kernel.CharacterID) ([]mod
 	return out, failures.Classify(err)
 }
 
-// MarkTold marks the character told of match, as a gateway handed them its outcome live.
-func (p *Postgres) MarkTold(ctx context.Context, id kernel.CharacterID, match kernel.MatchID) error {
+// MarkTold marks the character told of matches, as a gateway handed them their outcomes.
+func (p *Postgres) MarkTold(ctx context.Context, id kernel.CharacterID, matches []kernel.MatchID) error {
+	ids := make([]uuid.UUID, 0, len(matches))
+	for _, m := range matches {
+		ids = append(ids, uuid.UUID(m))
+	}
 	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
 		c := uuid.UUID(id)
-		return db.New(tx).MarkTold(ctx, db.MarkToldParams{Now: dbx.Now(), MatchID: uuid.UUID(match), CharacterID: &c})
+		return db.New(tx).MarkTold(ctx, db.MarkToldParams{Now: dbx.Now(), CharacterID: &c, Matches: ids})
 	}, dbx.Observed(p.obs))
 	return failures.Classify(err)
 }

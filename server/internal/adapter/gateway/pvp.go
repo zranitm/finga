@@ -18,7 +18,7 @@ type PvpModule interface {
 	Answer(ctx context.Context, who kernel.CharacterID, offer string, accept bool) error
 	Offline(ctx context.Context, who kernel.CharacterID) error
 	Missed(ctx context.Context, id kernel.CharacterID) (pvp.Missed, error)
-	Told(ctx context.Context, id kernel.CharacterID, match kernel.MatchID) error
+	Told(ctx context.Context, id kernel.CharacterID, matches []kernel.MatchID) error
 	Subscribe(gateway string) *hub.Sub[pvp.Push]
 }
 
@@ -60,16 +60,16 @@ func (p Pvp) Missed(ctx context.Context, who kernel.CharacterID) (model.Missed, 
 	if err != nil {
 		return model.Missed{}, wrap(err)
 	}
-	out := model.Missed{More: m.More}
+	out := model.Missed{Older: m.Older}
 	for _, x := range m.Matches {
-		out.Matches = append(out.Matches, model.MissedMatch{Mode: x.Mode, Result: model.MatchOutcome(x.Outcome), Left: x.Left, Ended: x.Ended})
+		out.Matches = append(out.Matches, model.MissedMatch{Match: x.Match, Mode: x.Mode, Result: model.MatchOutcome(x.Outcome), Left: x.Left, Ended: x.Ended})
 	}
 	return out, nil
 }
 
-// Told marks the player told of match, its outcome handed to them live.
-func (p Pvp) Told(ctx context.Context, who kernel.CharacterID, match kernel.MatchID) error {
-	return wrap(p.p.Told(ctx, who, match))
+// Told marks the player told of matches, their outcomes handed to them.
+func (p Pvp) Told(ctx context.Context, who kernel.CharacterID, matches []kernel.MatchID) error {
+	return wrap(p.p.Told(ctx, who, matches))
 }
 
 // FollowDeliveries follows the module's pushes until ctx ends; a break loses only pushes, as the queue lives on.

@@ -66,16 +66,18 @@ type Welcome struct {
 	Timers            []SkillTimer
 	Waypoints         []string // the ids of those found
 	Missed            Missed   // the matches that ended while the player was away
+	Written           func()   // run once the Welcome is written to the socket, never if it isn't; nil for none
 }
 
-// Missed is the newest matches that ended while the player was away, newest first, and how many older ones besides.
+// Missed is the newest matches that ended while the player was away, newest first, and the older ones the Welcome only counts.
 type Missed struct {
 	Matches []MissedMatch
-	More    int
+	Older   []kernel.MatchID
 }
 
 // MissedMatch is a match that ended while the player was away: its mode, how it went for them, whether they'd left it, and when.
 type MissedMatch struct {
+	Match  kernel.MatchID
 	Mode   string
 	Result MatchOutcome
 	Left   bool

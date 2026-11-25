@@ -35,7 +35,9 @@ func joinedSection(_ context.Context, _ kernel.CharacterID, joined model.Joined,
 	return nil
 }
 
-// missedSection is the matches that ended while the player was away, which a reconnect just as one ends may also have had live; a failed read logs and fails no login, and leaves them for the next Welcome.
+const toldTimeout = 5 * time.Second // marking a Welcome's missed matches told
+
+// missedSection is the matches that ended while the player was away, marked told once the Welcome is written, so a Welcome lost on the way leaves them for the next; a reconnect just as one ends, or a second login at once, may hear one twice. A failed read logs and fails no login.
 func (r *Registry) missedSection(ctx context.Context, character kernel.CharacterID, _ model.Joined, w *model.Welcome) error {
 	m, err := r.deps.Pvp.Missed(ctx, character)
 	if err != nil {
@@ -43,6 +45,24 @@ func (r *Registry) missedSection(ctx context.Context, character kernel.Character
 		return nil
 	}
 	w.Missed = m
+	told := make([]kernel.MatchID, 0, len(m.Matches)+len(m.Older))
+	for _, x := range m.Matches {
+		told = append(told, x.Match)
+	}
+	told = append(told, m.Older...)
+	if len(told) == 0 {
+		return nil
+	}
+	ctx = context.WithoutCancel(ctx)
+	w.Written = func() {
+		r.job(ctx, "gateway.mark_told", func(ctx context.Context) {
+			ctx, cancel := context.WithTimeout(ctx, toldTimeout)
+			defer cancel()
+			if err := r.deps.Pvp.Told(ctx, character, told); err != nil {
+				r.deps.Logger.WarnContext(ctx, "a Welcome's missed matches stay untold, for the next to tell again", "character", character, "err", err)
+			}
+		}, "character", character)
+	}
 	return nil
 }
 

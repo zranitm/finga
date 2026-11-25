@@ -234,7 +234,7 @@ func (l *leaves) add(path string, v reflect.Value) {
 		l.values, l.bools, l.paths = map[string][]string{}, map[string][]bool{}, map[string]bool{}
 	}
 	l.paths[path] = true
-	if (v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface) && v.IsNil() {
+	if (v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface || v.Kind() == reflect.Func) && v.IsNil() {
 		l.addType(path, v.Type(), nil)
 		return
 	}
@@ -309,11 +309,11 @@ func (l *leaves) addType(path string, t reflect.Type, open map[reflect.Type]bool
 	}
 }
 
-// leaf is whether read reads a value of type t whole.
+// leaf is whether read reads a value of type t whole; a func, only ever nil here, is one path with no value.
 func leaf(t reflect.Type) bool {
 	switch t.Kind() {
 	case reflect.Bool, reflect.String, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64:
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64, reflect.Func:
 		return true
 	case reflect.Array:
 		return t.Implements(reflect.TypeFor[fmt.Stringer]())

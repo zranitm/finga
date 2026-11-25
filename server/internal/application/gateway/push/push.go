@@ -30,8 +30,8 @@ type Social interface {
 // Pvp is the pvp module's stream of queue, offer and outcome pushes.
 type Pvp interface {
 	FollowDeliveries(ctx context.Context, gateway string, deliver func(model.PvpDelivery))
-	// Told marks the player told of match, its outcome handed to them live.
-	Told(ctx context.Context, character kernel.CharacterID, match kernel.MatchID) error
+	// Told marks the player told of matches, their outcomes handed to them.
+	Told(ctx context.Context, character kernel.CharacterID, matches []kernel.MatchID) error
 }
 
 // Account is the account module's stream of ended login sessions.

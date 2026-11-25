@@ -80,12 +80,13 @@ func TestPvpCommandsAndPushes(t *testing.T) {
 	})
 }
 
-// The matches that ended while the player was away reach their Welcome; an outcome they were away for, handed to them live, is marked told, and neither one for a player on another gateway nor one they saw end is.
+// The matches that ended while the player was away reach their Welcome, which marks every one it lists or counts told once it's written; an outcome they were away for, handed to them live, is marked told, and neither one for a player on another gateway nor one they saw end is.
 func TestMatchesMissedWhileAwayReachTheWelcome(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		fp := newFakePvp()
 		ended := time.UnixMilli(1_764_000_000_000)
-		fp.missed = map[kernel.CharacterID]pvp.Missed{aylaID: {Matches: []pvp.MissedMatch{{Mode: "duel", Outcome: pvp.Loss, Left: true, Ended: ended}, {Mode: "team", Outcome: pvp.Win, Ended: ended.Add(-time.Hour)}}, More: 3}}
+		missed := []kernel.MatchID{kernel.NewMatchID(), kernel.NewMatchID(), kernel.NewMatchID(), kernel.NewMatchID(), kernel.NewMatchID()}
+		fp.missed = map[kernel.CharacterID]pvp.Missed{aylaID: {Matches: []pvp.MissedMatch{{Match: missed[0], Mode: "duel", Outcome: pvp.Loss, Left: true, Ended: ended}, {Match: missed[1], Mode: "team", Outcome: pvp.Win, Ended: ended.Add(-time.Hour)}}, Older: missed[2:]}}
 		h := newHarnessOn(t, newFakeWorld(), func(d *deps) { d.Pvp = fp })
 		select {
 		case <-fp.pushes.subscribed:
@@ -103,6 +104,11 @@ func TestMatchesMissedWhileAwayReachTheWelcome(t *testing.T) {
 			t.Fatalf("Welcome's missed %v and %d more; want %v and 3 more", got, w.GetMissedMore(), want)
 		}
 		ayla.expect("Snapshot")
+		synctest.Wait()
+		welcomed := "Told " + aylaID.String()
+		for _, m := range missed {
+			welcomed += " " + m.String()
+		}
 		away, seen, elsewhere := kernel.NewMatchID(), kernel.NewMatchID(), kernel.NewMatchID()
 		fp.pushes.send(pvp.Push{To: robinID, Delivery: pvp.Ended{Mode: "duel", Outcome: pvp.Loss, Left: true, Match: elsewhere, Away: true}})
 		fp.pushes.send(pvp.Push{To: aylaID, Delivery: pvp.Ended{Mode: "duel", Outcome: pvp.Win, Match: seen}})
@@ -116,7 +122,7 @@ func TestMatchesMissedWhileAwayReachTheWelcome(t *testing.T) {
 				told = append(told, c)
 			}
 		}
-		if want := []string{"Told " + aylaID.String() + " " + away.String()}; !slices.Equal(told, want) {
+		if want := []string{welcomed, "Told " + aylaID.String() + " " + away.String()}; !slices.Equal(told, want) {
 			t.Fatalf("marked told %q; want %q", told, want)
 		}
 	})

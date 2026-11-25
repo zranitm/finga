@@ -15,7 +15,8 @@ func TestAWelcomeKeepsWhatTheJoinFound(t *testing.T) {
 			"Token":             "the Hello's own, rotated",
 			"InventoryRevision": "the inventory's section, with its items",
 			"ServerTime":        "the gateway's clock as the Welcome goes out",
-			"Missed.More":       "the pvp module's section, as its matches",
+			"Missed.Older":      "the pvp module's section, as its matches",
+			"Written":           "the pvp module's section, to mark its matches told once sent",
 		},
 		Skip: map[string]string{"JoinSeq": "the session keeps it, to order the character's joins; the client never sees it"},
 	}

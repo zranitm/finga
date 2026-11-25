@@ -166,9 +166,9 @@ bots:
       - **A return whose connection closes** before it's on the body answers busy and holds the place again, to the grace's first end: failed returns buy no time.
       - **The match ending during the grace:** the held player isn't handed off with the rest, as no connection is there to follow. They're saved at `back` and dropped, so their next login lands there.
   - **Told on return (as built):** a player away from a match at its end is told how it went at their next `Welcome`. That covers one held through a drop, a 1v1 duelist past the grace, and a 3v3 or 15v15 leaver.
-    - **Once:** the outcome stores their fighter row `untold`, and the `Welcome` takes and clears every such row in one statement. A `MatchEnded` handed to them live, as to a team leaver playing elsewhere, marks it told then.
+    - **Told once it's written:** the outcome stores their fighter row `untold`. A `Welcome` reads those rows and marks each one it lists or counts told once the socket's writer has written it, so a `Welcome` that never goes out leaves them for the next. A `MatchEnded` handed to them live, as to a team leaver playing elsewhere, marks it told then.
     - **At most five:** the `Welcome` lists the newest five and counts the rest, so a long absence isn't a wall of lines.
-    - **Best effort:** a store that can't answer fails no login; the rows wait for the next `Welcome`. A reconnect just as the match ends may hear it both live and at the `Welcome`, a rare double left as is.
+    - **Best effort:** a store that can't answer fails no login; the rows wait for the next `Welcome`. A double beats a loss, so these are left as is: a reconnect just as the match ends may hear it both live and at the `Welcome`, and two logins at once may both list it.
   - After a server stop or a crash, a match has no result and moves no rating.
   - A match that expected players and saw none by prep's end closes with no outcome. A match of bots alone runs to its end, as its test runs one; the queue never makes one.
 - **Teardown:** after the result phase, the instance hands everyone out and its `Run` returns. Then it's dropped from `w.matches`.
@@ -736,7 +736,7 @@ As built after the 3v3 playtest:
   - Leaving a match under way, by Leave match or by a rejoin after a drop whose grace ran out, says at once: "You left the match: it counts as a loss. Your rating updates when the match ends."
   - Its end comes as a General line, never the result card: "Your 3v3 match ended: Defeat. Rating 1000 → 968 (−32)." The card is for those the match ended with. The leaver may be anywhere by then, even in another match, so the line is drawn from `MatchEnded`'s own `mode` and `left`, not from the match the store holds.
   - A 1v1 forfeit ends the match at once, so its forfeiter still gets the card.
-- **A match that ended while the player was away (as built):** each comes as a General line on their `Welcome`: "Your 1v1 match ended while you were away: it counted as a loss." A player held through a drop gets the result instead, "…while you were away: Victory." Past five, one more line: "…and 3 more matches ended while you were away."
+- **A match that ended while the player was away (as built):** each comes as a General line on their `Welcome`, timed by the server's clock: "Your 1v1 match ended 2 h ago, while you were away: it counted as a loss." A player held through a drop gets the result instead, "…while you were away: Victory." Past five, one more line: "…and 3 more matches ended while you were away."
 
 As built for 15v15 (step 6d-1, the client):
 

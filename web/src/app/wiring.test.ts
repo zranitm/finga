@@ -495,11 +495,15 @@ describe('wiring', () => {
     const { ws } = await connectedSocket();
     ws.push('welcome', {
       ...welcome,
-      missedMatches: [{ mode: 'duel', result: MatchOutcome.LOSS, left: true }],
+      serverTime: 7_200_000n,
+      missedMatches: [{ mode: 'duel', result: MatchOutcome.LOSS, left: true, endedAt: 0n }],
       missedMore: 2,
     });
     expect(chat.getState().lines).toMatchObject([
-      { kind: 'notice', text: 'Your 1v1 match ended while you were away: it counted as a loss.' },
+      {
+        kind: 'notice',
+        text: 'Your 1v1 match ended 2 h ago, while you were away: it counted as a loss.',
+      },
       { kind: 'notice', text: '…and 2 more matches ended while you were away.' },
     ]);
     ws.push('welcome', welcome);

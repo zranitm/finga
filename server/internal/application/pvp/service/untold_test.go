@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -11,7 +12,7 @@ import (
 	"finga/internal/shared/kernel"
 )
 
-// An outcome a player was away for is pushed saying so, and their next Welcome takes it once: the newest five, newest first, and a count of the rest, each as it went for them, a leaver's a loss. One handed on live is told, and a player in the match at its end is owed none.
+// An outcome a player was away for is pushed saying so, and every Welcome till they're told lists it: the newest five, newest first, and the older ones to count, each as it went for them, a leaver's a loss. Told, they're gone, as is one handed on live; a player in the match at its end is owed none.
 func TestMatchesEndedWhileAwayAreToldOnce(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f := newFixture(t)
@@ -42,27 +43,33 @@ func TestMatchesEndedWhileAwayAreToldOnce(t *testing.T) {
 			{Mode: "duel", Outcome: service.Loss, Ended: start.Add(3 * time.Minute)},
 			{Mode: "duel", Outcome: service.Win, Ended: start.Add(2 * time.Minute)},
 		}
-		if len(got.Matches) != len(want) || got.More != 2 {
-			t.Fatalf("Ayla missed %+v; want %+v and 2 more", got, want)
+		if len(got.Matches) != len(want) || !slices.Equal(got.Older, []kernel.MatchID{matches[1], matches[0]}) {
+			t.Fatalf("Ayla missed %+v; want %+v and the first two older", got, want)
 		}
 		for k := range want {
-			if g := got.Matches[k]; g.Mode != want[k].Mode || g.Outcome != want[k].Outcome || g.Left != want[k].Left || !g.Ended.Equal(want[k].Ended) {
-				t.Fatalf("Ayla's missed match %d: %+v; want %+v", k, g, want[k])
+			if g := got.Matches[k]; g.Match != matches[6-k] || g.Mode != want[k].Mode || g.Outcome != want[k].Outcome || g.Left != want[k].Left || !g.Ended.Equal(want[k].Ended) {
+				t.Fatalf("Ayla's missed match %d: %+v; want %+v of match %d", k, g, want[k], 6-k)
 			}
 		}
+		if again, _ := f.svc.Missed(ctx, ayla); len(again.Matches) != len(want) || len(again.Older) != 2 {
+			t.Fatalf("Ayla missed %+v at a Welcome before she was told; want them all again", again)
+		}
+		if err := f.svc.Told(ctx, ayla, matches); err != nil {
+			t.Fatal(err)
+		}
 		for _, id := range []kernel.CharacterID{ayla, kai} {
-			if again, _ := f.svc.Missed(ctx, id); len(again.Matches) != 0 || again.More != 0 {
-				t.Fatalf("%v missed %+v at a later Welcome; want none", id, again)
+			if again, _ := f.svc.Missed(ctx, id); len(again.Matches) != 0 || len(again.Older) != 0 {
+				t.Fatalf("%v missed %+v once told; want none", id, again)
 			}
 		}
 		seen, owed := kernel.NewMatchID(), kernel.NewMatchID()
 		for _, id := range []kernel.MatchID{seen, owed} {
 			f.svc.Record(ctx, model.Result{Match: id, Mode: "duel", Started: start, Ended: start, Winner: 0, Sides: [2][]model.Outcome{{{Character: nia, Away: true}}, {{Tier: "novice"}}}})
 		}
-		if err := f.svc.Told(ctx, nia, seen); err != nil {
+		if err := f.svc.Told(ctx, nia, []kernel.MatchID{seen}); err != nil {
 			t.Fatal(err)
 		}
-		if got, _ := f.svc.Missed(ctx, nia); len(got.Matches) != 1 || got.Matches[0].Outcome != service.Draw || got.More != 0 {
+		if got, _ := f.svc.Missed(ctx, nia); len(got.Matches) != 1 || got.Matches[0].Match != owed || got.Matches[0].Outcome != service.Draw || len(got.Older) != 0 {
 			t.Fatalf("Nia missed %+v; want the one draw she wasn't handed live", got)
 		}
 	})

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	model "finga/internal/model/gateway"
+	"finga/internal/shared/kernel"
 	"finga/pkg/panics"
 )
 
@@ -24,6 +25,7 @@ func (g *Gateway) pvpDelivered(ev model.PvpDelivery) {
 		select {
 		case g.told <- ev:
 		default:
+			g.deps.Logger.Warn("the told queue is full: an outcome handed on live stays untold, and the next Welcome tells it again", "character", ev.Character, "match", ev.Untold)
 		}
 	}
 }
@@ -38,7 +40,7 @@ func (g *Gateway) markTold(ctx context.Context) {
 			g.deps.Panics.Do(ctx, panics.FlowJob, func() {
 				ctx, cancel := context.WithTimeout(ctx, toldTimeout)
 				defer cancel()
-				if err := g.deps.Pvp.Told(ctx, ev.Character, ev.Untold); err != nil {
+				if err := g.deps.Pvp.Told(ctx, ev.Character, []kernel.MatchID{ev.Untold}); err != nil {
 					g.deps.Logger.WarnContext(ctx, "an outcome handed on live stays untold", "character", ev.Character, "match", ev.Untold, "err", err)
 				}
 			}, "job", "mark_told")

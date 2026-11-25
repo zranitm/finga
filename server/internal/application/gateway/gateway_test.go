@@ -61,7 +61,7 @@ func (noPvp) Offline(context.Context, kernel.CharacterID) error              { r
 func (noPvp) Missed(context.Context, kernel.CharacterID) (model.Missed, error) {
 	return model.Missed{}, nil
 }
-func (noPvp) Told(context.Context, kernel.CharacterID, kernel.MatchID) error { return nil }
+func (noPvp) Told(context.Context, kernel.CharacterID, []kernel.MatchID) error { return nil }
 func (noPvp) FollowDeliveries(ctx context.Context, _ string, _ func(model.PvpDelivery)) {
 	<-ctx.Done()
 }

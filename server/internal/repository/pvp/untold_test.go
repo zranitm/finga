@@ -10,8 +10,8 @@ import (
 	"finga/internal/shared/kernel"
 )
 
-// A fighter stored as untold is taken once, with their match's mode, end and winner and their own side and leave; one marked told, or never untold, isn't.
-func TestAnUntoldOutcomeIsTakenOnce(t *testing.T) {
+// A fighter stored as untold is read, with their match's mode, end and winner and their own side and leave, till they're marked told of it; one never untold isn't.
+func TestAnUntoldOutcomeIsReadTillTold(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	store := NewPostgres(cluster.DB(t), nil)
@@ -30,7 +30,7 @@ func TestAnUntoldOutcomeIsTakenOnce(t *testing.T) {
 		return m.ID
 	}
 	lost, drawn := record(2, true), record(0, false)
-	got, err := store.TakeUntold(ctx, ayla)
+	got, err := store.Untold(ctx, ayla)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,16 +47,24 @@ func TestAnUntoldOutcomeIsTakenOnce(t *testing.T) {
 			t.Fatalf("Ayla's untold %d: %+v; want %+v", k, g, want[k])
 		}
 	}
-	for _, id := range []kernel.CharacterID{ayla, kai} {
-		if again, err := store.TakeUntold(ctx, id); err != nil || len(again) != 0 {
-			t.Fatalf("%v's untold taken again: %+v, %v; want none", id, again, err)
-		}
+	if again, err := store.Untold(ctx, ayla); err != nil || len(again) != 2 {
+		t.Fatalf("Ayla's untold read again before she's told: %+v, %v; want both", again, err)
 	}
-	seen := record(1, false)
-	if err := store.MarkTold(ctx, ayla, seen); err != nil {
+	if err := store.MarkTold(ctx, kai, []kernel.MatchID{lost, drawn}); err != nil {
 		t.Fatal(err)
 	}
-	if again, err := store.TakeUntold(ctx, ayla); err != nil || len(again) != 0 {
-		t.Fatalf("Ayla's untold after a live tell: %+v, %v; want none", again, err)
+	if err := store.MarkTold(ctx, ayla, []kernel.MatchID{lost}); err != nil {
+		t.Fatal(err)
+	}
+	if again, err := store.Untold(ctx, ayla); err != nil || len(again) != 1 || again[0].Match != drawn {
+		t.Fatalf("Ayla's untold once told of the loss: %+v, %v; want the draw alone", again, err)
+	}
+	if err := store.MarkTold(ctx, ayla, []kernel.MatchID{drawn, kernel.NewMatchID()}); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []kernel.CharacterID{ayla, kai} {
+		if again, err := store.Untold(ctx, id); err != nil || len(again) != 0 {
+			t.Fatalf("%v's untold once told: %+v, %v; want none", id, again, err)
+		}
 	}
 }

@@ -51,6 +51,7 @@ func (noPvp) Offline(context.Context, kernel.CharacterID) error { return nil }
 func (noPvp) Missed(context.Context, kernel.CharacterID) (model.Missed, error) {
 	return model.Missed{}, nil
 }
+func (noPvp) Told(context.Context, kernel.CharacterID, []kernel.MatchID) error { return nil }
 
 type items struct{}
 

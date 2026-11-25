@@ -147,17 +147,17 @@ func (q *Queries) LockRatings(ctx context.Context, arg LockRatingsParams) ([]Loc
 
 const markTold = `-- name: MarkTold :exec
 UPDATE pvp_match_fighters SET untold = false, updated_at = $1
-WHERE match_id = $2 AND character_id = $3 AND untold
+WHERE character_id = $2 AND match_id = ANY($3::uuid[]) AND untold
 `
 
 type MarkToldParams struct {
 	Now         dbx.Stamp
-	MatchID     uuid.UUID
 	CharacterID *uuid.UUID
+	Matches     []uuid.UUID
 }
 
 func (q *Queries) MarkTold(ctx context.Context, arg MarkToldParams) error {
-	_, err := q.db.Exec(ctx, markTold, arg.Now, arg.MatchID, arg.CharacterID)
+	_, err := q.db.Exec(ctx, markTold, arg.Now, arg.CharacterID, arg.Matches)
 	return err
 }
 
@@ -430,19 +430,13 @@ func (q *Queries) StoredFighters(ctx context.Context, arg StoredFightersParams) 
 	return items, nil
 }
 
-const takeUntold = `-- name: TakeUntold :many
-UPDATE pvp_match_fighters f SET untold = false, updated_at = $1
-FROM pvp_matches m
-WHERE m.id = f.match_id AND f.character_id = $2 AND f.untold
-RETURNING m.id, m.mode, m.ended_at, m.winner, f.side, f.left_match
+const untold = `-- name: Untold :many
+SELECT m.id, m.mode, m.ended_at, m.winner, f.side, f.left_match
+FROM pvp_match_fighters f JOIN pvp_matches m ON m.id = f.match_id
+WHERE f.character_id = $1 AND f.untold
 `
 
-type TakeUntoldParams struct {
-	Now         dbx.Stamp
-	CharacterID *uuid.UUID
-}
-
-type TakeUntoldRow struct {
+type UntoldRow struct {
 	ID        uuid.UUID
 	Mode      string
 	EndedAt   time.Time
@@ -451,15 +445,15 @@ type TakeUntoldRow struct {
 	LeftMatch bool
 }
 
-func (q *Queries) TakeUntold(ctx context.Context, arg TakeUntoldParams) ([]TakeUntoldRow, error) {
-	rows, err := q.db.Query(ctx, takeUntold, arg.Now, arg.CharacterID)
+func (q *Queries) Untold(ctx context.Context, characterID *uuid.UUID) ([]UntoldRow, error) {
+	rows, err := q.db.Query(ctx, untold, characterID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []TakeUntoldRow
+	var items []UntoldRow
 	for rows.Next() {
-		var i TakeUntoldRow
+		var i UntoldRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Mode,

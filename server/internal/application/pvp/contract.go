@@ -57,7 +57,7 @@ type Row = service.Row
 // Build is a character's arena build.
 type Build = model.Build
 
-// Missed is what a character missed while away: the newest matches that ended without them, and how many more.
+// Missed is what a character missed while away: the newest matches that ended without them, and the older ones.
 type Missed = service.Missed
 
 // MissedMatch is a match that ended while the character was away.

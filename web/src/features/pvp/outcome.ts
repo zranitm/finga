@@ -44,11 +44,28 @@ export function leaverLine(d: Data<'matchEnded'>): string {
   return said.join(' ');
 }
 
-/** "Your 1v1 match ended while you were away: it counted as a loss.", one a match, then "…and 3 more matches ended while you were away." */
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+
+/** How long ago something ms ago was: "moments ago", "12 min ago", "5 h ago", "3 days ago". */
+function ago(ms: number): string {
+  if (ms < MINUTE) {
+    return 'moments ago';
+  }
+  if (ms < HOUR) {
+    return `${Math.floor(ms / MINUTE)} min ago`;
+  }
+  if (ms < 48 * HOUR) {
+    return `${Math.floor(ms / HOUR)} h ago`;
+  }
+  return `${Math.floor(ms / (24 * HOUR))} days ago`;
+}
+
+/** "Your 1v1 match ended 2 h ago, while you were away: it counted as a loss.", one a match, timed by the server's clock, then "…and 3 more matches ended while you were away." */
 export function missedLines(d: Data<'welcome'>): string[] {
   const said = d.missedMatches.map(
     (m) =>
-      `Your ${modeName(m.mode)} match ended while you were away: ${m.left ? 'it counted as a loss' : TITLE[m.result]}.`,
+      `Your ${modeName(m.mode)} match ended ${ago(Number(d.serverTime - m.endedAt))}, while you were away: ${m.left ? 'it counted as a loss' : TITLE[m.result]}.`,
   );
   if (d.missedMore > 0) {
     said.push(
