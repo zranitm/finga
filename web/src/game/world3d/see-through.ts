@@ -7,7 +7,8 @@ import type { Scene } from '@babylonjs/core/scene';
 
 /** How strong a ghost is beside what it's a ghost of. */
 export const GHOST = 0.5;
-/** Where a red area and then the lock ring draw among their group's blended meshes: before every effect, at its default index or a small one, so none marks the stencil or the depth over them first. */
+/** Where a cave's round shadows, a red area and then the lock ring draw among their group's blended meshes: before every effect, at its default index or a small one, so none marks the stencil or the depth over them first; a shadow goes first, under the water's surface and an area alike. */
+export const SHADOW_ORDER = -4;
 export const AREA_ORDER = -2;
 /** A region's water draws first of the blended meshes, so a near see-through prop, halo, area or ring isn't hidden behind its region-wide surface. */
 export const WATER_ORDER = -3;

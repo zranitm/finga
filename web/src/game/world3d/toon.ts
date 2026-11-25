@@ -664,6 +664,48 @@ function glowMaterial(name: string, scene: Scene, color: Color3, alpha: number):
   return built(m, s, c.output, alpha);
 }
 
+const DISC_DARK = 0.55; // a round shadow's darkness at its middle
+const DISC_SOFT = 0.35; // and the share of its radius it holds that before fading to nothing at its rim
+
+/** A round shadow: black, DISC_DARK at its middle, fading from DISC_SOFT of its radius to nothing at its rim; a disc's uvs run 0 to 1 across it. Drawn over the ground, writing no depth, and clearing the stencil as the place does, so a hidden telegraph's ghost shows over it as over the ground. */
+function discMaterial(scene: Scene): NodeMaterial {
+  const s = new Skinned();
+  s.place(s.worldPos.output);
+  const middle = new InputBlock('middle');
+  middle.value = new Vector2(0.5, 0.5);
+  const off = new SubtractBlock('off');
+  s.attribute('uv').output.connectTo(off.left);
+  middle.output.connectTo(off.right);
+  const away = new LengthBlock('away');
+  off.output.connectTo(away.value);
+  const rim = new ScaleBlock('rimShare');
+  away.output.connectTo(rim.input);
+  constant('toRim', 2).output.connectTo(rim.factor);
+  const fade = new SmoothStepBlock('fade');
+  rim.output.connectTo(fade.value);
+  constant('soft', DISC_SOFT).output.connectTo(fade.edge0);
+  constant('edge', 1).output.connectTo(fade.edge1);
+  const held = new OneMinusBlock('held');
+  fade.output.connectTo(held.input);
+  const alpha = new ScaleBlock('discAlpha');
+  held.output.connectTo(alpha.input);
+  constant('dark', DISC_DARK).output.connectTo(alpha.factor);
+  const black = new InputBlock('black');
+  black.value = Color3.Black();
+  const fragment = new FragmentOutputBlock('fragmentOutput');
+  black.output.connectTo(fragment.rgb);
+  alpha.output.connectTo(fragment.a);
+  const m = new NodeMaterial('round shadow', scene, { emitComments: false });
+  m.addOutputNode(s.vertex);
+  m.addOutputNode(fragment);
+  m.build();
+  m.backFaceCulling = false;
+  m.forceAlphaBlending = true;
+  m.disableDepthWrite = true;
+  clearsMark(m);
+  return m;
+}
+
 /** An unlit colour, as written, at alpha: a decal laid on the place, faint where cut opens the place; a premultiplied one's colour fades there with its alpha. */
 function decalMaterial(
   name: string,
@@ -788,6 +830,16 @@ export class Palette {
     m.disableDepthWrite = true; // under whatever stands on it
     m.zOffset = -2;
     onPlace(m);
+    return m;
+  }
+
+  /** The material of a round shadow, made once. */
+  disc(): NodeMaterial {
+    let m = this.made.get('disc');
+    if (!m) {
+      m = discMaterial(this.scene);
+      this.made.set('disc', m);
+    }
     return m;
   }
 

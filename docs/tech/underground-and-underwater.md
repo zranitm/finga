@@ -369,11 +369,19 @@ These steps follow the regions' build (large-regions.md section 14).
        - It's banded as the sun's light is: floored into thirds and stretched to 0, ½ and 1. The tone runs from the floor, 0.3 grey a little cool, to the torches' warm light, (1, 0.86, 0.66), both sRGB.
        - With a torch's 8 m reach, the full band holds within about 3.4 m of a lone flame, and the half band to about 5.2 m. The colours and bands are provisional until the stills.
        - Decals and glows aren't toon materials, so warnings, ghosts and glows draw as on the land.
-     - **The sky:** black, with fog from 14 to 40 m.
+     - **The sky:** black, with fog from 14 to 40 m. The old open-topped Cave map shares the sky's key, so it takes the same black and fog under its sun till step 6 replaces it.
      - **Tests:**
        - a small cave below tiny (`hollow`, a hall and a tunnel at 2 m), baked by regionbake's tests into the client's fixtures: its flames in both groups, light under each flame, none on the rock, and a light map refused;
        - the material's own node graph run block by block for a texel: the full band under a flame at every flicker, the floor where no torch reaches, each group swinging ±8% at its own rates, and two torches held to full;
        - a cave region in the world: no sun, its ground sampling the light map, its sky black; a region on the land keeps the sun.
+   - **As built (3a-2, the round shadows).**
+     - **One disc, thin-instanced,** in a cave region only. Each frame, once the bodies are drawn, it lays one under the player, the others, the mobs (the dying too) and the NPCs within 25 m of the camera's target, as far as bodies cast the sun's shadow on the land.
+     - **Its size and place:** 1.6 times the body's radius (a mob's own, the sim's 0.375 m for a player or an NPC), on the ground under the body's feet and 4 cm over it: a solid's top it stands on, a platform or a bridge, as the sim finds its ground. A jump leaves it on the ground.
+     - **On a slope** it's sheared to the terrain's plane, from the terrain's rise across the disc each way, so its uphill edge isn't buried; on a solid's top it lies flat. A shear was picked over a tilt: the footprint stays round from above, and it's two numbers in the instance's matrix.
+     - **Its look:** black, 0.55 at its middle, held to 35% of its radius, then fading to nothing at its rim. It blends, writes no depth, and clears the stencil as the place does, so a hidden telegraph's ghost shows over it. It draws first among the blended meshes on the ground, under a red area and the lock ring.
+     - **Only a body drawn gets one:** none under one whose model is still loading, or one hidden.
+     - **No garbage:** the buffer is written in place each frame and doubles when it's full, and the walk over the bodies runs `forEach` with callbacks made once.
+     - **Tests:** discs under the bodies within the reach and none past it, each at its ground and radius, blended, clearing the stencil, under the areas; only the frame's own drawn after a crowd, the buffer grown; on a hillside with a platform, a disc on the platform its body stands on, flat, and one on the slope sheared each way; in the world, the player's disc, none under a model still loading, then Robin's; none on the land.
 4. **The sea look:**
    - caustics, rays, sway, bubbles and fish;
    - the Blender models;
