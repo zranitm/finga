@@ -2,10 +2,17 @@ import { describe, expect, it } from 'vitest';
 
 import { quests } from '@/gamedata/quests';
 
-import { howToGet, pieceById, pieces, piecesFor } from './pieces';
+import { howToGet, pieceById, pieceOfItem, pieces, piecesFor } from './pieces';
 import type { Piece } from './pieces';
 
 describe('the wardrobe’s pieces (outfits.md section 3)', () => {
+  it('are held by their items, piece.<id>, and by no other', () => {
+    expect(pieceOfItem('piece.knight_plate')).toBe(pieceById('knight_plate'));
+    expect(pieceOfItem('relic.knight_plate')).toBeUndefined();
+    expect(pieceOfItem('knight_plate')).toBeUndefined();
+    expect(pieceOfItem('piece.nothing_like_it')).toBeUndefined();
+  });
+
   it('give each slot its pieces in the data’s order, and a class only weapon looks of its kind', () => {
     expect(piecesFor('outfit', 'warrior').map((p) => p.id)).toEqual(
       pieces.filter((p) => p.slot === 'outfit').map((p) => p.id),

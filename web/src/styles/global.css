@@ -945,7 +945,11 @@ body {
 }
 .character-figure {
   flex: 1;
+  min-width: 0;
+  height: 100%;
   margin: 0 8px;
+  cursor: grab;
+  touch-action: none;
   border-radius: 40% 40% 8px 8px;
   background: linear-gradient(180deg, rgba(240, 178, 58, 0.12), rgba(240, 178, 58, 0.02));
 }

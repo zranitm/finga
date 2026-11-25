@@ -16,7 +16,9 @@ import type { Data, StatSheet, StatSheetSchema } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { inventory } from '@/state/inventory';
 import { skillBar } from '@/state/skill-bar';
+import { OWN_LOOK, wardrobe } from '@/state/wardrobe';
 import { dataTransfer } from '@/testing/data-transfer';
+import { fakePortrait } from '@/testing/portrait';
 import { refusal } from '@/testing/refusal';
 import { withoutKeys } from '@/testing/requests';
 import type { SentRequest } from '@/testing/requests';
@@ -72,8 +74,10 @@ function setup(answers: readonly (Data<'response'> | Error)[] = []) {
     return a instanceof Error ? Promise.reject(a) : Promise.resolve(a);
   });
   const onClose = vi.fn();
-  render(<CharacterWindow socket={{ request } as never} onClose={onClose} />);
-  return { calls, onClose };
+  const figure = fakePortrait();
+  const figureIn = vi.fn(() => figure);
+  render(<CharacterWindow socket={{ request } as never} figureIn={figureIn} onClose={onClose} />);
+  return { calls, onClose, figure, figureIn };
 }
 
 /** A StatsChanged with the sheet changed as given, the vitals as they were. */
@@ -109,6 +113,17 @@ describe('CharacterWindow', () => {
     expect(w).toHaveTextContent('EXP10 / 20');
     expect(w).toHaveTextContent('HP180 / 204');
     expect(w).not.toHaveTextContent('MP');
+  });
+
+  it('draws the character in 3D between the slots as worn, dressed again as the look changes (outfits.md section 7)', () => {
+    const { figure, figureIn } = setup();
+    expect(figureIn).toHaveBeenCalledWith(screen.getByLabelText('Your character, as worn'));
+    expect(figure.show).toHaveBeenLastCalledWith('warrior', OWN_LOOK);
+    act(() => wardrobe.getState().wear({ ...OWN_LOOK, outfit: 'knight_plate' }));
+    expect(figure.show).toHaveBeenLastCalledWith('warrior', {
+      ...OWN_LOOK,
+      outfit: 'knight_plate',
+    });
   });
 
   it('shows the ten slots: the worn sword framed in its star colour, every empty slot by name', () => {
