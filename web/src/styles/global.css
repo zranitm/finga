@@ -2349,3 +2349,67 @@ body {
 .result-loss {
   color: var(--muted);
 }
+
+/* The wardrobe (outfits.md section 7): the figure beside the grid. */
+.wardrobe {
+  display: flex;
+  gap: 12px;
+}
+.wardrobe-figure {
+  width: 220px;
+  height: 300px;
+  flex: none;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: radial-gradient(circle at 50% 40%, #2a3150, var(--bg));
+  cursor: grab;
+  touch-action: none;
+}
+.wardrobe-side {
+  display: flex;
+  width: 320px;
+  flex-direction: column;
+  gap: 6px;
+}
+.wardrobe-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  align-content: start;
+  min-height: 160px;
+}
+.wardrobe-tile {
+  min-height: 44px;
+  padding: 4px 6px;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.wardrobe-tile.missing {
+  opacity: 0.45;
+}
+.wardrobe-tile[aria-pressed='true'] {
+  border-color: var(--accent);
+}
+.wardrobe-count,
+.wardrobe-note {
+  margin: 0;
+  font-size: 12px;
+}
+.wardrobe-refused {
+  margin: 0;
+  color: var(--danger);
+  font-size: 12px;
+}
+.wardrobe-actions {
+  display: flex;
+  gap: 8px;
+}
+.piece-card ul {
+  margin: 2px 0 0;
+  padding-left: 16px;
+}

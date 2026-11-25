@@ -68,6 +68,7 @@ import { teleport } from '@/state/teleport';
 import type { Destination } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
+import { OWN_LOOK, wardrobe } from '@/state/wardrobe';
 
 import { loadArt, Fx } from '../effects/fx';
 import type { Body } from '../effects/types';
@@ -1002,6 +1003,7 @@ export class World {
       case 'quests':
       case 'map':
       case 'arena':
+      case 'wardrobe':
         ui.getState().toggleWindow(action);
         return;
       case 'walk': {
@@ -1612,9 +1614,10 @@ export class World {
     return at && playerBody(at.x, at.y, at.z);
   }
 
-  /** Redraws the player when their class or what their newest frame says they wear has changed. */
+  /** Redraws the player when their class or what their newest frame says they wear has changed, and tells the wardrobe what's worn. */
   private dressMe(): void {
     this.me?.dress(this.meCls, this.latestMe?.look, this.dressing);
+    wardrobe.getState().wear(this.latestMe?.look ?? OWN_LOOK);
   }
 
   private readonly dressing = (look: ModelLook) => this.made(look);

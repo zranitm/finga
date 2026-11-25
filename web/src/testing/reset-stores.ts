@@ -24,6 +24,7 @@ import { target } from '@/state/target';
 import { teleport } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
+import { wardrobe } from '@/state/wardrobe';
 import { waypoints } from '@/state/waypoints';
 
 export function resetStores(): void {
@@ -55,6 +56,7 @@ export function resetStores(): void {
     arenaBuild,
     pvpProfile,
     waypoints,
+    wardrobe,
   ]) {
     store.reset();
   }
