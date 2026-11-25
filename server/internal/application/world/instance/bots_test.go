@@ -273,6 +273,60 @@ func TestXCutIntoASkillLandsThroughTheGuard(t *testing.T) {
 	})
 }
 
+// A skill pressed within castSlack before an attack's cancel point is shown to the match's bots as it starts, as to its watchers, and lands there: a bot quick to guard can't parry it, as it can't one pressed on time.
+func TestAnEarlyPressGivesTheBotsNoWarning(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		bot := parryOnly()
+		quick, lasting := edit(t, "{id: expert, mu: 30, reaction: 190ms, defend: 0.7", "{id: expert, mu: 30, reaction: 50ms, defend: 1"), scaleOf(t, "20.0", "1.0")
+		data := worldtest.LoadDataWith(t, map[string]func(string) string{"pvp.yaml": func(s string) string { return lasting(quick(s)) }})
+		ayla := fighterFrom(t, data, "Ayla")
+		inst, stop := worldtest.RunMatch(t, data, duel(model.Fighter{Character: ayla.ID}, model.Fighter{Bot: bot}), nil, worldtest.Options{})
+		defer stop()
+		sink := &worldtest.Sink{}
+		if err := inst.Join(context.Background(), ayla, sink); err != nil {
+			t.Fatal(err)
+		}
+		sleep(data.Pvp().Rounds.Prep + data.Pvp().Rounds.Countdown + worldtest.TickInterval)
+		_, cancel := attackTicks(t, data, ayla)
+		n := closeIn(t, inst, sink, ayla, bot)
+		before := len(parriesOf(sink, bot.ID))
+		xAt(t, inst, sink, ayla, bot)
+		sleep(worldtest.TickInterval)
+		cut := attacksOf(sink, ayla.ID)[n]
+		me, _ := sink.Own(ayla.ID)
+		it, _ := sink.Own(bot.ID)
+		aim := float32(math.Atan2(it.State.X-me.State.X, it.State.Z-me.State.Z))
+		if err := inst.UseSkill(context.Background(), ayla.ID, ayla.Connection, model.SkillUse{Skill: "strike", Root: "strike", Aim: aim, Target: model.EntityRef{Player: bot.ID}}, 900); err != nil {
+			t.Fatal(err)
+		}
+		synctest.Wait()
+		pressed, start := sink.Last().Tick, cut.Tick+cancel
+		if pressed >= start {
+			t.Fatalf("Strike went at %d, want it within the slack before the swing's cancel point at %d", pressed, start)
+		}
+		sleep(time.Second)
+		var shown uint64
+		for _, u := range worldtest.Of[model.SkillUsed](sink) {
+			if u.Caster == ayla.ID && u.Skill == "strike" {
+				shown = u.Tick
+			}
+		}
+		if shown != start {
+			t.Fatalf("Strike shown at %d, want as it starts at the swing's cancel point %d", shown, start)
+		}
+		if blows := blowsOn(sink, ayla.ID, bot.ID); !reflect.DeepEqual(blows[start], false) {
+			t.Fatalf("Strike pressed at %d, starting at %d: blows %v, want it landing there unparried", pressed, start, blows)
+		} else if _, ok := blows[start]; !ok {
+			t.Fatalf("Strike pressed at %d, starting at %d: blows %v, want it landing there", pressed, start, blows)
+		}
+		for _, at := range parriesOf(sink, bot.ID)[before:] {
+			if at <= start {
+				t.Fatalf("the bot parried at %d, by Strike's start at %d: it saw the press early", at, start)
+			}
+		}
+	})
+}
+
 // An X held back past the attack's end lands: the bot's Parry spent on the end it expected, and cooling.
 func TestXDelayedPastTheEndLandsWhileTheGuardCools(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {

@@ -109,12 +109,12 @@ Until section 15, attacks cut at 0.85 (the Thief's at 0.8): ticks 17, 15, 10, 17
   - Its hit lands at the hit tick: now when `hit` is 0, as for every action in the data today.
 - **Skills:** `castSkills` keeps its queue, `SKILL_WAITING`, and its refusals.
   - The turn it waits for becomes the next allowed start for a skill.
-  - It still goes up to `castSlack` (150 ms) early. Its action and its cooldown count from the allowed start, not from the early use, so a chain gains nothing from the slack.
+  - It still goes up to `castSlack` (150 ms) early, so a client a tick ahead isn't refused. Its energy is spent at once, and a move runs from the press's input, as its client predicts it. The rest counts from the allowed start, not from the early use: its action, its cooldown, its hit, and what the map and a match's bots see, `SkillUsed` and the turn to its aim. So a chain's blows gain nothing from the slack, though a move skill pressed early moves before it's shown.
   - **It no longer starts the attack's cooldown.** Its own action's length replaces that.
 - **Order in the tick is unchanged:** buffs expire, skills go, then attacks. So when both are ready, a skill goes ahead of a held attack, and the attack takes the next allowed start after the skill.
 - **Wind-up:**
   - When `hit` is above 0, the action holds a pending hit, landed in the tick it comes due, before skills and attacks. It uses the player's position and facing then, and the attack and power the action started with. A heal finds the hurt in reach then, and a buff's time runs from then.
-  - Pending hits are a list, not one slot: a skill that goes within the slack before an attack's cancel point leaves the attack's hit still to land.
+  - Pending hits are a list, not one slot: an attack's hit due at its cancel point, and a skill that went within the slack before it, both wait for that tick and land in it, the attack's first.
   - A death or a map change drops the pending hit.
   - A skill's energy and cooldown are spent at the start.
   - No action in the data has a wind-up yet; the world tests cover it on test data, as #44 did for heals before heal skills existed.
@@ -191,7 +191,7 @@ The product's slower pace is data, plus one constant moved into data, so cancels
 
 | Failure | What the player sees | Why it is safe |
 | --- | --- | --- |
-| An action reaches the server a tick early, from jitter | Nothing unusual | An attack waits for its tick. A skill within 150 ms goes, but its action counts from the allowed start |
+| An action reaches the server a tick early, from jitter | Nothing unusual | An attack waits for its tick. A skill within 150 ms goes, but it starts, shows and lands at the allowed start |
 | A modified client sends every action at once | Its actions go no faster than a perfect chain | The server holds each action to its earliest allowed start |
 | A lag spike delays an action | The hit lands late, and the chain resumes from there | Each action starts when it reaches the server; nothing builds up |
 | Death or a map change mid-action | The action ends; a pending wind-up hit is lost | It is held only in the map instance |
@@ -205,7 +205,7 @@ The product's slower pace is data, plus one constant moved into data, so cancels
   - an attack cut off by a skill at its cancel point, and not before;
   - a cancelable skill cut off by an attack at its cancel point; a skill that isn't cancelable runs to its end;
   - attack after attack and skill after skill waiting for the end;
-  - an early attack waiting, and an early skill within the slack counting from the allowed start;
+  - an early attack waiting, and an early skill within the slack starting, shown and landing at the allowed start;
   - a wind-up hit landing late, at the position then, and dropped at a death or a map change.
 - **Client:** `ActionClock`'s press rules, the other kind pressed at any time going at the cancel point, a held key versus a fresh press, and a newer press replacing a waiting one; refusals giving the action back; a cut-off shape.
 - **End to end:** an attack, Strike, and an attack again, chained, land sooner than the same three one at a time.
@@ -246,6 +246,12 @@ Agreed on 2026-11-14, after the user played C14 (section 15):
 12. **A skill short of the energy the running attack gives waits for the server's count,** then goes or says not enough. The client still doesn't predict gains.
 13. **An action's look returns to ready at its own `ready` share,** 0.85 unless it names its own, apart from its cancel point. Decided while reviewing the build, so an attack keeps the look the user approved in C11 while its cancel moves to 0.3.
 
+Agreed on 2026-11-25:
+
+14. **A skill that goes within `castSlack` early starts there in every way.** Its hit, its `SkillUsed`, its turn to its aim, and what a match's bots see wait for the allowed start, as its action and cooldown already did. The client sends at its own cancel point, so it sees no change.
+    - A hit-0 skill used to land at the early use, up to 150 ms before a chain allows. So a press that reached the world early dealt its damage sooner, a modified client sending everything at once included, against section 10's rule.
+    - Bots expect a blow at its start, so they guarded such a blow too late.
+
 ## 14. Alternatives considered
 
 - **The client decides cancels alone:** it saves the server nothing, since it checks every action already. And a modified client could then cancel every action at once and multiply its damage.
@@ -261,6 +267,8 @@ Agreed on 2026-11-14, after the user played C14 (section 15):
 - **The client predicting an attack's gain** for an early cancel: it would need its own reach check against mobs and a rollback. Waiting for the count costs at most what's left of a round trip, and only when the skill needs that gain.
 - **Lowering skill powers to offset the faster chain:** the user's playtest decides first.
 - **Keeping the look at the cancel point and judging it in the playtest:** a held attack reads as swing, stand, swing, and a skill's cut shows nothing cut.
+- **Landing an early skill's hit, and showing it, at the early use** (as built until 2026-11-25): a press that reached the world early dealt its damage up to 150 ms before a chain allows, and watchers saw it start before it did.
+- **Letting a match's bots see an early press at once:** they would have up to three ticks' warning of a blow that no watcher has.
 - **Heal and the buffs naming `cancel: 0.85` for their look,** as first planned: a cancel point that only times a look mixes the two. `ready` is the look's own.
 
 ## 15. Skills cut attacks just after the strike
@@ -378,7 +386,7 @@ One PR, each step one commit, green on `make test`, `make lint`, `make cover`, a
 
 As built:
 - **The press rule went first** and the data second. `ActionClock.startAt` was the only reader of the generator's `early_press_ms`, so the data step couldn't drop it alone.
-- **The end-to-end order test** sends the skill as the attack's `AttackUsed` arrives, the moment the client's wait ends. It lands by the attack's end, typically within `castSlack` of its cancel point.
+- **The end-to-end order test** sends the skill as the attack's `AttackUsed` arrives, the moment the client's wait ends. It's shown and lands at the attack's cancel point, or as it reaches the world if that's later, and by the attack's end.
 - **The look's step** renames `Beats.cancelAt` to `readyAt`, since the beats never held the clock's cancel point. `readyPoint` counts the ready point beside `actionPoints`, and validation also refuses a passive skill naming one.
 
 **Docs the build keeps true:** this section, [Energy](./energy.md) sections 6 and 8, and [Combat feel](./combat-feel.md) section 7.

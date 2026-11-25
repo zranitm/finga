@@ -488,8 +488,7 @@ func TestASkillsCooldown(t *testing.T) {
 			for range 2 * cd {
 				err := cast(inst, p.ID, "strike")
 				if err == nil {
-					used := eventsOf[model.SkillUsed](s)
-					return used[len(used)-1].Tick
+					return s.Last().Tick // the tick that answered it
 				}
 				if !errors.Is(err, model.ErrSkillCoolingDown) {
 					t.Fatal(err)
