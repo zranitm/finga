@@ -656,7 +656,7 @@ Built with step 1, which says who watches a cell.
     - Its see-through copies are cloned from the region's hidden kit model the first time it fades, under the chunk's props, so they go with the chunk.
     - So every drawn chunk has its looks, not only those within 64 m as planned, and a chunk's props cost no meshes till one fades.
   - **No stall at a first fade:** as each tall kit model loads, one hidden copy of each part is made, and its see-through steps are compiled on it, once for the region.
-  - **Shadows:** the copies cast none yet, as the region's props don't. 5b-3's cascades add both.
+  - **Shadows:** the copies cast none here. 5b-3's cascades made both the props and their copies cast (below).
   - **Tests:**
     - the grid alone: cells either side of 0, the camera's 2 m, a look on its way back kept then dropped once whole, one taken out, a line longer than the cells filed, and a turned model's box;
     - a tiny-bake chunk's oak fading: its instance and ink hidden, its copy alone made and placed, then whole again;
@@ -688,18 +688,19 @@ Built with step 1, which says who watches a cell.
     - 3 cascades out to 80 m from the camera;
     - held steady as the camera moves (`stabilizeCascades`);
     - cast by see-through meshes too.
-  - An engine that can't cascade, such as WebGL 1, gets the one shadow map a map has. Maps keep theirs.
+  - An engine that can't cascade, such as WebGL 1, gets the one shadow map a map has, with the same casters out to about 220 m in it, so its shadows are coarser. Maps keep theirs.
   - **Casters:**
-    - each chunk's props, and their faded copies, while the chunk is within 128 m of the camera's target, and not past it (the cascades reach 80 m from the camera, which stands up to 40 m back);
+    - each chunk's props, and their faded copies, while the chunk's nearest edge is within 128 m of the camera's target, so props to about 220 m (the cascades reach 80 m from the camera, which stands up to 40 m back);
     - bodies within 25 m, as on maps;
     - never the inks.
-  - **Why near ones only:** the cascades fit their depth to the box round every caster each frame. Far casters would stretch it and blur the near shadows.
+  - **Why near ones only:** Babylon 9.36 fits each cascade's depth range to the box round every caster each frame (`_computeMatrices`, with its default depth clamping). Far casters would widen that range and cost the near shadows depth precision, and each draws into every cascade it overlaps.
   - **The waypoint stones still cast none.** They're thin instances of one mesh across the region, so as a caster their box would span it.
   - **Tests:**
     - the generator: 3 cascades, 80 m, steady, see-through casting, and the one map where the engine can't cascade;
     - the world asks for cascades on a region only;
     - a chunk's props cast within 128 m and stop past it, bodies but not inks;
-    - a faded copy casts.
+    - a faded copy casts;
+    - a freed chunk leaves none of its meshes in the generator's list.
 - **Entities:** only what the server sends (section 5).
   - Name labels show for the 40 nearest, and for party members and the lock.
   - HP bars show for the party, the lock, and mobs hit in the last 5 s.
@@ -740,7 +741,7 @@ Built with step 1, which says who watches a cell.
     - 15.5 MB of buffers and a 123 MB JS heap.
     - At 32:9 (2560×720), props reach the sides of the view at full zoom.
   - **Not yet:**
-    - the looks grid, cascaded shadows and water (5b; the grid built in 5b-1, water in 5b-2, below);
+    - the looks grid, cascaded shadows and water (5b; built in 5b-1, 5b-2 and 5b-3, below);
     - label and bar limits, and map tiles (5c);
     - the loading screen's hold, with 4b, when a player first enters a region (built in 4b-2b, below).
     - A river's bed steps 1 m at a time along its banks until 5b's water covers it (5b-2 does).

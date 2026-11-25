@@ -268,6 +268,7 @@ describe('a region drawn from its bake', () => {
 
     place!.follow(-330, 60); // the west chunks 330 m off: freed; the east ones too
     expect(chunkNames()).toEqual([]);
+    expect(casting()).toEqual(new Set()); // none left casting once freed
     expect(props('0_0')).toBeNull();
     expect(overview().getTotalIndices()).toBe(WHOLE);
     expect(overview('overview skirts').getTotalIndices()).toBe(0);
