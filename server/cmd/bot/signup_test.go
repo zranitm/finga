@@ -65,9 +65,9 @@ func signUpBot(url string, k int, hashing chan struct{}) *bot {
 	return b
 }
 
-// A busy refusal is tried again, each wait about twice the last, until it's let through; any other refusal ends the sign-up.
+// A busy refusal is tried again, each wait about twice the last up to 16 s, until it's let through; any other refusal ends the sign-up.
 func TestASignUpRetriesABusyRefusal(t *testing.T) {
-	g := &gateway{refuse: map[string]int{"/api/accounts": 3, "/api/sessions": 1, "/api/characters": 1}, calls: map[string]int{}}
+	g := &gateway{refuse: map[string]int{"/api/accounts": 9, "/api/sessions": 1, "/api/characters": 1}, calls: map[string]int{}}
 	transport := http.DefaultClient.Transport
 	http.DefaultClient.Transport = g
 	t.Cleanup(func() { http.DefaultClient.Transport = transport })
@@ -77,11 +77,11 @@ func TestASignUpRetriesABusyRefusal(t *testing.T) {
 		if token, err := b.signUp(t.Context()); err != nil || token != "t" || b.id != "c" {
 			t.Fatalf("signed up %q as %q: %v", token, b.id, err)
 		}
-		if g.calls["/api/accounts"] != 4 || g.calls["/api/sessions"] != 2 || g.calls["/api/characters"] != 2 {
+		if g.calls["/api/accounts"] != 10 || g.calls["/api/sessions"] != 2 || g.calls["/api/characters"] != 2 {
 			t.Errorf("calls %v", g.calls)
 		}
-		// the account waits about 0.5, 1 and 2 s, the login and the character 0.5 s each, every wait jittered by half
-		if waited := time.Since(start); waited < 2250*time.Millisecond || waited > 6750*time.Millisecond {
+		// the account waits about 0.5, 1, 2, 4, 8 s, then 16 s four times, the login and the character 0.5 s each, every wait jittered by half: 40.25 to 120.75 s, where waits that never grew or never stopped growing fall outside
+		if waited := time.Since(start); waited < 40250*time.Millisecond || waited > 120750*time.Millisecond {
 			t.Errorf("waited %s", waited)
 		}
 	})
