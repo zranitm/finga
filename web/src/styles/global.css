@@ -2372,6 +2372,7 @@ body {
 .wardrobe-side {
   display: flex;
   width: 320px;
+  min-width: 0; /* never wider than its 320 px: wider content would widen the row past the window, which then scrolls the figure off its left */
   flex-direction: column;
   gap: 6px;
 }
@@ -2384,7 +2385,7 @@ body {
 }
 .wardrobe-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
   align-content: start;
   min-height: 160px;
