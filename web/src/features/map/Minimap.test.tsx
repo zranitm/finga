@@ -165,6 +165,25 @@ describe('Minimap', () => {
     expect(document.querySelectorAll('.map-boss-down')).toHaveLength(0);
   });
 
+  it('crowns the player’s own area’s boss red at its spot while its frames say it’s up but don’t show it, and only its live crown while they do', () => {
+    render(<Minimap />);
+    act(() => {
+      mapView.getState().showMap('test_region', [256, 256], NO_GROUND, []);
+      mapView.getState().inArea('west');
+    });
+    at(50, 110);
+    const spots = () =>
+      [...document.querySelectorAll('.map-boss-spot')].map((c) => c.getAttribute('transform'));
+    expect(spots()).toEqual([expect.stringMatching(/^translate\(46 146\)/)]);
+    act(() =>
+      mapView
+        .getState()
+        .mark({ me: { x: 50, z: 110, yaw: 0 }, party: [], lock: null, boss: { x: 48, z: 140 } }),
+    );
+    expect(spots()).toEqual([]);
+    expect(document.querySelectorAll('.map-boss')).toHaveLength(1);
+  });
+
   it('marks no waypoint, as the map window alone does (large-regions.md section 8)', () => {
     render(<Minimap />);
     act(() => {

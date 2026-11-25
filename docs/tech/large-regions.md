@@ -790,14 +790,16 @@ Built with step 1, which says who watches a cell.
       - This region asks as it opens and every 5 s while it shows, as it asks for the channels. The minimap never asks.
     - **The crowns** stand at each area boss's spot from the generated data:
       - red while it's up, and grey with "<Boss>: back in m:ss" counting down while it's beaten, each label kept clear as a map's is;
-      - the player's own area's from its frames, as a hunting map's: grey while beaten, and only its live crown where it is while up. Its frames are fresher than the query.
+      - the player's own area's from its frames, as a hunting map's: grey while beaten, and while up only its live crown where it is, or red at its spot while the frames don't show it. Its frames are fresher than the query.
       - None for an area until the query's first answer. A picked map on the World tab shows none.
+      - **A channel switch** or a map change clears the answer and asks again at once, so one channel's crowns never show on the next. An answer that lands after the move is dropped.
     - **The player's area** reaches the map views from the world, from the Snapshot and each `AreaEntered`. A map change clears it till the new frames say.
     - **Tests:**
       - the instance: both areas up at the start, then the beaten one's time back as of the tick that answered, and none on a map;
       - the world: the test region's four up in order, refused in town and from another connection;
       - the adapter's milliseconds, the gateway's answer, and the protocol's sample and golden;
-      - This region's crowns and countdowns from an answer, none before it, the player's own area from its frames over the query's, the 5 s asks and their stop, none off a region, and none on a picked map;
+      - This region's crowns and countdowns from an answer, none before it, the player's own area from its frames over the query's (red at its spot out of their view), the 5 s asks and their stop, a channel switch clearing them and asking at once with the old channel's late answer dropped, none off a region, and none on a picked map;
+      - the minimap's own area: red at its spot out of the frames' view, only the live crown in it;
       - the minimap's own crown alone, and the area cleared by a map change;
       - the world handing the area on.
 - **Loading a region:** the loading screen holds until the overview and the chunks within 128 m are built, then fades as today.

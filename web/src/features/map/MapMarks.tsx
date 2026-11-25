@@ -197,7 +197,7 @@ export function MapMarks({
     mapId === current ? marks : { me: null, party: [], lock: null, boss: null }; // the client tracks positions only here
   const y = (z: number) => sz - z;
   const dot = 3 * unit; // a dot's radius: 3 pixels
-  const spots = crowns ?? crownsOf(map, area, down, null); // the window gives each plan's; the minimap draws the player's own map
+  const spots = crowns ?? crownsOf(map, area, down, null, boss !== null); // the window gives each plan's; the minimap draws the player's own map
   return (
     <>
       <Ground

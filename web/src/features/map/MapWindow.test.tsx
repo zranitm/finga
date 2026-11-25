@@ -967,9 +967,57 @@ describe('MapWindow', () => {
           .getState()
           .applySnapshot(create(FieldBossSchema, { mobId: 10, type: 'king_slime' }), undefined);
       });
-      inArea('west', answering([{ area: 'west', up: false, backInMs: 9000n }]));
+      const { unmount: away } = inArea(
+        'west',
+        answering([{ area: 'west', up: false, backInMs: 9000n }]),
+      );
       await act(() => Promise.resolve());
-      expect(crowns()).toEqual([]); // up: the live crown, where it is, shows it
+      expect(crowns()).toEqual([['king_slime', 'up', '46 146']]); // up, its frames say, but out of their view: red at its spot
+      act(() => {
+        mapView
+          .getState()
+          .mark({ me: { x: 124, z: 80, yaw: 0 }, party: [], lock: null, boss: { x: 50, z: 140 } });
+      });
+      expect(crowns()).toEqual([]); // in view: its live crown, where it is, shows it
+      away();
+    });
+
+    it('clears a channel’s crowns as the player switches, asks the new one at once, and drops the old one’s late answer', async () => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+      try {
+        const held: ((a: Answer) => void)[] = []; // each bosses query's answer, given when the test says
+        const request = vi.fn((t: string) =>
+          t === 'bosses'
+            ? new Promise<{ ok: boolean; code: number; bosses: { bosses: Answer } }>((r) => {
+                held.push((bosses) => r({ ok: true, code: 0, bosses: { bosses } }));
+              })
+            : new Promise<never>(() => undefined),
+        );
+        const answer = async (n: number, a: Answer) => {
+          await act(async () => {
+            held[n]!(a);
+            await Promise.resolve();
+          });
+        };
+        act(() => {
+          mapView.getState().inChannel(1);
+        });
+        inArea('town', request);
+        await answer(0, [{ area: 'south', up: false, backInMs: 30000n }]);
+        expect(crowns()).toEqual([['vampire_bat', 'beaten', '125 208']]);
+        vi.advanceTimersByTime(5000); // channel 1 asked again, its answer still out
+        act(() => {
+          mapView.getState().inChannel(2);
+        });
+        expect(held).toHaveLength(3); // channel 2 asked at once, not at the next 5 s
+        expect(crowns()).toEqual([]); // channel 1's gone before channel 2 answers
+        await answer(2, [{ area: 'south', up: true, backInMs: 0n }]);
+        expect(crowns()).toEqual([['vampire_bat', 'up', '125 208']]);
+        await answer(1, [{ area: 'south', up: false, backInMs: 20000n }]);
+        expect(crowns()).toEqual([['vampire_bat', 'up', '125 208']]); // channel 1's late answer dropped
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('asks every 5 s while This region shows, and never off a region', () => {

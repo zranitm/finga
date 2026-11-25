@@ -299,7 +299,8 @@ function Plan({
   const me = mapView.use((s) => s.me);
   const down = fieldBoss.use((s) => s.down);
   const area = mapView.use((s) => s.area);
-  const crowns = map.id === current ? crownsOf(map, area, down, others ?? null) : [];
+  const live = mapView.use((s) => s.boss !== null); // the boss's crown where it is, drawn while the frames show it
+  const crowns = map.id === current ? crownsOf(map, area, down, others ?? null, live) : [];
   const markers = useNpcMarkers(map.id);
   const ground = mapView.use((s) => s.ground);
   const [sx, sz] = layout?.size ?? size;
@@ -395,7 +396,7 @@ function ThisMap({ socket, onClose }: Pick<WorldProps, 'socket' | 'onClose'>) {
   const marks = mapView.use((s) => s.waypoints);
   const [picked, setPicked] = useState<string | null>(null);
   const map = maps.find((m) => m.id === mapId);
-  const others = useAreaBosses(socket, map?.kind === 'region');
+  const others = useAreaBosses(socket, map?.kind === 'region', `${mapId} ${channel}`);
   if (!map) {
     return <p className="muted">No map yet.</p>;
   }
