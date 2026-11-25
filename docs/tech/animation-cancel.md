@@ -109,14 +109,14 @@ Until section 15, attacks cut at 0.85 (the Thief's at 0.8): ticks 17, 15, 10, 17
   - Its hit lands at the hit tick: now when `hit` is 0, as for every action in the data today.
 - **Skills:** `castSkills` keeps its queue, `SKILL_WAITING`, and its refusals.
   - The turn it waits for becomes the next allowed start for a skill.
-  - It still goes up to `castSlack` (150 ms) early, so a client a tick ahead isn't refused. Its energy is spent at once, and a move runs from the press's input, as its client predicts it. The rest counts from the allowed start, not from the early use: its action, its cooldown, its hit, and what the map and a match's bots see, `SkillUsed` and the turn to its aim. So a chain's blows gain nothing from the slack, though a move skill pressed early moves before it's shown.
+  - It still goes up to `castSlack` (150 ms) early, so a client a tick ahead isn't refused. Its energy is spent as it's used, and a move runs from the press's input, as its client predicts it. The rest counts from the allowed start, not from the early use: its action, its cooldown, its hit, and what the map and a match's bots see, `SkillUsed` and the turn to its aim. So a chain's blows gain nothing from the slack, though a move skill pressed early moves before it's shown.
   - **It no longer starts the attack's cooldown.** Its own action's length replaces that.
 - **Order in the tick is unchanged:** buffs expire, skills go, then attacks. So when both are ready, a skill goes ahead of a held attack, and the attack takes the next allowed start after the skill.
 - **Wind-up:**
   - When `hit` is above 0, the action holds a pending hit, landed in the tick it comes due, before skills and attacks. It uses the player's position and facing then, and the attack and power the action started with. A heal finds the hurt in reach then, and a buff's time runs from then.
   - Pending hits are a list, not one slot: an attack's hit due at its cancel point, and a skill that went within the slack before it, both wait for that tick and land in it, the attack's first.
-  - A death or a map change drops the pending hit.
-  - A skill's energy and cooldown are spent at the start.
+  - A death, a hard status, or a map change drops the pending hit. A skill still waiting for its start is lost the same way, and its energy and cooldown stay spent.
+  - A skill's energy is spent as it's used, up to `castSlack` before its start. Its cooldown counts from the start.
   - No action in the data has a wind-up yet; the world tests cover it on test data, as #44 did for heals before heal skills existed.
 - **What a press can't do:** an attack sent before its allowed start waits for it; a skill waits in the queue. Neither is refused for timing, so a press too early simply goes later. That is the whole check.
 
@@ -195,6 +195,7 @@ The product's slower pace is data, plus one constant moved into data, so cancels
 | A modified client sends every action at once | Its actions go no faster than a perfect chain | The server holds each action to its earliest allowed start |
 | A lag spike delays an action | The hit lands late, and the chain resumes from there | Each action starts when it reaches the server; nothing builds up |
 | Death or a map change mid-action | The action ends; a pending wind-up hit is lost | It is held only in the map instance |
+| A death, stun or map change while a skill waits for its start | The skill is lost, as a pending wind-up hit is; its energy and cooldown stay spent | At most `castSlack`, 150 ms |
 | A deploy changes timing data while a player is on a map | One action may use the old timing | The world and the client load the same data at start; the next join brings the new data to both |
 
 ## 11. Testing

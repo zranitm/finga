@@ -314,10 +314,9 @@ func TestAnEarlyPressGivesTheBotsNoWarning(t *testing.T) {
 		if shown != start {
 			t.Fatalf("Strike shown at %d, want as it starts at the swing's cancel point %d", shown, start)
 		}
-		if blows := blowsOn(sink, ayla.ID, bot.ID); !reflect.DeepEqual(blows[start], false) {
+		blows := blowsOn(sink, ayla.ID, bot.ID)
+		if parried, landed := blows[start]; !landed || parried {
 			t.Fatalf("Strike pressed at %d, starting at %d: blows %v, want it landing there unparried", pressed, start, blows)
-		} else if _, ok := blows[start]; !ok {
-			t.Fatalf("Strike pressed at %d, starting at %d: blows %v, want it landing there", pressed, start, blows)
 		}
 		for _, at := range parriesOf(sink, bot.ID)[before:] {
 			if at <= start {
