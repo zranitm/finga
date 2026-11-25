@@ -25,6 +25,7 @@
   - the carved obelisk with a floating crystal, its halo kept pure cyan on grass, where the first stills read mint;
   - dimmer until found;
   - a short flare on finding.
+- **The halo** (2026-11-25), picked from a sheet of three: a soft cyan glow over grass can't be had, as any soft fade from cyan to the grass's green passes through mint. So it's a solid cyan core with a soft edge deepening toward blue, and a small dark-teal halo on an unfound stone, dim by darkness.
 - **The client computes, the server validates:**
   - The client draws the land from baked files and predicts sprint.
   - The server decides every move, hit and channel, and only sends what a player can see.
@@ -522,14 +523,15 @@ Built with step 1, which says who watches a cell.
     - A six-sided obelisk, about 2.8 m tall on a low octagonal plinth, in the palette's stone grey.
     - Above it floats a six-sided crystal, its top at about 3.55 m, in the map's waypoint cyan.
     - Rune strips are carved up three of the obelisk's faces.
-  - **Unfound:** a dim teal crystal, dark runes and a faint small halo. It still reads 22 m off and in a dark cave.
-  - **Found:** a near-white cyan crystal, lit runes and a wider halo.
-  - **The halo** is pure cyan on grass as on dark ground, never mint.
+  - **Unfound:** a dim teal crystal, dark runes and a small dark-teal halo, dim by darkness rather than thinness. It still reads 22 m off and in a dark cave.
+  - **Found:** a near-white cyan crystal, lit runes and a wider, bright cyan halo.
+  - **The halo** is solid cyan to about 45% of its radius, then a soft fade tinting toward a deeper blue. So it reads cyan on grass, about 184° found, as on dark ground. Only the unfound halo's outer edge goes a little dark-mint on grass. The crystal draws in front of it.
   - **The flare on finding:**
     - The crystal and runes light within 0.3 s.
     - A beam rises and is gone by 0.6 s.
     - A ring spreads 7 m on the ground.
     - Then the found look holds. No light column stays over a found stone.
+    - **When it plays:** the first time the crystal is on screen after the find. At the near zoom the whole stone shows only within about 9 m of the player, and finds come at 12 m, so a flare played at once would mostly go unseen. The notice comes at once. A stone not on screen within 10 s of its find just shows lit, with no flare.
 - **Finding:**
   - Each tick, a player's cell lists the waypoints near it.
   - Coming within 12 m of an unfound one stores it and sends `WaypointFound{id}`.
@@ -909,4 +911,12 @@ The user's choices are in section 1. These calls were made in planning and logge
   - no glow until found, which makes unfound stones hard to spot from afar;
   - a quieter find, with no beam or ring;
   - a lasting light column over found stones, easier to steer by but busier on screen.
+  - **For the halo on grass:**
+    - the firm disc first built: pure cyan, but a hard edge that reads as a sticker;
+    - a soft fade bluer at the rim: closest to the first stills, but its haze reads green-teal, and the unfound halo is barely there;
+    - a fade fitted to the ground ring by ring, which went grey-blue;
+    - the first stills' soft glow, mint on grass.
+  - **For a find made off-screen:**
+    - finding nearer, about 7 m, which would change B11's 12 m;
+    - letting the flare play off-screen, since many play zoomed out.
 - **Per-player frames:** encoding per player would lose the shared encoding. Per-cell parts keep it.
