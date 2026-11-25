@@ -936,7 +936,7 @@ As built in slice PR 8:
 - **A mob hit before it's drawn** gets its spark and number where the frames put it at the hit's tick. A mob killed on the tick it spawned is never drawn, so the world sends its view with its removal in that tick's frame.
 - **Heal's sparkles** come off a cylinder 0.15 m wider than the healed body, from feet to head, and rise over it. From a ball at the feet, most rose inside the body.
 - **Names:** a player's name lifts clear of the portal labels, NPC names and markers, and the names before it. The player's own comes first, then others' in order of arrival. A name's size is measured once each time its text changes, not every frame.
-- **Mob HP bars:** 32 by 4 px over each mob's head, as today. An elite's has a 2 px gold frame. A boss has none, since the bar at the top shows its HP, and a killed mob's goes.
+- **Mob HP bars:** 32 by 4 px over a mob's head, while it's locked or for 5 s after it last lost HP (large-regions.md step 5c-1). An elite's has a 2 px gold frame. A boss has none, since the bar at the top shows its HP, and a killed mob's goes.
 - **A model still loading as its map goes** is dropped quietly. Before, its failed load was an unhandled promise rejection.
 
 ### Input
