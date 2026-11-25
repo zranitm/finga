@@ -26,8 +26,8 @@ func shippedKit(t testing.TB) Kit {
 	return k
 }
 
-// maxSlope is movement.yaml's.
-func maxSlope(t testing.TB) float64 {
+// body is movement.yaml's slope and radius.
+func body(t testing.TB) sim.Params {
 	t.Helper()
 	raw, err := os.ReadFile("../../../data/movement.yaml")
 	if err != nil {
@@ -35,11 +35,12 @@ func maxSlope(t testing.TB) float64 {
 	}
 	var m struct {
 		MaxSlope float64 `yaml:"max_slope"`
+		Radius   float64 `yaml:"radius"`
 	}
 	if err := yaml.Unmarshal(raw, &m); err != nil {
 		t.Fatal(err)
 	}
-	return m.MaxSlope
+	return sim.Params{MaxSlope: m.MaxSlope, Radius: m.Radius}
 }
 
 // flat is a 128 m region of level ground at 0, one meadow over it and nothing scattered: each test adds what it builds.
@@ -58,7 +59,7 @@ func flat() Plan {
 
 func build(t testing.TB, p Plan) *Region {
 	t.Helper()
-	r, err := Generate(p, shippedKit(t), maxSlope(t))
+	r, err := Generate(p, shippedKit(t), body(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +208,7 @@ func TestAPlateausEdgeIsACliffOrARamp(t *testing.T) {
 
 	p.Features[0].Plateau.Edge, p.Features[0].Plateau.Height = Ramp, 3
 	r = build(t, p)
-	run := 3 / (maxSlope(t) / 2)
+	run := 3 / (body(t).MaxSlope / 2)
 	near(t, "a ramp 1 m out", r.at(39, 64), 3*(1-1/run))
 	for x := 28; x < 40; x++ {
 		if r.steepBetween(x, 64, false) {
@@ -435,7 +436,7 @@ func TestEachWaypointStandsItsStone(t *testing.T) {
 // smallRegion is small built once and shared: tests only read it.
 func smallRegion(t testing.TB) *Region {
 	t.Helper()
-	builtSmall.once.Do(func() { builtSmall.r, builtSmall.err = Generate(small(t), shippedKit(t), maxSlope(t)) })
+	builtSmall.once.Do(func() { builtSmall.r, builtSmall.err = Generate(small(t), shippedKit(t), body(t)) })
 	if builtSmall.err != nil {
 		t.Fatal(builtSmall.err)
 	}

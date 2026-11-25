@@ -9,7 +9,7 @@ import (
 // torchAway is how far a torch keeps from gates, waypoints and other torches.
 const torchAway = 3
 
-// Flame is a torch's light as the bake gives it: its flame's spot and height, and its flicker group, its index among the torches modulo 2, so neighbours along a wall flicker apart.
+// Flame is a torch's light as the bake gives it: its flame's spot, height and flicker group.
 type Flame struct {
 	At    [2]float64 `json:"at"`
 	Y     float64    `json:"y"`
@@ -37,7 +37,7 @@ func yawOf(dx, dz float64) float64 {
 	return float64(best) * 22.5
 }
 
-// torches hangs the plan's torches on its halls' and tunnels' walls, in the plan's order (underground-and-underwater.md section 4), one every Spacing, facing into the carved space: round a hall's edge, and along a tunnel's left wall then its right, the two staggered half a spacing. So torches next to each other on a wall are next in the props' order, and fall in different flicker groups. One that would stand within torchAway of a gate, a waypoint or a torch, or in a camp's or a boss's circle, isn't hung.
+// torches hangs the plan's torches on each hall's and tunnel's walls, in plan order, one every Spacing, facing in (underground-and-underwater.md section 4).
 func (b *builder) torches(placed *solidsNear) {
 	t := b.p.Torches
 	if t == nil {
@@ -48,13 +48,13 @@ func (b *builder) torches(placed *solidsNear) {
 		case f.Hall != nil:
 			o := float64(orientation(f.Hall.Area)) // anticlockwise corners hold the inside left of each edge
 			walkPath(f.Hall.Area, true, t.Spacing/2, t.Spacing, func(at, dir [2]float64) {
-				n := [2]float64{float64(o * dir[1]), float64(-o * dir[0])} // outward
-				from := [2]float64{at[0] - float64(n[0]*(b.p.Rock.Rough+1)), at[1] - float64(n[1]*(b.p.Rock.Rough+1))}
+				n := [2]float64{float64(o * dir[1]), float64(-o * dir[0])}                                             // outward
+				from := [2]float64{at[0] - float64(n[0]*(b.p.Rock.Rough+1)), at[1] - float64(n[1]*(b.p.Rock.Rough+1))} // inside, as halls are at least twice this wide
 				b.hang(from, n, float64(2*(b.p.Rock.Rough+1))+b.p.wallReach(), t.Model, placed)
 			})
 		case f.Tunnel != nil:
 			half, path := float64(f.Tunnel.Width/2), smooth(f.Tunnel.Path)
-			for side, first := range []float64{0, t.Spacing / 2} {
+			for side, first := range []float64{0, t.Spacing / 2} { // the left wall, then the right half a spacing on, so neighbours on a wall flicker apart
 				left := float64(1 - 2*side)
 				walkPath(path, false, first, t.Spacing, func(at, dir [2]float64) {
 					b.hang(at, [2]float64{-left * dir[1], left * dir[0]}, half+b.p.wallReach(), t.Model, placed)
@@ -64,23 +64,23 @@ func (b *builder) torches(placed *solidsNear) {
 	}
 }
 
-// hang walks from from along unit n, half a cell a step up to far, to the wall: it hangs model at the last carved spot before the rock, facing back. Nothing hangs where from is rock already, as in a hall too narrow to step into from its edge, where no wall comes within far, or where the spot isn't clear. The region's edge is rock, so the walk stops on it.
+// hang walks from from along unit n, half a cell a step up to far, to the first rock, and hangs model facing back a cell and a half short of it, on the floor below the wall's slope, if that's clear.
 func (b *builder) hang(from, n [2]float64, far float64, model string, placed *solidsNear) {
 	step := float64(b.g.cell / 2)
-	foot := [2]float64{math.NaN(), math.NaN()}
 	for d := 0.0; d <= far; d += step {
 		at := [2]float64{from[0] + float64(n[0]*d), from[1] + float64(n[1]*d)}
-		if b.rocky[b.g.nearest(at[0], at[1])] {
-			if math.IsNaN(foot[0]) {
-				return
-			}
-			x, z := f32(foot[0]), f32(foot[1])
-			if b.torchClear(x, z) {
-				b.place(model, x, z, yawOf(-n[0], -n[1]), placed)
-			}
+		if !b.rocky[b.g.nearest(at[0], at[1])] {
+			continue
+		}
+		if d == 0 { // from is rock already
 			return
 		}
-		foot = at
+		back := max(d-float64(3*step), 0)
+		x, z := f32(from[0]+float64(n[0]*back)), f32(from[1]+float64(n[1]*back))
+		if b.torchClear(x, z) {
+			b.place(model, x, z, yawOf(-n[0], -n[1]), placed)
+		}
+		return
 	}
 }
 

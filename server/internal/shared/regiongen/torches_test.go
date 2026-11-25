@@ -15,7 +15,7 @@ func torchesOf(r *Region, model string) []Prop {
 	return slices.DeleteFunc(slices.Clone(r.Props), func(p Prop) bool { return p.Model != m })
 }
 
-// A tunnel's torches hang one every spacing along its left wall, then its right, staggered half a spacing, each at the wall's foot facing across; torches next to each other on a wall flicker apart.
+// A tunnel's torches hang one every spacing along its left wall, then its right, staggered half a spacing, each on the floor by the wall's foot facing across; torches next to each other on a wall flicker apart.
 func TestTorchesHangAlongATunnelsTwoWalls(t *testing.T) {
 	p := flat()
 	cave(&p)
@@ -28,8 +28,8 @@ func TestTorchesHangAlongATunnelsTwoWalls(t *testing.T) {
 	}
 	for k, h := range hung {
 		south := k >= 10 // left of an eastward path is north
-		if off := math.Abs(h.Z - 64); off < 2.5 || off > 3.5 || (h.Z < 64) != south {
-			t.Fatalf("torch %d at (%v, %v); want at the %s wall's foot, 3 m off the path", k, h.X, h.Z, map[bool]string{true: "south", false: "north"}[south])
+		if off := math.Abs(h.Z - 64); off < 1.5 || off > 2.5 || (h.Z < 64) != south {
+			t.Fatalf("torch %d at (%v, %v); want by the %s wall's foot, a cell and a half short of the rock 3 m off the path", k, h.X, h.Z, map[bool]string{true: "south", false: "north"}[south])
 		}
 		if want := map[bool]float64{true: 0, false: 180}[south]; h.Yaw != want {
 			t.Errorf("torch %d faces %v; want %v, across the tunnel", k, h.Yaw, want)
@@ -103,7 +103,7 @@ func hallTorchesKeepClear(t *testing.T, hall [][2]float64) {
 	}
 }
 
-// Where the wall wanders, a hall's torches still hang at its foot: each on carved floor, the rock half a cell behind it.
+// Where the wall wanders, a hall's torches still stand by its foot: each on carved floor, the rock a cell and a half behind it.
 func TestTorchesHangAtAWanderingWallsFoot(t *testing.T) {
 	p := flat()
 	cave(&p)
@@ -121,25 +121,27 @@ func TestTorchesHangAtAWanderingWallsFoot(t *testing.T) {
 	}
 	for _, h := range hung {
 		ux, uz := mapfile.Axis(h.Yaw)
-		if rock(h.X, h.Z) || !rock(h.X+uz*cell/2, h.Z-ux*cell/2) {
-			t.Errorf("a torch at (%v, %v) facing %v; want it on carved floor, the rock half a cell behind", h.X, h.Z, h.Yaw)
+		if back := float64(1.5 * cell); rock(h.X, h.Z) || !rock(h.X+float64(uz*back), h.Z-float64(ux*back)) {
+			t.Errorf("a torch at (%v, %v) facing %v; want it on carved floor, the rock a cell and a half behind", h.X, h.Z, h.Yaw)
 		}
 	}
 }
 
-// A hall too narrow to step into from an edge, its one carved sample a metre from its west edge's walk into rock, hangs nothing from that edge, walked first: every torch stands somewhere, on the east edge's walk.
-func TestANarrowHallHangsNothingWhereItCantStepIn(t *testing.T) {
-	p := flat()
-	cave(&p)
-	p.Features = []Feature{{Hall: &Hall{Area: [][2]float64{{40, 100}, {40, 30}, {40.5, 30}, {40.5, 100}}}}}
-	p.Torches = &Torches{Spacing: 8, Model: "torch_mounted"}
-	hung := torchesOf(build(t, p), "torch_mounted")
-	if len(hung) == 0 {
-		t.Fatal("no torch on the east edge's walk")
+// Every torch the test cave hangs stands on the floor by a wall's foot, facing into the carved space: floor a metre ahead, the wall risen 2 m behind.
+func TestTheTestCavesTorchesStandAtTheirWallsFeet(t *testing.T) {
+	p := plan(t, "testdata/cave.yaml")
+	r := build(t, p)
+	hung := torchesOf(r, p.Torches.Model)
+	if len(hung) < 10 {
+		t.Fatalf("%d torches", len(hung))
 	}
+	tr := r.Geometry.Terrain
 	for _, h := range hung {
-		if math.IsNaN(h.X) || math.IsNaN(h.Z) {
-			t.Errorf("a torch at (%v, %v); want each where a wall's foot is", h.X, h.Z)
+		f := facings[int(math.Round(h.Yaw/22.5))%len(facings)]
+		at := tr.Height(h.X, h.Z)
+		ahead, behind := tr.Height(h.X+f[0], h.Z+f[1]), tr.Height(h.X-float64(2*f[0]), h.Z-float64(2*f[1]))
+		if math.Abs(ahead-at) > 0.5 || behind-at < p.Rock.Height/2 {
+			t.Errorf("the torch at (%g, %g) facing %v: the ground %g ahead and %g behind; want floor ahead, the wall behind", h.X, h.Z, f, ahead-at, behind-at)
 		}
 	}
 }
@@ -152,7 +154,7 @@ func TestTheLightMapClampsAtFull(t *testing.T) {
 	cave(&p)
 	p.Features = []Feature{{Hall: &Hall{Area: [][2]float64{{32, 32}, {96, 32}, {96, 96}, {32, 96}}}}}
 	p.Pieces = []Piece{{Model: "test_torch", At: &[2]float64{60, 64}}, {Model: "test_torch", At: &[2]float64{40, 40}}, {Model: "test_torch", At: &[2]float64{61, 64}}}
-	r, err := Generate(p, k, maxSlope(t))
+	r, err := Generate(p, k, body(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +174,7 @@ func TestTheLightMapFallsOffAndStopsAtWalls(t *testing.T) {
 		{Hall: &Hall{Area: [][2]float64{{65, 32}, {96, 32}, {96, 96}, {65, 96}}}},
 	}
 	p.Pieces = []Piece{{Model: "test_torch", At: &[2]float64{59, 64}}, {Model: "test_torch", At: &[2]float64{40, 40}}}
-	r, err := Generate(p, k, maxSlope(t))
+	r, err := Generate(p, k, body(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,5 +224,36 @@ func TestGroundAboveTheFlameStaysDark(t *testing.T) {
 		if lit := light[lightGroups*(16+x)] > 0; lit != (ground < 3) {
 			t.Errorf("texel x = %d, its ground %v m up under a flame 3 m up, lit %v", x, ground, lit)
 		}
+	}
+}
+
+// Scatter keeps its away distance from a torch, which stands no solid to keep it off; distances are judged at the nearest sample.
+func TestScatterKeepsClearOfTorches(t *testing.T) {
+	p := flat()
+	cave(&p)
+	p.Features = []Feature{{Hall: &Hall{Area: [][2]float64{{24, 24}, {104, 24}, {104, 104}, {24, 104}}}}}
+	p.Torches = &Torches{Spacing: 8, Model: "torch_mounted"}
+	p.Biomes["meadow"] = Biome{Colours: flat().Biomes["meadow"].Colours, Scatter: []Scatter{{Model: "pebbles", Spacing: 1, Away: Away{Torch: 1.5}}}}
+	r := build(t, p)
+	torches, pebbles := torchesOf(r, "torch_mounted"), torchesOf(r, "pebbles")
+	if len(torches) < 30 || len(pebbles) < 1000 {
+		t.Fatalf("%d torches, %d pebbles", len(torches), len(pebbles))
+	}
+	slack := float64(math.Sqrt2 / 2 * p.Cell)
+	near := 0
+	for _, tc := range torches {
+		for _, pb := range pebbles {
+			dx, dz := pb.X-tc.X, pb.Z-tc.Z
+			d := math.Sqrt(float64(dx*dx) + float64(dz*dz))
+			if d <= 1.5-slack {
+				t.Fatalf("a pebble at (%g, %g), %g m from the torch at (%g, %g); want past 1.5 m", pb.X, pb.Z, d, tc.X, tc.Z)
+			}
+			if d < 3 {
+				near++
+			}
+		}
+	}
+	if near == 0 {
+		t.Fatal("no pebble within 3 m of a torch: the floor by the walls bare")
 	}
 }
