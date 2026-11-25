@@ -1,4 +1,5 @@
 // A map's ground and marks as SVG in metres, x east and y south from the map's north edge, shared by the minimap and the map window (map-views.md sections 5 and 6); on a battle's map its bases and points too (pvp.md section 13).
+import { useMemo } from 'react';
 import type { ReactNode } from 'react';
 
 import { useQuestPlayer } from '@/features/shared/useQuestPlayer';
@@ -190,6 +191,10 @@ export function MapMarks({
   const area = mapView.use((s) => s.area);
   const mapId = other?.id ?? current;
   const markers = useNpcMarkers(mapId);
+  const below = useMemo(
+    () => new Set(mapId === null ? [] : placesBelow(mapId).map((m) => m.id)),
+    [mapId],
+  ); // the gates down, once a map
   const map = maps.find((m) => m.id === mapId);
   if (!map) {
     return null;
@@ -235,7 +240,7 @@ export function MapMarks({
         );
       })}
       {map.portals.map((p) => {
-        if (placesBelow(map.id).some((m) => m.id === p.to)) {
+        if (below.has(p.to)) {
           return (
             <path
               key={p.name}

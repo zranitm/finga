@@ -25,6 +25,6 @@ export function gateBetween(here: string, there: string): { x: number; z: number
   if (!h || !t || (t.under !== here && h.under !== there)) {
     return null;
   }
-  const gate = h.portals.find((p) => p.to === there);
+  const gate = h.portals.find((p) => p.to === there); // the first: a place below has one way in and one out
   return gate ? { x: gate.x, z: gate.z } : null;
 }
