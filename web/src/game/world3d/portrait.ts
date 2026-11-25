@@ -60,7 +60,6 @@ class PortraitView implements Portrait {
   private figure: Figure | null = null;
   private asked = 0; // each show's number: a figure made for an older one is let go
   private yaw = 0;
-  private closed = false;
 
   constructor(
     private readonly engine: AbstractEngine,
@@ -84,7 +83,7 @@ class PortraitView implements Portrait {
     const asked = ++this.asked;
     this.figures.make(playerLook(cls, look)).then(
       (figure) => {
-        if (this.closed || asked !== this.asked) {
+        if (asked !== this.asked) {
           figure.dispose();
           return;
         }
@@ -105,12 +104,9 @@ class PortraitView implements Portrait {
     }
   }
 
+  /** Disposes the scene, the figure with it; one loading meanwhile fails in the disposed scene. Closing twice is harmless. */
   close(): void {
-    if (this.closed) {
-      return;
-    }
-    this.closed = true;
-    this.scene.dispose(); // the figure with it
+    this.scene.dispose();
     this.gone();
   }
 
