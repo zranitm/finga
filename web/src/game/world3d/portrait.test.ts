@@ -100,15 +100,18 @@ describe('portraits (outfits.md section 7)', () => {
     expect(scene.activeCamera!.viewport).toBe(viewport); // the same one, set again
   });
 
-  it('draw nothing till a figure is in, nor once it’s closed, which takes its figure', async () => {
-    const p = portraits.portrait(windowCanvas());
+  it('draw nothing till a figure is in, nor once it’s closed, which takes its figure and its canvas out of the frame', async () => {
+    const canvas = windowCanvas();
+    const p = portraits.portrait(canvas);
     portraits.draw(0, 16);
     expect(renders).not.toHaveBeenCalled();
     await shown(p);
     expect(roots().map((n) => n.name)).toEqual([KNIGHT]);
     p.close();
+    const asked = vi.mocked(canvas.getContext).mock.calls.length;
     portraits.draw(16, 16);
     expect([renders.mock.calls.length, drawImage.mock.calls.length]).toEqual([0, 0]);
+    expect(vi.mocked(canvas.getContext).mock.calls.length).toBe(asked);
     expect(roots()).toEqual([]);
   });
 
