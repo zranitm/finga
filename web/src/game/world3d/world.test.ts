@@ -33,6 +33,8 @@ import { GameSocket } from '@/net/socket';
 import { clearToken, setToken } from '@/net/token';
 import { actionPoints } from '@/progression/actions';
 import { mobById } from '@/progression/mobs';
+import type * as Places from '@/progression/places';
+import { gateBetween } from '@/progression/places';
 import { npcsOn } from '@/progression/quests';
 import { skillById } from '@/progression/skills';
 import { statusColor } from '@/progression/statuses';
@@ -121,6 +123,10 @@ vi.mock('./kit-models', async (actual) => {
   const real = await actual<typeof Kit>();
   const { torch_mounted, torch_lit, vent } = real.kitModels;
   return { ...real, kitModels: { torch_mounted, torch_lit, vent } };
+});
+vi.mock('@/progression/places', async (actual) => {
+  const real = await actual<typeof Places>();
+  return { ...real, gateBetween: vi.fn(real.gateBetween) }; // no shipped region has a place below yet: a test says where a gate is
 });
 
 /** Hunting maps with no NPCs, served flat and bare for the tests no map's own layout bears on: FLAT, the two a map change goes to, one served as a region, the widest a block holds, that with a tower, one served as a cave and one as a sea. */
@@ -3171,7 +3177,7 @@ describe('World', () => {
     expect(p.root(classLook('warrior').file)!.position.x).toBeCloseTo(127 - 9 - movement.radius, 3);
   });
 
-  it('on a battle’s map rings each point on the ground in its holder’s colour from the player’s side, the name tags’ pair, grey with no match; the other side’s base is walled in red through the fight', async () => {
+  it('on a battle’s map rings each point on the ground in its holder’s colour from the player’s side, the name tags’ pair, grey with no match, a contested one in its pulsing look; the other side’s base is walled in red through the fight', async () => {
     const p = await playing('battlefield', 20, 45);
     const one = (name: string) => {
       const [m] = meshesOn(p, name);
@@ -3207,6 +3213,7 @@ describe('World', () => {
         points: [
           { id: 'west', holder: 1 },
           { id: 'middle', holder: 2, contested: true },
+          { id: 'east', holder: 2 },
         ],
         sides: [{ fighters: [{ id: ME }] }, { fighters: [{ id: 'c-robin' }] }],
       }),
@@ -3215,8 +3222,8 @@ describe('World', () => {
     p.frames(1);
     expect(looks()).toEqual([
       [decal('#7FE08A', 0.9), glow('#7fe08a')],
+      ['point contested ring', 'point contested glow'],
       [decal('#FF6B62', 0.9), glow('#ff6b62')],
-      grey,
     ]);
     expect(walls()).toEqual([false, true]); // side 1 kept from base 2
     expect(one('base wall 2').material!.name).toBe('base wall');
@@ -3293,7 +3300,7 @@ describe('World', () => {
   });
 
   describe('a party member out of sight', () => {
-    const party3 = (robin: { mapId: string; online: boolean }) =>
+    const party3 = (robin: { mapId: string; online: boolean; channel?: number }) =>
       create(PartyStateSchema, {
         party: create(PartyViewSchema, {
           leader: ME,
@@ -3355,6 +3362,28 @@ describe('World', () => {
       party.getState().applyPartyState(party3({ mapId: REGIONED, online: true }));
       frames(6, { players: [standing(20, 24, 'c-robin', 'thief')] });
       expect(seen()).toEqual({ marked: [['c-robin', 20, 24]], statuses: { 'c-robin': [] } });
+    });
+
+    it('is marked at the gate down to the place below it’s in, or up from the one the player’s in, as a ring, on the same channel and online; its statuses aren’t here', async () => {
+      vi.mocked(gateBetween).mockImplementation((here, there) =>
+        here === REGIONED && there === 'deep' ? { x: 40, z: 12 } : null,
+      );
+      try {
+        const frames = await on(REGIONED);
+        party.getState().applyPartyState(party3({ mapId: 'deep', online: true }));
+        frames(2);
+        expect(seen()).toEqual({ marked: [['c-robin', 40, 12]], statuses: {} });
+        expect(mapView.getState().party.map((q) => q.gate)).toEqual([true]);
+        party.getState().applyPartyState(party3({ mapId: 'deep', online: true, channel: 2 }));
+        frames(2);
+        expect(seen().marked).toEqual([]); // the place's other channel: not through this gate
+        party.getState().applyPartyState(party3({ mapId: 'deep', online: false }));
+        frames(2);
+        expect(seen().marked).toEqual([]);
+      } finally {
+        const real = await vi.importActual<typeof Places>('@/progression/places');
+        vi.mocked(gateBetween).mockImplementation(real.gateBetween);
+      }
     });
 
     it('is marked only once the server lists them, if they went out of view before joining the party', async () => {

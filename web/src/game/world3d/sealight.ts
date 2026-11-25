@@ -17,7 +17,18 @@ export const CAUSTICS = {
   shift: 0.3, // cells a second along time's axis
   width: 0.08, // a line's reach either side of a cell's edge, in cells, where F2 − F1 runs from 0 to this
   up: [0.5, 0.9] as const, // from facing this far up to this, a face takes from none of the web to all of it
-  light: new Color3(0.3, 0.42, 0.42), // linear, added to a face's light on the web where the sun reaches it in full
+  light: new Color3(0.15, 0.21, 0.21), // linear, added to a face's light on the web where the sun reaches it in full, in a patch at its brightest
+};
+
+/** Where the caustics' web brightens and fades: three long, slow waves across the floor, their mean eased from none to all, so it shows in patches tens of metres across that drift and change shape, never in step with the web's cells. */
+export const CAUSTIC_PATCHES = {
+  waves: [
+    { heading: 15, length: 41, phase: 0 }, // degrees from +x toward +z, metres crest to crest, radians
+    { heading: 135, length: 57, phase: 2 },
+    { heading: 255, length: 73, phase: 4 },
+  ],
+  speed: 0.3, // metres a second each wave runs along its heading
+  fade: [-0.5, 0.5] as const, // from the waves' mean at this, a patch takes none of the web's light, to all of it at this
 };
 
 /** How kelp and sea grass sway: bent along the current by their height above their base, a wave running along it so a bed sways as one. */

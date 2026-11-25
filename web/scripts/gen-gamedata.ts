@@ -520,6 +520,7 @@ for (const file of readdirSync(join(dataDir, 'maps'))
     sky: must(look.sky, isString, `${file} look.sky`),
     min_level: hunting ? must(levels[0], isNumber, `${file} levels`) : null,
     max_level: hunting ? must(levels[1], isNumber, `${file} levels`) : null,
+    under: null,
     spawns: (m.spawns === undefined ? [] : must(m.spawns, isArray, `${file} spawns`)).map((raw) => {
       const sp = must(raw, isRecord, `a ${file} spawn`);
       const [x, z] = pair(sp.at, `${file} spawn ${String(sp.name)} at`);
@@ -585,7 +586,7 @@ for (const file of readdirSync(join(dataDir, 'maps'))
   });
   placeNpcs(file, id, m.npcs);
 }
-// regions/*.yaml: each region on the map list as a map of kind region, its own town and on no chart, so no link either: its name and sky, its camps as spawns, its gates as portals, and its areas with their corners, levels and bosses for the map views; its bake draws its ground (large-regions.md section 4).
+// regions/*.yaml: each region on the map list as a map of kind region, its own town and on no chart, so no link either: its name and sky, the region above a place below, its camps as spawns, its gates as portals, and its areas with their corners, levels and bosses for the map views; its bake draws its ground (large-regions.md section 4).
 const regionsDir = join(dataDir, 'regions');
 for (const file of existsSync(regionsDir)
   ? readdirSync(regionsDir)
@@ -604,6 +605,7 @@ for (const file of existsSync(regionsDir)
     sky: must(must(r.look, isRecord, `${file} look`).sky, isString, `${file} look.sky`),
     min_level: null,
     max_level: null,
+    under: r.under === undefined ? null : must(r.under, isString, `${file} under`), // a place below's region above (underground-and-underwater.md section 3)
     spawns: (r.camps === undefined ? [] : must(r.camps, isArray, `${file} camps`)).map((raw) => {
       const c = must(raw, isRecord, `a ${file} camp`);
       const [x, z] = pair(c.at, `${file} camp ${String(c.name)} at`);
@@ -832,15 +834,17 @@ const errorCodes = Object.fromEntries(
   }),
 );
 
-// Each piece's item, as the server's loader makes it: what a boss drops and the inventory adds to the wardrobe.
-const pieceItems = outfits.pieces.map((p) => ({
-  id: `piece.${p.id}`,
-  name: p.name,
-  tab: 'etc',
-  stars: p.stars,
-  description: `Adds ${p.name} to your wardrobe.`,
-  max_stack: 100,
-}));
+// The item of each piece a boss drops, as the server's loader makes it, which the inventory adds to the wardrobe; a piece granted outright has none.
+const pieceItems = outfits.pieces
+  .filter((p) => p.from.some((f) => f.kind === 'boss'))
+  .map((p) => ({
+    id: `piece.${p.id}`,
+    name: p.name,
+    tab: 'etc',
+    stars: p.stars,
+    description: `Adds ${p.name} to your wardrobe.`,
+    max_stack: 100,
+  }));
 
 const files: Record<string, unknown> = {
   'movement.ts': movement,

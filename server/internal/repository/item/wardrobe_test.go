@@ -95,6 +95,59 @@ func TestAddingAPieceTakesOneItemAndMakesItsEntry(t *testing.T) {
 	checkInvariants(t, h.pool, h.data)
 }
 
+// A grant makes its piece's entry for the rank, with no item, event or notice, and the piece is the account's; a second grant of it changes nothing, and a call with a grant its piece has no source for grants none.
+func TestAGrantMakesItsEntryOnce(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	h := newHarness(t)
+	silver := model.PieceGrant{Piece: "helm_silver", Cause: model.PieceFromRank, Ref: "silver"}
+	gold := model.PieceGrant{Piece: "helm_gold", Cause: model.PieceFromRank, Ref: "gold"}
+	platinum := model.PieceGrant{Piece: "platinum_plate", Cause: model.PieceFromRank, Ref: "platinum"}
+	t.Run("the entry and its cause, and nothing else", func(t *testing.T) {
+		added, err := h.svc.GrantPieces(ctx, h.actor.Account, []model.PieceGrant{silver})
+		if err != nil || !slices.Equal(added, []model.PieceGrant{silver}) {
+			t.Fatalf("added %+v, err %v", added, err)
+		}
+		pieces, err := h.store.Pieces(ctx, h.actor.Account)
+		if err != nil || len(pieces) != 1 || pieces[0].ID != "helm_silver" || pieces[0].Cause != model.PieceFromRank || pieces[0].Item != nil {
+			t.Fatalf("wardrobe %+v, err %v", pieces, err)
+		}
+		if h.count(t, `SELECT count(*) FROM account_pieces WHERE cause_ref = 'silver' AND item_id IS NULL`) != 1 || h.count(t, `SELECT count(*) FROM item_events`) != 0 || h.count(t, `SELECT count(*) FROM outbox`) != 0 {
+			t.Fatal("a grant's entry names no rank, or it wrote an event or a notice")
+		}
+	})
+	t.Run("again, beside another: only the other is new", func(t *testing.T) {
+		added, err := h.svc.GrantPieces(ctx, h.actor.Account, []model.PieceGrant{silver, gold})
+		if err != nil || !slices.Equal(added, []model.PieceGrant{gold}) || h.count(t, `SELECT count(*) FROM account_pieces`) != 2 {
+			t.Fatalf("added %+v, err %v", added, err)
+		}
+	})
+	t.Run("a grant its piece has no source for refuses the whole call", func(t *testing.T) {
+		for _, bad := range []model.PieceGrant{
+			{Piece: "helm_gold", Cause: model.PieceFromRank, Ref: "silver"},
+			{Piece: "knight_plate", Cause: model.PieceFromRank, Ref: "gold"},
+			{Piece: "platinum_plate", Cause: model.PieceFromItem, Ref: "platinum"},
+			{Piece: "platinum_plate", Cause: model.PieceFromRank},
+			{Piece: "no_such_piece", Cause: model.PieceFromRank, Ref: "gold"},
+		} {
+			if added, err := h.svc.GrantPieces(ctx, h.actor.Account, []model.PieceGrant{platinum, bad}); err == nil {
+				t.Errorf("granting %+v: %+v", bad, added)
+			}
+		}
+		if h.count(t, `SELECT count(*) FROM account_pieces`) != 2 {
+			t.Fatal("a refused call granted its good grant")
+		}
+	})
+	t.Run("another character of the account wears it", func(t *testing.T) {
+		alt := model.Actor{Account: h.actor.Account, Character: kernel.NewCharacterID()}
+		res, err := h.svc.SetLook(ctx, alt, application.LookInput{Key: "l1", Look: model.Look{Headwear: "helm_gold"}, Class: "warrior"})
+		if err != nil || res.Look == nil || res.Look.Headwear != "helm_gold" {
+			t.Fatalf("wearing the gold visor: %+v, %v", res, err)
+		}
+	})
+	checkInvariants(t, h.pool, h.data)
+}
+
 // failing is a store whose transactions fail at the inventory's revision, an add's last write, so a test sees the writes before it undone.
 type failing struct{ application.Store }
 

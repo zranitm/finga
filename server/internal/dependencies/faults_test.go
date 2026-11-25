@@ -86,7 +86,7 @@ func (f *flakyItems) build(ctx context.Context, h *host.Host, cfg config.Config)
 	if err != nil {
 		return err
 	}
-	matches, err := buildPvp(ctx, h, data, game, parties, characters)
+	matches, err := buildPvp(ctx, h, data, game, parties, characters, f.Module)
 	if err != nil {
 		return err
 	}

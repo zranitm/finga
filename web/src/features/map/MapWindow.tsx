@@ -14,6 +14,7 @@ import type { TagBox } from '@/lib/tags';
 import type { GameSocket } from '@/net/socket';
 import { mobById } from '@/progression/mobs';
 import { mobName } from '@/progression/names';
+import { levelsOf, placesBelow } from '@/progression/places';
 import type { ChannelList } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { fieldBoss } from '@/state/field-boss';
@@ -130,6 +131,16 @@ function within(members: Spawn[]): Spawn[][] {
   return [near, ...(far.length > 0 ? within(far) : [])];
 }
 
+/** A gate's label on map: a place below's name and levels, as its cave mouth marks it; any other's where it goes. */
+function portalLabel(map: MapData, to: string): string {
+  const below = placesBelow(map.id).find((m) => m.id === to);
+  if (!below) {
+    return `To ${nameOf(to)}`;
+  }
+  const lv = levelsOf(below);
+  return lv ? `${below.name} Lv ${lv[0]}–${lv[1]}` : below.name;
+}
+
 /** This map's labels at scale pixels a metre. A spawn group's label sits on one of its own circles, nearest the group's middle first, stepped up or down inside the circle, wherever it's in LABEL_REACH_M of all the group's circles and covers no quest mark, waypoint mark or label before it; failing that, it's lifted. A region's areas, named at their middles with a hunting area's levels, then portals, NPCs and a battle's points follow, each lifted clear of everything before it; then each beaten boss's, under its crown or over it, wherever it has BOSS_ROOM_PX round it, else lifted as the rest are; then the player's. */
 export function mapLabels(
   map: MapData,
@@ -212,7 +223,12 @@ export function mapLabels(
         : box('town', a.name, middle.x, bottom);
     }),
     ...map.portals.map((p) =>
-      box('portal', `To ${nameOf(p.to)}`, p.x, y(p.z) - Math.max(p.radius * scale, 2 * DOT_PX) - 2),
+      box(
+        'portal',
+        portalLabel(map, p.to),
+        p.x,
+        y(p.z) - Math.max(p.radius * scale, 2 * DOT_PX) - 2,
+      ),
     ),
     ...here.map((n) => box('npc', n.name, n.x, y(n.z) - DOT_PX - 2)),
     ...map.points.map((p) => box('point', p.name, p.x, y(p.z) - p.radius * scale - 2)),
@@ -390,24 +406,103 @@ function Plan({
   );
 }
 
-function ThisMap({ socket, onClose }: Pick<WorldProps, 'socket' | 'onClose'>) {
+function ThisMap({ socket, layoutOf, onClose }: WorldProps) {
   const mapId = mapView.use((s) => s.mapId);
   const channel = mapView.use((s) => s.channel);
   const marks = mapView.use((s) => s.waypoints);
   const [picked, setPicked] = useState<string | null>(null);
   const map = maps.find((m) => m.id === mapId);
   const others = useAreaBosses(socket, map?.kind === 'region', `${mapId} ${channel}`);
+  const below = useBelow(mapId, layoutOf);
   if (!map) {
     return <p className="muted">No map yet.</p>;
   }
-  const pick = marks.find((w) => w.id === picked); // ids are unique across regions, so a pick goes with its map
+  const pick = [...marks, ...below.flatMap((b) => b.waypoints)].find((w) => w.id === picked); // ids are unique across regions, so a pick goes with its map
   return (
     <>
       {channel > 0 && <Channels socket={socket} onClose={onClose} />}
       {/* keyed so a new map's plan starts whole */}
       <Plan key={map.id} map={map} others={others} picked={pick?.id ?? null} onPick={setPicked} />
+      {below.length > 0 && <Below places={below} picked={pick?.id ?? null} onPick={setPicked} />}
       {pick && <WaypointPick waypoint={pick} socket={socket} onClose={onClose} />}
     </>
+  );
+}
+
+/** A place below a region with its waypoints, as its layout gives them. */
+interface PlaceBelow {
+  readonly place: MapData;
+  readonly waypoints: readonly MapWaypoint[];
+}
+
+/** The places below the region id, each with its waypoints once layoutOf gives them; none for a place that won't load. */
+function useBelow(id: string | null, layoutOf: WorldProps['layoutOf']): PlaceBelow[] {
+  const [loaded, setLoaded] = useState<{ id: string | null; places: PlaceBelow[] }>({
+    id: null,
+    places: [],
+  });
+  useEffect(() => {
+    const places = id === null ? [] : placesBelow(id);
+    if (places.length === 0) {
+      return undefined;
+    }
+    let on = true;
+    void Promise.allSettled(places.map((p) => layoutOf(p.id))).then((got) => {
+      if (on) {
+        setLoaded({
+          id,
+          places: places.flatMap((place, i) => {
+            const g = got[i]!;
+            return g.status === 'fulfilled' ? [{ place, waypoints: g.value.waypoints }] : [];
+          }),
+        });
+      }
+    });
+    return () => {
+      on = false;
+    };
+  }, [id, layoutOf]);
+  return loaded.id === id ? loaded.places : [];
+}
+
+/** The places below the region shown, under its plan, each with its levels and waypoints: one picked shows as on the plan, for its teleport (underground-and-underwater.md section 7). */
+function Below({
+  places,
+  picked,
+  onPick,
+}: {
+  readonly places: readonly PlaceBelow[];
+  readonly picked: string | null;
+  readonly onPick: (id: string) => void;
+}) {
+  const found = waypoints.use((s) => s.found);
+  return (
+    <section className="map-below" aria-label="Below">
+      {places.map(({ place, waypoints: ways }) => {
+        const lv = levelsOf(place);
+        return (
+          <div key={place.id} className="map-below-place">
+            <strong>{place.name}</strong>
+            {lv && <span className="muted">{` Lv ${lv[0]}–${lv[1]}`}</span>}
+            <ul>
+              {ways.map((w) => (
+                <li key={w.id}>
+                  <button
+                    type="button"
+                    className={found.has(w.id) ? 'map-below-waypoint found' : 'map-below-waypoint'}
+                    data-waypoint={w.id}
+                    aria-pressed={picked === w.id}
+                    onClick={() => onPick(w.id)}
+                  >
+                    {w.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+    </section>
   );
 }
 
@@ -745,7 +840,7 @@ export function MapWindow({ socket, layoutOf, onClose }: WorldProps) {
           ))}
         </div>
         {tab === 'here' ? (
-          <ThisMap socket={socket} onClose={onClose} />
+          <ThisMap socket={socket} layoutOf={layoutOf} onClose={onClose} />
         ) : (
           <World socket={socket} layoutOf={layoutOf} onClose={onClose} />
         )}

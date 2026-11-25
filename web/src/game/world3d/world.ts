@@ -29,6 +29,7 @@ import type { GameSocket } from '@/net/socket';
 import { actionPoints } from '@/progression/actions';
 import { keyable } from '@/progression/chains';
 import { mobById } from '@/progression/mobs';
+import { gateBetween } from '@/progression/places';
 import { MARKER_TEXT, markerFor, npcById, npcsOn } from '@/progression/quests';
 import type { Npc } from '@/progression/quests';
 import { bonusAt, moveSpeedWithout, skillById, usedStage } from '@/progression/skills';
@@ -387,7 +388,14 @@ const GAITS = {
   ],
 } as const satisfies Record<Gait['pace'], readonly [Gait, Gait]>;
 
-/** Moves the zoom setting by d, held between close and far. */
+/** The note under a player's name: BOT for a bot, Reconnecting for a fighter whose place is held through a drop (pvp.md section 13), none otherwise. */
+function nameNote(bot: boolean, reconnecting: boolean): string {
+  if (bot) {
+    return 'BOT';
+  }
+  return reconnecting ? 'Reconnecting' : '';
+}
+
 /** How far to each side every frame brings bodies on a map sizeX by sizeZ: the block's side columns, from anywhere in the player's cell; null on a map one block holds from every cell, which the server sends whole (large-regions.md section 5). */
 function sideEdge(sizeX: number, sizeZ: number): number | null {
   const nx = Math.max(1, Math.ceil(sizeX / interest.cell));
@@ -396,6 +404,7 @@ function sideEdge(sizeX: number, sizeZ: number): number | null {
   return whole ? null : interest.side * interest.cell;
 }
 
+/** Moves the zoom setting by d, held between close and far. */
 function zoomBy(d: number): void {
   const s = settings.getState();
   s.setZoom(Math.min(1, Math.max(0, s.zoom + d)));
@@ -618,6 +627,7 @@ export class World {
       match?.points ?? [],
       sideOf(match, this.deps.player.characterId),
       this.keptSide,
+      now,
     );
     predictor.holdFor(countdownTicks(pvp.getState().match, this.timing.tickMs)); // known from prep's or the gap's end, before the count's first Delta
     if (this.placed) {
@@ -1306,7 +1316,7 @@ export class World {
         s.y + movement.height + NAME_LIFT_M,
         s.z,
         0,
-        info?.bot ? 'BOT' : away.has(id) ? 'Reconnecting' : '',
+        nameNote(info?.bot === true, away.has(id)),
       );
     }
     if (changed) {
@@ -1940,8 +1950,18 @@ export class World {
     mapView.getState().mark({
       me: me && s ? { x: me.x, z: me.z, yaw: yawOf(s.hx, s.hz) } : null,
       party: members.flatMap((m) => {
-        const at = m.characterId === this.deps.player.characterId ? null : this.mateAt(m)?.at;
-        return at ? [{ id: m.characterId, name: m.name, x: at.x, z: at.z }] : [];
+        if (m.characterId === this.deps.player.characterId) {
+          return [];
+        }
+        const at = this.mateAt(m)?.at;
+        if (at) {
+          return [{ id: m.characterId, name: m.name, x: at.x, z: at.z }];
+        }
+        const gate =
+          m.online && m.channel === this.channel ? gateBetween(this.mapId, m.mapId) : null; // in the place below, or the region above, through the paired channel
+        return gate
+          ? [{ id: m.characterId, name: m.name, x: gate.x, z: gate.z, gate: true as const }]
+          : [];
       }),
       lock: this.lockedAt,
       boss: bossAt ? { x: bossAt.x, z: bossAt.z } : null,

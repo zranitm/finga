@@ -175,6 +175,25 @@ function ripple(m: NodeMaterial, at: Sample): number[] {
 
 const mean = (v: Value) => (typeof v === 'number' ? v : v.reduce((s, c) => s + c, 0) / v.length);
 
+/** How much of the caustics' light the patches give the floor at x, z at seconds, 0 to 1. */
+const patch = (m: NodeMaterial, x: number, z: number, seconds: number) =>
+  value(m, 'causticPatches', { ...FLOOR_UP, at: [x, 0, z], seconds, sun: 1, ...MIDDLE }) as number;
+
+/** A spot on the floor where the patches give the web all its light at FLOOR_UP's moment. */
+function brightest(m: NodeMaterial): readonly [number, number, number] {
+  for (let x = 0; x < 200; x += 2) {
+    for (let z = 0; z < 200; z += 2) {
+      if (patch(m, x, z, FLOOR_UP.seconds) === 1) {
+        return [x, 0, z];
+      }
+    }
+  }
+  throw new Error('no patch at its brightest in 200 m');
+}
+
+/** The caustics' light in full, half what it was before the patches (0.3, 0.42, 0.42): linear, the sun's cyan. */
+const HALF = [0.15, 0.21, 0.21];
+
 describe('a sea’s toon materials (underground-and-underwater.md section 7)', () => {
   it('take the sun for their light, cyan at its top band and softer than the land’s', () => {
     const sea = toonOf(new Palette(scene, 'sea'));
@@ -192,15 +211,15 @@ describe('a sea’s toon materials (underground-and-underwater.md section 7)', (
 
   it('ripple caustics on what faces up where the sun reaches it: light on the web between cells, none inside one, on a wall or in shade, half in the middle band', () => {
     const sea = toonOf(new Palette(scene, 'sea'));
-    const full = ripple(sea, { ...FLOOR_UP, sun: 1, ...ON_EDGE });
-    expect(Math.min(...full)).toBeGreaterThan(0.2);
-    expect(full[1]).toBeGreaterThan(full[0]!); // the sun's cyan
-    expect(ripple(sea, { ...FLOOR_UP, sun: 1, ...MIDDLE })).toEqual([0, 0, 0]);
-    expect(ripple(sea, { ...FLOOR_UP, normal: [1, 0, 0], sun: 1, ...ON_EDGE })).toEqual([0, 0, 0]);
-    expect(ripple(sea, { ...FLOOR_UP, sun: 0.2, ...ON_EDGE })).toEqual([0, 0, 0]);
-    const mid = ripple(sea, { ...FLOOR_UP, sun: 0.5, ...ON_EDGE });
+    const lit = { ...FLOOR_UP, at: brightest(sea) };
+    const full = ripple(sea, { ...lit, sun: 1, ...ON_EDGE });
+    full.forEach((c, i) => expect(c).toBeCloseTo(HALF[i]!, 9)); // a patch at its brightest: all of the light, the sun's cyan
+    expect(ripple(sea, { ...lit, sun: 1, ...MIDDLE })).toEqual([0, 0, 0]);
+    expect(ripple(sea, { ...lit, normal: [1, 0, 0], sun: 1, ...ON_EDGE })).toEqual([0, 0, 0]);
+    expect(ripple(sea, { ...lit, sun: 0.2, ...ON_EDGE })).toEqual([0, 0, 0]);
+    const mid = ripple(sea, { ...lit, sun: 0.5, ...ON_EDGE });
     mid.forEach((c, i) => expect(c).toBeCloseTo(full[i]! / 2, 9));
-    const leaning = ripple(sea, { ...FLOOR_UP, normal: [0.3, 0.95, 0], sun: 1, ...ON_EDGE });
+    const leaning = ripple(sea, { ...lit, normal: [0.3, 0.95, 0], sun: 1, ...ON_EDGE });
     expect(mean(leaning)).toBeGreaterThan(mean(full) * 0.9); // a gentle slope ripples as the floor does
   });
 
@@ -220,6 +239,50 @@ describe('a sea’s toon materials (underground-and-underwater.md section 7)', (
     expect(1 / across).toBeGreaterThan(1.5);
     expect(1 / across).toBeLessThan(4); // a cell a couple of metres across, a few of them round a body
     expect(step(seed([3, 0, 7], 5), seed([3, 0, 8], 5))).toBeCloseTo(across, 9);
+  });
+
+  it('brighten and fade the web in patches tens of metres across, drifting slowly, from none of its light to all of half what it was', () => {
+    const sea = toonOf(new Palette(scene, 'sea'));
+    const shares: number[] = [];
+    for (let x = 0; x <= 300; x += 10) {
+      for (let z = 0; z <= 300; z += 10) {
+        const at = { ...FLOOR_UP, at: [x, 0, z] as const, sun: 1, ...ON_EDGE };
+        const strength = value(sea, 'causticStrength', at) as number[];
+        const share = patch(sea, x, z, FLOOR_UP.seconds);
+        strength.forEach((c, i) => expect(c).toBeCloseTo(HALF[i]! * share, 12)); // never past half the old light, nor under none
+        expect(share).toBeGreaterThanOrEqual(0);
+        expect(share).toBeLessThanOrEqual(1);
+        shares.push(share);
+      }
+    }
+    const dark = shares.filter((s) => s < 0.05).length / shares.length;
+    const bright = shares.filter((s) => s > 0.95).length / shares.length;
+    expect(dark).toBeGreaterThan(0.1); // patches fade out
+    expect(bright).toBeGreaterThan(0.1); // and in, in full
+    const runs: number[] = []; // metres along x each bright stretch lasts, a row at a time
+    for (let z = 0; z <= 300; z += 50) {
+      let run = 0;
+      for (let x = 0; x <= 600; x += 2) {
+        if (patch(sea, x, z, FLOOR_UP.seconds) > 0.5) {
+          run += 2;
+        } else if (run > 0) {
+          runs.push(run);
+          run = 0;
+        }
+      }
+    }
+    const across = runs.reduce((a, b) => a + b, 0) / runs.length;
+    expect(across).toBeGreaterThan(10); // tens of metres, so never in step with the web's 2.5 m cells
+    expect(across).toBeLessThan(60);
+    for (let x = 0; x <= 300; x += 7) {
+      const here = patch(sea, x, 40, FLOOR_UP.seconds);
+      expect(Math.abs(patch(sea, x + 2.5, 40, FLOOR_UP.seconds) - here)).toBeLessThan(0.5); // a cell over, much the same
+      expect(Math.abs(patch(sea, x, 40, FLOOR_UP.seconds + 1) - here)).toBeLessThan(0.1); // a second on, much the same
+    }
+    const moved = shares
+      .slice(0, 31)
+      .map((s, k) => Math.abs(patch(sea, 0, 10 * k, FLOOR_UP.seconds + 60) - s));
+    expect(Math.max(...moved)).toBeGreaterThan(0.5); // a minute on, they've drifted
   });
 
   it('ripple nowhere on the land or in a cave', () => {

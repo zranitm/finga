@@ -28,8 +28,8 @@ export function flicker(group: number, seconds: number): number {
   return f;
 }
 
-/** The light's floor where no torch reaches, sRGB, a little cool: dim, never black, so a body and a warning always show. */
-export const FLOOR = new Color3(0.3, 0.3, 0.34).toLinearSpace();
+/** The light's floor where no torch reaches, sRGB, a little cool: the land's shade band, so a cave's darkest spot is as light as a shadow on the land, and its ground, a body and a warning always read. */
+export const FLOOR = new Color3(0.5, 0.5, 0.58).toLinearSpace();
 /** The light at its top band, sRGB, warmed toward the torches' orange. */
 export const TORCH = new Color3(1, 0.86, 0.66).toLinearSpace();
 

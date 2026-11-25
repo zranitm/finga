@@ -26,12 +26,12 @@ afterEach(() => {
 });
 
 describe('Models', () => {
-  it('lists every model in LICENSES.md, for its licence and credit', () => {
+  it('lists every model and colourway atlas in LICENSES.md, for its licence and credit', () => {
     const files = readdirSync(MODELS, { recursive: true, encoding: 'utf8' })
-      .filter((f) => f.endsWith('.glb'))
+      .filter((f) => f.endsWith('.glb') || f.endsWith('.png'))
       .sort();
     const licences = readFileSync(path.join(MODELS, 'LICENSES.md'), 'utf8');
-    const listed = [...licences.matchAll(/^\| `(\S+\.glb)` /gm)].map((m) => m[1]).sort();
+    const listed = [...licences.matchAll(/^\| `(\S+\.(?:glb|png))` /gm)].map((m) => m[1]).sort();
     expect(files.length).toBeGreaterThan(0);
     expect(listed).toEqual(files);
   });

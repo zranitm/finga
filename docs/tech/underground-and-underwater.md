@@ -170,6 +170,8 @@ The steps of large-regions.md section 3, with these added. Everything keeps the 
     `floor + (1 − floor) × min(1, a × flickerA(t) + b × flickerB(t))`.
   - It's banded as the sun's light is, so the toon look holds. The bands are judged on the preview.
   - **Why a floor:** dim, never black. A mob, a player and a warning always show, and darkness never decides a fight.
+  - **As built after the stills (the floor raised):** 0.3 read as black. The floor multiplies a surface's own colour in linear light, and on the dark `cave_floor` that put the ground at 23 of 255 on screen, with a mid-grey body at 44. The floor is now the land's shade band, (0.5, 0.5, 0.58) sRGB, so a cave's darkest spot looks like a shadow on the land: the ground at about 44, the walls (`cave_rock`) darker at about 32, a mid-grey body at about 78. A torch's full band still lights that ground about 1.8 times as bright, at 78.
+    - **Why raise it, not a minimum brightness:** a floor on brightness would lift dark cloth and dark ground to the same level, losing the contrast that makes a body stand out. Raising the floor keeps every colour's place relative to the others.
 - **Flames:**
   - A torch model's flame mesh draws unlit, at full colour, with a small glow card behind it. Both are thin instances.
   - Each scales with its group's flicker: two slow sums of sines at different rates, about ±8%.
@@ -366,13 +368,14 @@ These steps follow the regions' build (large-regions.md section 14).
      - **A cave region has no sun:** no directional light and no shadow generator, so `Lighting.shadows` is null there. The old open-topped Cave map, which isn't a region, keeps the sun till step 6 replaces it.
      - **The texture:** the light map as RGBA, red and green its groups', sampled bilinearly between texel centres and held at its edges, at `x / nx` and `z / nz`. A cave with no torches gets one dark texel.
      - **The term:** `min(1, a × fA(t) + b × fB(t))`, each group's flicker `1 + Σ amp × sin(rate × t + phase)` over two sines whose amplitudes add to 0.08. `t` is the engine's seconds (`RealTime`), the same for every material, so the flicker runs in the shader.
-       - It's banded as the sun's light is: floored into thirds and stretched to 0, ½ and 1. The tone runs from the floor, 0.3 grey a little cool, to the torches' warm light, (1, 0.86, 0.66), both sRGB.
+       - It's banded as the sun's light is: floored into thirds and stretched to 0, ½ and 1. The tone runs from the floor, 0.3 grey a little cool, to the torches' warm light, (1, 0.86, 0.66), both sRGB. (The floor is now the land's shade, 0.5: see "As built after the stills" above.)
        - With a torch's 8 m reach, the full band holds within about 3.4 m of a lone flame, and the half band to about 5.2 m. The colours and bands are provisional until the stills.
        - Decals and glows aren't toon materials, so warnings, ghosts and glows draw as on the land.
      - **The sky:** black, with fog from 14 to 40 m. The old open-topped Cave map shares the sky's key, so it takes the same black and fog under its sun till step 6 replaces it.
      - **Tests:**
        - a small cave below tiny (`hollow`, a hall and a tunnel at 2 m), baked by regionbake's tests into the client's fixtures: its flames in both groups, light under each flame, none on the rock, and a light map refused;
        - the material's own node graph run block by block for a texel: the full band under a flame at every flicker, the floor where no torch reaches, each group swinging ±8% at its own rates, and two torches held to full;
+       - the darkest spot readable: the floor is the land's shade, `cave_floor` shows at 40 of 255 or more under it, `cave_rock` darker, and a torch's full band over 1.5 times as bright;
        - a cave region in the world: no sun, its ground sampling the light map, its sky black; a region on the land keeps the sun.
    - **As built (3a-2, the round shadows).**
      - **One disc, thin-instanced,** in a cave region only. Each frame, once the bodies are drawn, it lays one under the player, the others, the mobs (the dying too) and the NPCs within 25 m of the camera's target, as far as bodies cast the sun's shadow on the land.
@@ -396,6 +399,17 @@ These steps follow the regions' build (large-regions.md section 14).
        - the test cave gains a standing torch in its hall, so it has both models;
        - in the world, each torch's cup at its light, mounted and standing alike; each flame at its light, unlit, at its group's flicker for the frame's moment; each card turned to the camera and behind its flame; the card added, fogged, out in gamma;
        - the JS flicker against the material's own graph, at every moment.
+   - **As built (3c, the map views and teleport).**
+     - **The data:** the generated maps carry `under`, a place below's region above, null elsewhere. A place below is a map of kind region like any, so the minimap and This region draw its own tiles inside it, named for it.
+     - **A gate down** on the region's plan and minimap is a cave mouth, an arch, in place of a gate's ring. Its label is the place's name with its levels, the lowest and highest of its hunting areas', from the generated data, so no `region.json` is fetched. The way back up is an ordinary gate, "To" the region above. The dive spot comes with the sea look (step 4).
+     - **Party:** a member online on the player's channel number, in the place below or the region above, is marked at the gate between, as a ring rather than a dot. The client finds the gate from `under` and the gates, with no new message.
+       - The paired channel keeps the number, so a member in the place's other channel isn't marked there. One offline isn't marked.
+       - Only the map marks change: the party frames' statuses stay those of members here.
+     - **Teleport:** This region lists each place below under its plan, with its levels and its waypoints from its layout, lit once found. A waypoint picked there shows as one picked on the plan: found, or not yet, with Teleport here for a found one.
+     - **Tests:**
+       - the places below, their levels, and the gate between a region and its place each way, none for a gate beside it;
+       - This region's cave mouth and its label, a gate beside it still a ring; the list under it, a found waypoint teleported to and one not found; inside the place, its own plan with no list and its way back a ring; the minimap's cave mouth and a member's ring at the gate;
+       - in the world, a member in the place below marked at the gate as a ring, none on another channel or offline, and its statuses not here.
 4. **The sea look:**
    - caustics, rays, sway, bubbles and fish;
    - the Blender models;
@@ -411,6 +425,10 @@ These steps follow the regions' build (large-regions.md section 14).
        - Time is its third axis, at 0.3 cells a second, so the web shifts. It also drifts 0.05 and 0.02 cells a second along x and z.
        - It adds (0.3, 0.42, 0.42), linear, times the web, on faces turned up: none at 0.5 of straight up, all of it from 0.9.
        - It adds only where the sun reaches, and the more as it does: the full band takes it all, the middle band half and the shade none, so a shadow has no caustics in it.
+       - **As built after the stills (patches):** at full strength the web read as grout over the whole floor. Its light is halved, to (0.15, 0.21, 0.21), and it brightens and fades in patches.
+         - **The patches:** three long waves across the floor, 41, 57 and 73 m crest to crest, heading 15°, 135° and 255°. Each runs 0.3 m a second along its heading. Their mean is eased from none of the light at −0.5 to all of it at 0.5.
+         - **What that gives:** about a fifth of the floor dark, a fifth at full, and bright stretches about 30 m across, drifting and changing shape over a minute or two. They're never in step with the web's 2.5 m cells.
+         - **Why waves, not a second noise:** three sines cost less than another Worley or simplex lookup, and the unit tests can run them block by block like the rest of the light.
      - **The rays:** seven cards, one thin-instanced plane. Each is 24 m long and 1.6 to 3.4 m wide, slanting up the sun's way from 2 m under the player's feet.
        - They stand in a 48 m square round the player, fixed in the world as they drift. Each drifts at 0.25 m a second, all much the same way, and wraps to the square's far side.
        - Each swells and thins by 15%, slowly, and turns about its length to the camera.
@@ -422,6 +440,7 @@ These steps follow the regions' build (large-regions.md section 14).
        - **The material's own node graph, run block by block for a fragment:**
          - a cyan top band, and a shade nearer the light than the land's;
          - caustics on the web where a face turns up in the sun; none inside a cell, on a wall or in shade; half in the middle band;
+         - the web's light in patches: never past half the old light nor under none, both dark and full over a tenth of the floor each, bright stretches 10 to 60 m across, much the same a cell over or a second on, and drifted a minute on;
          - the web by x, z and time;
          - none on the land or in a cave.
        - **The rays:**

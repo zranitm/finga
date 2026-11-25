@@ -56,6 +56,13 @@ func (c closet) Add(ctx context.Context, account kernel.AccountID, piece string,
 	return n == 1, err
 }
 
+// Grant puts g's piece in the account's wardrobe for its cause; false when it has it.
+func (c closet) Grant(ctx context.Context, account kernel.AccountID, g model.PieceGrant) (bool, error) {
+	ref := g.Ref
+	n, err := c.q.AddPiece(ctx, db.AddPieceParams{AccountID: uuid.UUID(account), PieceID: g.Piece, CauseType: string(g.Cause), CauseRef: &ref, Now: c.now})
+	return n == 1, err
+}
+
 // Collected is which of pieces the account has.
 func (c closet) Collected(ctx context.Context, account kernel.AccountID, pieces []string) ([]string, error) {
 	if len(pieces) == 0 {

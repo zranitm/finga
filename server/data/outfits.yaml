@@ -1,5 +1,6 @@
 # The wardrobe's pieces (docs/tech/outfits.md section 3): looks only, never stats. A piece's look is a key in the client's look table.
 # A boss source puts the piece's item, piece.<id>, on that boss's drops, rolled on each eligible player's own roll.
+# A rank source grants the piece outright, the first time the account reaches that rank in a rated mode; no item holds it.
 # The starter catalogue; the full one is designed with the user from the preview sheet (section 8).
 pieces:
   - {id: knight_plate,   slot: outfit,   name: Knight's Plate,   stars: 3, look: knight_body,      from: [{boss: king_slime, chance: 0.05}]}
@@ -14,3 +15,7 @@ pieces:
   - {id: greataxe,       slot: weapon,   kind: one_handed, name: Greataxe,      stars: 3, look: two_handed_axe,   from: [{boss: avalanche_slime, chance: 0.05}]}
   - {id: oak_wand,       slot: weapon,   kind: staff,      name: Oak Wand,      stars: 2, look: wand,             from: [{boss: lantern_slime, chance: 0.05}]}
   - {id: hand_crossbow,  slot: weapon,   kind: crossbow,   name: Hand Crossbow, stars: 3, look: crossbow_1h,      from: [{boss: blizzard_wing, chance: 0.05}]}
+  # Stand-ins for the ranks' pieces till the catalogue is designed (section 8): the Knight's helm and plate in each rank's colours.
+  - {id: helm_silver,    slot: headwear, name: Silver Visor,     stars: 3, look: knight_helmet_silver, from: [{rank: silver}]}
+  - {id: helm_gold,      slot: headwear, name: Gold Visor,       stars: 4, look: knight_helmet_gold,   from: [{rank: gold}]}
+  - {id: platinum_plate, slot: outfit,   name: Platinum Plate,   stars: 5, look: knight_platinum,      from: [{rank: platinum}]}

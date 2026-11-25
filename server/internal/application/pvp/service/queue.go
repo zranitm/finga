@@ -41,6 +41,7 @@ type Deps struct {
 	Social     Social
 	Characters Characters
 	Store      Store
+	Items      Items
 	Notifier   Notifier
 	Logger     *slog.Logger
 	Panics     *panics.Recorder
@@ -816,6 +817,52 @@ func (s *Service) Record(ctx context.Context, r model.Result) {
 				s.d.Notifier.Push(f.Character, Ended{Mode: r.Mode, Outcome: outcomeFor(f, r.Winner, side+1), Battle: mode.Battle(), Wins: r.Wins, Score: r.Score, Rating: changes[f.Character], Left: f.Left, Match: r.Match, Away: f.Away})
 			}
 		}
+	}
+	if mode.Rated {
+		grantsCtx, cancel := context.WithTimeout(ctx, recordFor) // one budget for the match's grants, however many wait on a wardrobe that's down
+		defer cancel()
+		for _, f := range fighters {
+			if !f.Character.IsZero() {
+				s.grantRanks(grantsCtx, f)
+			}
+		}
+	}
+}
+
+// grantRanks gives the fighter's account the piece of each rank their shown rating reaches, once they're placed, and tells them of those new to it (outfits.md section 4), retrying till ctx ends; one lost to a failure comes with their next rated match's.
+func (s *Service) grantRanks(ctx context.Context, f model.Fighter) {
+	if f.After.Matches < s.rules.Rating.Placement {
+		return // placing: no rank yet
+	}
+	shown := s.shown(f.After)
+	var pieces []model.RankPiece
+	for _, r := range s.rules.Ranks {
+		if p, ok := s.d.Data.RankPiece(r.ID); ok && shown >= r.From {
+			pieces = append(pieces, model.RankPiece{Piece: p.ID, Rank: r.ID})
+		}
+	}
+	if len(pieces) == 0 {
+		return
+	}
+	added, err := backoff.Retry(ctx, func() ([]model.RankPiece, error) {
+		c, err := s.d.Characters.Character(ctx, f.Character)
+		if err == nil {
+			var added []model.RankPiece
+			if added, err = s.d.Items.GrantRankPieces(ctx, c.Account, pieces); err == nil {
+				return added, nil
+			}
+		}
+		if !errors.Is(err, transient.ErrUnavailable) {
+			return nil, backoff.Permanent(err)
+		}
+		return nil, err
+	}, backoff.WithMaxElapsedTime(0))
+	if err != nil {
+		s.d.Logger.ErrorContext(ctx, "a rank's piece wasn't granted; the next rated match grants it", "character_id", f.Character, "err", err)
+		return
+	}
+	if len(added) > 0 {
+		s.d.Notifier.Push(f.Character, PiecesAdded{Pieces: added})
 	}
 }
 

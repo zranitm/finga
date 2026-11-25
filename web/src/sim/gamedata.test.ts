@@ -35,9 +35,20 @@ describe('generated gamedata', () => {
     expect(expCurve.exp_to_next).toHaveLength(expCurve.level_cap - 1);
   });
 
-  it('items equal items.yaml with the stack size the server applies, then an item for each wardrobe piece as the server makes it', () => {
+  it('items equal items.yaml with the stack size the server applies, then an item for each wardrobe piece a boss drops as the server makes it, none for one a rank gives', () => {
     const raw = yaml('items.yaml').items as Record<string, unknown>[];
-    const pieces = yaml('outfits.yaml').pieces as { id: string; name: string; stars: number }[];
+    const all = yaml('outfits.yaml').pieces as {
+      id: string;
+      name: string;
+      stars: number;
+      from: Record<string, unknown>[];
+    }[];
+    const pieces = all.filter((p) => p.from.some((f) => 'boss' in f));
+    expect(all.filter((p) => !pieces.includes(p)).map((p) => p.id)).toEqual([
+      'helm_silver',
+      'helm_gold',
+      'platinum_plate',
+    ]);
     expect(items).toHaveLength(raw.length + pieces.length);
     raw.forEach((source, k) => {
       const item = items[k]!;
@@ -331,13 +342,14 @@ describe('generated gamedata', () => {
     }
   });
 
-  it('a region is a map of its plan: its own town, its camps as spawns and gates as portals, its areas with their corners, levels and bosses, no boss of its own, on no chart', () => {
+  it('a region is a map of its plan: its own town, the region above a place below, its camps as spawns and gates as portals, its areas with their corners, levels and bosses, no boss of its own, on no chart', () => {
     const regions = maps.filter((m) => m.kind === 'region');
     expect(regions.map((m) => m.id)).toContain('test_region');
     for (const m of regions) {
       const raw = yaml(`regions/${m.id}.yaml`) as {
         name: string;
         look: { sky: string };
+        under?: string;
         camps?: { mob: string; at: [number, number]; radius: number }[];
         gates?: { name: string; at: [number, number]; radius: number; to: { region: string } }[];
         areas: {
@@ -359,6 +371,7 @@ describe('generated gamedata', () => {
         sky: raw.look.sky,
         min_level: null,
         max_level: null,
+        under: raw.under ?? null,
         spawns: (raw.camps ?? []).map((c) => ({
           mob: c.mob,
           x: c.at[0],

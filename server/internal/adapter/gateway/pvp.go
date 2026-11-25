@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"finga/internal/application/item"
 	"finga/internal/application/pvp"
 	model "finga/internal/model/gateway"
 	"finga/internal/shared/kernel"
@@ -112,6 +113,12 @@ func pvpPush(d pvp.Delivery) (model.Push, bool) {
 			e.Rating = &model.PvpRatingChange{Before: r.Before, After: r.After, RankBefore: r.RankBefore, RankAfter: r.RankAfter, PlacementLeft: r.PlacementLeft}
 		}
 		return e, true
+	case pvp.PiecesAdded:
+		pieces := make([]model.AddedPiece, 0, len(d.Pieces))
+		for _, p := range d.Pieces {
+			pieces = append(pieces, model.AddedPiece{ID: p.Piece, Cause: item.PieceFromRank})
+		}
+		return model.PiecesAdded{Pieces: pieces}, true
 	}
 	return nil, false
 }

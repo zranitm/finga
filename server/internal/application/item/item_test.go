@@ -35,6 +35,7 @@ type fakeService struct {
 	handedIn  []application.HandIn
 	account   kernel.AccountID
 	pieces    []model.Piece
+	granted   []model.PieceGrant
 	look      model.Look
 	err       error
 	calls     int
@@ -50,6 +51,12 @@ func (f *fakeService) SetLook(_ context.Context, actor model.Actor, in applicati
 	f.calls++
 	f.actor, f.in = actor, in
 	return f.result, f.err
+}
+
+func (f *fakeService) GrantPieces(_ context.Context, account kernel.AccountID, grants []model.PieceGrant) ([]model.PieceGrant, error) {
+	f.calls++
+	f.account, f.in = account, grants
+	return f.granted, f.err
 }
 
 func (f *fakeService) Pieces(_ context.Context, account kernel.AccountID) ([]model.Piece, error) {
@@ -268,6 +275,17 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 			t.Fatalf("found %+v asking %+v, err %v", found, f.asked, err)
 		}
 		wantChanged(t, found[0].Result)
+	})
+	t.Run("GrantPieces", func(t *testing.T) {
+		f.granted = []model.PieceGrant{{Piece: "helm_gold", Cause: model.PieceFromRank, Ref: "gold"}}
+		added, err := m.GrantPieces(ctx, actor.Account, []PieceGrant{{Piece: "helm_silver", Cause: PieceFromRank, Ref: "silver"}, {Piece: "helm_gold", Cause: PieceFromRank, Ref: "gold"}})
+		in, ok := f.in.([]model.PieceGrant)
+		if err != nil || !ok || f.account != actor.Account || !slices.Equal(in, []model.PieceGrant{{Piece: "helm_silver", Cause: model.PieceFromRank, Ref: "silver"}, {Piece: "helm_gold", Cause: model.PieceFromRank, Ref: "gold"}}) {
+			t.Fatalf("sent %+v for %v, err %v", f.in, f.account, err)
+		}
+		if !slices.Equal(added, []PieceGrant{{Piece: "helm_gold", Cause: "rank", Ref: "gold"}}) {
+			t.Fatalf("added %+v", added)
+		}
 	})
 }
 
