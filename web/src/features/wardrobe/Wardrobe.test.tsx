@@ -189,6 +189,7 @@ describe('the wardrobe (outfits.md section 7)', () => {
   it('opens with a piece the inventory’s Preview handed it tried on, at its tab', async () => {
     act(() => wardrobe.getState().preview('pointed_hat'));
     const { figure } = open();
+    expect(wardrobe.getState().trying).toBeNull(); // taken as it opened, so the list coming in puts nothing back
     await screen.findByText('Collected 2 of 12');
     expect(screen.getByRole('tab', { name: 'Headwear' })).toHaveAttribute('aria-selected', 'true');
     expect(figure.show).toHaveBeenLastCalledWith('warrior', {
