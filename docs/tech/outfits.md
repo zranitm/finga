@@ -120,7 +120,8 @@ feats:
   - **Ranks:** at a match's end, the pvp module grants the piece of each rank the new shown rating reaches. The account's row is the "first time": falling and climbing again finds it there.
   - **As built (4a-2):**
     - The item module's `GrantPieces(account, grants)` takes each grant as a piece, its cause and its rank, in one transaction. It refuses the whole call if a grant names a source its piece doesn't have. A grant writes no item event or notice, so checks 6 and 13 count none.
-    - The pvp module grants through an `Items` port once the match is stored, after `MatchEnded`, in a rated mode, for a placed player alone, since the result shows no rank while placing. It asks for every rank piece the shown rating reaches, so a grant lost to a failure (retried for a minute) comes with the next rated match.
+    - The pvp module grants through an `Items` port once the match is stored, after `MatchEnded`, in a rated mode, for a placed player alone, since the result shows no rank while placing. It asks for every rank piece the shown rating reaches, so a grant lost to a failure comes with the next rated match. A match's grants share one minute's retries, so a wardrobe that's down holds the outcome a minute however many players wait.
+    - A placed player who left before the outcome is rated as a loss and gets the pieces of the rank that rating shows, like anyone else: the pieces follow the shown rating, not how the match went.
     - A piece no boss drops has no item, and `gen-gamedata` writes none for it either.
   - **Quests:** a hand-in's rewards gain `pieces`, granted in the hand-in's transaction.
   - **Feats:**
