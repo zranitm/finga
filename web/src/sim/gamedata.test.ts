@@ -35,14 +35,25 @@ describe('generated gamedata', () => {
     expect(expCurve.exp_to_next).toHaveLength(expCurve.level_cap - 1);
   });
 
-  it('items equal items.yaml with the stack size the server applies', () => {
+  it('items equal items.yaml with the stack size the server applies, then an item for each wardrobe piece as the server makes it', () => {
     const raw = yaml('items.yaml').items as Record<string, unknown>[];
-    expect(items).toHaveLength(raw.length);
-    items.forEach((item, k) => {
-      const source = raw[k]!;
+    const pieces = yaml('outfits.yaml').pieces as { id: string; name: string; stars: number }[];
+    expect(items).toHaveLength(raw.length + pieces.length);
+    raw.forEach((source, k) => {
+      const item = items[k]!;
       expect(item).toMatchObject(source);
       expect(item.max_stack).toBe(source.max_stack ?? (item.tab === 'equip' ? 1 : 100));
     });
+    expect(items.slice(raw.length)).toEqual(
+      pieces.map((p) => ({
+        id: `piece.${p.id}`,
+        name: p.name,
+        tab: 'etc',
+        stars: p.stars,
+        description: `Adds ${p.name} to your wardrobe.`,
+        max_stack: 100,
+      })),
+    );
   });
 
   it('the equip slots equal items.yaml’s, in order, each naming its slot kind', () => {
