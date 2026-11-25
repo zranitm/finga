@@ -119,6 +119,7 @@ import type { RegionMap, WorldMap } from './map';
 import type { ActionPose } from './model-looks';
 import { Models } from './models';
 import type { ModelSource } from './models';
+import { Named } from './named';
 import { NumberLayer } from './numbers';
 import { Outline } from './outline';
 import { Overlay } from './overlay';
@@ -447,6 +448,7 @@ export class World {
   private offs: (() => void)[] = [];
   private glow: (() => void) | null = null; // the teleport channel's
   private channel = 0; // the region's channel the latest Snapshot named; 0 off regions
+  private readonly named = new Named(NAMED);
   private keysOff: (() => void) | null = null;
   private wheelOff: (() => void) | null = null;
 
@@ -1186,7 +1188,7 @@ export class World {
       return;
     }
     const { shown, looks, gone } = remotes.render(renderTime);
-    const named = nearest(shown, this.follow, NAMED);
+    this.named.pick(shown, this.follow);
     const members = party.getState().party;
     this.remoteLooks = looks;
     let changed = gone.length > 0;
@@ -1231,7 +1233,7 @@ export class World {
       v.castAt(Math.hypot(s.x - this.follow.x, s.z - this.follow.z));
       if (
         edge === 'hidden' ||
-        !(named.has(id) || isMember(members, id) || this.lockedId === `p:${id}`)
+        !(this.named.has(id) || isMember(members, id) || this.lockedId === `p:${id}`)
       ) {
         this.labels.delete(`p:${id}`);
         continue;
@@ -2604,22 +2606,4 @@ export class World {
     this.scene?.dispose();
     this.scene = null;
   }
-}
-
-/** The ids of the n players in shown nearest at. */
-function nearest(
-  shown: ReadonlyMap<string, { readonly x: number; readonly z: number }>,
-  at: { readonly x: number; readonly z: number },
-  n: number,
-): Set<string> {
-  if (shown.size <= n) {
-    return new Set(shown.keys());
-  }
-  return new Set(
-    [...shown]
-      .map(([id, s]) => [id, Math.hypot(s.x - at.x, s.z - at.z)] as const)
-      .sort((a, b) => a[1] - b[1])
-      .slice(0, n)
-      .map(([id]) => id),
-  );
 }

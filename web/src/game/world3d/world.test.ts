@@ -385,6 +385,14 @@ function changeMap(p: Playing, d: ServerInit<'mapChange'>): void {
   vi.useRealTimers();
 }
 
+/** Back to real timers, any fake ones still due run first: Babylon queues its SetImmediate work behind one setTimeout, and a dropped one leaves the queue stuck for the file, holding every world after it. */
+function realTimers(): void {
+  if (vi.isFakeTimers()) {
+    vi.runAllTimers();
+  }
+  vi.useRealTimers();
+}
+
 /** Takes p's world down as leaving the game does, its socket closed with it, so neither outlives the test; its engine goes after. */
 function leave(p: Playing): void {
   p.world.dispose();
@@ -494,8 +502,10 @@ describe('World', () => {
     document.body.replaceChildren();
     broken = '';
     chunkWork.failing = '';
+    chunkWork.builds.length = 0;
     vi.unstubAllGlobals();
-    vi.useRealTimers();
+    realTimers();
+    vi.resetAllMocks();
     clearToken();
   });
 
@@ -4413,7 +4423,7 @@ describe('World', () => {
         expect(server.z).toBeCloseTo(24, 9); // dashed the skill's 4 m toward the lock
         expect(p.world.resets).toBe(0);
       } finally {
-        vi.useRealTimers();
+        realTimers();
         strike.move = was;
       }
     },

@@ -9,6 +9,8 @@ import type { Scene } from '@babylonjs/core/scene';
 export const GHOST = 0.5;
 /** Where a red area and then the lock ring draw among their group's blended meshes: before every effect, at its default index or a small one, so none marks the stencil or the depth over them first. */
 export const AREA_ORDER = -2;
+/** A region's water draws first of the blended meshes, so a near see-through prop, halo, area or ring isn't hidden behind its region-wide surface. */
+export const WATER_ORDER = -3;
 export const RING_ORDER = -1;
 const MARK = 1; // what a mesh with no stencil of its own writes, as the lock's outline leaves it for the meshes it doesn't outline
 const CLEAR = 0;

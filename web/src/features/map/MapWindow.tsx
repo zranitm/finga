@@ -1,5 +1,5 @@
 // The map window (map-views.md sections 6 and 12): This map, the whole map with its marks named and, in a region, its channels and waypoints (large-regions.md sections 4 and 8), and World, every map on the chart linked by its portals, any of which opens its layout.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 
 import { problemOf } from '@/features/shared/problem';
@@ -28,6 +28,7 @@ import { toasts } from '@/state/toasts';
 import { waypoints } from '@/state/waypoints';
 
 import { MapMarks, useNpcMarkers } from './MapMarks';
+import { usePanZoom, ZOOM_STEP } from './pan-zoom';
 import { MARK_REACH_PX, WaypointMarks } from './WaypointMarks';
 
 type MapData = (typeof maps)[number];
@@ -249,7 +250,7 @@ function useChannel(onClose: () => void) {
   return { asking, start };
 }
 
-/** map's layout to fit the window: the scene's map, or one from its layout; the player's label and the live marks only on their own. A region's waypoints are marked, picked's ringed. */
+/** map's layout to fit the window: the scene's map, or one from its layout; the player's label and the live marks only on their own. A region's waypoints are marked, picked's ringed, and a region pans and zooms. */
 function Plan({
   map,
   layout,
@@ -269,8 +270,17 @@ function Plan({
   const beaten = fieldBoss.use((s) => s.down);
   const down = map.id === current ? beaten : null;
   const markers = useNpcMarkers(map.id);
+  const ground = mapView.use((s) => s.ground);
   const [sx, sz] = layout?.size ?? size;
-  const scale = Math.min(VIEW_W / sx, VIEW_H / sz);
+  const fit = Math.min(VIEW_W / sx, VIEW_H / sz);
+  const svg = useRef<SVGSVGElement>(null);
+  const { view, zoom, most, zoomBy, onPointerDown, onClickCapture } = usePanZoom(
+    svg,
+    [sx, sz],
+    fit,
+    (layout?.ground ?? ground).kind === 'tiles',
+  );
+  const scale = fit * zoom; // pixels a metre as drawn
   const labels = mapLabels(
     map,
     map.id === current ? me : null,
@@ -280,16 +290,19 @@ function Plan({
     down,
     marks,
   );
-  return (
+  const plan = (
     <svg
-      className="map-here"
+      ref={svg}
+      className={most > 1 ? 'map-here map-here-pans' : 'map-here'}
       role="img"
       aria-label={map.name}
-      width={sx * scale}
-      height={sz * scale}
-      viewBox={`0 0 ${sx} ${sz}`}
+      width={sx * fit}
+      height={sz * fit}
+      viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
+      onPointerDown={onPointerDown}
+      onClickCapture={onClickCapture}
     >
-      <MapMarks unit={1 / scale} {...(layout && { other: { id: map.id, ...layout } })}>
+      <MapMarks unit={1 / scale} view={view} {...(layout && { other: { id: map.id, ...layout } })}>
         {labels.map((l, i) => (
           <text
             key={i}
@@ -312,6 +325,32 @@ function Plan({
       </MapMarks>
     </svg>
   );
+  if (most <= 1) {
+    return plan;
+  }
+  return (
+    <div className="map-plan">
+      {plan}
+      <div className="map-zoom" role="group" aria-label="Zoom">
+        <button
+          type="button"
+          aria-label="Zoom in"
+          disabled={zoom >= most}
+          onClick={() => zoomBy(ZOOM_STEP)}
+        >
+          +
+        </button>
+        <button
+          type="button"
+          aria-label="Zoom out"
+          disabled={zoom <= 1}
+          onClick={() => zoomBy(1 / ZOOM_STEP)}
+        >
+          −
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function ThisMap({ socket, onClose }: Pick<WorldProps, 'socket' | 'onClose'>) {
@@ -327,7 +366,8 @@ function ThisMap({ socket, onClose }: Pick<WorldProps, 'socket' | 'onClose'>) {
   return (
     <>
       {channel > 0 && <Channels socket={socket} onClose={onClose} />}
-      <Plan map={map} picked={pick?.id ?? null} onPick={setPicked} />
+      {/* keyed so a new map's plan starts whole */}
+      <Plan key={map.id} map={map} picked={pick?.id ?? null} onPick={setPicked} />
       {pick && <WaypointPick waypoint={pick} socket={socket} onClose={onClose} />}
     </>
   );
@@ -646,6 +686,8 @@ function World(props: WorldProps) {
 export function MapWindow({ socket, layoutOf, onClose }: WorldProps) {
   const [chosen, setTab] = useState<Tab>('here');
   const inMatch = pvp.use((s) => s.match !== null);
+  const mapId = mapView.use((s) => s.mapId);
+  const inRegion = maps.find((m) => m.id === mapId)?.kind === 'region';
   const tab = inMatch ? 'here' : chosen; // a match's map isn't on the world chart (pvp.md section 13)
   return (
     <WorldWindow name="map" title="Map" onClose={onClose} initialX={360} initialY={80}>
@@ -660,7 +702,7 @@ export function MapWindow({ socket, layoutOf, onClose }: WorldProps) {
               className={`btn btn-quiet${t === tab ? ' tab-active' : ''}`}
               onClick={() => setTab(t)}
             >
-              {t === 'here' ? 'This map' : 'World'}
+              {t === 'world' ? 'World' : inRegion ? 'This region' : 'This map'}
             </button>
           ))}
         </div>

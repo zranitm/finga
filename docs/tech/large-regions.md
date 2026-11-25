@@ -687,6 +687,10 @@ Built with step 1, which says who watches a cell.
     - every triangle facing up, wound as the ground's are;
     - the water's colour and alpha, and the meshes going with the region;
     - region.json read with a lake, with none written as null, and refused with no water.
+  - **After 5b-2's review:**
+    - **A bend tighter than the ribbon's half** folded its inside back over itself. Each vertex's reach across is now cut so its bank's edge still goes downstream by a tenth of each step, along both ends' ways. Gentle bends keep the whole reach. The cut is local to each step, so a river that coils back across itself, as a spiral, can still overlap. Test: a hairpin's triangles all face up, either way it runs.
+    - **A lake whose grown surface crosses itself,** as a U whose arms stand closer than its two banks, is refused with the plan. The generator grows the lake's area as the client does (`regiongen/surface.go`) and refuses it if two sides not meeting at a corner touch or cross. Tests: a U 3 m apart is refused, and one 10 m apart builds. The two growths are kept in step by `server/testdata/water/lakes.json`: the generator writes three lakes' rings to it (`-update`), and the client's water test grows the same areas to them.
+    - **Draw order:** the water draws first of the blended meshes (`WATER_ORDER`, before the areas and the lock ring), so a near faded prop or a halo isn't hidden behind its region-wide surface.
 - **As built (step 5b-3): cascaded shadows.**
   - **The sun:** a region's sun casts through Babylon's `CascadedShadowGenerator`:
     - 3 cascades out to 80 m from the camera;
@@ -711,6 +715,7 @@ Built with step 1, which says who watches a cell.
   - **As built (step 5c-1):**
     - **On every map, not only regions,** so the game has one rule; the old maps are going.
     - **Names:** another player is named while among the 40 nearest the camera's target, in the party, or locked. Those past it keep their bodies and lose only the name.
+      - After 5c-1's review: a named player keeps their name till another comes 2 m nearer than them, so the 40th in a crowd doesn't flicker (`world3d/named.ts`). With 40 or fewer shown, everyone is named with no sort. Past 40, a frame measures each player once into arrays kept from frame to frame, and sorts only when someone crosses the 2 m band or a named player goes.
     - **Bars:** a mob's bar shows while it's locked or for 5 s after its HP last fell, whoever hit it. A heal, regeneration included, is no hit. A mob is seen anew when it comes back into sight or on a rejoin or map change, so a fall while out of sight doesn't count.
     - **The party's bars** are its HUD frames, as before. No player has a bar over their head.
     - **Tests:**
@@ -744,6 +749,27 @@ Built with step 1, which says who watches a cell.
       - This region's level at four sizes, 256 to 1,024 m, which pins the 2-pixel rule between 1.67 and 2.5;
       - a picked region's layout drawing its tiles;
       - the world handing a region's tile folder and a map's image.
+  - **As built (step 5c-2b): This region pans and zooms.**
+    - **The tab** reads "This region" on a region, "This map" elsewhere.
+    - **Zoom:**
+      - the wheel zooms about the pointer, twice per 400 px of scroll, or twice a notch where it counts lines or pages, as Firefox and line-mode mice send;
+      - Zoom in and Zoom out buttons, in the plan's top right, double or halve it about the middle;
+      - from whole to where a metre spans 4 screen pixels, a tile's finest: 12.8 times on a kilometre, 3.2 on the 256 m test region.
+
+      The plan keeps its size on screen. Its labels, marks and tiles are drawn at the zoomed scale, and only the tiles in view are drawn.
+    - **Pan:** a drag with the main button pans it. A press that moves under 4 px is still a click, so a waypoint is picked as before. A drag that starts on one picks nothing.
+      - Only the click the button's up makes is swallowed; a later click picks, as a screen reader's does with no press before it. A cancelled press, and one held as the window closes, let go at once.
+      - Moves aren't coalesced per frame on top: browsers already deliver pointermove once a frame.
+    - **Held inside:** the view stays inside the region. A map change starts the new map's plan whole.
+    - **Where it applies:** wherever the ground is tiles, including a region picked on the World tab. A map keeps its fit, with no buttons, and the wheel scrolls the page as before.
+    - **Tests:**
+      - the buttons' steps and limits, the tiles drawn finer as it zooms in, and the size on screen kept;
+      - the wheel about the pointer, with no page scroll, and no further out than whole;
+      - a drag held at both corners, the right button's none, and no pan after the button's up;
+      - a drag over a waypoint picking nothing, one let go off the plan not swallowing the next click, a short press picking;
+      - a wheel in lines and in pages; a cancelled press panning no more; a press held as the window closes let go;
+      - a 720 m map keeping its fit;
+      - the tab's name.
 - **Loading a region:** the loading screen holds until the overview and the chunks within 128 m are built, then fades as today.
 - **As built (step 5a):**
   - **Wiring:** a map's JSON may name `region: {id, hash}`. The world then draws that bake in place of the map's own ground and props, and tells it the camera's target each frame. No map names one until 4b serves a region, so only tests and the preview draw one.

@@ -126,7 +126,7 @@ function babylonChunks(): Plugin & {
 
 const babylon = babylonChunks();
 
-// Each in a worker of its own: they mock the kit models differently, which a shared module graph hands from one to the next, and world.test ends near 3 GB of heap.
+// Each in a worker of its own: they mock the kit models differently, which a shared module graph hands from one to the next.
 const HEAVY_3D = ['src/game/world3d/{world,place,region-place}.test.ts'];
 
 export default defineConfig({
