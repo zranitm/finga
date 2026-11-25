@@ -422,6 +422,10 @@ These steps follow the regions' build (large-regions.md section 14).
        - Time is its third axis, at 0.3 cells a second, so the web shifts. It also drifts 0.05 and 0.02 cells a second along x and z.
        - It adds (0.3, 0.42, 0.42), linear, times the web, on faces turned up: none at 0.5 of straight up, all of it from 0.9.
        - It adds only where the sun reaches, and the more as it does: the full band takes it all, the middle band half and the shade none, so a shadow has no caustics in it.
+       - **As built after the stills (patches):** at full strength the web read as grout over the whole floor. Its light is halved, to (0.15, 0.21, 0.21), and it brightens and fades in patches.
+         - **The patches:** three long waves across the floor, 41, 57 and 73 m crest to crest, heading 15°, 135° and 255°. Each runs 0.3 m a second along its heading. Their mean is eased from none of the light at −0.5 to all of it at 0.5.
+         - **What that gives:** about a fifth of the floor dark, a fifth at full, and bright stretches about 30 m across, drifting and changing shape over a minute or two. They're never in step with the web's 2.5 m cells.
+         - **Why waves, not a second noise:** three sines cost less than another Worley or simplex lookup, and the unit tests can run them block by block like the rest of the light.
      - **The rays:** seven cards, one thin-instanced plane. Each is 24 m long and 1.6 to 3.4 m wide, slanting up the sun's way from 2 m under the player's feet.
        - They stand in a 48 m square round the player, fixed in the world as they drift. Each drifts at 0.25 m a second, all much the same way, and wraps to the square's far side.
        - Each swells and thins by 15%, slowly, and turns about its length to the camera.
@@ -433,6 +437,7 @@ These steps follow the regions' build (large-regions.md section 14).
        - **The material's own node graph, run block by block for a fragment:**
          - a cyan top band, and a shade nearer the light than the land's;
          - caustics on the web where a face turns up in the sun; none inside a cell, on a wall or in shade; half in the middle band;
+         - the web's light in patches: never past half the old light nor under none, both dark and full over a tenth of the floor each, bright stretches 10 to 60 m across, much the same a cell over or a second on, and drifted a minute on;
          - the web by x, z and time;
          - none on the land or in a cave.
        - **The rays:**
