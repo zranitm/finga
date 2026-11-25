@@ -145,6 +145,22 @@ func (q *Queries) LockRatings(ctx context.Context, arg LockRatingsParams) ([]Loc
 	return items, nil
 }
 
+const markTold = `-- name: MarkTold :exec
+UPDATE pvp_match_fighters SET untold = false, updated_at = $1
+WHERE character_id = $2 AND match_id = ANY($3::uuid[]) AND untold
+`
+
+type MarkToldParams struct {
+	Now         dbx.Stamp
+	CharacterID *uuid.UUID
+	Matches     []uuid.UUID
+}
+
+func (q *Queries) MarkTold(ctx context.Context, arg MarkToldParams) error {
+	_, err := q.db.Exec(ctx, markTold, arg.Now, arg.CharacterID, arg.Matches)
+	return err
+}
+
 const putBuild = `-- name: PutBuild :one
 INSERT INTO pvp_builds (character_id, skill_bar, traits, revision, created_at, updated_at)
 VALUES ($1, $2, $3, 1, $4, $4)
@@ -286,8 +302,8 @@ func (q *Queries) Ratings(ctx context.Context, characterID uuid.UUID) ([]Ratings
 }
 
 const recordFighter = `-- name: RecordFighter :exec
-INSERT INTO pvp_match_fighters (match_id, side, slot, character_id, bot_tier, left_match, downs, mu_before, sigma_before, mu_after, sigma_after, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
+INSERT INTO pvp_match_fighters (match_id, side, slot, character_id, bot_tier, left_match, downs, untold, mu_before, sigma_before, mu_after, sigma_after, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13)
 `
 
 type RecordFighterParams struct {
@@ -298,6 +314,7 @@ type RecordFighterParams struct {
 	BotTier     *string
 	LeftMatch   bool
 	Downs       int32
+	Untold      bool
 	MuBefore    float64
 	SigmaBefore float64
 	MuAfter     float64
@@ -314,6 +331,7 @@ func (q *Queries) RecordFighter(ctx context.Context, arg RecordFighterParams) er
 		arg.BotTier,
 		arg.LeftMatch,
 		arg.Downs,
+		arg.Untold,
 		arg.MuBefore,
 		arg.SigmaBefore,
 		arg.MuAfter,
@@ -401,6 +419,48 @@ func (q *Queries) StoredFighters(ctx context.Context, arg StoredFightersParams) 
 			&i.Wins,
 			&i.Losses,
 			&i.Draws,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const untold = `-- name: Untold :many
+SELECT m.id, m.mode, m.ended_at, m.winner, f.side, f.left_match
+FROM pvp_match_fighters f JOIN pvp_matches m ON m.id = f.match_id
+WHERE f.character_id = $1 AND f.untold
+`
+
+type UntoldRow struct {
+	ID        uuid.UUID
+	Mode      string
+	EndedAt   time.Time
+	Winner    int16
+	Side      int16
+	LeftMatch bool
+}
+
+func (q *Queries) Untold(ctx context.Context, characterID *uuid.UUID) ([]UntoldRow, error) {
+	rows, err := q.db.Query(ctx, untold, characterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UntoldRow
+	for rows.Next() {
+		var i UntoldRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Mode,
+			&i.EndedAt,
+			&i.Winner,
+			&i.Side,
+			&i.LeftMatch,
 		); err != nil {
 			return nil, err
 		}

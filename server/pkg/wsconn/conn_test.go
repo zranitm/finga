@@ -462,6 +462,78 @@ func TestSendLeavesEncodingToTheWriter(t *testing.T) {
 	}
 }
 
+// watchedCodec runs before as each message is encoded.
+type watchedCodec struct {
+	wsconn.Codec
+	before func()
+}
+
+func (w watchedCodec) Encode(m wsconn.Message) ([]byte, error) {
+	w.before()
+	return w.Codec.Encode(m)
+}
+
+// A message's Written runs once its frame is written, not before it's encoded; one that's never written, as the codec refused it or the connection had closed, never runs it.
+func TestWrittenRunsOnceTheFrameIsWritten(t *testing.T) {
+	checkLeaks(t)
+	written := make(chan struct{})
+	var early atomic.Bool
+	rec := newRecorder()
+	rec.onOpen = func(c wsconn.Conn) {
+		_ = c.Send(wsconn.Message{Data: &clientv1.Pong{ServerTime: 7}, Written: func() { close(written) }})
+	}
+	watch := func() {
+		select {
+		case <-written:
+			early.Store(true)
+		default:
+		}
+	}
+	s := start(t, rec, wsconn.Options{Subprotocols: []wsconn.Subprotocol{{Name: textProtocol, Codec: watchedCodec{Codec: serverCodec(wsconn.JSON), before: watch}}}})
+	c := dial(t, s, "")
+	defer c.CloseNow() //nolint:errcheck // test teardown
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, data, err := c.Read(ctx); err != nil || !strings.Contains(string(data), `"server_time":"7"`) {
+		t.Fatalf("read %s, %v", data, err)
+	}
+	select {
+	case <-written:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Written never ran for a frame the client read")
+	}
+	if early.Load() {
+		t.Fatal("Written ran before the frame was encoded")
+	}
+
+	var ran atomic.Int32
+	never := func() { ran.Add(1) }
+	rec = newRecorder()
+	rec.onOpen = func(c wsconn.Conn) {
+		_ = c.Send(wsconn.Message{Data: &clientv1.Ping{}, Written: never}) // a client message: the server's envelope can't encode it
+	}
+	s = start(t, rec, wsconn.Options{})
+	c2 := dial(t, s, "")
+	defer c2.CloseNow() //nolint:errcheck // test teardown
+	closeStatus(t, c2)
+	_ = rec.waitClosed(t)
+	rec = newRecorder()
+	rec.onMsg = func(c wsconn.Conn, _ wsconn.Message) {
+		c.Close(wsconn.CloseKicked, "x")
+		_ = c.Send(wsconn.Message{Data: &clientv1.Pong{}, Written: never})
+	}
+	s = start(t, rec, wsconn.Options{})
+	c3 := dial(t, s, "")
+	if err := c3.Write(context.Background(), websocket.MessageText, []byte(`{"attack":{}}`)); err != nil {
+		t.Fatal(err)
+	}
+	closeStatus(t, c3)
+	_ = rec.waitClosed(t)
+	if n := ran.Load(); n != 0 {
+		t.Fatalf("Written ran %d times for frames never written", n)
+	}
+}
+
 func TestAMessageTheCodecCannotEncodeClosesTheConnection(t *testing.T) {
 	checkLeaks(t)
 	rec := newRecorder()

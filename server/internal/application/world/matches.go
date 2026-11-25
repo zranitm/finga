@@ -58,6 +58,7 @@ type FighterResult struct {
 	Tier      string
 	Left      bool
 	Downs     int
+	Away      bool // not in the match at its end, so told of it at their next Welcome
 }
 
 // results holds the outcomes the matches report until the pvp module takes them; one past the queue is dropped, as a crash drops a match's.

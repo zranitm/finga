@@ -110,6 +110,20 @@ func (m *Module) Leaderboard(ctx context.Context, mode string) (_ []Row, err err
 	return m.svc.Leaderboard(ctx, mode)
 }
 
+// Missed is what the character missed while away, for their Welcome: the newest matches that ended without them, and the older ones it counts.
+func (m *Module) Missed(ctx context.Context, id kernel.CharacterID) (_ Missed, err error) {
+	ctx, call := m.calls.Start(ctx, "Missed")
+	defer call.End(&err)
+	return m.svc.Missed(ctx, id)
+}
+
+// Told marks the character told of matches' outcomes, which a gateway handed them.
+func (m *Module) Told(ctx context.Context, id kernel.CharacterID, matches []kernel.MatchID) (err error) {
+	ctx, call := m.calls.Start(ctx, "Told")
+	defer call.End(&err)
+	return m.svc.Told(ctx, id, matches)
+}
+
 // Subscribe opens a gateway's pushes from now on: every player's, which the gateway hands to those it has.
 func (m *Module) Subscribe(gateway string) *hub.Sub[Push] {
 	return m.pushes.Subscribe(gateway)

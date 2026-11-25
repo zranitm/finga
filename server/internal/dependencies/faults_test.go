@@ -86,7 +86,11 @@ func (f *flakyItems) build(ctx context.Context, h *host.Host, cfg config.Config)
 	if err != nil {
 		return err
 	}
-	return buildGateway(ctx, h, cfg.Gateway, cfg.HTTP, gatewayModules{Account: accounts, Character: characters, Item: f.Module, World: game, Social: parties})
+	matches, err := buildPvp(ctx, h, data, game, parties, characters, f.Module)
+	if err != nil {
+		return err
+	}
+	return buildGateway(ctx, h, cfg.Gateway, cfg.HTTP, gatewayModules{Account: accounts, Character: characters, Item: f.Module, World: game, Social: parties, Pvp: matches, Arena: matches})
 }
 
 // The world's grants meet an item module that fails some of them, before and after they commit: each take's items are asked again under their keys, and every item lands once.

@@ -5,11 +5,12 @@ import "errors"
 
 // Message is one decoded frame.
 type Message struct {
-	Type  string
-	Seq   uint32
-	ReqID string
-	Tick  uint64
-	Data  any // the message itself, as the codec's types
+	Type    string
+	Seq     uint32
+	ReqID   string
+	Tick    uint64
+	Data    any    // the message itself, as the codec's types
+	Written func() // run on the writer once the frame is written, never if it isn't: it must not block
 }
 
 // Codec encodes and decodes frames.

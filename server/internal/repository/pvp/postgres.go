@@ -86,7 +86,7 @@ func (p *Postgres) Record(ctx context.Context, match model.Match, characters []k
 		}
 		for _, f := range rated.Fighters {
 			row := db.RecordFighterParams{
-				MatchID: uuid.UUID(match.ID), Side: int16(f.Side), Slot: int16(f.Slot), LeftMatch: f.Left, Downs: int32(f.Downs), //nolint:gosec // small
+				MatchID: uuid.UUID(match.ID), Side: int16(f.Side), Slot: int16(f.Slot), LeftMatch: f.Left, Downs: int32(f.Downs), Untold: f.Untold, //nolint:gosec // small
 				MuBefore: f.Before.Mu, SigmaBefore: f.Before.Sigma, MuAfter: f.After.Mu, SigmaAfter: f.After.Sigma, Now: now,
 			}
 			if f.Character.IsZero() {
@@ -103,6 +103,37 @@ func (p *Postgres) Record(ctx context.Context, match model.Match, characters []k
 		return nil
 	}, dbx.Observed(p.obs))
 	return fighters, failures.Classify(err)
+}
+
+// Untold is each stored match the character was away from at its end and hasn't been told of.
+func (p *Postgres) Untold(ctx context.Context, id kernel.CharacterID) ([]model.Untold, error) {
+	var out []model.Untold
+	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
+		c := uuid.UUID(id)
+		rows, err := db.New(tx).Untold(ctx, &c)
+		if err != nil {
+			return err
+		}
+		out = make([]model.Untold, 0, len(rows))
+		for _, r := range rows {
+			out = append(out, model.Untold{Match: kernel.MatchID(r.ID), Mode: r.Mode, Ended: r.EndedAt, Winner: int(r.Winner), Side: int(r.Side), Left: r.LeftMatch})
+		}
+		return nil
+	}, dbx.Observed(p.obs))
+	return out, failures.Classify(err)
+}
+
+// MarkTold marks the character told of matches, as a gateway handed them their outcomes.
+func (p *Postgres) MarkTold(ctx context.Context, id kernel.CharacterID, matches []kernel.MatchID) error {
+	ids := make([]uuid.UUID, 0, len(matches))
+	for _, m := range matches {
+		ids = append(ids, uuid.UUID(m))
+	}
+	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
+		c := uuid.UUID(id)
+		return db.New(tx).MarkTold(ctx, db.MarkToldParams{Now: dbx.Now(), CharacterID: &c, Matches: ids})
+	}, dbx.Observed(p.obs))
+	return failures.Classify(err)
 }
 
 // stored is match's characters as it stored them: their ratings before and after, with their record as it is now.

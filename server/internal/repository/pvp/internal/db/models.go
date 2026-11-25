@@ -44,6 +44,7 @@ type PvpMatchFighter struct {
 	SigmaAfter  float64
 	CreatedAt   dbx.Stamp
 	UpdatedAt   dbx.Stamp
+	Untold      bool
 }
 
 type PvpRating struct {

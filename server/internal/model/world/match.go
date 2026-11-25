@@ -128,6 +128,7 @@ type FighterResult struct {
 	Tier      string             // a bot's
 	Left      bool
 	Downs     int
+	Away      bool // not in the match at its end: held through a drop, or gone, so told of it at their next Welcome
 }
 
 // BotLook is a bot's look, the same for one id: each slot its class's own half the time, else a piece of that slot every source of which is a boss, and a weapon look of weapon's kind. A rank, quest or feat piece never shows on a bot, so a rank piece always means a player earned it; feat pieces join with feats.
