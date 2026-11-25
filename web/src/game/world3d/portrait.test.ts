@@ -9,6 +9,8 @@ import type { Mock, MockInstance } from 'vitest';
 
 import { OWN_LOOK } from '@/state/wardrobe';
 
+import type { Figure } from './body';
+import { Figures } from './figures';
 import { Portraits } from './portrait';
 
 const MODELS = path.resolve(process.cwd(), 'public/models');
@@ -85,15 +87,24 @@ describe('a portrait (outfits.md section 7)', () => {
     expect(engine.scenes).toEqual([]);
   });
 
-  it('keeps the latest show’s figure, turned as dragged, and lets an older one go', async () => {
+  it('keeps the latest show’s figure, turned as dragged, and lets one an older show made go, though it comes in after', async () => {
+    const held: { older?: Promise<Figure>; release?: () => void } = {};
+    vi.spyOn(Figures.prototype, 'make').mockImplementationOnce(function (this: Figures, look) {
+      held.older = new Promise<Figure>((done) => {
+        held.release = () => done(this.make(look)); // the spy's once is spent: the real make
+      });
+      return held.older;
+    });
     const p = portraits.portrait(canvas);
     p.turn(0.5);
-    p.show('warrior', { ...OWN_LOOK, outfit: 'knight_plate' });
+    p.show('warrior', { ...OWN_LOOK, outfit: 'barbarian_furs' }); // held back
     p.show('warrior', OWN_LOOK);
     const root = await figureIn();
-    await vi.waitFor(() => {
-      expect(engine.scenes[0]!.transformNodes.filter((n) => n.name === KNIGHT)).toHaveLength(1);
-    });
+    held.release!();
+    await held.older;
+    await Promise.resolve();
+    const figures = engine.scenes[0]!.transformNodes.filter((n) => n.name.endsWith('.glb'));
+    expect(figures.map((n) => n.name)).toEqual([KNIGHT]);
     expect(root.rotation.y).toBe(0.5);
     p.turn(0.25);
     expect(root.rotation.y).toBe(0.75);

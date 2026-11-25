@@ -110,9 +110,7 @@ class PortraitView implements Portrait {
       return;
     }
     this.closed = true;
-    this.figure?.dispose();
-    this.figure = null;
-    this.scene.dispose();
+    this.scene.dispose(); // the figure with it
     this.gone();
   }
 
