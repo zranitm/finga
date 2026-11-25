@@ -722,6 +722,7 @@ Built with step 1, which says who watches a cell.
     - **Those chunks are asked all at once,** as built in the fetch order PR, and the rest four at a time, nearest first. Four at a time, a fresh load into the test region on Fast 3G waited on them in turns: 12.2–12.4 s, against 11.0 s all at once. After the arrival they're drawn long before the player nears them, so only an arrival asks this way.
   - **A chunk that fails,** or doesn't fit, is asked again after a backoff from 0.5 s, doubling to 8 s. After five failures the HUD says so and the page reloads 3 s later, fetching the bake afresh, a stale client included.
     - Each wait is equal jitter, in the upper half of its window (from the playtest: full jitter broke in 2.5 s). So the four waits come to 3.75–7.5 s, plus each try's own time, and the reload 3 s after that. A map that doesn't load retries the same way; the socket's reconnect keeps full jitter, spreading every client after a restart.
+    - **Once the player leaves the region,** for another map or out of the game, the world disposes the region's place along with its scene. The place lets go of its chunk work, so a try failing after that breaks nothing, not even with a reload, and it takes the waypoint stones' listener with it.
   - **The minimap and map window** draw a region from its overview, a pixel a metre: its palette's colours blended between the 8 m samples, shaded by height. The bake's colours mark steep ground already, and a river shows as its sand bed until 5b draws water. The minimap blows it up about 4.5×, so it looks soft until 5c's tiles. The maps' 4 pixels a metre would be a 64 MB image at 1 km.
   - **Measured** on the wide test plan (1 km), headless Chrome, its bake served gzipped as nginx serves it, sprinting (8 m/s) on the real region place, workers and ground, the body stopping while held:
     - across the middle (720 m) and south to north and west (1,030 m), unthrottled and on Chrome's Fast 3G preset (562.5 ms latency, 1.44 Mbit/s): no hold at all;
@@ -731,7 +732,7 @@ Built with step 1, which says who watches a cell.
     - the bake read back in the client: deep marks, every solid index filled once, and each refusal;
     - the ground: its grid, steep and deep marks as a whole map's, each solid as its chunk records it, and its buckets as indexing every solid at once, whatever order the chunks come in;
     - ten movement vectors on two test plans' bakes, which Go replays on its generated ground and the client on a `RegionGround` from the chunks, to the bit. The tiny plan's: its seam, a house over it, its river and ford, a blink stopped by an oak a neighbouring chunk carries. The steep plan's, as steep as the wide plan gets (its ring a 42.9 m step in a cell, the wide plan's 42.1 m): cliffs, a fall, a ridge;
-    - the world: the hold on arrival, its radius pinned at a missing chunk's edge, the veil, the notice let go with the region, a gate's label lowered onto the river bed, and the reload once chunks fail every try.
+    - the world: the hold on arrival, its radius pinned at a missing chunk's edge, the veil, the notice let go with the region, a gate's label lowered onto the river bed, the reload once chunks fail every try, and none from a try failing after the player has left.
 
 ## 11. cmd/bot
 
