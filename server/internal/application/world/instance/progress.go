@@ -1,6 +1,8 @@
 package instance
 
 import (
+	"time"
+
 	"finga/internal/application/world/loot"
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
@@ -98,13 +100,21 @@ func (i *Instance) tellParty(p *player, mapID string, channel int) {
 		level = p.Back.Player.Level
 	}
 	i.deps.Parties.Update(model.MemberUpdate{ID: p.ID, MapID: mapID, Channel: channel, Class: p.Class, Level: level, HP: p.HP, MaxHP: p.derived.MaxHP})
-	p.toldHP, p.toldMaxHP = p.HP, p.derived.MaxHP
+	p.toldHP, p.toldMaxHP, p.toldAt = p.HP, p.derived.MaxHP, i.tick
 }
 
-// tellHP tells the party of each player whose HP or max HP changed since it last heard, once a tick; the copy keeps only a member's newest.
+// hpEvery is how often at most the party hears a member's HP alone: their frame's bar needs no more, and every update goes to every member.
+const hpEvery = 250 * time.Millisecond
+
+// tellHP tells the party of each player whose HP or max HP changed since it last heard: at once when they went down or got up or their max HP changed, else once hpEvery has passed since it last heard of them, so the newest HP always follows within it.
 func (i *Instance) tellHP() {
+	every := i.ticksFor(hpEvery)
 	for _, id := range i.order {
-		if p := i.players[id]; p.bot == nil && (p.HP != p.toldHP || p.derived.MaxHP != p.toldMaxHP) {
+		p := i.players[id]
+		if p.bot != nil || p.HP == p.toldHP && p.derived.MaxHP == p.toldMaxHP {
+			continue
+		}
+		if p.derived.MaxHP != p.toldMaxHP || (p.HP == 0) != (p.toldHP == 0) || i.tick-p.toldAt >= every {
 			i.tellParty(p, i.m.ID, i.channel)
 		}
 	}

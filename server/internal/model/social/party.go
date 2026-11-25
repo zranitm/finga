@@ -39,6 +39,24 @@ type Member struct {
 	ReportedAt time.Time
 }
 
+// Shown is what a party frame shows of a member.
+type Shown struct {
+	ID      kernel.CharacterID
+	Name    string
+	Class   kernel.Class
+	Level   int
+	HP      int
+	MaxHP   int
+	MapID   string
+	Channel int
+	Online  bool
+}
+
+// Shown is what m's party frame shows.
+func (m Member) Shown() Shown {
+	return Shown{ID: m.ID, Name: m.Name, Class: m.Class, Level: m.Level, HP: m.HP, MaxHP: m.MaxHP, MapID: m.MapID, Channel: m.Channel, Online: m.Online}
+}
+
 // Party is one party: the leader and the members in join order.
 type Party struct {
 	ID      PartyID

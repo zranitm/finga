@@ -47,7 +47,7 @@ func (s *PartyService) Online(ctx context.Context, m model.Member) error {
 		}
 		tx.PutMember(m)
 		n.reachable(m) // first, so the party state below reaches the new connection
-		if !refresh(tx, n, m) {
+		if !refresh(tx, n, m, true) {
 			n.alone(m.ID) // a party lost while away is not shown at login
 		}
 		return nil
@@ -64,7 +64,7 @@ func (s *PartyService) Offline(ctx context.Context, id kernel.CharacterID, conn 
 		m.Online, m.OfflineAt = false, time.Now()
 		tx.PutMember(m)
 		n.unreachable(id, conn)
-		refresh(tx, n, m)
+		refresh(tx, n, m, false)
 		return nil
 	})
 }
@@ -107,7 +107,7 @@ func (s *PartyService) Update(ctx context.Context, id kernel.CharacterID, mapID 
 		}
 		m.MapID, m.Channel, m.Class, m.Level, m.HP, m.MaxHP, m.ReportedAt = mapID, channel, class, level, hp, maxHP, now
 		tx.PutMember(m)
-		refresh(tx, n, m)
+		refresh(tx, n, m, false) // a report that changes nothing a frame shows, as a join's after its login, tells nobody
 		return nil
 	})
 }
@@ -318,8 +318,8 @@ func ledBy(tx PartyTx, leader, target kernel.CharacterID) (model.Party, error) {
 	return p, nil
 }
 
-// refresh copies a member's row into their party and tells its members; false when they have none.
-func refresh(tx PartyTx, n *notes, m model.Member) bool {
+// refresh copies a member's row into their party and tells its members, always, or only when it changed what a frame shows; false when they have none.
+func refresh(tx PartyTx, n *notes, m model.Member, always bool) bool {
 	p, ok := tx.PartyOf(m.ID)
 	if !ok {
 		return false
@@ -329,9 +329,12 @@ func refresh(tx PartyTx, n *notes, m model.Member) bool {
 		return false
 	}
 	m.JoinOrder = p.Members[k].JoinOrder
+	same := p.Members[k].Shown() == m.Shown()
 	p.Members[k] = m
 	tx.PutParty(p)
-	n.changed(p)
+	if always || !same {
+		n.changed(p)
+	}
 	return true
 }
 
