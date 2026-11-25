@@ -18,7 +18,7 @@ const CROWN = '-1,0.6 -1,-0.6 -0.5,0 0,-0.9 0.5,0 1,-0.6 1,0.6'; // a boss's mar
 
 const TILE_M = 128; // a region's map tile's side
 const LEVELS = [1, 4] as const; // its tiles' metres a pixel, finest first
-const BLUR = 2; // the screen pixels a tile's pixel may span before a finer level is drawn
+const BLUR = 2; // the device pixels a tile's pixel may span before a finer level is drawn
 
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
@@ -30,7 +30,7 @@ export interface MapBox {
   readonly h: number;
 }
 
-/** The ground at `unit` metres a pixel on a map size across: a map's one image, or a region's tiles meeting view at the coarsest level whose pixel spans at most BLUR screen pixels. */
+/** The ground at `unit` metres a CSS pixel on a map size across: a map's one image, or a region's tiles meeting view at the coarsest level whose pixel spans at most BLUR device pixels, so a hi-DPI screen gets the finer tiles it can show. */
 function Ground({
   ground,
   size: [sx, sz],
@@ -49,7 +49,8 @@ function Ground({
       )
     );
   }
-  const level = LEVELS.findLast((l) => l / unit <= BLUR) ?? LEVELS[0];
+  const dpr = window.devicePixelRatio || 1;
+  const level = LEVELS.findLast((l) => (l * dpr) / unit <= BLUR) ?? LEVELS[0];
   const tiles = [];
   for (let tz = 0; tz < sz / TILE_M; tz++) {
     const y = sz - (tz + 1) * TILE_M;
