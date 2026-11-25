@@ -124,8 +124,8 @@ feats:
     - The pvp module checks `pvp_wins` at a match's end.
     - Each grants as above.
 - **Notices** (step 4): a grant or an add that made a row pushes `PiecesAdded{pieces}` to the account's live session. Until then the add's answer is the only word.
-  - **As built (4a-1):** each caller pushes it on the stream it already has to the player, once the item module says the row is new. An add goes through the gateway, which delivers it to the adding session; a rank's or a feat's at a match's end goes through pvp's deliveries; a quest's, a level's, a boss's and a promotion's go through the world's. The item module keeps no stream of its own.
-  - A replayed add tells of its piece again, so the client shows a piece's notice once.
+  - **Who pushes it:** the caller of the item module, on the stream it already has to the player; the item module keeps no stream of its own. Planned: a rank's or a feat's at a match's end through pvp's deliveries (4a-2), a quest's, a level's, a boss's and a promotion's through the world's (4b).
+  - **As built (4a-1):** only the add. The gateway delivers it to the adding session once the add succeeds; a refused add pushes none. A replayed add (the same idempotency key) pushes it again, and the client shows a piece's notice once each time the player enters the world.
 - **The look:**
   - `SetLook{look}` goes through the world, as `Equip` does. The world refuses a dead player (`CHARACTER_DEAD`) or one in combat (C20's 5 s clock, `IN_COMBAT`, as a trait change is).
   - The item module then checks each pick, wings too, against the player's live class:
