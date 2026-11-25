@@ -13,6 +13,11 @@ export function mapName(id: string): string {
   return maps.find((m) => m.id === id)?.name ?? id;
 }
 
+/** A rank id as a name: silver is Silver. */
+export function rankName(id: string): string {
+  return id.charAt(0).toUpperCase() + id.slice(1);
+}
+
 /** Whether the map is a match's (pvp.md section 3). */
 export function isMatchMap(id: string): boolean {
   return maps.find((m) => m.id === id)?.kind === 'pvp';

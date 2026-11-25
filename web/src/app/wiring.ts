@@ -39,6 +39,7 @@ import type { ActiveBuff, Cooldown } from '@/state/skill-bar';
 import { teleport } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
+import { wardrobe } from '@/state/wardrobe';
 import { waypoints } from '@/state/waypoints';
 
 /** Why a teleport ended early, as its notice says it; a death's screen says it already. */
@@ -428,6 +429,7 @@ export function leaveCharacter(): void {
   pouches.getState().clear();
   fieldBoss.getState().clear();
   waypoints.getState().clear();
+  wardrobe.getState().clear();
   teleport.getState().end();
   pvp.getState().clear();
 }

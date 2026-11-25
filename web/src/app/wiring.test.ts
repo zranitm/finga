@@ -38,6 +38,7 @@ import { skillBar } from '@/state/skill-bar';
 import { teleport } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
+import { OWN_LOOK, wardrobe } from '@/state/wardrobe';
 import { waypoints } from '@/state/waypoints';
 import { FakeWebSocket } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
@@ -250,6 +251,14 @@ describe('wiring', () => {
     leaveCharacter();
     expect(waypoints.getState().found).toEqual(new Set());
     expect(waypoints.getState().last).toBeNull();
+  });
+
+  it('forgets the wardrobe as the character is left: the next one’s list and look are its own', () => {
+    wardrobe.getState().collect(['knight_plate']);
+    wardrobe.getState().wear({ ...OWN_LOOK, outfit: 'knight_plate' });
+    leaveCharacter();
+    expect(wardrobe.getState().collected).toBeNull();
+    expect(wardrobe.getState().worn).toEqual(OWN_LOOK);
   });
 
   it('a region’s area brings its own boss quietly as the player steps in, up or beaten, and a town none', async () => {

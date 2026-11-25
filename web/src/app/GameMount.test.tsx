@@ -20,6 +20,7 @@ function countingView() {
     },
     enter: vi.fn(),
     leave: vi.fn(),
+    portrait: vi.fn(),
   };
   return { view, parents, live: () => live };
 }

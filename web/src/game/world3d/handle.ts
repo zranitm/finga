@@ -1,15 +1,21 @@
 // The 3D world behind the game's handle (3d-world.md section 10): Babylon loads only once a world is entered, and the map's messages are held from the moment it is.
 import type { GameSocket } from '@/net/socket';
 import { toasts } from '@/state/toasts';
+import type { Portrait } from '@/state/wardrobe';
 
 import { Arrival } from '../systems/arrival';
 import type { GameView, WorldEntry } from '../view';
+
+import type { Running } from './run';
+
+/** A portrait asked for with no world open, which draws nothing. */
+const UNDRAWN: Portrait = { show: () => undefined, turn: () => undefined, close: () => undefined };
 
 export class World3DHandle implements GameView {
   private parent: HTMLElement | null = null;
   private entry: WorldEntry | null = null;
   private arriving: Arrival | null = null; // the entered map's messages, held until a world takes them
-  private close: (() => void) | null = null;
+  private running: Running | null = null;
   private visit = 0; // each open and close starts the next; code that loads for an old one opens nothing
 
   constructor(private readonly socket: GameSocket) {}
@@ -30,6 +36,10 @@ export class World3DHandle implements GameView {
     this.arriving = new Arrival(this.socket, entry.mapId, entry.tickRateHz);
     this.entry = entry;
     this.open();
+  }
+
+  portrait(canvas: HTMLCanvasElement): Portrait {
+    return this.running?.portrait(canvas) ?? UNDRAWN;
   }
 
   leave(): void {
@@ -55,7 +65,7 @@ export class World3DHandle implements GameView {
           arriving.take(); // left before the code came
           return;
         }
-        this.close = run(parent, entry, arriving, this.socket);
+        this.running = run(parent, entry, arriving, this.socket);
       },
       (err: unknown) => {
         arriving.take();
@@ -69,7 +79,7 @@ export class World3DHandle implements GameView {
 
   private shut(): void {
     this.visit++;
-    this.close?.();
-    this.close = null;
+    this.running?.close();
+    this.running = null;
   }
 }

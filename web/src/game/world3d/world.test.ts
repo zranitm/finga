@@ -74,6 +74,7 @@ import { target } from '@/state/target';
 import { teleport } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
+import { OWN_LOOK, wardrobe } from '@/state/wardrobe';
 import { FakeWebSocket } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
 import { mapJson, servePublic } from '@/testing/public-on-disk';
@@ -1583,7 +1584,7 @@ describe('World', () => {
     said.mockRestore();
   });
 
-  it('dresses the player in what their own frame says they wear, and keeps the figure through a look that wears nothing', async () => {
+  it('dresses the player in what their own frame says they wear, tells the wardrobe, and keeps the figure through a look that wears nothing', async () => {
     const make = vi.spyOn(Figures.prototype, 'make');
     const p = await playing(FLAT, 4, 20);
     const shown = (name: string) =>
@@ -1601,6 +1602,7 @@ describe('World', () => {
     await vi.waitFor(() => expect(shown('Mage_Hat worn')).toBe(true), WAIT);
     expect(shown('Knight_Helmet')).toBe(false);
     expect(make.mock.calls.length).toBe(made + 1);
+    expect(wardrobe.getState().worn).toEqual({ ...OWN_LOOK, headwear: 'pointed_hat' });
   });
 
   it('dresses the player from a Snapshot too, as one rejoining in a look gets', async () => {
@@ -1614,6 +1616,7 @@ describe('World', () => {
     );
     p.frames(1);
     await vi.waitFor(() => expect(shown('2H_Axe worn')).toBe(true), WAIT);
+    expect(wardrobe.getState().worn).toEqual({ ...OWN_LOOK, weapon: 'greataxe' });
   });
 
   it('poses another player every frame near the camera’s target, every 2nd frame 45 m off, and never behind the camera', async () => {
@@ -3220,6 +3223,7 @@ describe('World', () => {
   it.each([
     { code: 'KeyM', window: 'map' },
     { code: 'KeyV', window: 'arena' },
+    { code: 'KeyO', window: 'wardrobe' },
   ])('$code opens the $window window and closes it again', async ({ code, window }) => {
     await playing(FLAT, 10, 20);
     key(code, true);

@@ -11,7 +11,8 @@ export type WindowName =
   | 'arena'
   | 'npc'
   | 'loot'
-  | 'settings';
+  | 'settings'
+  | 'wardrobe';
 
 export interface UiState {
   /** The open windows, the top-most last. */
