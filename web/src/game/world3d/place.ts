@@ -46,6 +46,7 @@ const SKIES: Readonly<Record<string, Sky>> = {
   snow: { color: 0xd9e5ef, fog: [30, 95] },
   shroom: { color: 0x8c7fb8, fog: [26, 80] },
   cave: { color: 0x000000, fog: [14, 40] }, // no sky underground: black, the torches' light fading into it
+  sea: { color: 0x15576a, fog: [20, 60] }, // deep blue-green water, the sea floor fading into it
 };
 const FOG_OUT = 3.6; // zoomed right out, the fog starts and ends this many times as far: a day sky's from about 160 m to 500 m (large-regions.md section 9)
 

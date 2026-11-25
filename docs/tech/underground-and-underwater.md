@@ -181,7 +181,7 @@ The steps of large-regions.md section 3, with these added. Everything keeps the 
 - **Sky and sun:**
   - The sky is deep blue-green, with fog from 20 to 60 m, scaled out with the zoom.
   - The sun is nearly overhead, cyan-tinted and softer. Its cascaded shadows stay, falling almost straight down.
-- **Light rippling on the ground:** the same material term draws caustics on surfaces facing up, from two scrolling layers of value noise in the shader, by x, z and time. There's no texture to fetch.
+- **Light rippling on the ground:** the same material term draws caustics on surfaces facing up, from 3D Worley noise in the shader, by x, z and time. There's no texture to fetch. (As built, step 4a: the plan had two scrolling layers of value noise.)
 - **Rays:** six to eight long, faint, additive cards slant down from above, drifting slowly. They stay out of the camera's line to the player's chest.
 - **Kelp and sea grass sway:** a kit model marked `sway` in `kit-models.ts` bends in the vertex shader by its height above its base. Its phase comes from its x and z, so a bed sways as a wave.
 - **Bubbles:**
@@ -400,6 +400,37 @@ These steps follow the regions' build (large-regions.md section 14).
    - caustics, rays, sway, bubbles and fish;
    - the Blender models;
    - stills for the user.
+   - **The models** came first, in #325: coral, kelp, sea grass, shells and a small fish, our own work.
+   - **In three PRs:** 4a the light (the sky, the sun, the caustics and the rays), 4b the sea props in the kit and their sway, 4c the bubbles and the fish. The stills follow 4c.
+   - **As built (4a, the light).**
+     - **The sky:** deep blue-green, `#15576a`, with fog from 20 to 60 m.
+     - **The sun:** nearly straight down, along (0.1, −1, 0.18). Its shadows are cascaded, as on the land's regions, so they fall almost under what casts them.
+     - **The tone:** the sun's light is banded as on the land, from a blue-green shade, (0.46, 0.6, 0.66), to the sun's cyan, (0.84, 0.97, 1), both sRGB. The shade is nearer the light than the land's, so the light is softer. The colours are provisional until the stills.
+     - **The caustics:** one layer of 3D Worley noise, Babylon's own block. Its web is where a fragment's nearest two points are nearly as near as each other: F2 − F1 under 0.08 of a cell.
+       - Its cells are 2.5 m across, over x and z only, so a body's head and the floor under it share the web.
+       - Time is its third axis, at 0.3 cells a second, so the web shifts. It also drifts 0.05 and 0.02 cells a second along x and z.
+       - It adds (0.3, 0.42, 0.42), linear, times the web, on faces turned up: none at 0.5 of straight up, all of it from 0.9.
+       - It adds only where the sun reaches, and the more as it does: the full band takes it all, the middle band half and the shade none, so a shadow has no caustics in it.
+     - **The rays:** seven cards, one thin-instanced plane. Each is 24 m long and 1.6 to 3.4 m wide, slanting up the sun's way from 2 m under the player's feet.
+       - They stand in a 48 m square round the player, fixed in the world as they drift. Each drifts at 0.25 m a second, all much the same way, and wraps to the square's far side.
+       - Each swells and thins by 15%, slowly, and turns about its length to the camera.
+       - A ray narrows to nothing over the 4 m before the square's edge, so none pops as it wraps. Near the camera's line to the chest, it narrows to keep 1 m from that line.
+       - **Its look:** the sun's cyan, 0.12 at its brightest. It fades to nothing at its sides, rises from nothing over the lower 70% of its length, and fades out over its top 10%. It's added to what's behind it and writes no depth. It's fogged into black, not the sea's colour, so a far ray fades away rather than tinting the water.
+     - **The shaders aren't compiled in CI:** the unit tests run on a null engine. The stills show them, and no shipped map uses the sea sky until step 6.
+     - **Tests:**
+       - **The fixture:** a small sea below tiny (`shoal`, a basin with a reef, at 2 m), baked by regionbake's tests into the client's fixtures.
+       - **The material's own node graph, run block by block for a fragment:**
+         - a cyan top band, and a shade nearer the light than the land's;
+         - caustics on the web where a face turns up in the sun; none inside a cell, on a wall or in shade; half in the middle band;
+         - the web by x, z and time;
+         - none on the land or in a cave.
+       - **The rays:**
+         - six to eight, faint, added, fogged into black;
+         - slanting from above, turned to the camera;
+         - never across the camera's line to the chest, over 400 spots, cameras and moments;
+         - drifting under a metre a second, and round the player as they go;
+         - thinned to nothing as they wrap.
+       - **A sea region in the world:** a sun from nearly overhead with shadows, caustics on its ground, its sky and fog, and rays round the player, drifting.
 5. **Sea mobs:**
    - their models picked with the user from previews;
    - their data and stats, with the balance harness.
