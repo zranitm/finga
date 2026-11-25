@@ -382,6 +382,20 @@ These steps follow the regions' build (large-regions.md section 14).
      - **Only a body drawn gets one:** none under one whose model is still loading, or one hidden.
      - **No garbage:** the buffer is written in place each frame and doubles when it's full, and the walk over the bodies runs `forEach` with callbacks made once.
      - **Tests:** discs under the bodies within the reach and none past it, each at its ground and radius, blended, clearing the stencil, under the areas; only the frame's own drawn after a crowd, the buffer grown; on a hillside with a platform, a disc on the platform its body stands on, flat, and one on the slope sheared each way; in the world, the player's disc, none under a model still loading, then Robin's; none on the land.
+   - **As built (3b, KayKit's torches and their flames).**
+     - **The files:** `torch_lit` and `torch_mounted` from KayKit Dungeon Remastered 1.0, each texture shrunk to 256 px as the chest's was. `web/scripts/torches.ts` makes `models-src`'s from the pack's files, the same bytes on every run; `LICENSES.md` names it and says what was done to each.
+       - **The flame:** `torch_lit`'s flame triangles, told by their atlas colour (the flame's orange and yellow), cut out into `torch_flame`. `torch_mounted` has no flame of its own and takes the same one.
+       - **The origin:** each file has its cup's centre at its origin, the flame's too, so a torch stands raised by its kit model's `y`, kit.yaml's light height, and its flame draws at its light.
+     - **The scale:** 0.71, the characters' (the Knight's 2.467 units drawn 1.75 m), so the torches keep KayKit's own proportions beside the bodies. A mounted torch is 0.75 m from its bracket's foot to its cup's rim.
+     - **The standing torch:** at that scale KayKit's torch is a 0.75 m hand torch. Its handle's shaft is stretched into a stake, so its cup stands 1.8 m up, as kit.yaml's light has it; kit.yaml's thin cylinder, 0.15 m round and 1.9 m tall, is kept.
+     - **The mounted torch** faces out from the wall, its bracket behind it at −z. It stands a cell and a half short of the rock, so its bracket may hang clear of the wall; the stills judge it.
+     - **Flames:** one thin-instanced mesh of `torch_flame`, drawn unlit, at full colour and fogged, one instance a light.
+       - Each scales with its group's flicker. `flicker()` runs the light's FLICKERS table in JS on the toon materials' clock, the engine's seconds, so a flame swings with the light it gives.
+       - **The glow card:** a plane 0.9 m across per flame, turned to the camera about the vertical and set 12 cm behind the flame from it, so the flame draws over it. It draws after the ground's blended meshes and before every effect, so a fight's effects draw over it. It's the torches' orange, 0.5 at its middle and fading to its rim, added to what's behind it, writing no depth. It's fogged, so a far glow fades into the cave's black with its flame.
+     - **Tests:**
+       - the test cave gains a standing torch in its hall, so it has both models;
+       - in the world, each torch's cup at its light, mounted and standing alike; each flame at its light, unlit, at its group's flicker for the frame's moment; each card turned to the camera and behind its flame; the card added, fogged, out in gamma;
+       - the JS flicker against the material's own graph, at every moment.
 4. **The sea look:**
    - caustics, rays, sway, bubbles and fish;
    - the Blender models;

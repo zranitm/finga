@@ -17,7 +17,7 @@ import { fixtureFile } from '@/testing/region-fixture';
 
 import { readLight } from './region-bake';
 import { Palette } from './toon';
-import { FLICKERS, FLOOR, TORCH, Torchlight } from './torchlight';
+import { flicker, FLICKERS, FLOOR, TORCH, Torchlight } from './torchlight';
 
 let engine: NullEngine;
 let scene: Scene;
@@ -131,6 +131,18 @@ describe('a cave’s toon materials (underground-and-underwater.md section 7)', 
     });
     expect(swings[0]).not.toEqual(swings[1]);
     expect(lit(1, 1, 3)).toBe(1); // two torches' light held to full
+  });
+
+  it('flicker as the flames do: the same table, run in JS, gives the shader’s swing at every moment', () => {
+    const cave = caveToon(fixtureFile('hollow', 'light.bin'));
+    for (const group of [0, 1]) {
+      for (let seconds = 0; seconds < 30; seconds += 0.37) {
+        expect(value(cave, `flickered${group}1`, 0, 0, seconds)).toBeCloseTo(
+          flicker(group, seconds),
+          12,
+        );
+      }
+    }
   });
 
   it('draw a cave with no torches at its floor everywhere', () => {

@@ -13,6 +13,8 @@ export const AREA_ORDER = -2;
 /** A region's water draws first of the blended meshes, so a near see-through prop, halo, area or ring isn't hidden behind its region-wide surface. */
 export const WATER_ORDER = -3;
 export const RING_ORDER = -1;
+/** A torch's glow card: after the ground's blended meshes, before every effect, so a fight's effects draw over it. */
+export const GLOW_ORDER = -0.5;
 const MARK = 1; // what a mesh with no stencil of its own writes, as the lock's outline leaves it for the meshes it doesn't outline
 const CLEAR = 0;
 
