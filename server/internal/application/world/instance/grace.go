@@ -67,7 +67,7 @@ func (i *Instance) hold(id kernel.CharacterID, conn string) bool {
 	}
 	p.sink = botSink{}
 	p.held, p.pending = sim.Input{}, nil
-	p.action, p.windUps, p.attackQueued = action{}, nil, false // what their keys began ends with the connection
+	p.windUps, p.attackQueued = nil, false // a hit still to land and an attack still to start go with the connection
 	if m := p.waitingCast; m != nil {
 		m.done <- ErrSinkClosed
 		p.waitingCast = nil

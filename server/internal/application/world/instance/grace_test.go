@@ -6,6 +6,7 @@ import (
 	"math"
 	"regexp"
 	"slices"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -184,39 +185,42 @@ func TestAReturnIsToldTheArenaBarWorn(t *testing.T) {
 // A held body steps on no keys, those its connection sent before the drop that come after it too: a skill's hit still to land as it drops, an attack queued behind it and a skill waiting its turn never go, and a walk, a basic attack and a skill do nothing, each skill told its connection is gone.
 func TestAHeldBodyStepsOnNoLateKeys(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := worldtest.LoadData(t)
+		data := worldtest.LoadDataWith(t, map[string]func(string) string{"skills.yaml": func(s string) string {
+			return strings.Replace(s, "    power: {base: 1.4, per_point: 0.04}", "    hit: 0.4\n    power: {base: 1.4, per_point: 0.04}", 1) // Slash Blast lands 400 ms into its swing
+		}})
 		ayla, robin := fighterFrom(t, data, "Ayla"), fighterFrom(t, data, "Robin")
 		f, stop := fightOf(t, data, duel(model.Fighter{Character: ayla.ID}, model.Fighter{Character: robin.ID}), ayla, robin)
 		defer stop()
 		ctx := context.Background()
 		as, rs := f.sinks[ayla.ID], f.sinks[robin.ID]
 		robinAt, _ := rs.Own(robin.ID)
-		seq := walkTo(f.inst, as, ayla.ID, 0, robinAt.State.Z-5, 0.2)
-		if err := f.inst.UseSkill(ctx, ayla.ID, ayla.Connection, model.SkillUse{Skill: "charge", Root: "strike", Target: model.EntityRef{Player: robin.ID}, Way: sim.Way{Z: 1, Length: 5}}, seq); err != nil {
+		lock := model.EntityRef{Player: robin.ID}
+		seq := walkTo(f.inst, as, ayla.ID, 0, robinAt.State.Z-1.2, 0.2)
+		if err := f.inst.UseSkill(ctx, ayla.ID, ayla.Connection, model.SkillUse{Skill: "slash_blast", Root: "slash_blast", Target: lock}, seq); err != nil {
 			t.Fatal(err)
 		}
-		_ = f.inst.Attack(ayla.ID, 0, model.EntityRef{Player: robin.ID}) // queued till the charge's cancel point
+		_ = f.inst.Attack(ayla.ID, 0, lock) // queued till Slash Blast's cancel point
 		waiting := make(chan error, 1)
 		go func() {
-			waiting <- f.inst.UseSkill(ctx, ayla.ID, ayla.Connection, model.SkillUse{Skill: "strike", Root: "strike", Target: model.EntityRef{Player: robin.ID}}, seq)
+			waiting <- f.inst.UseSkill(ctx, ayla.ID, ayla.Connection, model.SkillUse{Skill: "war_cry", Root: "war_cry"}, seq)
 		}()
-		seq = worldtest.Walk(f.inst, ayla.ID, seq, sim.Input{}, 1) // the dash starts, its hit 300 ms on
+		seq = worldtest.Walk(f.inst, ayla.ID, seq, sim.Input{}, 1)
 		holdOf(t, f.inst, ayla)
 		if err := <-waiting; !errors.Is(err, instance.ErrSinkClosed) {
 			t.Fatalf("a skill waiting its turn as the connection drops: %v, want ErrSinkClosed", err)
 		}
 		sleep(time.Second)
 		if hits := hitsOn(rs, robin.ID); len(hits) != 0 {
-			t.Fatalf("Robin took %+v, want the charge's hit dropped with the connection", hits)
+			t.Fatalf("Robin took %+v, want Slash Blast's hit and the queued attack gone with the connection", hits)
 		}
 		stood, _ := rs.Own(ayla.ID)
 		for range 10 {
 			seq++
 			_ = f.inst.Input(ayla.ID, seq, sim.Input{Up: true}, 0)
-			_ = f.inst.Attack(ayla.ID, 0, model.EntityRef{Player: robin.ID})
+			_ = f.inst.Attack(ayla.ID, 0, lock)
 			sleep(worldtest.TickInterval)
 		}
-		if err := f.inst.UseSkill(ctx, ayla.ID, ayla.Connection, model.SkillUse{Skill: "strike", Root: "strike", Target: model.EntityRef{Player: robin.ID}}, seq); !errors.Is(err, instance.ErrSinkClosed) {
+		if err := f.inst.UseSkill(ctx, ayla.ID, ayla.Connection, model.SkillUse{Skill: "war_cry", Root: "war_cry"}, seq); !errors.Is(err, instance.ErrSinkClosed) {
 			t.Fatalf("a skill pressed on the held body: %v, want ErrSinkClosed", err)
 		}
 		sleep(time.Second)
