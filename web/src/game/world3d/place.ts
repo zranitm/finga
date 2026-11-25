@@ -45,7 +45,7 @@ const SKIES: Readonly<Record<string, Sky>> = {
   desert: { color: 0xf1dcae, fog: [40, 125] },
   snow: { color: 0xd9e5ef, fog: [30, 95] },
   shroom: { color: 0x8c7fb8, fog: [26, 80] },
-  cave: { color: 0x18161f, fog: [17, 42] },
+  cave: { color: 0x000000, fog: [14, 40] }, // no sky underground: black, the torches' light fading into it
 };
 const FOG_OUT = 3.6; // zoomed right out, the fog starts and ends this many times as far: a day sky's from about 160 m to 500 m (large-regions.md section 9)
 
@@ -540,7 +540,7 @@ function standInSolid(
     const steps = STEPS.map((a) => palette.toon(base, a, true, true));
     mesh.material = steps[0]!;
     mesh.receiveShadows = true;
-    shadows.addShadowCaster(mesh, false);
+    shadows?.addShadowCaster(mesh, false);
     shades.push({ mesh, steps });
     fades.push(...steps.slice(1).map((m): [Material, AbstractMesh] => [m, mesh]));
     palette.outline(mesh, true);

@@ -156,7 +156,7 @@ describe('a region drawn from its bake', () => {
     const waypoints = [{ id: 'field', name: 'Field', x: 30, z: 64, y: 0, main: true }]; // the tiny plan's
     place = buildRegion(
       scene,
-      { ref: TINY, region, overview, ground, waypoints },
+      { ref: TINY, region, overview, light: null, ground, waypoints },
       lighting,
       models,
       source,
@@ -232,7 +232,7 @@ describe('a region drawn from its bake', () => {
         expect((part.getChildMeshes(true)[0] as Mesh).thinInstanceCount).toBe(oaks); // its ink
       }
     }
-    const casting = () => new Set(lighting.shadows.getShadowMap()!.renderList);
+    const casting = () => new Set(lighting.shadows!.getShadowMap()!.renderList);
     expect(casting()).toEqual(new Set(ALL.flatMap(copies))); // each chunk's props, within 128 m, their inks not
     for (const part of copies('1_1')) {
       const { minimumWorld: lo, maximumWorld: hi } = part.getBoundingInfo().boundingBox;
@@ -455,7 +455,7 @@ describe('a region drawn from its bake', () => {
     for (const c of made) {
       expect([c.isEnabled(), c.material?.name]).toEqual([true, expect.stringMatching(/ 0\.3$/)]);
       expect(c.getChildMeshes(true)).toEqual([]); // no ink
-      expect(lighting.shadows.getShadowMap()!.renderList).toContain(c); // its shadow cast still, as its chunk's near
+      expect(lighting.shadows!.getShadowMap()!.renderList).toContain(c); // its shadow cast still, as its chunk's near
     }
     const scale = (m: Mesh, n: number) => {
       const s = new Vector3();

@@ -1,4 +1,4 @@
-// The scene's materials (3d-world.md section 11): one toon NodeMaterial per base colour or texture, its light posterized into flat bands, an inverted hull for the ink line, and an unlit glow; all take the scene's fog.
+// The scene's materials (3d-world.md section 11): one toon NodeMaterial per base colour or texture, its light posterized into flat bands, the sun's or a cave's torches', an inverted hull for the ink line, and an unlit glow; all take the scene's fog.
 import { Constants } from '@babylonjs/core/Engines/constants';
 import type { Material } from '@babylonjs/core/Materials/material';
 import { AddBlock } from '@babylonjs/core/Materials/Node/Blocks/addBlock';
@@ -13,6 +13,7 @@ import { DiscardBlock } from '@babylonjs/core/Materials/Node/Blocks/Fragment/dis
 import { FragCoordBlock } from '@babylonjs/core/Materials/Node/Blocks/Fragment/fragCoordBlock';
 import { FragmentOutputBlock } from '@babylonjs/core/Materials/Node/Blocks/Fragment/fragmentOutputBlock';
 import { FrontFacingBlock } from '@babylonjs/core/Materials/Node/Blocks/Fragment/frontFacingBlock';
+import { AnimatedInputBlockTypes } from '@babylonjs/core/Materials/Node/Blocks/Input/animatedInputBlockTypes';
 import { InputBlock } from '@babylonjs/core/Materials/Node/Blocks/Input/inputBlock';
 import { LengthBlock } from '@babylonjs/core/Materials/Node/Blocks/lengthBlock';
 import { LerpBlock } from '@babylonjs/core/Materials/Node/Blocks/lerpBlock';
@@ -28,6 +29,10 @@ import { SmoothStepBlock } from '@babylonjs/core/Materials/Node/Blocks/smoothSte
 import { StepBlock } from '@babylonjs/core/Materials/Node/Blocks/stepBlock';
 import { SubtractBlock } from '@babylonjs/core/Materials/Node/Blocks/subtractBlock';
 import { TransformBlock } from '@babylonjs/core/Materials/Node/Blocks/transformBlock';
+import {
+  TrigonometryBlock,
+  TrigonometryBlockOperations,
+} from '@babylonjs/core/Materials/Node/Blocks/trigonometryBlock';
 import { VectorMergerBlock } from '@babylonjs/core/Materials/Node/Blocks/vectorMergerBlock';
 import { VectorSplitterBlock } from '@babylonjs/core/Materials/Node/Blocks/vectorSplitterBlock';
 import { BonesBlock } from '@babylonjs/core/Materials/Node/Blocks/Vertex/bonesBlock';
@@ -47,6 +52,8 @@ import type { Scene } from '@babylonjs/core/scene';
 
 import { CUT_MOBS } from './cut-mobs';
 import { clearsMark, GHOST, markOthers, onPlace } from './see-through';
+import { FLICKERS, FLOOR, TORCH } from './torchlight';
+import type { Torchlight } from './torchlight';
 
 /** The light bands a surface steps through: shade, mid and lit; in shade it keeps this share of its colour, a cool grey. */
 const BANDS = 3;
@@ -413,6 +420,75 @@ function built(
   return m;
 }
 
+/** The sun's diffuse light at the fragment: every light on the mesh, the sun alone here. */
+function sunlight(s: Skinned): NodeMaterialConnectionPoint {
+  const light = new LightBlock('light');
+  const normal = new NormalizeBlock('normal'); // the world matrix carries the model's scale
+  s.worldNormal.output.connectTo(normal.input);
+  s.worldPos.output.connectTo(light.worldPosition);
+  normal.output.connectTo(light.worldNormal);
+  s.system('cameraPosition', NodeMaterialSystemValues.CameraPosition).output.connectTo(
+    light.cameraPosition,
+  );
+  return light.diffuseOutput;
+}
+
+/** A cave's light at the fragment: the light map at its x and z, each group's times its flicker, their sum held to 1. */
+function torchlight(s: Skinned, t: Torchlight): NodeMaterialConnectionPoint {
+  const at = new VectorSplitterBlock('at');
+  s.worldPos.output.connectTo(at.xyzw);
+  const xz = new VectorMergerBlock('xz');
+  at.x.connectTo(xz.x);
+  at.z.connectTo(xz.y);
+  const size = new InputBlock('lightSize');
+  size.value = new Vector2(...t.size);
+  const uv = new DivideBlock('lightUv');
+  xz.xyOut.connectTo(uv.left);
+  size.output.connectTo(uv.right);
+  const map = new TextureBlock('lightMap');
+  map.texture = t.texture;
+  uv.output.connectTo(map.uv);
+  const time = new InputBlock('time', undefined, NodeMaterialBlockConnectionPointTypes.Float);
+  time.animationType = AnimatedInputBlockTypes.RealTime;
+  const lit = [map.r, map.g].map((group, g) => {
+    const lit = new MultiplyBlock(`group${g}`);
+    group.connectTo(lit.left);
+    flickering(g, time.output).connectTo(lit.right);
+    return lit.output;
+  });
+  const sum = new AddBlock('torches');
+  lit[0]!.connectTo(sum.left);
+  lit[1]!.connectTo(sum.right);
+  const held = new MinBlock('torchlight');
+  sum.output.connectTo(held.left);
+  constant('full', 1).output.connectTo(held.right);
+  return held.output;
+}
+
+/** Group's flicker at time, in seconds: 1 plus each of its sines. */
+function flickering(group: number, time: NodeMaterialConnectionPoint): NodeMaterialConnectionPoint {
+  let f: NodeMaterialConnectionPoint = constant(`flicker${group}`, 1).output;
+  FLICKERS[group]!.forEach(({ amp, rate, phase }, k) => {
+    const turned = new ScaleBlock(`turned${group}${k}`);
+    time.connectTo(turned.input);
+    constant(`rate${group}${k}`, rate).output.connectTo(turned.factor);
+    const phased = new AddBlock(`phased${group}${k}`);
+    turned.output.connectTo(phased.left);
+    constant(`phase${group}${k}`, phase).output.connectTo(phased.right);
+    const sine = new TrigonometryBlock(`sine${group}${k}`);
+    sine.operation = TrigonometryBlockOperations.Sin;
+    phased.output.connectTo(sine.input);
+    const swing = new ScaleBlock(`swing${group}${k}`);
+    sine.output.connectTo(swing.input);
+    constant(`amp${group}${k}`, amp).output.connectTo(swing.factor);
+    const next = new AddBlock(`flickered${group}${k}`);
+    f.connectTo(next.left);
+    swing.output.connectTo(next.right);
+    f = next.output;
+  });
+  return f;
+}
+
 function toonMaterial(
   name: string,
   scene: Scene,
@@ -421,24 +497,16 @@ function toonMaterial(
   cut: Cut | null,
   place = cut !== null,
   hollow = false,
+  torches: Torchlight | null = null,
 ): NodeMaterial {
   const s = new Skinned();
   s.place(s.worldPos.output);
 
-  const light = new LightBlock('light'); // every light on the mesh: the sun alone, here
-  const normal = new NormalizeBlock('normal'); // the world matrix carries the model's scale
-  s.worldNormal.output.connectTo(normal.input);
-  s.worldPos.output.connectTo(light.worldPosition);
-  normal.output.connectTo(light.worldNormal);
-  s.system('cameraPosition', NodeMaterialSystemValues.CameraPosition).output.connectTo(
-    light.cameraPosition,
-  );
-
-  // Posterize floors the light into 0, ⅓ and ⅔; stretched to 0, ½ and 1, the top band is the colour itself.
+  // Posterize floors the light into 0, ⅓ and ⅔; stretched to 0, ½ and 1, the top band is the colour itself, or in a cave the torches' warm light.
   const steps = new InputBlock('bands');
   steps.value = BANDS;
   const floored = new PosterizeBlock('floored');
-  light.diffuseOutput.connectTo(floored.value);
+  (torches ? torchlight(s, torches) : sunlight(s)).connectTo(floored.value);
   steps.output.connectTo(floored.steps);
   const stretch = new InputBlock('stretch');
   stretch.value = BANDS / (BANDS - 1);
@@ -448,12 +516,18 @@ function toonMaterial(
   const banded = new ClampBlock('banded');
   stretched.output.connectTo(banded.value);
   const shade = new InputBlock('shade');
-  shade.value = SHADE;
+  shade.value = torches ? FLOOR : SHADE;
   const lit = new InputBlock('lit');
   lit.value = Color3.White();
   const tone = new LerpBlock('tone');
   shade.output.connectTo(tone.left);
-  lit.output.connectTo(tone.right);
+  if (torches) {
+    const torch = new InputBlock('torch');
+    torch.value = TORCH;
+    torch.output.connectTo(tone.right);
+  } else {
+    lit.output.connectTo(tone.right);
+  }
   banded.output.connectTo(tone.gradient);
 
   const color = new InputBlock('color');
@@ -637,7 +711,11 @@ export class Palette {
     over: Array.from({ length: CUT_MOBS }, () => 0),
   };
 
-  constructor(private readonly scene: Scene) {
+  /** A scene's palette, its toon materials lit by a cave's torches when given them, else by the sun. */
+  constructor(
+    private readonly scene: Scene,
+    private readonly torches: Torchlight | null = null,
+  ) {
     markOthers(scene);
   }
 
@@ -656,6 +734,7 @@ export class Palette {
         cut ? this.cut : null,
         cut,
         inside,
+        this.torches,
       );
       this.made.set(key, m);
     }
@@ -672,6 +751,8 @@ export class Palette {
       1,
       null,
       true,
+      false,
+      this.torches,
     );
   }
 

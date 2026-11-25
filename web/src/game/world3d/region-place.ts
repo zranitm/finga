@@ -421,9 +421,9 @@ class RegionView implements Place {
   /** Makes m cast the sun's shadow, or stop. */
   private cast(m: Mesh, on: boolean): void {
     if (on) {
-      this.lighting.shadows.addShadowCaster(m, false);
+      this.lighting.shadows?.addShadowCaster(m, false);
     } else {
-      this.lighting.shadows.removeShadowCaster(m, false);
+      this.lighting.shadows?.removeShadowCaster(m, false);
     }
   }
 

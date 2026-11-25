@@ -115,7 +115,7 @@ import { LockRing } from './lock-ring';
 import { drawnAs, mobLook, npcLook, playerLook } from './looks';
 import type { ModelLook } from './looks';
 import { groundUnder, loadMap, standsIn } from './map';
-import type { WorldMap } from './map';
+import type { RegionMap, WorldMap } from './map';
 import type { ActionPose } from './model-looks';
 import { Models } from './models';
 import type { ModelSource } from './models';
@@ -132,6 +132,7 @@ import { buildRegion } from './region-place';
 import { ShieldBubbles } from './shield-bubbles';
 import { teleportGlow } from './teleport-glow';
 import { Palette } from './toon';
+import { Torchlight } from './torchlight';
 
 /** Who enters the world. */
 export interface Player {
@@ -173,6 +174,20 @@ const CARRY_M =
 const BANNER_MS = 1800;
 const STALL_MS = 2000; // 40 ticks without a frame: the world has stalled, though the socket is open
 const SUN = new Vector3(0.35, -1, 0.6);
+
+/** A map under the sun: its light, and its shadows, cascaded over a region. */
+function sunLighting(scene: Scene, map: WorldMap): Lighting {
+  const sun = new DirectionalLight('sun', SUN.normalizeToNew(), scene);
+  return {
+    palette: new Palette(scene),
+    shadows: (map.region ? regionShadows : sunShadows)(sun, SHADOW_MAP),
+  };
+}
+
+/** A cave region's lighting (underground-and-underwater.md section 7): no sun and so no shadows, its toon materials lit by its torches' light map; the old open-topped Cave keeps the sun. */
+function caveLighting(scene: Scene, cave: RegionMap): Lighting {
+  return { palette: new Palette(scene, new Torchlight(scene, cave.light)), shadows: null };
+}
 const SHADOW_MAP = 2048;
 const TURN_MS = 60; // a turn eases most of the way in this
 const MAX_FRAME_MS = 100; // a frame after a stall moves no further than this
@@ -679,11 +694,10 @@ export class World {
     let pouchMarks: PouchMarks;
     let fx: Fx;
     try {
-      const sun = new DirectionalLight('sun', SUN.normalizeToNew(), scene);
-      lighting = {
-        palette: new Palette(scene),
-        shadows: (map.region ? regionShadows : sunShadows)(sun, SHADOW_MAP),
-      };
+      lighting =
+        map.region?.region.sky === 'cave'
+          ? caveLighting(scene, map.region)
+          : sunLighting(scene, map);
       const models = new Models(scene, this.deps.models);
       figures = new Figures(scene, lighting, models);
       pouchMarks = new PouchMarks(scene, models, lighting);

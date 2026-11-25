@@ -132,7 +132,7 @@ async function castShadows(want: readonly AbstractMesh[]): Promise<void> {
   }
   scene.activeCamera ??= new FreeCamera('eye', new Vector3(20, 30, -10), scene);
   const cast = new Set<AbstractMesh>();
-  const watch = lighting.shadows.onBeforeShadowMapRenderMeshObservable.add((m) => cast.add(m));
+  const watch = lighting.shadows!.onBeforeShadowMapRenderMeshObservable.add((m) => cast.add(m));
   try {
     await vi.waitFor(() => {
       cast.clear();
@@ -140,7 +140,7 @@ async function castShadows(want: readonly AbstractMesh[]): Promise<void> {
       expect(want.filter((m) => !cast.has(m))).toEqual([]);
     });
   } finally {
-    lighting.shadows.onBeforeShadowMapRenderMeshObservable.remove(watch);
+    lighting.shadows!.onBeforeShadowMapRenderMeshObservable.remove(watch);
   }
 }
 
@@ -290,8 +290,8 @@ describe('a map drawn', () => {
     expect(scene.getMeshByName('cliffs')).toBeNull();
     expect(scene.fogMode).toBe(Scene.FOGMODE_NONE);
     await buildPlace(scene, await mapOf('cave'), lighting, new Models(scene, source));
-    expect(scene.fogEnd).toBe(42);
-    expect(scene.clearColor.r).toBeLessThan(0.1);
+    expect([scene.fogStart, scene.fogEnd]).toEqual([14, 40]);
+    expect(scene.clearColor.toHexString().slice(0, 7)).toBe('#000000');
   });
 });
 

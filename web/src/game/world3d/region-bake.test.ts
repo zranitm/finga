@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { servePublic } from '@/testing/public-on-disk';
-import { TINY as REF, tinyFile as bakeFile } from '@/testing/region-fixture';
+import { fixtureFile, HOLLOW, TINY as REF, tinyFile as bakeFile } from '@/testing/region-fixture';
 
-import { loadRegion, readChunk, readOverview } from './region-bake';
+import { loadRegion, readChunk, readLight, readOverview } from './region-bake';
 import type { Chunk } from './region-bake';
 
 const N = 33; // samples a chunk side: 64 m at 2 m, and the shared edge
@@ -65,6 +65,33 @@ describe('a region bake, read as regionbake writes it', () => {
       }
     }
     expect(new Set(c00!.heights).size).toBeGreaterThan(100); // rolling ground, not a flat field
+  });
+
+  it('loads a cave’s flames and light map, lit under each flame and dark on the rock; the land has neither', async () => {
+    servePublic();
+    const land = await loadRegion(REF);
+    expect([land.region.under, land.region.lights, land.light]).toEqual(['', [], null]);
+    const { region, light } = await loadRegion(HOLLOW);
+    expect([region.under, region.sky]).toEqual(['tiny', 'cave']);
+    expect(region.lights.length).toBeGreaterThan(10);
+    expect(new Set(region.lights.map((f) => f.group))).toEqual(new Set([0, 1]));
+    expect(light).toMatchObject({ nx: 128, nz: 128 });
+    const at = (x: number, z: number, group: number) =>
+      light!.texels[2 * (Math.floor(z) * light!.nx + Math.floor(x)) + group]!;
+    for (const f of region.lights) {
+      expect(f.y).toBeGreaterThan(1); // its flame over the floor
+      expect(at(f.x, f.z, f.group)).toBeGreaterThan(200);
+    }
+    expect([at(34, 110, 0), at(34, 110, 1)]).toEqual([0, 0]); // rock, 22 m past the hall's north wall
+  });
+
+  it('refuses a light map of other than two groups, or cut short', () => {
+    const file = fixtureFile('hollow', 'light.bin');
+    expect(readLight(file).texels).toHaveLength(2 * 128 * 128);
+    const three = file.slice(0);
+    new DataView(three).setUint16(10, 3, true);
+    expect(() => readLight(three)).toThrow('light.bin: 3 groups');
+    expect(() => readLight(file.slice(0, -1))).toThrow('light.bin: 2 groups');
   });
 
   it('holds each prop in the chunk holding its centre, of a model the region names', async () => {
