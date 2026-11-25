@@ -3,7 +3,12 @@ import { act, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { maps } from '@/gamedata/maps';
-import { FieldBossGoneSchema, MatchPhase, MatchStateSchema, WelcomeSchema } from '@/protocol/messages';
+import {
+  FieldBossGoneSchema,
+  MatchPhase,
+  MatchStateSchema,
+  WelcomeSchema,
+} from '@/protocol/messages';
 import { character } from '@/state/character';
 import { fieldBoss } from '@/state/field-boss';
 import { mapView, NO_GROUND } from '@/state/map-view';
