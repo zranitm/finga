@@ -2,6 +2,7 @@ package regiongen
 
 import (
 	"math"
+	"slices"
 	"testing"
 )
 
@@ -122,6 +123,114 @@ func TestTheTestCavesSpotsAreCarved(t *testing.T) {
 	for _, s := range append(spots, p.spots()...) {
 		if c := r.colourAt(int(s.at[0]/p.Cell), int(s.at[1]/p.Cell)); c == rockColour {
 			t.Errorf("%s at %v stands on the rock", s.what, s.at)
+		}
+	}
+}
+
+// The test cave's halls have no ground too steep to walk away from their walls: a tunnel joining one carves no pit or trench into it.
+func TestTheTestCavesHallsHaveNoSteepGround(t *testing.T) {
+	p := plan(t, "testdata/cave.yaml")
+	r := build(t, p)
+	g := grid{nx: samples(p.Size[0], p.Cell), nz: samples(p.Size[1], p.Cell), cell: p.Cell}
+	keep := p.wallReach() + p.Cell
+	for i, f := range p.Features {
+		if f.Hall == nil {
+			continue
+		}
+		area := f.Hall.Area
+		g.fill(area, func(s int) {
+			x, z := g.x(s%g.nx), g.x(s/g.nx)
+			for k, a := range area {
+				if d2, _ := segment(x, z, a, area[(k+1)%len(area)]); d2 < float64(keep*keep) {
+					return
+				}
+			}
+			mx, mz := x+p.Cell/2, z+p.Cell/2
+			if r.Geometry.Terrain.Steep(mx, mz, false) || r.Geometry.Terrain.Steep(mx, mz, true) {
+				t.Errorf("feature %d: the hall's ground is steep at (%g, %g)", i+1, mx, mz)
+			}
+		})
+	}
+}
+
+// steepCells are the cells whose middles keep passes and are steep along x or z.
+func steepCells(r *Region, keep func(x, z float64) bool) [][2]float64 {
+	t := r.Geometry.Terrain
+	var steep [][2]float64
+	for iz := range t.NZ - 1 {
+		for ix := range t.NX - 1 {
+			x, z := float64(float64(ix)+0.5)*t.Cell, float64(float64(iz)+0.5)*t.Cell
+			if keep(x, z) && (t.Steep(x, z, false) || t.Steep(x, z, true)) {
+				steep = append(steep, [2]float64{x, z})
+			}
+		}
+	}
+	return steep
+}
+
+// A tunnel's floor joins the hall it starts in and the tunnel it branches from, though the ground's mean along it misses their floors: no pit or step in either. Without the floor rule, seed 10's tunnel digs into the hall; without the join, seed 28's branch steps down into the tunnel it leaves.
+func TestATunnelJoinsTheSpacesItMeets(t *testing.T) {
+	for _, seed := range []uint32{10, 28} {
+		p := flat()
+		cave(&p)
+		p.Seed, p.Rock.Rough = seed, 1
+		p.Ground.Noise = Noise{Scale: 30, Amplitude: 3, Octaves: 2}
+		hall := [][2]float64{{16, 40}, {48, 40}, {48, 88}, {16, 88}}
+		p.Features = []Feature{{Hall: &Hall{Area: hall}}, {Tunnel: &Tunnel{Path: [][2]float64{{40, 64}, {108, 64}}, Width: 8}}, {Tunnel: &Tunnel{Path: [][2]float64{{80, 64}, {80, 104}}, Width: 8}}}
+		r := build(t, p)
+		keep := p.Rock.Rough + p.Cell // a wall's foot wanders in this far
+		for what, in := range map[string]func(x, z float64) bool{
+			"the hall": func(x, z float64) bool {
+				return contains(hall, [2]float64{x, z}) && !onPath(append(slices.Clone(hall), hall[0]), [2]float64{x, z}, keep)
+			},
+			"the tunnel, from its start in the hall": func(x, z float64) bool { return x > 40 && x < 108-4 && math.Abs(z-64) < 4-keep },
+			"the branch":                             func(x, z float64) bool { return z > 64 && z < 104-4 && math.Abs(x-80) < 4-keep },
+		} {
+			if got := steepCells(r, in); len(got) > 0 {
+				t.Errorf("seed %d: %s is steep away from its walls at %v", seed, what, got)
+			}
+		}
+	}
+}
+
+// join holds a tunnel's floor to a flat hall's and an earlier tunnel's where its path runs through them, and between them keeps it within half the walkable slope of theirs.
+func TestJoinHoldsATunnelToTheFloorsItMeets(t *testing.T) {
+	b := &builder{
+		p:        Plan{Features: []Feature{{Hall: &Hall{Area: [][2]float64{{0, -5}, {10, -5}, {10, 5}, {0, 5}}, Flat: true}}}},
+		maxSlope: 0.7,
+		flat:     []float64{2},
+		tunnels:  []carved{{path: [][2]float64{{60, -10}, {60, 10}}, levels: []float64{9, 9}, half: 3}},
+	}
+	path := [][2]float64{{5, 0}, {15, 0}, {25, 0}, {35, 0}, {45, 0}, {55, 0}, {60, 0}}
+	levels := make([]float64, len(path))
+	b.join(path, along(path), levels)
+	want := []float64{2, 0, 0, 0.25, 3.75, 7.25, 9} // the hall's 2, the ground's 0 where both ramps allow it, then 0.35 a metre down from the tunnel's 9
+	for i := range want {
+		if math.Abs(levels[i]-want[i]) > 1e-9 {
+			t.Fatalf("levels %v; want %v", levels, want)
+		}
+	}
+	b.tunnels = append(b.tunnels, carved{path: [][2]float64{{17, -10}, {17, 10}}, levels: []float64{9, 9}, half: 3})
+	short := [][2]float64{{5, 0}, {11, 0}, {17, 0}} // floors 7 m apart over 12 m, past the ramp's 0.35 a metre
+	levels = make([]float64, len(short))
+	b.join(short, along(short), levels)
+	if math.Abs(levels[1]-5.5) > 1e-9 {
+		t.Errorf("between joins too far apart for the ramp: %v; want 5.5, halfway between the hall's 2 + 2.1 and the tunnel's 9 − 2.1", levels[1])
+	}
+}
+
+// A cave's rock is deep water's mark, a wall at any height, from a body's radius before its wall's foot.
+func TestACavesRockIsAWallFromABodysRadiusBeforeItsFoot(t *testing.T) {
+	p := flat()
+	cave(&p)
+	p.Cell = 0.25
+	p.Features = []Feature{{Hall: &Hall{Area: [][2]float64{{40, 40}, {88, 40}, {88, 88}, {40, 88}}}}}
+	r := build(t, p)
+	tr := r.Geometry.Terrain
+	walled := func(x float64) bool { return tr.DeepWater[int(64/p.Cell)*tr.NX+int(x/p.Cell)] }
+	for x, want := range map[float64]bool{30: true, 39.75: true, 40: true, 40.25: true, 40.5: false, 64: false} { // the body's 0.375 m
+		if walled(x) != want {
+			t.Errorf("the sample at x = %g is marked %v; want %v", x, walled(x), want)
 		}
 	}
 }

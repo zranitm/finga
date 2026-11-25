@@ -123,7 +123,7 @@ func TestARegionLoadsAsAMapOfItsPlan(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		r, err := regiongen.Generate(p, k, d.Movement().MaxSlope)
+		r, err := regiongen.Generate(p, k, d.Movement())
 		if err != nil {
 			t.Fatal(err)
 		}

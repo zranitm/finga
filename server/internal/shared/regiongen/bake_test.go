@@ -295,3 +295,49 @@ func TestSolidsReachAsFarAsTheWidest(t *testing.T) {
 		}
 	}
 }
+
+// A cave with torches bakes light.bin: "FRLT", the format, its texels along x and z and two bytes in each, then its light map. Its region.json names the region above and each torch's flame and group. A region without torches has no light.bin, no region above and no flames.
+func TestACavesBakeCarriesItsLight(t *testing.T) {
+	r := build(t, plan(t, "testdata/cave.yaml"))
+	b, err := r.Bake()
+	if err != nil {
+		t.Fatal(err)
+	}
+	type meta struct {
+		Under  string
+		Lights []struct {
+			At    [2]float64
+			Y     float64
+			Group int
+		}
+	}
+	var m meta
+	if err := json.Unmarshal(fileOf(t, b, "region.json").Data, &m); err != nil {
+		t.Fatal(err)
+	}
+	if m.Under != "small" || len(m.Lights) < 10 || len(m.Lights) != len(r.Flames) || m.Lights[1].At != r.Flames[1].At || m.Lights[1].Y != r.Flames[1].Y || m.Lights[1].Group != 1 {
+		t.Errorf("region.json under %q with %d lights; want small, and the region's %d flames", m.Under, len(m.Lights), len(r.Flames))
+	}
+	k := shippedKit(t)
+	lit := slices.DeleteFunc(slices.Clone(r.Props), func(pr Prop) bool { return k.Models[r.Models[pr.Model]].Light == nil })
+	for i, f := range r.Flames {
+		pr := lit[i]
+		if want := f32(r.Geometry.Terrain.Height(pr.X, pr.Z) + k.Models[r.Models[pr.Model]].Light.Height); f.At != [2]float64{pr.X, pr.Z} || f.Y != want {
+			t.Fatalf("flame %d at %v, %v up; want the %s at (%v, %v), its flame %v up", i, f.At, f.Y, r.Models[pr.Model], pr.X, pr.Z, want)
+		}
+	}
+	got := fileOf(t, b, "light.bin").Data
+	var w writer
+	w.header("FRLT", 256, 128, 2)
+	if !bytes.Equal(got[:len(w.b)], w.b) || !bytes.Equal(got[len(w.b):], r.lightMap()) || len(got) != len(w.b)+2*256*128 {
+		t.Errorf("light.bin is %d bytes from %x; want the FRLT header and 2 bytes of light a texel", len(got), got[:min(len(got), 10)])
+	}
+	small := smallBake(t)
+	m = meta{}
+	if err := json.Unmarshal(fileOf(t, small, "region.json").Data, &m); err != nil {
+		t.Fatal(err)
+	}
+	if m.Under != "" || m.Lights == nil || len(m.Lights) != 0 || slices.ContainsFunc(small.Files, func(f File) bool { return f.Path == "light.bin" }) {
+		t.Errorf("small's region.json under %q with lights %v, light.bin baked %v; want none of them", m.Under, m.Lights, slices.ContainsFunc(small.Files, func(f File) bool { return f.Path == "light.bin" }))
+	}
+}

@@ -4,6 +4,8 @@ import path from 'node:path';
 import { TargetCamera } from '@babylonjs/core/Cameras/targetCamera';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
+import { CascadedShadowGenerator } from '@babylonjs/core/Lights/Shadows/cascadedShadowGenerator';
+import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
@@ -21,7 +23,7 @@ import type { Swing } from '../systems/mob-attacks';
 import { MOB_FASTEST, mobBeats } from './beats';
 import type { Beats } from './beats';
 import { BLEND_MS } from './blend';
-import { Body, FADED, RISE_MS, STILL, sunShadows } from './body';
+import { Body, FADED, regionShadows, RISE_MS, STILL, sunShadows } from './body';
 import type { Gait, Lighting } from './body';
 import { classLook, mobLook, npcLook } from './looks';
 import type { ModelLook } from './looks';
@@ -103,6 +105,36 @@ const beats = (start: number, hit: number, readyAt: number): Beats => ({
   strikeEnd: hit + (readyAt - hit) / 3,
   readyAt,
   end: readyAt + 100,
+});
+
+describe('a region’s sun shadows', () => {
+  it('fall in three cascades out to 80 m from the camera, held steady as it moves and cast by see-through meshes too; the one map’s where the engine can’t cascade', () => {
+    const own = new NullEngine();
+    const at = new Scene(own);
+    const sun = new DirectionalLight('sun', new Vector3(0.35, -1, 0.6).normalize(), at);
+    const plain = regionShadows(sun, 256);
+    expect([plain.constructor, plain.transparencyShadow]).toEqual([ShadowGenerator, true]); // the null engine can't
+    plain.dispose();
+    (own as unknown as { _features: { supportCSM: boolean } })._features.supportCSM = true;
+    const map = vi
+      .spyOn(
+        CascadedShadowGenerator.prototype as unknown as { _initializeGenerator(): void },
+        '_initializeGenerator',
+      )
+      .mockImplementation(() => undefined); // its shadow map, which wants a real GL context
+    const cascaded = regionShadows(sun, 256) as CascadedShadowGenerator;
+    map.mockRestore();
+    new TargetCamera('camera', Vector3.Zero(), at); // made after, as the world makes it: the cascades read their reach from it
+    expect(cascaded).toBeInstanceOf(CascadedShadowGenerator);
+    expect([
+      cascaded.numCascades,
+      cascaded.shadowMaxZ,
+      cascaded.stabilizeCascades,
+      cascaded.transparencyShadow,
+    ]).toEqual([3, 80, true, true]);
+    at.dispose();
+    own.dispose();
+  });
 });
 
 describe('the classes', () => {

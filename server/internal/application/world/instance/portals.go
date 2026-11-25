@@ -34,7 +34,11 @@ func (i *Instance) enterPortal(p *player) {
 			return
 		}
 		arrival := target.Portals[k].At
-		i.handOff(p, target, arrival.X, arrival.Z, awayFrom(target, arrival.X, arrival.Z))
+		dest := Dest{ID: target.ID}
+		if target.Under == i.m.ID || i.m.Under == target.ID { // the channel with the same number, so a party and those seen going in are there (underground-and-underwater.md section 6)
+			dest.Channel, dest.Paired = i.channel, true
+		}
+		i.handOffTo(p, target, arrival.X, arrival.Z, awayFrom(target, arrival.X, arrival.Z), dest)
 		return
 	}
 }

@@ -18,11 +18,21 @@ type Kit struct {
 	Models  map[string]Solid  `yaml:"models"`
 }
 
-// Solid is a model's footprint: a cylinder, a box, or none for looks only.
+// Solid is a model's footprint: a cylinder, a box, or none for looks only; and a torch's light.
 type Solid struct {
 	Cylinder *CylinderSolid `yaml:"cylinder,omitempty,flow"`
 	Box      *BoxSolid      `yaml:"box,omitempty,flow"`
+	Light    *Light         `yaml:"light,omitempty,flow"` // a torch's: any piece of the model lights a cave (underground-and-underwater.md section 3)
 }
+
+// Light is a torch's flame, Height above the ground it stands on, and how far its light falls.
+type Light struct {
+	Height float64 `yaml:"height"`
+	Reach  float64 `yaml:"reach"`
+}
+
+// maxLight is the farthest a torch's light falls, which bounds the light map's work per torch.
+const maxLight = 32
 
 // CylinderSolid stands Height above the ground at its centre.
 type CylinderSolid struct {
@@ -67,6 +77,8 @@ func DecodeKit(raw []byte) (Kit, error) {
 			return Kit{}, fmt.Errorf("model %s: a cylinder needs a radius up to %d m and a height up to %d m", name, maxReach, maxHeight)
 		case s.Box != nil && (!reach(s.Box.Width, maxReach) || !reach(s.Box.Depth, maxReach) || !reach(s.Box.Height, maxHeight)):
 			return Kit{}, fmt.Errorf("model %s: a box needs a width and depth up to %d m and a height up to %d m", name, maxReach, maxHeight)
+		case s.Light != nil && (!reach(s.Light.Height, maxHeight) || !reach(s.Light.Reach, maxLight)):
+			return Kit{}, fmt.Errorf("model %s: a light needs a height up to %d m and a reach up to %d m", name, maxHeight, maxLight)
 		}
 	}
 	return k, nil

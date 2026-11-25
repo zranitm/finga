@@ -36,15 +36,15 @@ type generation struct {
 	err      error
 }
 
-// generate is p's ground and its bake's folder, made once in the process for every load of the same plan, kit and slope.
-func generate(p regiongen.Plan, raw, kitRaw []byte, kit regiongen.Kit, maxSlope float64) (sim.Geometry, string, error) {
+// generate is p's ground and its bake's folder, made once in the process for every load of the same plan, kit, slope and radius.
+func generate(p regiongen.Plan, raw, kitRaw []byte, kit regiongen.Kit, body sim.Params) (sim.Geometry, string, error) {
 	h := sha256.New()
-	for _, part := range [][]byte{raw, kitRaw, binary.LittleEndian.AppendUint64(nil, math.Float64bits(maxSlope))} {
+	for _, part := range [][]byte{raw, kitRaw, binary.LittleEndian.AppendUint64(nil, math.Float64bits(body.MaxSlope)), binary.LittleEndian.AppendUint64(nil, math.Float64bits(body.Radius))} {
 		h.Write(binary.LittleEndian.AppendUint64(nil, uint64(len(part))))
 		h.Write(part)
 	}
 	return shared([sha256.Size]byte(h.Sum(nil)), func() (sim.Geometry, string, error) {
-		r, err := regiongen.Generate(p, kit, maxSlope)
+		r, err := regiongen.Generate(p, kit, body)
 		if err != nil {
 			return sim.Geometry{}, "", err
 		}
@@ -168,7 +168,7 @@ func (l *loader) loadRegion(id string, raw, kitRaw []byte, kit regiongen.Kit) er
 	if err != nil {
 		return err
 	}
-	geometry, folder, err := generate(p, raw, kitRaw, kit, l.movement.MaxSlope)
+	geometry, folder, err := generate(p, raw, kitRaw, kit, l.movement)
 	if err != nil {
 		return err
 	}
