@@ -118,6 +118,13 @@ func TestEveryWorldEventKeepsItsValues(t *testing.T) {
 			return eventDiff[world.PartySpots](t, model.PartySpots{}, m)
 		},
 		"WaypointFound": func() []string { return eventDiff[world.WaypointFound](t, model.WaypointFound{}, match()) },
+		"PiecesAdded": func() []string {
+			m := match()
+			m.Renames["Event.Pieces"] = "Delivery.Push.Pieces.ID"
+			m.Skip["Event.Cause"] = "each piece names it as the item module does: TestPiecesAddedNamesEachPieceAndItsCause"
+			m.Computed["Delivery.Push.Pieces.Cause"] = "the cause's name: TestPiecesAddedNamesEachPieceAndItsCause"
+			return eventDiff[world.PiecesAdded](t, model.PiecesAdded{}, m)
+		},
 		"AreaEntered": func() []string {
 			m := match()
 			with(m.Renames, map[string]string{"Event.FieldBoss.Mob": "Delivery.Push.FieldBoss.MobID", "Event.FieldBossGone.Mob": "Delivery.Push.FieldBossGone.MobID", "Event.FieldBossGone.BackIn": "Delivery.Push.FieldBossGone.BackInMs"})
