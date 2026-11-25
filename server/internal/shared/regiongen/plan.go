@@ -455,6 +455,9 @@ func (p Plan) checkFeature(f Feature, radius float64) error {
 		if !p.path(f.Lake.Area, 3) || !reach(f.Lake.Depth, maxHeight) {
 			return fmt.Errorf("a lake needs an area in the region and a depth up to %d m", maxHeight)
 		}
+		if crosses(grown(f.Lake.Area)) {
+			return fmt.Errorf("a lake whose surface, drawn %d m past its sides, crosses itself: its sides keep farther apart where they near each other", lakeBank)
+		}
 	case f.Hall != nil:
 		if !p.path(f.Hall.Area, 3) || !p.clearOfEdge(f.Hall.Area, 0) {
 			return fmt.Errorf("a hall needs an area in the region, its walls clear of the ring: %s", p.carveRoom(0))

@@ -1,12 +1,24 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Scene } from '@babylonjs/core/scene';
 import { describe, expect, it } from 'vitest';
 
 import type { Lake, River } from './region-bake';
+import { AREA_ORDER } from './see-through';
 import { linearOf, Palette } from './toon';
 import { drawWater, lakeArrays, riverArrays } from './water';
 import type { WaterArrays } from './water';
+
+/** The lakes server/internal/shared/regiongen grows to refuse one whose surface crosses itself, each with the ring it grew. */
+const GROWN_LAKES = JSON.parse(
+  readFileSync(
+    path.resolve(process.cwd(), '..', 'server', 'testdata', 'water', 'lakes.json'),
+    'utf8',
+  ),
+) as { name: string; area: [number, number][]; ring: [number, number][] }[];
 
 type Corner = readonly [number, number];
 
@@ -118,6 +130,35 @@ describe('a region’s water', () => {
     }
   });
 
+  it('cuts a bend tighter than the ribbon’s half short on its inside rather than fold it: every triangle faces up, none reaches past half, and the straight start keeps it all', () => {
+    const hairpin: River = {
+      path: [
+        [0, 0],
+        [10, 0],
+        [14, 1],
+        [16, 4],
+        [14, 7],
+        [10, 8],
+        [0, 8],
+      ],
+      width: 6,
+      levels: Array<number>(7).fill(0),
+    };
+    for (const r of [hairpin, { ...hairpin, path: hairpin.path.toReversed() }]) {
+      const a = riverArrays(r);
+      for (const t of triangles(a)) {
+        expect(turn(t)).toBeLessThan(0);
+      }
+      const reach = r.path.map(([x, z], i) => {
+        const [lx, , lz, rx, , rz] = a.positions.slice(6 * i, 6 * i + 6);
+        return [Math.hypot(lx! - x, lz! - z), Math.hypot(rx! - x, rz! - z)];
+      });
+      expect(reach.flat().every((d) => d <= 5 + 1e-5)).toBe(true); // 3 m of channel, 2 of bank
+      expect(reach[0]).toEqual([expect.closeTo(5, 5), expect.closeTo(5, 5)]);
+      expect(Math.min(...reach.flat())).toBeLessThan(4); // the bend's inside cut short
+    }
+  });
+
   it('lays a lake over its area grown 2 m past every side, at its level, cut into triangles facing up, whichever way its corners run', () => {
     for (const lake of [TEST_LAKE, { ...TEST_LAKE, area: TEST_LAKE.area.toReversed() }]) {
       const a = lakeArrays(lake);
@@ -143,6 +184,20 @@ describe('a region’s water', () => {
     }
   });
 
+  it.each(GROWN_LAKES)(
+    'grows $name to the ring the generator checks for crossings',
+    ({ area, ring }) => {
+      const a = lakeArrays({ area, level: 0 });
+      expect(a.positions).toHaveLength(3 * ring.length);
+      ring.forEach(([x, z], i) => {
+        expect([a.positions[3 * i], a.positions[3 * i + 2]]).toEqual([
+          expect.closeTo(x, 4),
+          expect.closeTo(z, 4),
+        ]);
+      });
+    },
+  );
+
   it('caps a sharp lake corner at 6 m out, so it doesn’t spike', () => {
     const a = lakeArrays({
       area: [
@@ -155,7 +210,7 @@ describe('a region’s water', () => {
     expect(Math.hypot(a.positions[3]! - 40, a.positions[5]! - 1)).toBeCloseTo(6, 5);
   });
 
-  it('draws each river and lake as a mesh of its own under the region, toon-drawn see-through in the water’s colour, and lets them go with it', () => {
+  it('draws each river and lake as a mesh of its own under the region, toon-drawn see-through in the water’s colour first of the blended meshes, and lets them go with it', () => {
     const engine = new NullEngine();
     const scene = new Scene(engine);
     const root = new TransformNode('region', scene);
@@ -170,6 +225,7 @@ describe('a region’s water', () => {
       expect(m.parent).toBe(root);
       expect(m.material?.name).toBe(`toon - ${linearOf(0x5b8fc7).toHexString()} cut 0.85`); // the water's colour, linear
       expect(m.receiveShadows).toBe(true);
+      expect(m.alphaIndex).toBeLessThan(AREA_ORDER); // first of the blended meshes, under every area, ring, halo and faded prop
       expect(m.getVerticesData('normal')!.every((v, k) => v === (k % 3 === 1 ? 1 : 0))).toBe(true);
     }
     root.dispose();
