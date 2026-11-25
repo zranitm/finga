@@ -485,7 +485,7 @@ func slide(s State, d float64, alongZ bool, g Geometry, p Params) (float64, bool
 	if alongZ {
 		x, z = across, at+d
 	}
-	if g.Terrain.Deep(x, z) && !g.Terrain.Deep(s.X, s.Z) { // into deep water, at any height; a body already in it walks out
+	if g.Terrain.Barred(x, z) && !g.Terrain.Barred(s.X, s.Z) { // into a barrier, at any height; a body already in one walks out
 		return 0, false, -1, mob
 	}
 	steep, h := g.Terrain.Steep(x, z, alongZ), g.Terrain.Height(x, z)

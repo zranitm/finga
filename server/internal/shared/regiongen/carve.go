@@ -41,7 +41,7 @@ func (b *builder) rock() {
 	}
 }
 
-// walled is whether sample s is a cave's rock, from a body's radius before its wall's foot: a wall at any height, as deep water is, since a body walks up a steep wall slantwise.
+// walled is whether sample s is a cave's rock, from a body's radius before its wall's foot: a barrier, as deep water is, since a body walks up a steep wall slantwise.
 func (b *builder) walled(s int) bool {
 	return b.past != nil && b.past[s] > -b.radius
 }

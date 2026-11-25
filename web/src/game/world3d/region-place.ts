@@ -49,6 +49,7 @@ const LOAD_M = 256; // chunks within this of the camera's target load, nearest f
 const FREE_M = 320; // and go past this
 const DETAIL_M = [64, 128] as const; // every sample within the first, every 2nd within the second, every 4th beyond
 const PROPS_M = 160; // a chunk's props show within this; the fog hides them past it
+const CASTS_M = 128; // and cast the sun's shadow within this: the cascades reach 80 m from the camera, which stands up to 40 m back
 const ASKED = 4; // chunks asked at once, past those the veil waits on, which all go together
 const MADE = 2; // chunk meshes made a frame, so streaming never holds one up
 const READY_M = 128; // the chunks within this of an arrival are drawn before the veil lifts
@@ -116,13 +117,15 @@ export function buildRegion(
   return new RegionView(scene, region, lighting, models, chunks, hooks);
 }
 
-/** A chunk drawn: its ground at a detail, and its props, which come as their models load, with the looks of those that fade. */
+/** A chunk drawn: its ground at a detail, and its props, which come as their models load, with the looks of those that fade and the meshes that cast while it's near. */
 interface Drawn {
   readonly built: BuiltChunk;
   readonly ground: Mesh;
   readonly props: TransformNode;
   readonly looks: Look[];
+  readonly casters: Mesh[];
   detail: number;
+  casting: boolean;
 }
 
 /** A kit model loaded for a region: its parts, kept hidden for each chunk to copy, their box in the model's space, and whether its props fade. */
@@ -225,6 +228,12 @@ class RegionView implements Place {
         d.ground.setIndices(d.built.ground.details[detail]!);
       }
       d.props.setEnabled(away <= PROPS_M);
+      if (away <= CASTS_M !== d.casting) {
+        d.casting = !d.casting;
+        for (const m of d.casters) {
+          this.cast(m, d.casting);
+        }
+      }
     }
     const [ncx, ncz] = this.region.chunks;
     const now = this.hooks.now();
@@ -331,7 +340,13 @@ class RegionView implements Place {
     ground.freezeWorldMatrix();
     const props = new TransformNode(`chunk ${k} props`, this.scene);
     props.parent = this.root;
-    const d: Drawn = { built: b, ground, props, looks: [], detail };
+    const d: Drawn = { built: b, ground, props, looks: [], casters: [], detail, casting: false };
+    const casts = (m: Mesh) => {
+      d.casters.push(m);
+      if (d.casting) {
+        this.cast(m, true);
+      }
+    };
     this.drawn.set(k, d);
     this.holes = true;
     const byModel = new Map<number, Matrix[]>();
@@ -359,13 +374,16 @@ class RegionView implements Place {
             mesh.thinInstanceAdd(at); // which grows its bounds round them, for culling
             mesh.freezeWorldMatrix();
           }
+          casts(body);
           return { mesh: body, ink: ink[0] ?? null, steps: part.steps };
         });
         if (kit.tall) {
           at.forEach((placed, n) => {
-            const look = kitLook(drawn, placed, n, placedBox(kit.box, placed), () =>
-              kitCopies(kit.parts, placed, null, props, []),
-            );
+            const look = kitLook(drawn, placed, n, placedBox(kit.box, placed), () => {
+              const copies = kitCopies(kit.parts, placed, null, props, []);
+              copies.forEach(casts);
+              return copies;
+            });
             d.looks.push(look);
             this.looks.add(look);
           });
@@ -398,6 +416,15 @@ class RegionView implements Place {
       this.kits.set(key, kit);
     }
     return kit;
+  }
+
+  /** Makes m cast the sun's shadow, or stop. */
+  private cast(m: Mesh, on: boolean): void {
+    if (on) {
+      this.lighting.shadows.addShadowCaster(m, false);
+    } else {
+      this.lighting.shadows.removeShadowCaster(m, false);
+    }
   }
 
   /** The overview's triangles but under the chunks drawn. */

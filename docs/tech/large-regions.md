@@ -148,7 +148,7 @@ biomes:
      - ridges along their paths;
      - plateaus with cliff or ramp edges;
      - rivers and lakes carved, with fords left shallow;
-       - **As built (step 4b-2a):** once the edge is raised, a sample still under a river or a lake whose water stands more than 0.6 m over it, twice a ford's depth, is marked deep (`sim.Terrain.DeepWater`, per sample). Roads, towns and the edge reshape the ground after the water, so the marks are judged on the final heights: a causeway or a town over a river is dry, and a bank's edge is wadeable.
+       - **As built (step 4b-2a):** once the edge is raised, a sample still under a river or a lake whose water stands more than 0.6 m over it, twice a ford's depth, is marked deep (`sim.Terrain.Barrier`, per sample, named `DeepWater` until a cave's rock took the mark too). Roads, towns and the edge reshape the ground after the water, so the marks are judged on the final heights: a causeway or a town over a river is dry, and a bank's edge is wadeable.
      - roads flattened to their mean height along a smoothed path.
   3. **Towns:** each town area flattened toward its mean.
   4. **Edge:** the mountain ring, raised last so no feature or town opens it: a cliff 10 m over the highest ground inside the ring at its inner face, then rising smoothly by between its heights to the sides, noise choosing where.
@@ -589,7 +589,7 @@ Built with step 1, which says who watches a cell.
   - **The solid:** the generator stands a 0.5 m cylinder at each waypoint, up to the obelisk's top at 2.82 m. The crystal floats out of reach above it. The bake draws no prop for it.
     - The loader no longer asks that a player fit on a waypoint's spot, as the stone stands there; its arrival must still fit.
     - The reach check counts a waypoint reached within 12 m, its finding circle.
-  - **Where it's drawn:** mapjson adds the ground's height at each stone. The region's place draws the stones from its first frame, before any chunk comes, and lets them go with itself. Like the region's props, they cast no shadow until 5b's cascades.
+  - **Where it's drawn:** mapjson adds the ground's height at each stone. The region's place draws the stones from its first frame, before any chunk comes, and lets them go with itself. They cast no shadow, even with 5b-3's cascades (section 10).
   - **Found or not:** the model is copied twice, painted dim and lit, and each copy is drawn at the stones in its state. A stone found swaps its copy as its flare starts, within the Look's 0.3 s.
   - **The halo** is drawn over the ground rather than added to it, as an added one read mint on grass.
     - Even drawn over, a cyan thinning to clear over grass passes through mint. So each halo is a soft dot whose colour deepens toward blue across it: solid out to 45% of its radius, then its alpha falls evenly to nothing at the rim.
@@ -637,8 +637,8 @@ Built with step 1, which says who watches a cell.
   - **As built (step 4b-2a):**
     - **The sim:** a terrain cell with any deep sample is a wall to a move into it from out of it, at any height, in Go and in the client (`slide`). So no walk, jump, dash, leap, knockback or blink gets in, and a body already in one walks out. Moving downhill stays open everywhere else, which is why the banks alone didn't stop anyone.
     - **Shots fly over it:** a mob's spit moves its ball by the same `Push` with the marks left out, as the client draws it, so a bat spits across a river and its line-of-shot check agrees.
-    - **Nav:** a cell over deep water is `deep`. Nobody fits there, no way into it opens from dry ground, a jump in the reach check lands short of it, and a path from inside it leads out by the nearest dry cell.
-    - **The client** read the marks from the map's JSON (`deep_water`, per sample) until 4b-2b moved its ground onto the bake, which carries them per chunk.
+    - **Nav:** a cell over deep water is `barred` (named `deep` until a cave's rock took the mark too). Nobody fits there, no way into it opens from dry ground, a jump in the reach check lands short of it, and a path from inside it leads out by the nearest dry cell.
+    - **The client** read the marks from the map's JSON (`deep_water`, per sample, now `barrier`) until 4b-2b moved its ground onto the bake, which carries them per chunk.
     - **Tests:**
       - the vectors `deep-*`: a walk, jump, dash, leap and blink stopped at the bank, the ford crossed, a slide along the bank into it, cells deep at one corner only, and a body walking out;
       - the generator's marks: a river's channel and a lake 0.8 m deep are deep, a ford, a causeway, a bank's edge and a pond 0.5 m deep aren't;
@@ -656,7 +656,7 @@ Built with step 1, which says who watches a cell.
     - Its see-through copies are cloned from the region's hidden kit model the first time it fades, under the chunk's props, so they go with the chunk.
     - So every drawn chunk has its looks, not only those within 64 m as planned, and a chunk's props cost no meshes till one fades.
   - **No stall at a first fade:** as each tall kit model loads, one hidden copy of each part is made, and its see-through steps are compiled on it, once for the region.
-  - **Shadows:** the copies cast none yet, as the region's props don't. 5b-3's cascades add both.
+  - **Shadows:** the copies cast none here. 5b-3's cascades made both the props and their copies cast (below).
   - **Tests:**
     - the grid alone: cells either side of 0, the camera's 2 m, a look on its way back kept then dropped once whole, one taken out, a line longer than the cells filed, and a turned model's box;
     - a tiny-bake chunk's oak fading: its instance and ink hidden, its copy alone made and placed, then whole again;
@@ -683,6 +683,24 @@ Built with step 1, which says who watches a cell.
     - every triangle facing up, wound as the ground's are;
     - the water's colour and alpha, and the meshes going with the region;
     - region.json read with a lake, with none written as null, and refused with no water.
+- **As built (step 5b-3): cascaded shadows.**
+  - **The sun:** a region's sun casts through Babylon's `CascadedShadowGenerator`:
+    - 3 cascades out to 80 m from the camera;
+    - held steady as the camera moves (`stabilizeCascades`);
+    - cast by see-through meshes too.
+  - An engine that can't cascade, such as WebGL 1, gets the one shadow map a map has, with the same casters out to about 220 m in it, so its shadows are coarser. Maps keep theirs.
+  - **Casters:**
+    - each chunk's props, and their faded copies, while the chunk's nearest edge is within 128 m of the camera's target, so props to about 220 m (the cascades reach 80 m from the camera, which stands up to 40 m back);
+    - bodies within 25 m, as on maps;
+    - never the inks.
+  - **Why near ones only:** Babylon 9.36 fits each cascade's depth range to the box round every caster each frame (`_computeMatrices`, with its default depth clamping). Far casters would widen that range and cost the near shadows depth precision, and each draws into every cascade it overlaps.
+  - **The waypoint stones still cast none.** They're thin instances of one mesh across the region, so as a caster their box would span it.
+  - **Tests:**
+    - the generator: 3 cascades, 80 m, steady, see-through casting, and the one map where the engine can't cascade;
+    - the world asks for cascades on a region only;
+    - a chunk's props cast within 128 m and stop past it, bodies but not inks;
+    - a faded copy casts;
+    - a freed chunk leaves none of its meshes in the generator's list.
 - **Entities:** only what the server sends (section 5).
   - Name labels show for the 40 nearest, and for party members and the lock.
   - HP bars show for the party, the lock, and mobs hit in the last 5 s.
@@ -747,7 +765,7 @@ Built with step 1, which says who watches a cell.
     - 15.5 MB of buffers and a 123 MB JS heap.
     - At 32:9 (2560×720), props reach the sides of the view at full zoom.
   - **Not yet:**
-    - the looks grid, cascaded shadows and water (5b; the grid built in 5b-1, water in 5b-2, below);
+    - the looks grid, cascaded shadows and water (5b; built in 5b-1, 5b-2 and 5b-3, below);
     - label and bar limits, and map tiles (5c);
     - the loading screen's hold, with 4b, when a player first enters a region (built in 4b-2b, below).
     - A river's bed steps 1 m at a time along its banks until 5b's water covers it (5b-2 does).

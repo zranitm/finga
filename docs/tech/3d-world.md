@@ -660,6 +660,7 @@ As built in slice PR 7:
   - **Shadows:** Babylon's shadow pass skips see-through meshes unless the generator's `transparencyShadow` is on.
     - So the 30% copy had cast no shadow since slice PR 7, and the camera PR's alpha-0 copy cast none either. That PR's test checked the copy was in the shadow map's list, not that the pass drew it.
     - The sun's generator, `sunShadows` in `world3d/body.ts`, now turns it on, so a faded or gone solid casts its full shadow.
+    - A region's sun casts through cascades instead, which do the same ([Large regions](./large-regions.md) section 10, as built in 5b-3).
     - Among the casters, only place copies are ever see-through: bodies and drops draw at alpha 1, and the portal glows cast no shadow.
   - **Steps:** a look steps through alphas 1, 0.65, 0.3, 0.15 and 0, one step each 50 ms, toward whole, faded (0.3) or gone (0).
     - The first step starts at once, so whole to gone takes 0.15 s.
