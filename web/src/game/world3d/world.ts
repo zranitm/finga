@@ -1408,12 +1408,8 @@ export class World {
     camera.setTarget(look);
     if (this.place) {
       this.place.follow(look.x, look.z);
-      fade(
-        camera.position,
-        this.head.set(at.x, at.y + movement.height, at.z),
-        this.place.looks,
-        dtMs,
-      );
+      const head = this.head.set(at.x, at.y + movement.height, at.z);
+      fade(camera.position, head, this.place.looks.around(camera.position, head), dtMs);
     }
     const opened = cutMobs(
       at.x,

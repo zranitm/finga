@@ -645,6 +645,24 @@ Built with step 1, which says who watches a cell.
       - a deep river crossed only at its ford, and nothing in a shipped region reaching deep water; every ford walked across both ways (the ford ramp);
       - a bat's spit across a strip of deep water landing on the far side.
     - Before it, a player in the test region reached 13,039 cells of riverbed, about 3,300 m², walking under up to 2.5 m of water.
+- **As built (step 5b-1): the looks grid.**
+  - **The grid:** a place files each look under every 8 m cell its box covers. Each frame the world steps only two kinds of look:
+    - those in the cells under the box round the camera-to-head line, grown by 2 m, the lens's reach;
+    - any look not yet whole again, wherever the camera went.
+  - Maps use the grid too, so both fade the same way.
+  - **A region's tall props:** each chunk makes a look for each prop taller than half a player once its kit model is in, as maps do. It takes them out of the grid as it's freed, and a chunk freed before its models came makes none. The waypoint stones' looks are filed with them.
+  - **Copies at the first fade:**
+    - A look starts as its model's box, placed by its instance.
+    - Its see-through copies are cloned from the region's hidden kit model the first time it fades, under the chunk's props, so they go with the chunk.
+    - So every drawn chunk has its looks, not only those within 64 m as planned, and a chunk's props cost no meshes till one fades.
+  - **No stall at a first fade:** as each tall kit model loads, one hidden copy of each part is made, and its see-through steps are compiled on it, once for the region.
+  - **Shadows:** the copies cast none yet, as the region's props don't. 5b-3's cascades add both.
+  - **Tests:**
+    - the grid alone: cells either side of 0, the camera's 2 m, a look on its way back kept then dropped once whole, one taken out, a line longer than the cells filed, and a turned model's box;
+    - a tiny-bake chunk's oak fading: its instance and ink hidden, its copy alone made and placed, then whole again;
+    - looks filed and freed with their chunks, and none for a prop no taller than half a player;
+    - the see-through steps warmed once per tall kit model;
+    - the world taking a 14 m tower at the camera's end of its line from the view, which a grid read round the head alone misses.
 - **As built (step 5b-2): water.**
   - **Reading it:** the region reads `region.json`'s rivers and lakes, and its palette's water colour. A palette with no water is refused, as a plan's kit must have one.
   - **A river** is a ribbon along its smoothed path, at each point's level:
@@ -705,7 +723,7 @@ Built with step 1, which says who watches a cell.
     - 15.5 MB of buffers and a 123 MB JS heap.
     - At 32:9 (2560×720), props reach the sides of the view at full zoom.
   - **Not yet:**
-    - the looks grid, cascaded shadows and water (5b; water built in 5b-2, below);
+    - the looks grid, cascaded shadows and water (5b; the grid built in 5b-1, water in 5b-2, below);
     - label and bar limits, and map tiles (5c);
     - the loading screen's hold, with 4b, when a player first enters a region (built in 4b-2b, below).
     - A river's bed steps 1 m at a time along its banks until 5b's water covers it (5b-2 does).

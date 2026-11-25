@@ -1,7 +1,9 @@
 // A region drawn (large-regions.md section 10): the overview under everything, its 64 m chunks streamed round the camera's target at three details, each chunk's props as thin instances per model, and each chunk's ground handed to the sim as it comes.
 import type { Material } from '@babylonjs/core/Materials/material';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
-import type { Matrix } from '@babylonjs/core/Maths/math.vector';
+import { Matrix } from '@babylonjs/core/Maths/math.vector';
+import type { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import '@babylonjs/core/Meshes/thinInstanceMesh';
@@ -24,11 +26,22 @@ import type { GroundArrays } from './ground-mesh';
 import { kitModels } from './kit-models';
 import type { RegionMap } from './map';
 import type { Models } from './models';
-import { kitParts, placement, skyFor } from './place';
+import {
+  kitCopies,
+  kitLook,
+  kitParts,
+  LookGrid,
+  modelBox,
+  placedBox,
+  placement,
+  skyFor,
+  tall,
+} from './place';
 import type { KitPart, Look, Place } from './place';
 import { bakeUrl, chunkFile } from './region-bake';
 import type { Overview, Region } from './region-bake';
 import type { RegionGround } from './region-ground';
+import { warm } from './toon';
 import { drawWater } from './water';
 import { WaypointStones } from './waypoint-stones';
 
@@ -103,16 +116,24 @@ export function buildRegion(
   return new RegionView(scene, region, lighting, models, chunks, hooks);
 }
 
-/** A chunk drawn: its ground at a detail, and its props, which come as their models load. */
+/** A chunk drawn: its ground at a detail, and its props, which come as their models load, with the looks of those that fade. */
 interface Drawn {
   readonly built: BuiltChunk;
   readonly ground: Mesh;
   readonly props: TransformNode;
+  readonly looks: Look[];
   detail: number;
 }
 
+/** A kit model loaded for a region: its parts, kept hidden for each chunk to copy, their box in the model's space, and whether its props fade. */
+interface Kit {
+  readonly parts: readonly KitPart[];
+  readonly box: { readonly min: Vector3; readonly max: Vector3 };
+  readonly tall: boolean;
+}
+
 class RegionView implements Place {
-  readonly looks: readonly Look[]; // its waypoint stones'
+  readonly looks = new LookGrid(); // its waypoint stones' and its drawn chunks' tall props'
   private readonly root: TransformNode;
   private readonly templates: TransformNode;
   private readonly material: Material;
@@ -124,7 +145,7 @@ class RegionView implements Place {
   private readonly drawn = new Map<string, Drawn>();
   private readonly asked = new Set<string>();
   private readonly failed = new Map<string, { tries: number; after: number }>(); // a chunk that failed: how often, and when it may be asked again
-  private readonly kits = new Map<string, Promise<KitPart[] | null>>();
+  private readonly kits = new Map<string, Promise<Kit | null>>();
   private toMake: BuiltChunk[] = []; // built, to be made a few a frame
   private holes = false; // whether the overview's holes need cutting again
   private gone = false;
@@ -153,7 +174,9 @@ class RegionView implements Place {
       hooks.now,
       (x, z) => height(map.ground.geometry.terrain, x, z),
     );
-    this.looks = this.stones.looks;
+    for (const look of this.stones.looks) {
+      this.looks.add(look);
+    }
     this.root = new TransformNode(`region ${region.ref.id}`, scene);
     this.templates = new TransformNode('kit models', scene);
     this.templates.parent = this.root;
@@ -177,6 +200,9 @@ class RegionView implements Place {
       if (chunkDistance(d.built.cx, d.built.cz, side, x, z) > FREE_M) {
         d.ground.dispose(false, false);
         d.props.dispose(false, false);
+        for (const look of d.looks) {
+          this.looks.remove(look);
+        }
         this.drawn.delete(k);
         this.holes = true;
       }
@@ -305,7 +331,8 @@ class RegionView implements Place {
     ground.freezeWorldMatrix();
     const props = new TransformNode(`chunk ${k} props`, this.scene);
     props.parent = this.root;
-    this.drawn.set(k, { built: b, ground, props, detail });
+    const d: Drawn = { built: b, ground, props, looks: [], detail };
+    this.drawn.set(k, d);
     this.holes = true;
     const byModel = new Map<number, Matrix[]>();
     b.models.forEach((m, i) => {
@@ -316,15 +343,15 @@ class RegionView implements Place {
       }
     });
     for (const [m, at] of byModel) {
-      void this.kit(this.region.models[m]!).then((parts) => {
-        if (!parts || props.isDisposed()) {
+      void this.kit(this.region.models[m]!).then((kit) => {
+        if (!kit || props.isDisposed()) {
           return;
         }
-        for (const part of parts) {
+        const drawn = kit.parts.map((part): KitPart => {
           const body = part.mesh.clone(`${part.mesh.name} ${k}`, props); // with its ink, as drawn
           body.makeGeometryUnique(); // the chunk's own: Babylon keeps thin instances' matrices on the geometry, which each mesh sharing it draws
-          const ink = body.getChildMeshes(true);
-          for (const mesh of [body, ...ink] as Mesh[]) {
+          const ink = body.getChildMeshes<Mesh>(true);
+          for (const mesh of [body, ...ink]) {
             if (mesh !== body) {
               body.geometry!.applyToMesh(mesh);
             }
@@ -332,31 +359,45 @@ class RegionView implements Place {
             mesh.thinInstanceAdd(at); // which grows its bounds round them, for culling
             mesh.freezeWorldMatrix();
           }
+          return { mesh: body, ink: ink[0] ?? null, steps: part.steps };
+        });
+        if (kit.tall) {
+          at.forEach((placed, n) => {
+            const look = kitLook(drawn, placed, n, placedBox(kit.box, placed), () =>
+              kitCopies(kit.parts, placed, null, props, []),
+            );
+            d.looks.push(look);
+            this.looks.add(look);
+          });
         }
       });
     }
   }
 
-  /** key's kit model, loaded once for the region: its parts kept hidden, for each chunk to copy; null if it won't load. */
-  private kit(key: string): Promise<KitPart[] | null> {
-    let parts = this.kits.get(key);
-    if (!parts) {
-      parts = kitParts(
-        this.models,
-        kitModels[key]!,
-        key,
-        this.lighting.palette,
-        null,
-        this.templates,
-      ).catch((err: unknown) => {
-        console.info(
-          `finga: kit model ${key} didn't load: ${err instanceof Error ? err.message : String(err)}`,
-        );
-        return null;
-      });
-      this.kits.set(key, parts);
+  /** key's kit model, loaded once for the region, null if it won't load; a tall one's fade steps warmed on a hidden copy, as its props' copies are made only as they first fade. */
+  private kit(key: string): Promise<Kit | null> {
+    let kit = this.kits.get(key);
+    if (!kit) {
+      const model = kitModels[key]!;
+      kit = kitParts(this.models, model, key, this.lighting.palette, null, this.templates)
+        .then((parts): Kit => {
+          const t = tall(parts, model);
+          if (t) {
+            const fades: [Material, AbstractMesh][] = [];
+            kitCopies(parts, Matrix.Identity(), null, this.templates, fades);
+            warm(fades);
+          }
+          return { parts, box: modelBox(parts), tall: t };
+        })
+        .catch((err: unknown) => {
+          console.info(
+            `finga: kit model ${key} didn't load: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          return null;
+        });
+      this.kits.set(key, kit);
     }
-    return parts;
+    return kit;
   }
 
   /** The overview's triangles but under the chunks drawn. */

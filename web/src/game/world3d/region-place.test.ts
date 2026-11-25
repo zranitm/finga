@@ -4,6 +4,7 @@ import path from 'node:path';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
+import { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { Scene } from '@babylonjs/core/scene';
@@ -17,8 +18,11 @@ import { sunShadows } from './body';
 import type { Lighting } from './body';
 import { buildChunk } from './chunk-build';
 import type { BuiltChunk, ChunkRequest, ChunkSource } from './chunk-build';
+import { kitModels } from './kit-models';
+import type { KitModel } from './kit-models';
 import { Models } from './models';
-import type { Place } from './place';
+import { fade } from './place';
+import type { Look, Place } from './place';
 import { loadRegion, readChunk } from './region-bake';
 import { RegionGround } from './region-ground';
 import { buildRegion, chunkDistance, chunksNear, detailAt } from './region-place';
@@ -123,6 +127,19 @@ describe('a region drawn from its bake', () => {
   const copies = (k: string) =>
     (props(k)?.getChildMeshes(true) ?? []).filter((m): m is Mesh => m instanceof Mesh);
   const overview = (name = 'overview') => scene.getMeshByName(name) as Mesh;
+  const allLooks = () => place!.looks.around(new Vector3(-1, 0, -1), new Vector3(1000, 0, 1000));
+  let kitNames: readonly string[] = [];
+  /** The props in chunks ks, or those of model alone. */
+  const propsIn = (ks: readonly string[], model?: string) =>
+    ks.reduce(
+      (n, k) =>
+        n +
+        readChunk(tinyFile(`chunks/${k}.bin`)).props.models.filter(
+          (m) => model === undefined || kitNames[m] === model,
+        ).length,
+      0,
+    );
+  const ALL = ['0_0', '0_1', '1_0', '1_1'];
 
   async function built(
     fails: (url: string) => boolean = () => false,
@@ -131,6 +148,7 @@ describe('a region drawn from its bake', () => {
     source = new Held(asked, fails, alter);
     models = new Loading(scene, (f) => new Uint8Array(readFileSync(path.join(MODELS, f))));
     const { region, overview } = await loadRegion(TINY);
+    kitNames = region.models;
     ground = new RegionGround(region, movement.max_slope);
     landed = 0;
     broke = [];
@@ -389,6 +407,7 @@ describe('a region drawn from its bake', () => {
     expect(chunkNames().length).toBe(2);
     place!.follow(-400, 60); // and freed
     await kitsIn();
+    expect(allLooks()).toHaveLength(1); // the stone's alone
     expect(
       scene.getTransformNodeByName('kit models')!.getChildMeshes(false).length,
     ).toBeGreaterThan(0);
@@ -406,6 +425,104 @@ describe('a region drawn from its bake', () => {
     place = undefined;
     await kitsIn();
     expect(scene.meshes).toEqual([]);
+  });
+
+  it('fades a drawn chunk’s tall prop out of the camera’s way, its instance and ink hidden for a see-through copy of it alone made as it first fades, and gives it back', async () => {
+    await built();
+    await settle(30, 60);
+    const parts = copies('0_0');
+    const inks = parts.map((p) => p.getChildMeshes(true)[0] as Mesh);
+    expect(parts.some((m) => m.name.endsWith(' faded'))).toBe(false);
+    const oak = parts[0]!.thinInstanceGetWorldMatrices()[0]!.getTranslation();
+    const off = (l: Look) =>
+      Math.hypot((l.min.x + l.max.x) / 2 - oak.x, (l.min.z + l.max.z) / 2 - oak.z);
+    const [look] = place!.looks.around(oak, oak).sort((a, b) => off(a) - off(b));
+    expect(off(look!)).toBeLessThan(1);
+    const mid = look!.min.add(look!.max).scale(0.5);
+    const up = new Vector3(0, 10, -10);
+    const [camera, head] = [mid.add(up), mid.subtract(up)];
+    fade(camera, head, place!.looks.around(camera, head), 1000);
+    const made = copies('0_0').filter(
+      (m) =>
+        m.name.endsWith(' faded') && Math.hypot(m.position.x - oak.x, m.position.z - oak.z) < 1e-4,
+    );
+    expect(made).toHaveLength(parts.length);
+    for (const c of made) {
+      expect([c.isEnabled(), c.material?.name]).toEqual([true, expect.stringMatching(/ 0\.3$/)]);
+      expect(c.getChildMeshes(true)).toEqual([]); // no ink
+    }
+    const scale = (m: Mesh, n: number) => {
+      const s = new Vector3();
+      m.thinInstanceGetWorldMatrices()[n]!.decompose(s);
+      return s.x;
+    };
+    expect(propsIn(['0_0'], 'tree_oak')).toBe(propsIn(['0_0'])); // oaks alone here
+    expect(propsIn(['0_0'])).toBeGreaterThan(1);
+    for (const m of [...parts, ...inks]) {
+      expect([scale(m, 0), scale(m, 1) > 0]).toEqual([0, true]);
+    }
+    const away = [new Vector3(-50, 10, -50), new Vector3(-40, 1, -40)] as const;
+    fade(...away, place!.looks.around(...away), 1000);
+    for (const c of made) {
+      expect(c.isEnabled()).toBe(false);
+    }
+    for (const m of [...parts, ...inks]) {
+      expect(scale(m, 0)).toBeGreaterThan(0);
+    }
+  });
+
+  it('files each drawn chunk’s tall props’ looks, and takes them out as it’s freed', async () => {
+    await built();
+    await settle(30, 60);
+    expect(allLooks()).toHaveLength(1 + propsIn(ALL)); // the stone's, and each oak's and house's
+    place!.follow(-100, 60); // the east chunks 164 m off: drawn, their props hidden
+    expect(allLooks()).toHaveLength(1 + propsIn(ALL));
+    place!.follow(-200, 60); // the west chunks 200 m off, the east ones 264 m: drawn yet
+    place!.follow(-330, 60); // all freed
+    expect(allLooks()).toHaveLength(1);
+  });
+
+  it('files no look for a prop no taller than half a player', async () => {
+    const kits = kitModels as Record<string, KitModel>;
+    const oak = kits.tree_oak!;
+    kits.tree_oak = { ...oak, scale: 0.1 };
+    try {
+      await built();
+      await settle(30, 60);
+      expect(copies('0_0').length).toBeGreaterThan(0);
+      expect(propsIn(ALL, 'tree_oak')).toBeGreaterThan(0);
+      expect(allLooks()).toHaveLength(1 + propsIn(ALL) - propsIn(ALL, 'tree_oak')); // the houses' yet
+      const kept = scene.getTransformNodeByName('kit models')!.getChildMeshes(true);
+      expect(kept.filter((m) => m.name.startsWith('tree_oak ')).length).toBeGreaterThan(0);
+      expect(
+        kept.filter((m) => m.name.startsWith('tree_oak ') && m.name.endsWith(' faded')),
+      ).toEqual([]); // nothing to warm
+    } finally {
+      kits.tree_oak = oak;
+    }
+  });
+
+  it('builds a tall kit model’s see-through shaders once for the region as it loads, on a copy and a submesh of their own, so a first fade doesn’t stall', async () => {
+    const ready = vi.spyOn(NodeMaterial.prototype, 'isReadyForSubMesh');
+    await built();
+    await settle(30, 60);
+    const kept = scene.getTransformNodeByName('kit models')!.getChildMeshes(true);
+    const trials = kept.filter((m) => m.name.endsWith(' faded'));
+    const parts = kept.filter((m) => !m.name.endsWith(' faded'));
+    expect(trials).toHaveLength(parts.length); // a copy of each part, once
+    expect(trials.some((m) => m.name.startsWith('tree_oak '))).toBe(true);
+    const warmed = new Set(ready.mock.contexts);
+    for (const p of parts) {
+      for (const alpha of ['0.65', '0.3', '0.15', '0']) {
+        const name = `${p.material!.name.replace(/ hollow$/, '')} ${alpha}`; // a whole one shows its inside, a faded one none
+        const step = scene.materials.find((m) => m.name === name);
+        expect(step && warmed.has(step), `${p.name} ${alpha}`).toBe(true);
+      }
+    }
+    for (const [mesh, sub] of ready.mock.calls) {
+      expect(mesh.subMeshes).not.toContain(sub);
+    }
+    expect(copies('0_0').some((m) => m.name.endsWith(' faded'))).toBe(false); // none in a chunk till it fades
   });
 
   it('lays its river’s water before any chunk comes, along its path at its levels, and lets it go with itself', async () => {
@@ -437,7 +554,7 @@ describe('a region drawn from its bake', () => {
 
   it('stands its waypoints’ stones before any chunk comes, each one’s look among its own, and lets them go with itself', async () => {
     await built();
-    expect(place!.looks).toHaveLength(1); // the field's, which the world fades out of the camera's way
+    expect(place!.looks.around(Vector3.Zero(), new Vector3(1000, 0, 1000))).toHaveLength(1); // the field's, which the world fades out of the camera's way
     await vi.waitFor(() => {
       expect(
         (scene.getMeshByName('waypoint stone Crystal') as Mesh | null)?.thinInstanceCount,
