@@ -15,7 +15,11 @@ import type { GroundArrays } from './ground-mesh';
 import { readChunk, readOverview } from './region-bake';
 import type { Chunk } from './region-bake';
 
-const PALETTE = [0x9c5d4b, 0xa88b62, 0x8cc265, 0xe2cf9a, 0xeef2f6, 0x6f6a63, 0x5b8fc7]; // the tiny bake's, from kit.yaml
+// The tiny bake's, from kit.yaml.
+const PALETTE = [
+  0x9c5d4b, 0x6b5d4c, 0x4a4540, 0xa88b62, 0x8cc265, 0xe2cf9a, 0x5b6e72, 0xcdbf8e, 0xeef2f6,
+  0x6f6a63, 0x5b8fc7,
+];
 const LINEAR = linearPalette(PALETTE);
 const CELL = 2;
 const N = 33;

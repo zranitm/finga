@@ -2758,6 +2758,57 @@ describe('World', () => {
     expect(p.root(classLook('warrior').file)!.position.x).toBeCloseTo(127 - 9 - movement.radius, 3);
   });
 
+  it('on a battle’s map rings each point on the ground in its holder’s colour from the player’s side, the name tags’ pair, grey with no match; the other side’s base is walled in red through the fight', async () => {
+    const p = await playing('battlefield', 20, 45);
+    const one = (name: string) => {
+      const [m] = meshesOn(p, name);
+      return m!;
+    };
+    const decal = (hex: string, alpha: number) => `decal ${hex} ${alpha}`;
+    const glow = (hex: string) => decal(Color3.FromHexString(hex).scale(0.45).toHexString(), 0.2);
+    const looks = () =>
+      ['west', 'middle', 'east'].map((id) => [
+        one(`point ring ${id}`).material!.name,
+        one(`point glow ${id}`).material!.name,
+      ]);
+    const walls = () => [1, 2].map((i) => one(`base wall ${i}`).isEnabled());
+    p.frames(1);
+    const grey = [decal('#D8D8D8', 0.9), glow('#d8d8d8')];
+    expect(looks()).toEqual([grey, grey, grey]);
+    expect(walls()).toEqual([false, false]);
+    const ring = one('point ring east');
+    ring.refreshBoundingInfo({});
+    const box = ring.getBoundingInfo().boundingBox;
+    expect([ring.position.x, ring.position.z, box.extendSize.x, box.extendSize.z]).toEqual([
+      102, 45, 5, 5,
+    ]); // round the east point, 5 m out
+    expect(box.minimumWorld.y).toBeCloseTo(0.04, 3); // just over the flat ground
+    const wall = one('base wall 2');
+    wall.refreshBoundingInfo({});
+    expect([wall.position.x, wall.getBoundingInfo().boundingBox.extendSize.x]).toEqual([127, 9]);
+    pvp.getState().applyMatchState(
+      create(MatchStateSchema, {
+        match: 'mt-1',
+        mode: 'battle',
+        phase: MatchPhase.FIGHT,
+        points: [
+          { id: 'west', holder: 1 },
+          { id: 'middle', holder: 2, contested: true },
+        ],
+        sides: [{ fighters: [{ id: ME }] }, { fighters: [{ id: 'c-robin' }] }],
+      }),
+      0,
+    );
+    p.frames(1);
+    expect(looks()).toEqual([
+      [decal('#7FE08A', 0.9), glow('#7fe08a')],
+      [decal('#FF6B62', 0.9), glow('#ff6b62')],
+      grey,
+    ]);
+    expect(walls()).toEqual([false, true]); // side 1 kept from base 2
+    expect(one('base wall 2').material!.name).toBe('base wall');
+  });
+
   it.each([
     { code: 'KeyM', window: 'map' },
     { code: 'KeyV', window: 'arena' },

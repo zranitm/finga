@@ -100,6 +100,7 @@ import { moveStart, wayFor } from '../systems/skill-way';
 import { relationOf } from '../systems/teams';
 
 import { Bars } from './bars';
+import { BattleMarks } from './battle-marks';
 import { beatsOf } from './beats';
 import type { Beats } from './beats';
 import type { Figure, Gait, Lighting, Pose } from './body';
@@ -401,6 +402,7 @@ export class World {
   private ring: LockRing | null = null;
   private bubbles: ShieldBubbles | null = null;
   private prepWall: PrepWall | null = null;
+  private battleMarks: BattleMarks | null = null;
   private walledUp = false; // a match's prep wall stands, and attacks and skills wait for the round
   private keptSide = 0; // in a battle past its prep, the player's side, whose geometry has the other side's base standing; 0 elsewhere
   private remoteLooks: ReadonlyMap<string, RemoteLook> = new Map(); // as drawn this frame
@@ -564,6 +566,12 @@ export class World {
     const now = this.deps.now();
     this.setStalled(this.feed.stalled(now));
     this.setGround(predictor);
+    const match = pvp.getState().match;
+    this.battleMarks?.show(
+      match?.points ?? [],
+      sideOf(match, this.deps.player.characterId),
+      this.keptSide,
+    );
     predictor.holdFor(countdownTicks(pvp.getState().match, this.timing.tickMs)); // known from prep's or the gap's end, before the count's first Delta
     if (this.placed) {
       const held = this.holdForGround(predictor.state, now);
@@ -706,6 +714,9 @@ export class World {
     this.ring = new LockRing(scene, map, lighting.palette);
     this.bubbles = new ShieldBubbles(scene);
     this.prepWall = map.prepWall && new PrepWall(scene, map.prepWall.boxes, map.geometry.terrain);
+    this.battleMarks =
+      map.battle &&
+      new BattleMarks(scene, map, map.battle.points, map.battle.bases, lighting.palette);
     fx.warm(); // every look's shaders built before a fight needs them
     mapView
       .getState()
@@ -2528,6 +2539,8 @@ export class World {
     this.bubbles = null;
     this.prepWall?.dispose();
     this.prepWall = null;
+    this.battleMarks?.dispose();
+    this.battleMarks = null;
     this.walledUp = false;
     this.keptSide = 0;
     this.remoteLooks = new Map();

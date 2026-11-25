@@ -27,6 +27,23 @@ export interface Region {
   readonly models: readonly string[];
   /** Its towns and hunting areas, by the ids the server names them by. */
   readonly areas: readonly RegionArea[];
+  /** Its water's colour, 0xrrggbb sRGB: the palette's water. */
+  readonly water: number;
+  readonly rivers: readonly River[];
+  readonly lakes: readonly Lake[];
+}
+
+/** A river as carved: its smoothed path downstream, x and z, its channel's width, and its water's level at each point. */
+export interface River {
+  readonly path: readonly (readonly [number, number])[];
+  readonly width: number;
+  readonly levels: readonly number[];
+}
+
+/** A lake: its area's corners, x and z, and its water's level. */
+export interface Lake {
+  readonly area: readonly (readonly [number, number])[];
+  readonly level: number;
 }
 
 /** One of a region's areas: a town, or a hunting area of its mobs' levels. */
@@ -113,11 +130,17 @@ interface RegionJson {
   readonly palette: readonly { readonly name: string; readonly rgb: string }[];
   readonly models: readonly string[];
   readonly areas: readonly RegionArea[];
+  readonly rivers: readonly River[] | null;
+  readonly lakes: readonly Lake[] | null;
 }
 
 function parseRegion(ref: RegionRef, j: RegionJson): Region {
   if (j.format !== BAKE_FORMAT) {
     throw new Error(`region ${ref.id}: bake format ${j.format}; this client reads ${BAKE_FORMAT}`);
+  }
+  const water = j.palette.find((c) => c.name === 'water');
+  if (!water) {
+    throw new Error(`region ${ref.id}: its palette has no water`); // a plan's kit must have it (large-regions.md section 3)
   }
   return {
     ref,
@@ -131,6 +154,9 @@ function parseRegion(ref: RegionRef, j: RegionJson): Region {
     palette: j.palette.map((c) => parseInt(c.rgb.slice(1), 16)),
     models: j.models,
     areas: j.areas.map(({ id, name, kind, levels }) => ({ id, name, kind, levels })),
+    water: parseInt(water.rgb.slice(1), 16),
+    rivers: (j.rivers ?? []).map(({ path, width, levels }) => ({ path, width, levels })),
+    lakes: (j.lakes ?? []).map(({ area, level }) => ({ area, level })),
   };
 }
 
