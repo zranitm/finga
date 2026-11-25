@@ -2985,15 +2985,19 @@ func TestTheWardrobesCommands(t *testing.T) {
 			time.Sleep(time.Second) // under the inventory limit
 			items.err = refusal(kernel.ErrPieceCollected)
 			c.send(wsconn.Message{ReqID: "w-2", Data: &clientv1.AddToWardrobe{IdempotencyKey: "k-2", ItemId: plate.ID.String()}})
-			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.PieceCollected.Code) {
-				t.Fatalf("response %+v", r)
-			}
 			time.Sleep(time.Second) // past the session's flush: a push the refusal made is on the wire before the Pong
 			c.send(wsconn.Message{ReqID: "p-1", Data: &clientv1.Ping{}})
-			for m, status := c.read(); m.Type != "Pong"; m, status = c.read() {
+			var answer *clientv1.Response
+			for m, status := c.read(); m.Type != "Pong"; m, status = c.read() { // every message from the add to the Pong
 				if status != -1 || m.Type == "PiecesAdded" {
 					t.Fatalf("a refused add: %s, closed %d", m.Type, status)
 				}
+				if r, ok := m.Data.(*clientv1.Response); ok && m.ReqID == "w-2" {
+					answer = r
+				}
+			}
+			if answer == nil || answer.GetOk() || answer.Code != int32(model.PieceCollected.Code) {
+				t.Fatalf("response %+v", answer)
 			}
 			items.err = nil
 		})
