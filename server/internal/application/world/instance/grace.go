@@ -56,7 +56,7 @@ func (i *Instance) fighterOf(id kernel.CharacterID) (*player, *fighter) {
 	return p, i.match.fighters[id]
 }
 
-// hold keeps the place of the fighter connected through conn: their body stays and is the player's, its timers running and open to hits and resets, but sent nothing and stepping on no keys till they're back or the grace ends. A grace already running keeps its end, so a return that fails buys no time.
+// hold keeps the place of the fighter connected through conn: their body stays and is the player's, its timers running and open to hits and resets, but sent nothing and stepping on no keys till they're back or the grace ends, its attack and skill still to come dropped. A grace already running keeps its end, so a return that fails buys no time.
 func (i *Instance) hold(id kernel.CharacterID, conn string) bool {
 	p, f := i.fighterOf(id)
 	if p == nil || p.Connection != conn || i.match.Mode.Reconnect <= 0 {
@@ -67,8 +67,22 @@ func (i *Instance) hold(id kernel.CharacterID, conn string) bool {
 	}
 	p.sink = botSink{}
 	p.held, p.pending = sim.Input{}, nil
+	p.action, p.windUps, p.attackQueued = action{}, nil, false // what their keys began ends with the connection
+	if m := p.waitingCast; m != nil {
+		m.done <- ErrSinkClosed
+		p.waitingCast = nil
+	}
 	i.match.tell = true
 	return true
+}
+
+// away reports whether id's place is held through a drop, so their keys, any still on their way included, step nothing.
+func (i *Instance) away(id kernel.CharacterID) bool {
+	if i.match == nil {
+		return false
+	}
+	f := i.match.fighters[id]
+	return f != nil && f.away != 0
 }
 
 // rejoin puts conn and sink on the fighter's body as it stands: the inputs count from the new connection's, the map, the fighter's sheet and timers and the arena bar they wear are told afresh, and the match hears they're back.

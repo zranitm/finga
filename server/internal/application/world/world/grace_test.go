@@ -94,6 +94,22 @@ func TestADropInAMatchHoldsThePlaceForTheNextJoin(t *testing.T) {
 	})
 }
 
+// A return that finds the match's map stopped since it read it is a plain join: the character lands where they came from.
+func TestAReturnToAStoppedMatchLandsWhereTheyCameFrom(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w, ayla, _, stop := inDuel(t)
+		defer stop()
+		ctx := context.Background()
+		if err := w.Drop(ctx, ayla.ID, "c-1"); err != nil {
+			t.Fatal(err)
+		}
+		w.StopMatchOf(ayla.ID)
+		if v, err := w.Join(ctx, ayla.Account, ayla.ID, "c-2", &worldtest.Sink{}); err != nil || v.MapID != "town" {
+			t.Fatalf("the return to a stopped match: %+v, %v; want her in town", v, err)
+		}
+	})
+}
+
 // A join whose connection closes before it's on the body is busy, for the next to try, and the place stays held for it.
 func TestAReturnWhoseConnectionClosesKeepsThePlaceHeld(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {

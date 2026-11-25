@@ -181,6 +181,54 @@ func TestAReturnIsToldTheArenaBarWorn(t *testing.T) {
 	})
 }
 
+// A held body steps on no keys, those its connection sent before the drop that come after it too: a skill's hit still to land as it drops, an attack queued behind it and a skill waiting its turn never go, and a walk, a basic attack and a skill do nothing, each skill told its connection is gone.
+func TestAHeldBodyStepsOnNoLateKeys(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		ayla, robin := fighterFrom(t, data, "Ayla"), fighterFrom(t, data, "Robin")
+		f, stop := fightOf(t, data, duel(model.Fighter{Character: ayla.ID}, model.Fighter{Character: robin.ID}), ayla, robin)
+		defer stop()
+		ctx := context.Background()
+		as, rs := f.sinks[ayla.ID], f.sinks[robin.ID]
+		robinAt, _ := rs.Own(robin.ID)
+		seq := walkTo(f.inst, as, ayla.ID, 0, robinAt.State.Z-5, 0.2)
+		if err := f.inst.UseSkill(ctx, ayla.ID, ayla.Connection, model.SkillUse{Skill: "charge", Root: "strike", Target: model.EntityRef{Player: robin.ID}, Way: sim.Way{Z: 1, Length: 5}}, seq); err != nil {
+			t.Fatal(err)
+		}
+		_ = f.inst.Attack(ayla.ID, 0, model.EntityRef{Player: robin.ID}) // queued till the charge's cancel point
+		waiting := make(chan error, 1)
+		go func() {
+			waiting <- f.inst.UseSkill(ctx, ayla.ID, ayla.Connection, model.SkillUse{Skill: "strike", Root: "strike", Target: model.EntityRef{Player: robin.ID}}, seq)
+		}()
+		seq = worldtest.Walk(f.inst, ayla.ID, seq, sim.Input{}, 1) // the dash starts, its hit 300 ms on
+		holdOf(t, f.inst, ayla)
+		if err := <-waiting; !errors.Is(err, instance.ErrSinkClosed) {
+			t.Fatalf("a skill waiting its turn as the connection drops: %v, want ErrSinkClosed", err)
+		}
+		sleep(time.Second)
+		if hits := hitsOn(rs, robin.ID); len(hits) != 0 {
+			t.Fatalf("Robin took %+v, want the charge's hit dropped with the connection", hits)
+		}
+		stood, _ := rs.Own(ayla.ID)
+		for range 10 {
+			seq++
+			_ = f.inst.Input(ayla.ID, seq, sim.Input{Up: true}, 0)
+			_ = f.inst.Attack(ayla.ID, 0, model.EntityRef{Player: robin.ID})
+			sleep(worldtest.TickInterval)
+		}
+		if err := f.inst.UseSkill(ctx, ayla.ID, ayla.Connection, model.SkillUse{Skill: "strike", Root: "strike", Target: model.EntityRef{Player: robin.ID}}, seq); !errors.Is(err, instance.ErrSinkClosed) {
+			t.Fatalf("a skill pressed on the held body: %v, want ErrSinkClosed", err)
+		}
+		sleep(time.Second)
+		if body, _ := rs.Own(ayla.ID); math.Abs(body.State.Z-stood.State.Z) > 0.01 {
+			t.Fatalf("the held body went from z %.2f to %.2f, want it standing", stood.State.Z, body.State.Z)
+		}
+		if hits := hitsOn(rs, robin.ID); len(hits) != 0 {
+			t.Fatalf("Robin took %+v from the held body, want nothing", hits)
+		}
+	})
+}
+
 // Past the grace a held fighter has left, as one who logs out: in 1v1 the other side wins, and they're saved where they came from, which their next login lands on; in 3v3 a bot takes their body as it stands then.
 func TestAFighterHeldPastTheGraceHasLeft(t *testing.T) {
 	t.Run("1v1", func(t *testing.T) {
