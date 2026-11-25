@@ -42,6 +42,7 @@ import { bakeUrl, chunkFile } from './region-bake';
 import type { Overview, Region } from './region-bake';
 import type { RegionGround } from './region-ground';
 import { warm } from './toon';
+import { drawWater } from './water';
 import { WaypointStones } from './waypoint-stones';
 
 const LOAD_M = 256; // chunks within this of the camera's target load, nearest first
@@ -193,6 +194,7 @@ class RegionView implements Place {
     this.overviewArrays = overviewGround(far, this.linear);
     this.overview = this.mesh('overview', this.overviewArrays, this.overviewHoles());
     this.overview.parent = this.root;
+    drawWater(scene, region, lighting.palette, this.root);
   }
 
   follow(x: number, z: number): void {

@@ -138,6 +138,7 @@ describe('pvp', () => {
       mode: 'duel',
       result: MatchOutcome.WIN,
       rounds: [2, 1],
+      score: null, // a round mode's
       rating: {
         before: 1000,
         after: 1032,
@@ -157,6 +158,33 @@ describe('pvp', () => {
         'c-robin',
       );
     expect(pvp.getState().outcome).toMatchObject({ mode: '', rounds: [2, 0], rating: null });
+  });
+
+  it('a battle’s state carries its score and points, and its outcome the score from the player’s side', () => {
+    const battle = (sides: string[][]) =>
+      create(MatchStateSchema, {
+        match: 'mt-9',
+        mode: 'battle',
+        phase: MatchPhase.FIGHT,
+        score: [290, 312],
+        points: [{ id: 'west', holder: 2, progress: 1, contested: true }],
+        sides: sides.map((ids) => ({ fighters: ids.map((id) => ({ id })) })),
+      });
+    pvp.getState().applyMatchState(battle([['c-robin'], ['c-ayla']]), 0);
+    expect(pvp.getState().match).toMatchObject({
+      score: [290, 312],
+      points: [{ id: 'west', holder: 2, progress: 1, contested: true }],
+    });
+    const ended = create(MatchEndedSchema, { result: MatchOutcome.WIN, score: [290, 312] });
+    pvp.getState().applyMatchEnded(ended, 'c-ayla');
+    expect(pvp.getState().outcome).toMatchObject({
+      mode: 'battle',
+      score: [312, 290],
+      rating: null,
+    });
+    pvp.getState().applyMatchState(battle([['c-ayla'], ['c-robin']]), 0);
+    pvp.getState().applyMatchEnded(ended, 'c-ayla');
+    expect(pvp.getState().outcome?.score).toEqual([290, 312]); // on side 1
   });
 
   it('a forfeit’s outcome, whose MapChange comes before its MatchEnded, keeps the match’s mode and counts rounds from the player’s side, side 2 here', () => {

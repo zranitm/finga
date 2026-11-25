@@ -16,6 +16,7 @@ import (
 // Plan is one region as written in data/regions/<id>.yaml. Lengths are metres, positions [x, z] with x east and z north, polygons their corners in order.
 type Plan struct {
 	Name      string           `yaml:"name"`
+	Under     string           `yaml:"under,omitempty"` // a place below's region above (underground-and-underwater.md section 3); empty on the land
 	Size      [2]float64       `yaml:"size,flow"`
 	Cell      float64          `yaml:"cell"` // terrain samples this far apart
 	Seed      uint32           `yaml:"seed"`
@@ -23,6 +24,8 @@ type Plan struct {
 	Ground    Ground           `yaml:"ground"`
 	Edge      Edge             `yaml:"edge,flow"`
 	Colour    Colour           `yaml:"colour,flow"`
+	Rock      *Rock            `yaml:"rock,omitempty,flow"`    // a cave's: the ground its halls and tunnels are carved from
+	Torches   *Torches         `yaml:"torches,omitempty,flow"` // a cave's: hung on its halls' and tunnels' walls
 	Features  []Feature        `yaml:"features,omitempty"`
 	Areas     []Area           `yaml:"areas"`
 	Camps     []Camp           `yaml:"camps,omitempty"`
@@ -37,6 +40,24 @@ type Plan struct {
 // Look is the client's art key for the sky.
 type Look struct {
 	Sky string `yaml:"sky"`
+}
+
+// The skies a place below is drawn under.
+const (
+	Cave = "cave"
+	Sea  = "sea"
+)
+
+// Rock stands every sample a cave doesn't carve Height above its ground; the carved space's line wanders up to Rough metres.
+type Rock struct {
+	Height float64 `yaml:"height"`
+	Rough  float64 `yaml:"rough"`
+}
+
+// Torches hang Model, a kit model with a light, on the walls of a cave's halls and tunnels, one every Spacing metres along each wall.
+type Torches struct {
+	Spacing float64 `yaml:"spacing"`
+	Model   string  `yaml:"model"`
 }
 
 // Ground is the noise the ground rolls with.
@@ -64,13 +85,27 @@ type Colour struct {
 	High  float64 `yaml:"high"`
 }
 
-// Feature is one of a ridge, a plateau, a river, a lake or a road, applied in the plan's order.
+// Feature is one of a ridge, a plateau, a river, a lake, a road, a hall or a tunnel, applied in the plan's order.
 type Feature struct {
 	Ridge   *Ridge   `yaml:"ridge,omitempty,flow"`
 	Plateau *Plateau `yaml:"plateau,omitempty,flow"`
 	River   *River   `yaml:"river,omitempty,flow"`
 	Lake    *Lake    `yaml:"lake,omitempty,flow"`
 	Road    *Road    `yaml:"road,omitempty,flow"`
+	Hall    *Hall    `yaml:"hall,omitempty,flow"`
+	Tunnel  *Tunnel  `yaml:"tunnel,omitempty,flow"`
+}
+
+// Hall carves a cave's Area back down to its ground; Flat levels its floor at the mean of that ground, as for a spitter's hall.
+type Hall struct {
+	Area [][2]float64 `yaml:"area,flow"`
+	Flat bool         `yaml:"flat,omitempty"`
+}
+
+// Tunnel carves a cave's way Width across along Path, smoothed as a road is, its floor levelled along it.
+type Tunnel struct {
+	Path  [][2]float64 `yaml:"path,flow"`
+	Width float64      `yaml:"width"`
 }
 
 // Ridge raises Height along Path, falling smoothly to nothing Width/2 from it.
@@ -281,6 +316,16 @@ func (p Plan) check(k Kit) error {
 		return fmt.Errorf("%d areas: at most %d", len(p.Areas), maxAreas)
 	case !finite(p.Start.Yaw):
 		return errors.New("the start needs a yaw")
+	case p.Rock != nil && p.Look.Sky != Cave:
+		return fmt.Errorf("rock is a cave's: a sky of %s, not %s", Cave, p.Look.Sky)
+	case p.Rock != nil && (!reach(p.Rock.Height, maxHeight) || !within(p.Rock.Rough, 0, maxReach)):
+		return fmt.Errorf("rock needs a height up to %d m and a rough of 0 to %d m", maxHeight, maxReach)
+	case p.Torches != nil && p.Rock == nil:
+		return errors.New("torches hang on a cave's walls, and the plan has no rock")
+	case p.Torches != nil && !within(p.Torches.Spacing, 2*torchAway, maxReach):
+		return fmt.Errorf("torches %g m apart: %d to %d m, as each keeps %d m from the next", p.Torches.Spacing, 2*torchAway, maxReach, torchAway)
+	case p.Torches != nil && k.Models[p.Torches.Model].Light == nil:
+		return fmt.Errorf("torch model %q: a kit model with a light", p.Torches.Model)
 	}
 	if err := p.checkBiome("edge", p.Edge.Biome); err != nil {
 		return err
@@ -289,6 +334,9 @@ func (p Plan) check(k Kit) error {
 		if _, ok := k.Grounds[c]; !ok {
 			return fmt.Errorf("the kit needs a %s ground", c)
 		}
+	}
+	if _, ok := k.Grounds[rockColour]; p.Rock != nil && !ok {
+		return fmt.Errorf("the kit needs a %s ground for a cave's rock", rockColour)
 	}
 	for _, name := range slices.Sorted(maps.Keys(p.Biomes)) {
 		if err := p.Biomes[name].check(k); err != nil {
@@ -365,13 +413,16 @@ func (b Biome) check(k Kit) error {
 
 func (p Plan) checkFeature(f Feature) error {
 	n := 0
-	for _, set := range []bool{f.Ridge != nil, f.Plateau != nil, f.River != nil, f.Lake != nil, f.Road != nil} {
+	for _, set := range []bool{f.Ridge != nil, f.Plateau != nil, f.River != nil, f.Lake != nil, f.Road != nil, f.Hall != nil, f.Tunnel != nil} {
 		if set {
 			n++
 		}
 	}
 	if n != 1 {
-		return errors.New("is one of a ridge, a plateau, a river, a lake or a road")
+		return errors.New("is one of a ridge, a plateau, a river, a lake, a road, a hall or a tunnel")
+	}
+	if (f.Hall != nil || f.Tunnel != nil) && p.Rock == nil {
+		return errors.New("a hall or a tunnel is carved from a cave's rock, which the plan has none of")
 	}
 	switch {
 	case f.Ridge != nil:
@@ -402,6 +453,16 @@ func (p Plan) checkFeature(f Feature) error {
 	case f.Lake != nil:
 		if !p.path(f.Lake.Area, 3) || !reach(f.Lake.Depth, maxHeight) {
 			return fmt.Errorf("a lake needs an area in the region and a depth up to %d m", maxHeight)
+		}
+	case f.Hall != nil:
+		if !p.path(f.Hall.Area, 3) || !p.clearOfEdge(f.Hall.Area, 0) {
+			return fmt.Errorf("a hall needs an area in the region, its walls clear of the ring: %s", p.carveRoom(0))
+		}
+	case f.Tunnel != nil:
+		t := f.Tunnel
+		half := float64(t.Width / 2)
+		if !reach(t.Width, maxReach) || !p.path(t.Path, 2) || !p.clearOfEdge(t.Path, half) {
+			return fmt.Errorf("a tunnel needs a width up to %d m and a path in the region, its walls clear of the ring: %s", maxReach, p.carveRoom(half))
 		}
 	default:
 		if !p.path(f.Road.Path, 2) || !reach(f.Road.Width, maxReach) {
@@ -470,6 +531,28 @@ func (p Plan) spots() []spot {
 		}
 	}
 	return append(s, spot{"the start", p.Start.At, spotRadius})
+}
+
+// wallReach is how far past a carved line a cave's wall reaches: its line's wander, then its rise over cliffCells samples.
+func (p Plan) wallReach() float64 {
+	rise := float64(cliffCells * p.Cell)
+	return p.Rock.Rough + rise
+}
+
+// carveRoom is how far inside the ring's face a carved line keeps, half carved width across it.
+func (p Plan) carveRoom(half float64) string {
+	return fmt.Sprintf("at least %g m inside the ring's face", half+p.wallReach())
+}
+
+// clearOfEdge is whether a carved line through pts, half across it, keeps its walls inside the ring's face; Chaikin's smoothing keeps a tunnel within its points' hull.
+func (p Plan) clearOfEdge(pts [][2]float64, half float64) bool {
+	room := p.Edge.Width + half + p.wallReach()
+	for _, at := range pts {
+		if min(at[0], at[1], p.Size[0]-at[0], p.Size[1]-at[1]) < room {
+			return false
+		}
+	}
+	return true
 }
 
 // inside is whether at lies on the region, its edges included.

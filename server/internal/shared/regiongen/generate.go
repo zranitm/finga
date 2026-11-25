@@ -19,6 +19,7 @@ type Region struct {
 	Props    []Prop       // set pieces, then scattered
 	Rivers   []RiverWater
 	Lakes    []LakeWater
+	Flames   []Flame    // a cave's torches' lights, in the props' order
 	Wet      []bool     // per terrain sample: under a river or a lake
 	Heights  [2]float64 // the lowest and highest sample
 }
@@ -74,8 +75,11 @@ type builder struct {
 	onRoad   []bool    // per sample: under a road
 	water    []float64 // per sample: the highest water surface over it, -Inf where none
 	f        *field
-	roads    []Road  // smoothed
-	rivers   []River // smoothed
+	roads    []Road    // smoothed
+	rivers   []River   // smoothed
+	floor    []float64 // a cave's ground under its rock, which its halls and tunnels are carved down to
+	rocky    []bool    // a cave's, per sample: rock or a wall, not carved floor
+	wander   *noise    // a cave's: how its carved walls' lines wander
 	r        Region
 }
 
@@ -96,6 +100,7 @@ func Generate(p Plan, k Kit, maxSlope float64) (*Region, error) {
 	}
 	b.areas()
 	b.ground()
+	b.rock()
 	for _, f := range p.Features {
 		switch {
 		case f.Ridge != nil:
@@ -106,6 +111,10 @@ func Generate(p Plan, k Kit, maxSlope float64) (*Region, error) {
 			b.river(*f.River)
 		case f.Lake != nil:
 			b.lake(*f.Lake)
+		case f.Hall != nil:
+			b.hall(*f.Hall)
+		case f.Tunnel != nil:
+			b.tunnel(*f.Tunnel)
 		default:
 			b.road(*f.Road)
 		}
@@ -127,7 +136,9 @@ func Generate(p Plan, k Kit, maxSlope float64) (*Region, error) {
 	var placed solidsNear
 	b.r.Geometry = sim.Geometry{SizeX: p.Size[0], SizeZ: p.Size[1], Terrain: t, Boxes: []sim.Box{}, Cylinders: []sim.Cylinder{}}
 	b.pieces(&placed)
+	b.torches(&placed)
 	b.scatter(steep, &placed)
+	b.flames()
 	b.r.Geometry = sim.Indexed(b.r.Geometry)
 	return &b.r, nil
 }

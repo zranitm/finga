@@ -666,7 +666,6 @@ As built in slice PR 7:
     - The instance swaps for its copy only at whole, since setting one thin instance uploads them all.
     - Every see-through step's material is compiled while the map loads, as before.
   - **Props:** a kit prop drawn taller than half a player (0.875 m) fades and goes as a solid does. A lower one hides at most a player's legs and gets no copy.
-  - **Which looks a frame steps:** since large-regions step 5b-1, only those a grid of 8 m cells gives near the camera's line, and those on their way back to whole (large-regions.md section 10).
     - **The sweep:** all 14 maps, a player every 0.5 m, the game's camera at 1280 by 800. It found 516 of the 2,858 kit props crossing the camera's line or at the lens from some spot.
     - **What the rule covers:** all 496 of those taller than 0.875 m now fade: trees, dead trees, palms, pillars, crags, dead shrubs, bushes, cacti and small rocks. That's 531 props with a look in all.
     - **What it leaves out:** the 20 lower ones, grass, flowers, small mushrooms and pebbles. Each sits on a bank top and is seen across it only from the bank's foot.
@@ -675,6 +674,7 @@ As built in slice PR 7:
   - **Cost:**
     - **Building a map** (the test engine, median of five): 9–32 ms more. Up to 90 more meshes (Spore Hollow, 40 to 130). Twice the see-through materials, for the two new steps (the crossroads, 46 to 92).
     - **Live,** in Chrome at 1280 by 800 on Spore Hollow: the world showed 579 ms after Play. The next 5.4 s ran 542 frames, the longest 11 ms. A frame's work at the map's busiest spot, with seven see-through copies and a fight on, was a median 2.5 ms, against 2.3 ms in the open. Both held the 100 fps cap.
+  - **Which looks a frame steps:** since large-regions step 5b-1, only those a grid of 8 m cells gives near the camera's line, and those on their way back to whole (large-regions.md section 10).
 - **The place opens round the player,** as built in the cut-away PR, after the live re-check of the camera follow-up:
   - **What it found:** at (40, 6) on Sandstone Cliffs, with the crag gone, the cliff itself hid the player. The camera's line to the chest crosses the 4 m mesa's edge at 3.2 m. Terrain didn't fade.
   - **The sweep:**

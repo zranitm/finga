@@ -1,0 +1,38 @@
+# A cave below small (underground-and-underwater.md section 3): halls and tunnels carved from rock at 0.5 m, torches on their walls and one standing, for the generator's tests and its golden hash.
+name: Test Cave
+under: small
+size: [256, 128]
+cell: 0.5
+seed: 21
+look: {sky: cave}
+ground: {noise: {scale: 60, amplitude: 1.5, octaves: 3}}
+edge: {width: 8, height: [2, 4], biome: rock}
+colour: {slope: 0.25, high: 100}
+rock: {height: 4.5, rough: 1.5}
+torches: {spacing: 10, model: torch_mounted}
+features:
+  - {hall: {area: [[16, 40], [56, 40], [56, 88], [16, 88]]}}
+  - {tunnel: {path: [[52, 64], [90, 58], [120, 70]], width: 6}}
+  - {hall: {area: [[116, 30], [176, 34], [180, 96], [120, 100]], flat: true}}
+  - {tunnel: {path: [[176, 64], [220, 64]], width: 5}}
+  - {hall: {area: [[210, 44], [240, 44], [240, 84], [210, 84]]}}
+areas:
+  - {id: deep, name: The Deep, area: [[8, 8], [248, 8], [248, 120], [8, 120]], levels: [10, 14], biome: cave, kind: hunting,
+     boss: {at: [150, 66], radius: 5, mob: vampire_bat}}
+camps:
+  - {area: deep, name: bats, at: [228, 64], radius: 6, mob: cave_bat, max: 4, respawn: 10s}
+waypoints:
+  - {id: test_cave_mouth, name: Cave Mouth, at: [32, 64]}
+pieces:
+  - {model: torch_lit, at: [226, 50], yaw: 0}
+gates:
+  - {name: mouth, at: [22, 64], radius: 1.6, to: {region: small, gate: east}}
+start: {at: [26, 64], yaw: 90}
+biomes:
+  cave:
+    colours: {flat: cave_floor, slope: cave_floor, steep: cave_rock, high: cave_rock}
+    scatter:
+      - {model: rock_small, spacing: 10, away: {camp: 2, waypoint: 3}}
+      - {model: pebbles, spacing: 6}
+  rock:
+    colours: {flat: cave_rock, slope: cave_rock, steep: cave_rock, high: cave_rock}

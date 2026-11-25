@@ -23,7 +23,7 @@ func TestEveryMapIsWrittenAsTheServerBuildsIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	regions := 0
+	regions, battles := 0, 0
 	for _, m := range d.Maps() {
 		raw, err := os.ReadFile(filepath.Join(out, m.ID+".json"))
 		if err != nil {
@@ -53,6 +53,28 @@ func TestEveryMapIsWrittenAsTheServerBuildsIt(t *testing.T) {
 			!reflect.DeepEqual(got.Geometry.Cylinders, want.Cylinders) || got.Geometry.SizeX != want.SizeX || got.Geometry.SizeZ != want.SizeZ:
 			t.Errorf("%s: the written geometry differs from the server's", m.ID)
 		}
+		if len(m.Points) > 0 {
+			battles++
+			b := got.Battle
+			if b == nil {
+				t.Fatalf("%s: no battle written", m.ID)
+			}
+			for s := range 2 {
+				kept := append(slices.Clone(got.Geometry.Cylinders), b.Kept[s]...)
+				if b.Bases[s] != (Circle{At: [2]float64{m.Bases[s].At.X, m.Bases[s].At.Z}, Radius: m.Bases[s].Radius}) || !reflect.DeepEqual(kept, m.Kept[s].Cylinders) || !reflect.DeepEqual(got.Geometry.Boxes, m.Kept[s].Boxes) {
+					t.Errorf("%s: side %d's base %+v and kept cylinders %+v; want the server's %+v and its geometry's, the other base standing", m.ID, s+1, b.Bases[s], b.Kept[s], m.Bases[s])
+				}
+			}
+			var points []CapturePoint
+			for _, p := range m.Points {
+				points = append(points, CapturePoint{ID: p.ID, Name: p.Name, At: [2]float64{p.At.X, p.At.Z}, Radius: p.Radius})
+			}
+			if !reflect.DeepEqual(b.Points, points) {
+				t.Errorf("%s: points %+v; want %+v", m.ID, b.Points, points)
+			}
+		} else if got.Battle != nil {
+			t.Errorf("%s: a battle written for a map with no points", m.ID)
+		}
 		if len(got.Portals) != len(m.Portals) {
 			t.Errorf("%s: %d portals", m.ID, len(got.Portals))
 		}
@@ -65,8 +87,8 @@ func TestEveryMapIsWrittenAsTheServerBuildsIt(t *testing.T) {
 			t.Errorf("%s: the boss is written out", m.ID)
 		}
 	}
-	if regions == 0 {
-		t.Error("no region written")
+	if regions == 0 || battles == 0 {
+		t.Errorf("%d regions and %d battles written; want some of each", regions, battles)
 	}
 }
 

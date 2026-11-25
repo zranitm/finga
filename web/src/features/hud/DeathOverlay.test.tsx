@@ -53,6 +53,35 @@ describe('DeathOverlay', () => {
     expect(down).not.toHaveTextContent('Respawning');
     expect(down).toHaveClass('down-overlay');
   });
+
+  it('in a battle counts down to getting up in the base, from when the player went down', () => {
+    vi.useFakeTimers();
+    try {
+      render(<DeathOverlay />);
+      act(() => {
+        pvp
+          .getState()
+          .applyMatchState(
+            create(MatchStateSchema, { match: 'mt-1', mode: 'battle', phase: MatchPhase.FIGHT }),
+            0,
+          );
+        character.getState().setDead(true);
+      });
+      const down = screen.getByRole('alert');
+      expect(down).toHaveTextContent('Back in 10 s');
+      expect(down).not.toHaveTextContent('round');
+      act(() => {
+        vi.advanceTimersByTime(3_200);
+      });
+      expect(down).toHaveTextContent('Back in 7 s');
+      act(() => {
+        vi.advanceTimersByTime(7_000);
+      });
+      expect(down).toHaveTextContent('Back in a moment');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('Hud EXP changes', () => {
