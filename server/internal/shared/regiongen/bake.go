@@ -105,7 +105,7 @@ func (w *writer) header(magic string, a, b, c int) {
 	w.u16(c)
 }
 
-// chunk is one 64 m square: "FRCK", the format, its x and z, and its samples a side n (its edges shared with its neighbours); then (n+2)² heights, its own with a border one sample wide, held to the region at its edges, so a client takes an edge's normal from the same numbers on both sides; then n² colours and n² deep-water marks, 1 or 0, row by row from the south-west; and the props, cylinders and boxes whose centres it holds, each solid with its index in the region's list, so a client visits them in the server's order.
+// chunk is one 64 m square: "FRCK", the format, its x and z, and its samples a side n (its edges shared with its neighbours); then (n+2)² heights, its own with a border one sample wide, held to the region at its edges, so a client takes an edge's normal from the same numbers on both sides; then n² colours and n² barrier marks, 1 or 0, row by row from the south-west; and the props, cylinders and boxes whose centres it holds, each solid with its index in the region's list, so a client visits them in the server's order.
 func (r *Region) chunk(cx, cz int) []byte {
 	t := r.Geometry.Terrain
 	per := int(chunkM / t.Cell)
@@ -126,7 +126,7 @@ func (r *Region) chunk(cx, cz int) []byte {
 	for iz := range per + 1 {
 		for ix := range per + 1 {
 			w.b = append(w.b, 0)
-			if t.DeepWater[(cz*per+iz)*t.NX+cx*per+ix] {
+			if t.Barrier[(cz*per+iz)*t.NX+cx*per+ix] {
 				w.b[len(w.b)-1] = 1
 			}
 		}

@@ -148,7 +148,7 @@ biomes:
      - ridges along their paths;
      - plateaus with cliff or ramp edges;
      - rivers and lakes carved, with fords left shallow;
-       - **As built (step 4b-2a):** once the edge is raised, a sample still under a river or a lake whose water stands more than 0.6 m over it, twice a ford's depth, is marked deep (`sim.Terrain.DeepWater`, per sample). Roads, towns and the edge reshape the ground after the water, so the marks are judged on the final heights: a causeway or a town over a river is dry, and a bank's edge is wadeable.
+       - **As built (step 4b-2a):** once the edge is raised, a sample still under a river or a lake whose water stands more than 0.6 m over it, twice a ford's depth, is marked deep (`sim.Terrain.Barrier`, per sample, named `DeepWater` until a cave's rock took the mark too). Roads, towns and the edge reshape the ground after the water, so the marks are judged on the final heights: a causeway or a town over a river is dry, and a bank's edge is wadeable.
      - roads flattened to their mean height along a smoothed path.
   3. **Towns:** each town area flattened toward its mean.
   4. **Edge:** the mountain ring, raised last so no feature or town opens it: a cliff 10 m over the highest ground inside the ring at its inner face, then rising smoothly by between its heights to the sides, noise choosing where.
@@ -637,8 +637,8 @@ Built with step 1, which says who watches a cell.
   - **As built (step 4b-2a):**
     - **The sim:** a terrain cell with any deep sample is a wall to a move into it from out of it, at any height, in Go and in the client (`slide`). So no walk, jump, dash, leap, knockback or blink gets in, and a body already in one walks out. Moving downhill stays open everywhere else, which is why the banks alone didn't stop anyone.
     - **Shots fly over it:** a mob's spit moves its ball by the same `Push` with the marks left out, as the client draws it, so a bat spits across a river and its line-of-shot check agrees.
-    - **Nav:** a cell over deep water is `deep`. Nobody fits there, no way into it opens from dry ground, a jump in the reach check lands short of it, and a path from inside it leads out by the nearest dry cell.
-    - **The client** read the marks from the map's JSON (`deep_water`, per sample) until 4b-2b moved its ground onto the bake, which carries them per chunk.
+    - **Nav:** a cell over deep water is `barred` (named `deep` until a cave's rock took the mark too). Nobody fits there, no way into it opens from dry ground, a jump in the reach check lands short of it, and a path from inside it leads out by the nearest dry cell.
+    - **The client** read the marks from the map's JSON (`deep_water`, per sample, now `barrier`) until 4b-2b moved its ground onto the bake, which carries them per chunk.
     - **Tests:**
       - the vectors `deep-*`: a walk, jump, dash, leap and blink stopped at the bank, the ford crossed, a slide along the bank into it, cells deep at one corner only, and a body walking out;
       - the generator's marks: a river's channel and a lake 0.8 m deep are deep, a ford, a causeway, a bank's edge and a pond 0.5 m deep aren't;
