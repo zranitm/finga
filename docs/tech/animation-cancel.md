@@ -270,6 +270,7 @@ Agreed on 2026-11-25:
 - **Keeping the look at the cancel point and judging it in the playtest:** a held attack reads as swing, stand, swing, and a skill's cut shows nothing cut.
 - **Landing an early skill's hit, and showing it, at the early use** (as built until 2026-11-25): a press that reached the world early dealt its damage up to 150 ms before a chain allows, and watchers saw it start before it did.
 - **Letting a match's bots see an early press at once:** they would have up to three ticks' warning of a blow that no watcher has.
+- **Starting an early move skill's move at the allowed start too** (2026-11-25): its dodge window, action, and cooldown already count from the start, so an early press gains at most 150 ms of unprotected movement, and an honest client none. The client predicts a move from its press's input and can't learn a later start. A move shifted by the server alone would vanish from the prediction at the first frame acking an input between the two, which a dodge's first tick always sends, then return as the server's move came: two snaps. Closing it needs a rework of the client's prediction or a protocol change, which isn't worth so small a gain.
 - **Heal and the buffs naming `cancel: 0.85` for their look,** as first planned: a cancel point that only times a look mixes the two. `ready` is the look's own.
 
 ## 15. Skills cut attacks just after the strike
