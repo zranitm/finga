@@ -134,6 +134,8 @@ import { PrepWall } from './prep-wall';
 import type { RegionArea } from './region-bake';
 import { buildRegion } from './region-place';
 import { RoundShadows } from './round-shadows';
+import { SeaRays } from './sea-rays';
+import { SEA_SUN } from './sealight';
 import { ShieldBubbles } from './shield-bubbles';
 import { teleportGlow } from './teleport-glow';
 import { Palette } from './toon';
@@ -187,6 +189,12 @@ function sunLighting(scene: Scene, map: WorldMap): Lighting {
     palette: new Palette(scene),
     shadows: (map.region ? regionShadows : sunShadows)(sun, SHADOW_MAP),
   };
+}
+
+/** A sea region's lighting (underground-and-underwater.md section 7): its sun nearly overhead, its shadows cascaded and falling almost straight down, its toon materials cyan and softer with the caustics. */
+function seaLighting(scene: Scene): Lighting {
+  const sun = new DirectionalLight('sun', SEA_SUN.normalizeToNew(), scene);
+  return { palette: new Palette(scene, 'sea'), shadows: regionShadows(sun, SHADOW_MAP) };
 }
 
 /** A cave region's lighting (underground-and-underwater.md section 7): no sun and so no shadows, its toon materials lit by its torches' light map; the old open-topped Cave keeps the sun. */
@@ -423,6 +431,7 @@ export class World {
   private lighting: Lighting | null = null;
   private roundShadows: RoundShadows | null = null; // a cave's, which has no sun
   private flames: Flames | null = null; // its torches'
+  private rays: SeaRays | null = null; // a sea's
   private pouchMarks: PouchMarks | null = null;
   private place: Place | null = null;
   private map: WorldMap | null = null;
@@ -640,11 +649,15 @@ export class World {
     this.drawNpcs(now, dt);
     this.shadeBodies();
     this.moveCamera(dt);
+    const seconds = (PrecisionDate.Now - this.deps.engine.startTime) / 1000; // the toon materials' clock for their light's flicker and the caustics
     this.flames?.frame(
-      (PrecisionDate.Now - this.deps.engine.startTime) / 1000, // the toon materials' clock for their light's flicker
+      seconds,
       this.camera?.position.x ?? this.follow.x,
       this.camera?.position.z ?? this.follow.z,
     ); // its cards turned to the camera where this frame draws from
+    if (this.camera) {
+      this.rays?.frame(seconds, this.camera.position, this.follow);
+    }
     this.unveil();
     this.combat?.frame(now);
     this.closeDialogOutOfReach();
@@ -711,12 +724,19 @@ export class World {
     let lighting: Lighting;
     let round: RoundShadows | null;
     let flames: Flames | null;
+    let rays: SeaRays | null;
     let figures: Figures;
     let pouchMarks: PouchMarks;
     let fx: Fx;
     try {
       const cave = map.region?.region.sky === 'cave' ? map.region : null;
-      lighting = cave ? caveLighting(scene, cave) : sunLighting(scene, map);
+      const sea = map.region?.region.sky === 'sea';
+      lighting = cave
+        ? caveLighting(scene, cave)
+        : sea
+          ? seaLighting(scene)
+          : sunLighting(scene, map);
+      rays = sea ? new SeaRays(scene, lighting.palette) : null;
       round = cave && new RoundShadows(scene, lighting.palette, map);
       const models = new Models(scene, this.deps.models);
       flames = cave && new Flames(scene, lighting.palette, models, cave.region.lights);
@@ -748,6 +768,7 @@ export class World {
     this.lighting = lighting;
     this.roundShadows = round;
     this.flames = flames;
+    this.rays = rays;
     this.figures = figures;
     this.pouchMarks = pouchMarks;
     this.place = place;
@@ -2658,6 +2679,7 @@ export class World {
     this.figures = null;
     this.roundShadows = null;
     this.flames = null;
+    this.rays = null;
     this.pouchMarks = null;
     this.lighting = null;
     this.map = null;
