@@ -96,7 +96,7 @@ func TestAGateBelowKeepsTheChannel(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := belowData(t)
 		heard := &opens{}
-		w := channelWorldOn(t, data, worldtest.Options{ChannelCap: 2, ChannelIdle: 5 * time.Minute, Channels: heard})
+		w := channelWorldOn(t, data, worldtest.Options{ChannelCap: 2, ChannelIdle: idle, Channels: heard})
 		region, _ := data.Map("test_region")
 		down := portalNamed(t, region, "down")
 		ayla := worldtest.NewPlayer("Ayla", region.PlayerSpawn.X, region.PlayerSpawn.Z)
@@ -114,7 +114,7 @@ func TestAGateBelowKeepsTheChannel(t *testing.T) {
 		if err := w.Leave(context.Background(), bo.ID, "c-Bo"); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(6 * time.Minute)
+		time.Sleep(closed)
 		synctest.Wait()
 		if w.Opened("test_region/2") != nil {
 			t.Fatal("the test region's channel 2 still open, empty past the idle time")
@@ -125,7 +125,7 @@ func TestAGateBelowKeepsTheChannel(t *testing.T) {
 		if got := w.open(t, ayla); !slices.Equal(got, []model.ChannelLoad{{Channel: 1, Players: 1}, {Channel: 2, Players: 1}}) {
 			t.Fatalf("the test region's channels %+v", got)
 		}
-		time.Sleep(6 * time.Minute)
+		time.Sleep(closed)
 		synctest.Wait()
 		if got := heard.stops("test_hollow"); !slices.Equal(got, []int{2}) || !slices.Equal(heard.of("test_hollow"), []int{0, 1, 0}) {
 			t.Fatalf("the hollow heard %v stopped, %v open; want its channel 2 closed once idle, none left", got, heard.of("test_hollow"))
