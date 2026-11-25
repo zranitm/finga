@@ -1,4 +1,4 @@
-// A region's waypoint stones (large-regions.md section 8's Look): dim till found and lit after, by the found set Welcome and WaypointFound give, and a find flares its stone.
+// A region's waypoint stones (large-regions.md section 8's Look): dim till found and lit after, by the found set Welcome and WaypointFound give, and a find flares its stone once it's on screen.
 import '@babylonjs/core/Meshes/thinInstanceMesh';
 import { Constants } from '@babylonjs/core/Engines/constants';
 import type { Material } from '@babylonjs/core/Materials/material';
@@ -6,6 +6,7 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { RawTexture } from '@babylonjs/core/Materials/Textures/rawTexture';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
+import { Frustum } from '@babylonjs/core/Maths/math.frustum';
 import type { Matrix } from '@babylonjs/core/Maths/math.vector';
 import { Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { CreateCylinder } from '@babylonjs/core/Meshes/Builders/cylinderBuilder';
@@ -34,17 +35,24 @@ const RUNE_DARK = 0x3e5658; // an unfound stone's, carved but unlit
 const CRYSTAL_Y = 3.24; // the crystal's middle over the ground
 const DOT_PX = 64;
 
-/** The halo's colour, a touch bluer than the crystal's cyan, drawn over what's behind it rather than added to it, so it reads cyan on grass as on dark ground. */
-const HALO = 0x00d0f4;
-/** Each halo's width in metres and its alpha: a faint one is small rather than thin, as a thin cyan over grass reads mint. */
-const HALOS = { unfound: { size: 1.35, alpha: 0.7 }, found: { size: 2.2, alpha: 0.9 } };
-/** The halo's dot, as shares of its radius: clearer inside HOLE, where the crystal shows through, solid out to CORE, then a short fade, as the fade from cyan to clear passes through mint. */
-const HOLE = 0.2;
-const CORE = 0.6;
+/** Each halo's width in metres, its alpha, and its sRGB colour in the middle and at the rim, drawn over the ground: a fade from cyan to clear over grass passes through mint, so a bluer edge; an unfound one dim by darkness, not thinness. */
+const HALOS = {
+  unfound: { size: 1.35, alpha: 0.7, middle: 0x006a8a, rim: 0x00587a },
+  found: { size: 2.6, alpha: 0.9, middle: 0x00d8f0, rim: 0x00b4ff },
+};
+type HaloLook = (typeof HALOS)['found'];
+/** The share of a halo's radius drawn solid; past it, its alpha falls evenly to nothing at the rim. */
+const CORE = 0.45;
+/** Where a halo stands from its crystal's middle, in metres: behind it along the camera's look, north and down, so the crystal draws in front of it. */
+const BEHIND = { y: -0.3, z: 0.3 };
+/** The flare's beam and ring. */
+const FLARE = 0x00d0f4;
 /** A find's flare in ms: the halo swells and settles and a ring spreads RING_M across over FLARE_MS; a beam rises and is gone by BEAM_MS. */
 const FLARE_MS = 800;
 const BEAM_MS = 600;
 const RING_M = 7;
+/** A find's stone waits this long in ms to be on screen and flare; after, it just shows lit. */
+const SEEN_WITHIN_MS = 10_000;
 
 /** The box a stone's see-through look takes round its spot, halo and all: as wide as the found halo, up to its top. */
 const SEE = { reach: 1.3, top: 4.5 };
@@ -59,6 +67,12 @@ interface Stone {
   copies: { readonly unfound: Mesh[]; readonly found: Mesh[] } | null; // drawn see-through while it isn't whole
 }
 
+/** A stone and when, by the world's clock: its find, or its flare's start. */
+interface Since {
+  readonly stone: Stone;
+  readonly from: number;
+}
+
 const ease = (k: number) => 1 - (1 - Math.min(1, Math.max(0, k))) ** 2;
 
 export class WaypointStones {
@@ -66,12 +80,12 @@ export class WaypointStones {
   private readonly stones: Stone[];
   /** Each stone's see-through look, which fades it out of the camera's way to the player as a tall prop is. */
   readonly looks: readonly Look[];
-  private readonly dot: RawTexture;
   private readonly halos: { readonly unfound: StandardMaterial; readonly found: StandardMaterial };
   private readonly beam: Mesh;
   private readonly ring: Mesh;
   private parts: { readonly unfound: KitPart[]; readonly found: KitPart[] } | null = null;
-  private flaring: { readonly stone: Stone; readonly from: number } | null = null; // one at a time: a newer find takes it over
+  private flaring: Since | null = null; // one at a time: a newer find takes it over
+  private waiting: Since[] = []; // found, still dim till first on screen, oldest first
   private readonly off: () => void;
   private readonly frame: Observer<Scene>;
 
@@ -84,16 +98,15 @@ export class WaypointStones {
     private readonly heightAt: (x: number, z: number) => number,
   ) {
     this.root = new TransformNode('waypoint stones', scene);
-    this.dot = dotTexture(scene);
     this.halos = {
-      unfound: this.glow('waypoint halo', HALOS.unfound.alpha, true),
-      found: this.glow('waypoint halo found', HALOS.found.alpha, true),
+      unfound: this.halo('waypoint halo', HALOS.unfound),
+      found: this.halo('waypoint halo found', HALOS.found),
     };
     const found = foundWaypoints.getState().found;
     this.stones = waypoints.map((w) => {
       const halo = CreatePlane(`waypoint ${w.id} halo`, { size: 1 }, scene);
       halo.billboardMode = Mesh.BILLBOARDMODE_ALL;
-      halo.position.set(w.x, w.y + CRYSTAL_Y, w.z);
+      halo.position.set(w.x, w.y + CRYSTAL_Y + BEHIND.y, w.z + BEHIND.z);
       const stone: Stone = {
         w,
         at: placement(KIT, w.x, w.z, YAW, w.y),
@@ -116,13 +129,13 @@ export class WaypointStones {
       { height: 9, diameterTop: 0.15, diameterBottom: 0.7, tessellation: 24 },
       scene,
     );
-    this.beam.material = this.glow('waypoint beam', 0.7, false);
+    this.beam.material = this.glow('waypoint beam', FLARE, 0.7);
     this.ring = CreateTorus(
       'waypoint ring',
       { diameter: 1, thickness: 0.05, tessellation: 64 },
       scene,
     );
-    this.ring.material = this.glow('waypoint ring', 0.95, false);
+    this.ring.material = this.glow('waypoint ring', FLARE, 0.95);
     for (const m of [...this.stones.map((s) => s.halo), this.beam, this.ring]) {
       m.parent = this.root;
       m.isPickable = false;
@@ -139,10 +152,16 @@ export class WaypointStones {
       } // else its region went while it loaded: nothing to draw it in
     });
     this.off = foundWaypoints.subscribe((s, before) => {
-      this.relight(s.found);
       if (s.last !== null && s.last !== before.last) {
-        this.flare(s.last);
+        const stone = this.stones.find((st) => st.w.id === s.last); // none for another region's
+        if (stone) {
+          this.waiting.push({ stone, from: this.now() });
+        }
+      } else {
+        this.waiting = []; // a join's list lights every stone it holds, unflared
       }
+      this.relight(s.found);
+      this.step(this.now());
     });
     this.frame = scene.onBeforeRenderObservable.add(() => this.step(this.now()));
   }
@@ -154,9 +173,8 @@ export class WaypointStones {
       m.material?.dispose();
     }
     this.root.dispose(false, false); // the stones' toon and glow materials are the palette's, shared
-    this.halos.unfound.dispose();
-    this.halos.found.dispose();
-    this.dot.dispose();
+    this.halos.unfound.dispose(false, true);
+    this.halos.found.dispose(false, true);
   }
 
   /** The model twice, painted unfound and found, each drawn at the stones in its state. */
@@ -244,7 +262,7 @@ export class WaypointStones {
   private relight(found: ReadonlySet<string>): void {
     let changed = false;
     for (const s of this.stones) {
-      if (s.lit !== found.has(s.w.id)) {
+      if (s.lit !== (found.has(s.w.id) && !this.waiting.some((w) => w.stone === s))) {
         s.lit = !s.lit;
         this.haloOf(s, 0);
         changed = true;
@@ -262,20 +280,40 @@ export class WaypointStones {
     s.halo.material = s.lit ? this.halos.found : this.halos.unfound;
   }
 
-  private flare(id: string): void {
-    const stone = this.stones.find((s) => s.w.id === id);
-    if (!stone) {
-      return; // another region's
+  /** Lights each waiting stone whose crystal is on screen, flaring it, the newest taking the flare over, and one unseen past SEEN_WITHIN_MS unflared. */
+  private watch(t: number): void {
+    const camera = this.scene.activeCamera;
+    const planes = camera
+      ? Frustum.GetPlanes(camera.getViewMatrix().multiply(camera.getProjectionMatrix()))
+      : null;
+    const late = (w: Since) => t - w.from >= SEEN_WITHIN_MS;
+    const due = this.waiting.filter(
+      (w) =>
+        late(w) ||
+        (planes &&
+          Frustum.IsPointInFrustum(
+            new Vector3(w.stone.w.x, w.stone.w.y + CRYSTAL_Y, w.stone.w.z),
+            planes,
+          )),
+    );
+    if (due.length === 0) {
+      return;
     }
-    if (this.flaring) {
-      this.haloOf(this.flaring.stone, 0);
+    this.waiting = this.waiting.filter((w) => !due.includes(w));
+    this.relight(foundWaypoints.getState().found);
+    for (const w of due.filter((w) => !late(w))) {
+      if (this.flaring) {
+        this.haloOf(this.flaring.stone, 0);
+      }
+      this.flaring = { stone: w.stone, from: t };
+      this.ring.position.set(w.stone.w.x, w.stone.w.y, w.stone.w.z);
     }
-    this.flaring = { stone, from: this.now() };
-    this.ring.position.set(stone.w.x, stone.w.y, stone.w.z);
-    this.step(this.flaring.from);
   }
 
   private step(t: number): void {
+    if (this.waiting.length > 0) {
+      this.watch(t);
+    }
     const f = this.flaring;
     if (!f) {
       return;
@@ -307,34 +345,41 @@ export class WaypointStones {
     this.ring.material!.alpha = 0.95 * (1 - k / FLARE_MS);
   }
 
-  /** An unlit glow in the halo's colour, at alpha over what's behind it and through the fog: a soft dot if dotted. */
-  private glow(name: string, alpha: number, dotted: boolean): StandardMaterial {
+  /** An unlit glow in color, sRGB, at alpha over what's behind it and through the fog. */
+  private glow(name: string, color: number, alpha: number): StandardMaterial {
     const m = new StandardMaterial(name, this.scene);
     m.disableLighting = true;
-    m.emissiveColor = Color3.FromInts(HALO >> 16, (HALO >> 8) & 255, HALO & 255); // sRGB, as a standard material reads it
+    m.emissiveColor = Color3.FromInts(color >> 16, (color >> 8) & 255, color & 255); // sRGB, as a standard material reads it
     m.alpha = alpha;
     m.alphaMode = Constants.ALPHA_COMBINE;
     m.fogEnabled = false; // a glow shows through the dark and the fog
     m.backFaceCulling = false;
     m.disableDepthWrite = true;
-    if (dotted) {
-      m.opacityTexture = this.dot;
-    }
+    return m;
+  }
+
+  /** A halo's glow: its soft dot gives both its colour and its alpha. */
+  private halo(name: string, look: HaloLook): StandardMaterial {
+    const m = this.glow(name, 0, 1); // black, as the dot's colour adds to it
+    m.emissiveTexture = m.opacityTexture = dotTexture(this.scene, look);
     return m;
   }
 }
 
-/** The halo's dot, white. */
-function dotTexture(scene: Scene): RawTexture {
+/** A halo's dot, sRGB: the middle colour easing to the rim's across it, at its alpha out to CORE, then fading to clear. */
+function dotTexture(scene: Scene, look: HaloLook): RawTexture {
   const px = new Uint8Array(DOT_PX * DOT_PX * 4);
   const mid = (DOT_PX - 1) / 2;
+  const middle = [16, 8, 0].map((b) => (look.middle >> b) & 255);
+  const rim = [16, 8, 0].map((b) => (look.rim >> b) & 255);
   for (let y = 0; y < DOT_PX; y++) {
     for (let x = 0; x < DOT_PX; x++) {
       const r = Math.min(1, Math.hypot(x - mid, y - mid) / mid);
       const i = (y * DOT_PX + x) * 4;
-      px.fill(255, i, i + 3);
-      const a = r < HOLE ? 0.25 + 0.75 * (r / HOLE) ** 2 : r <= CORE ? 1 : (1 - r) / (1 - CORE);
-      px[i + 3] = Math.round(255 * a);
+      for (let c = 0; c < 3; c++) {
+        px[i + c] = Math.round(middle[c]! + (rim[c]! - middle[c]!) * r);
+      }
+      px[i + 3] = Math.round(255 * look.alpha * (r <= CORE ? 1 : (1 - r) / (1 - CORE)));
     }
   }
   const t = RawTexture.CreateRGBATexture(
