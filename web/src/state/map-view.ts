@@ -27,7 +27,11 @@ export const NO_GROUND: MapGround = { kind: 'image', url: '' };
 /** Where the bodies the map views mark are drawn now. */
 export interface MapMarks {
   readonly me: (Spot & { readonly yaw: number }) | null; // yaw from north toward east
-  readonly party: readonly (Spot & { readonly id: string; readonly name: string })[];
+  readonly party: readonly (Spot & {
+    readonly id: string;
+    readonly name: string;
+    readonly gate?: true;
+  })[]; // gate: on its far side, a place below or the region above, marked at it
   readonly lock: Spot | null;
   readonly boss: Spot | null;
 }
