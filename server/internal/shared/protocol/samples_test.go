@@ -93,6 +93,7 @@ func samples() []wsconn.Message {
 		{Type: "Teleport", Seq: 121, ReqID: "r-21", Data: &clientv1.Teleport{MapId: "forest"}},
 		{Type: "SwitchChannel", Seq: 122, ReqID: "r-23", Data: &clientv1.SwitchChannel{Channel: 2}},
 		{Type: "Channels", ReqID: "r-24", Data: &clientv1.Channels{}},
+		{Type: "Bosses", ReqID: "r-25", Data: &clientv1.Bosses{}},
 		{Type: "ChatSend", Data: &clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Text: "hello there"}},
 		{Type: "PartyInvite", ReqID: "r-1", Data: &clientv1.PartyInvite{CharacterId: charB}},
 		{Type: "PartyRespond", ReqID: "r-2", Data: &clientv1.PartyRespond{InviteId: "inv-1", Accept: true}},

@@ -224,6 +224,13 @@ type ChannelLoad struct {
 	Players int
 }
 
+// AreaBoss is a region's hunting area's field boss: up, or beaten and back in BackInMs.
+type AreaBoss struct {
+	Area     string
+	Up       bool
+	BackInMs int64
+}
+
 // PartyMember is one member of a party, online or not.
 type PartyMember struct {
 	CharacterID, Name, Class string

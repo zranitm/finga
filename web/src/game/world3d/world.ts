@@ -29,6 +29,7 @@ import type { GameSocket } from '@/net/socket';
 import { actionPoints } from '@/progression/actions';
 import { keyable } from '@/progression/chains';
 import { mobById } from '@/progression/mobs';
+import { gateBetween } from '@/progression/places';
 import { MARKER_TEXT, markerFor, npcById, npcsOn } from '@/progression/quests';
 import type { Npc } from '@/progression/quests';
 import { bonusAt, moveSpeedWithout, skillById, usedStage } from '@/progression/skills';
@@ -1940,8 +1941,18 @@ export class World {
     mapView.getState().mark({
       me: me && s ? { x: me.x, z: me.z, yaw: yawOf(s.hx, s.hz) } : null,
       party: members.flatMap((m) => {
-        const at = m.characterId === this.deps.player.characterId ? null : this.mateAt(m)?.at;
-        return at ? [{ id: m.characterId, name: m.name, x: at.x, z: at.z }] : [];
+        if (m.characterId === this.deps.player.characterId) {
+          return [];
+        }
+        const at = this.mateAt(m)?.at;
+        if (at) {
+          return [{ id: m.characterId, name: m.name, x: at.x, z: at.z }];
+        }
+        const gate =
+          m.online && m.channel === this.channel ? gateBetween(this.mapId, m.mapId) : null; // in the place below, or the region above, through the paired channel
+        return gate
+          ? [{ id: m.characterId, name: m.name, x: gate.x, z: gate.z, gate: true as const }]
+          : [];
       }),
       lock: this.lockedAt,
       boss: bossAt ? { x: bossAt.x, z: bossAt.z } : null,
@@ -2513,6 +2524,7 @@ export class World {
   /** Into a region's area, on a join or a step: its banner, its name and a hunting area's levels. */
   private enteredArea(id: string): void {
     this.areaId = id;
+    mapView.getState().inArea(id);
     const a = this.area();
     if (a) {
       this.banner(a.kind === 'hunting' ? `${a.name} · Lv ${a.levels[0]}–${a.levels[1]}` : a.name);

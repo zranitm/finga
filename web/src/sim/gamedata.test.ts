@@ -310,7 +310,7 @@ describe('generated gamedata', () => {
     });
   });
 
-  it('maps carry their spawns, portals, boss spot and world chart place, a match’s map none', () => {
+  it('maps carry their spawns, portals, boss spot and world chart place, a match’s map none, and no areas', () => {
     const places = yaml('world.yaml').places as Record<string, [number, number]>;
     for (const m of maps.filter((x) => x.kind !== 'region')) {
       const raw = yaml(`maps/${m.id}.yaml`) as {
@@ -337,19 +337,29 @@ describe('generated gamedata', () => {
           ? { mob: raw.boss.mob, x: raw.boss.at[0], z: raw.boss.at[1], radius: raw.boss.radius }
           : null,
         place: places[m.id] ?? null,
+        areas: [],
       });
     }
   });
 
-  it('a region is a map of its plan: its own town, its camps as spawns and gates as portals, no boss, on no chart', () => {
+  it('a region is a map of its plan: its own town, the region above a place below, its camps as spawns and gates as portals, its areas with their corners, levels and bosses, no boss of its own, on no chart', () => {
     const regions = maps.filter((m) => m.kind === 'region');
     expect(regions.map((m) => m.id)).toContain('test_region');
     for (const m of regions) {
       const raw = yaml(`regions/${m.id}.yaml`) as {
         name: string;
         look: { sky: string };
+        under?: string;
         camps?: { mob: string; at: [number, number]; radius: number }[];
         gates?: { name: string; at: [number, number]; radius: number; to: { region: string } }[];
+        areas: {
+          id: string;
+          name: string;
+          kind: string;
+          levels?: [number, number];
+          area: [number, number][];
+          boss?: { mob: string; at: [number, number]; radius: number };
+        }[];
       };
       expect(m).toEqual({
         id: m.id,
@@ -361,6 +371,7 @@ describe('generated gamedata', () => {
         sky: raw.look.sky,
         min_level: null,
         max_level: null,
+        under: raw.under ?? null,
         spawns: (raw.camps ?? []).map((c) => ({
           mob: c.mob,
           x: c.at[0],
@@ -376,10 +387,27 @@ describe('generated gamedata', () => {
         })),
         boss: null,
         place: null,
+        areas: raw.areas.map((a) => ({
+          id: a.id,
+          name: a.name,
+          kind: a.kind,
+          levels: a.levels ?? null,
+          area: a.area,
+          boss: a.boss
+            ? { mob: a.boss.mob, x: a.boss.at[0], z: a.boss.at[1], radius: a.boss.radius }
+            : null,
+        })),
         points: [],
         bases: [],
       });
     }
+    expect(maps.find((m) => m.id === 'test_region')!.areas.map((a) => [a.id, a.levels])).toEqual([
+      ['town', null],
+      ['west', [1, 4]],
+      ['south', [10, 14]],
+      ['north', [15, 18]],
+      ['woods', [19, 20]],
+    ]);
   });
 
   it('links each pair of maps a portal joins once, both ways', () => {

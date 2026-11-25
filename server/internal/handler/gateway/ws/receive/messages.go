@@ -139,6 +139,15 @@ func (h *Handler) channels(c *msgContext, _ *clientv1.Channels) (any, error) {
 	return &clientv1.Response{Ok: true, Channels: push.ChannelList(list)}, nil
 }
 
+// bosses answers with how each of the region's area bosses stands.
+func (h *Handler) bosses(c *msgContext, _ *clientv1.Bosses) (any, error) {
+	list, err := h.gw.Bosses(c.Ctx, c.Session.session)
+	if err != nil {
+		return nil, err
+	}
+	return &clientv1.Response{Ok: true, Bosses: push.BossList(list)}, nil
+}
+
 func (h *Handler) inventoryMove(c *msgContext, in *clientv1.InventoryMove) (any, error) {
 	id, err := kernel.ParseItemID(in.GetItemId())
 	if err != nil {

@@ -27,7 +27,11 @@ export const NO_GROUND: MapGround = { kind: 'image', url: '' };
 /** Where the bodies the map views mark are drawn now. */
 export interface MapMarks {
   readonly me: (Spot & { readonly yaw: number }) | null; // yaw from north toward east
-  readonly party: readonly (Spot & { readonly id: string; readonly name: string })[];
+  readonly party: readonly (Spot & {
+    readonly id: string;
+    readonly name: string;
+    readonly gate?: true;
+  })[]; // gate: on its far side, a place below or the region above, marked at it
   readonly lock: Spot | null;
   readonly boss: Spot | null;
 }
@@ -35,6 +39,7 @@ export interface MapMarks {
 export interface MapViewState extends MapMarks {
   readonly mapId: string | null;
   readonly channel: number; // the region's channel the player's latest Snapshot named; 0 off regions
+  readonly area: string | null; // the region's area the player stands in, as their frames last said; null off regions
   readonly size: readonly [number, number]; // metres east and north
   readonly ground: MapGround;
   readonly waypoints: readonly MapWaypoint[]; // a region's; none elsewhere
@@ -48,6 +53,8 @@ export interface MapViewState extends MapMarks {
   mark(marks: MapMarks): void;
   /** The player's Snapshot named their channel: one per join and map change. */
   inChannel(channel: number): void;
+  /** The player's frames said which of the region's areas they stand in, '' for none. */
+  inArea(area: string): void;
   clear(): void;
 }
 
@@ -56,12 +63,13 @@ const NONE: MapMarks = { me: null, party: [], lock: null, boss: null };
 export const mapView = defineStore<MapViewState>((set) => ({
   mapId: null,
   channel: 0,
+  area: null,
   size: [0, 0],
   ground: NO_GROUND,
   waypoints: [],
   ...NONE,
   showMap: (mapId, size, ground, waypoints) => {
-    set({ mapId, size, ground, waypoints, ...NONE });
+    set({ mapId, size, ground, waypoints, area: null, ...NONE });
   },
   mark: (marks) => {
     set(marks);
@@ -69,7 +77,18 @@ export const mapView = defineStore<MapViewState>((set) => ({
   inChannel: (channel) => {
     set({ channel });
   },
+  inArea: (area) => {
+    set({ area: area || null });
+  },
   clear: () => {
-    set({ mapId: null, channel: 0, size: [0, 0], ground: NO_GROUND, waypoints: [], ...NONE });
+    set({
+      mapId: null,
+      channel: 0,
+      area: null,
+      size: [0, 0],
+      ground: NO_GROUND,
+      waypoints: [],
+      ...NONE,
+    });
   },
 }));

@@ -396,6 +396,17 @@ These steps follow the regions' build (large-regions.md section 14).
        - the test cave gains a standing torch in its hall, so it has both models;
        - in the world, each torch's cup at its light, mounted and standing alike; each flame at its light, unlit, at its group's flicker for the frame's moment; each card turned to the camera and behind its flame; the card added, fogged, out in gamma;
        - the JS flicker against the material's own graph, at every moment.
+   - **As built (3c, the map views and teleport).**
+     - **The data:** the generated maps carry `under`, a place below's region above, null elsewhere. A place below is a map of kind region like any, so the minimap and This region draw its own tiles inside it, named for it.
+     - **A gate down** on the region's plan and minimap is a cave mouth, an arch, in place of a gate's ring. Its label is the place's name with its levels, the lowest and highest of its hunting areas', from the generated data, so no `region.json` is fetched. The way back up is an ordinary gate, "To" the region above. The dive spot comes with the sea look (step 4).
+     - **Party:** a member online on the player's channel number, in the place below or the region above, is marked at the gate between, as a ring rather than a dot. The client finds the gate from `under` and the gates, with no new message.
+       - The paired channel keeps the number, so a member in the place's other channel isn't marked there. One offline isn't marked.
+       - Only the map marks change: the party frames' statuses stay those of members here.
+     - **Teleport:** This region lists each place below under its plan, with its levels and its waypoints from its layout, lit once found. A waypoint picked there shows as one picked on the plan: found, or not yet, with Teleport here for a found one.
+     - **Tests:**
+       - the places below, their levels, and the gate between a region and its place each way, none for a gate beside it;
+       - This region's cave mouth and its label, a gate beside it still a ring; the list under it, a found waypoint teleported to and one not found; inside the place, its own plan with no list and its way back a ring; the minimap's cave mouth and a member's ring at the gate;
+       - in the world, a member in the place below marked at the gate as a ring, none on another channel or offline, and its statuses not here.
 4. **The sea look:**
    - caustics, rays, sway, bubbles and fish;
    - the Blender models;

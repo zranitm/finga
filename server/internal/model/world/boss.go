@@ -17,5 +17,12 @@ type FieldBossGone struct {
 	BackIn time.Duration
 }
 
+// AreaBoss is a region's hunting area's field boss as a Bosses query finds it: up, or beaten and back in BackIn.
+type AreaBoss struct {
+	Area   string
+	Up     bool
+	BackIn time.Duration
+}
+
 func (FieldBoss) event()     {}
 func (FieldBossGone) event() {}

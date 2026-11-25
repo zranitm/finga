@@ -75,6 +75,7 @@ type RequestType =
   | 'teleport'
   | 'switchChannel'
   | 'channels'
+  | 'bosses'
   | 'promote'
   | 'resetPoints'
   | 'talk'

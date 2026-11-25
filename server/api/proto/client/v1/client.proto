@@ -53,6 +53,7 @@ message ClientMessage {
     TakeLoot take_loot = 38;
     SwitchChannel switch_channel = 39;
     Channels channels = 40;
+    Bosses bosses = 41;
   }
 }
 
@@ -195,6 +196,9 @@ message SwitchChannel {
 
 // Channels asks for the open channels of the player's region; the Response carries them.
 message Channels {}
+
+// Bosses asks how each hunting area's field boss stands in the player's region channel; the Response carries them.
+message Bosses {}
 
 // ChatSend is a chat line, up to chat.yaml's line_max characters after cleaning.
 message ChatSend {
@@ -1038,6 +1042,8 @@ message Response {
   repeated PickAnswer picks = 5;
   // A Channels' answer.
   ChannelList channels = 6;
+  // A Bosses' answer.
+  BossList bosses = 7;
 }
 
 // ChannelList is the open channels of the player's region, by number, and how full each is against cap, the players a channel takes before joins pass it.
@@ -1050,6 +1056,18 @@ message ChannelList {
 message ChannelLoad {
   uint32 channel = 1;
   uint32 players = 2;
+}
+
+// BossList is each hunting area's field boss in the player's region channel, in the region's order of areas.
+message BossList {
+  repeated AreaBoss bosses = 1;
+}
+
+// AreaBoss is an area's field boss: up, or beaten and back in back_in_ms from the answer.
+message AreaBoss {
+  string area = 1;
+  bool up = 2;
+  int64 back_in_ms = 3;
 }
 
 // TeleportCancelled says the player's teleport channel ended before it took them.

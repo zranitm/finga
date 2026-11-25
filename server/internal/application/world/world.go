@@ -60,6 +60,7 @@ type service interface {
 	Teleport(ctx context.Context, id kernel.CharacterID, conn, mapID, waypoint string, seq uint32) error
 	SwitchChannel(ctx context.Context, id kernel.CharacterID, conn string, n int, seq uint32) error
 	Channels(id kernel.CharacterID, conn string) (model.Channels, error)
+	Bosses(ctx context.Context, id kernel.CharacterID, conn string) ([]model.AreaBoss, error)
 	Promote(ctx context.Context, id kernel.CharacterID, conn, npc string, class kernel.Class) error
 	Talk(ctx context.Context, id kernel.CharacterID, conn, npc string) error
 	AcceptQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error
@@ -385,6 +386,21 @@ func (m *Module) Channels(ctx context.Context, p Presence) (_ Channels, err erro
 	out := Channels{Cap: got.Cap}
 	for _, c := range got.Open {
 		out.Open = append(out.Open, ChannelLoad(c))
+	}
+	return out, nil
+}
+
+// Bosses is how each hunting area's field boss stands on the player's region channel, in its areas' order.
+func (m *Module) Bosses(ctx context.Context, p Presence) (_ []AreaBoss, err error) {
+	ctx, call := m.calls.Start(ctx, "Bosses")
+	defer call.End(&err)
+	got, err := m.svc.Bosses(ctx, p.Character, p.Conn)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]AreaBoss, 0, len(got))
+	for _, b := range got {
+		out = append(out, AreaBoss(b))
 	}
 	return out, nil
 }
