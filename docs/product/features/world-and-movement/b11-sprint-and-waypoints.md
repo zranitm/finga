@@ -25,7 +25,8 @@
 - **Waypoints:**
   - A waypoint is a tall carved stone with a cyan crystal floating above it, in every town and at crossroads, camps and passes, about every 150 m along the roads.
   - Until it's found, its crystal glows a dim teal and its runes are dark, still easy to spot from afar and in a dark cave. Once found, the crystal shines near-white and the runes glow, so a player can see in the world which stones are left.
-  - Walking within 12 m of one finds it. The crystal and runes light up, a beam rises and a ring spreads on the ground, all in under a second. A notice says "Waypoint found: <name>", and it's remembered for the character.
+  - Walking within 12 m of one finds it. A notice says "Waypoint found: <name>", and it's remembered for the character.
+  - The first time the stone is on screen after the find, its crystal and runes light up, a beam rises and a ring spreads on the ground, all in under a second. Close in, the camera shows less than 12 m round the player, so the flare waits to be seen.
   - Unfound waypoints show grey on the map, and found ones lit.
   - Each underground or underwater place has one inside, by its entrance (B13).
 - **Teleport** (B9) goes to a waypoint, in place of a map:
