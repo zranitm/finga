@@ -29,7 +29,10 @@ const FILL_ALPHA = 0.2;
 const FILL_GLOW = 0.25; // light added past the fill's alpha, as a boss area's glow
 const LIFT_M = 0.04; // just over the ground, as the telegraphs
 const STEP_M = 0.5; // the fill's rings apart, a terrain cell
-const AROUND = 64; // segments round a point or a base
+const AROUND = 64; // segments round a point or a base at least
+
+/** Segments round a circle of radius metres: AROUND, or more so its edge runs no more than STEP_M straight between vertices. */
+const around = (radius: number) => Math.max(AROUND, Math.ceil((2 * Math.PI * radius) / STEP_M));
 const WALL = { alpha: 0.3, over: 3, sink: 0.5 }; // see-through; metres over the base's highest ground and under its lowest
 
 export class BattleMarks {
@@ -109,19 +112,20 @@ export class BattleMarks {
     }
     radii.push(outer);
     const centre = groundUnder(this.map, c.x, c.z);
+    const segments = around(outer);
     const positions: number[] = [];
     for (const r of radii) {
-      for (let k = 0; k <= AROUND; k++) {
-        const a = (k / AROUND) * 2 * Math.PI;
+      for (let k = 0; k <= segments; k++) {
+        const a = (k / segments) * 2 * Math.PI;
         const [x, z] = [Math.sin(a) * r, Math.cos(a) * r];
         positions.push(x, groundUnder(this.map, c.x + x, c.z + z) - centre + LIFT_M, z);
       }
     }
     const indices: number[] = [];
     for (let j = 0; j + 1 < radii.length; j++) {
-      for (let k = 0; k < AROUND; k++) {
-        const a = j * (AROUND + 1) + k;
-        const b = a + AROUND + 1;
+      for (let k = 0; k < segments; k++) {
+        const a = j * (segments + 1) + k;
+        const b = a + segments + 1;
         indices.push(a, b, a + 1, a + 1, b, b + 1);
       }
     }
@@ -139,15 +143,16 @@ export class BattleMarks {
   /** An open wall round base b, from under its lowest ground to WALL.over above its highest. */
   private wall(scene: Scene, name: string, b: Circle): Mesh {
     const t = this.map.geometry.terrain;
-    const ground = Array.from({ length: AROUND }, (_, k) => {
-      const a = (k / AROUND) * 2 * Math.PI;
+    const segments = around(b.radius);
+    const ground = Array.from({ length: segments }, (_, k) => {
+      const a = (k / segments) * 2 * Math.PI;
       return height(t, b.x + Math.sin(a) * b.radius, b.z + Math.cos(a) * b.radius);
     });
     const bottom = Math.min(...ground) - WALL.sink;
     const top = Math.max(...ground) + WALL.over;
     const m = CreateCylinder(
       name,
-      { diameter: 2 * b.radius, height: top - bottom, tessellation: AROUND, cap: Mesh.NO_CAP },
+      { diameter: 2 * b.radius, height: top - bottom, tessellation: segments, cap: Mesh.NO_CAP },
       scene,
     );
     m.position.set(b.x, (top + bottom) / 2, b.z);

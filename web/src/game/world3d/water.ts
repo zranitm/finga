@@ -6,12 +6,14 @@ import type { Scene } from '@babylonjs/core/scene';
 import earcut from 'earcut';
 
 import type { Lake, Region, River } from './region-bake';
+import { WATER_ORDER } from './see-through';
 import { linearOf } from './toon';
 import type { Palette } from './toon';
 
 const BANK_M = 2; // past a river's channel or a lake's edge, so the surface runs under the banks' ground
 const MITRE = 3; // a lake corner moves out at most this many times BANK_M, so a sharp one doesn't spike
 const ALPHA = 0.85; // the ground under the shallows shows through
+const KEEP = 0.1; // the least share of each step a bank's edge goes downstream
 
 /** Arrays for a flat surface, its triangles wound as the ground's are, so it faces up. */
 export interface WaterArrays {
@@ -19,19 +21,24 @@ export interface WaterArrays {
   readonly indices: Uint32Array;
 }
 
-/** A river's surface: at each point of its path, a vertex either side across it, half its width and BANK_M out, at the point's level. */
+/** A river's surface: at each point of its path, a vertex either side across it, half its width and BANK_M out, at the point's level; cut nearer on the inside of a bend too tight for that. */
 export function riverArrays(r: River): WaterArrays {
   const n = r.path.length;
-  const half = r.width / 2 + BANK_M;
-  const positions: number[] = [];
-  for (let i = 0; i < n; i++) {
+  const along = r.path.map((_, i) => {
     const [ax, az] = r.path[Math.max(i - 1, 0)]!;
     const [bx, bz] = r.path[Math.min(i + 1, n - 1)]!;
-    const along = Math.hypot(bx - ax, bz - az) || 1;
-    const [sx, sz] = [-(bz - az) / along, (bx - ax) / along]; // across it, to the left going downstream
+    const len = Math.hypot(bx - ax, bz - az) || 1;
+    return [(bx - ax) / len, (bz - az) / len] as const;
+  });
+  const [left, right] = reaches(r.path, along, r.width / 2 + BANK_M);
+  const positions: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const [ux, uz] = along[i]!;
+    const [sx, sz] = [-uz, ux]; // across it, to the left going downstream
     const [x, z] = r.path[i]!;
     const y = r.levels[i]!;
-    positions.push(x + sx * half, y, z + sz * half, x - sx * half, y, z - sz * half);
+    const [l, rt] = [left[i]!, right[i]!];
+    positions.push(x + sx * l, y, z + sz * l, x - sx * rt, y, z - sz * rt);
   }
   const indices: number[] = [];
   for (let i = 0; i + 1 < n; i++) {
@@ -39,6 +46,29 @@ export function riverArrays(r: River): WaterArrays {
     indices.push(l, rt, l2, rt, r2, l2); // the left bank first going downstream: wound as the ground is, whichever way it runs
   }
   return arrays(positions, indices);
+}
+
+/** How far each point's vertex reaches across to the left and to the right, half at most: on each step either bank's edge keeps going downstream by KEEP of it, along both ends' ways, so a tight bend's inside never folds back. */
+function reaches(
+  path: readonly (readonly [number, number])[],
+  along: readonly (readonly [number, number])[],
+  half: number,
+): [number[], number[]] {
+  return [1, -1].map((side) => {
+    const reach = path.map(() => half);
+    for (let i = 0; i + 1 < path.length; i++) {
+      const [dx, dz] = [path[i + 1]![0] - path[i]![0], path[i + 1]![1] - path[i]![1]];
+      const [u0, u1] = [along[i]!, along[i + 1]!];
+      const ahead = (u: readonly [number, number]) =>
+        (1 - KEEP) * Math.max(dx * u[0] + dz * u[1], 0);
+      const fold = side * (u1[1] * u0[0] - u1[0] * u0[1]); // how far each end's edge falls back along the other's way, a metre out on this side
+      if (fold > 0) {
+        reach[i] = Math.min(reach[i]!, ahead(u1) / fold);
+        reach[i + 1] = Math.min(reach[i + 1]!, ahead(u0) / fold);
+      }
+    }
+    return reach;
+  }) as [number[], number[]];
 }
 
 /** A lake's surface: its area grown by BANK_M, each corner moved out along the line between its two sides', at its level, cut into triangles. */
@@ -100,6 +130,7 @@ export function drawWater(
     m.material = material;
     m.receiveShadows = true;
     m.isPickable = false;
+    m.alphaIndex = WATER_ORDER;
     m.freezeWorldMatrix();
     return m;
   };

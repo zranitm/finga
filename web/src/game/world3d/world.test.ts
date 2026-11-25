@@ -396,6 +396,14 @@ function changeMap(p: Playing, d: ServerInit<'mapChange'>): void {
   vi.useRealTimers();
 }
 
+/** Back to real timers, any fake ones still due run first: Babylon queues its SetImmediate work behind one setTimeout, and a dropped one leaves the queue stuck for the file, holding every world after it. */
+function realTimers(): void {
+  if (vi.isFakeTimers()) {
+    vi.runAllTimers();
+  }
+  vi.useRealTimers();
+}
+
 /** Takes p's world down as leaving the game does, its socket closed with it, so neither outlives the test; its engine goes after. */
 function leave(p: Playing): void {
   p.world.dispose();
@@ -505,8 +513,10 @@ describe('World', () => {
     document.body.replaceChildren();
     broken = '';
     chunkWork.failing = '';
+    chunkWork.builds.length = 0;
     vi.unstubAllGlobals();
-    vi.useRealTimers();
+    realTimers();
+    vi.resetAllMocks();
     clearToken();
   });
 
@@ -1794,7 +1804,7 @@ describe('World', () => {
     ]);
   });
 
-  it('in a match names enemies red and teammates green, tags a bot, and locks and attacks an enemy as a mob, never a teammate', async () => {
+  it('in a match names enemies red and teammates green, tags a bot, tags a fighter whose place is held Reconnecting, and locks and attacks an enemy as a mob, never a teammate', async () => {
     const cut = vi.spyOn(Palette.prototype, 'cutAround');
     const p = await playing(FLAT, 4, 20);
     character.getState().applyWelcome(
@@ -1895,6 +1905,31 @@ describe('World', () => {
       p.frames(1);
     }
     expect(target.getState().target?.ref).toBe('p:c-robin'); // the round's reset: up, and locked on again
+    const held = (away: boolean) =>
+      pvp.getState().applyMatchState(
+        create(MatchStateSchema, {
+          match: 'mt-1',
+          mode: 'team',
+          phase: MatchPhase.FIGHT,
+          sides: [
+            { fighters: [{ id: ME }, { id: 'c-kai', name: 'Kai', away }] },
+            { fighters: [{ id: 'c-robin', name: 'Robin', bot: true }] },
+          ],
+        }),
+        28,
+      );
+    held(true);
+    p.push('delta', { players: players(1) }, { tick: 28 });
+    p.frames(1);
+    expect([tag('c-kai').textContent, tag('c-kai').hidden, tag('c-robin').textContent]).toEqual([
+      'Reconnecting',
+      false,
+      'BOT',
+    ]);
+    held(false);
+    p.push('delta', { players: players(1) }, { tick: 29 });
+    p.frames(1);
+    expect(tag('c-kai').hidden).toBe(true); // back
     cut.mockRestore();
   });
 
@@ -4508,7 +4543,7 @@ describe('World', () => {
         expect(server.z).toBeCloseTo(24, 9); // dashed the skill's 4 m toward the lock
         expect(p.world.resets).toBe(0);
       } finally {
-        vi.useRealTimers();
+        realTimers();
         strike.move = was;
       }
     },

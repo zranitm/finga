@@ -76,6 +76,7 @@ describe('MapWindow, with a region on the chart', () => {
     expect(layoutOf).toHaveBeenCalledWith('test_region');
     expect(screen.getByText('Region')).toBeInTheDocument();
     expect(svg.querySelectorAll('image.map-tile')).toHaveLength(4); // its tiles, from its layout
+    expect(screen.getByRole('group', { name: 'Zoom' })).toBeInTheDocument(); // which pan and zoom, as This region's do
     expect(screen.queryByRole('button', { name: 'Teleport here' })).not.toBeInTheDocument(); // none by the region's id
     expect(
       [...svg.querySelectorAll('.map-waypoint-found')].map((g) => g.getAttribute('data-waypoint')),

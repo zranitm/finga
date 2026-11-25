@@ -1,4 +1,4 @@
-// Names, NPC markers, portal labels and the talk key's prompt (3d-world.md section 10, key-bindings.md section 6): DOM text over the canvas, each at its world point projected to the screen every frame, players' names lifted clear of the rest; in a match enemies' names red and teammates' green, a bot's with a BOT tag (pvp.md section 13).
+// Names, NPC markers, portal labels and the talk key's prompt (3d-world.md section 10, key-bindings.md section 6): DOM text over the canvas, each at its world point projected to the screen every frame, players' names lifted clear of the rest; in a match enemies' names red and teammates' green, a bot's with a BOT tag, and a fighter's whose place is held through a drop with Reconnecting (pvp.md section 13).
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 
 import { stackTags } from '@/lib/tags';

@@ -30,7 +30,7 @@ import { inventory } from '@/state/inventory';
 import { mapView } from '@/state/map-view';
 import { party } from '@/state/party';
 import { pouches } from '@/state/pouches';
-import { pvp, runsOn } from '@/state/pvp';
+import { awayChanges, pvp, runsOn } from '@/state/pvp';
 import { outdates, questPlayer, quests } from '@/state/quests';
 import { session } from '@/state/session';
 import { settings } from '@/state/settings';
@@ -118,8 +118,10 @@ export function wireSocket(socket: GameSocket): () => void {
       quests.getState().applyWelcome(m.d);
       waypoints.getState().applyWelcome(m.d.waypoints);
       ui.getState().closeWindow('npc');
-      pvp.getState().applyUnqueued(); // a join is out of any match; the queue sends its ticket again
-      leaveMatch();
+      pvp.getState().applyUnqueued(); // the queue sends its ticket again
+      if (!isMatchMap(m.d.mapId)) {
+        leaveMatch(); // a join lands in a match only on a place held through a drop (pvp.md section 4)
+      }
       restoreSkillTimers(
         m.d.skillTimers,
         m.d.character?.sheet,
@@ -276,7 +278,16 @@ export function wireSocket(socket: GameSocket): () => void {
       }
     }),
     socket.on('matchState', (m) => {
+      const was = pvp.getState().match;
       pvp.getState().applyMatchState(m.d, m.tick);
+      const me = character.getState().character?.id ?? '';
+      const { lost, back } = awayChanges(was, pvp.getState().match, me);
+      for (const name of lost) {
+        toasts.getState().push(`${name} lost connection`, 'info');
+      }
+      for (const name of back) {
+        toasts.getState().push(`${name} is back`, 'info');
+      }
     }),
     socket.on('arenaBar', (m) => {
       skillBar.getState().wear(m.d.skillBar);
