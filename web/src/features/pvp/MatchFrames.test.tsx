@@ -12,8 +12,8 @@ import { resetStores } from '@/testing/reset-stores';
 
 import { EnemyFrames, TeamFrames } from './MatchFrames';
 
-/** Ayla's match on side 2 with Robin and the bot Kit, against Ash, Bea and the bot Cole. */
-const match = (mode: string) =>
+/** Ayla's match on side 2 with Robin and the bot Kit, against Ash, Bea and the bot Cole; those named in away have their place held through a drop. */
+const match = (mode: string, away: readonly string[] = []) =>
   act(() =>
     pvp.getState().applyMatchState(
       create(MatchStateSchema, {
@@ -24,15 +24,15 @@ const match = (mode: string) =>
         sides: [
           {
             fighters: [
-              { id: 'c-ash', name: 'Ash', class: 'thief' },
-              { id: 'c-bea', name: 'Bea', class: 'bowman' },
+              { id: 'c-ash', name: 'Ash', class: 'thief', away: away.includes('c-ash') },
+              { id: 'c-bea', name: 'Bea', class: 'bowman', away: away.includes('c-bea') },
               { id: 'b-cole', name: 'Cole', class: 'magician', bot: true },
             ],
           },
           {
             fighters: [
               { id: 'c-ayla', name: 'Ayla', class: 'warrior' },
-              { id: 'c-robin', name: 'Robin', class: 'magician' },
+              { id: 'c-robin', name: 'Robin', class: 'magician', away: away.includes('c-robin') },
               { id: 'b-kit', name: 'Kit', class: 'bowman', bot: true },
             ],
           },
@@ -106,6 +106,20 @@ describe('match frames', () => {
     ).toEqual(['Enemy Ash', 'Enemy Bea', 'Enemy Cole']);
     expect(screen.getByRole('meter', { name: 'Ash HP' })).toHaveAttribute('aria-valuenow', '40');
     expect(screen.getByRole('group', { name: 'Enemy Cole' })).toHaveTextContent('BOT');
+  });
+
+  it('mark a teammate or an enemy whose place is held through a drop Reconnecting', () => {
+    render(
+      <>
+        <TeamFrames />
+        <EnemyFrames />
+      </>,
+    );
+    match('team', ['c-robin', 'c-bea']);
+    show({ 'c-robin': live(60), 'c-ash': live(40), 'c-bea': live(100) });
+    expect(screen.getByRole('group', { name: 'Teammate Robin' })).toHaveTextContent('Reconnecting');
+    expect(screen.getByRole('group', { name: 'Enemy Bea' })).toHaveTextContent('Reconnecting');
+    expect(screen.getByRole('group', { name: 'Enemy Ash' })).not.toHaveTextContent('Reconnecting');
   });
 
   it('show a fighter once the world has drawn them, and none outside a match', () => {
