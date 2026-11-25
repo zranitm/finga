@@ -139,7 +139,7 @@ classes:                   # base values per class; per_level grows them
 - **Regen:**
   - Once a second (every `tick_rate_hz` ticks), each living player gains their HP regen. Fractions are carried in thousandths, so 0.05 a second adds up exactly, and HP never goes past its maximum.
   - It runs in towns too, since the combat page has HP come back over time everywhere. It never runs while dead: HP stays 0 until the respawn sets it.
-  - HP changes go out in the Delta as any change does, and the party hears each member's HP once a tick when it changed; the party copy keeps only a member's newest.
+  - HP changes go out in the Delta as any change does, and the party hears a member's HP at most every 250 ms of the world's ticks, the newest always within that, and at once when they go down or get up or their max HP changes; the party copy keeps only a member's newest, and social sends no party state that shows nothing new.
 - **Inactive gear:** when a character's own stats change (spending, a reset) or an item is equipped, the world rebuilds the worn sum from the items whose requirements are met.
 
 ## 7. Speed

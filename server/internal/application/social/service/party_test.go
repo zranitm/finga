@@ -655,3 +655,25 @@ func TestPruningMembersStopsAtItsLimit(t *testing.T) {
 		t.Fatalf("pruned %d (%v), want the one left", n, err)
 	}
 }
+
+// A world's report that changes nothing a party frame shows tells nobody, as a join's after its login does; one that does tells every member once. A login always tells, as its new connection hears its party only so.
+func TestAnUnchangedReportSendsNoPartyState(t *testing.T) {
+	f := newFixture(t, "Ayla", "Robin")
+	f.invite(t, "Ayla", "Robin")
+	robin := f.id("Robin")
+	must(t, f.svc.Update(f.ctx, robin, "cave", 0, "magician", 9, 40, 300))
+	f.rec.reset()
+	must(t, f.svc.Update(f.ctx, robin, "cave", 0, "magician", 9, 40, 300))
+	if n := len(f.rec.states); n != 0 {
+		t.Fatalf("%d party states for a report that changed nothing; want none", n)
+	}
+	must(t, f.svc.Update(f.ctx, robin, "cave", 0, "magician", 9, 39, 300))
+	if n := len(f.rec.states); n != 1 || f.rec.last().party.Members[1].HP != 39 {
+		t.Fatalf("party states %+v for a lost HP point; want one saying 39", f.rec.states)
+	}
+	f.rec.reset()
+	must(t, f.svc.Online(f.ctx, model.Member{ID: robin, Name: "Robin", Class: "magician", Level: 9, HP: 39, MaxHP: 300, MapID: "cave", Connection: "c-Robin", JoinSeq: 1}))
+	if n := len(f.rec.states); n != 1 {
+		t.Fatalf("%d party states for a login changing nothing shown; want one, for its connection", n)
+	}
+}
