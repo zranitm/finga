@@ -1,10 +1,12 @@
 // A map's ground and marks as SVG in metres, x east and y south from the map's north edge, shared by the minimap and the map window (map-views.md sections 5 and 6); on a battle's map its bases and points too (pvp.md section 13).
+import { useMemo } from 'react';
 import type { ReactNode } from 'react';
 
 import { useQuestPlayer } from '@/features/shared/useQuestPlayer';
 import { maps } from '@/gamedata/maps';
 import { npcs } from '@/gamedata/npcs';
 import { mobById } from '@/progression/mobs';
+import { placesBelow } from '@/progression/places';
 import { MARKER_TEXT, markerFor } from '@/progression/quests';
 import type { Marker } from '@/progression/quests';
 import { character } from '@/state/character';
@@ -18,6 +20,7 @@ import type { Crown } from './crowns';
 
 const SPAWN_DEFAULT = 0x9a9a9a; // an untinted mob's circle
 const CROWN = '-1,0.6 -1,-0.6 -0.5,0 0,-0.9 0.5,0 1,-0.6 1,0.6'; // a boss's mark, a unit round its middle
+const CAVE_MOUTH = 'M-1.2,0.9 L-1.2,0 A1.2,1.2 0 0 1 1.2,0 L1.2,0.9 Z'; // a gate down to a cave, an arch a unit round its middle
 
 const TILE_M = 128; // a region's map tile's side
 const LEVELS = [1, 4] as const; // its tiles' metres a pixel, finest first
@@ -189,6 +192,10 @@ export function MapMarks({
   const area = mapView.use((s) => s.area);
   const mapId = other?.id ?? current;
   const markers = useNpcMarkers(mapId);
+  const below = useMemo(
+    () => new Set(mapId === null ? [] : placesBelow(mapId).map((m) => m.id)),
+    [mapId],
+  ); // the gates down, once a map
   const map = maps.find((m) => m.id === mapId);
   if (!map) {
     return null;
@@ -233,19 +240,35 @@ export function MapMarks({
           />
         );
       })}
-      {map.portals.map((p) => (
-        <circle
-          key={p.name}
-          className="map-portal"
-          data-to={p.to}
-          cx={p.x}
-          cy={y(p.z)}
-          r={Math.max(p.radius, 2 * dot)}
-          fill="none"
-          stroke="#7ac7ff"
-          strokeWidth={2 * unit}
-        />
-      ))}
+      {map.portals.map((p) => {
+        if (below.has(p.to)) {
+          return (
+            <path
+              key={p.name}
+              className="map-portal map-cave"
+              data-to={p.to}
+              d={CAVE_MOUTH}
+              transform={`translate(${p.x} ${y(p.z)}) scale(${2 * dot})`}
+              fill="#1a1a22"
+              stroke="#7ac7ff"
+              strokeWidth={0.25}
+            />
+          );
+        }
+        return (
+          <circle
+            key={p.name}
+            className="map-portal"
+            data-to={p.to}
+            cx={p.x}
+            cy={y(p.z)}
+            r={Math.max(p.radius, 2 * dot)}
+            fill="none"
+            stroke="#7ac7ff"
+            strokeWidth={2 * unit}
+          />
+        );
+      })}
       {npcs.npcs
         .filter((n) => n.map === mapId)
         .map((n) => {
@@ -285,12 +308,14 @@ export function MapMarks({
         {party.map((p) => (
           <circle
             key={p.id}
-            className="map-party"
+            className={p.gate ? 'map-party map-party-gate' : 'map-party'}
             data-id={p.id}
             cx={p.x}
             cy={y(p.z)}
             r={dot}
-            fill="#5fd35f"
+            fill={p.gate ? 'none' : '#5fd35f'}
+            stroke={p.gate ? '#5fd35f' : undefined}
+            strokeWidth={p.gate ? unit : undefined}
           />
         ))}
         {lock && (

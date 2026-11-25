@@ -1,8 +1,12 @@
 package regiongen
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
 	"math"
 	"os"
+	"path/filepath"
 	"slices"
 	"sync"
 	"testing"
@@ -217,6 +221,143 @@ func TestAPlateausEdgeIsACliffOrARamp(t *testing.T) {
 	}
 	if r.at(int(40-run)-1, 64) != 0 {
 		t.Errorf("height %v past the ramp's foot; want 0", r.at(int(40-run)-1, 64))
+	}
+}
+
+// A road through a ford wades it: the ford's floor stays fordDepth under the water, wet and not deep across the river's width, and the crossing walkable, where the road alone would make a dry causeway with banks falling square to the water; the same road over the river away from a ford is that causeway.
+func TestARoadThroughAFordWadesIt(t *testing.T) {
+	p := flat()
+	p.Features = []Feature{
+		{River: &River{Path: [][2]float64{{64, 0}, {64, 128}}, Width: 6, Depth: 2, Fords: [][2]float64{{64, 40}}}},
+		{Road: &Road{Path: [][2]float64{{20, 40}, {110, 40}}, Width: 4}},
+		{Road: &Road{Path: [][2]float64{{20, 90}, {110, 90}}, Width: 4}},
+	}
+	r := build(t, p)
+	tr := r.Geometry.Terrain
+	level := r.Rivers[0].Levels[0]
+	if h := tr.Heights[40*129+64]; math.Abs(h-(level-fordDepth)) > 1e-6 {
+		t.Errorf("the ford's floor under the road is at %v; want its water's level %v less %v", h, level, fordDepth)
+	}
+	for x := 62; x <= 66; x++ {
+		if s := 40*129 + x; !r.Wet[s] || tr.Barrier[s] || tr.Heights[s] >= level {
+			t.Errorf("(%d, 40), in the ford on the road: wet %v, deep %v, ground %v under water at %v", x, r.Wet[s], tr.Barrier[s], tr.Heights[s], level)
+		}
+	}
+	for z := 38.5; z < 42; z++ {
+		for x := 50.5; x < 78; x++ {
+			if tr.Steep(x, z, false) || tr.Steep(x, z, true) || tr.Barred(x, z) {
+				t.Errorf("the cell at (%g, %g), on the road through the ford, is steep or deep", x, z)
+			}
+		}
+	}
+	if s := 90*129 + 64; r.Wet[s] || tr.Heights[s] < level {
+		t.Errorf("the road over the river at (64, 90), no ford: wet %v, ground %v; want a dry causeway over the water at %v", r.Wet[s], tr.Heights[s], level)
+	}
+}
+
+// A road that only passes a ford, along its bank inside the reach of the ford's ramp, bakes as it did before roads waded fords: its heights hash as main's generator made them.
+func TestARoadPassingAFordIsUnchanged(t *testing.T) {
+	p := flat()
+	p.Features = []Feature{
+		{River: &River{Path: [][2]float64{{64, 0}, {64, 128}}, Width: 6, Depth: 2, Fords: [][2]float64{{64, 40}}}},
+		{Road: &Road{Path: [][2]float64{{71, 4}, {71, 124}}, Width: 4}},
+	}
+	h := sha256.New()
+	for _, v := range build(t, p).Geometry.Terrain.Heights {
+		_ = binary.Write(h, binary.LittleEndian, v)
+	}
+	const want = "84428b8798d7c405f20f2bd260611c2df3bfa9a119537bda7094569d9d41e0a0"
+	if got := hex.EncodeToString(h.Sum(nil)); got != want {
+		t.Errorf("heights hash %s; want %s, as before", got, want)
+	}
+}
+
+// A causeway away from any ford stays dry, as it always was, even where a wide river's channel pulls the road's mean under the water: only in a ford the road crosses is it wet.
+func TestACausewayStaysDryUnderItsMean(t *testing.T) {
+	p := flat()
+	p.Features = []Feature{
+		{River: &River{Path: [][2]float64{{64, 0}, {64, 128}}, Width: 20, Depth: 3}},
+		{Road: &Road{Path: [][2]float64{{4, 64}, {124, 64}}, Width: 4}},
+	}
+	r := build(t, p)
+	s := 64*129 + 64
+	if h, level := r.Geometry.Terrain.Heights[s], r.Rivers[0].Levels[0]; h >= level {
+		t.Fatalf("the causeway's ground at %v stands over the water at %v; the case needs it under", h, level)
+	}
+	if r.Wet[s] || r.Geometry.Terrain.Barrier[s] {
+		t.Errorf("the causeway at (64, 64): wet %v, deep %v; want dry", r.Wet[s], r.Geometry.Terrain.Barrier[s])
+	}
+}
+
+// No sample under a road is a barrier, in the test plans or the shipped regions: a causeway is dry, and a ford a road wades is shallow.
+func TestNoRoadIsABarrier(t *testing.T) {
+	for name, p := range everyPlan(t) {
+		r := build(t, p)
+		nx, nz := samples(p.Size[0], p.Cell), samples(p.Size[1], p.Cell)
+		for _, f := range p.Features {
+			if f.Road == nil {
+				continue
+			}
+			path := smooth(f.Road.Path)
+			for s := range nx * nz {
+				at := [2]float64{float64(s%nx) * p.Cell, float64(s/nx) * p.Cell}
+				if r.Geometry.Terrain.Barrier[s] && onPath(path, at, float64(f.Road.Width/2)) {
+					t.Errorf("%s: the road through %v is a barrier at %v", name, f.Road.Path[0], at)
+				}
+			}
+		}
+	}
+}
+
+// everyPlan is the test plans with rivers and roads, and the shipped regions, by name.
+func everyPlan(t *testing.T) map[string]Plan {
+	plans := map[string]Plan{"small": small(t), "wide": plan(t, "testdata/wide.yaml")}
+	shipped, err := filepath.Glob("../../../data/regions/*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range shipped {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if plans[path], err = Decode(raw); err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+	}
+	return plans
+}
+
+// Every ford of the test plans and the shipped regions holds water over its middle, fordDepth deep, wet and not deep, whatever crosses it.
+func TestEveryFordHoldsShallowWater(t *testing.T) {
+	for name, p := range everyPlan(t) {
+		r := build(t, p)
+		tr := r.Geometry.Terrain
+		nx := samples(p.Size[0], p.Cell)
+		rivers := 0
+		for _, f := range p.Features {
+			if f.River == nil {
+				continue
+			}
+			water := r.Rivers[rivers]
+			rivers++
+			for _, at := range f.River.Fords {
+				d2 := func(q [2]float64) float64 {
+					return float64((q[0]-at[0])*(q[0]-at[0])) + float64((q[1]-at[1])*(q[1]-at[1]))
+				}
+				near := 0 // the river's point nearest the ford, whose level is the water over it
+				for k, q := range water.Path {
+					if d2(q) < d2(water.Path[near]) {
+						near = k
+					}
+				}
+				x, z := int(math.Round(at[0]/p.Cell)), int(math.Round(at[1]/p.Cell))
+				s := z*nx + x
+				if depth := water.Levels[near] - tr.Heights[s]; !r.Wet[s] || tr.Barrier[s] || depth <= 0 || depth > wadeDepth {
+					t.Errorf("%s: the ford at %v: wet %v, deep %v, water %v over it", name, at, r.Wet[s], tr.Barrier[s], depth)
+				}
+			}
+		}
 	}
 }
 
