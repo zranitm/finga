@@ -131,7 +131,13 @@ export class WaypointStones {
       m.setEnabled(false);
       m.material!.forceCompilation(m); // so a find doesn't stall a frame
     }
-    void this.load(models, palette);
+    this.load(models, palette).catch((err: unknown) => {
+      if (!this.root.isDisposed()) {
+        console.info(
+          `finga: the waypoint stone didn't load: ${err instanceof Error ? err.message : String(err)}`,
+        ); // the stones' halos stand without it
+      } // else its region went while it loaded: nothing to draw it in
+    });
     this.off = foundWaypoints.subscribe((s, before) => {
       this.relight(s.found);
       if (s.last !== null && s.last !== before.last) {

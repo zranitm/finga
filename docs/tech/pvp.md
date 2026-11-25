@@ -740,6 +740,12 @@ As built for 15v15 (step 6d-1, the client):
 - **Down:** "Back in 7 s", counted from when the down showed to the battle's respawn, then "Back in a moment" till the world gets them up.
 - **Frames:** the party frames stay the party, and the enemies get no frames under the bar.
 
+As built for 15v15 (step 6d-2, the points and bases drawn):
+
+- **Map window and minimap:** both draw the bases and the three points as circles, in the bar's pair from the player's side: their base and the points their side holds in ally green, the other's in enemy red, no one's grey. A contested point's edge is dashed. With no match, all are grey. The map window labels each point by its name ("West Ruin"). `gen-gamedata` gives each point's spot and radius, and each base's.
+- **The points in the world:** each has a ring on the ground at its edge, 25 cm wide, and a soft glow over the rest, in the holder's colour from the player's side: the name tags' `#7fe08a` and `#ff6b62`, or grey for no one's. The ring and glow follow the ground 4 cm over it, as the telegraphs do; the glow is the boss areas' premultiplied glow, at 0.2.
+- **The other side's base:** while the player walks their side's ground (the fight and after, not prep), an open see-through wall in `#ff6b62` at 0.3 rings the other base, from under its lowest ground to 3 m over its highest. It marks the edge the player is stopped at.
+
 ## 14. Balance
 
 - **The harness,** `pvp_balance_test.go`, sits beside the rotation harness in `model/world`, on its helpers, against a player's kit, whom no blow MISSes. Its targets:

@@ -566,10 +566,19 @@ for (const file of readdirSync(join(dataDir, 'maps'))
     place: pvp ? null : pair(places[id], `world.yaml place of ${id}`),
     points: (m.points === undefined ? [] : must(m.points, isArray, `${file} points`)).map((raw) => {
       const p = must(raw, isRecord, `a ${file} point`);
+      const [x, z] = pair(p.at, `${file} point ${String(p.id)} at`);
       return {
         id: must(p.id, isString, `a ${file} point id`),
         name: must(p.name, isString, `${file} point ${String(p.id)} name`),
+        x,
+        z,
+        radius: must(p.radius, isNumber, `${file} point ${String(p.id)} radius`),
       };
+    }),
+    bases: (m.bases === undefined ? [] : must(m.bases, isArray, `${file} bases`)).map((raw, i) => {
+      const b = must(raw, isRecord, `${file} base ${i + 1}`);
+      const [x, z] = pair(b.at, `${file} base ${i + 1} at`);
+      return { x, z, radius: must(b.radius, isNumber, `${file} base ${i + 1} radius`) };
     }),
   });
   placeNpcs(file, id, m.npcs);
@@ -622,6 +631,7 @@ for (const file of existsSync(regionsDir)
     boss: null,
     place: null,
     points: [],
+    bases: [],
   });
   placeNpcs(file, id, r.npcs);
 }
