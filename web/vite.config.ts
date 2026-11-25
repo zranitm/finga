@@ -126,6 +126,9 @@ function babylonChunks(): Plugin & {
 
 const babylon = babylonChunks();
 
+// Each in a worker of its own: they mock the kit models differently, which a shared module graph hands from one to the next, and world.test ends near 3 GB of heap.
+const HEAVY_3D = ['src/game/world3d/{world,place,region-place}.test.ts'];
+
 export default defineConfig({
   plugins: [react(), babylon],
   resolve: {
@@ -173,7 +176,17 @@ export default defineConfig({
     // A worker reuses its modules across files: setting each file up from scratch cost about 3x the tests themselves.
     isolate: false,
     setupFiles: ['src/testing/setup.ts'],
-    include: ['src/**/*.test.{ts,tsx}'],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'shared',
+          include: ['src/**/*.test.{ts,tsx}'],
+          exclude: [...HEAVY_3D, 'node_modules/**'],
+        },
+      },
+      { extends: true, test: { name: 'world3d', include: HEAVY_3D, isolate: true } },
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
