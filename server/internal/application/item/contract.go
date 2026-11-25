@@ -87,13 +87,23 @@ type Look struct {
 	Revision     uint64 // 0 for a character that never set one; a request's is ignored
 }
 
-// PieceFromItem is the cause of a piece added from an item, as Piece.Cause names it.
-const PieceFromItem = string(model.PieceFromItem)
+// The causes of pieces, as Piece.Cause and PieceGrant.Cause name them: an item added, or a PvP rank reached.
+const (
+	PieceFromItem = string(model.PieceFromItem)
+	PieceFromRank = string(model.PieceFromRank)
+)
+
+// PieceGrant is a piece given outright for Cause, Ref naming which rank.
+type PieceGrant struct {
+	Piece string
+	Cause string
+	Ref   string
+}
 
 // Piece is a wardrobe entry: a piece the account collected, what gave it, and when.
 type Piece struct {
 	ID      string
-	Cause   string         // item; rank, quest and feat come with their sources
+	Cause   string         // item or rank; quest and feat come with their sources
 	Item    *kernel.ItemID // the item added, for an item alone
 	AddedAt time.Time
 }

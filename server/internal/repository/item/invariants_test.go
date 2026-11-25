@@ -238,12 +238,19 @@ func TestInventoryProperties(t *testing.T) {
 		equipSlots = append(equipSlots, s.ID)
 	}
 	tabs := []gamedata.Tab{gamedata.Equip, gamedata.Use, gamedata.Etc}
+	var rankGrants []model.PieceGrant
+	for _, r := range data.Pvp().Ranks {
+		if p, ok := data.RankPiece(r.ID); ok {
+			rankGrants = append(rankGrants, model.PieceGrant{Piece: p.ID, Cause: model.PieceFromRank, Ref: r.ID})
+		}
+	}
 	ctx := context.Background()
 
 	rapid.Check(t, func(rt *rapid.T) {
 		actor := model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
 		var added []application.AddInput // every drop tried, whose keys a batch may reuse
 		var handedIn []application.HandInInput
+		granted := map[string]bool{}
 		steps := rapid.IntRange(1, 25).Draw(rt, "steps")
 		for i := range steps {
 			key := fmt.Sprintf("k%d", i)
@@ -258,7 +265,7 @@ func TestInventoryProperties(t *testing.T) {
 				}
 				return application.AddInput{Key: key, TemplateID: tmpl, Quantity: qty, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}, Stats: stats}
 			}
-			switch rapid.IntRange(0, 9).Draw(rt, "op") {
+			switch rapid.IntRange(0, 10).Draw(rt, "op") {
 			case 0:
 				in := drop(key)
 				added = append(added, in)
@@ -387,6 +394,14 @@ func TestInventoryProperties(t *testing.T) {
 				if _, err := svc.AddToWardrobe(ctx, actor, application.WardrobeInput{Key: key, ItemID: src.ID}); err != nil && !isRule(err) {
 					rt.Fatalf("add to the wardrobe: %v", err)
 				}
+			case 10:
+				// A rank's piece granted: new the first time alone.
+				g := rapid.SampledFrom(rankGrants).Draw(rt, "grant")
+				added, err := svc.GrantPieces(ctx, actor.Account, []model.PieceGrant{g})
+				if err != nil || (len(added) == 1) == granted[g.Piece] {
+					rt.Fatalf("granting %s, granted before %v: %+v, %v", g.Piece, granted[g.Piece], added, err)
+				}
+				granted[g.Piece] = true
 			case 4:
 				in := application.UnequipInput{Key: key, EquipSlot: rapid.SampledFrom(equipSlots).Draw(rt, "equip slot")}
 				if rapid.Bool().Draw(rt, "chosen slot") {
