@@ -15,12 +15,13 @@ import (
 	"finga/pkg/transient"
 )
 
-// items is the wardrobe as pvp grants to it: each account's pieces, a grant of one it has changing nothing; fail fails that many grants.
+// items is the wardrobe as pvp grants to it: each account's rank pieces and feat pieces, a grant of one it has changing nothing; fail and featFail fail that many of each.
 type items struct {
-	mu   sync.Mutex
-	has  map[kernel.AccountID]map[string]bool
-	asks int
-	fail int
+	mu             sync.Mutex
+	has, feats     map[kernel.AccountID]map[string]bool
+	asks, featAsks int
+	fail, featFail int
+	featCalls      [][]model.FeatPiece
 }
 
 func (i *items) GrantRankPieces(_ context.Context, account kernel.AccountID, pieces []model.RankPiece) ([]model.RankPiece, error) {
@@ -38,6 +39,31 @@ func (i *items) GrantRankPieces(_ context.Context, account kernel.AccountID, pie
 	for _, p := range pieces {
 		if !i.has[account][p.Piece] {
 			i.has[account][p.Piece] = true
+			added = append(added, p)
+		}
+	}
+	return added, nil
+}
+
+func (i *items) GrantFeatPieces(_ context.Context, account kernel.AccountID, pieces []model.FeatPiece) ([]model.FeatPiece, error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.featAsks++
+	i.featCalls = append(i.featCalls, slices.Clone(pieces))
+	if i.featFail > 0 {
+		i.featFail--
+		return nil, fmt.Errorf("%w: the wardrobe is down", transient.ErrUnavailable)
+	}
+	if i.feats == nil {
+		i.feats = map[kernel.AccountID]map[string]bool{}
+	}
+	if i.feats[account] == nil {
+		i.feats[account] = map[string]bool{}
+	}
+	var added []model.FeatPiece
+	for _, p := range pieces {
+		if !i.feats[account][p.Piece] {
+			i.feats[account][p.Piece] = true
 			added = append(added, p)
 		}
 	}
@@ -75,7 +101,7 @@ func added(f fixture, ayla kernel.CharacterID) ([]model.RankPiece, int) {
 	var out []model.RankPiece
 	pushes := 0
 	for _, d := range f.notes.of(ayla) {
-		if p, ok := d.(service.PiecesAdded); ok {
+		if p, ok := d.(service.PiecesAdded); ok && len(p.Pieces) > 0 {
 			out = append(out, p.Pieces...)
 			pushes++
 		}

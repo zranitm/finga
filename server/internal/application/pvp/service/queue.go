@@ -818,15 +818,79 @@ func (s *Service) Record(ctx context.Context, r model.Result) {
 			}
 		}
 	}
-	if mode.Rated {
-		grantsCtx, cancel := context.WithTimeout(ctx, recordFor) // one budget for the match's grants, however many wait on a wardrobe that's down
-		defer cancel()
-		for _, f := range fighters {
-			if !f.Character.IsZero() {
-				s.grantRanks(grantsCtx, f)
+	grantsCtx, cancel := context.WithTimeout(ctx, recordFor) // one budget for the match's grants, however many wait on a wardrobe that's down
+	defer cancel()
+	for _, f := range fighters {
+		if f.Character.IsZero() {
+			continue
+		}
+		if mode.Rated {
+			s.grantRanks(grantsCtx, f)
+		}
+		if f.Side == r.Winner && !f.Left {
+			s.grantWins(grantsCtx, f)
+		}
+	}
+}
+
+// grantWins gives a winner's account the pieces of each feat their wins over every mode reach, and tells them of those new to it (outfits.md section 4), retrying till ctx ends; one lost to a failure comes with their next win's, which asks again.
+func (s *Service) grantWins(ctx context.Context, f model.Fighter) {
+	var feats []gamedata.Feat
+	for _, ft := range s.d.Data.Feats() {
+		if ft.When.PvpWins > 0 {
+			feats = append(feats, ft)
+		}
+	}
+	if len(feats) == 0 {
+		return
+	}
+	added, err := backoff.Retry(ctx, func() ([]model.FeatPiece, error) {
+		pieces, err := s.winPieces(ctx, f.Character, feats)
+		if err == nil && len(pieces) == 0 {
+			return nil, nil
+		}
+		if err == nil {
+			var c model.Character
+			if c, err = s.d.Characters.Character(ctx, f.Character); err == nil {
+				var added []model.FeatPiece
+				if added, err = s.d.Items.GrantFeatPieces(ctx, c.Account, pieces); err == nil {
+					return added, nil
+				}
+			}
+		}
+		if !errors.Is(err, transient.ErrUnavailable) {
+			return nil, backoff.Permanent(err)
+		}
+		return nil, err
+	}, backoff.WithMaxElapsedTime(0))
+	if err != nil {
+		s.d.Logger.ErrorContext(ctx, "a win feat's piece wasn't granted; the next win grants it", "character_id", f.Character, "err", err)
+		return
+	}
+	if len(added) > 0 {
+		s.d.Notifier.Push(f.Character, PiecesAdded{Feats: added})
+	}
+}
+
+// winPieces is the pieces of each of feats the character's wins over every mode, this match's counted, reach.
+func (s *Service) winPieces(ctx context.Context, id kernel.CharacterID, feats []gamedata.Feat) ([]model.FeatPiece, error) {
+	ratings, err := s.d.Store.Ratings(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	wins := 0
+	for _, rt := range ratings {
+		wins += rt.Wins
+	}
+	var pieces []model.FeatPiece
+	for _, ft := range feats {
+		if ft.When.PvpWins <= wins {
+			for _, p := range s.d.Data.FeatPieces(ft.ID) {
+				pieces = append(pieces, model.FeatPiece{Piece: p, Feat: ft.ID})
 			}
 		}
 	}
+	return pieces, nil
 }
 
 // grantRanks gives the fighter's account the piece of each rank their shown rating reaches, once they're placed, and tells them of those new to it (outfits.md section 4), retrying till ctx ends; one lost to a failure comes with their next rated match's.

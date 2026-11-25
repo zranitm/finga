@@ -340,9 +340,11 @@ pieces:
   - {id: drill_blade, slot: weapon, kind: one_handed, name: Drill Blade, stars: 2, look: sword_bronze, from: [{quest: warrior_drill}]}
   - {id: slayer_cap, slot: headwear, name: Slayer's Cap, stars: 3, look: knight_helmet_crimson, from: [{feat: lord_slayer}]}
   - {id: grown_robe, slot: outfit, name: Grown Robe, stars: 2, look: mage_body, from: [{feat: grown}]}
+  - {id: victor_hat, slot: headwear, name: Victor's Hat, stars: 2, look: mage_hat, from: [{feat: three_wins}]}
 feats:
   - {id: lord_slayer, name: Beat the Lord, when: {boss: slime_lord}}
   - {id: grown, name: Reach level 3, when: {level: 3}}
+  - {id: three_wins, name: Win three PvP matches, when: {pvp_wins: 3}}
 `,
 		"pvp.yaml": `
 modes:
@@ -445,6 +447,7 @@ func TestValidDataLoads(t *testing.T) {
 			{ID: "drill_blade", Slot: gamedata.WeaponSlot, Kind: gamedata.OneHanded, Name: "Drill Blade", Stars: 2, Look: "sword_bronze", From: []gamedata.PieceSource{{Quest: "warrior_drill"}}},
 			{ID: "slayer_cap", Slot: gamedata.HeadwearSlot, Name: "Slayer's Cap", Stars: 3, Look: "knight_helmet_crimson", From: []gamedata.PieceSource{{Feat: "lord_slayer"}}},
 			{ID: "grown_robe", Slot: gamedata.OutfitSlot, Name: "Grown Robe", Stars: 2, Look: "mage_body", From: []gamedata.PieceSource{{Feat: "grown"}}},
+			{ID: "victor_hat", Slot: gamedata.HeadwearSlot, Name: "Victor's Hat", Stars: 2, Look: "mage_hat", From: []gamedata.PieceSource{{Feat: "three_wins"}}},
 		}
 		if got := d.Pieces(); !reflect.DeepEqual(got, want) {
 			t.Fatalf("pieces %+v, want %+v", got, want)
@@ -475,11 +478,12 @@ func TestValidDataLoads(t *testing.T) {
 		wantFeats := []gamedata.Feat{
 			{ID: "lord_slayer", Name: "Beat the Lord", When: gamedata.FeatWhen{Boss: "slime_lord"}},
 			{ID: "grown", Name: "Reach level 3", When: gamedata.FeatWhen{Level: 3}},
+			{ID: "three_wins", Name: "Win three PvP matches", When: gamedata.FeatWhen{PvpWins: 3}},
 		}
 		if got := d.Feats(); !reflect.DeepEqual(got, wantFeats) {
 			t.Fatalf("feats %+v, want %+v", got, wantFeats)
 		}
-		for feat, want := range map[string][]string{"lord_slayer": {"slayer_cap"}, "grown": {"grown_robe"}, "nobody": nil} {
+		for feat, want := range map[string][]string{"lord_slayer": {"slayer_cap"}, "grown": {"grown_robe"}, "three_wins": {"victor_hat"}, "nobody": nil} {
 			if got := d.FeatPieces(feat); !slices.Equal(got, want) {
 				t.Errorf("%s gives %v, want %v", feat, got, want)
 			}
@@ -904,8 +908,10 @@ func TestRejections(t *testing.T) {
 		{"a feat at the first level, which everyone has", "outfits.yaml", "when: {level: 3}", "when: {level: 1}", []string{"outfits.yaml", "grown", "level must be 2 to 4"}},
 		{"a feat past the level cap", "outfits.yaml", "when: {level: 3}", "when: {level: 5}", []string{"outfits.yaml", "grown", "level must be 2 to 4"}},
 		{"a feat of a mob that's no boss", "outfits.yaml", "when: {boss: slime_lord}", "when: {boss: green_slime}", []string{"outfits.yaml", "lord_slayer", "green_slime"}},
+		{"a feat of PvP wins below one", "outfits.yaml", "when: {pvp_wins: 3}", "when: {pvp_wins: -2}", []string{"outfits.yaml", "three_wins", "pvp_wins counts from 1"}},
+		{"a feat of PvP wins and a level", "outfits.yaml", "when: {pvp_wins: 3}", "when: {pvp_wins: 3, level: 3}", []string{"outfits.yaml", "three_wins", "one condition", "got 2"}},
 		{"a feat of a quest quests.yaml lacks", "outfits.yaml", "when: {level: 3}", "when: {quest: slime_hunt}", []string{"outfits.yaml", "grown", "slime_hunt"}},
-		{"a feat of a condition this build doesn't have", "outfits.yaml", "when: {level: 3}", "when: {pvp_wins: 1}", []string{"outfits.yaml", "pvp_wins"}},
+		{"a feat of a condition this build doesn't have", "outfits.yaml", "when: {level: 3}", "when: {guild_rank: 1}", []string{"outfits.yaml", "guild_rank"}},
 		{"a feat that gives no piece", "outfits.yaml", "feats:\n", "feats:\n  - {id: idle, name: Idle, when: {promoted: true}}\n", []string{"outfits.yaml", "idle", "no piece"}},
 		{"a piece of a quest quests.yaml lacks", "outfits.yaml", "{quest: warrior_drill}", "{quest: slime_hunt}", []string{"outfits.yaml", "drill_blade", "slime_hunt"}},
 		{"a quest's piece at a chance", "outfits.yaml", "{quest: warrior_drill}", "{quest: warrior_drill, chance: 0.5}", []string{"outfits.yaml", "drill_blade", "outright"}},

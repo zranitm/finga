@@ -62,6 +62,7 @@ describe('generated gamedata', () => {
       'wanderer_hat',
       'crimson_helm',
       'veteran_plate',
+      'victors_horns',
     ]);
     expect(items).toHaveLength(raw.length + pieces.length);
     raw.forEach((source, k) => {

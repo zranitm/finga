@@ -80,6 +80,12 @@ type Match struct {
 	Winner         int
 }
 
+// FeatPiece is a wardrobe piece a feat gives.
+type FeatPiece struct {
+	Piece string
+	Feat  string
+}
+
 // RankPiece is the wardrobe piece a rank gives.
 type RankPiece struct {
 	Piece string

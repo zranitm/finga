@@ -61,6 +61,8 @@ type Store interface {
 type Items interface {
 	// GrantRankPieces puts each rank's piece in the account's wardrobe, giving back those new to it; a piece it has stays as it was.
 	GrantRankPieces(ctx context.Context, account kernel.AccountID, pieces []model.RankPiece) ([]model.RankPiece, error)
+	// GrantFeatPieces puts each feat's piece in the account's wardrobe, giving back those new to it; a piece it has stays as it was.
+	GrantFeatPieces(ctx context.Context, account kernel.AccountID, pieces []model.FeatPiece) ([]model.FeatPiece, error)
 }
 
 // Notifier pushes to a player; it never blocks.

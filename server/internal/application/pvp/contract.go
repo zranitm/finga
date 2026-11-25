@@ -45,8 +45,11 @@ type Outcome = service.Outcome
 // RatingChange is a rating's move in a match.
 type RatingChange = service.RatingChange
 
-// PiecesAdded is the ranks' pieces a match's end gave the player's account.
+// PiecesAdded is the pieces a match's end gave the player's account: ranks' or win feats'.
 type PiecesAdded = service.PiecesAdded
+
+// FeatPiece is a wardrobe piece a feat gives.
+type FeatPiece = model.FeatPiece
 
 // RankPiece is the wardrobe piece a rank gives.
 type RankPiece = model.RankPiece

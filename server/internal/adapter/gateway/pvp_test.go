@@ -30,6 +30,10 @@ func TestEachPvpDeliveryKeepsItsValues(t *testing.T) {
 			pvp.PiecesAdded{Pieces: []pvp.RankPiece{{Piece: "helm_silver", Rank: "silver"}, {Piece: "helm_gold", Rank: "gold"}}},
 			model.PiecesAdded{Pieces: []model.AddedPiece{{ID: "helm_silver", Cause: "rank"}, {ID: "helm_gold", Cause: "rank"}}},
 		},
+		{
+			pvp.PiecesAdded{Feats: []pvp.FeatPiece{{Piece: "victors_horns", Feat: "first_pvp_win"}}},
+			model.PiecesAdded{Pieces: []model.AddedPiece{{ID: "victors_horns", Cause: "feat"}}},
+		},
 	}
 	for _, tt := range tests {
 		if got, ok := pvpPush(tt.in); !ok || !reflect.DeepEqual(got, tt.want) {

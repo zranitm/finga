@@ -83,6 +83,7 @@ describe('the wardrobe (outfits.md section 7)', () => {
       'Gold Visor',
       "Wanderer's Hat",
       'Crimson Helm',
+      "Victor's Horns",
     ]);
     await tab('Weapon');
     expect(tiles()).toEqual([

@@ -118,6 +118,9 @@ func pvpPush(d pvp.Delivery) (model.Push, bool) {
 		for _, p := range d.Pieces {
 			pieces = append(pieces, model.AddedPiece{ID: p.Piece, Cause: item.PieceFromRank})
 		}
+		for _, p := range d.Feats {
+			pieces = append(pieces, model.AddedPiece{ID: p.Piece, Cause: item.PieceFromFeat})
+		}
 		return model.PiecesAdded{Pieces: pieces}, true
 	}
 	return nil, false

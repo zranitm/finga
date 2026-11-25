@@ -30,6 +30,7 @@ type featWhenYAML struct {
 	Boss     string `yaml:"boss"`
 	Promoted bool   `yaml:"promoted"`
 	Quest    string `yaml:"quest"`
+	PvpWins  int    `yaml:"pvp_wins"`
 }
 
 type pieceYAML struct {
@@ -85,12 +86,12 @@ func (l *loader) loadOutfits(dir string) error {
 	return nil
 }
 
-// featOf checks raw and makes its feat: an id of its own, a name, and one condition the server sees: a level past the first and no higher than the cap, a field boss or any, a promotion, or a quest of quests.yaml.
+// featOf checks raw and makes its feat: an id of its own, a name, and one condition the server sees: a level past the first and no higher than the cap, a field boss or any, a promotion, a quest of quests.yaml, or a count of PvP wins from one.
 func (l *loader) featOf(raw featYAML) (gamedata.Feat, error) {
 	w := raw.When
-	f := gamedata.Feat{ID: raw.ID, Name: raw.Name, When: gamedata.FeatWhen{Level: w.Level, Boss: w.Boss, Promoted: w.Promoted, Quest: w.Quest}}
+	f := gamedata.Feat{ID: raw.ID, Name: raw.Name, When: gamedata.FeatWhen{Level: w.Level, Boss: w.Boss, Promoted: w.Promoted, Quest: w.Quest, PvpWins: w.PvpWins}}
 	conditions := 0
-	for _, set := range []bool{w.Level != 0, w.Boss != "", w.Promoted, w.Quest != ""} {
+	for _, set := range []bool{w.Level != 0, w.Boss != "", w.Promoted, w.Quest != "", w.PvpWins != 0} {
 		if set {
 			conditions++
 		}
@@ -101,11 +102,13 @@ func (l *loader) featOf(raw featYAML) (gamedata.Feat, error) {
 	case f.Name == "":
 		return f, fmt.Errorf("needs a name")
 	case conditions != 1:
-		return f, fmt.Errorf("when names one condition, level, boss, promoted or quest, got %d", conditions)
+		return f, fmt.Errorf("when names one condition, level, boss, promoted, quest or pvp_wins, got %d", conditions)
 	case w.Level != 0 && (w.Level < 2 || w.Level > l.levelCap):
 		return f, fmt.Errorf("level must be 2 to %d, got %d", l.levelCap, w.Level)
 	case w.Quest != "" && !l.quests.has(w.Quest):
 		return f, fmt.Errorf("names a quest of %s, got %q", questsFile, w.Quest)
+	case w.PvpWins < 0:
+		return f, fmt.Errorf("pvp_wins counts from 1, got %d", w.PvpWins)
 	}
 	if w.Boss != "" && w.Boss != gamedata.AnyBoss {
 		if boss, ok := l.mobs.get(w.Boss); !ok || !boss.Boss {
