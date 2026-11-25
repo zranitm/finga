@@ -696,6 +696,7 @@ Built with step 1, which says who watches a cell.
     - 3 cascades out to 80 m from the camera;
     - held steady as the camera moves (`stabilizeCascades`);
     - cast by see-through meshes too.
+    - **Every toon light takes the view matrix,** which a cascaded receiver needs to pick its cascade. Without it, a receiver's shader didn't compile on WebGL 2, so a region drew only its ink, with no ground or props.
   - An engine that can't cascade, such as WebGL 1, gets the one shadow map a map has, with the same casters out to about 220 m in it, so its shadows are coarser. Maps keep theirs.
   - **Casters:**
     - each chunk's props, and their faded copies, while the chunk's nearest edge is within 128 m of the camera's target, so props to about 220 m (the cascades reach 80 m from the camera, which stands up to 40 m back);
