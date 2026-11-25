@@ -44,13 +44,15 @@ describe('the wardrobe’s pieces (outfits.md section 3)', () => {
         { kind: 'rank', id: 'gold' },
         { kind: 'quest', id: quest.id },
         { kind: 'feat', id: 'level_10' },
+        { kind: 'feat', id: 'no_such_feat' },
       ],
     };
     expect(howToGet(every)).toEqual([
       'Dropped by Vampire Bat',
       'Reach Gold in 1v1 or 3v3',
       `Quest: ${quest.name}`,
-      'Feat: level_10', // no feat in the data yet: its id
+      'Feat: Reach level 10',
+      'Feat: no_such_feat', // one the data lacks: its id
     ]);
   });
 });

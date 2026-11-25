@@ -26,6 +26,7 @@ type ItemModule interface {
 	HandedIn(ctx context.Context, owner kernel.CharacterID, asked []item.Completion) ([]item.HandedIn, error)
 	SetLook(ctx context.Context, actor item.Actor, r item.LookRequest) (item.Result, error)
 	Look(ctx context.Context, character kernel.CharacterID) (item.Look, error)
+	GrantPieces(ctx context.Context, account kernel.AccountID, grants []item.PieceGrant) ([]item.PieceGrant, error)
 }
 
 // Loot adapts the item module to loot.Items.
@@ -71,7 +72,7 @@ func grantOutcome(o item.Outcome) model.GrantOutcome {
 // Retryable is a failure that breaks no final rule, a module's own failure among them.
 func (Loot) Retryable(err error) bool { return !kernel.IsRule(err) }
 
-// Equipment adapts the item module to instance.Equipment, instance.HandIns, instance.Gifts, instance.Potions, world.HandedIns and world.Wardrobe; a failure that breaks no final rule is transient.ErrUnavailable.
+// Equipment adapts the item module to instance.Equipment, instance.HandIns, instance.Gifts, instance.Feats, instance.Potions, world.HandedIns and world.Wardrobe; a failure that breaks no final rule is transient.ErrUnavailable.
 type Equipment struct{ items ItemModule }
 
 // NewEquipment adapts the item module.
@@ -135,6 +136,23 @@ func (e Equipment) Give(ctx context.Context, c model.GiftCall) (model.Gift, erro
 		gift.Look = model.Look(*res.Look)
 	}
 	return gift, nil
+}
+
+// GrantFeatPieces grants the account each feat's piece, returning those new to it.
+func (e Equipment) GrantFeatPieces(ctx context.Context, account kernel.AccountID, pieces []model.FeatPiece) ([]model.FeatPiece, error) {
+	grants := make([]item.PieceGrant, 0, len(pieces))
+	for _, p := range pieces {
+		grants = append(grants, item.PieceGrant{Piece: p.Piece, Cause: item.PieceFromFeat, Ref: p.Feat})
+	}
+	added, err := e.items.GrantPieces(ctx, account, grants)
+	if err != nil {
+		return nil, ruleOr(err)
+	}
+	out := make([]model.FeatPiece, 0, len(added))
+	for _, a := range added {
+		out = append(out, model.FeatPiece{Piece: a.Piece, Feat: a.Ref})
+	}
+	return out, nil
 }
 
 // SetLook wears a look, checked against the account's wardrobe and the live class.

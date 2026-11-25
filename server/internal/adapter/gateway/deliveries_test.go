@@ -472,7 +472,7 @@ func TestEachWorldEnumKeepsItsValue(t *testing.T) {
 
 // A PiecesAdded tells of each piece with what gave it, by the item module's name for the cause; an unknown cause names none.
 func TestPiecesAddedNamesEachPieceAndItsCause(t *testing.T) {
-	for cause, want := range map[world.PieceCause]string{world.PieceFromQuest: item.PieceFromQuest, world.PieceCause(9): ""} {
+	for cause, want := range map[world.PieceCause]string{world.PieceFromQuest: item.PieceFromQuest, world.PieceFromFeat: item.PieceFromFeat, world.PieceCause(9): ""} {
 		push, ok := worldPush(world.PiecesAdded{Pieces: []string{"bronze_sword", "bronze_knife"}, Cause: cause})
 		if got, is := push.(model.PiecesAdded); !ok || !is || !reflect.DeepEqual(got.Pieces, []model.AddedPiece{{ID: "bronze_sword", Cause: want}, {ID: "bronze_knife", Cause: want}}) {
 			t.Errorf("cause %d: %+v", cause, push)

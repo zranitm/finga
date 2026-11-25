@@ -55,7 +55,7 @@ func questData(t *testing.T) *gamedata.Data {
 `
 		},
 		"outfits.yaml": func(s string) string {
-			return s + "  - {id: bounty_badge, slot: headwear, name: Bounty Badge, stars: 1, look: knight_helmet, from: [{quest: bounty}]}\n"
+			return strings.Replace(s, "\nfeats:\n", "\n  - {id: bounty_badge, slot: headwear, name: Bounty Badge, stars: 1, look: knight_helmet, from: [{quest: bounty}]}\nfeats:\n", 1)
 		},
 	})
 }

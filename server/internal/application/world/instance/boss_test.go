@@ -58,10 +58,10 @@ func armed(name string, z float64, attack int) model.Player {
 	return p
 }
 
-// runBossArena runs m at the fixed roll, its drops granted by the fake item module, with o's parties.
+// runBossArena runs m at the fixed roll, its drops granted by the fake item module, with o's parties, and o's feats through o's item-call pool.
 func runBossArena(t *testing.T, data *gamedata.Data, m *gamedata.Map, roll float64, o worldtest.Options) (*instance.Instance, func()) {
 	t.Helper()
-	inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{NewRoll: worldtest.Rolls(roll), Items: newFakeItems(), Parties: o.Parties})
+	inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{NewRoll: worldtest.Rolls(roll), Items: newFakeItems(), Parties: o.Parties, Feats: o.Feats, ItemCalls: o.ItemCalls})
 	settle(worldtest.TickInterval)
 	return inst, stop
 }
@@ -216,9 +216,11 @@ func TestAnUnbeatenBossNeverLeaves(t *testing.T) {
 func TestABeatenBossPaysEachPlayerByTheHPTheyTook(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const hp = 400
-		inst, stop := runBossArena(t, bossData(t, hp, "5m", 0.3), bossArena(t), 0.5, worldtest.Options{})
+		feats := &fakeFeats{}
+		inst, stop := runBossArena(t, bossData(t, hp, "5m", 0.3), bossArena(t), 0.5, worldtest.Options{Feats: feats, ItemCalls: runningPool(t)})
 		defer stop()
 		hunter, ayla, robin := armed("Hunter", nextToSlime, 200), armed("Ayla", atKing, 40), armed("Robin", atKing, 80)
+		hunter.Account, ayla.Account, robin.Account = kernel.NewAccountID(), kernel.NewAccountID(), kernel.NewAccountID()
 		s := join(t, inst, hunter)
 		sa, sr := join(t, inst, ayla), join(t, inst, robin)
 		swing(inst, hunter.ID)
@@ -248,6 +250,13 @@ func TestABeatenBossPaysEachPlayerByTheHPTheyTook(t *testing.T) {
 		}
 		if caps := boxesOf("leather_cap", map[kernel.CharacterID]*worldtest.Sink{hunter.ID: s, ayla.ID: sa, robin.ID: sr}); len(caps) != 1 || caps[robin.ID] != 1 {
 			t.Fatalf("boxes by owner %v; want Robin's alone, Ayla being under the drop share", caps)
+		}
+		tick(2)
+		feats.mu.Lock()
+		accounts := slices.Clone(feats.accounts)
+		feats.mu.Unlock()
+		if asked, _ := feats.asked(); !slices.Equal(asked, []model.FeatPiece{{Piece: "crimson_helm", Feat: "first_boss"}}) || !slices.Equal(accounts, []kernel.AccountID{robin.Account}) {
+			t.Fatalf("asked %+v for %v; want Beat a field boss's piece for Robin's account alone, as a drop", asked, accounts)
 		}
 	})
 }

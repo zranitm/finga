@@ -70,6 +70,7 @@ describe('the wardrobe (outfits.md section 7)', () => {
       ["Mage's Robe", 'greyed'],
       ['Crimson Plate', 'greyed'],
       ['Platinum Plate', 'greyed'],
+      ["Veteran's Plate", 'greyed'],
     ]);
     await tab('Headwear');
     expect(tiles().map(([n]) => n)).toEqual([
@@ -80,6 +81,8 @@ describe('the wardrobe (outfits.md section 7)', () => {
       'Pointed Hat',
       'Silver Visor',
       'Gold Visor',
+      "Wanderer's Hat",
+      'Crimson Helm',
     ]);
     await tab('Weapon');
     expect(tiles()).toEqual([

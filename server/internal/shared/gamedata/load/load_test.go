@@ -338,6 +338,11 @@ pieces:
   - {id: lord_wings, slot: wings, name: Lord's Wings, stars: 6, look: bat_wings, from: [{boss: slime_lord, chance: 0.01}]}
   - {id: silver_visor, slot: headwear, name: Silver Visor, stars: 3, look: knight_helmet, from: [{rank: silver}]}
   - {id: drill_blade, slot: weapon, kind: one_handed, name: Drill Blade, stars: 2, look: sword_bronze, from: [{quest: warrior_drill}]}
+  - {id: slayer_cap, slot: headwear, name: Slayer's Cap, stars: 3, look: knight_helmet_crimson, from: [{feat: lord_slayer}]}
+  - {id: grown_robe, slot: outfit, name: Grown Robe, stars: 2, look: mage_body, from: [{feat: grown}]}
+feats:
+  - {id: lord_slayer, name: Beat the Lord, when: {boss: slime_lord}}
+  - {id: grown, name: Reach level 3, when: {level: 3}}
 `,
 		"pvp.yaml": `
 modes:
@@ -438,6 +443,8 @@ func TestValidDataLoads(t *testing.T) {
 			{ID: "lord_wings", Slot: gamedata.WingsSlot, Name: "Lord's Wings", Stars: 6, Look: "bat_wings", Item: "piece.lord_wings", From: []gamedata.PieceSource{{Boss: "slime_lord", Chance: 0.01}}},
 			{ID: "silver_visor", Slot: gamedata.HeadwearSlot, Name: "Silver Visor", Stars: 3, Look: "knight_helmet", From: []gamedata.PieceSource{{Rank: "silver"}}},
 			{ID: "drill_blade", Slot: gamedata.WeaponSlot, Kind: gamedata.OneHanded, Name: "Drill Blade", Stars: 2, Look: "sword_bronze", From: []gamedata.PieceSource{{Quest: "warrior_drill"}}},
+			{ID: "slayer_cap", Slot: gamedata.HeadwearSlot, Name: "Slayer's Cap", Stars: 3, Look: "knight_helmet_crimson", From: []gamedata.PieceSource{{Feat: "lord_slayer"}}},
+			{ID: "grown_robe", Slot: gamedata.OutfitSlot, Name: "Grown Robe", Stars: 2, Look: "mage_body", From: []gamedata.PieceSource{{Feat: "grown"}}},
 		}
 		if got := d.Pieces(); !reflect.DeepEqual(got, want) {
 			t.Fatalf("pieces %+v, want %+v", got, want)
@@ -464,6 +471,21 @@ func TestValidDataLoads(t *testing.T) {
 			if q, _ := d.Quest(quest); !slices.Equal(q.Rewards.Pieces, want) {
 				t.Errorf("%s gives pieces %v, want %v", quest, q.Rewards.Pieces, want)
 			}
+		}
+		wantFeats := []gamedata.Feat{
+			{ID: "lord_slayer", Name: "Beat the Lord", When: gamedata.FeatWhen{Boss: "slime_lord"}},
+			{ID: "grown", Name: "Reach level 3", When: gamedata.FeatWhen{Level: 3}},
+		}
+		if got := d.Feats(); !reflect.DeepEqual(got, wantFeats) {
+			t.Fatalf("feats %+v, want %+v", got, wantFeats)
+		}
+		for feat, want := range map[string][]string{"lord_slayer": {"slayer_cap"}, "grown": {"grown_robe"}, "nobody": nil} {
+			if got := d.FeatPieces(feat); !slices.Equal(got, want) {
+				t.Errorf("%s gives %v, want %v", feat, got, want)
+			}
+		}
+		if _, ok := d.Item("piece.slayer_cap"); ok {
+			t.Fatal("a feat's piece has an item")
 		}
 		it, _ := d.Item("piece.lord_robe")
 		if wantItem := (gamedata.Item{ID: "piece.lord_robe", Name: "Lord's Robe", Tab: gamedata.Etc, Stars: 3, Description: "Adds Lord's Robe to your wardrobe.", MaxStack: 100}); !reflect.DeepEqual(it, wantItem) {
@@ -872,7 +894,19 @@ func TestRejections(t *testing.T) {
 		{"a piece from nowhere", "outfits.yaml", "from: [{boss: slime_lord, chance: 0.05}]", "from: []", []string{"outfits.yaml", "lord_robe", "a source"}},
 		{"a piece from a mob that's no boss", "outfits.yaml", "boss: slime_lord, chance: 0.05", "boss: green_slime, chance: 0.05", []string{"outfits.yaml", "lord_robe", "green_slime"}},
 		{"a piece at a chance past one", "outfits.yaml", "chance: 0.05", "chance: 1.5", []string{"outfits.yaml", "lord_robe", "chance"}},
-		{"a source this build doesn't have", "outfits.yaml", "{boss: slime_lord, chance: 0.02}", "{feat: level_10}", []string{"outfits.yaml", "feat"}},
+		{"a source this build doesn't have", "outfits.yaml", "{boss: slime_lord, chance: 0.02}", "{vendor: town_tailor}", []string{"outfits.yaml", "vendor"}},
+		{"a piece of a feat the file lacks", "outfits.yaml", "{feat: lord_slayer}", "{feat: nobody}", []string{"outfits.yaml", "slayer_cap", "nobody"}},
+		{"a feat's piece at a chance", "outfits.yaml", "{feat: lord_slayer}", "{feat: lord_slayer, chance: 0.5}", []string{"outfits.yaml", "slayer_cap", "outright"}},
+		{"two feats of one id", "outfits.yaml", "id: grown,", "id: lord_slayer,", []string{"outfits.yaml", "lord_slayer", "an id of its own"}},
+		{"a feat with no name", "outfits.yaml", "name: Beat the Lord,", "name: '',", []string{"outfits.yaml", "lord_slayer", "a name"}},
+		{"a feat with no condition", "outfits.yaml", "when: {level: 3}", "when: {}", []string{"outfits.yaml", "grown", "one condition"}},
+		{"a feat with two conditions", "outfits.yaml", "when: {level: 3}", "when: {level: 3, promoted: true}", []string{"outfits.yaml", "grown", "one condition", "got 2"}},
+		{"a feat at the first level, which everyone has", "outfits.yaml", "when: {level: 3}", "when: {level: 1}", []string{"outfits.yaml", "grown", "level must be 2 to 4"}},
+		{"a feat past the level cap", "outfits.yaml", "when: {level: 3}", "when: {level: 5}", []string{"outfits.yaml", "grown", "level must be 2 to 4"}},
+		{"a feat of a mob that's no boss", "outfits.yaml", "when: {boss: slime_lord}", "when: {boss: green_slime}", []string{"outfits.yaml", "lord_slayer", "green_slime"}},
+		{"a feat of a quest quests.yaml lacks", "outfits.yaml", "when: {level: 3}", "when: {quest: slime_hunt}", []string{"outfits.yaml", "grown", "slime_hunt"}},
+		{"a feat of a condition this build doesn't have", "outfits.yaml", "when: {level: 3}", "when: {pvp_wins: 1}", []string{"outfits.yaml", "pvp_wins"}},
+		{"a feat that gives no piece", "outfits.yaml", "feats:\n", "feats:\n  - {id: idle, name: Idle, when: {promoted: true}}\n", []string{"outfits.yaml", "idle", "no piece"}},
 		{"a piece of a quest quests.yaml lacks", "outfits.yaml", "{quest: warrior_drill}", "{quest: slime_hunt}", []string{"outfits.yaml", "drill_blade", "slime_hunt"}},
 		{"a quest's piece at a chance", "outfits.yaml", "{quest: warrior_drill}", "{quest: warrior_drill, chance: 0.5}", []string{"outfits.yaml", "drill_blade", "outright"}},
 		{"a piece naming its quest twice", "outfits.yaml", "from: [{quest: warrior_drill}]", "from: [{quest: warrior_drill}, {quest: warrior_drill}]", []string{"outfits.yaml", "drill_blade", "twice"}},

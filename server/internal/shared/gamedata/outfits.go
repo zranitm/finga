@@ -35,13 +35,32 @@ type Piece struct {
 	From  []PieceSource
 }
 
-// PieceSource is where a piece comes from: a boss's drop, at a chance on each eligible player's own roll; a PvP rank, the first time the account reaches it; or a quest's hand-in.
+// PieceSource is where a piece comes from: a boss's drop, at a chance on each eligible player's own roll; a PvP rank, the first time the account reaches it; a quest's hand-in; or a feat.
 type PieceSource struct {
 	Boss   string
 	Chance float64
 	Rank   string
 	Quest  string
+	Feat   string
 }
+
+// Feat is something an account does that gives pieces the first time; When is the one condition the server sees as it happens (outfits.md section 3).
+type Feat struct {
+	ID   string
+	Name string
+	When FeatWhen
+}
+
+// FeatWhen is a feat's one condition: a level-up to Level or past it, a field boss's rewards (Boss, or AnyBoss), a promotion, or Quest's hand-in.
+type FeatWhen struct {
+	Level    int
+	Boss     string
+	Promoted bool
+	Quest    string
+}
+
+// AnyBoss is a boss feat's condition met by every field boss.
+const AnyBoss = "any"
 
 // PieceItem is the id of the item that holds the piece id.
 func PieceItem(id string) string { return "piece." + id }
@@ -57,3 +76,9 @@ func (d *Data) PieceIn(item string) (Piece, bool) { return find(d.p.Pieces, d.pi
 
 // RankPiece finds the piece a PvP rank gives, false for none.
 func (d *Data) RankPiece(rank string) (Piece, bool) { return find(d.p.Pieces, d.rankPieceIdx, rank) }
+
+// Feats lists the feats in file order.
+func (d *Data) Feats() []Feat { return d.p.Feats }
+
+// FeatPieces is the pieces feat gives, in file order.
+func (d *Data) FeatPieces(feat string) []string { return d.featPieces[feat] }

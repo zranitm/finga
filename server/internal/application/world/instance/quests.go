@@ -247,7 +247,7 @@ func (i *Instance) handedIn(p *player, h model.HandedIn) bool {
 	return true
 }
 
-// finish marks the quest finished for the completion-th time, awards its EXP, tells the player what the items did, and saves at once.
+// finish marks the quest finished for the completion-th time, awards its EXP, tells the player what the items did, saves at once, and asks for the quest's feats.
 func (i *Instance) finish(p *player, q gamedata.Quest, completion int, items model.Inventory) {
 	p.Quests[q.ID] = model.Quest{Status: model.QuestFinished, TimesFinished: completion}
 	i.questChanged(p, q.ID, model.QuestHandedIn)
@@ -256,6 +256,7 @@ func (i *Instance) finish(p *player, q gamedata.Quest, completion int, items mod
 	}
 	i.award(p, q.Rewards.Exp)
 	i.checkpoint(p)
+	i.grantFeats(p, func(w gamedata.FeatWhen) bool { return w.Quest == q.ID })
 }
 
 // countKill adds the kill to every active kill objective for the mob, of each player who shares the kill's EXP.

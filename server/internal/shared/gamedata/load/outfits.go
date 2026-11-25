@@ -16,6 +16,20 @@ var lookSlots = []gamedata.LookSlot{gamedata.OutfitSlot, gamedata.HeadwearSlot, 
 
 type outfitsYAML struct {
 	Pieces []pieceYAML `yaml:"pieces"`
+	Feats  []featYAML  `yaml:"feats"`
+}
+
+type featYAML struct {
+	ID   string       `yaml:"id"`
+	Name string       `yaml:"name"`
+	When featWhenYAML `yaml:"when"`
+}
+
+type featWhenYAML struct {
+	Level    int    `yaml:"level"`
+	Boss     string `yaml:"boss"`
+	Promoted bool   `yaml:"promoted"`
+	Quest    string `yaml:"quest"`
 }
 
 type pieceYAML struct {
@@ -33,13 +47,21 @@ type sourceYAML struct {
 	Chance float64 `yaml:"chance"`
 	Rank   string  `yaml:"rank"`
 	Quest  string  `yaml:"quest"`
+	Feat   string  `yaml:"feat"`
 }
 
-// loadOutfits reads the wardrobe's pieces, and gives each a boss drops its item and a place on that boss's drops, and each a quest gives a place on that quest's rewards (outfits.md section 3); a rank gives at most one.
+// loadOutfits reads the feats, then the wardrobe's pieces, and gives each a boss drops its item and a place on that boss's drops, and each a quest gives a place on that quest's rewards (outfits.md section 3); a rank gives at most one, and every feat some.
 func (l *loader) loadOutfits(dir string) error {
 	var file outfitsYAML
 	if err := readYAML(dir, outfitsFile, &file); err != nil {
 		return err
+	}
+	for _, raw := range file.Feats {
+		f, err := l.featOf(raw)
+		if err != nil {
+			return fmt.Errorf("%s: feat %s: %w", outfitsFile, raw.ID, err)
+		}
+		l.feats.add(f.ID, f)
 	}
 	held := map[gamedata.WeaponKind]bool{}
 	for _, c := range l.classes.list {
@@ -53,7 +75,44 @@ func (l *loader) loadOutfits(dir string) error {
 		}
 		l.pieces.add(p.ID, p)
 	}
+	for _, f := range l.feats.list {
+		if !slices.ContainsFunc(l.pieces.list, func(p gamedata.Piece) bool {
+			return slices.ContainsFunc(p.From, func(s gamedata.PieceSource) bool { return s.Feat == f.ID })
+		}) {
+			return fmt.Errorf("%s: feat %s gives no piece", outfitsFile, f.ID)
+		}
+	}
 	return nil
+}
+
+// featOf checks raw and makes its feat: an id of its own, a name, and one condition the server sees: a level past the first and no higher than the cap, a field boss or any, a promotion, or a quest of quests.yaml.
+func (l *loader) featOf(raw featYAML) (gamedata.Feat, error) {
+	w := raw.When
+	f := gamedata.Feat{ID: raw.ID, Name: raw.Name, When: gamedata.FeatWhen{Level: w.Level, Boss: w.Boss, Promoted: w.Promoted, Quest: w.Quest}}
+	conditions := 0
+	for _, set := range []bool{w.Level != 0, w.Boss != "", w.Promoted, w.Quest != ""} {
+		if set {
+			conditions++
+		}
+	}
+	switch {
+	case f.ID == "" || l.feats.has(f.ID):
+		return f, fmt.Errorf("needs an id of its own")
+	case f.Name == "":
+		return f, fmt.Errorf("needs a name")
+	case conditions != 1:
+		return f, fmt.Errorf("when names one condition, level, boss, promoted or quest, got %d", conditions)
+	case w.Level != 0 && (w.Level < 2 || w.Level > l.levelCap):
+		return f, fmt.Errorf("level must be 2 to %d, got %d", l.levelCap, w.Level)
+	case w.Quest != "" && !l.quests.has(w.Quest):
+		return f, fmt.Errorf("names a quest of %s, got %q", questsFile, w.Quest)
+	}
+	if w.Boss != "" && w.Boss != gamedata.AnyBoss {
+		if boss, ok := l.mobs.get(w.Boss); !ok || !boss.Boss {
+			return f, fmt.Errorf("names a field boss or %s, got %q", gamedata.AnyBoss, w.Boss)
+		}
+	}
+	return f, nil
 }
 
 // pieceOf checks raw and makes its piece; one a quest gives joins that quest's rewards, and one a boss drops gets its item, added to items and to each such boss's drops.
@@ -113,10 +172,18 @@ func (l *loader) pieceOf(raw pieceYAML, held map[gamedata.WeaponKind]bool, ranke
 	return p, nil
 }
 
-// sourceOf checks one of a piece's sources: a field boss at a chance in (0, 1], a rank of pvp.yaml above the first, which everyone has, or a quest of quests.yaml.
+// sourceOf checks one of a piece's sources: a field boss at a chance in (0, 1], a rank of pvp.yaml above the first, which everyone has, a quest of quests.yaml, or a feat above.
 func (l *loader) sourceOf(src sourceYAML) (gamedata.PieceSource, error) {
-	s := gamedata.PieceSource{Boss: src.Boss, Chance: src.Chance, Rank: src.Rank, Quest: src.Quest}
+	s := gamedata.PieceSource{Boss: src.Boss, Chance: src.Chance, Rank: src.Rank, Quest: src.Quest, Feat: src.Feat}
 	switch {
+	case src.Feat != "":
+		if src.Boss != "" || src.Chance != 0 || src.Rank != "" || src.Quest != "" {
+			return s, fmt.Errorf("from feat %s: a feat gives its piece outright, with no boss, chance, rank or quest", src.Feat)
+		}
+		if !l.feats.has(src.Feat) {
+			return s, fmt.Errorf("a feat source names a feat of %s, got %q", outfitsFile, src.Feat)
+		}
+		return s, nil
 	case src.Rank != "":
 		if src.Boss != "" || src.Chance != 0 || src.Quest != "" {
 			return s, fmt.Errorf("from rank %s: a rank gives its piece outright, with no boss, chance or quest", src.Rank)
@@ -136,7 +203,7 @@ func (l *loader) sourceOf(src sourceYAML) (gamedata.PieceSource, error) {
 	}
 	boss, ok := l.mobs.get(src.Boss)
 	if !ok || !boss.Boss {
-		return s, fmt.Errorf("a source names a field boss, a rank or a quest, got %q", src.Boss)
+		return s, fmt.Errorf("a source names a field boss, a rank, a quest or a feat, got %q", src.Boss)
 	}
 	if !(src.Chance > 0 && src.Chance <= 1) {
 		return s, fmt.Errorf("from %s: chance must be in (0, 1], got %v", src.Boss, src.Chance)

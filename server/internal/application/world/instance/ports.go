@@ -51,6 +51,11 @@ type HandIns interface {
 	HandIn(ctx context.Context, c model.HandInCall) (model.HandedIn, error)
 }
 
+// Feats is the item module's grant of feats' pieces to an account, a piece it has already changing nothing, called from the item-call pool, never inside a tick; a failure that is no rule is transient.ErrUnavailable.
+type Feats interface {
+	GrantFeatPieces(ctx context.Context, account kernel.AccountID, pieces []model.FeatPiece) ([]model.FeatPiece, error)
+}
+
 // Gifts is the item module's gift of one item under its own key, called from the item-call pool, never inside a tick; a failure that is no rule is transient.ErrUnavailable.
 type Gifts interface {
 	Give(ctx context.Context, c model.GiftCall) (model.Gift, error)

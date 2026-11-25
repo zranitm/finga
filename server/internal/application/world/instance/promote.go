@@ -169,6 +169,7 @@ func (i *Instance) settlePromotion(m giftedMsg) {
 	}
 	i.wear(p, m.result.Look) // a weapon look the new class can't hold went with the gift
 	i.promoteTo(p, class)
+	i.grantFeats(p, func(w gamedata.FeatWhen) bool { return w.Promoted })
 	m.done <- nil
 }
 

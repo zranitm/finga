@@ -58,6 +58,7 @@ func Dir(dir string) (*gamedata.Data, error) {
 		Pvp:             l.pvp,
 		Interest:        l.interest,
 		Pieces:          l.pieces.list,
+		Feats:           l.feats.list,
 	}), nil
 }
 
@@ -93,6 +94,7 @@ type loader struct {
 	pvp             gamedata.PvpRules
 	interest        gamedata.Interest
 	pieces          byID[string, gamedata.Piece]
+	feats           byID[string, gamedata.Feat]
 }
 
 // byID keeps one file's entries in file order, indexed by ID.

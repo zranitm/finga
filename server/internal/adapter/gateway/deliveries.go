@@ -194,6 +194,7 @@ var (
 	}
 	pieceCauses = map[world.PieceCause]string{
 		world.PieceFromQuest: item.PieceFromQuest,
+		world.PieceFromFeat:  item.PieceFromFeat,
 	}
 )
 

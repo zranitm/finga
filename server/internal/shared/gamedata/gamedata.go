@@ -48,6 +48,7 @@ type Parts struct {
 	Pvp             PvpRules
 	Interest        Interest
 	Pieces          []Piece
+	Feats           []Feat
 }
 
 // Data is everything loaded, read-only once built.
@@ -66,6 +67,8 @@ type Data struct {
 	pieceItemIdx map[string]int
 	// rankPieceIdx files each piece a rank gives under the rank.
 	rankPieceIdx map[string]int
+	// featPieces lists each feat's pieces under the feat.
+	featPieces map[string][]string
 	// waypointIdx files each region's waypoints by id, their ids unique across every region.
 	waypointIdx map[string]waypointAt
 }
@@ -88,6 +91,7 @@ func New(p Parts) *Data {
 		pieceIdx:     index(p.Pieces, func(p Piece) string { return p.ID }),
 		pieceItemIdx: pieceItems(p.Pieces),
 		rankPieceIdx: rankPieces(p.Pieces),
+		featPieces:   featPieces(p.Pieces),
 		waypointIdx:  waypointsOf(p.Maps),
 	}
 }
@@ -108,6 +112,19 @@ func pieceItems(all []Piece) map[string]int {
 	idx := index(all, func(p Piece) string { return p.Item })
 	delete(idx, "") // a piece no item holds
 	return idx
+}
+
+// featPieces lists each piece a feat gives under the feat.
+func featPieces(all []Piece) map[string][]string {
+	pieces := map[string][]string{}
+	for _, p := range all {
+		for _, s := range p.From {
+			if s.Feat != "" {
+				pieces[s.Feat] = append(pieces[s.Feat], p.ID)
+			}
+		}
+	}
+	return pieces
 }
 
 // rankPieces files each piece under each rank that gives it.

@@ -88,11 +88,12 @@ type Look struct {
 	Revision     uint64 // 0 for a character that never set one; a request's is ignored
 }
 
-// The causes of pieces, as Piece.Cause and PieceGrant.Cause name them: an item added, a PvP rank reached, or a quest handed in.
+// The causes of pieces, as Piece.Cause and PieceGrant.Cause name them: an item added, a PvP rank reached, a quest handed in, or a feat done.
 const (
 	PieceFromItem  = string(model.PieceFromItem)
 	PieceFromRank  = string(model.PieceFromRank)
 	PieceFromQuest = string(model.PieceFromQuest)
+	PieceFromFeat  = string(model.PieceFromFeat)
 )
 
 // PieceGrant is a piece given outright for Cause, Ref naming which rank.

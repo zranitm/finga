@@ -300,6 +300,7 @@ type PieceCause uint8
 // The causes, as the model counts them.
 const (
 	PieceFromQuest PieceCause = iota + 1
+	PieceFromFeat
 )
 
 // TeleportCancel is what ended a teleport channel early.
