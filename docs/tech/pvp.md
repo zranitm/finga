@@ -675,6 +675,11 @@ As built for 1v1 (build step 2):
   - A fighter whose `away` is set shows "Reconnecting" on their frame and over their name.
   - Their side gets a notice when it sets, "<name> lost connection", and when it clears, "<name> is back". The client reads both from the change between states.
   - The player's own client shows "Reconnecting…" as for any drop, and lands back in the match on its `Welcome`.
+  - **As built (step 7b):**
+    - "Reconnecting" is a note on the match frames, under the name as "Down" is, and the tag after the name in the world, where a bot's BOT goes.
+    - The notices are toasts, for the player's own side only, and only between two states of the same match.
+    - A `Welcome` on a match's map keeps the match, its arena bar and its frames: only a held place lands a join there. One anywhere else leaves the match as a trip out does, so a return past the grace says at once that it counts as a loss.
+    - The server sends the arena bar the fighter wears again with the return, after the `Welcome`.
 - **The offer card and the result** draw over any open window.
 - **The result screen** stays through the trip back, until Return closes it.
   - **A forfeit's card:** a forfeit's MapChange comes before its `MatchEnded`. So the store keeps the match left (`left`) until `MatchEnded` arrives, and the card has the match's mode and counts rounds from the player's side.
@@ -745,6 +750,7 @@ As built for 15v15 (step 6d-2, the points and bases drawn):
 - **Map window and minimap:** both draw the bases and the three points as circles, in the bar's pair from the player's side: their base and the points their side holds in ally green, the other's in enemy red, no one's grey. A contested point's edge is dashed. With no match, all are grey. The map window labels each point by its name ("West Ruin"). `gen-gamedata` gives each point's spot and radius, and each base's.
 - **The points in the world:** each has a ring on the ground at its edge, 25 cm wide, and a soft glow over the rest, in the holder's colour from the player's side: the name tags' `#7fe08a` and `#ff6b62`, or grey for no one's. The ring and glow follow the ground 4 cm over it, as the telegraphs do; the glow is the boss areas' premultiplied glow, at 0.2.
 - **The other side's base:** while the player walks their side's ground (the fight and after, not prep), an open see-through wall in `#ff6b62` at 0.3 rings the other base, from under its lowest ground to 3 m over its highest. It marks the edge the player is stopped at.
+- **Round them** (after 6d-2's review): a ring, a glow or a wall has 64 segments, or more so its edge runs at most 0.5 m, a terrain cell, between vertices. The shipped 5 m points keep 64; the 9 m bases' walls take 114.
 
 ## 14. Balance
 

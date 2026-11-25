@@ -1,4 +1,4 @@
-// The match's fighters' frames (pvp.md section 13): in a round mode the teammates take the party frames' place, and in a team mode the enemies show under the match bar; each with its level, HP, statuses and a BOT tag, dimmed while down.
+// The match's fighters' frames (pvp.md section 13): in a round mode the teammates take the party frames' place, and in a team mode the enemies show under the match bar; each with its level, HP, statuses and a BOT tag, dimmed while down, and "Reconnecting" while their place is held through a drop.
 import { UnitFrame } from '@/features/hud/UnitFrame';
 import { character } from '@/state/character';
 import { fighters } from '@/state/fighters';
@@ -69,6 +69,7 @@ function Frame({
       {...(f.bot && { badge: 'BOT' })}
     >
       {live.down && <p className="unit-frame-note">Down</p>}
+      {f.away && <p className="unit-frame-note">Reconnecting</p>}
     </UnitFrame>
   );
 }
