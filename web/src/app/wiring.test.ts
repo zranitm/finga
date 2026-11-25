@@ -253,6 +253,26 @@ describe('wiring', () => {
     expect(waypoints.getState().last).toBeNull();
   });
 
+  it('marks each piece PiecesAdded tells of collected, with a notice each, once: a replayed add tells again (outfits.md section 4)', async () => {
+    const { ws } = await connectedSocket();
+    ws.push('piecesAdded', {
+      pieces: [
+        { id: 'knight_plate', cause: 'item' },
+        { id: 'pointed_hat', cause: 'rank' },
+      ],
+    });
+    expect(wardrobe.getState().added).toEqual(new Set(['knight_plate', 'pointed_hat']));
+    expect(toasts.getState().toasts.map((t) => t.text)).toEqual([
+      "New in your wardrobe: Knight's Plate",
+      'New in your wardrobe: Pointed Hat',
+    ]);
+    for (const t of toasts.getState().toasts) {
+      toasts.getState().dismiss(t.id); // gone, as a replay after a reconnect finds them
+    }
+    ws.push('piecesAdded', { pieces: [{ id: 'knight_plate', cause: 'item' }] });
+    expect(toasts.getState().toasts).toEqual([]);
+  });
+
   it('forgets the wardrobe as the character is left: the next one’s list and look are its own', () => {
     wardrobe.getState().collect(['knight_plate']);
     wardrobe.getState().wear({ ...OWN_LOOK, outfit: 'knight_plate' });

@@ -108,6 +108,7 @@ message ServerMessage {
     AreaEntered area_entered = 39;
     ArenaBar arena_bar = 40;
     WaypointFound waypoint_found = 41;
+    PiecesAdded pieces_added = 42;
   }
 }
 
@@ -998,6 +999,16 @@ message AreaEntered {
 // WaypointFound tells the player they found a waypoint, coming within 12 m of its stone: its id across every region, whose name the client reads from the game data. It's theirs for good, and arrives in Welcome after.
 message WaypointFound {
   string waypoint = 1;
+}
+
+// PiecesAdded tells the account's live session of new wardrobe entries, each with what gave it: "item" for an add from the inventory, "rank", "quest" or "feat" for a grant. A piece the account already had isn't in it.
+message PiecesAdded {
+  repeated AddedPiece pieces = 1;
+}
+
+message AddedPiece {
+  string id = 1;
+  string cause = 2;
 }
 
 // PartySpots is where the player's party members on their map stand that the frames don't bring, once a second to a player in a party on a map cut by cells, empty when none are out of sight; a member it doesn't list isn't here.
