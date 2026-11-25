@@ -124,10 +124,18 @@ func (s *Service) GrantPieces(ctx context.Context, account kernel.AccountID, gra
 	return added, err
 }
 
-// grantable is whether g names a source its piece has: the rank that gives it.
+// grantable is whether g names a source its piece has: the rank or the quest that gives it.
 func (s *Service) grantable(g model.PieceGrant) bool {
 	p, ok := s.content.Piece(g.Piece)
-	return ok && g.Cause == model.PieceFromRank && g.Ref != "" && slices.ContainsFunc(p.From, func(src gamedata.PieceSource) bool { return src.Rank == g.Ref })
+	return ok && g.Ref != "" && slices.ContainsFunc(p.From, func(src gamedata.PieceSource) bool {
+		switch g.Cause {
+		case model.PieceFromRank:
+			return src.Rank == g.Ref
+		case model.PieceFromQuest:
+			return src.Quest == g.Ref
+		}
+		return false
+	})
 }
 
 // SetLook wears in's picks: each a piece of its slot the account has collected, a weapon look of the class's kind, or "" for the class's own.

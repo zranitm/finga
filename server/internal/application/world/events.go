@@ -288,6 +288,20 @@ type WaypointFound struct {
 	Waypoint string
 }
 
+// PiecesAdded tells the player of wardrobe pieces new to their account, as Cause gave them.
+type PiecesAdded struct {
+	Pieces []string
+	Cause  PieceCause
+}
+
+// PieceCause is what gave the account a piece.
+type PieceCause uint8
+
+// The causes, as the model counts them.
+const (
+	PieceFromQuest PieceCause = iota + 1
+)
+
 // TeleportCancel is what ended a teleport channel early.
 type TeleportCancel int
 
@@ -348,6 +362,7 @@ func (TeleportCancelled) worldEvent() {}
 func (PartySpots) worldEvent()        {}
 func (AreaEntered) worldEvent()       {}
 func (WaypointFound) worldEvent()     {}
+func (PiecesAdded) worldEvent()       {}
 func (Detached) worldEvent()          {}
 func (Damage) worldEvent()            {}
 func (Died) worldEvent()              {}
@@ -655,6 +670,8 @@ func deliveryOf(e model.Event) Delivery {
 		return Delivery{Tick: ev.Tick, Event: AreaEntered{Area: ev.Area, FieldBoss: up, FieldBossGone: down}}
 	case model.WaypointFound:
 		return Delivery{Tick: ev.Tick, Event: WaypointFound{Waypoint: ev.Waypoint}}
+	case model.PiecesAdded:
+		return Delivery{Tick: ev.Tick, Event: PiecesAdded{Pieces: slices.Clone(ev.Pieces), Cause: PieceCause(ev.Cause)}}
 	case model.LevelUp:
 		return Delivery{Tick: ev.Tick, Event: levelUpOf(ev)}
 	case model.Promoted:

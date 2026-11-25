@@ -29,6 +29,9 @@ func TestFingerprintsAreStable(t *testing.T) {
 	}
 	drop := uuid.MustParse("0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9c0d")
 	slot := 7
+	trial := HandInInput{Quest: "warriors_trial", Completion: 1, Take: []model.Grant{{Item: "slime_gel", Quantity: 4}}, Give: []Give{{TemplateID: "red_potion", Quantity: 20}}}
+	withPiece := trial
+	withPiece.Pieces = []string{"bronze_sword"}
 	for _, tc := range []struct {
 		name string
 		got  []byte
@@ -43,6 +46,8 @@ func TestFingerprintsAreStable(t *testing.T) {
 		{"unequip to a slot", UnequipInput{Key: "k-1", EquipSlot: "ring_2", ToSlot: &slot}.fingerprint(c), "14261d0402ea762f54c4b35d003f976f5c4358e134d16bacb86463a987a78394"},
 		{"discard", DiscardInput{Key: "k-1", ItemID: item, Quantity: 2}.fingerprint(c), "693b3c5bd5cd91ea7cd9157dead199a007206e0f3090fafb9ad8b11cfdaba75e"},
 		{"discard many", DiscardManyInput{Key: "k-1", ItemIDs: []kernel.ItemID{item, other}}.fingerprint(c), "350cb85b85ec945be97205521609fdb302b7acc6ebacbda7de466cda5b030470"},
+		{"hand-in", trial.fingerprint(c), "fe7f29d2cd8b24d0fc21517900c98909f08d6204eafa31d9f4f54b5cc704241c"},
+		{"hand-in with a piece", withPiece.fingerprint(c), "e197560b071796382fc94bddfa4ac05e0ce390ce1d5876ad25670725166887b6"},
 	} {
 		if got := hex.EncodeToString(tc.got); got != tc.want {
 			t.Errorf("%s fingerprint changed: retries made before this deploy would be refused\ngot  %s\nwant %s", tc.name, got, tc.want)

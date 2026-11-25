@@ -118,6 +118,7 @@ func TestEachItemResultKeepsItsFields(t *testing.T) {
 			"Equipment":              "a move or a discard changes no worn item",
 			"Worn":                   "a move or a discard changes no worn item",
 			"Piece":                  "an add's piece comes beside its slots (TestAnAddKeepsItsPiece)",
+			"Pieces":                 "only a hand-in, which the world asks for, gives pieces",
 			"Look":                   "a move or a discard changes no look",
 		},
 	}

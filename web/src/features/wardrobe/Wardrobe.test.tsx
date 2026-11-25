@@ -86,7 +86,8 @@ describe('the wardrobe (outfits.md section 7)', () => {
       ['Class look', 'lit'],
       ['Greatsword', 'greyed'],
       ['Greataxe', 'greyed'],
-    ]); // no wand or crossbow for a Warrior
+      ['Bronze Sword', 'greyed'],
+    ]); // no wand, knife or crossbow for a Warrior
     await tab('Wings');
     expect(tiles()).toEqual([['None', 'lit']]);
   });

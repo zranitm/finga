@@ -18,6 +18,7 @@ type reply struct {
 	Equipment []replyWornSlot `json:"equipment,omitempty"`
 	Worn      []replyItem     `json:"worn,omitempty"`
 	Piece     string          `json:"piece,omitempty"`
+	Pieces    []string        `json:"pieces,omitempty"`
 	Look      *replyLook      `json:"look,omitempty"`
 }
 
@@ -77,7 +78,7 @@ type replyStats struct {
 }
 
 func encodeReply(res application.Result) ([]byte, error) {
-	r := reply{Revision: res.Revision, Piece: res.Piece}
+	r := reply{Revision: res.Revision, Piece: res.Piece, Pieces: res.Pieces}
 	if l := res.Look; l != nil {
 		r.Look = &replyLook{Outfit: l.Outfit, Headwear: l.Headwear, Face: l.Face, Weapon: l.Weapon, Wings: l.Wings, HideHeadwear: l.HideHeadwear, Revision: l.Revision}
 	}
@@ -119,7 +120,7 @@ func decodeReply(raw []byte) (application.Result, error) {
 	if err := json.Unmarshal(raw, &r); err != nil {
 		return application.Result{}, fmt.Errorf("item: stored reply: %w", err)
 	}
-	res := application.Result{Revision: r.Revision, Piece: r.Piece}
+	res := application.Result{Revision: r.Revision, Piece: r.Piece, Pieces: r.Pieces}
 	if l := r.Look; l != nil {
 		res.Look = &model.Look{Outfit: l.Outfit, Headwear: l.Headwear, Face: l.Face, Weapon: l.Weapon, Wings: l.Wings, HideHeadwear: l.HideHeadwear, Revision: l.Revision}
 	}

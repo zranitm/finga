@@ -35,7 +35,7 @@ describe('generated gamedata', () => {
     expect(expCurve.exp_to_next).toHaveLength(expCurve.level_cap - 1);
   });
 
-  it('items equal items.yaml with the stack size the server applies, then an item for each wardrobe piece a boss drops as the server makes it, none for one a rank gives', () => {
+  it('items equal items.yaml with the stack size the server applies, then an item for each wardrobe piece a boss drops as the server makes it, none for one a rank or a quest gives', () => {
     const raw = yaml('items.yaml').items as Record<string, unknown>[];
     const all = yaml('outfits.yaml').pieces as {
       id: string;
@@ -48,6 +48,10 @@ describe('generated gamedata', () => {
       'helm_silver',
       'helm_gold',
       'platinum_plate',
+      'bronze_sword',
+      'bronze_knife',
+      'bronze_crossbow',
+      'bronze_staff',
     ]);
     expect(items).toHaveLength(raw.length + pieces.length);
     raw.forEach((source, k) => {

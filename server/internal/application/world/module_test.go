@@ -121,8 +121,8 @@ func (wears) Worn(context.Context, kernel.CharacterID) (model.Worn, error) { ret
 func (wears) Look(context.Context, kernel.CharacterID) (model.Look, error) { return model.Look{}, nil }
 
 // HandIn takes the gel and gives nothing back, at revision 4; err refuses it.
-func (w wears) HandIn(context.Context, model.HandInCall) (model.Inventory, error) {
-	return model.Inventory{Revision: 4, Slots: []model.Slot{{Tab: gamedata.Etc, Slot: 0}}}, w.err
+func (w wears) HandIn(context.Context, model.HandInCall) (model.HandedIn, error) {
+	return model.HandedIn{Items: model.Inventory{Revision: 4, Slots: []model.Slot{{Tab: gamedata.Etc, Slot: 0}}}}, w.err
 }
 
 // Use takes a red potion from the Use tab's slot 0, leaving 2, at revision 6; err refuses it.

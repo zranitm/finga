@@ -95,6 +95,23 @@ func TestAReplyKeepsItsRevision(t *testing.T) {
 	}
 }
 
+// A hand-in's reply keeps the pieces it gave, so a repeat or a join tells of them again; a reply without them stores none.
+func TestAReplyKeepsAHandInsPieces(t *testing.T) {
+	t.Parallel()
+	res := storedResult(t)
+	res.Pieces = []string{"bronze_sword", "bronze_knife"}
+	raw, err := encodeReply(res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := decodeReply(raw); err != nil || !reflect.DeepEqual(got.Pieces, res.Pieces) || len(got.Changed) != 2 {
+		t.Fatalf("decoded %s as %+v, %v; want both pieces and both slots", raw, got, err)
+	}
+	if old, err := decodeReply([]byte(storedReply)); err != nil || old.Pieces != nil {
+		t.Fatalf("a reply stored without pieces decoded as %+v, %v", old, err)
+	}
+}
+
 // A reply with an equipment item, its roll stored beside it; rows like it replay for as long as keys live.
 const storedRollReply = `{"changed":[{"tab":"equip","slot":2,"item":{"ID":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9a0b","TemplateID":"iron_sword","Owner":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9012","Tab":"equip","Slot":2,"Quantity":1,"Stats":{"PhysicalAttack":17,"CritRate":5}}}],"revision":3}`
 

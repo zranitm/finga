@@ -22,8 +22,9 @@ type Objective struct {
 
 // Rewards are what handing a quest in gives.
 type Rewards struct {
-	Exp   int64
-	Items []Grant
+	Exp    int64
+	Items  []Grant
+	Pieces []string // the wardrobe pieces a hand-in grants, from those pieces' quest sources
 }
 
 // Quest is a task an NPC gives and another (often the same) takes back.

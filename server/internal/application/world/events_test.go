@@ -59,7 +59,7 @@ func TestEveryModelEventKeepsItsFields(t *testing.T) {
 		eventKeepsItsFields[model.InventoryChanged], eventKeepsItsFields[model.Loot], eventKeepsItsFields[model.Detached],
 		eventKeepsItsFields[model.NpcDialog], eventKeepsItsFields[model.QuestChanged], eventKeepsItsFields[model.TeleportCancelled],
 		eventKeepsItsFields[model.PartySpots], eventKeepsItsFields[model.WaypointFound], eventKeepsItsFields[model.AreaEntered],
-		eventKeepsItsFields[model.ArenaBar], eventKeepsItsFields[model.MatchState],
+		eventKeepsItsFields[model.ArenaBar], eventKeepsItsFields[model.MatchState], eventKeepsItsFields[model.PiecesAdded],
 	} {
 		check(t)
 	}

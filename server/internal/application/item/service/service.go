@@ -81,6 +81,7 @@ type Result struct {
 	Worn      []model.Item     // after an equip or unequip, every item worn
 	Revision  uint64
 	Piece     string      // the piece an add to the wardrobe made
+	Pieces    []string    // the pieces a hand-in gave, each new to the account
 	Look      *model.Look // a look worn, or the one a trainer's gift left
 }
 

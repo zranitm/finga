@@ -661,8 +661,8 @@ func (nobody) HandedIn(context.Context, kernel.CharacterID, []model.Completion) 
 }
 
 // HandIn refuses.
-func (nobody) HandIn(context.Context, model.HandInCall) (model.Inventory, error) {
-	return model.Inventory{}, errNobody
+func (nobody) HandIn(context.Context, model.HandInCall) (model.HandedIn, error) {
+	return model.HandedIn{}, errNobody
 }
 
 // Give refuses.

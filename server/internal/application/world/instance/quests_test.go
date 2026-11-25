@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -23,7 +24,7 @@ import (
 	"finga/pkg/transient"
 )
 
-// questData is the shipped data with two more of the town guide's quests: an errand (talk to the guide, reach level 3) and a repeatable bounty (a slime, two gels; a cap and three potions).
+// questData is the shipped data with two more of the town guide's quests: an errand (talk to the guide, reach level 3) and a repeatable bounty (a slime, two gels; a cap, three potions and the Bounty Badge for the wardrobe).
 func questData(t *testing.T) *gamedata.Data {
 	t.Helper()
 	return worldtest.LoadDataWith(t, map[string]func(string) string{
@@ -53,6 +54,9 @@ func questData(t *testing.T) *gamedata.Data {
       items: [{item: leather_cap, quantity: 1}, {item: red_potion, quantity: 3}]
 `
 		},
+		"outfits.yaml": func(s string) string {
+			return s + "  - {id: bounty_badge, slot: headwear, name: Bounty Badge, stars: 1, look: knight_helmet, from: [{quest: bounty}]}\n"
+		},
 	})
 }
 
@@ -60,25 +64,25 @@ func questData(t *testing.T) *gamedata.Data {
 type fakeHandIns struct {
 	mu     sync.Mutex
 	calls  []model.HandInCall
-	answer model.Inventory
+	answer model.HandedIn
 	err    error
 	gate   chan struct{}
 	down   int // the first down calls find the item module unavailable
 }
 
-func (f *fakeHandIns) HandIn(ctx context.Context, c model.HandInCall) (model.Inventory, error) {
+func (f *fakeHandIns) HandIn(ctx context.Context, c model.HandInCall) (model.HandedIn, error) {
 	if f.gate != nil {
 		select {
 		case <-f.gate:
 		case <-ctx.Done():
-			return model.Inventory{}, fmt.Errorf("%w: %w", transient.ErrUnavailable, ctx.Err()) // as the client wraps a timeout
+			return model.HandedIn{}, fmt.Errorf("%w: %w", transient.ErrUnavailable, ctx.Err()) // as the client wraps a timeout
 		}
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, c)
 	if len(f.calls) <= f.down {
-		return model.Inventory{}, fmt.Errorf("%w: the item module is down", transient.ErrUnavailable)
+		return model.HandedIn{}, fmt.Errorf("%w: the item module is down", transient.ErrUnavailable)
 	}
 	return f.answer, f.err
 }
@@ -325,9 +329,9 @@ func TestHandingInAQuest(t *testing.T) {
 	cap := &model.SlotItem{ID: kernel.NewItemID(), Template: "leather_cap", Quantity: 1}
 	answer := model.Inventory{Revision: 7, Slots: []model.Slot{{Tab: gamedata.Etc, Slot: 0}, {Tab: gamedata.Equip, Slot: 0, Item: cap}}}
 
-	t.Run("the item module takes and gives, then the quest finishes, awards its EXP and saves", func(t *testing.T) {
+	t.Run("the item module takes and gives, then the quest finishes, awards its EXP, tells of the pieces new to the account and saves", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			f := &fakeHandIns{answer: answer}
+			f := &fakeHandIns{answer: model.HandedIn{Items: answer, Pieces: []string{"bounty_badge"}}}
 			q := newQuestTown(t, 1, ready(0), f)
 			if err := q.handIn("bounty"); err != nil {
 				t.Fatal(err)
@@ -336,8 +340,9 @@ func TestHandingInAQuest(t *testing.T) {
 			roll := progression.Rolled(tmpl.Rolls, func(r gamedata.Range) int { return min(r.Min+int(0.5*float64(r.Max-r.Min+1)), r.Max) })
 			want := model.HandInCall{
 				Account: q.p.Account, Character: q.p.ID, Quest: "bounty", Completion: 1,
-				Take: []gamedata.Grant{{Item: "slime_gel", Quantity: 2}},
-				Give: []model.Reward{{Template: "leather_cap", Quantity: 1, Stats: &roll}, {Template: "red_potion", Quantity: 3}},
+				Take:   []gamedata.Grant{{Item: "slime_gel", Quantity: 2}},
+				Give:   []model.Reward{{Template: "leather_cap", Quantity: 1, Stats: &roll}, {Template: "red_potion", Quantity: 3}},
+				Pieces: []string{"bounty_badge"},
 			}
 			if got := f.called(); len(got) != 1 || !reflect.DeepEqual(got[0], want) {
 				t.Fatalf("called %+v, want %+v", got, want)
@@ -353,8 +358,22 @@ func TestHandingInAQuest(t *testing.T) {
 			if exp := eventsOf[model.ExpGained](q.sink); len(exp) != 1 || exp[0].Amount != 4 {
 				t.Fatalf("EXP %+v", exp)
 			}
+			if added := eventsOf[model.PiecesAdded](q.sink); len(added) != 1 || !slices.Equal(added[0].Pieces, []string{"bounty_badge"}) || added[0].Cause != model.PieceFromQuest {
+				t.Fatalf("pieces added %+v", added)
+			}
 			if got := q.saved(t)["bounty"]; !reflect.DeepEqual(got, done) {
 				t.Fatalf("saved %+v", got)
+			}
+		})
+	})
+	t.Run("a piece the account had already tells of nothing", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			q := newQuestTown(t, 1, ready(0), &fakeHandIns{answer: model.HandedIn{Items: answer}})
+			if err := q.handIn("bounty"); err != nil {
+				t.Fatal(err)
+			}
+			if len(changes(q.sink)) != 1 || len(eventsOf[model.PiecesAdded](q.sink)) != 0 {
+				t.Fatalf("told %+v", eventsOf[model.PiecesAdded](q.sink))
 			}
 		})
 	})
@@ -369,7 +388,7 @@ func TestHandingInAQuest(t *testing.T) {
 				t.Fatal("a refused hand-in changed something")
 			}
 			f.mu.Lock()
-			f.err, f.answer = nil, answer
+			f.err, f.answer = nil, model.HandedIn{Items: answer}
 			f.mu.Unlock()
 			if err := q.handIn("bounty"); err != nil {
 				t.Fatal(err)
@@ -381,7 +400,7 @@ func TestHandingInAQuest(t *testing.T) {
 	})
 	t.Run("a try the item module was down for is tried again, as the same completion", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			f := &fakeHandIns{answer: answer, down: 2}
+			f := &fakeHandIns{answer: model.HandedIn{Items: answer}, down: 2}
 			q := newQuestTown(t, 1, ready(0), f)
 			if err := q.handIn("bounty"); err != nil {
 				t.Fatal(err)
@@ -397,7 +416,7 @@ func TestHandingInAQuest(t *testing.T) {
 	t.Run("an item module down past the tries leaves the quest as it was, and answers within the gateway's 5 s", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			var logs bytes.Buffer
-			f := &fakeHandIns{answer: answer, down: 1000}
+			f := &fakeHandIns{answer: model.HandedIn{Items: answer}, down: 1000}
 			q := questTownWith(t, 1, ready(0), worldtest.Options{HandIns: f, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
 			start := time.Now()
 			err := q.inst.HandInQuest(context.Background(), q.p.ID, "c1", "town_guide", "bounty")
@@ -415,7 +434,7 @@ func TestHandingInAQuest(t *testing.T) {
 	})
 	t.Run("a hung item module is given up within the gateway's 5 s too", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			f := &fakeHandIns{answer: answer, gate: make(chan struct{})}
+			f := &fakeHandIns{answer: model.HandedIn{Items: answer}, gate: make(chan struct{})}
 			q := newQuestTown(t, 1, ready(0), f)
 			start := time.Now()
 			err := q.inst.HandInQuest(context.Background(), q.p.ID, "c1", "town_guide", "bounty")
@@ -428,7 +447,7 @@ func TestHandingInAQuest(t *testing.T) {
 	})
 	t.Run("an answer after the character joined again through another connection finishes the quest for it", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			f := &fakeHandIns{answer: answer, gate: make(chan struct{})}
+			f := &fakeHandIns{answer: model.HandedIn{Items: answer}, gate: make(chan struct{})}
 			q := newQuestTown(t, 1, ready(0), f)
 			first := make(chan error, 1)
 			go func() { first <- q.inst.HandInQuest(context.Background(), q.p.ID, "c1", "town_guide", "bounty") }()
@@ -454,7 +473,7 @@ func TestHandingInAQuest(t *testing.T) {
 	})
 	t.Run("an answer after the character left the map changes nothing here", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			f := &fakeHandIns{answer: answer, gate: make(chan struct{})}
+			f := &fakeHandIns{answer: model.HandedIn{Items: answer}, gate: make(chan struct{})}
 			q := newQuestTown(t, 1, ready(0), f)
 			first := make(chan error, 1)
 			go func() { first <- q.inst.HandInQuest(context.Background(), q.p.ID, "c1", "town_guide", "bounty") }()
@@ -480,10 +499,10 @@ func TestHandingInAQuest(t *testing.T) {
 			handedIn []model.HandedIn
 			finished int // the completion it finishes; 0 none
 		}{
-			{"the next completion", ready(0), []model.HandedIn{{Quest: "bounty", Completion: 1, Items: answer}}, 1},
+			{"the next completion, with its new piece", ready(0), []model.HandedIn{{Quest: "bounty", Completion: 1, Items: answer, Pieces: []string{"bounty_badge"}}}, 1},
 			{"a repeatable quest's next", ready(2), []model.HandedIn{{Quest: "bounty", Completion: 3, Items: answer}}, 3},
 			{"one already finished", model.Quests{"bounty": {Status: model.QuestFinished, TimesFinished: 1}}, []model.HandedIn{{Quest: "bounty", Completion: 1, Items: answer}}, 0},
-			{"one past the next", ready(0), []model.HandedIn{{Quest: "bounty", Completion: 2, Items: answer}}, 0},
+			{"one past the next", ready(0), []model.HandedIn{{Quest: "bounty", Completion: 2, Items: answer, Pieces: []string{"bounty_badge"}}}, 0},
 			{"a quest not in the log", nil, []model.HandedIn{{Quest: "bounty", Completion: 1, Items: answer}}, 0},
 		} {
 			t.Run(c.name, func(t *testing.T) {
@@ -500,10 +519,14 @@ func TestHandingInAQuest(t *testing.T) {
 						t.Fatalf("logged %s", logs.String())
 					}
 					if c.finished == 0 {
-						if len(got) != 0 || len(eventsOf[model.InventoryChanged](s)) != 0 {
+						if len(got) != 0 || len(eventsOf[model.InventoryChanged](s)) != 0 || len(eventsOf[model.PiecesAdded](s)) != 0 {
 							t.Fatalf("told %+v", got)
 						}
 						return
+					}
+					added := eventsOf[model.PiecesAdded](s)
+					if pieces := c.handedIn[0].Pieces; (len(pieces) == 0) != (len(added) == 0) || len(added) > 0 && !slices.Equal(added[0].Pieces, pieces) {
+						t.Fatalf("pieces added %+v", added)
 					}
 					done := model.Quest{Status: model.QuestFinished, TimesFinished: c.finished}
 					if !reflect.DeepEqual(got, []model.QuestChanged{{ID: "bounty", Change: model.QuestHandedIn, Quest: done}}) {
@@ -521,7 +544,7 @@ func TestHandingInAQuest(t *testing.T) {
 	})
 	t.Run("a repeatable quest hands in its next completion", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			f := &fakeHandIns{answer: answer}
+			f := &fakeHandIns{answer: model.HandedIn{Items: answer}}
 			q := newQuestTown(t, 1, ready(1), f)
 			if err := q.handIn("bounty"); err != nil {
 				t.Fatal(err)
@@ -575,7 +598,7 @@ func TestHandingInAQuest(t *testing.T) {
 	})
 	t.Run("while its hand-in is in flight, the quest can't be handed in or abandoned", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			f := &fakeHandIns{answer: answer, gate: make(chan struct{})}
+			f := &fakeHandIns{answer: model.HandedIn{Items: answer}, gate: make(chan struct{})}
 			q := newQuestTown(t, 1, ready(0), f)
 			first := make(chan error, 1)
 			go func() { first <- q.inst.HandInQuest(context.Background(), q.p.ID, "c1", "town_guide", "bounty") }()

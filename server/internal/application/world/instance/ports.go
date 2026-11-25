@@ -48,7 +48,7 @@ type Equipment interface {
 
 // HandIns is the item module's hand-in, called from the item-call pool, never inside a tick; a failure that is no rule is transient.ErrUnavailable.
 type HandIns interface {
-	HandIn(ctx context.Context, c model.HandInCall) (model.Inventory, error)
+	HandIn(ctx context.Context, c model.HandInCall) (model.HandedIn, error)
 }
 
 // Gifts is the item module's gift of one item under its own key, called from the item-call pool, never inside a tick; a failure that is no rule is transient.ErrUnavailable.

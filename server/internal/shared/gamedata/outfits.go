@@ -35,11 +35,12 @@ type Piece struct {
 	From  []PieceSource
 }
 
-// PieceSource is where a piece comes from: a boss's drop, at a chance on each eligible player's own roll, or a PvP rank, the first time the account reaches it.
+// PieceSource is where a piece comes from: a boss's drop, at a chance on each eligible player's own roll; a PvP rank, the first time the account reaches it; or a quest's hand-in.
 type PieceSource struct {
 	Boss   string
 	Chance float64
 	Rank   string
+	Quest  string
 }
 
 // PieceItem is the id of the item that holds the piece id.
