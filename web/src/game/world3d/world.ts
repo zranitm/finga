@@ -618,6 +618,7 @@ export class World {
       match?.points ?? [],
       sideOf(match, this.deps.player.characterId),
       this.keptSide,
+      now,
     );
     predictor.holdFor(countdownTicks(pvp.getState().match, this.timing.tickMs)); // known from prep's or the gap's end, before the count's first Delta
     if (this.placed) {
