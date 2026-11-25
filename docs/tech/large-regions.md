@@ -25,6 +25,7 @@
   - the carved obelisk with a floating crystal, its halo kept pure cyan on grass, where the first stills read mint;
   - dimmer until found;
   - a short flare on finding.
+- **The halo** (2026-11-25), picked from a sheet of three: a soft cyan glow over grass can't be had, as any soft fade from cyan to the grass's green passes through mint. So it's a solid cyan core with a soft edge deepening toward blue, and a small dark-teal halo on an unfound stone, dim by darkness.
 - **The client computes, the server validates:**
   - The client draws the land from baked files and predicts sprint.
   - The server decides every move, hit and channel, and only sends what a player can see.
@@ -522,14 +523,18 @@ Built with step 1, which says who watches a cell.
     - A six-sided obelisk, about 2.8 m tall on a low octagonal plinth, in the palette's stone grey.
     - Above it floats a six-sided crystal, its top at about 3.55 m, in the map's waypoint cyan.
     - Rune strips are carved up three of the obelisk's faces.
-  - **Unfound:** a dim teal crystal, dark runes and a faint small halo. It still reads 22 m off and in a dark cave.
-  - **Found:** a near-white cyan crystal, lit runes and a wider halo.
-  - **The halo** is pure cyan on grass as on dark ground, never mint.
+  - **Unfound:** a dim teal crystal, dark runes and a small dark-teal halo, dim by darkness rather than thinness. It still reads 22 m off and in a dark cave.
+  - **Found:** a near-white cyan crystal, lit runes and a wider, bright cyan halo.
+  - **The halo** is solid cyan to about 45% of its radius, then a soft fade tinting toward a deeper blue. So it reads cyan on grass, about 184° found, as on dark ground. Only the unfound halo's outer edge goes a little dark-mint on grass. The crystal draws in front of it.
   - **The flare on finding:**
     - The crystal and runes light within 0.3 s.
     - A beam rises and is gone by 0.6 s.
     - A ring spreads 7 m on the ground.
     - Then the found look holds. No light column stays over a found stone.
+    - **When it plays:** the first time the crystal is on screen after the find. At the near zoom the whole stone shows only within about 9 m of the player, and finds come at 12 m, so a flare played at once would mostly go unseen. The notice comes at once, and the map views show it lit at once.
+      - Until its flare, the stone keeps its unfound look. The flare lights it.
+      - A stone not on screen within 10 s of its find turns lit then, with no flare.
+      - One stone flares at a time. A newer find takes the flare over: a stone still waiting turns lit with no flare, and one mid-flare jumps to lit.
 - **Finding:**
   - Each tick, a player's cell lists the waypoints near it.
   - Coming within 12 m of an unfound one stores it and sends `WaypointFound{id}`.
@@ -585,15 +590,19 @@ Built with step 1, which says who watches a cell.
     - The loader no longer asks that a player fit on a waypoint's spot, as the stone stands there; its arrival must still fit.
     - The reach check counts a waypoint reached within 12 m, its finding circle.
   - **Where it's drawn:** mapjson adds the ground's height at each stone. The region's place draws the stones from its first frame, before any chunk comes, and lets them go with itself. Like the region's props, they cast no shadow until 5b's cascades.
-  - **Found or not:** the model is copied twice, painted dim and lit, and each copy is drawn at the stones in its state. A find swaps a stone's copy at once, which is within the Look's 0.3 s.
+  - **Found or not:** the model is copied twice, painted dim and lit, and each copy is drawn at the stones in its state. A stone found swaps its copy as its flare starts, within the Look's 0.3 s.
   - **The halo** is drawn over the ground rather than added to it, as an added one read mint on grass.
-    - Even drawn over, a thin cyan over grass reads mint. So the halo is a firm disc with a short soft edge, out of `#00d0f4`, a touch bluer than the crystal's cyan. The unfound one is faint by being small: 1.35 m at alpha 0.7, against 2.2 m at 0.9 found.
-    - Its middle is clearer, so the crystal shows through.
-    - **Measured** on the forest's grass, the found halo's median hue went from 130° to 186°, with pure cyan about 183°. The unfound one went from 121° to 178°. Its soft edge is the only part still under 165°.
+    - Even drawn over, a cyan thinning to clear over grass passes through mint. So each halo is a soft dot whose colour deepens toward blue across it: solid out to 45% of its radius, then its alpha falls evenly to nothing at the rim.
+    - **Found:** 2.6 m across at alpha 0.9, `#00d8f0` in the middle to `#00b4ff` at the rim.
+    - **Unfound:** 1.35 m at alpha 0.7, a dark teal, `#006a8a` to `#00587a`. It's dim by its darkness, not by being thin.
+    - It stands 0.3 m north of the crystal and 0.3 m below it, behind it along the camera's look, so the crystal draws in front of it at either zoom.
+    - **Over the test region's grass,** the found halo's solid part blends to 183°–189°, with pure cyan about 183°, and the unfound one's to about 176°.
   - **The flare** comes only from a `WaypointFound`; a join's list lights stones without one.
     - The beam is gone by 0.6 s, and the ring spreads 7 m across over 0.8 s.
     - The halo swells to half as wide again and settles. A swell to twice as wide hid the obelisk behind a solid disc.
-    - One stone flares at a time; a newer find takes the flare over.
+    - **When it plays:** a find leaves its stone dim until the crystal's middle is first inside the camera's view, then lights and flares it. The notice comes at once. A stone not seen within 10 s of its find lights with no flare, and a join's list lights one still waiting, unflared.
+    - One stone flares at a time; the newest find to come on screen takes the flare over.
+    - The beam and ring keep `#00d0f4`, a touch bluer than the crystal's cyan.
     - **The ring** lies flat, so as it spreads it rides the highest ground under it. On East Woods' slope the flat ring had sunk into the ground for up to 98° of its circle.
   - **See-through:** a stone between the camera and the player fades as a tall prop does, its halo with it, and goes at the lens. They're a region's only see-through looks so far.
     - **While faded,** it leaves its thin instances and draws its own copy at the step's alpha, made when its model loads.
@@ -636,6 +645,44 @@ Built with step 1, which says who watches a cell.
       - a deep river crossed only at its ford, and nothing in a shipped region reaching deep water; every ford walked across both ways (the ford ramp);
       - a bat's spit across a strip of deep water landing on the far side.
     - Before it, a player in the test region reached 13,039 cells of riverbed, about 3,300 m², walking under up to 2.5 m of water.
+- **As built (step 5b-1): the looks grid.**
+  - **The grid:** a place files each look under every 8 m cell its box covers. Each frame the world steps only two kinds of look:
+    - those in the cells under the box round the camera-to-head line, grown by 2 m, the lens's reach;
+    - any look not yet whole again, wherever the camera went.
+  - Maps use the grid too, so both fade the same way.
+  - **A region's tall props:** each chunk makes a look for each prop taller than half a player once its kit model is in, as maps do. It takes them out of the grid as it's freed, and a chunk freed before its models came makes none. The waypoint stones' looks are filed with them.
+  - **Copies at the first fade:**
+    - A look starts as its model's box, placed by its instance.
+    - Its see-through copies are cloned from the region's hidden kit model the first time it fades, under the chunk's props, so they go with the chunk.
+    - So every drawn chunk has its looks, not only those within 64 m as planned, and a chunk's props cost no meshes till one fades.
+  - **No stall at a first fade:** as each tall kit model loads, one hidden copy of each part is made, and its see-through steps are compiled on it, once for the region.
+  - **Shadows:** the copies cast none yet, as the region's props don't. 5b-3's cascades add both.
+  - **Tests:**
+    - the grid alone: cells either side of 0, the camera's 2 m, a look on its way back kept then dropped once whole, one taken out, a line longer than the cells filed, and a turned model's box;
+    - a tiny-bake chunk's oak fading: its instance and ink hidden, its copy alone made and placed, then whole again;
+    - looks filed and freed with their chunks, and none for a prop no taller than half a player;
+    - the see-through steps warmed once per tall kit model;
+    - the world taking a 14 m tower at the camera's end of its line from the view, which a grid read round the head alone misses.
+- **As built (step 5b-2): water.**
+  - **Reading it:** the region reads `region.json`'s rivers and lakes, and its palette's water colour. A palette with no water is refused, as a plan's kit must have one.
+  - **A river** is a ribbon along its smoothed path, at each point's level:
+    - its channel's half width plus 2 m out on each side, square to the line from the point before to the one after;
+    - the 2 m runs under the banks' ground, which stands at least 0.5 m over the water.
+  - **A lake** is its area grown 2 m past every side, at its level:
+    - each corner moves out along the line between its two sides', at most 6 m, so a sharp corner doesn't spike;
+    - it's cut into triangles by earcut (Mapbox's, ISC, no dependencies). Vetted: the source scanned, no install scripts, no OSV advisories.
+  - **Drawn** as the region loads, one mesh each:
+    - toon at 0.85 in the water's colour, taking the sun's shadows;
+    - neither streams with the chunks: a river is a few dozen triangles, a lake fewer;
+    - the whole channel is covered, so a ford shows as shallow water over its bed.
+  - **Tests:**
+    - the tiny bake's river laid along x = 96 from 91 to 101 m at its levels;
+    - a bend's pairs square across it, either way it runs;
+    - the test region's lake grown 2 m from each side's line, covered once, either way its corners run;
+    - a sharp corner capped at 6 m;
+    - every triangle facing up, wound as the ground's are;
+    - the water's colour and alpha, and the meshes going with the region;
+    - region.json read with a lake, with none written as null, and refused with no water.
 - **Entities:** only what the server sends (section 5).
   - Name labels show for the 40 nearest, and for party members and the lock.
   - HP bars show for the party, the lock, and mobs hit in the last 5 s.
@@ -684,10 +731,10 @@ Built with step 1, which says who watches a cell.
     - 15.5 MB of buffers and a 123 MB JS heap.
     - At 32:9 (2560×720), props reach the sides of the view at full zoom.
   - **Not yet:**
-    - the looks grid, cascaded shadows and water (5b);
+    - the looks grid, cascaded shadows and water (5b; the grid built in 5b-1, water in 5b-2, below);
     - label and bar limits, and map tiles (5c);
     - the loading screen's hold, with 4b, when a player first enters a region (built in 4b-2b, below).
-    - A river's bed steps 1 m at a time along its banks until 5b's water covers it.
+    - A river's bed steps 1 m at a time along its banks until 5b's water covers it (5b-2 does).
 - **As built (step 4b-2b): the sim walks the bake.**
   - **The ground:** a region's map JSON has no geometry. `loadMap` reads its `region.json` and overview, and the map's geometry is a `RegionGround`: one Float32Array of heights for the region, its steep and deep marks a byte a cell or sample, and its solids at the server's indices, all empty till their chunks come.
     - Each chunk fills its own samples and the cells between them as the worker returns it, drawn or dropped. `markSteep` marks the cells, the same function a whole map's terrain runs, so both mark alike.
@@ -705,6 +752,7 @@ Built with step 1, which says who watches a cell.
     - **Those chunks are asked all at once,** as built in the fetch order PR, and the rest four at a time, nearest first. Four at a time, a fresh load into the test region on Fast 3G waited on them in turns: 12.2–12.4 s, against 11.0 s all at once. After the arrival they're drawn long before the player nears them, so only an arrival asks this way.
   - **A chunk that fails,** or doesn't fit, is asked again after a backoff from 0.5 s, doubling to 8 s. After five failures the HUD says so and the page reloads 3 s later, fetching the bake afresh, a stale client included.
     - Each wait is equal jitter, in the upper half of its window (from the playtest: full jitter broke in 2.5 s). So the four waits come to 3.75–7.5 s, plus each try's own time, and the reload 3 s after that. A map that doesn't load retries the same way; the socket's reconnect keeps full jitter, spreading every client after a restart.
+    - **Once the player leaves the region,** for another map or out of the game, the world disposes the region's place along with its scene. The place lets go of its chunk work, so a try failing after that breaks nothing, not even with a reload, and it takes the waypoint stones' listener with it.
   - **The minimap and map window** draw a region from its overview, a pixel a metre: its palette's colours blended between the 8 m samples, shaded by height. The bake's colours mark steep ground already, and a river shows as its sand bed until 5b draws water. The minimap blows it up about 4.5×, so it looks soft until 5c's tiles. The maps' 4 pixels a metre would be a 64 MB image at 1 km.
   - **Measured** on the wide test plan (1 km), headless Chrome, its bake served gzipped as nginx serves it, sprinting (8 m/s) on the real region place, workers and ground, the body stopping while held:
     - across the middle (720 m) and south to north and west (1,030 m), unthrottled and on Chrome's Fast 3G preset (562.5 ms latency, 1.44 Mbit/s): no hold at all;
@@ -714,7 +762,7 @@ Built with step 1, which says who watches a cell.
     - the bake read back in the client: deep marks, every solid index filled once, and each refusal;
     - the ground: its grid, steep and deep marks as a whole map's, each solid as its chunk records it, and its buckets as indexing every solid at once, whatever order the chunks come in;
     - ten movement vectors on two test plans' bakes, which Go replays on its generated ground and the client on a `RegionGround` from the chunks, to the bit. The tiny plan's: its seam, a house over it, its river and ford, a blink stopped by an oak a neighbouring chunk carries. The steep plan's, as steep as the wide plan gets (its ring a 42.9 m step in a cell, the wide plan's 42.1 m): cliffs, a fall, a ridge;
-    - the world: the hold on arrival, its radius pinned at a missing chunk's edge, the veil, the notice let go with the region, a gate's label lowered onto the river bed, and the reload once chunks fail every try.
+    - the world: the hold on arrival, its radius pinned at a missing chunk's edge, the veil, the notice let go with the region, a gate's label lowered onto the river bed, the reload once chunks fail every try, and none from a try failing after the player has left.
 
 ## 11. cmd/bot
 
@@ -897,4 +945,12 @@ The user's choices are in section 1. These calls were made in planning and logge
   - no glow until found, which makes unfound stones hard to spot from afar;
   - a quieter find, with no beam or ring;
   - a lasting light column over found stones, easier to steer by but busier on screen.
+  - **For the halo on grass:**
+    - the firm disc first built: pure cyan, but a hard edge that reads as a sticker;
+    - a soft fade bluer at the rim: closest to the first stills, but its haze reads green-teal, and the unfound halo is barely there;
+    - a fade fitted to the ground ring by ring, which went grey-blue;
+    - the first stills' soft glow, mint on grass.
+  - **For a find made off-screen:**
+    - finding nearer, about 7 m, which would change B11's 12 m;
+    - letting the flare play off-screen, since many play zoomed out.
 - **Per-player frames:** encoding per player would lose the shared encoding. Per-cell parts keep it.

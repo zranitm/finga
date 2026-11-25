@@ -88,6 +88,25 @@ func TestABadPlanIsRefused(t *testing.T) {
 		{"a piece not in the kit", func(p *Plan) { p.Pieces = []Piece{{Model: "teapot", At: &[2]float64{5, 5}}} }, "a kit model"},
 		{"a waypoint off the region", func(p *Plan) { p.Waypoints = []Waypoint{{ID: "far", At: [2]float64{5, -1}}} }, "waypoint far at [5 -1]: outside the region"},
 		{"a start off the region", func(p *Plan) { p.Start.At = [2]float64{-3, 5} }, "the start at [-3 5]: outside the region"},
+		{"rock on a sea", func(p *Plan) { p.Look.Sky, p.Rock = Sea, &Rock{Height: 4.5} }, "rock is a cave's: a sky of cave, not sea"},
+		{"rock of no height", func(p *Plan) { cave(p); p.Rock.Height = 0 }, "rock needs a height up to 1000 m"},
+		{"an endless rough", func(p *Plan) { cave(p); p.Rock.Rough = math.Inf(1) }, "a rough of 0 to 512 m"},
+		{"a hall with no rock", func(p *Plan) { p.Features = []Feature{{Hall: &Hall{Area: [][2]float64{{40, 40}, {80, 40}, {80, 80}}}}} }, "carved from a cave's rock"},
+		{"a hall into the ring", func(p *Plan) {
+			cave(p)
+			p.Features = []Feature{{Hall: &Hall{Area: [][2]float64{{5, 40}, {80, 40}, {80, 80}}}}}
+		}, "a hall needs an area in the region, its walls clear of the ring: at least 2 m inside the ring's face"},
+		{"a tunnel into the ring", func(p *Plan) {
+			cave(p)
+			p.Features = []Feature{{Tunnel: &Tunnel{Path: [][2]float64{{64, 64}, {120, 64}}, Width: 6}}}
+		}, "a tunnel needs a width up to 512 m and a path in the region, its walls clear of the ring: at least 5 m inside the ring's face"},
+		{"torches with no rock", func(p *Plan) { p.Torches = &Torches{Spacing: 10, Model: "torch_mounted"} }, "torches hang on a cave's walls, and the plan has no rock"},
+		{"torches too close", func(p *Plan) { cave(p); p.Torches = &Torches{Spacing: 5, Model: "torch_mounted"} }, "torches 5 m apart: 6 to 512 m"},
+		{"a torch model with no light", func(p *Plan) { cave(p); p.Torches = &Torches{Spacing: 10, Model: "rock_small"} }, `torch model "rock_small": a kit model with a light`},
+		{"a tunnel of no width", func(p *Plan) {
+			cave(p)
+			p.Features = []Feature{{Tunnel: &Tunnel{Path: [][2]float64{{40, 64}, {80, 64}}}}}
+		}, "a tunnel needs a width"},
 	} {
 		p := flat()
 		c.edit(&p)
@@ -100,6 +119,13 @@ func TestABadPlanIsRefused(t *testing.T) {
 	delete(k.Grounds, roadColour)
 	if _, err := Generate(flat(), k, maxSlope(t)); err == nil || !strings.Contains(err.Error(), "needs a dirt ground") {
 		t.Errorf("a kit without dirt: error %v; want one saying it needs a dirt ground", err)
+	}
+	k = shippedKit(t)
+	delete(k.Grounds, rockColour)
+	p := flat()
+	cave(&p)
+	if _, err := Generate(p, k, maxSlope(t)); err == nil || !strings.Contains(err.Error(), "needs a cave_rock ground") {
+		t.Errorf("a cave's kit without cave_rock: error %v; want one saying it needs a cave_rock ground", err)
 	}
 }
 
@@ -120,6 +146,8 @@ func TestABadKitIsRefused(t *testing.T) {
 		{"grounds: {grass: '#8cc265'}\nmodels: {rock: {cylinder: {radius: 1e300, height: 1}}}\n", "a radius up to 512 m"},
 		{"grounds: {grass: '#8cc265'}\nmodels: {hut: {box: {width: 2, depth: 2}}}\n", "a height up to 1000 m"},
 		{"grounds: {grass: '#8cc265'}\nsizes: {}\n", "sizes"},
+		{"grounds: {grass: '#8cc265'}\nmodels: {torch: {light: {height: 2, reach: 40}}}\n", "a light needs a height up to 1000 m and a reach up to 32 m"},
+		{"grounds: {grass: '#8cc265'}\nmodels: {torch: {light: {reach: 8}}}\n", "a light needs a height"},
 	} {
 		if _, err := DecodeKit([]byte(c.kit)); err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("kit %q: error %v; want one saying %q", c.kit, err, c.want)

@@ -51,6 +51,9 @@ func (r *Region) Bake() (Bake, error) {
 		}
 	}
 	files = append(files, r.tiles()...)
+	if len(r.Flames) > 0 { // the server bakes it too, as the folder's name hashes every file
+		files = append(files, File{Path: "light.bin", Data: r.light()})
+	}
 	slices.SortFunc(files, func(a, b File) int { return strings.Compare(a.Path, b.Path) })
 	h := sha256.New()
 	for _, f := range files {
@@ -222,6 +225,7 @@ func (r *Region) meta() ([]byte, error) {
 	m := struct {
 		Format    int        `json:"format"`
 		Name      string     `json:"name"`
+		Under     string     `json:"under"` // a place below's region above; empty on the land
 		Sky       string     `json:"sky"`
 		Size      [2]float64 `json:"size"`
 		Cell      float64    `json:"cell"`
@@ -240,8 +244,9 @@ func (r *Region) meta() ([]byte, error) {
 		NPCs      []NPC      `json:"npcs"`
 		Gates     []Gate     `json:"gates"`
 		Start     Place      `json:"start"`
+		Lights    []Flame    `json:"lights"` // each torch's flame, for its flicker; light.bin holds their light
 	}{
-		Format: Format, Name: p.Name, Sky: p.Look.Sky, Size: p.Size, Cell: p.Cell, Chunk: chunkM, Overview: overviewM, Heights: r.Heights,
+		Format: Format, Name: p.Name, Under: p.Under, Sky: p.Look.Sky, Lights: nonNil(r.Flames), Size: p.Size, Cell: p.Cell, Chunk: chunkM, Overview: overviewM, Heights: r.Heights,
 		Solids: solids{len(r.Geometry.Cylinders), len(r.Geometry.Boxes), solidReach(r.Geometry)},
 		Models: r.Models, Areas: nonNil(p.Areas), Camps: nonNil(p.Camps), Waypoints: nonNil(p.Waypoints), NPCs: nonNil(p.NPCs), Gates: nonNil(p.Gates), Start: p.Start,
 		Rivers: []river{}, Lakes: []lake{},

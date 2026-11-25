@@ -674,6 +674,7 @@ As built in slice PR 7:
   - **Cost:**
     - **Building a map** (the test engine, median of five): 9–32 ms more. Up to 90 more meshes (Spore Hollow, 40 to 130). Twice the see-through materials, for the two new steps (the crossroads, 46 to 92).
     - **Live,** in Chrome at 1280 by 800 on Spore Hollow: the world showed 579 ms after Play. The next 5.4 s ran 542 frames, the longest 11 ms. A frame's work at the map's busiest spot, with seven see-through copies and a fight on, was a median 2.5 ms, against 2.3 ms in the open. Both held the 100 fps cap.
+  - **Which looks a frame steps:** since large-regions step 5b-1, only those a grid of 8 m cells gives near the camera's line, and those on their way back to whole (large-regions.md section 10).
 - **The place opens round the player,** as built in the cut-away PR, after the live re-check of the camera follow-up:
   - **What it found:** at (40, 6) on Sandstone Cliffs, with the crag gone, the cliff itself hid the player. The camera's line to the chest crosses the 4 m mesa's edge at 3.2 m. Terrain didn't fade.
   - **The sweep:**

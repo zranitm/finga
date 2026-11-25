@@ -33,6 +33,15 @@ describe('a region bake, read as regionbake writes it', () => {
     expect(region.models).toContain('tree_oak');
     expect(region.areas).toEqual([{ id: 'field', name: 'Field', kind: 'hunting', levels: [1, 2] }]);
     expect(overview).toMatchObject({ nx: 17, nz: 17, spacing: 8 });
+    expect(region.water).toBe(0x5b8fc7); // kit.yaml's water
+    expect(region.rivers).toHaveLength(1);
+    const [river] = region.rivers;
+    expect(river!.width).toBe(6);
+    expect(river!.path[0]).toEqual([96, 0]);
+    expect(river!.path.at(-1)).toEqual([96, 128]);
+    expect(river!.levels).toHaveLength(river!.path.length);
+    expect(river!.levels[0]).toBeCloseTo(-1.079, 3);
+    expect(region.lakes).toEqual([]);
   });
 
   it("holds one ground: a chunk's edge its neighbour's too, its border its neighbour's next samples in, the overview every 8 m of them", () => {
@@ -148,6 +157,35 @@ describe('a region bake, read as regionbake writes it', () => {
       ),
     );
     await expect(loadRegion(REF)).rejects.toThrow('bake format 1; this client reads 3');
+    const json = JSON.parse(new TextDecoder().decode(bakeFile('region.json'))) as {
+      palette: { name: string }[];
+    };
+    vi.stubGlobal('fetch', (url: string) =>
+      Promise.resolve(
+        url.endsWith('.json')
+          ? Response.json({ ...json, palette: json.palette.filter((c) => c.name !== 'water') })
+          : new Response(bakeFile('overview.bin')),
+      ),
+    );
+    await expect(loadRegion(REF)).rejects.toThrow('region tiny: its palette has no water');
+    const lake = {
+      area: [
+        [182, 40],
+        [215, 46],
+        [210, 80],
+        [176, 74],
+      ],
+      level: 4.5,
+    }; // the test region's
+    vi.stubGlobal('fetch', (url: string) =>
+      Promise.resolve(
+        url.endsWith('.json')
+          ? Response.json({ ...json, lakes: [lake], rivers: null }) // Go writes none as null
+          : new Response(bakeFile('overview.bin')),
+      ),
+    );
+    const { region } = await loadRegion(REF);
+    expect([region.lakes, region.rivers]).toEqual([[lake], []]);
     vi.stubGlobal('fetch', () => Promise.resolve(new Response(null, { status: 404 })));
     await expect(loadRegion(REF)).rejects.toThrow(/regions\/tiny\/fixture\/.*: 404/);
   });

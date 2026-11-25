@@ -1,4 +1,4 @@
-// The result screen (pvp.md section 13): the outcome, the rounds, the rating's change and any new rank; it stays, through the trip back, till the player closes it.
+// The result screen (pvp.md section 13): the outcome, the rounds or a battle's scores, the rating's change and any new rank; it stays, through the trip back, till the player closes it.
 import { Button } from '@/components/Button';
 import { MatchOutcome } from '@/protocol/messages';
 import { pvp } from '@/state/pvp';
@@ -12,7 +12,7 @@ export function MatchResult() {
   if (!outcome) {
     return null;
   }
-  const [mine, theirs] = outcome.rounds;
+  const [mine, theirs] = outcome.score ?? outcome.rounds;
   return (
     <div className="match-result" role="dialog" aria-label="Match result">
       <span className="muted">{modeName(outcome.mode)}</span>
@@ -20,7 +20,7 @@ export function MatchResult() {
         {outcomeTitle(outcome.result)}
       </strong>
       <span>
-        Rounds {mine} – {theirs}
+        {outcome.score ? 'Score' : 'Rounds'} {mine} – {theirs}
       </span>
       {outcome.rating && <Rating change={outcome.rating} />}
       <Button onClick={() => pvp.getState().dismissOutcome()}>Return</Button>

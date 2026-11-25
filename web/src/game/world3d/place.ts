@@ -86,6 +86,7 @@ const PROP_DEFAULT: PropStandIn = { shape: 'bloom', color: 0xc8c8c0, size: 0.25 
 
 const PORTAL = 0x7ac7ff;
 const NEAR = 2; // metres from the camera within which a look's drawn box is at the lens
+const LOOK_CELL_M = 8; // the side of a look grid's cells
 export const STEPS = [1, 0.65, 0.3, 0.15, 0] as const; // the alphas a look steps through: whole, faded at 0.3, gone at 0
 const STEP_MS = 50; // between two steps, so whole to gone takes 0.15 s after the first
 const LOW_PROP = movement.height / 2; // a prop no taller hides at most a player's legs, so it never fades
@@ -115,6 +116,11 @@ export class Look {
     private readonly show: (step: number) => void,
   ) {}
 
+  /** Whether it shows as it is, at rest or on its way to faded. */
+  get whole(): boolean {
+    return this.step === 0;
+  }
+
   /** Steps it toward seen over dtMs, one of STEPS each STEP_MS: past the first it's see-through, without its ink. */
   toward(seen: Seen, dtMs: number): void {
     const to = AT[seen];
@@ -138,9 +144,105 @@ export class Look {
   }
 }
 
+/** A place's looks filed by the cells their boxes cover, so a frame steps only those the camera's way could meet (large-regions.md section 10). */
+export class LookGrid {
+  private readonly cells = new Map<number, Set<Look>>();
+  private awake = new Set<Look>(); // stepped last frame: each is stepped till it's whole again, wherever the camera goes
+
+  add(look: Look): void {
+    this.each(look, (k) => {
+      let cell = this.cells.get(k);
+      if (!cell) {
+        cell = new Set();
+        this.cells.set(k, cell);
+      }
+      cell.add(look);
+    });
+  }
+
+  remove(look: Look): void {
+    this.each(look, (k) => {
+      const cell = this.cells.get(k);
+      cell?.delete(look);
+      if (cell?.size === 0) {
+        this.cells.delete(k);
+      }
+    });
+    this.awake.delete(look);
+  }
+
+  /** The looks fade must step with the camera at camera and the head at head: those filed in the cells under the box round the segment between them, grown by NEAR, and those not yet whole again. */
+  around(camera: Vector3, head: Vector3): Look[] {
+    const found = new Set<Look>();
+    for (const look of this.awake) {
+      if (!look.whole) {
+        found.add(look);
+      }
+    }
+    const [x0, x1] = cellsOver(
+      Math.min(camera.x, head.x) - NEAR,
+      Math.max(camera.x, head.x) + NEAR,
+    );
+    const [z0, z1] = cellsOver(
+      Math.min(camera.z, head.z) - NEAR,
+      Math.max(camera.z, head.z) + NEAR,
+    );
+    const take = (cell: ReadonlySet<Look>) => {
+      for (const look of cell) {
+        found.add(look);
+      }
+    };
+    if ((x1 - x0 + 1) * (z1 - z0 + 1) > this.cells.size) {
+      for (const [k, cell] of this.cells) {
+        const [cx, cz] = cellOf(k);
+        if (cx >= x0 && cx <= x1 && cz >= z0 && cz <= z1) {
+          take(cell);
+        }
+      }
+    } else {
+      for (let cx = x0; cx <= x1; cx++) {
+        for (let cz = z0; cz <= z1; cz++) {
+          const cell = this.cells.get(cellKey(cx, cz));
+          if (cell) {
+            take(cell);
+          }
+        }
+      }
+    }
+    this.awake = found;
+    return [...found];
+  }
+
+  /** Calls f with each cell look's box covers. */
+  private each(look: Look, f: (k: number) => void): void {
+    const [x0, x1] = cellsOver(look.min.x, look.max.x);
+    const [z0, z1] = cellsOver(look.min.z, look.max.z);
+    for (let cx = x0; cx <= x1; cx++) {
+      for (let cz = z0; cz <= z1; cz++) {
+        f(cellKey(cx, cz));
+      }
+    }
+  }
+}
+
+const CELL_SPAN = 1 << 16; // cells along a key's axis, half of them west or south of 0
+
+/** The cells from the one holding a to the one holding b. */
+function cellsOver(a: number, b: number): [number, number] {
+  return [Math.floor(a / LOOK_CELL_M), Math.floor(b / LOOK_CELL_M)];
+}
+
+function cellKey(cx: number, cz: number): number {
+  return (cx + CELL_SPAN / 2) * CELL_SPAN + (cz + CELL_SPAN / 2);
+}
+
+function cellOf(k: number): [number, number] {
+  return [Math.floor(k / CELL_SPAN) - CELL_SPAN / 2, (k % CELL_SPAN) - CELL_SPAN / 2];
+}
+
 export interface Place {
-  /** Each solid's look by its index among the map's, then the kit props' taller than LOW_PROP in the map's order; a region's, its waypoint stones'. */
-  readonly looks: readonly Look[];
+  /** Its solids' and tall kit props' looks, and a region's waypoint stones', filed by cell. */
+  readonly looks: LookGrid;
   /** Draws what the camera's target at (x, z) needs: a region streams its chunks round it, a map is drawn whole. */
   follow(x: number, z: number): void;
   /** Whether what an arrival at (x, z) sees is drawn: a region's chunks round it, a map always. */
@@ -247,13 +349,16 @@ export async function buildPlace(
     [...placed].map(async ([key, p]) => {
       const parts = await kitParts(models, p.kit, key, lighting.palette, lighting.shadows, root);
       const all = [...p.solids, ...p.props].map((s) => s.at);
+      const looked = (at: Matrix, n: number) => {
+        const copies = kitCopies(parts, at, lighting.shadows, root, fades);
+        return kitLook(parts, at, n, boxOf(copies), () => copies);
+      };
       p.solids.forEach(({ i, at }, n) => {
-        solids[i] = kitLook(parts, at, n, lighting, root, fades); // its copy made before any instance, which a clone would carry
+        solids[i] = looked(at, n);
       });
-      const { min, max } = boxOf(parts.map((part) => part.mesh)); // in the model's space, before any instance
-      if ((max.y - min.y) * p.kit.scale > LOW_PROP) {
+      if (tall(parts, p.kit)) {
         p.props.forEach(({ i, at }, k) => {
-          props[i] = kitLook(parts, at, p.solids.length + k, lighting, root, fades);
+          props[i] = looked(at, p.solids.length + k);
         });
       }
       for (const part of parts) {
@@ -280,9 +385,15 @@ export async function buildPlace(
     ring.material = palette.glow(linearOf(PORTAL), 0.9);
   }
   warm(fades);
+  const looks = new LookGrid();
+  for (const look of [...solids, ...props]) {
+    if (look) {
+      looks.add(look);
+    }
+  }
 
   return {
-    looks: [...solids, ...props.filter((l): l is Look => l !== undefined)],
+    looks,
     follow: () => {
       // a map is drawn whole: nothing streams
     },
@@ -391,6 +502,17 @@ function boxOf(meshes: readonly AbstractMesh[]): { min: Vector3; max: Vector3 } 
     max.maximizeInPlace(b.maximumWorld);
   }
   return { min, max };
+}
+
+/** The box round a kit model's parts in the model's space, before any instance. */
+export function modelBox(parts: readonly KitPart[]): { min: Vector3; max: Vector3 } {
+  return boxOf(parts.map((part) => part.mesh));
+}
+
+/** Whether kit's parts stand taller than LOW_PROP, so a prop of it fades. */
+export function tall(parts: readonly KitPart[], kit: KitModel): boolean {
+  const { min, max } = modelBox(parts);
+  return (max.y - min.y) * kit.scale > LOW_PROP;
 }
 
 /** A stand-in for a solid with no kit model: its collision shape in the model key's colour, with a tree's canopy or a house's roof; it fades by its materials. */
@@ -571,42 +693,71 @@ export async function kitParts(
 
 const HIDDEN = Matrix.Scaling(0, 0, 0);
 
-/** A kit solid or prop: thin instance n of parts at at, and a see-through copy of it alone, hidden till the camera's way meets it. */
-function kitLook(
+/** A kit solid's or prop's see-through copies: each of parts alone at at, under root, hidden till shown, cast by shadows when there are any; their fade steps go to fades, for warming. Made before any instance, which a clone would carry. */
+export function kitCopies(
   parts: readonly KitPart[],
   at: Matrix,
-  n: number,
-  lighting: Lighting,
+  shadows: ShadowGenerator | null,
   root: TransformNode,
   fades: [Material, AbstractMesh][],
-): Look {
-  const copies = parts.map((p) => {
+): Mesh[] {
+  return parts.map((p) => {
     const c = p.mesh.clone(`${p.mesh.name} faded`, root, true);
     c.material = p.steps[1]!;
     c.rotationQuaternion = new Quaternion();
     at.decompose(c.scaling, c.rotationQuaternion, c.position);
     c.receiveShadows = true;
-    lighting.shadows.addShadowCaster(c, false);
+    shadows?.addShadowCaster(c, false);
     c.setEnabled(false);
     fades.push(...p.steps.slice(1).map((m): [Material, AbstractMesh] => [m, c]));
     return c;
   });
-  const { min, max } = boxOf(copies);
+}
+
+/** A kit solid or prop round box: thin instance n of drawn at at, swapped while the camera's way meets it for see-through copies of it alone, which copies makes at its first fade. */
+export function kitLook(
+  drawn: readonly KitPart[],
+  at: Matrix,
+  n: number,
+  box: { readonly min: Vector3; readonly max: Vector3 },
+  copies: () => readonly AbstractMesh[],
+): Look {
+  let made: readonly AbstractMesh[] | null = null;
   let whole = true;
-  return new Look(min, max, (step) => {
-    parts.forEach((p, k) => {
-      copies[k]!.material = p.steps[step]!;
+  return new Look(box.min, box.max, (step) => {
+    const c = (made ??= copies());
+    drawn.forEach((p, k) => {
+      c[k]!.material = p.steps[step]!;
     });
     if (whole === (step === 0)) {
       return;
     }
     whole = step === 0; // the instance swaps for its copy only here, as setting a thin instance uploads them all
-    parts.forEach((p, k) => {
+    drawn.forEach((p, k) => {
       p.mesh.thinInstanceSetMatrixAt(n, whole ? at : HIDDEN);
       p.ink?.thinInstanceSetMatrixAt(n, whole ? at : HIDDEN);
-      copies[k]!.setEnabled(!whole);
+      c[k]!.setEnabled(!whole);
     });
   });
+}
+
+/** The world box round model box placed by at. */
+export function placedBox(
+  box: { readonly min: Vector3; readonly max: Vector3 },
+  at: Matrix,
+): { min: Vector3; max: Vector3 } {
+  const min = new Vector3(Infinity, Infinity, Infinity);
+  const max = new Vector3(-Infinity, -Infinity, -Infinity);
+  for (const x of [box.min.x, box.max.x]) {
+    for (const y of [box.min.y, box.max.y]) {
+      for (const z of [box.min.z, box.max.z]) {
+        const p = Vector3.TransformCoordinates(new Vector3(x, y, z), at);
+        min.minimizeInPlace(p);
+        max.maximizeInPlace(p);
+      }
+    }
+  }
+  return { min, max };
 }
 
 /** The toon base for a glTF material: its texture and colour as authored. */

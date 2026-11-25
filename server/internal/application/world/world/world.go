@@ -111,6 +111,11 @@ func New(d Deps, t Tuning) *World {
 		if m.Kind == gamedata.Pvp {
 			continue // a match opens its own
 		}
+		if m.Under != "" { // a place below opens its channels as they're needed
+			w.channels.regions[m.ID] = &region{m: m}
+			d.Channels.ChannelsOpen(m.ID, 0)
+			continue
+		}
 		deps := instance.Deps{Services: d.Services, Map: m, Data: data, Saves: w.saves, Mover: w, Logger: d.Logger}
 		if m.Kind == gamedata.Region {
 			deps.Channel = 1
@@ -128,7 +133,7 @@ func New(d Deps, t Tuning) *World {
 // mapNamed is the instance character id joins on map mapID, and what to call once they've joined or failed: in a region, the channel picked for them.
 func (w *World) mapNamed(id kernel.CharacterID, mapID string) (*instance.Instance, func(), error) {
 	if r, ok := w.channels.regions[mapID]; ok {
-		return w.pickChannel(id, r, 0, false)
+		return w.pickChannel(id, r, instance.Dest{ID: mapID})
 	}
 	i, ok := w.instances[mapID]
 	if !ok {

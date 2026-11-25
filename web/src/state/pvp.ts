@@ -45,6 +45,20 @@ export interface Match {
   readonly sent: { readonly tick: number; readonly endsInMs: number };
   /** Side 1's fighters, then side 2's. */
   readonly sides: readonly (readonly Fighter[])[];
+  /** A battle's score, side 1's then side 2's; none in a round mode. */
+  readonly score: readonly number[];
+  /** A battle's capture points, in the map's order; none in a round mode. */
+  readonly points: readonly MatchPoint[];
+}
+
+export interface MatchPoint {
+  readonly id: string;
+  /** The side holding it, 0 for none. */
+  readonly holder: number;
+  /** From -1, side 1's, through 0, no one's, to 1, side 2's. */
+  readonly progress: number;
+  /** Both sides stand in it, so it holds still. */
+  readonly contested: boolean;
 }
 
 export interface RatingChange {
@@ -61,6 +75,8 @@ export interface Outcome {
   readonly result: MatchOutcome;
   /** Rounds won by the player's side, then the other's. */
   readonly rounds: readonly [number, number];
+  /** A battle's score, the player's side's then the other's; null in a round mode. */
+  readonly score: readonly [number, number] | null;
   readonly rating: RatingChange | null;
 }
 
@@ -148,6 +164,13 @@ export const pvp = defineStore<PvpState>((set, get) => ({
         sides: d.sides.map((s) =>
           s.fighters.map((f) => ({ id: f.id, name: f.name, cls: f.class, bot: f.bot })),
         ),
+        score: d.score,
+        points: d.points.map((p) => ({
+          id: p.id,
+          holder: p.holder,
+          progress: p.progress,
+          contested: p.contested,
+        })),
       },
       left: null,
       ...(was?.id !== d.match && { outcome: null }),
@@ -157,12 +180,14 @@ export const pvp = defineStore<PvpState>((set, get) => ({
     const m = get().match ?? get().left;
     const side = sideOf(m, me);
     const [one = 0, two = 0] = d.wins;
+    const [us = 0, them = 0] = side === 2 ? [...d.score].reverse() : d.score;
     const r = d.rating;
     set({
       outcome: {
         mode: m?.mode ?? '',
         result: d.result,
         rounds: side === 2 ? [two, one] : [one, two],
+        score: d.score.length === 2 ? [us, them] : null,
         rating: r
           ? {
               before: r.before,
