@@ -74,8 +74,8 @@ test-web:
 cover: cover-go cover-web   ## coverage for both halves; each fails below its 80% floor
 
 # Tests cover-go runs apart, under -race alone: the race detector slows coverage's atomic counters 6-14x in their loops, and they cover nothing other tests don't.
-RACE_ONLY_TESTS := TestBalance|TestFieldBosses|TestBakeHashes|TestEveryMobReachesAPlayerAnywhereInItsLeash|TestEveryShippedMapCanBeCrossed|TestNoSpawnSeesAnArrivalOrAnNPC|TestNoSolidLeavesAGapByTheTerrainOnlyAPlayerFits|TestEveryFordIsCrossedBothWays|TestARiverIsCrossedOnlyAtItsFordsAndCauseways|TestNoRegionHasAOneWayPocket|TestNoPlayerClimbsACliff
-RACE_ONLY_PKGS := ./internal/model/world/ ./internal/shared/regiongen/ ./internal/shared/nav/
+RACE_ONLY_TESTS := TestBalance|TestFieldBosses|TestBakeHashes|TestEveryMobReachesAPlayerAnywhereInItsLeash|TestEveryShippedMapCanBeCrossed|TestNoSpawnSeesAnArrivalOrAnNPC|TestNoSolidLeavesAGapByTheTerrainOnlyAPlayerFits|TestEveryFordIsCrossedBothWays|TestARiverIsCrossedOnlyAtItsFordsAndCauseways|TestNoRegionHasAOneWayPocket|TestNoPlayerClimbsACliff|TestAPileChasingAMovingPlayerAttacksOnceItCan
+RACE_ONLY_PKGS := ./internal/model/world/ ./internal/shared/regiongen/ ./internal/shared/nav/ ./internal/application/world/mobs/
 
 # cover-go also writes server/go-test-times.tsv: when each package and test ran, slowest first.
 cover-go:
