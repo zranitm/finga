@@ -2988,7 +2988,7 @@ func TestTheWardrobesCommands(t *testing.T) {
 			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.PieceCollected.Code) {
 				t.Fatalf("response %+v", r)
 			}
-			synctest.Wait() // a push the refusal made is on the wire before the Pong
+			time.Sleep(time.Second) // past the session's flush: a push the refusal made is on the wire before the Pong
 			c.send(wsconn.Message{ReqID: "p-1", Data: &clientv1.Ping{}})
 			for m, status := c.read(); m.Type != "Pong"; m, status = c.read() {
 				if status != -1 || m.Type == "PiecesAdded" {
