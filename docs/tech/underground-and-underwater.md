@@ -460,21 +460,30 @@ These steps follow the regions' build (large-regions.md section 14).
      - **The bubbles:** two particle systems, one for the vents and one for the heads, each placing every bubble's start itself.
        - Up to 64 vents within 40 m of the camera's target stream, five bubbles a second each, from within 4 cm of the vent's mouth.
        - Each body drawn within 25 m of it (the player, the others, the mobs and the NPCs, not the dying) breathes out 2 to 4 bubbles from the top of its look every 3 to 5 s. Its first breath comes at a moment of its own, within 5 s.
+       - **A frame's breaths** are the next bubbles the heads' system gives off. Those it doesn't take that frame, as when it's full in a crowd, are dropped, so no bubble starts where a head was.
+       - **A frame makes nothing:** the starts are a fixed pool of 256, and the near vents a list reused frame to frame.
        - **A bubble:** a pale cyan ring with a bright fleck, drawn in code, 5 to 12 cm across. It rises at 0.5 to 0.9 m a second and 0.35 m a second faster each second, for 3 to 4.5 s. It blends over what's behind it, so the fog takes it.
      - **The fish:** three schools of a dozen in a 48 m square round the player, fixed in the world and wrapping as the rays do.
-       - Each school loops 4 to 7 m round its middle, 4.8 to 7.2 m over the floor there, bobbing 0.4 m. Its fish string out along 1.4 radians of the loop, each up to 0.6 m in or out and 0.3 m up or down, so every fish is 4 to 8 m up. They swim at 1.2 m a second, nose first, the schools alternating ways.
+       - Each school loops 4 to 7 m round its middle, 4.8 to 7.2 m over the highest floor under its loop, bobbing 0.4 m. Its fish string out along 1.4 radians of the loop, each up to 0.6 m in or out and 0.3 m up or down, so every fish is 4 to 8 m over that floor. They swim at 1.2 m a second, nose first, the schools alternating ways.
+       - **The highest floor under a loop** is sampled at 32 points round each of its inner edge, its line and its outer edge. It's sampled again only when the loop's middle moves, so a school keeps together over a slope.
+       - **Each fish is also kept 4.1 m over the floor right under it,** for a thin wall between the samples.
+       - **Each loop keeps inside the region:** its middle stays its reach from every edge.
+       - **The floor is the terrain's:** a solid taller than a step is ignored, so a fish can pass through a large rock.
        - **One thin-instanced model:** each part of #325's fish holds all three schools' 36 fish, one draw a part, not one model a school. They're drawn in the sea's light, caustics on their backs, with no ink line and no shadow.
        - A fish shrinks to nothing within 4 m of the square's edge, so none pops. It also shrinks over the 1.5 m before it comes within 0.6 m of the camera's line to the chest, so its body never crosses that line.
+       - **The same clearance as the rays', measured to the middle:** a ray's edge keeps 1 m from the line, a fish's middle 0.6 m, so its 0.3 m body keeps about 0.45 m. A fish is small and dim, a ray wide and bright.
      - **Tests:**
        - **The bubbles:**
          - only the near vents stream, the rate doubling with two;
          - each bubble starts at a vent's mouth, or a head's top, and heads up;
-         - a body breathes 2 to 4 bubbles every 3 to 5 s, and none from 30 m off.
+         - a body breathes 2 to 4 bubbles every 3 to 5 s, and none from 30 m off;
+         - breaths the system didn't take are dropped, so the next frame's bubbles start at their own head.
        - A null engine never runs a particle system, since its shaders never load, so the tests read where each system places a bubble rather than watching it rise.
        - **The fish, on the real model:**
          - schools of a dozen in the sea's light;
          - 4 to 8 m over a sloping floor, nose first, under 2.5 m a second, round a walking player;
-         - never across the camera's line to the chest, over 600 spots, cameras and moments.
+         - never across the camera's line to the chest, over 600 spots, cameras and moments;
+         - 4 m or more over a 40° slope and over 10 cm walls 20 m apart, each school within 0.6 m of itself on the slope, and every loop inside the region, at its edges too.
        - **A sea region in the world:** its vents streaming as its chunks come, the player breathing within 6 s, and the fish drawn.
 5. **Sea mobs:**
    - their models picked with the user from previews;

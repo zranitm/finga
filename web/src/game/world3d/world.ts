@@ -750,7 +750,7 @@ export class World {
       round = cave && new RoundShadows(scene, lighting.palette, map);
       const models = new Models(scene, this.deps.models);
       seaBubbles = sea ? new SeaBubbles(scene) : null;
-      fish = sea ? new FishSchools(scene, lighting.palette, models) : null;
+      fish = sea ? new FishSchools(scene, lighting.palette, models, map.geometry) : null;
       flames = cave && new Flames(scene, lighting.palette, models, cave.region.lights);
       figures = new Figures(scene, lighting, models);
       pouchMarks = new PouchMarks(scene, models, lighting);
@@ -1492,7 +1492,7 @@ export class World {
     if (!bubbles || !this.place) {
       return;
     }
-    bubbles.vents(this.follow.x, this.follow.z, this.place.vents());
+    bubbles.frame(this.follow.x, this.follow.z, this.place.vents());
     this.breathAt = now;
     if (this.me) {
       this.breathe(this.me);

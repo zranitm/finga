@@ -8,7 +8,7 @@ import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { Scene } from '@babylonjs/core/scene';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { FishSchools } from './fish-schools';
+import { FishSchools, type Seabed } from './fish-schools';
 import { CHEST_M } from './follow';
 import { Models } from './models';
 import { Palette } from './toon';
@@ -58,10 +58,15 @@ function fish(meshes: readonly Mesh[]): Drawn[] {
   });
 }
 
-/** Schools of a sea, their model loaded from disk. */
-async function schools(): Promise<{ schools: FishSchools; meshes: Mesh[]; reach: number }> {
+const WIDE: Seabed = { size_x: 1000, size_z: 1000 }; // a sea the tests' walks keep well inside, from MID
+const MID = 500;
+
+/** Schools of a sea seabed wide, their model loaded from disk. */
+async function schools(
+  seabed: Seabed = WIDE,
+): Promise<{ schools: FishSchools; meshes: Mesh[]; reach: number }> {
   const models = new Models(scene, (f) => new Uint8Array(readFileSync(path.join(MODELS, f))));
-  const schools = new FishSchools(scene, new Palette(scene, 'sea'), models);
+  const schools = new FishSchools(scene, new Palette(scene, 'sea'), models, seabed);
   await vi.waitFor(() => {
     expect(scene.meshes.some((m) => m.name.startsWith('fish '))).toBe(true);
   });
@@ -93,7 +98,7 @@ const slope = (x: number, z: number) => 0.05 * x - 0.03 * z; // a sea floor that
 describe('a sea’s fish (underground-and-underwater.md section 7)', () => {
   it('swim in small schools of a dozen, one model thin-instanced, drawn in the sea’s light', async () => {
     const { schools: s, meshes } = await schools();
-    const chest = new Vector3(20, slope(20, 30) + CHEST_M, 30);
+    const chest = new Vector3(MID + 20, slope(MID + 20, MID + 30) + CHEST_M, MID + 30);
     s.frame(10, eyeOn(chest, 0, 0.7), chest, slope);
     const n = meshes[0]!.thinInstanceCount;
     expect(n % 12).toBe(0);
@@ -110,7 +115,7 @@ describe('a sea’s fish (underground-and-underwater.md section 7)', () => {
     let fastest = 0;
     let last: Drawn[] | null = null;
     for (let t = 0; t < 120; t += 0.25) {
-      const chest = new Vector3(t * 2, slope(t * 2, -t) + CHEST_M, -t); // the player walking
+      const chest = new Vector3(MID + t * 2, slope(MID + t * 2, MID - t) + CHEST_M, MID - t); // the player walking
       s.frame(t, eyeOn(chest, 0, 1.2, 40), chest, slope); // the camera far up, out of their way
       const now = fish(meshes);
       now.forEach((f, i) => {
@@ -131,7 +136,7 @@ describe('a sea’s fish (underground-and-underwater.md section 7)', () => {
     }
     expect(fastest).toBeGreaterThan(0.5);
     expect(fastest).toBeLessThan(2.5); // slowly
-    const still = new Vector3(0, CHEST_M, 0);
+    const still = new Vector3(MID, CHEST_M, MID);
     for (let t = 0; t < 60; t += 0.5) {
       s.frame(t, eyeOn(still, 0, 1.2, 40), still, () => 0);
       for (const f of fish(meshes).filter((f) => f.scale > 0)) {
@@ -145,7 +150,11 @@ describe('a sea’s fish (underground-and-underwater.md section 7)', () => {
     const { schools: s, meshes, reach } = await schools();
     let near = 0;
     for (let k = 0; k < 600; k++) {
-      const chest = new Vector3(((k * 37) % 300) - 150, CHEST_M, ((k * 53) % 300) - 150);
+      const chest = new Vector3(
+        MID + ((k * 37) % 300) - 150,
+        CHEST_M,
+        MID + ((k * 53) % 300) - 150,
+      );
       const eye = eyeOn(chest, k * 0.61, 0.2 + (k % 5) * 0.25, 6 + (k % 4) * 10);
       s.frame(k * 1.37, eye, chest, () => 0);
       for (const f of fish(meshes).filter((f) => f.scale > 0)) {
@@ -161,5 +170,38 @@ describe('a sea’s fish (underground-and-underwater.md section 7)', () => {
       }
     }
     expect(near).toBeGreaterThan(0); // some came close, so the check bore on them
+  });
+
+  it('keep 4 m over a steep or ridged floor, each school together over the highest floor under its loop, and their loops inside the sea', async () => {
+    const sea: Seabed = { size_x: 120, size_z: 90 };
+    const { schools: s, meshes } = await schools(sea);
+    const steep = (x: number, z: number) => 0.8 * x + 0.3 * z; // 40° and more
+    const ridges = (x: number, z: number) => ((0.6 * x + 0.8 * z) % 20 < 0.1 ? 9 : 0); // walls 10 cm thin, 20 m apart, which a loop's samples can miss
+    let atEdge = 0;
+    for (const floor of [steep, ridges]) {
+      for (let k = 0; k < 300; k++) {
+        const chest = new Vector3((k * 37) % 121, 0, (k * 53) % 91); // the region's edges and corners among them
+        chest.y = floor(chest.x, chest.z) + CHEST_M;
+        s.frame(k * 1.37, eyeOn(chest, k * 0.61, 1.2, 40), chest, floor);
+        const drawn = fish(meshes);
+        for (const f of drawn.filter((f) => f.scale > 0)) {
+          expect(f.at.y - floor(f.at.x, f.at.z)).toBeGreaterThanOrEqual(4);
+          expect(f.at.x).toBeGreaterThanOrEqual(0);
+          expect(f.at.x).toBeLessThanOrEqual(sea.size_x);
+          expect(f.at.z).toBeGreaterThanOrEqual(0);
+          expect(f.at.z).toBeLessThanOrEqual(sea.size_z);
+          if (Math.min(f.at.x, f.at.z, sea.size_x - f.at.x, sea.size_z - f.at.z) < 1) {
+            atEdge++;
+          }
+        }
+        if (floor === steep) {
+          for (let i = 0; i < drawn.length; i += 12) {
+            const ys = drawn.slice(i, i + 12).map((f) => f.at.y);
+            expect(Math.max(...ys) - Math.min(...ys)).toBeLessThanOrEqual(0.6 + 1e-6); // only each fish's own rise apart
+          }
+        }
+      }
+    }
+    expect(atEdge).toBeGreaterThan(0); // loops came up against the edges, so the check bore on them
   });
 });

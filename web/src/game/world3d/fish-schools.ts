@@ -1,4 +1,4 @@
-// A sea's fish (underground-and-underwater.md section 7): small schools circling over the floor round the player, 4–8 m up, a dozen fish each on a slow loop, one thin-instanced model; the client's alone, and never across the camera's line to the chest.
+// A sea's fish (underground-and-underwater.md section 7): schools of a dozen on slow loops 4–8 m over the floor round the player, clear of the camera's line.
 import type { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import '@babylonjs/core/Meshes/thinInstanceMesh'; // the thin instance methods on Mesh
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
@@ -24,6 +24,14 @@ const RISE_M = 0.3; // and above or below it
 const CLEAR_M = 0.6; // a fish shrinks to nothing as it comes this near the camera's line to the chest
 const FADE_M = 1.5; // from this much further off
 const R2 = [0.7548776662466927, 0.5698402909980532]; // the plastic number's steps, spreading the schools over the square
+const SAMPLES = 32; // round a loop, inside, along and outside its line, for the highest floor under it
+const LOW_M = UP_M[0] - BOB_M - RISE_M; // the least a fish swims over the floor right under it
+
+/** The region's extent, which each school's whole loop keeps within. */
+export interface Seabed {
+  readonly size_x: number;
+  readonly size_z: number;
+}
 
 /** One fish's place in its school: how far behind its lead along the loop, and off its line. */
 interface Fish {
@@ -32,7 +40,7 @@ interface Fish {
   readonly rise: number;
 }
 
-/** A school: where its loop's middle stands in the world, how wide and high it loops and which way, and its fish. */
+/** A school: where its loop's middle stands in the first square, how wide and high it loops and which way, and its fish. */
 interface School {
   readonly x: number;
   readonly z: number;
@@ -43,9 +51,9 @@ interface School {
   readonly fish: readonly Fish[];
 }
 
-/** v held within half of span either side of 0, as a school wraps round the square. */
-function wrapped(v: number, span: number): number {
-  return v - span * Math.round(v / span);
+/** v kept margin inside 0 to size, or size's middle if it's narrower than two margins. */
+function within(v: number, margin: number, size: number): number {
+  return size < 2 * margin ? size / 2 : Math.min(size - margin, Math.max(margin, v));
 }
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
@@ -68,8 +76,14 @@ export class FishSchools {
   private readonly matrices = new Float32Array(16 * SCHOOLS * FISH);
   private meshes: readonly Mesh[] = [];
   private readonly schools: readonly School[];
+  private readonly tops = new Float64Array(3 * SCHOOLS).fill(NaN); // each school's last loop middle, x and z, and the highest floor under that loop
 
-  constructor(scene: Scene, palette: Palette, models: Models) {
+  constructor(
+    scene: Scene,
+    palette: Palette,
+    models: Models,
+    private readonly seabed: Seabed,
+  ) {
     this.schools = Array.from({ length: SCHOOLS }, (_, s) => ({
       x: TILE_M * ((0.5 + (s + 1) * R2[0]!) % 1),
       z: TILE_M * ((0.5 + (s + 1) * R2[1]!) % 1),
@@ -121,7 +135,27 @@ export class FishSchools {
       });
   }
 
-  /** Lays the fish out at seconds round chest, the point the camera at eye follows, over the floor's height where each school loops: each turned along its loop, shrunk near the square's edge and near the line from eye to chest. */
+  /** The highest floor under school i's loop round (cx, cz), sampled again only when that middle moves. */
+  private top(i: number, cx: number, cz: number, floor: (x: number, z: number) => number): number {
+    const t = this.tops;
+    if (t[3 * i] === cx && t[3 * i + 1] === cz) {
+      return t[3 * i + 2]!;
+    }
+    const s = this.schools[i]!;
+    let top = floor(cx, cz);
+    for (let k = 0; k < SAMPLES; k++) {
+      const a = (2 * Math.PI * k) / SAMPLES;
+      for (const r of [s.radius - STRAY_M, s.radius, s.radius + STRAY_M]) {
+        top = Math.max(top, floor(cx + r * Math.cos(a), cz + r * Math.sin(a)));
+      }
+    }
+    t[3 * i] = cx;
+    t[3 * i + 1] = cz;
+    t[3 * i + 2] = top;
+    return top;
+  }
+
+  /** Lays the fish out at seconds round chest, which the camera at eye follows, over floor: turned along their loops, shrunk near the square's edge and the line from eye to chest. */
   frame(
     seconds: number,
     eye: Vector3,
@@ -130,20 +164,23 @@ export class FishSchools {
   ): void {
     const m = this.matrices;
     let o = 0;
-    for (const s of this.schools) {
-      const ox = wrapped(s.x - chest.x, TILE_M);
-      const oz = wrapped(s.z - chest.z, TILE_M);
-      const cx = chest.x + ox;
-      const cz = chest.z + oz;
-      const edge = clamp01(Math.min(TILE_M / 2 - Math.abs(ox), TILE_M / 2 - Math.abs(oz)) / EDGE_M);
-      const y = floor(cx, cz) + s.up + BOB_M * Math.sin(BOB_RATE * seconds + s.phase);
+    for (let i = 0; i < SCHOOLS; i++) {
+      const s = this.schools[i]!;
+      const wx = s.x - TILE_M * Math.round((s.x - chest.x) / TILE_M); // its loop's middle in the square round chest, the same number while the square stands
+      const wz = s.z - TILE_M * Math.round((s.z - chest.z) / TILE_M);
+      const edge = clamp01(
+        Math.min(TILE_M / 2 - Math.abs(wx - chest.x), TILE_M / 2 - Math.abs(wz - chest.z)) / EDGE_M,
+      );
+      const cx = within(wx, s.radius + STRAY_M, this.seabed.size_x);
+      const cz = within(wz, s.radius + STRAY_M, this.seabed.size_z);
+      const y = this.top(i, cx, cz, floor) + s.up + BOB_M * Math.sin(BOB_RATE * seconds + s.phase);
       const lead = s.phase + (s.way * SPEED_M_S * seconds) / s.radius;
       for (const f of s.fish) {
         const a = lead - s.way * f.behind;
         const r = s.radius + f.out;
         const x = cx + r * Math.cos(a);
         const z = cz + r * Math.sin(a);
-        const fy = y + f.rise;
+        const fy = Math.max(y + f.rise, floor(x, z) + LOW_M); // over a peak between the samples too
         const k = Math.min(edge, clamp01((offSegment(x, fy, z, eye, chest) - CLEAR_M) / FADE_M));
         const vx = -s.way * Math.sin(a); // along its loop, the way it swims
         const vz = s.way * Math.cos(a);

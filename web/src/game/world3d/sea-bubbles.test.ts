@@ -36,7 +36,7 @@ describe('a sea’s bubbles (underground-and-underwater.md section 7)', () => {
     const vents = system('vent bubbles');
     const near = [new Vector3(10, 2.4, 12), new Vector3(-6, 0.4, 20)];
     const far = new Vector3(90, 0.4, 12);
-    bubbles.vents(8, 8, [near[0]!, far]);
+    bubbles.frame(8, 8, [near[0]!, far]);
     const one = vents.emitRate;
     expect(one).toBeGreaterThan(0);
     for (let i = 0; i < 50; i++) {
@@ -44,7 +44,7 @@ describe('a sea’s bubbles (underground-and-underwater.md section 7)', () => {
       expect(Math.hypot(at.x - near[0]!.x, at.z - near[0]!.z)).toBeLessThan(0.1); // a thin line
       expect(at.y).toBe(near[0]!.y); // from its mouth
     }
-    bubbles.vents(8, 8, [...near, far]);
+    bubbles.frame(8, 8, [...near, far]);
     expect(vents.emitRate).toBe(2 * one);
     const from = new Set(
       Array.from({ length: 200 }, () => {
@@ -53,7 +53,7 @@ describe('a sea’s bubbles (underground-and-underwater.md section 7)', () => {
       }),
     );
     expect([...from].sort()).toEqual([0, 1]); // both stream, and nothing starts elsewhere
-    bubbles.vents(8, 8, []);
+    bubbles.frame(8, 8, []);
     expect(vents.emitRate).toBe(0);
     for (const ps of [vents, system('breath bubbles')]) {
       expect(ps.direction1.y).toBeGreaterThan(0.9);
@@ -72,6 +72,7 @@ describe('a sea’s bubbles (underground-and-underwater.md section 7)', () => {
       { key: {}, x: 30, z: 0, breaths: [] as { at: number; n: number }[] }, // 30 m off
     ];
     for (let now = 0; now <= 40_000; now += 50) {
+      bubbles.frame(0, 0, []);
       for (const b of bodies) {
         const before = Math.max(0, heads.manualEmitCount);
         bubbles.breathe(b.key, b.x, 1.75, b.z, 0, 0, now);
@@ -85,7 +86,6 @@ describe('a sea’s bubbles (underground-and-underwater.md section 7)', () => {
           }
         }
       }
-      heads.manualEmitCount = 0; // as a frame's emitting leaves it
     }
     for (const b of bodies.slice(0, 2)) {
       expect(b.breaths[0]!.at).toBeLessThanOrEqual(5000 + 50);
@@ -101,5 +101,28 @@ describe('a sea’s bubbles (underground-and-underwater.md section 7)', () => {
       expect(b.breaths.length).toBeGreaterThanOrEqual(7);
     }
     expect(bodies[2]!.breaths).toEqual([]);
+  });
+
+  it('start no bubble where a head was a frame before: breaths the system didn’t take that frame are dropped', () => {
+    const bubbles = new SeaBubbles(scene);
+    const heads = system('breath bubbles');
+    const [a, b] = [{}, {}];
+    bubbles.frame(0, 0, []);
+    bubbles.breathe(a, 3, 1.75, 4, 0, 0, 0); // each first seen, its first breath due within 5 s
+    bubbles.breathe(b, -5, 1.75, 2, 0, 0, 0);
+    bubbles.frame(0, 0, []);
+    bubbles.breathe(a, 3, 1.75, 4, 0, 0, 10_000);
+    expect(heads.manualEmitCount).toBeGreaterThanOrEqual(2);
+    // the system takes none of a's this frame, as a full one doesn't emit
+    bubbles.frame(0, 0, []);
+    expect(heads.manualEmitCount).toBe(0);
+    bubbles.breathe(b, -5, 1.75, 2, 0, 0, 10_000);
+    const n = heads.manualEmitCount;
+    expect(n).toBeGreaterThanOrEqual(2);
+    for (let i = 0; i < n; i++) {
+      const at = start(heads);
+      expect(Math.hypot(at.x + 5, at.z - 2)).toBeLessThan(0.1); // b's, none of a's
+    }
+    expect(start(heads).x).toBeNaN(); // and nothing after them
   });
 });

@@ -1,4 +1,4 @@
-// A sea's bubbles (underground-and-underwater.md section 7): thin streams rising from its vents, and a few from each body's head every 3–5 s near the camera's target; one particle system each, which go with the scene.
+// A sea's bubbles (underground-and-underwater.md section 7): streams from its vents, and a few from each near body's head every 3–5 s.
 import { RawTexture } from '@babylonjs/core/Materials/Textures/rawTexture';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import { Color4 } from '@babylonjs/core/Maths/math.color';
@@ -14,7 +14,7 @@ const HEAD_REACH_M = 25; // bodies this near the camera's target breathe out bub
 const BREATH_MS = [3000, 5000] as const; // the wait between a body's breaths
 const BREATH = [2, 4] as const; // bubbles a breath
 const HEAD_SPREAD_M = 0.12;
-const BREATHS_MAX = 256; // the most bubbles from heads at once
+const BREATHS_MAX = 256; // the most bubbles from heads at once, and in a frame's breaths
 const SIZE_M = [0.05, 0.12] as const;
 const SPEED_M_S = [0.5, 0.9] as const; // up as it leaves
 const BUOYANCY = 0.35; // and faster each second, in metres a second
@@ -54,9 +54,12 @@ export class SeaBubbles {
   private readonly ring: RawTexture;
   private readonly fromVents: ParticleSystem;
   private readonly fromHeads: ParticleSystem;
-  private near: Vector3[] = []; // the vents streaming now
+  private readonly near: Vector3[] = []; // the vents streaming this frame, its first nearCount
+  private nearCount = 0;
   private readonly due = new WeakMap<object, number>(); // each body's next breath, in ms
-  private readonly breaths: Vector3[] = []; // where the next bubbles the heads' system gives off start, in order
+  private readonly breaths = Array.from({ length: BREATHS_MAX }, () => new Vector3()); // where this frame's breath bubbles start, its first queued
+  private queued = 0;
+  private taken = 0; // of those, how many the heads' system has started
 
   constructor(scene: Scene) {
     this.ring = ringTexture(scene);
@@ -66,7 +69,8 @@ export class SeaBubbles {
       Math.ceil(VENT_RATE * VENTS_MAX * LIFE_S[1]),
     );
     this.fromVents.startPositionFunction = (_, at) => {
-      const v = this.near[Math.floor(Math.random() * this.near.length)];
+      const v =
+        this.nearCount > 0 ? this.near[Math.floor(Math.random() * this.nearCount)] : undefined;
       if (v) {
         at.set(
           v.x + (Math.random() - 0.5) * VENT_SPREAD_M,
@@ -79,7 +83,7 @@ export class SeaBubbles {
     this.fromHeads = this.system('breath bubbles', scene, BREATHS_MAX);
     this.fromHeads.manualEmitCount = 0;
     this.fromHeads.startPositionFunction = (_, at) => {
-      const from = this.breaths.shift();
+      const from = this.taken < this.queued ? this.breaths[this.taken++] : undefined;
       if (from) {
         at.set(
           from.x + (Math.random() - 0.5) * HEAD_SPREAD_M,
@@ -113,15 +117,22 @@ export class SeaBubbles {
     return ps;
   }
 
-  /** The frame's vents, of what's drawn: those within VENT_REACH_M of the camera's target at (x, z) stream. */
-  vents(x: number, z: number, vents: readonly Vector3[]): void {
-    this.near = vents
-      .filter((v) => Math.hypot(v.x - x, v.z - z) <= VENT_REACH_M)
-      .slice(0, VENTS_MAX);
-    this.fromVents.emitRate = VENT_RATE * this.near.length;
+  /** Starts a frame round the camera's target at (x, z): drawn vents within VENT_REACH_M stream, and last frame's breaths the system didn't take are dropped. */
+  frame(x: number, z: number, vents: readonly Vector3[]): void {
+    let n = 0;
+    for (const v of vents) {
+      if (n < VENTS_MAX && Math.hypot(v.x - x, v.z - z) <= VENT_REACH_M) {
+        this.near[n++] = v;
+      }
+    }
+    this.nearCount = n;
+    this.fromVents.emitRate = VENT_RATE * n;
+    this.queued = 0;
+    this.taken = 0;
+    this.fromHeads.manualEmitCount = 0;
   }
 
-  /** A body whose head is at (x, y, z), key naming it from frame to frame, now in ms: within HEAD_REACH_M of the camera's target at (cx, cz) it breathes out a few bubbles every 3–5 s, the first at a moment of its own. */
+  /** A body keyed by key, head at (x, y, z), now in ms: within HEAD_REACH_M of (cx, cz) it breathes a few bubbles every 3–5 s, the first at a moment of its own. */
   breathe(key: object, x: number, y: number, z: number, cx: number, cz: number, now: number): void {
     if (Math.hypot(x - cx, z - cz) > HEAD_REACH_M) {
       return;
@@ -135,13 +146,13 @@ export class SeaBubbles {
       return;
     }
     const n = Math.round(between(BREATH));
-    if (this.breaths.length + n > BREATHS_MAX) {
+    if (this.queued + n > BREATHS_MAX) {
       return; // a crowd's breaths wait their turn
     }
     for (let i = 0; i < n; i++) {
-      this.breaths.push(new Vector3(x, y, z));
+      this.breaths[this.queued++]!.set(x, y, z);
     }
-    this.fromHeads.manualEmitCount = Math.max(0, this.fromHeads.manualEmitCount) + n;
+    this.fromHeads.manualEmitCount = this.queued;
     this.due.set(key, now + between(BREATH_MS));
   }
 }
