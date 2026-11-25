@@ -445,7 +445,7 @@ describe('wiring', () => {
     expect(said()).toHaveLength(1);
     toasts.getState().clear(); // gone by the next match
     ws.push('matchState', state('mt-0', 'team', MatchPhase.PREP));
-    ws.push('welcome', welcome); // a drop and rejoin mid-match leaves it too
+    ws.push('welcome', welcome); // a rejoin past a drop's grace, landing off the match, leaves it too
     expect(said()).toHaveLength(1);
     toasts.getState().clear();
     ws.push('mapChange', { mapId: 'ring' });
@@ -460,6 +460,46 @@ describe('wiring', () => {
     ws.push('matchEnded', { ...ended, mode: 'duel', rating });
     expect(pvp.getState().outcome).toMatchObject({ mode: 'duel', result: MatchOutcome.LOSS });
     expect(chat.getState().lines).toHaveLength(1);
+  });
+
+  it('a teammate whose connection drops is named as lost, and back once their place is theirs again; an enemy’s drop says nothing; the player’s own Welcome back into the match keeps it and its arena bar', async () => {
+    const { ws } = await connectedSocket();
+    const said = () => toasts.getState().toasts.map((t) => t.text);
+    const state = (robin: boolean, kai: boolean, match = 'mt-1') => ({
+      match,
+      mode: 'team',
+      phase: MatchPhase.FIGHT,
+      round: 1,
+      endsInMs: 10_000,
+      sides: [
+        {
+          fighters: [
+            { id: 'c-ayla', name: 'Ayla' },
+            { id: 'c-robin', name: 'Robin', away: robin },
+          ],
+        },
+        { fighters: [{ id: 'c-kai', name: 'Kai', away: kai }] },
+      ],
+    });
+    ws.push('mapChange', { mapId: 'ring' });
+    ws.push('arenaBar', { skillBar: ['taunt', 'war_cry', '', '', '', '', '', ''] });
+    ws.push('matchState', state(false, false));
+    ws.push('matchState', state(true, true));
+    expect(said()).toEqual(['Robin lost connection']);
+    toasts.getState().clear();
+    ws.push('matchState', state(true, false)); // still away: no change
+    expect(said()).toEqual([]);
+    ws.push('matchState', state(false, false));
+    expect(said()).toEqual(['Robin is back']);
+    toasts.getState().clear();
+    ws.push('matchState', state(true, false, 'mt-2')); // another match's state is no change
+    expect(said()).toEqual([]);
+    ws.push('welcome', { ...welcome, mapId: 'ring' }); // the player's own return
+    expect([said(), pvp.getState().match?.id, skillBar.getState().arena?.[0]]).toEqual([
+      [],
+      'mt-2',
+      'taunt',
+    ]);
   });
 
   it('a Kicked frame sets the connection to kicked and returns to the login screen', async () => {

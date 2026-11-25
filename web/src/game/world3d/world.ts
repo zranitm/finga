@@ -55,7 +55,7 @@ import { nearby } from '@/state/nearby';
 import { isMember, party } from '@/state/party';
 import type { PartyState } from '@/state/party';
 import { picksInReach, pouches } from '@/state/pouches';
-import { countdownTicks, pvp, sideOf, walled } from '@/state/pvp';
+import { awayIn, countdownTicks, pvp, sideOf, walled } from '@/state/pvp';
 import { questPlayer, quests } from '@/state/quests';
 import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
@@ -1202,6 +1202,7 @@ export class World {
       this.remoteAims.delete(id);
       this.combat?.forget(id);
     }
+    const away = awayIn(pvp.getState().match);
     for (const [id, s] of shown) {
       let v = this.remoteViews.get(id);
       const cls = remotes.classOf(id);
@@ -1245,7 +1246,7 @@ export class World {
         s.y + movement.height + NAME_LIFT_M,
         s.z,
         0,
-        info?.bot ? 'BOT' : '',
+        info?.bot ? 'BOT' : away.has(id) ? 'Reconnecting' : '',
       );
     }
     if (changed) {

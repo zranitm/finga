@@ -29,6 +29,8 @@ export interface Fighter {
   readonly name: string;
   readonly cls: string;
   readonly bot: boolean;
+  /** Their connection dropped, and the match holds their place for them (section 4). */
+  readonly away: boolean;
 }
 
 export interface Match {
@@ -162,7 +164,13 @@ export const pvp = defineStore<PvpState>((set, get) => ({
         endsAt: performance.now() + d.endsInMs,
         sent: { tick, endsInMs: d.endsInMs },
         sides: d.sides.map((s) =>
-          s.fighters.map((f) => ({ id: f.id, name: f.name, cls: f.class, bot: f.bot })),
+          s.fighters.map((f) => ({
+            id: f.id,
+            name: f.name,
+            cls: f.class,
+            bot: f.bot,
+            away: f.away,
+          })),
         ),
         score: d.score,
         points: d.points.map((p) => ({
@@ -217,6 +225,48 @@ export const pvp = defineStore<PvpState>((set, get) => ({
     set({ queued: null, offer: null, match: null, left: null, outcome: null });
   },
 }));
+
+const NO_ONE: ReadonlySet<string> = new Set();
+const awayCache = new WeakMap<Match, ReadonlySet<string>>();
+
+/** The fighters whose place match holds through a dropped connection; one set per state, as a state is never changed in place. */
+export function awayIn(match: Match | null): ReadonlySet<string> {
+  if (!match) {
+    return NO_ONE;
+  }
+  let ids = awayCache.get(match);
+  if (!ids) {
+    ids = new Set(
+      match.sides
+        .flat()
+        .filter((f) => f.away)
+        .map((f) => f.id),
+    );
+    awayCache.set(match, ids);
+  }
+  return ids;
+}
+
+/** The player's side's fighters whose connection dropped from was to now, and those back, by name; none across two matches. */
+export function awayChanges(
+  was: Match | null,
+  now: Match | null,
+  me: string,
+): { readonly lost: readonly string[]; readonly back: readonly string[] } {
+  const lost: string[] = [];
+  const back: string[] = [];
+  if (was && now?.id === was.id) {
+    const before = awayIn(was);
+    for (const f of now.sides[sideOf(now, me) - 1] ?? []) {
+      if (f.away && !before.has(f.id)) {
+        lost.push(f.name);
+      } else if (!f.away && before.has(f.id)) {
+        back.push(f.name);
+      }
+    }
+  }
+  return { lost, back };
+}
 
 /** Whether the match holds everyone still: before the first round, and in the count into each. */
 export function walled(phase: MatchPhase | undefined): boolean {
