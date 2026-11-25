@@ -99,7 +99,7 @@ func worldPush(e world.Event) (model.Push, bool) {
 		}
 		for s, side := range ev.Sides {
 			for _, f := range side {
-				st.Sides[s] = append(st.Sides[s], model.MatchFighter{ID: f.ID.String(), Name: f.Name, Class: f.Class.String(), Bot: f.Bot})
+				st.Sides[s] = append(st.Sides[s], model.MatchFighter{ID: f.ID.String(), Name: f.Name, Class: f.Class.String(), Bot: f.Bot, Away: f.Away})
 			}
 		}
 		return st, true

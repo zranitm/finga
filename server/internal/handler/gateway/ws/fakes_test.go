@@ -191,7 +191,8 @@ type fakeWorld struct {
 	before     []world.Delivery // sent ahead of each Snapshot, as an older connection's
 	joined     []joinCall
 	left       []world.Presence
-	leaveIDs   []string // each Leave's trace ID
+	drops      []world.Presence // the leaves that were drops
+	leaveIDs   []string         // each Leave's trace ID
 	inputs     []inputCall
 	attacks    []attackCall
 	portals    []world.Presence
@@ -455,6 +456,7 @@ func (f *fakeWorld) save(id kernel.CharacterID, mapID string, x, z float64) {
 
 func (f *fakeWorld) joins() []joinCall             { return copied(&f.mu, &f.joined) }
 func (f *fakeWorld) leaves() []world.Presence      { return copied(&f.mu, &f.left) }
+func (f *fakeWorld) dropList() []world.Presence    { return copied(&f.mu, &f.drops) }
 func (f *fakeWorld) leaveTraceIDs() []string       { return copied(&f.mu, &f.leaveIDs) }
 func (f *fakeWorld) inputList() []inputCall        { return copied(&f.mu, &f.inputs) }
 func (f *fakeWorld) attackList() []attackCall      { return copied(&f.mu, &f.attacks) }
@@ -481,6 +483,14 @@ func (f *fakeWorld) pointsCalls() ([]spendCall, []resetCall) {
 
 func (f *fakeWorld) equipCalls() ([]equipCall, []unequipCall) {
 	return copied(&f.mu, &f.equips), copied(&f.mu, &f.unequips)
+}
+
+// Drop is a leave off a match, as the world takes it; drops records it.
+func (f *fakeWorld) Drop(ctx context.Context, p world.Presence) error {
+	f.mu.Lock()
+	f.drops = append(f.drops, p)
+	f.mu.Unlock()
+	return f.Leave(ctx, p)
 }
 
 func (f *fakeWorld) Leave(ctx context.Context, p world.Presence) error {

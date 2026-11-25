@@ -156,8 +156,15 @@ bots:
     - **The return:** a `Hello` for a character whose place is held goes straight to the match instance, by the presence the world still holds, never through town or `back`. The player gets `Welcome` on the match's map, on the body as it stands, then `MatchState` and a `StatsChanged` with every timer. Nothing resets.
     - **Past the grace,** the drop is a forfeit and the leaver path runs (section 7), the stand-in taking the body as it stands then.
     - **A second drop** in the same match gets a fresh grace: with no bot during it, dropping gains nothing.
-    - **The match ends during the grace:** the held player is handed out to `back` with the rest and rated by the result, as anyone there, never as a leaver. One not yet back misses `MatchEnded`; their rating shows in the Arena profile.
+    - **The match ends during the grace:** the held player is rated by the result, as anyone there, never as a leaver. No connection is there to follow a hand-off, so they're saved at `back`, where their next login lands. They miss `MatchEnded`; their rating shows in the Arena profile.
     - **No bot during the grace:** a stand-in starts with cooldowns ready and no statuses, so a free return would make a drop a reset. A player weaker than the match's bots could also drop to let one fight for them. The price is a team one short for up to 20 s on a long drop.
+    - **As built (step 7a):**
+      - **A drop or a logout:** the gateway tells them apart by how the session ended. A logout or an ended login (`session_expired`) is a `Leave`. Any other close is the world's `Drop`: a closed socket, a login elsewhere, or a presence on a connection the gateway doesn't know.
+      - **`Drop`** asks the match to hold the place. Off a match it's a `Leave`, and so is a drop the match holds no place for: another connection's, a mode with `reconnect: 0`, or the outcome showing.
+      - **The held body** keeps its presence under the dropped connection, and what's sent to it goes nowhere. Its held keys and queued inputs are cleared, so it stands. A hit still to land, a queued attack and a skill waiting its turn are dropped. Keys sent before the drop that come after it are refused.
+      - **The return:** `Join` first offers the account's presence to its match. The match puts the new connection on the body, with its inputs counted again from the new client's first, and retells the party. A join the match doesn't take, as with the outcome showing or the match's map stopped since the join looked, is a plain one. As this return loads no character, only the character's own account's presence is offered.
+      - **A return whose connection closes** before it's on the body answers busy and holds the place again, to the grace's first end: failed returns buy no time.
+      - **The match ending during the grace:** the held player isn't handed off with the rest, as no connection is there to follow. They're saved at `back` and dropped, so their next login lands there.
   - After a server stop or a crash, a match has no result and moves no rating.
   - A match that expected players and saw none by prep's end closes with no outcome. A match of bots alone runs to its end, as its test runs one; the queue never makes one.
 - **Teardown:** after the result phase, the instance hands everyone out and its `Run` returns. Then it's dropped from `w.matches`.
@@ -809,7 +816,7 @@ As built for 15v15 (step 6d-2, the points and bases drawn):
     1. A player queues for 1v1 and accepts.
     2. The match runs against a novice bot to its end.
     3. The player is back at their spot with their timers, and their rating row has moved.
-  - **A drop:** a player whose socket drops mid-round and reconnects within the grace is back in the match, on their body, and the match runs on.
+  - **A drop:** a player whose socket drops mid-round and reconnects within the grace is back in the match, on their body, and the match runs on. Dropped again and back past the grace, they've left: the match is rated, and they land where they queued (`TestADroppedDuelistIsHeldThroughTheGraceButNotPastIt`).
 - **Client:** the lock on players, the match bar, the counting of the offer and the queue tag, the Arena tab, and the result screen.
 - **Live:**
   - each mode with each class;

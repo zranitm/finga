@@ -32,6 +32,8 @@ type World interface {
 	Join(ctx context.Context, gateway, conn string, account kernel.AccountID, character kernel.CharacterID) (model.Joined, error)
 	// Leave removes the player, if it joined through the presence's connection.
 	Leave(ctx context.Context, p model.Presence) error
+	// Drop is the presence's connection lost, not logged out: a match holds the player's place a while; elsewhere it's a Leave.
+	Drop(ctx context.Context, p model.Presence) error
 }
 
 // Social is the social module as joins use it: who is online, and on which map.
@@ -134,7 +136,7 @@ func (r *Registry) Close(s *Session) (online bool) {
 		r.mu.Unlock()
 	}()
 	if r.remove(s) {
-		r.leave(ctx, s.Presence())
+		r.leaveAs(ctx, s)
 		r.unqueue(ctx, s)
 	}
 	if !s.Active() {

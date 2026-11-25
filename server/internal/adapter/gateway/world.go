@@ -22,6 +22,7 @@ type WorldModule interface {
 	Subscribe(gateway string) *hub.Sub[world.Delivery]
 	Join(ctx context.Context, gateway string, account kernel.AccountID, p world.Presence) (world.View, error)
 	Leave(ctx context.Context, p world.Presence) error
+	Drop(ctx context.Context, p world.Presence) error
 	Input(ctx context.Context, p world.Presence, seq uint32, in sim.Input, view uint32) error
 	Attack(ctx context.Context, p world.Presence, aim float32, target world.EntityRef) error
 	EnterPortal(ctx context.Context, p world.Presence) error
@@ -106,6 +107,11 @@ func timersLeft(t world.SkillTimers, now time.Time) []model.SkillTimer {
 // Leave removes the player if it joined through the presence's connection.
 func (w World) Leave(ctx context.Context, p model.Presence) error {
 	return worldErr(w.w.Leave(ctx, presence(p)))
+}
+
+// Drop is the presence's connection lost: a match holds the player's place a while; elsewhere it's a Leave.
+func (w World) Drop(ctx context.Context, p model.Presence) error {
+	return worldErr(w.w.Drop(ctx, presence(p)))
 }
 
 // Input sends one input.

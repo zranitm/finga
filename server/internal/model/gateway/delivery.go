@@ -246,7 +246,7 @@ const (
 // MatchFighter is a fighter as the match lists them; a bot's id is its own.
 type MatchFighter struct {
 	ID, Name, Class string
-	Bot             bool
+	Bot, Away       bool
 }
 
 // LootKind is what became of a pouch's items.
