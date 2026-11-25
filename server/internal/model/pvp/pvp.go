@@ -80,6 +80,12 @@ type Match struct {
 	Winner         int
 }
 
+// RankPiece is the wardrobe piece a rank gives.
+type RankPiece struct {
+	Piece string
+	Rank  string
+}
+
 // Fighter is how one fighter of a stored match did, and their rating before and after: a character, or a bot of Tier whose rating stays.
 type Fighter struct {
 	Side, Slot    int // side 1 or 2

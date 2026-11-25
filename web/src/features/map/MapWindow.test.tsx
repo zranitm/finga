@@ -750,30 +750,41 @@ describe('MapWindow', () => {
       });
     }
 
-    it('This map draws a region’s every tile at 1 m a pixel, or at 4 m where a 4 m pixel spans at most 2 screen pixels', () => {
-      /** The tiles' levels and count drawn for a square region side metres across, in the window's 480 × 320 px. */
-      const drawn = (side: number) => {
-        act(() => {
-          mapView
-            .getState()
-            .showMap('test_region', [side, side], { kind: 'tiles', folder: 'bake/tiles' }, []); // the test region as one side across would be
-          mapView
-            .getState()
-            .mark({ me: { x: 124, z: 80, yaw: 0 }, party: [], lock: null, boss: null });
-        });
-        const { unmount } = render(
-          <MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />,
-        );
-        const hrefs = [...document.querySelectorAll('image.map-tile')].map((t) =>
-          t.getAttribute('href'),
-        );
-        unmount();
-        return [new Set(hrefs.map((h) => h!.split('/')[2])), hrefs.length, hrefs.at(-1)];
-      };
+    /** The tiles' levels and count drawn for a square region side metres across, in the window's 480 × 320 px. */
+    const drawn = (side: number) => {
+      act(() => {
+        mapView
+          .getState()
+          .showMap('test_region', [side, side], { kind: 'tiles', folder: 'bake/tiles' }, []); // the test region as one side across would be
+        mapView
+          .getState()
+          .mark({ me: { x: 124, z: 80, yaw: 0 }, party: [], lock: null, boss: null });
+      });
+      const { unmount } = render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
+      const hrefs = [...document.querySelectorAll('image.map-tile')].map((t) =>
+        t.getAttribute('href'),
+      );
+      unmount();
+      return [new Set(hrefs.map((h) => h!.split('/')[2])), hrefs.length, hrefs.at(-1)];
+    };
+
+    it('This map draws a region’s every tile at 1 m a pixel, or at 4 m where a 4 m pixel spans at most 2 device pixels', () => {
       expect(drawn(256)).toEqual([new Set(['1']), 4, 'bake/tiles/1/1_1.png']); // 1.25 px a metre
       expect(drawn(512)).toEqual([new Set(['1']), 16, 'bake/tiles/1/3_3.png']); // 0.63: a 4 m pixel would span 2.5
       expect(drawn(768)).toEqual([new Set(['4']), 36, 'bake/tiles/4/5_5.png']); // 0.42: 1.67
       expect(drawn(1024)).toEqual([new Set(['4']), 64, 'bake/tiles/4/7_7.png']); // 0.31: 1.25
+    });
+
+    it('This map draws the finer tiles on a hi-DPI screen, judging a tile’s pixel by the device pixels it spans', () => {
+      const dpr = Object.getOwnPropertyDescriptor(window, 'devicePixelRatio');
+      Object.defineProperty(window, 'devicePixelRatio', { value: 2, configurable: true });
+      try {
+        expect(drawn(768)[0]).toEqual(new Set(['1'])); // 0.83 device px a metre: a 4 m pixel would span 3.33
+        expect(drawn(1024)[0]).toEqual(new Set(['1'])); // 0.63: 2.5
+        expect(drawn(2048)).toEqual([new Set(['4']), 256, 'bake/tiles/4/15_15.png']); // 0.31: 1.25
+      } finally {
+        Object.defineProperty(window, 'devicePixelRatio', dpr!);
+      }
     });
 
     // From the waypoints playtest: at a stone's arrival, "You" sat over its mark and took the click, so the unstuck teleport needed the keyboard.

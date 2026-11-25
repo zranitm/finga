@@ -13,6 +13,7 @@ import { Vector2, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Scene } from '@babylonjs/core/scene';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { grounds } from '@/gamedata/grounds';
 import { fixtureFile } from '@/testing/region-fixture';
 
 import { readLight } from './region-bake';
@@ -102,6 +103,25 @@ describe('a cave’s toon materials (underground-and-underwater.md section 7)', 
     const land = new Palette(scene).toon({ texture: null, color: Color3.White() });
     expect(land.getBlockByName('light')).not.toBeNull();
     expect(land.getBlockByName('lightMap')).toBeNull();
+  });
+
+  it('keep the darkest spot readable: its floor is the land’s shade band, so the cave’s ground shows as in a shadow on the land, its walls darker and a torch’s pool still brighter', () => {
+    const cave = caveToon(fixtureFile('hollow', 'light.bin'));
+    const land = new Palette(scene).toon({ texture: null, color: Color3.White() });
+    expect((cave.getBlockByName('shade') as InputBlock).value).toEqual(
+      (land.getBlockByName('shade') as InputBlock).value,
+    );
+    const onScreen = (ground: number, light: Color3) => {
+      const c = Color3.FromInts((ground >> 16) & 255, (ground >> 8) & 255, ground & 255)
+        .toLinearSpace()
+        .multiply(light)
+        .toGammaSpace();
+      return ((c.r + c.g + c.b) / 3) * 255;
+    };
+    const floor = onScreen(grounds.cave_floor, FLOOR);
+    expect(floor).toBeGreaterThanOrEqual(40); // at 0.3 it was 23 of 255: near-black
+    expect(onScreen(grounds.cave_rock, FLOOR)).toBeLessThan(floor);
+    expect(onScreen(grounds.cave_floor, TORCH)).toBeGreaterThan(1.5 * floor);
   });
 
   it('draw a body under a flame in the full band and one no torch reaches at the floor, at every flicker', () => {

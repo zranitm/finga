@@ -24,7 +24,7 @@ const CAVE_MOUTH = 'M-1.2,0.9 L-1.2,0 A1.2,1.2 0 0 1 1.2,0 L1.2,0.9 Z'; // a gat
 
 const TILE_M = 128; // a region's map tile's side
 const LEVELS = [1, 4] as const; // its tiles' metres a pixel, finest first
-const BLUR = 2; // the screen pixels a tile's pixel may span before a finer level is drawn
+const BLUR = 2; // the device pixels a tile's pixel may span before a finer level is drawn
 
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
@@ -36,7 +36,7 @@ export interface MapBox {
   readonly h: number;
 }
 
-/** The ground at `unit` metres a pixel on a map size across: a map's one image, or a region's tiles meeting view at the coarsest level whose pixel spans at most BLUR screen pixels. */
+/** The ground at `unit` metres a CSS pixel on a map size across: a map's one image, or a region's tiles meeting view at the coarsest level whose pixel spans at most BLUR device pixels, so a hi-DPI screen gets the finer tiles it can show. */
 function Ground({
   ground,
   size: [sx, sz],
@@ -55,7 +55,8 @@ function Ground({
       )
     );
   }
-  const level = LEVELS.findLast((l) => l / unit <= BLUR) ?? LEVELS[0];
+  const dpr = window.devicePixelRatio || 1;
+  const level = LEVELS.findLast((l) => (l * dpr) / unit <= BLUR) ?? LEVELS[0];
   const tiles = [];
   for (let tz = 0; tz < sz / TILE_M; tz++) {
     const y = sz - (tz + 1) * TILE_M;
@@ -101,7 +102,7 @@ export function useNpcMarkers(mapId: string | null): ReadonlyMap<string, Marker>
   );
 }
 
-/** A battle map's bases and points: the player's base and points their side holds in their colour, the others' in the enemy's, the rest grey; a contested point's edge dashed. With no match, all grey. */
+/** A battle map's bases and points: the player's base and points their side holds in their colour, the others' in the enemy's, the rest grey; a contested point's edge dashed, and it pulses between the two sides' colours. With no match, all grey. */
 function Battle({
   map,
   unit,
@@ -140,7 +141,7 @@ function Battle({
         return (
           <circle
             key={p.id}
-            className="map-point"
+            className={now?.contested ? 'map-point contested' : 'map-point'}
             data-point={p.id}
             cx={p.x}
             cy={y(p.z)}

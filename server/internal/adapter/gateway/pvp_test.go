@@ -26,6 +26,10 @@ func TestEachPvpDeliveryKeepsItsValues(t *testing.T) {
 			model.MatchEnded{Mode: "team", Result: model.MatchLoss, Wins: [2]int{2, 1}, Rating: &model.PvpRatingChange{Before: 1000, After: 968, RankBefore: "bronze", RankAfter: "iron", PlacementLeft: 4}, Left: true},
 		},
 		{pvp.Ended{Mode: "battle", Outcome: pvp.Win, Battle: true, Score: [2]int{1000, 640}}, model.MatchEnded{Mode: "battle", Result: model.MatchWin, Battle: true, Score: [2]int{1000, 640}}},
+		{
+			pvp.PiecesAdded{Pieces: []pvp.RankPiece{{Piece: "helm_silver", Rank: "silver"}, {Piece: "helm_gold", Rank: "gold"}}},
+			model.PiecesAdded{Pieces: []model.AddedPiece{{ID: "helm_silver", Cause: "rank"}, {ID: "helm_gold", Cause: "rank"}}},
+		},
 	}
 	for _, tt := range tests {
 		if got, ok := pvpPush(tt.in); !ok || !reflect.DeepEqual(got, tt.want) {

@@ -205,7 +205,7 @@ describe('Minimap', () => {
     expect(screen.queryByRole('img', { name: 'Minimap' })).not.toBeInTheDocument();
   });
 
-  it('on a battle’s map marks the bases and points, the player’s side’s in the ally green, the other’s in the enemy red, no one’s grey, a contested edge dashed; all grey with no match', () => {
+  it('on a battle’s map marks the bases and points, the player’s side’s in the ally green, the other’s in the enemy red, no one’s grey, a contested one dashed and pulsing; all grey with no match', () => {
     act(() => {
       character
         .getState()
@@ -225,14 +225,15 @@ describe('Minimap', () => {
         c.getAttribute('data-point'),
         c.getAttribute('fill'),
         c.hasAttribute('stroke-dasharray'),
+        c.classList.contains('contested'),
       ]),
     ];
     expect(looks()).toEqual([
       ['13', '9', '#b8b8b8'],
       ['127', '9', '#b8b8b8'],
-      ['west', '#b8b8b8', false],
-      ['middle', '#b8b8b8', false],
-      ['east', '#b8b8b8', false],
+      ['west', '#b8b8b8', false, false],
+      ['middle', '#b8b8b8', false, false],
+      ['east', '#b8b8b8', false, false],
     ]);
     const east = svg.querySelector('.map-point[data-point="east"]')!;
     expect(['cx', 'cy', 'r'].map((a) => east.getAttribute(a))).toEqual(['102', '45', '5']); // y 90 − 45
@@ -255,9 +256,9 @@ describe('Minimap', () => {
     expect(looks()).toEqual([
       ['13', '9', '#e04848'],
       ['127', '9', '#5fd35f'], // Ayla is on side 2
-      ['west', '#e04848', false],
-      ['middle', '#b8b8b8', true],
-      ['east', '#5fd35f', false],
+      ['west', '#e04848', false, false],
+      ['middle', '#b8b8b8', true, true],
+      ['east', '#5fd35f', false, false],
     ]);
   });
 });

@@ -80,6 +80,8 @@ type HandIns interface {
 type Wardrobe interface {
 	// Add puts piece in the account's wardrobe, from item; false when it has it.
 	Add(ctx context.Context, account kernel.AccountID, piece string, item kernel.ItemID) (bool, error)
+	// Grant puts g's piece in the account's wardrobe for its cause; false when it has it.
+	Grant(ctx context.Context, account kernel.AccountID, g model.PieceGrant) (bool, error)
 	// Collected is which of pieces the account has.
 	Collected(ctx context.Context, account kernel.AccountID, pieces []string) ([]string, error)
 	// LockLook reads the character's look for a change in this transaction, the zero Look when it has none.

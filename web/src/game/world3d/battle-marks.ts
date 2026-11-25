@@ -1,6 +1,7 @@
-// A battle map's marks in the world (pvp.md section 13): each point a ring on the ground and a glow over it in its holder's colour from the player's side, the name tags' green and red, and a see-through red wall round the other side's base while the player walks their side's ground.
+// A battle map's marks in the world (pvp.md section 13): each point a ring on the ground and a glow over it in its holder's colour from the player's side, the name tags' green and red, pulsing between the two while contested; and a see-through red wall round the other side's base while the player walks their side's ground.
 import { Constants } from '@babylonjs/core/Engines/constants';
-import type { Material } from '@babylonjs/core/Materials/material';
+import type { InputBlock } from '@babylonjs/core/Materials/Node/Blocks/Input/inputBlock';
+import type { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { CreateCylinder } from '@babylonjs/core/Meshes/Builders/cylinderBuilder';
@@ -16,13 +17,14 @@ import type { CapturePoint, Circle, WorldMap } from './map';
 import { AREA_ORDER } from './see-through';
 import type { Palette } from './toon';
 
-type Whose = 'ally' | 'enemy' | 'none';
+type Whose = 'ally' | 'enemy' | 'none' | 'contested';
 
-const COLOR: Record<Whose, Color3> = {
+const COLOR: Record<Exclude<Whose, 'contested'>, Color3> = {
   ally: Color3.FromHexString('#7fe08a'),
   enemy: Color3.FromHexString('#ff6b62'),
   none: Color3.FromHexString('#d8d8d8'),
 };
+const PULSE_MS = 1000; // a contested point's colour from the player's side's to the other's and back
 const RING_M = 0.25; // the ring's width, inside the point's edge
 const RING_ALPHA = 0.9;
 const FILL_ALPHA = 0.2;
@@ -39,9 +41,11 @@ export class BattleMarks {
   private readonly rings: Mesh[];
   private readonly fills: Mesh[];
   private readonly walls: Mesh[];
-  private readonly ringLooks: Record<Whose, Material>;
-  private readonly fillLooks: Record<Whose, Material>;
+  private readonly ringLooks: Record<Whose, NodeMaterial>;
+  private readonly fillLooks: Record<Whose, NodeMaterial>;
   private readonly wallLook: StandardMaterial;
+  private readonly pulseRing = new Color3(); // the contested looks' colours, set in place each frame
+  private readonly pulseFill = new Color3();
   private shown = '';
 
   constructor(
@@ -51,15 +55,20 @@ export class BattleMarks {
     bases: readonly Circle[],
     palette: Palette,
   ) {
-    const looks = (make: (c: Color3) => Material) => ({
+    const looks = (make: (c: Color3) => NodeMaterial) => ({
       ally: make(COLOR.ally),
       enemy: make(COLOR.enemy),
       none: make(COLOR.none),
+      contested: make(COLOR.ally), // its colour set each frame it shows
     });
     this.ringLooks = looks((c) => palette.decal(c, RING_ALPHA, Constants.ALPHA_COMBINE));
     this.fillLooks = looks((c) =>
       palette.decal(c.scale(FILL_ALPHA + FILL_GLOW), FILL_ALPHA, Constants.ALPHA_PREMULTIPLIED),
     );
+    this.ringLooks.contested.name = 'point contested ring';
+    this.fillLooks.contested.name = 'point contested glow';
+    (this.ringLooks.contested.getBlockByName('color') as InputBlock).value = this.pulseRing;
+    (this.fillLooks.contested.getBlockByName('color') as InputBlock).value = this.pulseFill;
     this.rings = points.map((p) =>
       this.laid(scene, `point ring ${p.id}`, p, p.radius - RING_M, p.radius),
     );
@@ -72,14 +81,22 @@ export class BattleMarks {
     w.backFaceCulling = false;
     this.wallLook = w;
     this.walls = bases.map((b, i) => this.wall(scene, `base wall ${i + 1}`, b));
-    this.show([], 0, 0);
+    this.show([], 0, 0, 0);
   }
 
-  /** Each point in its holder's colour from the player's side, grey for no one's; and the wall round the other base while the player walks kept, their side's ground, else none. */
-  show(held: readonly MatchPoint[], side: number, kept: number): void {
-    const whose = (holder: number): Whose =>
-      holder === 0 ? 'none' : holder === side ? 'ally' : 'enemy';
-    const looks = this.points.map((p) => whose(held.find((h) => h.id === p.id)?.holder ?? 0));
+  /** Each point in its holder's colour from the player's side, grey for no one's, and a contested one between the two sides' at now; and the wall round the other base while the player walks kept, their side's ground, else none. */
+  show(held: readonly MatchPoint[], side: number, kept: number, now: number): void {
+    const whose = (h: MatchPoint | undefined): Whose => {
+      if (h?.contested) {
+        return 'contested';
+      }
+      const holder = h?.holder ?? 0;
+      return holder === 0 ? 'none' : holder === side ? 'ally' : 'enemy';
+    };
+    const looks = this.points.map((p) => whose(held.find((h) => h.id === p.id)));
+    if (looks.includes('contested')) {
+      this.pulse(now);
+    }
     const key = `${looks.join(' ')} ${kept}`;
     if (key === this.shown) {
       return;
@@ -92,6 +109,13 @@ export class BattleMarks {
     this.walls.forEach((m, i) => {
       m.setEnabled(i === 2 - kept); // side 1 is kept from base 2; none with 0
     });
+  }
+
+  /** The contested look's colour at now: the player's side's on each whole PULSE_MS, the other's halfway. */
+  private pulse(now: number): void {
+    const toward = (1 - Math.cos((2 * Math.PI * now) / PULSE_MS)) / 2;
+    Color3.LerpToRef(COLOR.ally, COLOR.enemy, toward, this.pulseRing);
+    this.pulseRing.scaleToRef(FILL_ALPHA + FILL_GLOW, this.pulseFill);
   }
 
   dispose(): void {

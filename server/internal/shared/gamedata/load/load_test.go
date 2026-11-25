@@ -336,6 +336,7 @@ pieces:
   - {id: lord_robe, slot: outfit, name: Lord's Robe, stars: 3, look: mage_body, from: [{boss: slime_lord, chance: 0.05}]}
   - {id: lord_bow, slot: weapon, kind: crossbow, name: Lord's Bow, stars: 4, look: crossbow_1h, from: [{boss: slime_lord, chance: 0.02}]}
   - {id: lord_wings, slot: wings, name: Lord's Wings, stars: 6, look: bat_wings, from: [{boss: slime_lord, chance: 0.01}]}
+  - {id: silver_visor, slot: headwear, name: Silver Visor, stars: 3, look: knight_helmet, from: [{rank: silver}]}
 `,
 		"pvp.yaml": `
 modes:
@@ -424,7 +425,7 @@ func TestValidDataLoads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Run("each class's weapon kind, and the wardrobe's pieces, each with an item on its boss's drops", func(t *testing.T) {
+	t.Run("each class's weapon kind, and the wardrobe's pieces, each a boss drops with an item on its drops, a rank's with none", func(t *testing.T) {
 		for id, want := range map[kernel.Class]gamedata.WeaponKind{"beginner": gamedata.OneHanded, "warrior": gamedata.OneHanded, "bowman": gamedata.Crossbow} {
 			if c, _ := d.Class(id); c.Weapon != want {
 				t.Errorf("%s holds %q, want %q", id, c.Weapon, want)
@@ -434,6 +435,7 @@ func TestValidDataLoads(t *testing.T) {
 			{ID: "lord_robe", Slot: gamedata.OutfitSlot, Name: "Lord's Robe", Stars: 3, Look: "mage_body", Item: "piece.lord_robe", From: []gamedata.PieceSource{{Boss: "slime_lord", Chance: 0.05}}},
 			{ID: "lord_bow", Slot: gamedata.WeaponSlot, Kind: gamedata.Crossbow, Name: "Lord's Bow", Stars: 4, Look: "crossbow_1h", Item: "piece.lord_bow", From: []gamedata.PieceSource{{Boss: "slime_lord", Chance: 0.02}}},
 			{ID: "lord_wings", Slot: gamedata.WingsSlot, Name: "Lord's Wings", Stars: 6, Look: "bat_wings", Item: "piece.lord_wings", From: []gamedata.PieceSource{{Boss: "slime_lord", Chance: 0.01}}},
+			{ID: "silver_visor", Slot: gamedata.HeadwearSlot, Name: "Silver Visor", Stars: 3, Look: "knight_helmet", From: []gamedata.PieceSource{{Rank: "silver"}}},
 		}
 		if got := d.Pieces(); !reflect.DeepEqual(got, want) {
 			t.Fatalf("pieces %+v, want %+v", got, want)
@@ -443,6 +445,15 @@ func TestValidDataLoads(t *testing.T) {
 		}
 		if _, ok := d.PieceIn("slime_gel"); ok {
 			t.Fatal("slime_gel holds a piece")
+		}
+		if p, ok := d.RankPiece("silver"); !ok || p.ID != "silver_visor" {
+			t.Fatalf("silver's piece: %+v", p)
+		}
+		if p, ok := d.RankPiece("bronze"); ok {
+			t.Fatalf("bronze gives %+v", p)
+		}
+		if _, ok := d.Item("piece.silver_visor"); ok {
+			t.Fatal("a rank's piece has an item")
 		}
 		it, _ := d.Item("piece.lord_robe")
 		if wantItem := (gamedata.Item{ID: "piece.lord_robe", Name: "Lord's Robe", Tab: gamedata.Etc, Stars: 3, Description: "Adds Lord's Robe to your wardrobe.", MaxStack: 100}); !reflect.DeepEqual(it, wantItem) {
@@ -851,7 +862,11 @@ func TestRejections(t *testing.T) {
 		{"a piece from nowhere", "outfits.yaml", "from: [{boss: slime_lord, chance: 0.05}]", "from: []", []string{"outfits.yaml", "lord_robe", "a source"}},
 		{"a piece from a mob that's no boss", "outfits.yaml", "boss: slime_lord, chance: 0.05", "boss: green_slime, chance: 0.05", []string{"outfits.yaml", "lord_robe", "green_slime"}},
 		{"a piece at a chance past one", "outfits.yaml", "chance: 0.05", "chance: 1.5", []string{"outfits.yaml", "lord_robe", "chance"}},
-		{"a source this build doesn't have", "outfits.yaml", "{boss: slime_lord, chance: 0.02}", "{rank: silver}", []string{"outfits.yaml", "rank"}},
+		{"a source this build doesn't have", "outfits.yaml", "{boss: slime_lord, chance: 0.02}", "{quest: slime_hunt}", []string{"outfits.yaml", "quest"}},
+		{"a piece of the first rank, which everyone has", "outfits.yaml", "{rank: silver}", "{rank: bronze}", []string{"outfits.yaml", "silver_visor", "above the first", "bronze"}},
+		{"a piece of a rank pvp.yaml lacks", "outfits.yaml", "{rank: silver}", "{rank: gold}", []string{"outfits.yaml", "silver_visor", "gold"}},
+		{"a rank's piece at a chance", "outfits.yaml", "{rank: silver}", "{rank: silver, chance: 0.5}", []string{"outfits.yaml", "silver_visor", "outright"}},
+		{"a rank giving two pieces", "outfits.yaml", "from: [{boss: slime_lord, chance: 0.05}]", "from: [{boss: slime_lord, chance: 0.05}, {rank: silver}]", []string{"outfits.yaml", "silver_visor", "lord_robe", "one piece"}},
 		{"a piece's item clashing with an item", "items.yaml", `  - {id: slime_gel, name: Slime Gel, tab: etc, stars: 2, description: "Sticky."}`, "  - {id: slime_gel, name: Slime Gel, tab: etc, stars: 2, description: \"Sticky.\"}\n  - {id: piece.lord_robe, name: Robe, tab: etc, stars: 1, description: \"A robe.\"}", []string{"outfits.yaml", "lord_robe", "clashes"}},
 		{"a drop table naming an unknown item", "mobs.yaml", `item: slime_gel`, `item: dragon_scale`, []string{"mobs.yaml", "green_slime", "dragon_scale"}},
 		{"an equipment drop with a quantity above one", "mobs.yaml", `{item: red_potion, chance: 0.15, min: 1, max: 1}`, `{item: wooden_sword, chance: 0.15, min: 1, max: 2}`, []string{"mobs.yaml", "green_slime", "wooden_sword"}},

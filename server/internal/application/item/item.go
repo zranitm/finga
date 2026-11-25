@@ -42,6 +42,7 @@ type service interface {
 	HandedIn(ctx context.Context, owner kernel.CharacterID, asked []application.Completion) ([]application.HandIn, error)
 	AddToWardrobe(ctx context.Context, actor model.Actor, in application.WardrobeInput) (application.Result, error)
 	SetLook(ctx context.Context, actor model.Actor, in application.LookInput) (application.Result, error)
+	GrantPieces(ctx context.Context, account kernel.AccountID, grants []model.PieceGrant) ([]model.PieceGrant, error)
 	Pieces(ctx context.Context, account kernel.AccountID) ([]model.Piece, error)
 	Look(ctx context.Context, character kernel.CharacterID) (model.Look, error)
 }
@@ -268,6 +269,22 @@ func (m *Module) AddToWardrobe(ctx context.Context, actor Actor, r WardrobeReque
 	}
 	res, err := m.svc.AddToWardrobe(ctx, model.Actor(actor), application.WardrobeInput(r))
 	return resultOf(res), err
+}
+
+// GrantPieces puts each grant's piece in the account's wardrobe, in one transaction, giving back those new to it; a second grant of a piece changes nothing.
+func (m *Module) GrantPieces(ctx context.Context, account kernel.AccountID, grants []PieceGrant) (_ []PieceGrant, err error) {
+	ctx, call := m.calls.Start(ctx, "GrantPieces")
+	defer call.End(&err)
+	in := make([]model.PieceGrant, 0, len(grants))
+	for _, g := range grants {
+		in = append(in, model.PieceGrant{Piece: g.Piece, Cause: model.PieceCause(g.Cause), Ref: g.Ref})
+	}
+	added, err := m.svc.GrantPieces(ctx, account, in)
+	out := make([]PieceGrant, 0, len(added))
+	for _, g := range added {
+		out = append(out, PieceGrant{Piece: g.Piece, Cause: string(g.Cause), Ref: g.Ref})
+	}
+	return out, err
 }
 
 // SetLook wears five picks, each checked against the catalogue, the account's wardrobe and the class's weapon kind.
