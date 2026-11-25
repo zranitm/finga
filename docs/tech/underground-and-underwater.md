@@ -76,6 +76,7 @@ These come beside a region's rules:
 - It has one hunting area at least, and no town.
 - `rock`, `hall`, `tunnel` and `torches` appear only with `sky: cave`.
 - Every hall and tunnel lies inside the region, clear of the edge.
+- Every hall and tunnel is wide enough that a metre stays open past both walls' wander, a body's radius and a cell (as built, the walls' follow-up).
 - The reachability test runs from its gates rather than a start, and so do the mob reach and calm tests (3d-world.md section 4).
 
 ## 4. The generator
@@ -88,8 +89,10 @@ The steps of large-regions.md section 3, with these added. Everything keeps the 
 2. **Halls and tunnels** are carved back down to the ground's noise, in the plan's order:
    - A hall carves its polygon. With `flat`, its floor is flat at the mean of its ground, as a town's is.
    - A tunnel carves along its path, smoothed by Chaikin's method as a road is. Its floor is levelled along it, as a road's is.
+     - Where it runs through a hall, or a tunnel before it, its floor is held to theirs, and it never carves below their floors inside them. Away from those joins it keeps within half the walkable slope of them (as built, the walls' follow-up).
    - **The wall's line wanders:** a sample's distance to the carved space is offset by noise at a scale of 8 m, up to `rough` metres. So halls aren't polygons and tunnels aren't pipes.
-   - **The wall** rises over 2 samples, too steep to walk, as a plateau's cliff does.
+   - **The wall** rises over 2 samples, as a plateau's cliff does.
+   - **The rock is a wall at any height** (as built, the walls' follow-up): its samples carry deep water's mark from a body's radius before the wall's foot. The sim judges steepness along x and z apart, so a wall at a slant to them was walked up along it.
 3. **Colours:** carved floor takes its area's biome. Rock and walls take `cave_rock`, darkened at the top, since its tops are only ever seen in the dark.
 
 ### Torches
@@ -134,6 +137,7 @@ The steps of large-regions.md section 3, with these added. Everything keeps the 
 
 - **Through a gate between a region and a place below,** a player goes to the channel with the same number, opened if it's closed, when it's under `channel_cap`. Otherwise they go to the least full, as through any gate.
   - So the players seen going in are there, and a party in one channel stays together.
+  - A party split across the region's channels goes down split: the gate keeps each player's own channel, not the party's.
 - **Gates between regions,** and teleports, keep the least full channel.
 - **Closing:** a place below's channels close as a region's do, 5 minutes after the last player leaves, the first one included, since the gate opens one when it's needed.
 
@@ -325,6 +329,21 @@ These steps follow the regions' build (large-regions.md section 14).
    - the paired channel at a gate below;
    - death, notices and chat inside, by tests;
    - bots through the gates.
+   - **As built (the walls' follow-up, from 1a's and 1b's reviews).**
+     - **The rock is a wall at any height.**
+       - A walking-only flood of the test cave reached about 64,000 rock-top points. The wall beside its first tunnel, which runs nearly along x, rose 0.3–0.4 m a metre along x, under `max_slope`, while too steep across.
+       - So every sample the carving leaves past a body's radius before the wall's foot carries `DeepWater`'s mark. The sim, nav and the bake already stop any move into a cell holding one from outside, at any height: a walk, a jump, a dash, a leap, a knockback or a blink. Shots still stop on the rock's height.
+       - The mark keeps its name here. A neutral name follows in its own change.
+       - `Generate` takes the body (`sim.Params`) for its radius, and the loader names a bake's folder by its slope and radius.
+       - **Test:** nothing a player reaches from the start of a plan with rock, walking or jumping, lies deep in the rock, and the walk still reaches every camp and waypoint.
+     - **Width:** a tunnel or hall narrower than a metre plus twice the wander, a body's radius and a cell is refused, and never under twice the `rough` + 1 m a torch steps in from a hall's edge. At 0.5 m with `rough` 1.5 that's 5.75 m, so the test cave's second tunnel widened from 5 to 6 m.
+       - A hall is measured square across from each edge every metre, to the edges sharing no corner with it, so a sharp corner's wedge doesn't count.
+     - **Joins:** a tunnel's floor is held to a hall's, or an earlier tunnel's, where its path runs through them, the lowest where several meet. Between joins it keeps within half the walkable slope of them, or halfway where two are too far apart in height for that. Inside a hall or an earlier tunnel it never carves below their floor, so its flat band doesn't dig into a sloping hall.
+       - **Tests:** two seeds of a hall, a tunnel from inside it and a branch off that. Seed 10's tunnel dug a pit into the hall without the floor rule, and seed 28's branch stepped down into the tunnel without the join. Neither has a steep cell away from the walls now.
+     - **Torches** stand a cell and a half short of the first rock on their walk, where the ground is the floor's. Half a cell short, they stood 0.6–1.3 m up the wall's slope, and their flames as much too high. The test cave's torches all have floor a metre ahead and the wall risen 2 m behind.
+     - **Scatter's `away`** gains `torch`, kept from every prop with a light, since a mounted torch stands no solid. The test cave keeps 1 m.
+     - **Channels:** a sweep shuts each channel it closes under the channels' lock, so a pick can open that number again at once. A paired crossing between the sweep and the shut had hit "instance … is open already".
+     - **A party goes down split:** a gate below keeps each player's own channel, not their party's, so members in the region's channels 1 and 2 land in the place's 1 and 2, though 1 has room.
    - **As built (step 2).**
      - **The paired channel:**
        - Through a gate between a region and the place below it, either way, the instance asks the World for the player's own channel number (`Dest.Paired`).

@@ -11,6 +11,7 @@ import (
 	"finga/internal/application/world/worldtest"
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
 )
 
 // hollow is a place below the test region, a cave whose gate up leads to the gate down the edit gives the test region.
@@ -139,6 +140,34 @@ func TestAGateBelowKeepsTheChannel(t *testing.T) {
 		}
 		if got := w.through(t, nia, sn); got.MapID != "test_beside" || got.Channel != 1 {
 			t.Fatalf("Nia went east to %s %d; want the region beside's least full, its channel 1", got.MapID, got.Channel)
+		}
+	})
+}
+
+// A gate below keeps each player's own channel, not their party's: a party split across the region's channels 1 and 2 goes down split, though the place's 1 has room.
+func TestAPartyGoesDownByItsOwnChannels(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := belowData(t)
+		ps := &parties{}
+		w := channelWorldOn(t, data, worldtest.Options{ChannelCap: 2, Parties: ps})
+		region, _ := data.Map("test_region")
+		down := portalNamed(t, region, "down")
+		ayla, sa := worldtest.NewPlayer("Ayla", down.At.X, down.At.Z), &worldtest.Sink{}
+		w.enter(t, ayla, "test_region", "c-Ayla", sa)
+		w.enterRegion(t, "Cy")
+		bo, sb := worldtest.NewPlayer("Bo", down.At.X, down.At.Z), &worldtest.Sink{}
+		w.enter(t, bo, "test_region", "c-Bo", sb)
+		if channelOf(t, sa) != 1 || channelOf(t, sb) != 2 {
+			t.Fatalf("Ayla joined %d, Bo %d; want 1 and 2", channelOf(t, sa), channelOf(t, sb))
+		}
+		ps.mu.Lock()
+		ps.all = [][]kernel.CharacterID{{ayla.ID, bo.ID}}
+		ps.mu.Unlock()
+		if got := w.through(t, ayla, sa); got.MapID != "test_hollow" || got.Channel != 1 {
+			t.Fatalf("Ayla went down to %s %d; want the hollow's 1", got.MapID, got.Channel)
+		}
+		if got := w.through(t, bo, sb); got.MapID != "test_hollow" || got.Channel != 2 {
+			t.Fatalf("Bo went down to %s %d; want the hollow's 2, his own, not Ayla's 1 with room", got.MapID, got.Channel)
 		}
 	})
 }

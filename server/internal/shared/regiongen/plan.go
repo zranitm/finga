@@ -261,6 +261,7 @@ type Away struct {
 	Camp     float64 `yaml:"camp,omitempty"`
 	Town     float64 `yaml:"town,omitempty"`
 	Waypoint float64 `yaml:"waypoint,omitempty"` // waypoints, NPCs, gates, set pieces and the start
+	Torch    float64 `yaml:"torch,omitempty"`    // every prop with a light, which may stand no solid
 }
 
 // Decode reads a plan strictly: an unknown key is an error.
@@ -286,8 +287,8 @@ const (
 // cells are the terrain spacings a plan may use: powers of two, which divide the overview's 8 m and keep every sample's position a float32's.
 var cells = []float64{0.25, 0.5, 1, 2, 4, 8}
 
-// check refuses a plan the generator can't build with kit k, naming the limit it breaks; the loader checks how its parts fit together.
-func (p Plan) check(k Kit) error {
+// check refuses a plan the generator can't build with kit k for a body of radius, naming the limit it breaks; the loader checks how its parts fit together.
+func (p Plan) check(k Kit, radius float64) error {
 	n := p.Ground.Noise
 	switch {
 	case !within(p.Size[0], tileM, maxSide) || !within(p.Size[1], tileM, maxSide) || !whole(p.Size[0]/tileM) || !whole(p.Size[1]/tileM):
@@ -344,7 +345,7 @@ func (p Plan) check(k Kit) error {
 		}
 	}
 	for i, f := range p.Features {
-		if err := p.checkFeature(f); err != nil {
+		if err := p.checkFeature(f, radius); err != nil {
 			return fmt.Errorf("feature %d: %w", i+1, err)
 		}
 	}
@@ -402,7 +403,7 @@ func (b Biome) check(k Kit) error {
 		if !within(s.Spacing, minSpacing, maxReach) || !within(s.Slope, 0, maxHeight) {
 			return fmt.Errorf("scatter %d: a spacing of %d to %d m, and a slope of 0 to %d", i+1, minSpacing, maxReach, maxHeight)
 		}
-		for _, d := range []float64{a.Road, a.Water, a.Camp, a.Town, a.Waypoint} {
+		for _, d := range []float64{a.Road, a.Water, a.Camp, a.Town, a.Waypoint, a.Torch} {
 			if !within(d, 0, maxReach) {
 				return fmt.Errorf("scatter %d: away distances of 0 to %d m", i+1, maxReach)
 			}
@@ -411,7 +412,7 @@ func (b Biome) check(k Kit) error {
 	return nil
 }
 
-func (p Plan) checkFeature(f Feature) error {
+func (p Plan) checkFeature(f Feature, radius float64) error {
 	n := 0
 	for _, set := range []bool{f.Ridge != nil, f.Plateau != nil, f.River != nil, f.Lake != nil, f.Road != nil, f.Hall != nil, f.Tunnel != nil} {
 		if set {
@@ -458,11 +459,18 @@ func (p Plan) checkFeature(f Feature) error {
 		if !p.path(f.Hall.Area, 3) || !p.clearOfEdge(f.Hall.Area, 0) {
 			return fmt.Errorf("a hall needs an area in the region, its walls clear of the ring: %s", p.carveRoom(0))
 		}
+		least := p.leastTunnel(radius)
+		if w, at := narrowest(f.Hall.Area); w < least {
+			return fmt.Errorf("a hall %g m across at %v: at least %g m, as a tunnel", w, at, least)
+		}
 	case f.Tunnel != nil:
 		t := f.Tunnel
 		half := float64(t.Width / 2)
 		if !reach(t.Width, maxReach) || !p.path(t.Path, 2) || !p.clearOfEdge(t.Path, half) {
 			return fmt.Errorf("a tunnel needs a width up to %d m and a path in the region, its walls clear of the ring: %s", maxReach, p.carveRoom(half))
+		}
+		if least := p.leastTunnel(radius); t.Width < least {
+			return fmt.Errorf("a tunnel %g m wide: at least %g m, so a metre stays open past each wall's wander, a body's radius and a cell of the rock's marks", t.Width, least)
 		}
 	default:
 		if !p.path(f.Road.Path, 2) || !reach(f.Road.Width, maxReach) {
@@ -537,6 +545,34 @@ func (p Plan) spots() []spot {
 func (p Plan) wallReach() float64 {
 	rise := float64(cliffCells * p.Cell)
 	return p.Rock.Rough + rise
+}
+
+// openM is how much of a tunnel's width stays open at its narrowest for a body's centre to pass.
+const openM = 1
+
+// leastTunnel is the narrowest a tunnel or hall may be: openM past each wall's wander, a body's radius and a cell, and room for a torch's step in.
+func (p Plan) leastTunnel(radius float64) float64 {
+	return max(openM+float64(2*(p.Rock.Rough+radius+p.Cell)), float64(2*(p.Rock.Rough+1)))
+}
+
+// narrowest is how wide poly is where narrowest, and where: square across from each edge every metre to an edge sharing no corner with it, so a sharp corner's wedge doesn't count.
+func narrowest(poly [][2]float64) (float64, [2]float64) {
+	o := float64(orientation(poly))
+	n := len(poly)
+	least, where := math.Inf(1), [2]float64{}
+	for i, a := range poly {
+		b := poly[(i+1)%n]
+		l := math.Sqrt(float64((b[0]-a[0])*(b[0]-a[0])) + float64((b[1]-a[1])*(b[1]-a[1])))
+		dir := [2]float64{(b[0] - a[0]) / l, (b[1] - a[1]) / l}
+		in := [2]float64{float64(-o * dir[1]), float64(o * dir[0])}
+		for s := 0.5; s < l; s++ {
+			at := lerp2(a, b, s/l)
+			if w := across(poly, at, in, func(j int) bool { return j == i || j == (i+1)%n || j == (i+n-1)%n }); w < least {
+				least, where = w, at
+			}
+		}
+	}
+	return least, where
 }
 
 // carveRoom is how far inside the ring's face a carved line keeps, half carved width across it.

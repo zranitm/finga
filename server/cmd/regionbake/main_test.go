@@ -10,6 +10,7 @@ import (
 	"slices"
 	"testing"
 
+	"finga/internal/shared/gamedata/load"
 	"finga/internal/shared/regiongen"
 )
 
@@ -111,7 +112,11 @@ func bakeOf(t *testing.T, plan string) regiongen.Bake {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := regiongen.Generate(p, k, 0.7)
+	body, err := load.Movement("../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := regiongen.Generate(p, k, body)
 	if err != nil {
 		t.Fatal(err)
 	}

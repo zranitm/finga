@@ -533,7 +533,7 @@ func baked(name string) sim.Geometry {
 	if err != nil {
 		panic(err)
 	}
-	r, err := regiongen.Generate(p, k, params.MaxSlope)
+	r, err := regiongen.Generate(p, k, params)
 	if err != nil {
 		panic(err)
 	}

@@ -83,7 +83,7 @@ func TestNoMoveGetsOntoARegionsRing(t *testing.T) {
 		regions[id] = region{plan, m.Geometry}
 	}
 	flat := flatRegion()
-	r, err := regiongen.Generate(flat, kit, p.MaxSlope)
+	r, err := regiongen.Generate(flat, kit, p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +212,7 @@ func TestADeepRiverIsCrossedAtItsFord(t *testing.T) {
 	p := data.Movement()
 	plan := flatRegion()
 	plan.Features = []regiongen.Feature{{River: &regiongen.River{Path: [][2]float64{{64, 0}, {64, 128}}, Width: 6, Depth: 2, Fords: [][2]float64{{64, 40}}}}}
-	r, err := regiongen.Generate(plan, shippedKit(t), p.MaxSlope)
+	r, err := regiongen.Generate(plan, shippedKit(t), p)
 	if err != nil {
 		t.Fatal(err)
 	}
