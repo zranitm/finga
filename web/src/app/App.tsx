@@ -34,6 +34,8 @@ import { loadSettings, watchPlaySettings } from '@/features/shared/settings';
 import { watchArenaBuild } from '@/features/skills/saveArenaBuild';
 import { watchSkillBar } from '@/features/skills/saveSkillBar';
 import { SkillWindow } from '@/features/skills/SkillWindow';
+import { Wardrobe } from '@/features/wardrobe/Wardrobe';
+import type { Figure } from '@/features/wardrobe/Wardrobe';
 import type { Character } from '@/net/rest';
 import { ERR, errorText } from '@/protocol/errors';
 import { arenaBuild } from '@/state/arena-build';
@@ -81,6 +83,7 @@ export function App() {
 }
 
 function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: Account }) {
+  const figureIn = useCallback((canvas: HTMLCanvasElement) => svc.game.portrait(canvas), [svc]); // one function, so a window's figure lives as long as the window
   const [playing, setPlaying] = useState<Character | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [joinProblem, setJoinProblem] = useState<string | null>(null);
@@ -155,6 +158,7 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
     <WorldOverlay
       socket={svc.socket}
       rest={svc.rest}
+      figureIn={figureIn}
       keepSaves={keepSaves}
       onLeave={() => {
         svc.game.leave();
@@ -169,11 +173,14 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
 function WorldOverlay({
   socket,
   rest,
+  figureIn,
   keepSaves,
   onLeave,
 }: {
   readonly socket: Services['socket'];
   readonly rest: Services['rest'];
+  /** A character drawn into a window's canvas, as the game draws one. */
+  readonly figureIn: (canvas: HTMLCanvasElement) => Figure;
   /** Takes each of the saves still running when the world is left. */
   readonly keepSaves: (pending: Promise<void>) => void;
   readonly onLeave: () => void;
@@ -187,6 +194,7 @@ function WorldOverlay({
   const arenaOpen = ui.use((s) => s.windows.includes('arena'));
   const npcOpen = ui.use((s) => s.windows.includes('npc'));
   const lootOpen = ui.use((s) => s.windows.includes('loot'));
+  const wardrobeOpen = ui.use((s) => s.windows.includes('wardrobe'));
   const me = characterStore.use((s) => s.character?.id ?? '');
   const board = useMemo(() => boardReader(rest), [rest]); // kept while the window closes and opens
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -272,6 +280,14 @@ function WorldOverlay({
         {npcOpen && <NpcWindow socket={socket} onClose={() => ui.getState().closeWindow('npc')} />}
         {lootOpen && (
           <LootWindow socket={socket} onClose={() => ui.getState().closeWindow('loot')} />
+        )}
+        {wardrobeOpen && (
+          <Wardrobe
+            socket={socket}
+            rest={rest}
+            figureIn={figureIn}
+            onClose={() => ui.getState().closeWindow('wardrobe')}
+          />
         )}
       </div>
       <MatchOffer socket={socket} />

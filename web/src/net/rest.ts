@@ -67,6 +67,16 @@ export interface PvpStanding {
 }
 
 /** A character's PvP profile: each rated mode, in pvp.yaml's order, and their arena build, the saved one or the world bar's copy. */
+/** The account's wardrobe (outfits.md section 4): its pieces, oldest first, each with what gave it and when. */
+export interface Wardrobe {
+  readonly pieces: readonly {
+    readonly id: string;
+    readonly cause: string;
+    readonly item_id?: string;
+    readonly added_at: string;
+  }[];
+}
+
 export interface PvpProfile {
   readonly standings: readonly PvpStanding[];
   readonly build: ArenaBuild;
@@ -115,6 +125,7 @@ export interface RestClient {
   /** Six skill IDs, '' for an empty key; the server keeps them for the character. */
   putSkillBar(characterId: string, slots: readonly string[]): Promise<{ slots: string[] }>;
   getPvpProfile(characterId: string): Promise<PvpProfile>;
+  getWardrobe(): Promise<Wardrobe>;
   /** A match the character is in fights with it from its next round's countdown. */
   putArenaBuild(characterId: string, build: ArenaBuild): Promise<ArenaBuild>;
   getLeaderboard(mode: string): Promise<Leaderboard>;
@@ -214,6 +225,7 @@ export function createRestClient(): RestClient {
       ),
     getPvpProfile: (characterId) =>
       call<PvpProfile>('GET', `/api/characters/${encodeURIComponent(characterId)}/pvp`),
+    getWardrobe: () => call<Wardrobe>('GET', '/api/wardrobe'),
     // keepalive, as the skill bar's
     putArenaBuild: (characterId, build) =>
       call<ArenaBuild>(

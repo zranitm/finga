@@ -1,9 +1,10 @@
 // A match's outcome in words (pvp.md section 13): the result card's title and rating, and the General line a team match's leaver gets instead of the card.
+import { rankName } from '@/progression/names';
 import { MatchOutcome } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import type { RatingChange } from '@/state/pvp';
 
-import { modeName, rankName } from './modes';
+import { modeName } from './modes';
 
 const TITLE: Readonly<Record<MatchOutcome, string>> = {
   [MatchOutcome.UNSPECIFIED]: 'Match over',

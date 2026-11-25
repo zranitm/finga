@@ -4,34 +4,43 @@ import { Engine } from '@babylonjs/core/Engines/engine';
 import type { GameSocket } from '@/net/socket';
 
 import type { Arrival } from '../systems/arrival';
-import type { WorldEntry } from '../view';
+import type { Portrait, WorldEntry } from '../view';
 
 import { workerChunks } from './chunk-workers';
 import { fetchLoader } from './models';
+import { Portraits } from './portrait';
 import { World } from './world';
 
 const READOUT_MS = 500;
 const CHUNK_WORKERS = 2; // a region's chunks build two at a time, beside the page's thread
 
-/** Opens the world for entry in parent, from the map arriving holds; the returned close takes it all down, built or not. */
+/** A world open in the page: close takes it all down, built or not; portrait draws a character into a window's canvas on its engine. */
+export interface Running {
+  close(): void;
+  portrait(canvas: HTMLCanvasElement): Portrait;
+}
+
+/** Opens the world for entry in parent, from the map arriving holds. */
 export function run(
   parent: HTMLElement,
   entry: WorldEntry,
   arriving: Arrival,
   socket: GameSocket,
-): () => void {
+): Running {
   fetchLoader();
   const canvas = document.createElement('canvas');
   canvas.style.cssText = 'display:block;width:100%;height:100%;outline:none';
   parent.appendChild(canvas);
   const engine = new Engine(canvas, true, { stencil: true }, true);
+  const models = (file: string) => `${import.meta.env.BASE_URL}models/${file}`;
+  const portraits = new Portraits(engine, models);
   const world = World.open(
     {
       engine,
       socket,
       parent,
       player: { characterId: entry.characterId, cls: entry.cls, name: entry.name },
-      models: (file) => `${import.meta.env.BASE_URL}models/${file}`,
+      models,
       chunks: workerChunks(CHUNK_WORKERS),
       now: () => performance.now(),
       reload: () => location.reload(),
@@ -43,17 +52,22 @@ export function run(
   const readout = new URLSearchParams(location.search).has('fps') ? frameReadout(parent) : null;
   engine.runRenderLoop(() => {
     const t0 = performance.now();
+    portraits.draw(t0, engine.getDeltaTime()); // each into its corner, before the world draws over the canvas
     world.frame(engine.getDeltaTime());
     readout?.(performance.now() - t0, world.resets);
   });
 
-  return () => {
-    engine.stopRenderLoop();
-    resize.disconnect();
-    world.dispose();
-    engine.dispose();
-    canvas.remove();
-    parent.querySelector('[data-readout]')?.remove();
+  return {
+    close: () => {
+      engine.stopRenderLoop();
+      resize.disconnect();
+      portraits.dispose();
+      world.dispose();
+      engine.dispose();
+      canvas.remove();
+      parent.querySelector('[data-readout]')?.remove();
+    },
+    portrait: (canvas) => portraits.portrait(canvas),
   };
 }
 
