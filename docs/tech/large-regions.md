@@ -743,12 +743,14 @@ Built with step 1, which says who watches a cell.
   - **As built (step 5c-2b): This region pans and zooms.**
     - **The tab** reads "This region" on a region, "This map" elsewhere.
     - **Zoom:**
-      - the wheel zooms about the pointer, twice per 400 px of scroll;
+      - the wheel zooms about the pointer, twice per 400 px of scroll, or twice a notch where it counts lines or pages, as Firefox and line-mode mice send;
       - Zoom in and Zoom out buttons, in the plan's top right, double or halve it about the middle;
       - from whole to where a metre spans 4 screen pixels, a tile's finest: 12.8 times on a kilometre, 3.2 on the 256 m test region.
 
       The plan keeps its size on screen. Its labels, marks and tiles are drawn at the zoomed scale, and only the tiles in view are drawn.
     - **Pan:** a drag with the main button pans it. A press that moves under 4 px is still a click, so a waypoint is picked as before. A drag that starts on one picks nothing.
+      - Only the click the button's up makes is swallowed; a later click picks, as a screen reader's does with no press before it. A cancelled press, and one held as the window closes, let go at once.
+      - Moves aren't coalesced per frame on top: browsers already deliver pointermove once a frame.
     - **Held inside:** the view stays inside the region. A map change starts the new map's plan whole.
     - **Where it applies:** wherever the ground is tiles, including a region picked on the World tab. A map keeps its fit, with no buttons, and the wheel scrolls the page as before.
     - **Tests:**
@@ -756,6 +758,7 @@ Built with step 1, which says who watches a cell.
       - the wheel about the pointer, with no page scroll, and no further out than whole;
       - a drag held at both corners, the right button's none, and no pan after the button's up;
       - a drag over a waypoint picking nothing, one let go off the plan not swallowing the next click, a short press picking;
+      - a wheel in lines and in pages; a cancelled press panning no more; a press held as the window closes let go;
       - a 720 m map keeping its fit;
       - the tab's name.
 - **Loading a region:** the loading screen holds until the overview and the chunks within 128 m are built, then fades as today.

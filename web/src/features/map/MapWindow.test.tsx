@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { create } from '@bufbuild/protobuf';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { mapLinks } from '@/gamedata/map-links';
@@ -893,6 +893,50 @@ describe('MapWindow', () => {
       fireEvent.pointerUp(window);
       fireEvent.click(west);
       expect(screen.getByRole('region', { name: 'Waypoint' })).toHaveTextContent('West Field');
+    });
+
+    it('zooms a step a notch for a wheel counting lines or pages, as Firefox and line-mode mice send', () => {
+      const svg = inKilometre();
+      fireEvent.wheel(svg, { deltaY: -3, deltaMode: 1, clientX: 0, clientY: 0 });
+      expect(svg.getAttribute('viewBox')).toBe('0 0 512 512');
+      fireEvent.wheel(svg, { deltaY: -1, deltaMode: 2, clientX: 0, clientY: 0 });
+      expect(svg.getAttribute('viewBox')).toBe('0 0 256 256');
+      fireEvent.wheel(svg, { deltaY: 3, deltaMode: 1, clientX: 0, clientY: 0 });
+      expect(svg.getAttribute('viewBox')).toBe('0 0 512 512');
+    });
+
+    it('a click after a drag’s own picks, as a screen reader’s does with no press before it', async () => {
+      inKilometre();
+      const west = screen.getByRole('button', { name: 'West Field' });
+      fireEvent.pointerDown(west, { button: 0, clientX: 50, clientY: 50 });
+      fireEvent.pointerMove(window, { clientX: 60, clientY: 50 });
+      fireEvent.pointerUp(window); // let go off the plan: no click follows
+      await new Promise((r) => setTimeout(r));
+      fireEvent.click(west);
+      expect(screen.getByRole('region', { name: 'Waypoint' })).toHaveTextContent('West Field');
+    });
+
+    it('a cancelled press pans no more, and the click after it picks', () => {
+      const svg = inKilometre();
+      fireEvent.wheel(svg, { deltaY: -400, clientX: 0, clientY: 0 });
+      fireEvent.pointerDown(svg, { button: 0, clientX: 100, clientY: 100 });
+      fireEvent.pointerMove(window, { clientX: 20, clientY: 100 }); // 80 px west at 0.63 px a metre
+      expect(svg.getAttribute('viewBox')).toBe('128 0 512 512');
+      fireEvent.pointerCancel(window);
+      fireEvent.pointerMove(window, { clientX: -2000, clientY: 100 });
+      expect(svg.getAttribute('viewBox')).toBe('128 0 512 512');
+      fireEvent.click(screen.getByRole('button', { name: 'West Field' }));
+      expect(screen.getByRole('region', { name: 'Waypoint' })).toHaveTextContent('West Field');
+    });
+
+    it('lets go of a held press when the window closes', () => {
+      const svg = inKilometre();
+      const off = vi.spyOn(window, 'removeEventListener');
+      fireEvent.pointerDown(svg, { button: 0, clientX: 100, clientY: 100 });
+      cleanup();
+      expect(off.mock.calls.map(([type]) => type)).toEqual(
+        expect.arrayContaining(['pointermove', 'pointerup', 'pointercancel']),
+      );
     });
 
     it('a map, however large, keeps its fit, with no buttons, and the wheel and a drag leave it be', () => {
