@@ -3,6 +3,7 @@ package service
 import (
 	"time"
 
+	model "finga/internal/model/pvp"
 	"finga/internal/shared/kernel"
 )
 
@@ -88,8 +89,14 @@ type RatingChange struct {
 	PlacementLeft         int
 }
 
-func (Queued) delivery()    {}
-func (Unqueued) delivery()  {}
-func (Offered) delivery()   {}
-func (OfferGone) delivery() {}
-func (Ended) delivery()     {}
+// PiecesAdded is the ranks' pieces a match's end gave the player's account, each new to it.
+type PiecesAdded struct {
+	Pieces []model.RankPiece
+}
+
+func (Queued) delivery()      {}
+func (Unqueued) delivery()    {}
+func (Offered) delivery()     {}
+func (OfferGone) delivery()   {}
+func (Ended) delivery()       {}
+func (PiecesAdded) delivery() {}

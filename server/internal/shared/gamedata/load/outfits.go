@@ -31,9 +31,10 @@ type pieceYAML struct {
 type sourceYAML struct {
 	Boss   string  `yaml:"boss"`
 	Chance float64 `yaml:"chance"`
+	Rank   string  `yaml:"rank"`
 }
 
-// loadOutfits reads the wardrobe's pieces, and gives each a boss drops its item and a place on that boss's drops (outfits.md section 3).
+// loadOutfits reads the wardrobe's pieces, and gives each a boss drops its item and a place on that boss's drops (outfits.md section 3); a rank gives at most one.
 func (l *loader) loadOutfits(dir string) error {
 	var file outfitsYAML
 	if err := readYAML(dir, outfitsFile, &file); err != nil {
@@ -43,8 +44,9 @@ func (l *loader) loadOutfits(dir string) error {
 	for _, c := range l.classes.list {
 		held[c.Weapon] = true
 	}
+	ranked := map[string]string{} // each rank's piece
 	for _, raw := range file.Pieces {
-		p, err := l.pieceOf(raw, held)
+		p, err := l.pieceOf(raw, held, ranked)
 		if err != nil {
 			return fmt.Errorf("%s: piece %s: %w", outfitsFile, raw.ID, err)
 		}
@@ -53,8 +55,8 @@ func (l *loader) loadOutfits(dir string) error {
 	return nil
 }
 
-// pieceOf checks raw and makes its piece, adding its item to items and to each boss's drops.
-func (l *loader) pieceOf(raw pieceYAML, held map[gamedata.WeaponKind]bool) (gamedata.Piece, error) {
+// pieceOf checks raw and makes its piece; one a boss drops gets its item, added to items and to each such boss's drops.
+func (l *loader) pieceOf(raw pieceYAML, held map[gamedata.WeaponKind]bool, ranked map[string]string) (gamedata.Piece, error) {
 	p := gamedata.Piece{ID: raw.ID, Slot: gamedata.LookSlot(raw.Slot), Kind: gamedata.WeaponKind(raw.Kind), Name: raw.Name, Stars: raw.Stars, Look: raw.Look}
 	switch {
 	case p.ID == "" || l.pieces.has(p.ID):
@@ -73,14 +75,20 @@ func (l *loader) pieceOf(raw pieceYAML, held map[gamedata.WeaponKind]bool) (game
 		return p, fmt.Errorf("needs a source")
 	}
 	for _, src := range raw.From {
-		boss, ok := l.mobs.get(src.Boss)
-		if !ok || !boss.Boss {
-			return p, fmt.Errorf("a source names a field boss, got %q", src.Boss)
+		s, err := l.sourceOf(src)
+		if err != nil {
+			return p, err
 		}
-		if !(src.Chance > 0 && src.Chance <= 1) {
-			return p, fmt.Errorf("from %s: chance must be in (0, 1], got %v", src.Boss, src.Chance)
+		if s.Rank != "" {
+			if other, ok := ranked[s.Rank]; ok {
+				return p, fmt.Errorf("rank %s gives %s already, and a rank gives one piece", s.Rank, other)
+			}
+			ranked[s.Rank] = p.ID
 		}
-		p.From = append(p.From, gamedata.PieceSource(src))
+		p.From = append(p.From, s)
+	}
+	if !slices.ContainsFunc(p.From, func(s gamedata.PieceSource) bool { return s.Boss != "" }) {
+		return p, nil // granted outright, so no item holds it
 	}
 	p.Item = gamedata.PieceItem(p.ID)
 	if l.items.has(p.Item) {
@@ -88,8 +96,33 @@ func (l *loader) pieceOf(raw pieceYAML, held map[gamedata.WeaponKind]bool) (game
 	}
 	l.items.add(p.Item, gamedata.Item{ID: p.Item, Name: p.Name, Tab: gamedata.Etc, Stars: p.Stars, Description: "Adds " + p.Name + " to your wardrobe.", MaxStack: defaultMaxStack})
 	for _, src := range p.From {
+		if src.Boss == "" {
+			continue
+		}
 		k := l.mobs.idx[src.Boss]
 		l.mobs.list[k].Drops = append(l.mobs.list[k].Drops, gamedata.Drop{Item: p.Item, Chance: src.Chance, Min: 1, Max: 1})
 	}
 	return p, nil
+}
+
+// sourceOf checks one of a piece's sources: a field boss at a chance in (0, 1], or a rank of pvp.yaml above the first, which everyone has.
+func (l *loader) sourceOf(src sourceYAML) (gamedata.PieceSource, error) {
+	s := gamedata.PieceSource{Boss: src.Boss, Chance: src.Chance, Rank: src.Rank}
+	if src.Rank != "" {
+		if src.Boss != "" || src.Chance != 0 {
+			return s, fmt.Errorf("from rank %s: a rank gives its piece outright, with no boss or chance", src.Rank)
+		}
+		if i := slices.IndexFunc(l.pvp.Ranks, func(r gamedata.Rank) bool { return r.ID == src.Rank }); i < 1 {
+			return s, fmt.Errorf("a rank source names a rank of %s above the first, got %q", pvpFile, src.Rank)
+		}
+		return s, nil
+	}
+	boss, ok := l.mobs.get(src.Boss)
+	if !ok || !boss.Boss {
+		return s, fmt.Errorf("a source names a field boss or a rank, got %q", src.Boss)
+	}
+	if !(src.Chance > 0 && src.Chance <= 1) {
+		return s, fmt.Errorf("from %s: chance must be in (0, 1], got %v", src.Boss, src.Chance)
+	}
+	return s, nil
 }

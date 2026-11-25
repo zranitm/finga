@@ -53,6 +53,12 @@ type Store interface {
 	PutBuild(ctx context.Context, id kernel.CharacterID, b model.Build) (int, error)
 }
 
+// Items is the item module as pvp grants through it.
+type Items interface {
+	// GrantRankPieces puts each rank's piece in the account's wardrobe, giving back those new to it; a piece it has stays as it was.
+	GrantRankPieces(ctx context.Context, account kernel.AccountID, pieces []model.RankPiece) ([]model.RankPiece, error)
+}
+
 // Notifier pushes to a player; it never blocks.
 type Notifier interface {
 	Push(to kernel.CharacterID, d Delivery)

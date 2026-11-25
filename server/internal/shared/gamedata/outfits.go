@@ -35,10 +35,11 @@ type Piece struct {
 	From  []PieceSource
 }
 
-// PieceSource is where a piece comes from: a boss's drop, at a chance on each eligible player's own roll.
+// PieceSource is where a piece comes from: a boss's drop, at a chance on each eligible player's own roll, or a PvP rank, the first time the account reaches it.
 type PieceSource struct {
 	Boss   string
 	Chance float64
+	Rank   string
 }
 
 // PieceItem is the id of the item that holds the piece id.
@@ -52,3 +53,6 @@ func (d *Data) Piece(id string) (Piece, bool) { return find(d.p.Pieces, d.pieceI
 
 // PieceIn finds the piece an item holds.
 func (d *Data) PieceIn(item string) (Piece, bool) { return find(d.p.Pieces, d.pieceItemIdx, item) }
+
+// RankPiece finds the piece a PvP rank gives, false for none.
+func (d *Data) RankPiece(rank string) (Piece, bool) { return find(d.p.Pieces, d.rankPieceIdx, rank) }

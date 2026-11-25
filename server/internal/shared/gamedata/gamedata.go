@@ -64,6 +64,8 @@ type Data struct {
 	pieceIdx  map[string]int
 	// pieceItemIdx files each piece with an item under its item.
 	pieceItemIdx map[string]int
+	// rankPieceIdx files each piece a rank gives under the rank.
+	rankPieceIdx map[string]int
 	// waypointIdx files each region's waypoints by id, their ids unique across every region.
 	waypointIdx map[string]waypointAt
 }
@@ -85,6 +87,7 @@ func New(p Parts) *Data {
 		questIdx:     index(p.Quests, func(q Quest) string { return q.ID }),
 		pieceIdx:     index(p.Pieces, func(p Piece) string { return p.ID }),
 		pieceItemIdx: pieceItems(p.Pieces),
+		rankPieceIdx: rankPieces(p.Pieces),
 		waypointIdx:  waypointsOf(p.Maps),
 	}
 }
@@ -104,6 +107,19 @@ func waypointsOf(maps []*Map) map[string]waypointAt {
 func pieceItems(all []Piece) map[string]int {
 	idx := index(all, func(p Piece) string { return p.Item })
 	delete(idx, "") // a piece no item holds
+	return idx
+}
+
+// rankPieces files each piece under each rank that gives it.
+func rankPieces(all []Piece) map[string]int {
+	idx := map[string]int{}
+	for i, p := range all {
+		for _, s := range p.From {
+			if s.Rank != "" {
+				idx[s.Rank] = i
+			}
+		}
+	}
 	return idx
 }
 

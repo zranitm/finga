@@ -31,7 +31,8 @@ func TestABotWearsBossPiecesOfItsClass(t *testing.T) {
 	for _, c := range d.Classes() {
 		wearable, seen, own := map[string]bool{}, map[string]bool{}, map[gamedata.LookSlot]bool{}
 		for _, p := range d.Pieces() {
-			if p.Slot != gamedata.WeaponSlot || p.Kind == c.Weapon {
+			dropped := !slices.ContainsFunc(p.From, func(s gamedata.PieceSource) bool { return s.Boss == "" })
+			if dropped && (p.Slot != gamedata.WeaponSlot || p.Kind == c.Weapon) {
 				wearable[p.ID] = true
 			}
 		}
@@ -65,17 +66,29 @@ func TestABotWearsBossPiecesOfItsClass(t *testing.T) {
 	}
 }
 
-// A piece with any source but a boss never shows on a bot, as rank, quest and feat pieces will have, so a rank piece always means a player earned it.
+// A piece with any source but a boss never shows on a bot, the shipped ranks' pieces and one a boss drops too among them, so a rank piece always means a player earned it.
 func TestABotWearsNoPieceFromElsewhere(t *testing.T) {
 	d := gamedatatest.Shipped(t)
 	pieces := slices.Concat(d.Pieces(), []gamedata.Piece{
-		{ID: "ranked_plate", Slot: gamedata.OutfitSlot, From: []gamedata.PieceSource{{Boss: "king_slime", Chance: 0.05}, {}}},
+		{ID: "ranked_plate", Slot: gamedata.OutfitSlot, From: []gamedata.PieceSource{{Boss: "king_slime", Chance: 0.05}, {Rank: "gold"}}},
 		{ID: "sourceless_hat", Slot: gamedata.HeadwearSlot},
 	})
-	for n := range sweep {
-		look := model.BotLook(pieces, gamedata.OneHanded, botID(n))
-		if look.Outfit == "ranked_plate" || look.Headwear == "sourceless_hat" {
-			t.Fatalf("bot %d wears %+v", n, look)
+	never := map[string]bool{"ranked_plate": true, "sourceless_hat": true}
+	for _, rank := range d.Pvp().Ranks {
+		if p, ok := d.RankPiece(rank.ID); ok {
+			never[p.ID] = true
+		}
+	}
+	if len(never) < 3 {
+		t.Fatalf("no shipped rank gives a piece: %v", never)
+	}
+	for _, c := range d.Classes() {
+		for n := range sweep {
+			for slot, id := range picks(model.BotLook(pieces, c.Weapon, botID(n))) {
+				if never[id] {
+					t.Fatalf("a %s bot %d wears %s as its %s", c.ID, n, id, slot)
+				}
+			}
 		}
 	}
 }

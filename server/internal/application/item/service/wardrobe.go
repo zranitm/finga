@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"slices"
 	"time"
 
 	model "finga/internal/model/item"
@@ -96,6 +98,36 @@ func (s *Service) addToWardrobe(ctx context.Context, uow UnitOfWork, actor model
 		return Result{}, err
 	}
 	return Result{Changed: []model.Slot{slotOf(it)}, Piece: piece.ID}, nil
+}
+
+// GrantPieces puts each grant's piece in the account's wardrobe, in one transaction, giving back the grants whose piece was new; a piece the wardrobe has stays as it was. Each grant must name a source its piece has.
+func (s *Service) GrantPieces(ctx context.Context, account kernel.AccountID, grants []model.PieceGrant) ([]model.PieceGrant, error) {
+	for _, g := range grants {
+		if !s.grantable(g) {
+			return nil, fmt.Errorf("item: piece %q has no %s source %q", g.Piece, g.Cause, g.Ref)
+		}
+	}
+	var added []model.PieceGrant
+	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
+		added = nil // a retried transaction starts again
+		for _, g := range grants {
+			ok, err := uow.Wardrobe().Grant(ctx, account, g)
+			if err != nil {
+				return err
+			}
+			if ok {
+				added = append(added, g)
+			}
+		}
+		return nil
+	})
+	return added, err
+}
+
+// grantable is whether g names a source its piece has: the rank that gives it.
+func (s *Service) grantable(g model.PieceGrant) bool {
+	p, ok := s.content.Piece(g.Piece)
+	return ok && g.Cause == model.PieceFromRank && g.Ref != "" && slices.ContainsFunc(p.From, func(src gamedata.PieceSource) bool { return src.Rank == g.Ref })
 }
 
 // SetLook wears in's picks: each a piece of its slot the account has collected, a weapon look of the class's kind, or "" for the class's own.
