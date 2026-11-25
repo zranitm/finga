@@ -44,6 +44,8 @@ export class BattleMarks {
   private readonly ringLooks: Record<Whose, NodeMaterial>;
   private readonly fillLooks: Record<Whose, NodeMaterial>;
   private readonly wallLook: StandardMaterial;
+  private readonly pulseRing = new Color3(); // the contested looks' colours, set in place each frame
+  private readonly pulseFill = new Color3();
   private shown = '';
 
   constructor(
@@ -65,6 +67,8 @@ export class BattleMarks {
     );
     this.ringLooks.contested.name = 'point contested ring';
     this.fillLooks.contested.name = 'point contested glow';
+    (this.ringLooks.contested.getBlockByName('color') as InputBlock).value = this.pulseRing;
+    (this.fillLooks.contested.getBlockByName('color') as InputBlock).value = this.pulseFill;
     this.rings = points.map((p) =>
       this.laid(scene, `point ring ${p.id}`, p, p.radius - RING_M, p.radius),
     );
@@ -110,11 +114,8 @@ export class BattleMarks {
   /** The contested look's colour at now: the player's side's on each whole PULSE_MS, the other's halfway. */
   private pulse(now: number): void {
     const toward = (1 - Math.cos((2 * Math.PI * now) / PULSE_MS)) / 2;
-    const c = Color3.Lerp(COLOR.ally, COLOR.enemy, toward);
-    (this.ringLooks.contested.getBlockByName('color') as InputBlock).value = c;
-    (this.fillLooks.contested.getBlockByName('color') as InputBlock).value = c.scale(
-      FILL_ALPHA + FILL_GLOW,
-    );
+    Color3.LerpToRef(COLOR.ally, COLOR.enemy, toward, this.pulseRing);
+    this.pulseRing.scaleToRef(FILL_ALPHA + FILL_GLOW, this.pulseFill);
   }
 
   dispose(): void {
