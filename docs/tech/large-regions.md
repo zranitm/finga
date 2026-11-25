@@ -114,6 +114,19 @@ biomes:
     - **The start, each gate and each NPC** keep a mob's `sight` and 2 m (11.375 m today), the old maps' calm rule (3d-world.md section 4), so no mob sees a player arrive or talk. A gate hands a player off as they step in, so a chase to one costs nothing, and a town's NPCs are already out of sight.
     - Both numbers are read from mobs.yaml, so retuning either keeps the rule true. The loader refuses a plan that breaks it, naming the camp or boss, the spot and the gap. A place below keeps it too, from its gates and waypoints.
     - **The test region** moves its spore slimes and moths by North Field, and its glow slimes and snail by East Woods, out to keep it.
+    - **As built:** the loader checks it for every region and every place below, after the spot checks, so a camp over a gate still says it overlaps the portal.
+      - **The two distances** are `leash + 4` from a stone and `sight + 2` from the start, a gate or an NPC, from each camp's or boss's circle's edge. Exactly on the line passes.
+      - **The error** names the camp or boss, the spot and the gap: `camp "spore_slimes"'s circle comes within 13.68 m of waypoint north's stone at [118 150]; it keeps 20 m, a mob's leash and 4 m more, so no chase follows a player there`.
+      - **The test region's camps,** each gap measured from the circle's edge to its stone:
+
+        | Camp | Was | Now |
+        | --- | --- | --- |
+        | spore slimes | [100, 155], 13.68 m | [98, 172], 24.73 m |
+        | moths | [140, 150], 17 m | [145, 165], 25.89 m |
+        | glow slimes | [215, 100], 19 m | [216, 114], 23.53 m |
+        | snail | [170, 100], 16 m | [168, 116], 23.20 m |
+
+      - Each stays in its own area, off the river, the lake and the plateau, and `TestEveryShippedRegionCanBeCrossed` still reaches it. The North Field boss already kept 20.08 m, just over the line.
   - **Gates** lead to a map's portal or a region's gate, never to themselves, and the two lead to each other, judged from both sides.
   - **The region** isn't named as a map is, has a name, and isn't one block holds (`gamedata.Interest.Whole`, which the instances read too).
   - Every waypoint, gate, NPC, camp and area boss is reached from the start and each gate, at every speed: `TestEveryShippedRegionCanBeCrossed`.
