@@ -331,13 +331,14 @@ describe('generated gamedata', () => {
     }
   });
 
-  it('a region is a map of its plan: its own town, its camps as spawns and gates as portals, its areas with their corners, levels and bosses, no boss of its own, on no chart', () => {
+  it('a region is a map of its plan: its own town, the region above a place below, its camps as spawns and gates as portals, its areas with their corners, levels and bosses, no boss of its own, on no chart', () => {
     const regions = maps.filter((m) => m.kind === 'region');
     expect(regions.map((m) => m.id)).toContain('test_region');
     for (const m of regions) {
       const raw = yaml(`regions/${m.id}.yaml`) as {
         name: string;
         look: { sky: string };
+        under?: string;
         camps?: { mob: string; at: [number, number]; radius: number }[];
         gates?: { name: string; at: [number, number]; radius: number; to: { region: string } }[];
         areas: {
@@ -359,6 +360,7 @@ describe('generated gamedata', () => {
         sky: raw.look.sky,
         min_level: null,
         max_level: null,
+        under: raw.under ?? null,
         spawns: (raw.camps ?? []).map((c) => ({
           mob: c.mob,
           x: c.at[0],
