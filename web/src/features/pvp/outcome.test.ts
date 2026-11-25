@@ -1,9 +1,9 @@
 import { create } from '@bufbuild/protobuf';
 import { describe, expect, it } from 'vitest';
 
-import { MatchEndedSchema, MatchOutcome } from '@/protocol/messages';
+import { MatchEndedSchema, MatchOutcome, WelcomeSchema } from '@/protocol/messages';
 
-import { leaverLine } from './outcome';
+import { leaverLine, missedLines } from './outcome';
 
 const rating = (after: number, placementLeft: number, rankAfter = 'bronze') => ({
   before: 1000,
@@ -37,5 +37,33 @@ describe('leaverLine', () => {
       rating: r,
     });
     expect(leaverLine(d)).toBe(said);
+  });
+});
+
+describe('missedLines', () => {
+  it('says each missed match’s mode and how it went, a leaver’s as a loss, then how many more', () => {
+    const d = create(WelcomeSchema, {
+      missedMatches: [
+        { mode: 'duel', result: MatchOutcome.LOSS, left: true },
+        { mode: 'team', result: MatchOutcome.WIN },
+        { mode: 'battle', result: MatchOutcome.DRAW },
+        { mode: 'duel', result: MatchOutcome.LOSS },
+      ],
+      missedMore: 3,
+    });
+    expect(missedLines(d)).toEqual([
+      'Your 1v1 match ended while you were away: it counted as a loss.',
+      'Your 3v3 match ended while you were away: Victory.',
+      'Your 15v15 match ended while you were away: Draw.',
+      'Your 1v1 match ended while you were away: Defeat.',
+      '…and 3 more matches ended while you were away.',
+    ]);
+  });
+
+  it.each([
+    [0, []],
+    [1, ['…and 1 more match ended while you were away.']],
+  ])('with no match listed and %i more, says %o', (more, said) => {
+    expect(missedLines(create(WelcomeSchema, { missedMore: more }))).toEqual(said);
   });
 });

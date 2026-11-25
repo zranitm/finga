@@ -20,8 +20,18 @@ ON CONFLICT (character_id, mode) DO UPDATE SET
   wins = EXCLUDED.wins, losses = EXCLUDED.losses, draws = EXCLUDED.draws, updated_at = EXCLUDED.updated_at;
 
 -- name: RecordFighter :exec
-INSERT INTO pvp_match_fighters (match_id, side, slot, character_id, bot_tier, left_match, downs, mu_before, sigma_before, mu_after, sigma_after, created_at, updated_at)
-VALUES (sqlc.arg(match_id), sqlc.arg(side), sqlc.arg(slot), sqlc.narg(character_id), sqlc.narg(bot_tier), sqlc.arg(left_match), sqlc.arg(downs), sqlc.arg(mu_before), sqlc.arg(sigma_before), sqlc.arg(mu_after), sqlc.arg(sigma_after), sqlc.arg(now), sqlc.arg(now));
+INSERT INTO pvp_match_fighters (match_id, side, slot, character_id, bot_tier, left_match, downs, untold, mu_before, sigma_before, mu_after, sigma_after, created_at, updated_at)
+VALUES (sqlc.arg(match_id), sqlc.arg(side), sqlc.arg(slot), sqlc.narg(character_id), sqlc.narg(bot_tier), sqlc.arg(left_match), sqlc.arg(downs), sqlc.arg(untold), sqlc.arg(mu_before), sqlc.arg(sigma_before), sqlc.arg(mu_after), sqlc.arg(sigma_after), sqlc.arg(now), sqlc.arg(now));
+
+-- name: TakeUntold :many
+UPDATE pvp_match_fighters f SET untold = false, updated_at = sqlc.arg(now)
+FROM pvp_matches m
+WHERE m.id = f.match_id AND f.character_id = sqlc.arg(character_id) AND f.untold
+RETURNING m.id, m.mode, m.ended_at, m.winner, f.side, f.left_match;
+
+-- name: MarkTold :exec
+UPDATE pvp_match_fighters SET untold = false, updated_at = sqlc.arg(now)
+WHERE match_id = sqlc.arg(match_id) AND character_id = sqlc.arg(character_id) AND untold;
 
 -- name: StoredFighters :many
 SELECT f.side, f.slot, f.character_id, f.mu_before, f.sigma_before, f.mu_after, f.sigma_after, r.matches, r.wins, r.losses, r.draws

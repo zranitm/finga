@@ -981,6 +981,7 @@ type fakePvp struct {
 	mu     sync.Mutex
 	calls  []string
 	err    error
+	missed map[kernel.CharacterID]pvp.Missed // each Welcome's, taken once
 }
 
 func newFakePvp() *fakePvp { return &fakePvp{pushes: newStream[pvp.Push]()} }
@@ -1006,6 +1007,18 @@ func (f *fakePvp) Answer(_ context.Context, who kernel.CharacterID, offer string
 
 func (f *fakePvp) Offline(_ context.Context, who kernel.CharacterID) error {
 	return f.record("Offline " + who.String())
+}
+
+func (f *fakePvp) Missed(_ context.Context, id kernel.CharacterID) (pvp.Missed, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	m := f.missed[id]
+	delete(f.missed, id)
+	return m, nil
+}
+
+func (f *fakePvp) Told(_ context.Context, id kernel.CharacterID, match kernel.MatchID) error {
+	return f.record("Told " + id.String() + " " + match.String())
 }
 
 func (f *fakePvp) Subscribe(gateway string) *hub.Sub[pvp.Push] { return f.pushes.subscribe(gateway) }

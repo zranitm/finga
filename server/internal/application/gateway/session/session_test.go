@@ -48,6 +48,9 @@ func filled(d session.Deps) session.Deps {
 type noPvp struct{}
 
 func (noPvp) Offline(context.Context, kernel.CharacterID) error { return nil }
+func (noPvp) Missed(context.Context, kernel.CharacterID) (model.Missed, error) {
+	return model.Missed{}, nil
+}
 
 type items struct{}
 

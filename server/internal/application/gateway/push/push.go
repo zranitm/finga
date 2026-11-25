@@ -30,6 +30,8 @@ type Social interface {
 // Pvp is the pvp module's stream of queue, offer and outcome pushes.
 type Pvp interface {
 	FollowDeliveries(ctx context.Context, gateway string, deliver func(model.PvpDelivery))
+	// Told marks the player told of match, its outcome handed to them live.
+	Told(ctx context.Context, character kernel.CharacterID, match kernel.MatchID) error
 }
 
 // Account is the account module's stream of ended login sessions.
@@ -66,12 +68,13 @@ type Gateway struct {
 	opts       Options
 	tracer     trace.Tracer
 	sessions   *session.Registry
-	reregister chan struct{} // a social subscription asks for every player to be registered again
+	reregister chan struct{}          // a social subscription asks for every player to be registered again
+	told       chan model.PvpDelivery // outcomes handed on live to players away from their match's end, for markTold
 }
 
 // New builds the push flow over deps.
 func New(deps Deps, opts Options) *Gateway {
-	return &Gateway{deps: deps, opts: opts, tracer: deps.Traces.Tracer(tracerName), sessions: deps.Registry, reregister: make(chan struct{}, 1)}
+	return &Gateway{deps: deps, opts: opts, tracer: deps.Traces.Tracer(tracerName), sessions: deps.Registry, reregister: make(chan struct{}, 1), told: make(chan model.PvpDelivery, toldQueue)}
 }
 
 const tracerName = "finga/internal/application/gateway/push"
@@ -90,6 +93,7 @@ func (g *Gateway) Run(ctx context.Context) error {
 	start(func(ctx context.Context) { g.deps.World.FollowDeliveries(ctx, id, g.worldDelivered) })
 	start(func(ctx context.Context) { g.deps.Social.FollowDeliveries(ctx, id, g.socialDelivered) })
 	start(func(ctx context.Context) { g.deps.Pvp.FollowDeliveries(ctx, id, g.pvpDelivered) })
+	start(g.markTold)
 	start(g.registerAgain)
 	start(func(ctx context.Context) { g.deps.Account.FollowSessionEnds(ctx, id, g.sessionEnded) })
 	start(g.checkSessionsEvery)

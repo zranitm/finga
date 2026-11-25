@@ -49,6 +49,10 @@ type Store interface {
 	Above(ctx context.Context, mode string, shown int) (int, error)
 	// Build is the character's saved arena build, false when they've saved none.
 	Build(ctx context.Context, id kernel.CharacterID) (model.Build, bool, error)
+	// TakeUntold is each stored match the character was away from at its end and hasn't been told of, marking each told.
+	TakeUntold(ctx context.Context, id kernel.CharacterID) ([]model.Untold, error)
+	// MarkTold marks the character told of match.
+	MarkTold(ctx context.Context, id kernel.CharacterID, match kernel.MatchID) error
 	// PutBuild saves the character's arena build, giving back its revision.
 	PutBuild(ctx context.Context, id kernel.CharacterID, b model.Build) (int, error)
 }

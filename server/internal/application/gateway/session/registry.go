@@ -46,6 +46,8 @@ type Social interface {
 // Pvp is the pvp module as logouts use it: a player who leaves leaves its queue.
 type Pvp interface {
 	Offline(ctx context.Context, character kernel.CharacterID) error
+	// Missed takes the matches that ended while the player was away, each told once.
+	Missed(ctx context.Context, character kernel.CharacterID) (model.Missed, error)
 }
 
 // Observer counts the logins whose registration with the social module has not landed yet.

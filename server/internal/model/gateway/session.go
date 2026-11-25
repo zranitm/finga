@@ -65,6 +65,21 @@ type Welcome struct {
 	Quests            []QuestState
 	Timers            []SkillTimer
 	Waypoints         []string // the ids of those found
+	Missed            Missed   // the matches that ended while the player was away
+}
+
+// Missed is the newest matches that ended while the player was away, newest first, and how many older ones besides.
+type Missed struct {
+	Matches []MissedMatch
+	More    int
+}
+
+// MissedMatch is a match that ended while the player was away: its mode, how it went for them, whether they'd left it, and when.
+type MissedMatch struct {
+	Mode   string
+	Result MatchOutcome
+	Left   bool
+	Ended  time.Time
 }
 
 // TimerKind is what a skill timer times.

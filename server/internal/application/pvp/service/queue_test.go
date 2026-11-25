@@ -92,6 +92,8 @@ type store struct {
 	ratings  map[kernel.CharacterID]model.Rating
 	matches  map[kernel.MatchID]model.Rated
 	recorded map[kernel.MatchID]string // each stored match's mode
+	stored   map[kernel.MatchID]model.Match
+	told     map[kernel.MatchID]map[kernel.CharacterID]bool // the untold fighters since told
 	lost     int
 	hold     map[kernel.MatchID]chan struct{}
 	modes    map[string]map[kernel.CharacterID]model.Rating
@@ -104,7 +106,7 @@ type store struct {
 }
 
 func newStore() *store {
-	return &store{ratings: map[kernel.CharacterID]model.Rating{}, matches: map[kernel.MatchID]model.Rated{}, recorded: map[kernel.MatchID]string{}, hold: map[kernel.MatchID]chan struct{}{}, modes: map[string]map[kernel.CharacterID]model.Rating{}, builds: map[kernel.CharacterID]model.Build{}, stall: map[kernel.CharacterID]bool{}, stalled: map[kernel.CharacterID]time.Duration{}}
+	return &store{ratings: map[kernel.CharacterID]model.Rating{}, matches: map[kernel.MatchID]model.Rated{}, recorded: map[kernel.MatchID]string{}, stored: map[kernel.MatchID]model.Match{}, told: map[kernel.MatchID]map[kernel.CharacterID]bool{}, hold: map[kernel.MatchID]chan struct{}{}, modes: map[string]map[kernel.CharacterID]model.Rating{}, builds: map[kernel.CharacterID]model.Build{}, stall: map[kernel.CharacterID]bool{}, stalled: map[kernel.CharacterID]time.Duration{}}
 }
 
 func (s *store) Ratings(_ context.Context, id kernel.CharacterID) (map[string]model.Rating, error) {
@@ -247,13 +249,43 @@ func (s *store) Record(_ context.Context, m model.Match, characters []kernel.Cha
 		}
 	}
 	rated := rate(had)
-	s.matches[m.ID], s.recorded[m.ID] = rated, m.Mode
+	s.matches[m.ID], s.recorded[m.ID], s.stored[m.ID] = rated, m.Mode, m
 	maps.Copy(s.ratings, rated.After)
 	if s.lost > 0 {
 		s.lost--
 		return nil, fmt.Errorf("%w: the commit's answer was lost", transient.ErrUnavailable)
 	}
 	return rated.Fighters, nil
+}
+
+func (s *store) TakeUntold(_ context.Context, id kernel.CharacterID) ([]model.Untold, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []model.Untold
+	for mid, rated := range s.matches {
+		for _, f := range rated.Fighters {
+			if f.Untold && f.Character == id && !s.told[mid][id] {
+				m := s.stored[mid]
+				out = append(out, model.Untold{Match: mid, Mode: m.Mode, Ended: m.Ended, Winner: m.Winner, Side: f.Side, Left: f.Left})
+				s.markTold(id, mid)
+			}
+		}
+	}
+	return out, nil
+}
+
+func (s *store) MarkTold(_ context.Context, id kernel.CharacterID, match kernel.MatchID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.markTold(id, match)
+	return nil
+}
+
+func (s *store) markTold(id kernel.CharacterID, match kernel.MatchID) {
+	if s.told[match] == nil {
+		s.told[match] = map[kernel.CharacterID]bool{}
+	}
+	s.told[match][id] = true
 }
 
 // notes records what each player is told.

@@ -1,6 +1,6 @@
 // The single place net and state meet.
 import { membersNamed } from '@/features/pvp/mates';
-import { leaverLine } from '@/features/pvp/outcome';
+import { leaverLine, missedLines } from '@/features/pvp/outcome';
 import { itemName, starMarks, starsOf } from '@/features/shared/items';
 import { article } from '@/features/shared/words';
 import { RequestError } from '@/net/socket';
@@ -121,6 +121,9 @@ export function wireSocket(socket: GameSocket): () => void {
       waypoints.getState().applyWelcome(m.d.waypoints);
       ui.getState().closeWindow('npc');
       pvp.getState().applyUnqueued(); // the queue sends its ticket again
+      for (const line of missedLines(m.d)) {
+        chat.getState().notice(line);
+      }
       if (!isMatchMap(m.d.mapId)) {
         leaveMatch(); // a join lands in a match only on a place held through a drop (pvp.md section 4)
       }

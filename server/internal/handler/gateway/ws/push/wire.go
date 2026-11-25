@@ -50,6 +50,15 @@ var matchOutcomes = map[model.MatchOutcome]clientv1.MatchOutcome{
 	model.MatchDraw: clientv1.MatchOutcome_MATCH_OUTCOME_DRAW,
 }
 
+// missedMatches is a Welcome's matches that ended while the player was away.
+func missedMatches(ms []model.MissedMatch) []*clientv1.MissedMatch {
+	out := make([]*clientv1.MissedMatch, 0, len(ms))
+	for _, m := range ms {
+		out = append(out, &clientv1.MissedMatch{Mode: m.Mode, Result: matchOutcomes[m.Result], Left: m.Left, EndedAt: m.Ended.UnixMilli()})
+	}
+	return out
+}
+
 func matchEnded(e model.MatchEnded) *clientv1.MatchEnded {
 	out := &clientv1.MatchEnded{Mode: e.Mode, Result: matchOutcomes[e.Result], Left: e.Left}
 	if e.Battle {

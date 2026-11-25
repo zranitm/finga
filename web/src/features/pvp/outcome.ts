@@ -1,4 +1,4 @@
-// A match's outcome in words (pvp.md section 13): the result card's title and rating, and the General line a team match's leaver gets instead of the card.
+// A match's outcome in words (pvp.md section 13): the result card's title and rating, the General line a team match's leaver gets instead of the card, and a Welcome's lines for matches that ended while the player was away.
 import { rankName } from '@/progression/names';
 import { MatchOutcome } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
@@ -42,4 +42,18 @@ export function leaverLine(d: Data<'matchEnded'>): string {
     }
   }
   return said.join(' ');
+}
+
+/** "Your 1v1 match ended while you were away: it counted as a loss.", one a match, then "…and 3 more matches ended while you were away." */
+export function missedLines(d: Data<'welcome'>): string[] {
+  const said = d.missedMatches.map(
+    (m) =>
+      `Your ${modeName(m.mode)} match ended while you were away: ${m.left ? 'it counted as a loss' : TITLE[m.result]}.`,
+  );
+  if (d.missedMore > 0) {
+    said.push(
+      `…and ${d.missedMore} more ${d.missedMore === 1 ? 'match' : 'matches'} ended while you were away.`,
+    );
+  }
+  return said;
 }

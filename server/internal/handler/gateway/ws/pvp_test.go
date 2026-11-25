@@ -1,11 +1,14 @@
 package ws_test
 
 import (
+	"slices"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/coder/websocket"
+	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/application/pvp"
@@ -73,6 +76,48 @@ func TestPvpCommandsAndPushes(t *testing.T) {
 		synctest.Wait()
 		if got := fp.recorded(); got[len(got)-1] != "Offline "+aylaID.String() {
 			t.Fatalf("calls %q, want Ayla's Offline last", got)
+		}
+	})
+}
+
+// The matches that ended while the player was away reach their Welcome; an outcome they were away for, handed to them live, is marked told, and neither one for a player on another gateway nor one they saw end is.
+func TestMatchesMissedWhileAwayReachTheWelcome(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		fp := newFakePvp()
+		ended := time.UnixMilli(1_764_000_000_000)
+		fp.missed = map[kernel.CharacterID]pvp.Missed{aylaID: {Matches: []pvp.MissedMatch{{Mode: "duel", Outcome: pvp.Loss, Left: true, Ended: ended}, {Mode: "team", Outcome: pvp.Win, Ended: ended.Add(-time.Hour)}}, More: 3}}
+		h := newHarnessOn(t, newFakeWorld(), func(d *deps) { d.Pvp = fp })
+		select {
+		case <-fp.pushes.subscribed:
+		case <-time.After(5 * time.Second):
+			t.Fatal("the gateway never subscribed to the pvp module")
+		}
+		ayla := h.dial(t)
+		ayla.hello(tokenAlice, aylaID)
+		w := ayla.expect("Welcome").Data.(*clientv1.Welcome)
+		want := []*clientv1.MissedMatch{
+			{Mode: "duel", Result: clientv1.MatchOutcome_MATCH_OUTCOME_LOSS, Left: true, EndedAt: 1_764_000_000_000},
+			{Mode: "team", Result: clientv1.MatchOutcome_MATCH_OUTCOME_WIN, EndedAt: 1_764_000_000_000 - 3_600_000},
+		}
+		if got := w.GetMissedMatches(); len(got) != len(want) || !proto.Equal(got[0], want[0]) || !proto.Equal(got[1], want[1]) || w.GetMissedMore() != 3 {
+			t.Fatalf("Welcome's missed %v and %d more; want %v and 3 more", got, w.GetMissedMore(), want)
+		}
+		ayla.expect("Snapshot")
+		away, seen, elsewhere := kernel.NewMatchID(), kernel.NewMatchID(), kernel.NewMatchID()
+		fp.pushes.send(pvp.Push{To: robinID, Delivery: pvp.Ended{Mode: "duel", Outcome: pvp.Loss, Left: true, Match: elsewhere, Away: true}})
+		fp.pushes.send(pvp.Push{To: aylaID, Delivery: pvp.Ended{Mode: "duel", Outcome: pvp.Win, Match: seen}})
+		fp.pushes.send(pvp.Push{To: aylaID, Delivery: pvp.Ended{Mode: "team", Outcome: pvp.Loss, Left: true, Match: away, Away: true}})
+		ayla.expect("MatchEnded")
+		ayla.expect("MatchEnded")
+		synctest.Wait()
+		var told []string
+		for _, c := range fp.recorded() {
+			if strings.HasPrefix(c, "Told ") {
+				told = append(told, c)
+			}
+		}
+		if want := []string{"Told " + aylaID.String() + " " + away.String()}; !slices.Equal(told, want) {
+			t.Fatalf("marked told %q; want %q", told, want)
 		}
 	})
 }

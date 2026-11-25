@@ -17,6 +17,8 @@ type PvpModule interface {
 	LeaveQueue(ctx context.Context, who kernel.CharacterID) error
 	Answer(ctx context.Context, who kernel.CharacterID, offer string, accept bool) error
 	Offline(ctx context.Context, who kernel.CharacterID) error
+	Missed(ctx context.Context, id kernel.CharacterID) (pvp.Missed, error)
+	Told(ctx context.Context, id kernel.CharacterID, match kernel.MatchID) error
 	Subscribe(gateway string) *hub.Sub[pvp.Push]
 }
 
@@ -52,11 +54,33 @@ func (p Pvp) Offline(ctx context.Context, who kernel.CharacterID) error {
 	return wrap(p.p.Offline(ctx, who))
 }
 
+// Missed takes the matches that ended while the player was away, for their Welcome.
+func (p Pvp) Missed(ctx context.Context, who kernel.CharacterID) (model.Missed, error) {
+	m, err := p.p.Missed(ctx, who)
+	if err != nil {
+		return model.Missed{}, wrap(err)
+	}
+	out := model.Missed{More: m.More}
+	for _, x := range m.Matches {
+		out.Matches = append(out.Matches, model.MissedMatch{Mode: x.Mode, Result: model.MatchOutcome(x.Outcome), Left: x.Left, Ended: x.Ended})
+	}
+	return out, nil
+}
+
+// Told marks the player told of match, its outcome handed to them live.
+func (p Pvp) Told(ctx context.Context, who kernel.CharacterID, match kernel.MatchID) error {
+	return wrap(p.p.Told(ctx, who, match))
+}
+
 // FollowDeliveries follows the module's pushes until ctx ends; a break loses only pushes, as the queue lives on.
 func (p Pvp) FollowDeliveries(ctx context.Context, gateway string, deliver func(model.PvpDelivery)) {
 	hub.Follow(ctx, func() *hub.Sub[pvp.Push] { return p.p.Subscribe(gateway) }, func(context.Context) error { return nil }, func(d pvp.Push) {
 		if push, ok := pvpPush(d.Delivery); ok {
-			deliver(model.PvpDelivery{Character: d.To, Delivery: model.Delivery{Push: push}})
+			out := model.PvpDelivery{Character: d.To, Delivery: model.Delivery{Push: push}}
+			if e, ok := d.Delivery.(pvp.Ended); ok && e.Away {
+				out.Untold = e.Match
+			}
+			deliver(out)
 		}
 	}, hub.FollowOptions{Panics: p.panics, OnBreak: func(err error) {
 		p.log.WarnContext(ctx, "pvp stream broke; subscribing again", "err", err)

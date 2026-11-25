@@ -56,6 +56,7 @@ type SocialDelivery struct {
 type PvpDelivery struct {
 	Character kernel.CharacterID
 	Delivery  Delivery
+	Untold    kernel.MatchID // a match the player was away from at its end: handed on, it's marked told; zero for any other push
 }
 
 func (SocialSubscribed) socialEvent() {}

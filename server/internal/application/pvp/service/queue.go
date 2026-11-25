@@ -813,7 +813,7 @@ func (s *Service) Record(ctx context.Context, r model.Result) {
 	for side, fs := range r.Sides {
 		for _, f := range fs {
 			if !f.Character.IsZero() {
-				s.d.Notifier.Push(f.Character, Ended{Mode: r.Mode, Outcome: outcomeFor(f, r.Winner, side+1), Battle: mode.Battle(), Wins: r.Wins, Score: r.Score, Rating: changes[f.Character], Left: f.Left})
+				s.d.Notifier.Push(f.Character, Ended{Mode: r.Mode, Outcome: outcomeFor(f, r.Winner, side+1), Battle: mode.Battle(), Wins: r.Wins, Score: r.Score, Rating: changes[f.Character], Left: f.Left, Match: r.Match, Away: f.Away})
 			}
 		}
 	}
@@ -852,7 +852,7 @@ func (s *Service) rate(r model.Result, rated bool, before map[kernel.CharacterID
 	out := model.Rated{After: map[kernel.CharacterID]model.Rating{}}
 	for k, side := range r.Sides {
 		for slot, f := range side {
-			fr := model.Fighter{Side: k + 1, Slot: slot, Character: f.Character, Tier: f.Tier, Left: f.Left, Downs: f.Downs}
+			fr := model.Fighter{Side: k + 1, Slot: slot, Character: f.Character, Tier: f.Tier, Left: f.Left, Downs: f.Downs, Untold: f.Away && !f.Character.IsZero()}
 			fr.Before = model.Rating{Mu: sides[k][slot].Mu, Sigma: sides[k][slot].Sigma}
 			fr.After = fr.Before
 			if !f.Character.IsZero() {

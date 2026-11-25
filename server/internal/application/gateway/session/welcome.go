@@ -20,7 +20,7 @@ type welcomeSection func(ctx context.Context, character kernel.CharacterID, join
 // Welcome is what the player's screen needs at once, after a login or a rejoin, built section by section. What a window opens on demand loads with that window, never here. The token is the login's to add.
 func (r *Registry) Welcome(ctx context.Context, character kernel.CharacterID, joined model.Joined) (model.Welcome, error) {
 	var w model.Welcome
-	for _, section := range []welcomeSection{joinedSection, r.inventorySection} {
+	for _, section := range []welcomeSection{joinedSection, r.inventorySection, r.missedSection} {
 		if err := section(ctx, character, joined, &w); err != nil {
 			return model.Welcome{}, err
 		}
@@ -32,6 +32,17 @@ func (r *Registry) Welcome(ctx context.Context, character kernel.CharacterID, jo
 func joinedSection(_ context.Context, _ kernel.CharacterID, joined model.Joined, w *model.Welcome) error {
 	w.Character, w.MapID, w.TickRateHz, w.Quests, w.Timers, w.ServerTime = joined.Character, joined.MapID, joined.TickRateHz, joined.Quests, joined.Timers, time.Now()
 	w.Waypoints = joined.Waypoints
+	return nil
+}
+
+// missedSection is the matches that ended while the player was away, which a reconnect just as one ends may also have had live; a failed read logs and fails no login, and leaves them for the next Welcome.
+func (r *Registry) missedSection(ctx context.Context, character kernel.CharacterID, _ model.Joined, w *model.Welcome) error {
+	m, err := r.deps.Pvp.Missed(ctx, character)
+	if err != nil {
+		r.deps.Logger.WarnContext(ctx, "the matches missed while away wait for the next Welcome", "character", character, "err", err)
+		return nil
+	}
+	w.Missed = m
 	return nil
 }
 

@@ -491,6 +491,21 @@ describe('wiring', () => {
     expect(chat.getState().lines).toHaveLength(1);
   });
 
+  it('a Welcome tells in General each match that ended while the player was away, and how many more (pvp.md section 4)', async () => {
+    const { ws } = await connectedSocket();
+    ws.push('welcome', {
+      ...welcome,
+      missedMatches: [{ mode: 'duel', result: MatchOutcome.LOSS, left: true }],
+      missedMore: 2,
+    });
+    expect(chat.getState().lines).toMatchObject([
+      { kind: 'notice', text: 'Your 1v1 match ended while you were away: it counted as a loss.' },
+      { kind: 'notice', text: '…and 2 more matches ended while you were away.' },
+    ]);
+    ws.push('welcome', welcome);
+    expect(chat.getState().lines).toHaveLength(2);
+  });
+
   it('a teammate whose connection drops is named as lost, and back once their place is theirs again; an enemy’s drop says nothing; the player’s own Welcome back into the match keeps it and its arena bar', async () => {
     const { ws } = await connectedSocket();
     const said = () => toasts.getState().toasts.map((t) => t.text);

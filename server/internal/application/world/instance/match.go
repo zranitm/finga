@@ -501,7 +501,7 @@ func (i *Instance) endMatch(winner int) {
 			if left := f.standsFor; !left.IsZero() {
 				id, f = left, mt.fighters[left] // the slot is the leaver's: pvp rates them
 			}
-			fr := model.FighterResult{Left: f.left, Downs: f.downs}
+			fr := model.FighterResult{Left: f.left, Downs: f.downs, Away: f.left || f.away != 0}
 			if f.bot != nil {
 				fr.Tier = f.bot.Tier
 			} else {

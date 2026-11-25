@@ -69,6 +69,8 @@ type Ended struct {
 	Score   [2]int
 	Rating  *RatingChange // a rated mode's
 	Left    bool          // the player left before the outcome, so lost whatever their side did
+	Match   kernel.MatchID
+	Away    bool // the player wasn't in the match at its end: one who hands this on live marks them told, or their next Welcome tells them
 }
 
 // Outcome is a match's end for a side.
