@@ -18,7 +18,6 @@ import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
 import { SLOTS_PER_TAB, inventory, tabs } from '@/state/inventory';
 import type { Tab } from '@/state/inventory';
-import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 import { wardrobe } from '@/state/wardrobe';
 
@@ -197,14 +196,11 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
     }
   };
 
-  /** Adds the piece an item holds to the wardrobe, the item used up; the wardrobe and a notice hear of it once the server has. */
-  const addToWardrobe = (item: ItemView, piece: Piece) => {
+  /** Adds the piece an item holds to the wardrobe, the item used up; PiecesAdded tells the wardrobe. */
+  const addToWardrobe = (item: ItemView) => {
     setConfirmAdd(null);
     run(item.itemId, (key) =>
-      socket.request('addToWardrobe', { idempotencyKey: key, itemId: item.itemId }).then(() => {
-        wardrobe.getState().add(piece.id);
-        toasts.getState().push(`New in your wardrobe: ${piece.name}`, 'info');
-      }),
+      socket.request('addToWardrobe', { idempotencyKey: key, itemId: item.itemId }),
     );
   };
 
@@ -431,9 +427,7 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
         {confirmAdd && (
           <div className="inventory-confirm" role="alertdialog" aria-label="Add to wardrobe">
             <span>Add {confirmAdd.piece.name} to your wardrobe? It can’t be traded after.</span>
-            <Button onClick={() => addToWardrobe(confirmAdd.item, confirmAdd.piece)}>
-              Yes, add
-            </Button>
+            <Button onClick={() => addToWardrobe(confirmAdd.item)}>Yes, add</Button>
             <Button variant="quiet" onClick={() => setConfirmAdd(null)}>
               Keep
             </Button>

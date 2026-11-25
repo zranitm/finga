@@ -48,11 +48,16 @@ func (g *Gateway) DiscardItems(ctx context.Context, s *session.Session, in model
 	})
 }
 
-// AddToWardrobe takes one of an item that holds a piece and adds the piece to the account's wardrobe, returning the slot it changed.
+// AddToWardrobe takes one of an item that holds a piece and adds the piece to the account's wardrobe, returning the slot it changed; the session hears PiecesAdded, as a grant's would. A replayed add tells of its piece again, which the client knows.
 func (g *Gateway) AddToWardrobe(ctx context.Context, s *session.Session, in model.WardrobeAdd) (model.InventoryChanged, error) {
-	return transient.Within(ctx, itemCallFor, "the item module, asked for a wardrobe add", func(ctx context.Context) (model.InventoryChanged, error) {
+	added, err := transient.Within(ctx, itemCallFor, "the item module, asked for a wardrobe add", func(ctx context.Context) (model.WardrobeAdded, error) {
 		return g.deps.Items.AddToWardrobe(ctx, s.Actor(), in)
 	})
+	if err != nil {
+		return model.InventoryChanged{}, err
+	}
+	s.Deliver(model.Delivery{Push: model.PiecesAdded{Pieces: []model.AddedPiece{added.Piece}}})
+	return added.Changed, nil
 }
 
 // TakeLoot takes picked items from the player's own pouches through the world, answering each pick: taken, or refused with why.

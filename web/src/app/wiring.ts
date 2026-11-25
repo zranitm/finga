@@ -7,6 +7,7 @@ import { RequestError } from '@/net/socket';
 import type { GameSocket, StatusEvent } from '@/net/socket';
 import { className } from '@/progression/classes';
 import { isMatchMap, mobName } from '@/progression/names';
+import { pieceById } from '@/progression/pieces';
 import { readyQuests } from '@/progression/quests';
 import { blockOf, skillById, skillCooldownTicks, specAt } from '@/progression/skills';
 import { autoAssign, hasSplit } from '@/progression/stats';
@@ -185,6 +186,14 @@ export function wireSocket(socket: GameSocket): () => void {
       waypoints.getState().find(m.d.waypoint);
       const found = mapView.getState().waypoints.find((w) => w.id === m.d.waypoint); // found where the player stands
       toasts.getState().push(`Waypoint found: ${found?.name ?? m.d.waypoint}`, 'info');
+    }),
+    socket.on('piecesAdded', (m) => {
+      for (const p of m.d.pieces) {
+        if (!wardrobe.getState().added.has(p.id)) {
+          toasts.getState().push(`New in your wardrobe: ${pieceById(p.id)?.name ?? p.id}`, 'info'); // once: a replayed add tells of its piece again
+        }
+        wardrobe.getState().add(p.id);
+      }
     }),
     socket.on('fieldBossGone', (m) => {
       fieldBoss.getState().applyGone(m.d);

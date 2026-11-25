@@ -124,6 +124,8 @@ feats:
     - The pvp module checks `pvp_wins` at a match's end.
     - Each grants as above.
 - **Notices** (step 4): a grant or an add that made a row pushes `PiecesAdded{pieces}` to the account's live session. Until then the add's answer is the only word.
+  - **Who pushes it:** the caller of the item module, on the stream it already has to the player; the item module keeps no stream of its own. Planned: a rank's or a feat's at a match's end through pvp's deliveries (4a-2), a quest's, a level's, a boss's and a promotion's through the world's (4b).
+  - **As built (4a-1):** only the add. The gateway delivers it to the adding session once the add succeeds; a refused add pushes none. A replayed add (the same idempotency key) pushes it again, and the client shows a piece's notice once each time the player enters the world.
 - **The look:**
   - `SetLook{look}` goes through the world, as `Equip` does. The world refuses a dead player (`CHARACTER_DEAD`) or one in combat (C20's 5 s clock, `IN_COMBAT`, as a trait change is).
   - The item module then checks each pick, wings too, against the player's live class:
@@ -255,7 +257,7 @@ Changing looks in combat is `IN_COMBAT` (330037), the code a trait change in com
     - the account's pieces load as a character enters the world, and again as the wardrobe opens, so the card knows a piece already collected;
     - Preview opens the wardrobe at the piece's tab, tried on over what's worn; it's greyed for a weapon look the class can't carry, which can still be added for another character;
     - once the server answers an add, the wardrobe holds the piece and its notice shows.
-- **Notices:** each new piece shows "New in your wardrobe: <name>". As built (3b), an add from the inventory shows it; `PiecesAdded` comes with step 4.
+- **Notices:** each new piece shows "New in your wardrobe: <name>". As built (4a-1), `PiecesAdded` shows it and marks the piece collected, once a piece; the inventory's add only asks.
 
 ## 8. Art
 
