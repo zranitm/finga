@@ -27,7 +27,7 @@ import { connection } from '@/state/connection';
 import { energy } from '@/state/energy';
 import { fieldBoss } from '@/state/field-boss';
 import { inventory } from '@/state/inventory';
-import { mapView } from '@/state/map-view';
+import { mapView, NO_GROUND } from '@/state/map-view';
 import { party } from '@/state/party';
 import { pouches } from '@/state/pouches';
 import { pvp } from '@/state/pvp';
@@ -236,7 +236,7 @@ describe('wiring', () => {
     expect(waypoints.getState().found).toEqual(new Set());
     mapView
       .getState()
-      .showMap('test_region', [256, 256], '', [
+      .showMap('test_region', [256, 256], NO_GROUND, [
         { id: 'west', name: 'West Field', x: 60, z: 85, y: 0, main: false },
       ]);
     ws.push('waypointFound', { waypoint: 'west' });

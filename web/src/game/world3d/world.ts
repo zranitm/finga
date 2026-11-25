@@ -71,7 +71,7 @@ import { ui } from '@/state/ui';
 import { loadArt, Fx } from '../effects/fx';
 import type { Body } from '../effects/types';
 import { warnOnce } from '../effects/warn';
-import { groundImage } from '../map-image';
+import { mapGround } from '../map-image';
 import { ActionClock, attackIn, attackTiming, skillTiming } from '../systems/actions';
 import type { ActionTiming } from '../systems/actions';
 import { aimYaw } from '../systems/aim';
@@ -728,7 +728,7 @@ export class World {
     fx.warm(); // every look's shaders built before a fight needs them
     mapView
       .getState()
-      .showMap(map.id, [map.geometry.size_x, map.geometry.size_z], groundImage(map), map.waypoints);
+      .showMap(map.id, [map.geometry.size_x, map.geometry.size_z], mapGround(map), map.waypoints);
     this.start(arriving, fx);
   }
 

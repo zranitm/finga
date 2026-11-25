@@ -4,6 +4,7 @@ import { mapView } from '@/state/map-view';
 import { settings } from '@/state/settings';
 
 import { MapMarks } from './MapMarks';
+import type { MapBox } from './MapMarks';
 
 export const MINIMAP_M = 40; // metres across
 const MINIMAP_PX = 180;
@@ -16,10 +17,15 @@ function along(at: number, size: number, view: number): number {
   return Math.min(Math.max(at - view / 2, 0), size - view);
 }
 
-/** The minimap's SVG view box round the player at (x, z) on a map of size: its west edge, its north edge as y down from the map's north, and its sides. */
-export function viewBoxOf(x: number, z: number, size: readonly [number, number]): string {
+/** The minimap's view round the player at (x, z) on a map of size. */
+export function viewOf(x: number, z: number, size: readonly [number, number]): MapBox {
   const [sx, sz] = size;
-  return `${along(x, sx, MINIMAP_M)} ${along(sz - z, sz, MINIMAP_M)} ${MINIMAP_M} ${MINIMAP_M}`;
+  return {
+    x: along(x, sx, MINIMAP_M),
+    y: along(sz - z, sz, MINIMAP_M),
+    w: MINIMAP_M,
+    h: MINIMAP_M,
+  };
 }
 
 export function Minimap() {
@@ -31,6 +37,7 @@ export function Minimap() {
   if (!shown || !me || !mapId) {
     return null;
   }
+  const view = viewOf(me.x, me.z, size);
   return (
     <div className="minimap">
       <p className="minimap-name">{withChannel(mapName(mapId), channel)}</p>
@@ -39,9 +46,9 @@ export function Minimap() {
         aria-label="Minimap"
         width={MINIMAP_PX}
         height={MINIMAP_PX}
-        viewBox={viewBoxOf(me.x, me.z, size)}
+        viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
       >
-        <MapMarks unit={MINIMAP_M / MINIMAP_PX} />
+        <MapMarks unit={MINIMAP_M / MINIMAP_PX} view={view} />
       </svg>
     </div>
   );

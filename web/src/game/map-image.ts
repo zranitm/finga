@@ -1,15 +1,14 @@
-// A map's ground seen from above, north up (map-views.md section 4): drawn once as the map loads, for the minimap and the map window to share; a region's from its bake's overview.
+// A map's ground seen from above, north up (map-views.md section 4): drawn once as the map loads, for the minimap and the map window to share; a region's is its bake's tiles.
 import { near } from '@/sim/solids';
 import { height, steep } from '@/sim/terrain';
+import type { MapGround } from '@/state/map-view';
 
 import { CLIFF, groundOf } from './world3d/grounds';
-import type { RegionMap, WorldMap } from './world3d/map';
+import type { WorldMap } from './world3d/map';
+import { bakeUrl } from './world3d/region-bake';
 
 /** The image's pixels a metre. */
 export const PX_PER_M = 4;
-
-/** A region's image's: its overview has a sample every 8 m, which finer pixels would only blur. */
-export const REGION_PX_PER_M = 1;
 
 const LOW = 0.8; // the lowest ground's share of its colour, in linear light, rising to HIGH at the highest
 const HIGH = 1.15;
@@ -49,11 +48,8 @@ function inSolid(map: WorldMap, x: number, z: number): boolean {
   });
 }
 
-/** The ground's colour shaded lighter with height across the map, steep ground darker as the 3D ground draws it, and each solid's footprint dark; a region's is its overview's. */
+/** A map's ground's colour shaded lighter with height across the map, steep ground darker as the 3D ground draws it, and each solid's footprint dark. */
 export function groundPixels(map: WorldMap): Pixels {
-  if (map.region) {
-    return regionPixels(map.region);
-  }
   const g = map.geometry;
   const t = g.terrain;
   const width = Math.round(g.size_x * PX_PER_M);
@@ -91,58 +87,15 @@ export function groundPixels(map: WorldMap): Pixels {
   return { width, height: rows, data };
 }
 
-/** A region's overview blended between its samples, its ground's colours shaded lighter with height across the region; its colours mark steep ground already. */
-function regionPixels({ region, overview: o }: RegionMap): Pixels {
-  const [sx, sz] = region.size;
-  const width = Math.round(sx * REGION_PX_PER_M);
-  const rows = Math.round(sz * REGION_PX_PER_M);
-  const [low, high] = region.heights;
-  const span = high - low;
-  const linear = Float32Array.from(
-    region.palette.flatMap((c) => [(c >> 16) & 0xff, (c >> 8) & 0xff, c & 0xff].map(toLinear)),
-  );
-  const data = new Uint8ClampedArray(width * rows * 4);
-  for (let r = 0; r < rows; r++) {
-    const fz = Math.min((sz - (r + 0.5) / REGION_PX_PER_M) / o.spacing, o.nz - 1);
-    const iz = Math.min(Math.floor(fz), o.nz - 2);
-    const tz = fz - iz;
-    for (let c = 0; c < width; c++) {
-      const fx = Math.min((c + 0.5) / REGION_PX_PER_M / o.spacing, o.nx - 1);
-      const ix = Math.min(Math.floor(fx), o.nx - 2);
-      const tx = fx - ix;
-      const s00 = iz * o.nx + ix;
-      const s01 = s00 + o.nx;
-      const w00 = (1 - tx) * (1 - tz);
-      const w10 = tx * (1 - tz);
-      const w01 = (1 - tx) * tz;
-      const w11 = tx * tz;
-      const h =
-        w00 * o.heights[s00]! +
-        w10 * o.heights[s00 + 1]! +
-        w01 * o.heights[s01]! +
-        w11 * o.heights[s01 + 1]!;
-      const shade = span > 0 ? LOW + ((HIGH - LOW) * (h - low)) / span : 1;
-      const c00 = 3 * o.colours[s00]!;
-      const c10 = 3 * o.colours[s00 + 1]!;
-      const c01 = 3 * o.colours[s01]!;
-      const c11 = 3 * o.colours[s01 + 1]!;
-      const i = (r * width + c) * 4;
-      for (let k = 0; k < 3; k++) {
-        const v =
-          w00 * linear[c00 + k]! +
-          w10 * linear[c10 + k]! +
-          w01 * linear[c01 + k]! +
-          w11 * linear[c11 + k]!;
-        data[i + k] = toSrgb(v * shade);
-      }
-      data[i + 3] = 255;
-    }
-  }
-  return { width, height: rows, data };
+/** The ground as the map views draw it: a region's baked tiles, or a map's image. */
+export function mapGround(map: WorldMap): MapGround {
+  return map.region
+    ? { kind: 'tiles', folder: bakeUrl(map.region.ref, 'tiles') }
+    : { kind: 'image', url: groundImage(map) };
 }
 
-/** The ground as an image's URL, or '' on a page that can't draw one. */
-export function groundImage(map: WorldMap): string {
+/** A map's ground as an image's URL, or '' on a page that can't draw one. */
+function groundImage(map: WorldMap): string {
   if (typeof ImageData === 'undefined') {
     return '';
   }

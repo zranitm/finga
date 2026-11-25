@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { maps } from '@/gamedata/maps';
 import { MatchPhase, MatchStateSchema, WelcomeSchema } from '@/protocol/messages';
 import { character } from '@/state/character';
-import { mapView } from '@/state/map-view';
+import { mapView, NO_GROUND } from '@/state/map-view';
 import { pvp } from '@/state/pvp';
 import { settings } from '@/state/settings';
 import { resetStores } from '@/testing/reset-stores';
@@ -22,7 +22,7 @@ function at(x: number, z: number, yaw = 0) {
 describe('Minimap', () => {
   beforeEach(() => {
     resetStores();
-    mapView.getState().showMap('forest', SIZE, '', []);
+    mapView.getState().showMap('forest', SIZE, NO_GROUND, []);
   });
 
   it('shows 40 m round the player, north up, and holds the view inside the map at its edges', () => {
@@ -86,11 +86,42 @@ describe('Minimap', () => {
     at(30, 10);
     expect(document.querySelector('.minimap-name')).toHaveTextContent(/^Forest$/);
     act(() => {
-      mapView.getState().showMap('test_region', [256, 256], '', []);
+      mapView.getState().showMap('test_region', [256, 256], NO_GROUND, []);
       mapView.getState().inChannel(2);
     });
     at(124, 80);
     expect(document.querySelector('.minimap-name')).toHaveTextContent(/^Test Region · Ch\. 2$/);
+  });
+
+  it('draws a region’s tiles at 1 m a pixel, only those its view meets, each a screen pixel over its east and south neighbours', () => {
+    render(<Minimap />);
+    act(() => {
+      mapView
+        .getState()
+        .showMap('test_region', [256, 256], { kind: 'tiles', folder: 'bake/tiles' }, []);
+    });
+    const tiles = () =>
+      [...document.querySelectorAll('image.map-tile')].map((t) =>
+        ['href', 'x', 'y', 'width'].map((a) => t.getAttribute(a)),
+      );
+    const over = String(128 + 40 / 180);
+    at(124, 80); // the view x 104–144, y 156–196: across the line between the west tiles and the east
+    expect(tiles()).toEqual([
+      ['bake/tiles/1/0_0.png', '0', '128', over],
+      ['bake/tiles/1/1_0.png', '128', '128', over],
+    ]);
+    at(124, 130); // y 106–146: four
+    expect(tiles().map(([href]) => href)).toEqual([
+      'bake/tiles/1/0_0.png',
+      'bake/tiles/1/1_0.png',
+      'bake/tiles/1/0_1.png',
+      'bake/tiles/1/1_1.png',
+    ]);
+    at(200, 200); // x 180–220, y 36–76: one
+    expect(tiles().map(([href]) => href)).toEqual(['bake/tiles/1/1_1.png']);
+    at(148, 64); // x 128–168: its west edge on the line, so the west tile's left out
+    expect(tiles().map(([href]) => href)).toEqual(['bake/tiles/1/1_0.png']);
+    expect(document.querySelectorAll('image:not(.map-tile)')).toHaveLength(0);
   });
 
   it('marks no waypoint, as the map window alone does (large-regions.md section 8)', () => {
@@ -98,7 +129,7 @@ describe('Minimap', () => {
     act(() => {
       mapView
         .getState()
-        .showMap('test_region', [256, 256], '', [
+        .showMap('test_region', [256, 256], NO_GROUND, [
           { id: 'town', name: 'Test Town', x: 124, z: 85, y: 0, main: true },
         ]);
     });
@@ -119,7 +150,7 @@ describe('Minimap', () => {
       character
         .getState()
         .applyWelcome(create(WelcomeSchema, { character: { id: 'c-ayla', name: 'Ayla' } }));
-      mapView.getState().showMap('battlefield', [140, 90], '', []);
+      mapView.getState().showMap('battlefield', [140, 90], NO_GROUND, []);
     });
     render(<Minimap />);
     at(110, 45);
