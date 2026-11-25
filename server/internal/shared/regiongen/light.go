@@ -5,7 +5,7 @@ import "math"
 // lightGroups is how many flicker groups the light map holds, a byte each per texel.
 const lightGroups = 2
 
-// lightMap is light.bin's light (underground-and-underwater.md section 4): 1 m texels over the region, row by row from the south-west, each the light from each flicker group's torches, 0 to 255. A torch's light at a texel d from it, within its reach r, is (1 − d²/r²)², where it sees the texel's ground: that ground below the flame, and no ground on the straight line between them, stepped every half cell, rising above it. So light stops at walls and rock tops stay dark.
+// lightMap is light.bin's 1 m texels: each flicker group's torch light, 0 to 255 (underground-and-underwater.md section 4).
 func (r *Region) lightMap() []byte {
 	t := r.Geometry.Terrain
 	nx, nz := int(r.Plan.Size[0]), int(r.Plan.Size[1])
@@ -39,7 +39,7 @@ func (r *Region) lightMap() []byte {
 	return out
 }
 
-// sees is whether flame f sees the ground at (x, z), d from it: no ground at the steps every step metres between them rises above the line from the flame down to that ground.
+// sees is whether flame f sees the ground at (x, z), d away: no step between rises above the line down to it.
 func sees(height func(x, z float64) float64, f Flame, x, z, ground, d, step float64) bool {
 	n := int(math.Ceil(d / step))
 	for k := 1; k < n; k++ {

@@ -138,11 +138,10 @@ func (cs *channels) touch(r *region, n int) {
 	}
 }
 
-// sweep takes off the channels found empty for idle by now, all but a region's first, and gives their ids in opened to shut; none can be picked once taken off.
-func (cs *channels) sweep(now time.Time) []string {
+// sweep takes off the channels found empty for idle by now, all but a region's first, and shuts each by its id in opened under the lock, so a pick can open its number again at once.
+func (cs *channels) sweep(now time.Time, shut func(id string)) {
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
-	var shut []string
 	for _, r := range cs.regions {
 		was := len(r.open)
 		r.open = slices.DeleteFunc(r.open, func(c *channel) bool {
@@ -152,7 +151,7 @@ func (cs *channels) sweep(now time.Time) []string {
 			case c.empty.IsZero():
 				c.empty = now
 			case now.Sub(c.empty) >= cs.idle:
-				shut = append(shut, c.id)
+				shut(c.id)
 				return true
 			}
 			return false
@@ -161,7 +160,6 @@ func (cs *channels) sweep(now time.Time) []string {
 			cs.observer.ChannelsOpen(r.m.ID, len(r.open))
 		}
 	}
-	return shut
 }
 
 // stopped tells the observer channel n of region m has run its last tick, unless a channel n has opened again since, so an old one's end says nothing of the new.
@@ -258,11 +256,7 @@ func (w *World) closeIdleChannels() {
 		case <-w.jobsCtx.Done():
 			return
 		case now := <-t.C:
-			w.deps.Panics.Do(w.jobsCtx, panics.FlowJob, func() {
-				for _, id := range w.channels.sweep(now) {
-					w.opened.shut(id)
-				}
-			}, "job", "close idle channels")
+			w.deps.Panics.Do(w.jobsCtx, panics.FlowJob, func() { w.channels.sweep(now, w.opened.shut) }, "job", "close idle channels")
 		}
 	}
 }

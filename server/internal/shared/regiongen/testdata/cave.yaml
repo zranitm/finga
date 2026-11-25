@@ -14,7 +14,7 @@ features:
   - {hall: {area: [[16, 40], [56, 40], [56, 88], [16, 88]]}}
   - {tunnel: {path: [[52, 64], [90, 58], [120, 70]], width: 6}}
   - {hall: {area: [[116, 30], [176, 34], [180, 96], [120, 100]], flat: true}}
-  - {tunnel: {path: [[176, 64], [220, 64]], width: 5}}
+  - {tunnel: {path: [[176, 64], [220, 64]], width: 6}}
   - {hall: {area: [[210, 44], [240, 44], [240, 84], [210, 84]]}}
 areas:
   - {id: deep, name: The Deep, area: [[8, 8], [248, 8], [248, 120], [8, 120]], levels: [10, 14], biome: cave, kind: hunting,
@@ -32,7 +32,7 @@ biomes:
   cave:
     colours: {flat: cave_floor, slope: cave_floor, steep: cave_rock, high: cave_rock}
     scatter:
-      - {model: rock_small, spacing: 10, away: {camp: 2, waypoint: 3}}
-      - {model: pebbles, spacing: 6}
+      - {model: rock_small, spacing: 10, away: {camp: 2, waypoint: 3, torch: 1}}
+      - {model: pebbles, spacing: 6, away: {torch: 1}}
   rock:
     colours: {flat: cave_rock, slope: cave_rock, steep: cave_rock, high: cave_rock}

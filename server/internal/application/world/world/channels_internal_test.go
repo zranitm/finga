@@ -150,6 +150,13 @@ func TestAPickCountsThoseOnTheirWay(t *testing.T) {
 	}
 }
 
+// swept is the ids cs's sweep at now shuts.
+func swept(cs *channels, now time.Time) []string {
+	var shut []string
+	cs.sweep(now, func(id string) { shut = append(shut, id) })
+	return shut
+}
+
 // A channel past the first closes once a sweep has found it empty, none on their way, for the idle time; the first never does, and a pick or a touch restarts the clock.
 func TestAChannelPastTheFirstClosesOnceIdle(t *testing.T) {
 	const idle = 5 * time.Minute
@@ -157,7 +164,7 @@ func TestAChannelPastTheFirstClosesOnceIdle(t *testing.T) {
 	r := testRegion(map[int]int{2: 1, 3: 0}, 1, 2, 3)
 	cs, heard := channelsOf(2, idle, r)
 	two, three := r.open[1], r.open[2]
-	sweep := func(at time.Duration) []string { return cs.sweep(t0.Add(at)) }
+	sweep := func(at time.Duration) []string { return swept(cs, t0.Add(at)) }
 	if shut := sweep(0); len(shut) != 0 || !two.empty.IsZero() || !three.empty.Equal(t0) {
 		t.Fatalf("first sweep shut %v; 2 empty since %v, 3 since %v", shut, two.empty, three.empty)
 	}
@@ -207,8 +214,8 @@ func TestAPlaceBelowsFirstChannelCloses(t *testing.T) {
 	r := testRegion(nil, 1)
 	r.m.Under = "green"
 	cs, heard := channelsOf(2, idle, r)
-	cs.sweep(t0)
-	if shut := cs.sweep(t0.Add(idle)); !slices.Equal(shut, []string{"vale/1"}) || len(r.open) != 0 || !slices.Equal(heard.open, []int{0}) {
+	swept(cs, t0)
+	if shut := swept(cs, t0.Add(idle)); !slices.Equal(shut, []string{"vale/1"}) || len(r.open) != 0 || !slices.Equal(heard.open, []int{0}) {
 		t.Fatalf("shut %v, left %v, heard %v open; want vale/1 shut, none left", shut, numbers(r), heard.open)
 	}
 }
@@ -266,12 +273,11 @@ func TestAShutChannelsNumberOpensAgainAtOnce(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 		synctest.Wait() // channel 2 is held inside a tick
 		now := time.Now()
-		w.channels.sweep(now)
-		shut := w.channels.sweep(now.Add(time.Minute))
-		if !slices.Equal(shut, []string{"test_region/2"}) {
-			t.Fatalf("shut %v", shut)
+		w.channels.sweep(now, w.opened.shut)
+		w.channels.sweep(now.Add(time.Minute), w.opened.shut)
+		if _, ok := w.opened.get("test_region/2"); ok {
+			t.Fatal("channel 2 is still open under its id once swept")
 		}
-		w.opened.shut(shut[0])
 		inst, landed, err := w.pickChannel(kernel.NewCharacterID(), r, instance.Dest{})
 		if err != nil {
 			t.Fatalf("channel 2 opening again while the old one winds down: %v", err)
