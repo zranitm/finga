@@ -684,8 +684,8 @@ Built with step 1, which says who watches a cell.
     - the water's colour and alpha, and the meshes going with the region;
     - region.json read with a lake, with none written as null, and refused with no water.
   - **After 5b-2's review:**
-    - **A bend tighter than the ribbon's half** folded its inside back over itself. Each vertex's reach across is now cut so its bank's edge still goes downstream by a tenth of each step, along both ends' ways. Gentle bends keep the whole reach. Test: a hairpin's triangles all face up, either way it runs.
-    - **A lake whose grown surface crosses itself,** as a U whose arms stand closer than its two banks, is refused with the plan. The generator grows the lake's area as the client does (`regiongen/surface.go`) and refuses it if two sides not meeting at a corner touch or cross. Tests: a U 3 m apart is refused, and one 10 m apart builds.
+    - **A bend tighter than the ribbon's half** folded its inside back over itself. Each vertex's reach across is now cut so its bank's edge still goes downstream by a tenth of each step, along both ends' ways. Gentle bends keep the whole reach. The cut is local to each step, so a river that coils back across itself, as a spiral, can still overlap. Test: a hairpin's triangles all face up, either way it runs.
+    - **A lake whose grown surface crosses itself,** as a U whose arms stand closer than its two banks, is refused with the plan. The generator grows the lake's area as the client does (`regiongen/surface.go`) and refuses it if two sides not meeting at a corner touch or cross. Tests: a U 3 m apart is refused, and one 10 m apart builds. The two growths are kept in step by `server/testdata/water/lakes.json`: the generator writes three lakes' rings to it (`-update`), and the client's water test grows the same areas to them.
     - **Draw order:** the water draws first of the blended meshes (`WATER_ORDER`, before the areas and the lock ring), so a near faded prop or a halo isn't hidden behind its region-wide surface.
 - **Entities:** only what the server sends (section 5).
   - Name labels show for the 40 nearest, and for party members and the lock.
@@ -693,7 +693,7 @@ Built with step 1, which says who watches a cell.
   - **As built (step 5c-1):**
     - **On every map, not only regions,** so the game has one rule; the old maps are going.
     - **Names:** another player is named while among the 40 nearest the camera's target, in the party, or locked. Those past it keep their bodies and lose only the name.
-      - After 5c-1's review: a named player keeps their name till another comes 2 m nearer than them, so the 40th in a crowd doesn't flicker (`world3d/named.ts`). With 40 or fewer shown, everyone is named with no sort.
+      - After 5c-1's review: a named player keeps their name till another comes 2 m nearer than them, so the 40th in a crowd doesn't flicker (`world3d/named.ts`). With 40 or fewer shown, everyone is named with no sort. Past 40, a frame measures each player once into arrays kept from frame to frame, and sorts only when someone crosses the 2 m band or a named player goes.
     - **Bars:** a mob's bar shows while it's locked or for 5 s after its HP last fell, whoever hit it. A heal, regeneration included, is no hit. A mob is seen anew when it comes back into sight or on a rejoin or map change, so a fall while out of sight doesn't count.
     - **The party's bars** are its HUD frames, as before. No player has a bar over their head.
     - **Tests:**

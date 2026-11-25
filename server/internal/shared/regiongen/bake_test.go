@@ -16,7 +16,7 @@ import (
 	"finga/internal/shared/sim"
 )
 
-var update = flag.Bool("update", false, "rewrite testdata/regions/bakes.sha256 from the test plan and the shipped regions")
+var update = flag.Bool("update", false, "rewrite testdata/regions/bakes.sha256 from the test plan and the shipped regions, and testdata/water/lakes.json")
 
 // reader takes little-endian values off a file, as the client will.
 type reader struct {

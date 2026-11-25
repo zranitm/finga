@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Scene } from '@babylonjs/core/scene';
@@ -8,6 +11,14 @@ import { AREA_ORDER } from './see-through';
 import { linearOf, Palette } from './toon';
 import { drawWater, lakeArrays, riverArrays } from './water';
 import type { WaterArrays } from './water';
+
+/** The lakes server/internal/shared/regiongen grows to refuse one whose surface crosses itself, each with the ring it grew. */
+const GROWN_LAKES = JSON.parse(
+  readFileSync(
+    path.resolve(process.cwd(), '..', 'server', 'testdata', 'water', 'lakes.json'),
+    'utf8',
+  ),
+) as { name: string; area: [number, number][]; ring: [number, number][] }[];
 
 type Corner = readonly [number, number];
 
@@ -172,6 +183,20 @@ describe('a region’s water', () => {
       expect(area(grown)).toBeGreaterThan(area(lake.area));
     }
   });
+
+  it.each(GROWN_LAKES)(
+    'grows $name to the ring the generator checks for crossings',
+    ({ area, ring }) => {
+      const a = lakeArrays({ area, level: 0 });
+      expect(a.positions).toHaveLength(3 * ring.length);
+      ring.forEach(([x, z], i) => {
+        expect([a.positions[3 * i], a.positions[3 * i + 2]]).toEqual([
+          expect.closeTo(x, 4),
+          expect.closeTo(z, 4),
+        ]);
+      });
+    },
+  );
 
   it('caps a sharp lake corner at 6 m out, so it doesn’t spike', () => {
     const a = lakeArrays({
