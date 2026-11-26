@@ -297,6 +297,9 @@ func (l *loader) linkMaps() error {
 			if (m.Kind != string(gamedata.Town) && m.Kind != string(gamedata.Region)) || start != "" {
 				return fmt.Errorf("%s: start is for the one town or region new characters start in", file)
 			}
+			if r, ok := l.regions[m.ID]; ok && (r.under != "" || !slices.ContainsFunc(r.areas, func(a gamedata.Area) bool { return a.Kind == gamedata.Town })) {
+				return fmt.Errorf("%s: beginning is for a region on the land with a town, where new characters start", file)
+			}
 			start = m.ID
 		}
 	}

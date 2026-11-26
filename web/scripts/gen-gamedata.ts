@@ -496,7 +496,7 @@ function pair(raw: unknown, what: string): [number, number] {
 
 // maps/*.yaml: each map's banner, kind, town, levels, art keys, spawns, portals, boss spot and chart place, none for a match's map; its geometry comes from Go (npm run maps).
 const maps = [];
-const links = new Map<string, readonly [string, string]>(); // each pair of maps a portal joins, once
+const links = new Map<string, readonly [string, string]>(); // each pair of maps a portal or gate joins, once
 for (const file of readdirSync(join(dataDir, 'maps'))
   .filter((f) => f.endsWith('.yaml'))
   .sort()) {
@@ -859,7 +859,9 @@ const files: Record<string, unknown> = {
   'statuses.ts': statuses,
   'mobs.ts': mobs,
   'maps.ts': maps,
-  'map-links.ts': [...links.values()].sort((a, b) => a.join(' ').localeCompare(b.join(' '))),
+  'map-links.ts': [...links.values()] // a line joins two charted places; a place below has none
+    .filter(([a, b]) => places[a] !== undefined && places[b] !== undefined)
+    .sort((a, b) => a.join(' ').localeCompare(b.join(' '))),
   'loot.ts': loot,
   'actions.ts': actions,
   'stats.ts': stats,

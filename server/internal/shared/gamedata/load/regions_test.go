@@ -108,6 +108,34 @@ func TestARegionMayBeWhereNewCharactersStart(t *testing.T) {
 	}
 }
 
+// Beginning is for a region on the land with a town: a place below, or a region of hunting areas alone, is refused it.
+func TestOnlyARegionOnTheLandWithATownMayBeWhereNewCharactersStart(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		files func() map[string]string
+	}{
+		{"a place below", func() map[string]string {
+			files := deep(t)
+			files["regions/hollow.yaml"] = strings.Replace(hollow, "start:", "beginning: true\nstart:", 1)
+			return files
+		}},
+		{"a region with no town", func() map[string]string {
+			files := regioned(t)
+			files["mobs.yaml"] = strings.Replace(files["mobs.yaml"], "  - id: slime_lord\n", "  - {id: slime_king, name: Slime King, boss: true, level: 5, hp: 900, attack: 12, damage: physical, physical_defense: 3, magic_defense: 2, accuracy: 8, evasion: 2, exp: 200, speed: 0.9375, radius: 1.5, height: 2.625, behavior: patrol, attacks: [{use: hop}], look: {model: green_blob}}\n  - id: slime_lord\n", 1)
+			files["regions/vale.yaml"] = strings.Replace(strings.Replace(vale, "kind: town}", "levels: [1, 5], kind: hunting,\n     boss: {at: [40, 30], radius: 4, mob: slime_king}}", 1), "start:", "beginning: true\nstart:", 1)
+			return files
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			files := tt.files()
+			files["maps/town.yaml"] = strings.Replace(files["maps/town.yaml"], "start: true\n", "", 1)
+			if _, err := load.Dir(write(t, files)); err == nil || !strings.Contains(err.Error(), "beginning is for a region on the land with a town") {
+				t.Fatalf("error %v; want it refused as a start", err)
+			}
+		})
+	}
+}
+
 func TestARegionLoadsAsAMapOfItsPlan(t *testing.T) {
 	files := regioned(t)
 	files["maps/field.yaml"] = strings.Replace(files["maps/field.yaml"], "  - {id: hunter, at: [20, 12], yaw: 180}\n", "", 1)

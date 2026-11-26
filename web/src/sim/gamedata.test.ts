@@ -436,8 +436,12 @@ describe('generated gamedata', () => {
     const joined = new Set(
       maps.flatMap((m) => m.portals.map((p) => [m.id, p.to].sort().join(' '))),
     );
-    expect(mapLinks.map((l) => l.join(' '))).toEqual([...joined].sort());
+    const charted = new Set(maps.filter((m) => m.place !== null).map((m) => m.id));
+    const lines = [...joined].filter((l) => l.split(' ').every((id) => charted.has(id)));
+    expect(mapLinks.map((l) => l.join(' '))).toEqual(lines.sort());
     expect(mapLinks.every(([a, b]) => a < b)).toBe(true);
+    expect(mapLinks.every(([a, b]) => charted.has(a) && charted.has(b))).toBe(true); // no line runs to a place the chart lacks
+    expect([...joined].filter((l) => !lines.includes(l))).toContain('greyfang_cave willowmere');
   });
 
   it('NPCs equal npcs.yaml, each at the point its map places it', () => {

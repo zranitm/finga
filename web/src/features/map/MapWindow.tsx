@@ -694,7 +694,13 @@ function World(props: WorldProps) {
   const ys = charted.map((m) => m.place[1]);
   const [x0, y0] = [Math.min(...xs) - CHART_PAD, Math.min(...ys) - CHART_PAD];
   const [w, h] = [Math.max(...xs) + CHART_PAD - x0, Math.max(...ys) + CHART_PAD - y0];
-  const at = (id: string) => charted.find((m) => m.id === id)?.place ?? [0, 0];
+  const at = (id: string) => {
+    const place = charted.find((m) => m.id === id)?.place;
+    if (!place) {
+      throw new Error(`map ${id} has no place on the chart`);
+    }
+    return place;
+  };
   const card = charted.find((m) => m.id === shown);
   const pick = charted.find((m) => m.id === picked);
   if (pick) {
