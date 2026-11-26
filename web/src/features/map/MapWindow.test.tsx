@@ -77,7 +77,10 @@ describe('MapWindow', () => {
     const slime = mobById('spore_slime')!;
     const snail = mobById('mossback_snail')!;
     expect(texts(svg, '.map-label-spawn')).toEqual(
-      expect.arrayContaining([`${slime.name} Lv ${slime.level}`, `${snail.name} Lv ${snail.level}`]),
+      expect.arrayContaining([
+        `${slime.name} Lv ${slime.level}`,
+        `${snail.name} Lv ${snail.level}`,
+      ]),
     );
     expect(texts(svg, '.map-label-portal').sort()).toEqual(['To Spore Hollow', 'To Willowmere']);
     expect(texts(svg, '.map-label-me')).toEqual(['You']);
@@ -1121,7 +1124,9 @@ describe('MapWindow', () => {
       expect(svg.getAttribute('viewBox')).toBe('0 0 1024 1024');
       await user.click(zoomIn());
       onMap('shroom_grove', 30, 10);
-      expect(screen.getByRole('img', { name: 'Shroom Grove' }).getAttribute('viewBox')).toBe('0 0 72 40'); // a new map whole
+      expect(screen.getByRole('img', { name: 'Shroom Grove' }).getAttribute('viewBox')).toBe(
+        '0 0 72 40',
+      ); // a new map whole
       expect(tab()).toEqual(['This map', 'World']);
     });
 

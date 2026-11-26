@@ -45,7 +45,7 @@ The region is 1024 m square, with mountains 72 m wide round its edge. You start 
 - **Waypoints:** 13. There's one in each town, at each area's way in, at the cliff foot and top, and at the north pass.
 - **Camps:**
   - 31, six or seven per area;
-  - normal mobs come back after 30 s and elites after 40 s; Sunmeadow keeps the Forest's 24 s and 36 s;
+  - the new areas' normal mobs come back after 30 s and their elites after 40 s; Sunmeadow's green slimes keep the Forest's 24 s and its orange mushrooms 36 s (the Forest's 30 s mesa slimes aren't carried over);
   - every camp keeps clear of the stones, the start, the gates and the NPCs, by the loader's rule.
 - **Bosses:** one per hunting area, in its far corner from the way in, two levels over the area's top (section 4).
 

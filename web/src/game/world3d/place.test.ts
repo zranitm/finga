@@ -374,7 +374,9 @@ describe('kit models', () => {
       });
     }
     for (const m of templates('fountain_flowers')) {
-      expect(m.thinInstanceCount).toBe(map.props.filter((p) => p.model === 'fountain_flowers').length);
+      expect(m.thinInstanceCount).toBe(
+        map.props.filter((p) => p.model === 'fountain_flowers').length,
+      );
     }
     expect(drawn().some((m) => m.name === 'tree_oak')).toBe(false); // no stand-in where there's a model
     expect(scene.getMeshByName('prop fountain_flowers')).toBeNull();
@@ -648,7 +650,12 @@ describe('warming', () => {
 
   it('stops warming once the place is gone', async () => {
     const ready = vi.spyOn(NodeMaterial.prototype, 'isReadyForSubMesh').mockReturnValue(false);
-    const place = await buildPlace(scene, await mapOf('crossroads'), lighting, new Models(scene, source));
+    const place = await buildPlace(
+      scene,
+      await mapOf('crossroads'),
+      lighting,
+      new Models(scene, source),
+    );
     place.dispose();
     const calls = ready.mock.calls.length;
     await new Promise((r) => setTimeout(r, 60));

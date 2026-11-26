@@ -172,12 +172,6 @@ func TestWorld(t *testing.T) {
 		runDone := make(chan error, 1)
 		go func() { runDone <- w.Run(ctx) }()
 
-		{ // a character joins the map it was saved on; an unknown map is refused
-			if err := w.join(at(t, "Cass", "crossroads"), "nowhere", "c-0", &worldtest.Sink{}); !errors.Is(err, model.ErrNoMap) {
-				t.Fatalf("unknown map: %v", err)
-			}
-		}
-
 		{ // instances run independently
 			sa, sb := &worldtest.Sink{}, &worldtest.Sink{}
 			w.enter(t, at(t, "Ayla", "crossroads"), "crossroads", "c-1", sa)

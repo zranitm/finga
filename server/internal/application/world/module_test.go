@@ -408,13 +408,13 @@ func TestJoinFailures(t *testing.T) {
 			t.Fatalf("err = %v", err)
 		}
 	})
-	t.Run("a character on a map the world does not run", func(t *testing.T) {
+	t.Run("a character on a map that's gone starts on the start map", func(t *testing.T) {
 		lost := s.character("Lost")
 		lost.MapID = "limbo"
 		s.chars.add(lost)
-		_, err := s.world.Join(s.ctx, "gw-1", s.account, world.Presence{Character: lost.ID, Conn: "c"})
-		if !errors.Is(err, kernel.ErrNoMap) {
-			t.Fatalf("err = %v", err)
+		view, err := s.world.Join(s.ctx, "gw-1", s.account, world.Presence{Character: lost.ID, Conn: "c"})
+		if err != nil || view.MapID != "willowmere" {
+			t.Fatalf("view map %q, err %v; want it on willowmere", view.MapID, err)
 		}
 	})
 }
