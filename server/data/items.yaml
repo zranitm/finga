@@ -148,6 +148,14 @@ items:
   - {id: lionfish_spine, name: Lionfish Spine, tab: etc, stars: 1, description: "Striped like its owner, and it still stings."}
   - {id: swordfish_bill, name: Swordfish Bill, tab: etc, stars: 1, description: "Long, straight and pointed, as the name promises."}
   - {id: shark_jaw, name: Goblin Shark Jaw, tab: etc, stars: 1, description: "It snaps shut if you poke it."}
+  - {id: birb_feather, name: Birb Feather, tab: etc, stars: 1, description: "Small, brown and soft at the quill."}
+  - {id: great_plume, name: Great Plume, tab: etc, stars: 1, description: "A long plume, striped like the bird it fell from."}
+  - {id: puff_spore, name: Puff Spore, tab: etc, stars: 1, description: "A pale puff that sneezes when squeezed."}
+  - {id: toad_skin, name: Toadskin, tab: etc, stars: 1, description: "Green, bumpy and always a little damp."}
+  - {id: glub_jelly, name: Glub Jelly, tab: etc, stars: 1, description: "A wobbling lump of lake jelly."}
+  - {id: glub_eye, name: Glub Eye, tab: etc, stars: 1, description: "Round and bright, and it still seems to look at you."}
+  - {id: orc_tooth, name: Orc Tooth, tab: etc, stars: 1, description: "Broad, yellowed and chipped."}
+  - {id: grey_fang, name: Grey Fang, tab: etc, stars: 1, description: "As long as a finger, and grey as the cliffs."}
   - {id: spore_jelly, name: Spore Jelly, tab: etc, stars: 1, description: "A wobbling lump that puffs spores when squeezed."}
   - {id: moss_shell, name: Moss Shell, tab: etc, stars: 1, description: "A snail shell under a thick green coat."}
   - {id: moth_dust, name: Moth Dust, tab: etc, stars: 1, description: "Pale powder that makes the nose itch."}

@@ -1,4 +1,4 @@
-# Mob types, with stats, the damage type of their attacks, patrol behavior and drop tables whose entries roll independently: the forest (levels 1 to 4) and the cave (10 to 14), then two per new map, a normal mob and its elite; the sunken shrine's fish (9 to 11 until its layout sets them) wait unplaced for it.
+# Mob types, with stats, the damage type of their attacks, patrol behavior and drop tables whose entries roll independently: the forest (levels 1 to 4) and the cave (10 to 14), then two per new map, a normal mob and its elite; the sunken shrine's fish (9 to 11 until its layout sets them) and the green region's eight new mobs wait unplaced for their regions.
 # HP and attack are set so a character who spends its points by its class's split, in the gear of the mob's level, needs as many hits to kill it, and survives as many of its hits, as its region's targets in the world's balance test; a magic attack meets the low magic defense most builds have, so it hits for less.
 # Each map drops its own band's gear at normal rates and the next band's rarely; the cave bat's rare finds are the gear of levels 20 to 24, and only the keep drops the level 30 ★6 and ★7 pieces.
 # attacks name the table's by family: slimes hop, snails charge, mice bite and flies spit, and each fish as it hunts; an elite's reach is 1.5 times as far, a boss's about twice, and a boss adds a slam it alternates with.
@@ -243,6 +243,237 @@ mobs:
       - {item: longbow, chance: 0.0225, min: 1, max: 1}
       - {item: stiletto, chance: 0.0225, min: 1, max: 1}
       - {item: crystal_wand, chance: 0.0225, min: 1, max: 1}
+  # The green region's new mobs, a normal mob and its elite for each of its four areas, unplaced till the region is (green-region.md section 4).
+  - id: oak_birb
+    name: Oak Birb
+    level: 5
+    hp: 88
+    attack: 14
+    damage: physical
+    physical_defense: 6
+    magic_defense: 3
+    accuracy: 33
+    evasion: 5
+    exp: 28
+    speed: 1.5
+    radius: 0.5625
+    height: 1
+    behavior: patrol
+    attacks: [{use: hop}]
+    look: {model: birb_blob}
+    drops:
+      - {item: birb_feather, chance: 0.9, min: 1, max: 2}
+      - {item: red_potion, chance: 0.3, min: 1, max: 1}
+      - {item: leather_vest, chance: 0.075, min: 1, max: 1}
+      - {item: wooden_pendant, chance: 0.06, min: 1, max: 1}
+      - {item: copper_ring, chance: 0.06, min: 1, max: 1}
+      - {item: copper_earrings, chance: 0.045, min: 1, max: 1}
+      - {item: iron_sword, chance: 0.0225, min: 1, max: 1}
+      - {item: hunting_bow, chance: 0.0225, min: 1, max: 1}
+      - {item: iron_dagger, chance: 0.0225, min: 1, max: 1}
+      - {item: willow_wand, chance: 0.0225, min: 1, max: 1}
+
+  - id: great_birb
+    name: Great Birb
+    elite: true
+    level: 6
+    hp: 250
+    attack: 16
+    damage: physical
+    physical_defense: 7
+    magic_defense: 4
+    accuracy: 34
+    evasion: 6
+    exp: 70
+    speed: 1.75
+    radius: 1
+    height: 1.25
+    behavior: patrol
+    super_armor: true
+    attacks: [{use: bite, reach: 1.125}]
+    look: {model: birb_big}
+    drops:
+      - {item: great_plume, chance: 0.75, min: 1, max: 1}
+      - {item: red_potion, chance: 0.75, min: 1, max: 2}
+      - {item: leather_vest, chance: 0.15, min: 1, max: 1}
+      - {item: wooden_pendant, chance: 0.12, min: 1, max: 1}
+      - {item: copper_ring, chance: 0.12, min: 1, max: 1}
+      - {item: copper_earrings, chance: 0.09, min: 1, max: 1}
+      - {item: iron_sword, chance: 0.045, min: 1, max: 1}
+      - {item: hunting_bow, chance: 0.045, min: 1, max: 1}
+      - {item: iron_dagger, chance: 0.045, min: 1, max: 1}
+      - {item: willow_wand, chance: 0.045, min: 1, max: 1}
+
+  - id: puffcap
+    name: Puffcap
+    level: 7
+    hp: 112
+    attack: 17
+    damage: magic
+    physical_defense: 6
+    magic_defense: 6
+    accuracy: 35
+    evasion: 8
+    exp: 40
+    speed: 1.25
+    radius: 0.5
+    height: 1
+    behavior: patrol
+    attacks: [{use: spit, status: {id: poison, time: 4s, power: 0.15}}]
+    look: {model: alien_blob}
+    drops:
+      - {item: puff_spore, chance: 0.9, min: 1, max: 2}
+      - {item: red_potion, chance: 0.3, min: 1, max: 1}
+      - {item: copper_earrings, chance: 0.06, min: 1, max: 1}
+      - {item: iron_sword, chance: 0.045, min: 1, max: 1}
+      - {item: hunting_bow, chance: 0.045, min: 1, max: 1}
+      - {item: iron_dagger, chance: 0.045, min: 1, max: 1}
+      - {item: willow_wand, chance: 0.045, min: 1, max: 1}
+      - {item: iron_helm, chance: 0.0225, min: 1, max: 1}
+      - {item: travelers_boots, chance: 0.0225, min: 1, max: 1}
+
+  - id: toadcap_toad
+    name: Toadcap Toad
+    elite: true
+    level: 8
+    hp: 310
+    attack: 22
+    damage: physical
+    physical_defense: 10
+    magic_defense: 5
+    accuracy: 36
+    evasion: 7
+    exp: 100
+    speed: 1.75
+    radius: 1
+    height: 1.25
+    behavior: patrol
+    super_armor: true
+    attacks: [{use: hop}]
+    look: {model: frog}
+    drops:
+      - {item: toad_skin, chance: 0.75, min: 1, max: 1}
+      - {item: red_potion, chance: 0.75, min: 1, max: 2}
+      - {item: copper_earrings, chance: 0.12, min: 1, max: 1}
+      - {item: iron_sword, chance: 0.09, min: 1, max: 1}
+      - {item: hunting_bow, chance: 0.09, min: 1, max: 1}
+      - {item: iron_dagger, chance: 0.09, min: 1, max: 1}
+      - {item: willow_wand, chance: 0.09, min: 1, max: 1}
+      - {item: iron_helm, chance: 0.045, min: 1, max: 1}
+      - {item: travelers_boots, chance: 0.045, min: 1, max: 1}
+
+  - id: glub
+    name: Glub
+    level: 9
+    hp: 140
+    attack: 21
+    damage: magic
+    physical_defense: 7
+    magic_defense: 7
+    accuracy: 36
+    evasion: 11
+    exp: 52
+    speed: 2.25
+    radius: 0.5625
+    height: 1
+    behavior: patrol
+    attacks: [{use: spit}]
+    look: {model: glub}
+    drops:
+      - {item: glub_jelly, chance: 0.9, min: 1, max: 2}
+      - {item: red_potion, chance: 0.375, min: 1, max: 2}
+      - {item: iron_helm, chance: 0.06, min: 1, max: 1}
+      - {item: travelers_boots, chance: 0.06, min: 1, max: 1}
+      - {item: chain_leggings, chance: 0.045, min: 1, max: 1}
+      - {item: hunters_gloves, chance: 0.0225, min: 1, max: 1}
+      - {item: chain_mail, chance: 0.015, min: 1, max: 1}
+
+  - id: twin_glub
+    name: Twin Glub
+    elite: true
+    level: 10
+    hp: 440
+    attack: 24
+    damage: magic
+    physical_defense: 9
+    magic_defense: 9
+    accuracy: 37
+    evasion: 12
+    exp: 130
+    speed: 2.25
+    radius: 0.75
+    height: 1.25
+    behavior: patrol
+    super_armor: true
+    attacks: [{use: spit, status: {id: slow, time: 2s}}]
+    look: {model: glub_evolved}
+    drops:
+      - {item: glub_eye, chance: 0.75, min: 1, max: 1}
+      - {item: red_potion, chance: 0.75, min: 1, max: 2}
+      - {item: iron_helm, chance: 0.12, min: 1, max: 1}
+      - {item: travelers_boots, chance: 0.12, min: 1, max: 1}
+      - {item: chain_leggings, chance: 0.09, min: 1, max: 1}
+      - {item: hunters_gloves, chance: 0.045, min: 1, max: 1}
+      - {item: chain_mail, chance: 0.03, min: 1, max: 1}
+
+  - id: cliff_orc
+    name: Cliff Orc
+    level: 11
+    hp: 196
+    attack: 27
+    damage: physical
+    physical_defense: 14
+    magic_defense: 7
+    accuracy: 39
+    evasion: 9
+    exp: 71
+    speed: 2
+    radius: 0.9375
+    height: 1.5
+    behavior: patrol
+    attacks: [{use: charge}]
+    look: {model: orc}
+    drops:
+      - {item: orc_tooth, chance: 0.75, min: 1, max: 1}
+      - {item: red_potion, chance: 0.375, min: 1, max: 2}
+      - {item: chain_leggings, chance: 0.06, min: 1, max: 1}
+      - {item: hunters_gloves, chance: 0.06, min: 1, max: 1}
+      - {item: chain_mail, chance: 0.045, min: 1, max: 1}
+      - {item: steel_sword, chance: 0.0225, min: 1, max: 1}
+      - {item: longbow, chance: 0.0225, min: 1, max: 1}
+      - {item: stiletto, chance: 0.0225, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.0225, min: 1, max: 1}
+
+  - id: greyfang_raptor
+    name: Greyfang Raptor
+    elite: true
+    level: 12
+    hp: 560
+    attack: 30
+    damage: physical
+    physical_defense: 16
+    magic_defense: 8
+    accuracy: 41
+    evasion: 10
+    exp: 180
+    speed: 2.5
+    radius: 1
+    height: 1.25
+    behavior: patrol
+    super_armor: true
+    attacks: [{use: bite, reach: 1.125, status: {id: bleed, time: 3s, power: 0.15}}]
+    look: {model: dino}
+    drops:
+      - {item: grey_fang, chance: 0.75, min: 1, max: 1}
+      - {item: red_potion, chance: 0.75, min: 1, max: 2}
+      - {item: chain_leggings, chance: 0.12, min: 1, max: 1}
+      - {item: hunters_gloves, chance: 0.12, min: 1, max: 1}
+      - {item: chain_mail, chance: 0.09, min: 1, max: 1}
+      - {item: steel_sword, chance: 0.045, min: 1, max: 1}
+      - {item: longbow, chance: 0.045, min: 1, max: 1}
+      - {item: stiletto, chance: 0.045, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.045, min: 1, max: 1}
+
   - id: spore_slime
     name: Spore Slime
     level: 15
