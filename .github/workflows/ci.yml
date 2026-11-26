@@ -53,7 +53,8 @@ jobs:
       - name: no breaking change to the contracts
         run: make breaking BREAKING_AGAINST="$BASE"
 
-  go:
+  # Every test with coverage and no race detector: the counters are plain, and the 80% floor holds here.
+  go-cover:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -61,15 +62,14 @@ jobs:
         with:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
-      # setup-go's cache is the plain build whichever job saved it first; the -race build is this job's own, saved from main's pushes alone.
+      # setup-go's cache is the plain build whichever job saved it first; the coverage build is this job's own, saved from main's pushes alone.
       - uses: actions/cache/restore@v6
         with:
           path: ~/.cache/go-build
-          key: go-race-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-${{ github.sha }}
+          key: go-cover-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-${{ github.sha }}
           restore-keys: |
-            go-race-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-
-            go-race-${{ runner.os }}-${{ runner.arch }}-
-      # Every test once but the race-only ones, with the race detector and coverage, the crash test included: the game is killed mid-pickup and restarts.
+            go-cover-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-
+            go-cover-${{ runner.os }}-${{ runner.arch }}-
       - run: make cover-go-cover
       - uses: actions/upload-artifact@v7
         if: always()
@@ -81,10 +81,10 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
           path: ~/.cache/go-build
-          key: go-race-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-${{ github.sha }}
+          key: go-cover-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-${{ github.sha }}
 
-  # The tests cover-go skips (RACE_ONLY_TESTS in the Makefile), run under -race alone beside go: they cover nothing the rest don't, and under coverage they were most of its time.
-  go-race-only:
+  # Every test once with the race detector and no coverage, the crash test included: the game is killed mid-pickup and restarts. Run apart from go-cover: the detector checks each of coverage's counters, which made the two together far slower than their sum.
+  go-race:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -92,20 +92,26 @@ jobs:
         with:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
-      # Its own -race build cache, as go's: it builds only these packages, so the two don't share a key.
+      # The -race build is this job's own, saved from main's pushes alone.
       - uses: actions/cache/restore@v6
         with:
           path: ~/.cache/go-build
-          key: go-race-only-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-${{ github.sha }}
+          key: go-race-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-${{ github.sha }}
           restore-keys: |
-            go-race-only-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-
-            go-race-only-${{ runner.os }}-${{ runner.arch }}-
+            go-race-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-
+            go-race-${{ runner.os }}-${{ runner.arch }}-
       - run: make cover-go-race
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: go-race-times-${{ github.run_attempt }}
+          path: server/go-race-times.tsv
+          if-no-files-found: warn
       - uses: actions/cache/save@v6
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
           path: ~/.cache/go-build
-          key: go-race-only-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-${{ github.sha }}
+          key: go-race-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-${{ github.sha }}
 
   # On arm64: the 3D movement vectors replayed by Go and TypeScript, the 3D maps' geometry and walk grids and the region bakes hashed, as checked on amd64, and no fused multiply-add where those numbers are made.
   sim-arm64:

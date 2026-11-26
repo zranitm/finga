@@ -73,23 +73,20 @@ test-web:
 # Go coverage counts every test in the module, end-to-end ones included, minus generated stringer output.
 cover: cover-go cover-web   ## coverage for both halves; each fails below its 80% floor
 
-# Tests cover-go runs apart, under -race alone: the race detector slows coverage's atomic counters 6-14x in their loops, and they cover nothing other tests don't.
-RACE_ONLY_TESTS := TestBalance|TestFieldBosses|TestBakeHashes|TestEveryMobReachesAPlayerAnywhereInItsLeash|TestEveryShippedMapCanBeCrossed|TestNoSpawnSeesAnArrivalOrAnNPC|TestNoSolidLeavesAGapByTheTerrainOnlyAPlayerFits|TestEveryFordIsCrossedBothWays|TestARiverIsCrossedOnlyAtItsFordsAndCauseways|TestNoRegionHasAOneWayPocket|TestNoPlayerClimbsACliff|TestEveryShippedRegionCanBeCrossed|TestNoPlayerReachesARegionsRingOrDeepWater|TestNoMoveGetsOntoARegionsRing|TestABotWalksToEveryPortalNPCAndHuntOnItsMaps|TestABotKeepsOffWillowmeresBossesAndComesOutAtItsGates|TestTheShippedRegionsRunOnTheRealData|TestAPileChasingAMovingPlayerAttacksOnceItCan
-RACE_ONLY_PKGS := ./internal/model/world/ ./internal/shared/regiongen/ ./internal/shared/nav/ ./internal/application/world/mobs/ ./cmd/bot/ ./test/
-
-# cover-go is both halves of the Go coverage run; CI runs each as a job of its own, so the race-only tests run beside the rest.
+# cover-go runs every test twice, apart: with coverage and no race detector, then with the race detector and no coverage. Together they cost far less than one run with both, as the detector checks each of coverage's atomic counters: 36x slower than plain in the region generation. CI runs each as a job of its own.
 cover-go: cover-go-cover cover-go-race
 
 # cover-go-cover also writes server/go-test-times.tsv: when each package and test ran, slowest first.
 cover-go-cover:
-	cd $(SERVER) && $(GO) build -o bin/ ./cmd/testtimes && $(PGTEST) ./bin/testtimes -o go-test-times.tsv $(GO) test -json -race -parallel $(GO_PARALLEL) -coverpkg=./config/...,./internal/...,./pkg/...,./cmd/migrate/app/... -coverprofile=coverage.out -skip '^($(RACE_ONLY_TESTS))$$' $(GO_PKGS)
+	cd $(SERVER) && $(GO) build -o bin/ ./cmd/testtimes && $(PGTEST) ./bin/testtimes -o go-test-times.tsv $(GO) test -json -parallel $(GO_PARALLEL) -coverpkg=./config/...,./internal/...,./pkg/...,./cmd/migrate/app/... -coverprofile=coverage.out $(GO_PKGS)
 	@cd $(SERVER) && grep -v '_string.go' coverage.out > coverage.tmp && mv coverage.tmp coverage.out
 	@cd $(SERVER) && $(GO) tool cover -func=coverage.out | tail -1
 	@total=$$(cd $(SERVER) && $(GO) tool cover -func=coverage.out | tail -1 | awk '{print $$3}' | tr -d '%'); \
 	awk -v t="$$total" -v m="$(COVER_MIN)" 'BEGIN { if (t+0 < m+0) { printf "coverage %.1f%% is below the %d%% floor\n", t, m; exit 1 } printf "coverage %.1f%% meets the %d%% floor\n", t, m }'
 
+# cover-go-race writes server/go-race-times.tsv the same way.
 cover-go-race:
-	cd $(SERVER) && $(PGTEST) $(GO) test -race -run '^($(RACE_ONLY_TESTS))$$' $(RACE_ONLY_PKGS)
+	cd $(SERVER) && $(GO) build -o bin/ ./cmd/testtimes && $(PGTEST) ./bin/testtimes -o go-race-times.tsv $(GO) test -json -race -parallel $(GO_PARALLEL) $(GO_PKGS)
 
 cover-web:
 	$(NPM) run coverage
