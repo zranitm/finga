@@ -37,7 +37,7 @@ func (l *Looter) Step(w *Walk, to gamedata.Point) error {
 	}
 	at := nav.Point{X: l.X, Z: l.Z}
 	stalled := w.stall.Stalled(at, l.onGround, w.held)
-	in := w.walker.Keys(m, m.Grid(), data.Movement().Radius, at, nav.Point{X: to.X, Z: to.Z}, l.worldTime(), stalled)
+	in := w.walker.KeepKeys(m, m.Grid(), data.Movement().Radius, at, nav.Point{X: to.X, Z: to.Z}, l.worldTime(), stalled)
 	w.held, w.decided, w.started = in, l.tick, true
 	return l.Input(&clientv1.Input{Left: in.Left, Right: in.Right, Up: in.Up, Down: in.Down, Jump: in.Jump})
 }
