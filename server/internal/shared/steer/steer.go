@@ -16,6 +16,7 @@ const (
 	mostReach     = 1.0         // metres, however far the body moved
 	repathEvery   = time.Second // a path is found again this often, or sooner when its end moves
 	repathMoved   = 1.0         // metres its end may move before the path is found again
+	strayReach    = 3.0         // metres from its next waypoint a body that keeps its path may be before the path is found again: waypoints are a cell apart and the walker turns to the next within a metre, so past this a knockback, a slide or a hop has taken it off the path
 	stallMoved    = 0.05        // metres a body pressing a way must move in stallFor decisions not to have stalled
 	stallFor      = 4           // decisions
 	asideFor      = 2           // decisions a stalled walker steps aside
@@ -50,7 +51,7 @@ func wayOf(in sim.Input) [2]int {
 	return [2]int{key(in.Right, in.Left), key(in.Up, in.Down)}
 }
 
-// Walker turns nav paths into keys, finding the path again when its end moves, a second on, or after a stall. Its zero value is ready.
+// Walker turns nav paths into keys, finding the path again when its end moves, a second on, or after a stall; KeepKeys finds it again only when its end moves, after a stall, or when the body has left it. Its zero value is ready.
 type Walker struct {
 	finder nav.Finder
 	path   []nav.Point
@@ -66,7 +67,20 @@ type Walker struct {
 
 // Keys walks a body of radius r from from toward to on m by its walk grid g, round what's in the way, jumping then stepping aside at a stall.
 func (w *Walker) Keys(m *gamedata.Map, g *nav.Grid, r float64, from, to nav.Point, now time.Duration, stalled bool) sim.Input {
-	if w.mapID != m.ID || nav.Distance(w.to, to) > repathMoved || now-w.found > repathEvery || (!w.none && (stalled || len(w.path) == 0)) {
+	return w.keys(m, g, r, from, to, now, stalled, false)
+}
+
+// KeepKeys is Keys for a walker that keeps and follows its path: it looks again only when its end moves or its map changes, after a stall (a solid or a mob in the way), and when the body is farther than strayReach from its next waypoint, as a knockback, a slide or a hop leaves it. A walker with no way looks again each second, as Keys' does. The test bots, the load bots and the e2e kit walk with it, and the game's own match bots with Keys.
+func (w *Walker) KeepKeys(m *gamedata.Map, g *nav.Grid, r float64, from, to nav.Point, now time.Duration, stalled bool) sim.Input {
+	return w.keys(m, g, r, from, to, now, stalled, true)
+}
+
+func (w *Walker) keys(m *gamedata.Map, g *nav.Grid, r float64, from, to nav.Point, now time.Duration, stalled, keep bool) sim.Input {
+	again := now-w.found > repathEvery
+	if keep {
+		again = w.none && again || len(w.path) > 0 && nav.Distance(from, w.path[0]) > strayReach
+	}
+	if w.mapID != m.ID || nav.Distance(w.to, to) > repathMoved || again || (!w.none && (stalled || len(w.path) == 0)) {
 		leash := math.Hypot(m.Geometry.SizeX, m.Geometry.SizeZ)
 		w.path = w.finder.Path(g, from, to, r+gamedata.BotPathMargin, from, leash)
 		if len(w.path) == 0 {

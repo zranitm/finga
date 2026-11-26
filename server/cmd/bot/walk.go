@@ -55,7 +55,7 @@ func (b *bot) walkTo(to nav.Point, within float64) bool {
 	if stalled {
 		b.count(func(s *stats) { s.stalls++ })
 	}
-	b.input(clientKeys(b.walk.Keys(m, m.Grid(), b.data.Movement().Radius, b.at(), to, time.Since(b.born), stalled)))
+	b.input(clientKeys(b.walk.KeepKeys(m, m.Grid(), b.data.Movement().Radius, b.at(), to, time.Since(b.born), stalled)))
 	return false
 }
 

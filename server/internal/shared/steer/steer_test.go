@@ -186,6 +186,70 @@ func TestAWalkerAfterAJumpStillWalksRound(t *testing.T) {
 	}
 }
 
+// A walker that keeps its path looks again only when its end moves a metre, after a stall, and when the body has left the path; a minute of walking along it, and the same end, do not. Keys looks again each second, as before.
+func TestAKeepingWalkerLooksAgainOnlyWhenItsEndMovesItStallsOrItLeavesThePath(t *testing.T) {
+	m, r := ledgeMap(t)
+	from, to := nav.Point{X: 10, Z: 10}, nav.Point{X: 40, Z: 10}
+	start := 1000 * time.Second
+	begin := func() *Walker {
+		wk := &Walker{}
+		wk.KeepKeys(m, m.Grid(), r, from, to, start, false)
+		if wk.found != start || len(wk.path) == 0 {
+			t.Fatalf("no first search: found %v, path %d long", wk.found, len(wk.path))
+		}
+		return wk
+	}
+	for _, c := range []struct {
+		name  string
+		after time.Duration
+		at    func(wk *Walker) nav.Point
+		end   nav.Point
+		stall bool
+		again bool
+	}{
+		{"a minute on along the path, the same end", time.Minute, func(*Walker) nav.Point { return from }, to, false, false},
+		{"its end 0.9 m on", time.Second / 2, func(*Walker) nav.Point { return from }, nav.Point{X: to.X + 0.9, Z: to.Z}, false, false},
+		{"its end 1.1 m on", time.Second / 2, func(*Walker) nav.Point { return from }, nav.Point{X: to.X + 1.1, Z: to.Z}, false, true},
+		{"a stall", time.Second / 2, func(*Walker) nav.Point { return from }, to, true, true},
+		{"the body 2.5 m from its next waypoint", time.Second / 2, func(wk *Walker) nav.Point {
+			return nav.Point{X: wk.path[0].X, Z: wk.path[0].Z + strayReach - 0.5}
+		}, to, false, false},
+		{"the body 3.5 m from its next waypoint, as a knockback leaves it", time.Second / 2, func(wk *Walker) nav.Point {
+			return nav.Point{X: wk.path[0].X, Z: wk.path[0].Z + strayReach + 0.5}
+		}, to, false, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			wk := begin()
+			at := c.at(wk)
+			wk.KeepKeys(m, m.Grid(), r, at, c.end, start+c.after, c.stall)
+			if looked := wk.found != start; looked != c.again {
+				t.Fatalf("looked again %v, want %v", looked, c.again)
+			}
+		})
+	}
+	var wk Walker
+	wk.Keys(m, m.Grid(), r, from, to, start, false)
+	if wk.Keys(m, m.Grid(), r, from, to, start+time.Minute, false); wk.found == start {
+		t.Fatal("Keys didn't look again a minute on")
+	}
+}
+
+// With no way to its end a keeping walker looks again each second, as one that doesn't keep its path does, since where it stands may have changed what it can reach.
+func TestAKeepingWalkerWithNoWayLooksAgainASecondOn(t *testing.T) {
+	m, r := ledgeMap(t)
+	from, onTop, now := nav.Point{X: 40, Z: 28}, nav.Point{X: 50, Z: 28}, 1000*time.Second // a ledge only a jump gets onto
+	var wk Walker
+	if wk.KeepKeys(m, m.Grid(), r, from, onTop, now, false); !wk.Lost() {
+		t.Fatal("not lost")
+	}
+	if wk.KeepKeys(m, m.Grid(), r, from, onTop, now+repathEvery/2, false); wk.found != now {
+		t.Fatal("looked again within the second")
+	}
+	if wk.KeepKeys(m, m.Grid(), r, from, onTop, now+repathEvery+time.Millisecond, false); wk.found == now {
+		t.Fatal("didn't look again a second on")
+	}
+}
+
 func axis(plus, minus bool) float64 {
 	switch {
 	case plus && !minus:
