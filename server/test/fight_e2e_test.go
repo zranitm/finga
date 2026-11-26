@@ -136,14 +136,15 @@ func TestFightAndGrow(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, stone, _ := data.Waypoint("sunmeadow_east") // the nearest to the slimes' circle: 133 m off, where Sunmeadow's other stone is 153 m
+		willow, _ := data.Map("willowmere")
+		_, up, _ := data.GetUp(willow, e2etest.Spots(t).AmongSlimes.X, e2etest.Spots(t).AmongSlimes.Z) // where the data puts a get-up, the nearest stone's arrival
 		token, id := s.CreateCharacter(t, "joan", "Joan", "warrior")
 		s.Place(t, id, "willowmere", e2etest.Spots(t).AmongSlimes, 1, 10) // one hit from death; level 1 with 10 EXP
 		p, _ := s.Hello(t, token, id)
 		p.DieAmongSlimes(t)
 		r := p.Expect("Respawned").Data.(*clientv1.Respawned)
-		if r.GetCharacterId() != id || r.GetMapId() != "willowmere" || r.GetHp() != 72 || r.GetX() != stone.Arrive.X || r.GetZ() != stone.Arrive.Z {
-			t.Fatalf("respawned %+v; want 72 HP in Willowmere beside the stone at %+v", r, stone.Arrive)
+		if r.GetCharacterId() != id || r.GetMapId() != "willowmere" || r.GetHp() != 72 || r.GetX() != up.X || r.GetZ() != up.Z {
+			t.Fatalf("respawned %+v; want 72 HP in Willowmere beside the stone at %+v", r, up)
 		}
 		// The death penalty took 5% of level 1's 20 EXP (10 → 9); a get-up on the same map isn't checkpointed at once, so a restart's flush saves it with the stone's position.
 		s.Restart()
@@ -153,8 +154,8 @@ func TestFightAndGrow(t *testing.T) {
 		if err := s.DB.QueryRow(context.Background(), `SELECT exp, map_id, pos_x, pos_z FROM characters WHERE id = $1`, id).Scan(&exp, &mapID, &x, &z); err != nil {
 			t.Fatal(err)
 		}
-		if exp != 9 || mapID != "willowmere" || x != stone.Arrive.X || z != stone.Arrive.Z {
-			t.Fatalf("saved exp %d on map %s at (%v, %v), want 9 on willowmere at %+v", exp, mapID, x, z, stone.Arrive)
+		if exp != 9 || mapID != "willowmere" || x != up.X || z != up.Z {
+			t.Fatalf("saved exp %d on map %s at (%v, %v), want 9 on willowmere at %+v", exp, mapID, x, z, up)
 		}
 	})
 

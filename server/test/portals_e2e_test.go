@@ -25,8 +25,12 @@ func TestTravel(t *testing.T) {
 	l.Await(300*time.Millisecond, nil)
 
 	t.Run("the-town-is-safe", func(t *testing.T) {
-		if len(snap.Mobs) != 0 {
-			t.Fatalf("the town has %d mobs", len(snap.Mobs))
+		start, _ := load.Dir(s.Data) // the mobs in view stand in hunting areas, none in the town
+		m, _ := start.Map("willowmere")
+		for _, mob := range snap.Mobs {
+			if area := m.AreaGrid.Holding(float64(mob.X), float64(mob.Z)); area >= 0 && m.Areas[area].Kind == gamedata.Town {
+				t.Fatalf("a mob at (%v, %v) stands in the town %s", mob.X, mob.Z, m.Areas[area].ID)
+			}
 		}
 		if err := l.Attack(0); err != nil {
 			t.Fatal(err)
