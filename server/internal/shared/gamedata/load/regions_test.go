@@ -108,7 +108,7 @@ func TestARegionMayBeWhereNewCharactersStart(t *testing.T) {
 	}
 }
 
-// Beginning is for a region on the land with a town: a place below, or a region of hunting areas alone, is refused it.
+// Beginning is for a region with a town: a place below, which has none, or a region of hunting areas alone, is refused it.
 func TestOnlyARegionOnTheLandWithATownMayBeWhereNewCharactersStart(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
@@ -129,7 +129,7 @@ func TestOnlyARegionOnTheLandWithATownMayBeWhereNewCharactersStart(t *testing.T)
 		t.Run(tt.name, func(t *testing.T) {
 			files := tt.files()
 			files["maps/town.yaml"] = strings.Replace(files["maps/town.yaml"], "start: true\n", "", 1)
-			if _, err := load.Dir(write(t, files)); err == nil || !strings.Contains(err.Error(), "beginning is for a region on the land with a town") {
+			if _, err := load.Dir(write(t, files)); err == nil || !strings.Contains(err.Error(), "beginning is for a region with a town") {
 				t.Fatalf("error %v; want it refused as a start", err)
 			}
 		})

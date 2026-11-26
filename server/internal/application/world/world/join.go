@@ -257,7 +257,8 @@ func (w *World) stranded(ctx context.Context, c model.Character) model.Character
 	}
 	start := w.data.StartTown()
 	w.deps.Logger.WarnContext(ctx, "a character saved on a map that's gone starts at the start map", "character_id", c.ID, "map_id", c.MapID, "start", start.ID)
-	c.MapID, c.X, c.Y, c.Z, c.Yaw = start.ID, start.PlayerSpawn.X, 0, start.PlayerSpawn.Z, float32(start.SpawnYaw)
+	c.MapID, c.X, c.Z, c.Yaw = start.ID, start.PlayerSpawn.X, start.PlayerSpawn.Z, float32(start.SpawnYaw)
+	c.Y = start.Geometry.Terrain.Height(c.X, c.Z)
 	return c
 }
 

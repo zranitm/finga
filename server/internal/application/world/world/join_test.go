@@ -162,12 +162,16 @@ func TestJoinByID(t *testing.T) {
 	})
 	t.Run("a character saved on a map that's gone starts at the start map", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			w, stop := joinWorld(t, chars, &fakeStarter{})
+			var logs bytes.Buffer
+			w, stop := joinWorld(t, chars, &fakeStarter{}, slog.New(slog.NewJSONHandler(&logs, nil)))
 			defer stop()
 			s := &worldtest.Sink{}
 			view, err := w.Join(context.Background(), account, lost.ID, "conn-1", s)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if strings.Count(logs.String(), `"level":"WARN"`) != 1 || strings.Contains(logs.String(), "can't hold") {
+				t.Fatalf("log %q; want the one warning, for the map that's gone", logs.String())
 			}
 			start := worldtest.LoadData(t).StartTown()
 			time.Sleep(worldtest.TickInterval)
