@@ -170,12 +170,12 @@ func TestJoinByID(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if strings.Count(logs.String(), `"level":"WARN"`) != 1 || strings.Contains(logs.String(), "can't hold") {
-				t.Fatalf("log %q; want the one warning, for the map that's gone", logs.String())
-			}
 			start := worldtest.LoadData(t).StartTown()
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
+			if strings.Count(logs.String(), `"level":"WARN"`) != 1 || strings.Contains(logs.String(), "can't hold") {
+				t.Fatalf("log %q; want the one warning, for the map that's gone", logs.String())
+			}
 			if at := joinedAt(t, s, lost.ID); view.MapID != start.ID || math.Abs(at.X-start.PlayerSpawn.X) > 3 || math.Abs(at.Z-start.PlayerSpawn.Z) > 3 {
 				t.Fatalf("joined %s at %+v; want %s by its spawn %v", view.MapID, at, start.ID, start.PlayerSpawn)
 			}
