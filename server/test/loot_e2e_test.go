@@ -482,7 +482,16 @@ func TestCrashDuringTakes(t *testing.T) {
 			wg.Wait()
 			var seen []string
 			for k, h := range hunters {
-				seen = append(seen, fmt.Sprintf("%s: %d inventory changes, %d pouches seen, %d loot messages, %d refused, %d mobs in view, at (%.1f, %.1f)", names[k][1], took[k], len(h.Seen), len(h.Loots), len(h.Failures), len(h.Mobs), h.X, h.Z))
+				var pouches, nearest []string
+				for _, pv := range h.Seen {
+					pouches = append(pouches, fmt.Sprintf("(%.1f, %.1f, %.1f away, gone %v)", pv.GetX(), pv.GetZ(), math.Hypot(pv.GetX()-h.X, pv.GetZ()-h.Z), h.Gone[pv.GetId()]))
+				}
+				for _, m := range h.Mobs {
+					if d := math.Hypot(m.GetX()-h.X, m.GetZ()-h.Z); d < 3 {
+						nearest = append(nearest, fmt.Sprintf("%s (%.1f, %.1f)", m.GetType(), m.GetX(), m.GetZ()))
+					}
+				}
+				seen = append(seen, fmt.Sprintf("%s: %d inventory changes, %d pouches seen %v, %d loot messages, %d refused, %d mobs in view, within 3 m: %v, hp %d, on ground %v, at (%.1f, %.1f)", names[k][1], took[k], len(h.Seen), pouches, len(h.Loots), len(h.Failures), len(h.Mobs), nearest, h.HP, h.Standing(), h.X, h.Z))
 			}
 			t.Fatalf("%d drops taken in the hunters' 20 s of ticks, want 3 before the kill:\n%s", gained(), strings.Join(seen, "\n"))
 		case <-time.After(100 * time.Millisecond):
