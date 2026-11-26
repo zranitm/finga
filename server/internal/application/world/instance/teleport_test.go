@@ -68,7 +68,7 @@ func TestATeleportTakesThePlayerToTheMapsSpawnAtTheChannelsEnd(t *testing.T) {
 		s := join(t, inst, p)
 		cps.Drain()
 
-		start := teleport(t, inst, s, p.ID, "forest", 0)
+		start := teleport(t, inst, s, p.ID, "crossroads", 0)
 		n := channelTicks(data)
 		if n != 60 {
 			t.Fatalf("the shipped channel is %d ticks, want 60: 3 s at 50 ms", n)
@@ -78,18 +78,18 @@ func TestATeleportTakesThePlayerToTheMapsSpawnAtTheChannelsEnd(t *testing.T) {
 			t.Fatalf("handed off %+v before the channel's end", got)
 		}
 		tick(1)
-		forest, _ := data.Map("forest")
+		crossroads, _ := data.Map("crossroads")
 		got := worldtest.Of[model.Teleport](s)
-		if len(got) != 1 || got[0].Tick != start+uint64(n) || got[0].MapID != "forest" ||
-			got[0].X != forest.PlayerSpawn.X || got[0].Z != forest.PlayerSpawn.Z || got[0].Yaw != float32(forest.SpawnYaw) {
-			t.Fatalf("teleports %+v; want one to forest's spawn %+v at yaw %v on tick %d, %d after the press", got, forest.PlayerSpawn, forest.SpawnYaw, start+uint64(n), n)
+		if len(got) != 1 || got[0].Tick != start+uint64(n) || got[0].MapID != "crossroads" ||
+			got[0].X != crossroads.PlayerSpawn.X || got[0].Z != crossroads.PlayerSpawn.Z || got[0].Yaw != float32(crossroads.SpawnYaw) {
+			t.Fatalf("teleports %+v; want one to crossroads's spawn %+v at yaw %v on tick %d, %d after the press", got, crossroads.PlayerSpawn, crossroads.SpawnYaw, start+uint64(n), n)
 		}
-		if tr.mu.Lock(); !reflect.DeepEqual(tr.to, []string{"forest"}) {
-			t.Errorf("moved to %v, want forest", tr.to)
+		if tr.mu.Lock(); !reflect.DeepEqual(tr.to, []string{"crossroads"}) {
+			t.Errorf("moved to %v, want crossroads", tr.to)
 		}
 		tr.mu.Unlock()
-		if cp := cps.Drain(); len(cp) != 1 || cp[0].MapID != "forest" || cp[0].X != forest.PlayerSpawn.X || cp[0].Z != forest.PlayerSpawn.Z {
-			t.Errorf("checkpoints %+v, want one on forest at its spawn", cp)
+		if cp := cps.Drain(); len(cp) != 1 || cp[0].MapID != "crossroads" || cp[0].X != crossroads.PlayerSpawn.X || cp[0].Z != crossroads.PlayerSpawn.Z {
+			t.Errorf("checkpoints %+v, want one on crossroads at its spawn", cp)
 		}
 		if c := cancels(s); len(c) != 0 {
 			t.Errorf("cancelled %+v", c)
@@ -106,9 +106,8 @@ func TestATeleportIsRefused(t *testing.T) {
 		{"to a map that isn't one", "atlantis", "", model.ErrTeleportUnknownMap},
 		{"to a match's map, which a match alone reaches", "ring", "", model.ErrTeleportUnknownMap},
 		{"to a region by its map id, which its waypoints alone reach", "test_region", "", model.ErrTeleportUnknownMap},
-		{"to the player's own map", "town", "", model.ErrTeleportSameMap},
 		{"to a waypoint that isn't one", "", "atlantis", model.ErrTeleportUnknownWaypoint},
-		{"to a waypoint that isn't one, beside a map that is", "forest", "atlantis", model.ErrTeleportUnknownWaypoint},
+		{"to a waypoint that isn't one, beside a map that is", "crossroads", "atlantis", model.ErrTeleportUnknownWaypoint},
 		{"to a waypoint not found, outside a main town", "", "west", model.ErrTeleportNotFound},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -127,6 +126,23 @@ func TestATeleportIsRefused(t *testing.T) {
 			})
 		})
 	}
+	t.Run("to the player's own map", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			data := worldtest.LoadData(t)
+			here, _ := data.Map("crossroads")
+			inst, stop := worldtest.RunMap(t, data, here, nil, worldtest.Options{Transfer: &transferRecorder{}})
+			defer stop()
+			tick(1)
+			p := worldtest.NewPlayer("Ayla", here.PlayerSpawn.X, here.PlayerSpawn.Z)
+			p.Connection = "c1"
+			join(t, inst, p)
+			done := teleportAsync(inst, p.ID, "crossroads", "", 0)
+			tick(1)
+			if err := <-done; !errors.Is(err, model.ErrTeleportSameMap) {
+				t.Fatalf("err = %v, want %v", err, model.ErrTeleportSameMap)
+			}
+		})
+	})
 	t.Run("while one channels", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			data := worldtest.LoadData(t)
@@ -136,15 +152,15 @@ func TestATeleportIsRefused(t *testing.T) {
 			p := atSpawn(data, "Ayla")
 			p.Connection = "c1"
 			s := join(t, inst, p)
-			start := teleport(t, inst, s, p.ID, "forest", 0)
-			done := teleportAsync(inst, p.ID, "cave", "", 0)
+			start := teleport(t, inst, s, p.ID, "crossroads", 0)
+			done := teleportAsync(inst, p.ID, "shroom_grove", "", 0)
 			tick(1)
 			if err := <-done; !errors.Is(err, model.ErrTeleportBusy) {
 				t.Fatalf("err = %v, want ErrTeleportBusy", err)
 			}
 			tick(channelTicks(data))
-			if got := worldtest.Of[model.Teleport](s); len(got) != 1 || got[0].MapID != "forest" || got[0].Tick != start+uint64(channelTicks(data)) {
-				t.Fatalf("teleports %+v; want the first channel's, to forest, on time", got)
+			if got := worldtest.Of[model.Teleport](s); len(got) != 1 || got[0].MapID != "crossroads" || got[0].Tick != start+uint64(channelTicks(data)) {
+				t.Fatalf("teleports %+v; want the first channel's, to crossroads, on time", got)
 			}
 		})
 	})
@@ -156,7 +172,7 @@ func TestATeleportIsRefused(t *testing.T) {
 			p := warriorAt(nextToSlime)
 			p.HP, p.Connection = 1, "c1"
 			untilDead(t, join(t, inst, p), p.ID)
-			done := teleportAsync(inst, p.ID, "forest", "", 0)
+			done := teleportAsync(inst, p.ID, "crossroads", "", 0)
 			tick(1)
 			if err := <-done; !errors.Is(err, model.ErrTeleportDead) {
 				t.Fatalf("err = %v, want ErrTeleportDead", err)
@@ -175,9 +191,9 @@ func TestATeleportToAWaypointLandsBesideIt(t *testing.T) {
 		found           bool
 		want            instance.Dest
 	}{
-		{"from an old map to its region's main town, unfound", "town", 0, "", "town", false, instance.Dest{ID: "test_region"}},
-		{"from an old map to one found", "town", 0, "", "west", true, instance.Dest{ID: "test_region"}},
-		{"named beside a map id", "town", 0, "forest", "west", true, instance.Dest{ID: "test_region"}},
+		{"from an old map to its region's main town, unfound", "crossroads", 0, "", "town", false, instance.Dest{ID: "test_region"}},
+		{"from an old map to one found", "crossroads", 0, "", "west", true, instance.Dest{ID: "test_region"}},
+		{"named beside a map id", "crossroads", 0, "shroom_grove", "west", true, instance.Dest{ID: "test_region"}},
 		{"within the region, back into the player's channel", "test_region", 2, "", "west", true, instance.Dest{ID: "test_region", Channel: 2, Switch: true}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -244,7 +260,7 @@ func TestATeleportIsCancelled(t *testing.T) {
 				p.Connection = "c1"
 				s := join(t, inst, p)
 				stepInput(inst, p.ID, 1)
-				teleport(t, inst, s, p.ID, "forest", 1)
+				teleport(t, inst, s, p.ID, "crossroads", 1)
 				stepInput(inst, p.ID, 2) // no key held
 				if c := cancels(s); len(c) != 0 {
 					t.Fatalf("cancelled %+v by an input with no key held", c)
@@ -266,7 +282,7 @@ func TestATeleportIsCancelled(t *testing.T) {
 			s := join(t, inst, p)
 			_ = inst.Input(p.ID, 1, sim.Input{Right: true}, 0)
 			tick(1)
-			start := teleport(t, inst, s, p.ID, "forest", 1) // and no input after it
+			start := teleport(t, inst, s, p.ID, "crossroads", 1) // and no input after it
 			// Her x as of the last frame by tick that has her: a frame names only who changed.
 			at := func(tick uint64) float64 {
 				x := p.X
@@ -308,7 +324,7 @@ func TestATeleportIsCancelled(t *testing.T) {
 			p := warriorAt(outOfSight)
 			p.Connection = "c1"
 			s := join(t, inst, p)
-			teleport(t, inst, s, p.ID, "forest", 0)
+			teleport(t, inst, s, p.ID, "crossroads", 0)
 			_ = inst.Attack(p.ID, 0, model.EntityRef{})
 			tick(1)
 			if len(eventsOf[model.AttackUsed](s)) != 1 {
@@ -326,7 +342,7 @@ func TestATeleportIsCancelled(t *testing.T) {
 			tick(1)
 			p := caster(outOfSight)
 			s := join(t, inst, p)
-			teleport(t, inst, s, p.ID, "forest", 0)
+			teleport(t, inst, s, p.ID, "crossroads", 0)
 			if err := cast(inst, p.ID, "strike"); err != nil {
 				t.Fatal(err)
 			}
@@ -343,7 +359,7 @@ func TestATeleportIsCancelled(t *testing.T) {
 			p := warriorAt(nextToSlime)
 			p.Connection = "c1"
 			s := join(t, inst, p)
-			teleport(t, inst, s, p.ID, "forest", 0)
+			teleport(t, inst, s, p.ID, "crossroads", 0)
 			hit := mobHitsOn(t, s, p.ID, 1)[0]
 			if hit.Miss {
 				t.Fatal("the slime missed")
@@ -361,7 +377,7 @@ func TestATeleportIsCancelled(t *testing.T) {
 			p := warriorAt(nextToSlime)
 			p.HP, p.Connection = 1, "c1"
 			s := join(t, inst, p)
-			teleport(t, inst, s, p.ID, "forest", 0)
+			teleport(t, inst, s, p.ID, "crossroads", 0)
 			untilDead(t, s, p.ID)
 			died := eventsOf[model.Died](s)
 			if got := cancels(s); len(got) != 1 || got[0].Reason != model.TeleportDied || got[0].Tick != died[0].Tick {
@@ -371,7 +387,7 @@ func TestATeleportIsCancelled(t *testing.T) {
 	})
 }
 
-// handedOffOnTime checks the channel that started on tick start took the player to forest at its end, uncancelled.
+// handedOffOnTime checks the channel that started on tick start took the player to crossroads at its end, uncancelled.
 func handedOffOnTime(t *testing.T, s *worldtest.Sink, data *gamedata.Data, start uint64) {
 	t.Helper()
 	if c := cancels(s); len(c) != 0 {
@@ -381,8 +397,8 @@ func handedOffOnTime(t *testing.T, s *worldtest.Sink, data *gamedata.Data, start
 	if left := int(end - s.Last().Tick); left > 0 {
 		tick(left)
 	}
-	if got := worldtest.Of[model.Teleport](s); len(got) != 1 || got[0].MapID != "forest" || got[0].Tick != end {
-		t.Fatalf("teleports %+v; want one to forest on tick %d", got, end)
+	if got := worldtest.Of[model.Teleport](s); len(got) != 1 || got[0].MapID != "crossroads" || got[0].Tick != end {
+		t.Fatalf("teleports %+v; want one to crossroads on tick %d", got, end)
 	}
 }
 
@@ -398,8 +414,8 @@ func TestATeleportRunsOnThrough(t *testing.T) {
 			for seq := range uint32(3) {
 				_ = inst.Input(p.ID, seq+1, sim.Input{Right: true}, 0)
 			}
-			start := teleport(t, inst, s, p.ID, "forest", 3) // queued behind the three
-			_ = inst.Input(p.ID, 4, sim.Input{}, 0)          // the key let go after the press; the gap after it steps nothing on
+			start := teleport(t, inst, s, p.ID, "crossroads", 3) // queued behind the three
+			_ = inst.Input(p.ID, 4, sim.Input{}, 0)              // the key let go after the press; the gap after it steps nothing on
 			tick(4)
 			if v, _ := s.Own(p.ID); v.State.X <= p.X {
 				t.Fatalf("at x %v; want the three inputs stepped east of %v", v.State.X, p.X)
@@ -416,7 +432,7 @@ func TestATeleportRunsOnThrough(t *testing.T) {
 			p := warriorAt(nextToSlime)
 			p.Connection = "c1"
 			s := join(t, inst, p)
-			start := teleport(t, inst, s, p.ID, "forest", 0)
+			start := teleport(t, inst, s, p.ID, "crossroads", 0)
 			if got := mobHitsOn(t, s, p.ID, 1); !got[0].Miss {
 				t.Fatalf("hit %+v, want a MISS", got[0])
 			}
@@ -432,7 +448,7 @@ func TestATeleportRunsOnThrough(t *testing.T) {
 			p := atSpawn(data, "Ayla")
 			p.HP, p.Connection = 10, "c1"
 			s := join(t, inst, p)
-			start := teleport(t, inst, s, p.ID, "forest", 0)
+			start := teleport(t, inst, s, p.ID, "crossroads", 0)
 			done := useAsync(inst, p.ID, "red_potion")
 			tick(2)
 			if err := <-done; err != nil {
@@ -452,7 +468,7 @@ func TestATeleportRunsOnThrough(t *testing.T) {
 			p := besideNPC(t, data, "Ayla", "town_guide")
 			p.Connection = "c1"
 			s := join(t, inst, p)
-			start := teleport(t, inst, s, p.ID, "forest", 0)
+			start := teleport(t, inst, s, p.ID, "crossroads", 0)
 			if err := inst.Talk(context.Background(), p.ID, "c1", "town_guide"); err != nil {
 				t.Fatal(err)
 			}
@@ -471,13 +487,15 @@ func TestATeleportIsDroppedSilently(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			data := worldtest.LoadData(t)
 			tr := &transferRecorder{}
-			inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Transfer: tr})
+			here, _ := data.Map("crossroads")
+			inst, stop := worldtest.RunMap(t, data, here, nil, worldtest.Options{Transfer: tr})
 			defer stop()
-			portal := data.StartTown().Portals[0]
+			tick(1)
+			portal := here.Portals[0]
 			p := worldtest.NewPlayer("Ayla", portal.At.X, portal.At.Z)
 			p.Connection = "c1"
 			s := join(t, inst, p)
-			teleport(t, inst, s, p.ID, "cave", 0)
+			teleport(t, inst, s, p.ID, "shroom_grove", 0)
 			_ = inst.EnterPortal(p.ID)
 			tick(channelTicks(data) + 1)
 			if got := worldtest.Of[model.Teleport](s); len(got) != 1 || got[0].MapID != portal.TargetMap {
@@ -497,7 +515,7 @@ func TestATeleportIsDroppedSilently(t *testing.T) {
 			p := atSpawn(data, "Ayla")
 			p.Connection = "c1"
 			first := join(t, inst, p)
-			teleport(t, inst, first, p.ID, "forest", 0)
+			teleport(t, inst, first, p.ID, "crossroads", 0)
 			again := join(t, inst, p)
 			tick(channelTicks(data))
 			for _, s := range []*worldtest.Sink{first, again} {
@@ -519,7 +537,7 @@ func TestATeleportIsDroppedSilently(t *testing.T) {
 			p := atSpawn(data, "Ayla")
 			p.Connection = "c1"
 			s := join(t, inst, p)
-			teleport(t, inst, s, p.ID, "forest", 0)
+			teleport(t, inst, s, p.ID, "crossroads", 0)
 			if err := inst.Leave(p.ID, "c1", nil); err != nil {
 				t.Fatal(err)
 			}
@@ -542,7 +560,7 @@ func TestATeleportWaitsForAnItemCallInFlight(t *testing.T) {
 		p := atSpawn(data, "Ayla")
 		p.Connection = "c1"
 		s := join(t, inst, p)
-		start := teleport(t, inst, s, p.ID, "forest", 0)
+		start := teleport(t, inst, s, p.ID, "crossroads", 0)
 		done := equipAsync(inst, p.ID, "c1")
 		tick(channelTicks(data) + 2)
 		if moved(tr) != 0 {
@@ -555,8 +573,8 @@ func TestATeleportWaitsForAnItemCallInFlight(t *testing.T) {
 		}
 		tick(1)
 		got := worldtest.Of[model.Teleport](s)
-		if len(got) != 1 || got[0].MapID != "forest" || got[0].Tick <= start+uint64(channelTicks(data)) {
-			t.Fatalf("teleports %+v; want one to forest once the equip settled", got)
+		if len(got) != 1 || got[0].MapID != "crossroads" || got[0].Tick <= start+uint64(channelTicks(data)) {
+			t.Fatalf("teleports %+v; want one to crossroads once the equip settled", got)
 		}
 		tr.mu.Lock()
 		defer tr.mu.Unlock()

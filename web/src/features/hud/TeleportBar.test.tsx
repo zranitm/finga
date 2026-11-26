@@ -16,10 +16,10 @@ describe('TeleportBar', () => {
     render(<TeleportBar />);
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
     act(() => {
-      teleport.getState().start({ map: 'forest' });
+      teleport.getState().start({ map: 'shroom_grove' });
     });
     const bar = screen.getByRole('status');
-    expect(bar).toHaveTextContent('Teleporting to Forest');
+    expect(bar).toHaveTextContent('Teleporting to Shroom Grove');
     const fill = bar.querySelector<HTMLElement>('.teleport-bar-fill')!;
     expect([limits.teleport_channel_ms, fill.style.animationDuration]).toEqual([3000, '3000ms']);
     act(() => {
@@ -47,14 +47,14 @@ describe('TeleportBar', () => {
   it('draws a new channel’s fill afresh, from empty', () => {
     render(<TeleportBar />);
     act(() => {
-      teleport.getState().start({ map: 'forest' });
+      teleport.getState().start({ map: 'shroom_grove' });
     });
     const first = document.querySelector('.teleport-bar-fill');
     act(() => {
       teleport.getState().end();
-      teleport.getState().start({ map: 'cave' });
+      teleport.getState().start({ map: 'greyfang_cave' });
     });
-    expect(screen.getByRole('status')).toHaveTextContent('Teleporting to Cave');
+    expect(screen.getByRole('status')).toHaveTextContent('Teleporting to Greyfang Cave');
     expect(document.querySelector('.teleport-bar-fill')).not.toBe(first);
   });
 });

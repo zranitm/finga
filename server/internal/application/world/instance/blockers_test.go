@@ -150,7 +150,7 @@ func TestAPlayerPinnedPastAPortalCanStillLeaveByIt(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		m := arena(t, time.Hour)
 		m.Geometry.Boxes = append(m.Geometry.Boxes, sim.Box{X: 20, Z: 32, HalfW: 20, HalfD: 1, UX: 1, Top: 4}) // a wall from z 31
-		m.Portals = []gamedata.Portal{{Name: "out", At: gamedata.Point{X: 20, Z: 28.5}, Radius: 1, TargetMap: "town", TargetPortal: "to_forest"}}
+		m.Portals = []gamedata.Portal{{Name: "out", At: gamedata.Point{X: 20, Z: 28.5}, Radius: 1, TargetMap: "crossroads", TargetPortal: "from_heights"}}
 		m.Spawns[0].At = gamedata.Point{X: 20, Z: 24}
 		worldtest.Gridded(t, m)
 		tr := &transferRecorder{}

@@ -586,7 +586,7 @@ for (const file of readdirSync(join(dataDir, 'maps'))
   });
   placeNpcs(file, id, m.npcs);
 }
-// regions/*.yaml: each region on the map list as a map of kind region, its own town and on no chart, so no link either: its name and sky, the region above a place below, its camps as spawns, its gates as portals, and its areas with their corners, levels and bosses for the map views; its bake draws its ground (large-regions.md section 4).
+// regions/*.yaml: each region on the map list as a map of kind region, its own town, on the chart only if world.yaml places it (a region on the land may be): its name and sky, the region above a place below, its camps as spawns, its gates as portals, and its areas with their corners, levels and bosses for the map views; its bake draws its ground (large-regions.md section 4).
 const regionsDir = join(dataDir, 'regions');
 for (const file of existsSync(regionsDir)
   ? readdirSync(regionsDir)
@@ -600,7 +600,7 @@ for (const file of existsSync(regionsDir)
     name: must(r.name, isString, `${file} name`),
     kind: 'region',
     town: id,
-    start: false,
+    start: r.beginning === true, // where new characters start
     ground: null,
     sky: must(must(r.look, isRecord, `${file} look`).sky, isString, `${file} look.sky`),
     min_level: null,
@@ -620,20 +620,23 @@ for (const file of existsSync(regionsDir)
       const g = must(raw, isRecord, `a ${file} gate`);
       const name = must(g.name, isString, `a ${file} gate name`);
       const [x, z] = pair(g.at, `${file} gate ${name} at`);
+      const to = must(
+        must(g.to, isRecord, `${file} gate ${name} to`).region,
+        isString,
+        `${file} gate ${name} to region`,
+      );
+      const link = [id, to].sort() as [string, string];
+      links.set(link.join(' '), link);
       return {
         name,
         x,
         z,
         radius: must(g.radius, isNumber, `${file} gate ${name} radius`),
-        to: must(
-          must(g.to, isRecord, `${file} gate ${name} to`).region,
-          isString,
-          `${file} gate ${name} to region`,
-        ),
+        to,
       };
     }),
     boss: null,
-    place: null,
+    place: places[id] === undefined ? null : pair(places[id], `world.yaml place of ${id}`),
     areas: (r.areas === undefined ? [] : must(r.areas, isArray, `${file} areas`)).map((raw) => {
       const a = must(raw, isRecord, `a ${file} area`);
       const name = must(a.id, isString, `a ${file} area id`);

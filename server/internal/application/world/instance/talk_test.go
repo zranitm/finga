@@ -64,7 +64,7 @@ func TestTalk(t *testing.T) {
 				t.Fatalf("%s: %v, want %v", c.name, err, c.want)
 			}
 		}
-		worldtest.Walk(inst, p.ID, 0, sim.Input{Left: true}, 10) // 2.5 m aside: out of reach
+		worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 10) // 2.5 m aside: out of reach
 		if err := talk("c1", "town_guide"); !errors.Is(err, model.ErrNpcOutOfReach) {
 			t.Fatalf("out of reach: %v", err)
 		}
@@ -125,6 +125,13 @@ func besideNPC(t *testing.T, data *gamedata.Data, name, id string) model.Player 
 	}
 	sin, cos := math.Sincos(npc.Yaw)
 	return worldtest.NewPlayer(name, npc.At.X+sin, npc.At.Z+cos)
+}
+
+// townOf is the start region run as a town, which has the town's plain walking speed and no hunting.
+func townOf(data *gamedata.Data) *gamedata.Map {
+	town := *data.StartTown()
+	town.Kind = gamedata.Town
+	return &town
 }
 
 // atSpawn is a new player named name at the start town's spawn.

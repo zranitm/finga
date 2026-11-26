@@ -327,16 +327,16 @@ func TestAPlayerJoiningSeesTheBossOrItsTimeBack(t *testing.T) {
 	})
 }
 
-// A standing boss fights only once hit, so a player walking the forest's way from the town to the cave, stopping 5 s right by King Slime in its sight, is never chased: it keeps to its circle and attacks nobody.
+// A standing boss fights only once hit, so a player walking a field's way, stopping 5 s right by King Slime in its sight, is never chased: it keeps to its circle and attacks nobody.
 func TestAPlayerWalkingPastACalmBossIsNeverChased(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		shipped, _ := data.Map("forest")
-		forest := *shipped
+		forest := arenaOf(t, time.Hour, 80)
 		forest.Spawns = nil // the king alone
-		inst, stop := worldtest.RunMap(t, data, &forest, nil, worldtest.Options{NewRoll: worldtest.Rolls(0.5), Items: newFakeItems()})
+		forest.Boss = &gamedata.BossSpot{Mob: "king_slime", At: gamedata.Point{X: 30, Z: 20}, Radius: 6}
+		inst, stop := worldtest.RunMap(t, data, forest, nil, worldtest.Options{NewRoll: worldtest.Rolls(0.5), Items: newFakeItems()})
 		defer stop()
-		walker := worldtest.NewPlayer("Walker", forest.PlayerSpawn.X, 19) // a metre south of where players appear, clear of the oak at (16, 20)
+		walker := worldtest.NewPlayer("Walker", 2, 19)
 		s := join(t, inst, walker)
 		king, spot := kingOf(t, s), forest.Boss
 		closest, stopped := math.Inf(1), 0

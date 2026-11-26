@@ -415,10 +415,10 @@ func TestARegionsChannelReachesThePartyAndTheTicks(t *testing.T) {
 		if got := parties.updated(); len(got) == 0 || got[0].MapID != "vale" || got[0].Channel != 2 || ticks.Channel() != 2 {
 			t.Fatalf("party updates %+v, ticks of channel %d; want vale's channel 2 for both", got, ticks.Channel())
 		}
-		teleport(t, inst, s, p.ID, "forest", 0)
+		teleport(t, inst, s, p.ID, "crossroads", 0)
 		tick(channelTicks(data) + 1)
-		if got := parties.updated(); got[len(got)-1].MapID != "forest" || got[len(got)-1].Channel != 0 {
-			t.Fatalf("the hand-off told %+v; want the forest, with no channel", got[len(got)-1])
+		if got := parties.updated(); got[len(got)-1].MapID != "crossroads" || got[len(got)-1].Channel != 0 {
+			t.Fatalf("the hand-off told %+v; want crossroads, with no channel", got[len(got)-1])
 		}
 	})
 }
@@ -439,7 +439,7 @@ func TestAWaypointFoundIsToldOnceKeptAndCarried(t *testing.T) {
 		if got := eventsOf[model.WaypointFound](s); len(got) != 1 || got[0].Waypoint != "town" {
 			t.Fatalf("found %+v; want the town's once", got)
 		}
-		teleport(t, inst, s, p.ID, "forest", 0)
+		teleport(t, inst, s, p.ID, "crossroads", 0)
 		tick(channelTicks(data) + 1)
 		tr.mu.Lock()
 		defer tr.mu.Unlock()

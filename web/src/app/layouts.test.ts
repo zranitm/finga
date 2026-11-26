@@ -24,12 +24,12 @@ describe('layoutOf', () => {
 
   it('gives a map’s size from its JSON, fetched once however often it’s asked for', async () => {
     const fetched = counted();
-    const [a, b] = await Promise.all([layoutOf('cave'), layoutOf('cave')]);
-    expect(await layoutOf('cave')).toBe(a);
+    const [a, b] = await Promise.all([layoutOf('greyfang_cave'), layoutOf('greyfang_cave')]);
+    expect(await layoutOf('greyfang_cave')).toBe(a);
     expect(b).toBe(a);
     expect(a.size).toEqual([expect.any(Number), expect.any(Number)]);
     expect(a.size[0]).toBeGreaterThan(0);
-    expect(fetched('cave')).toBe(1);
+    expect(fetched('greyfang_cave')).toBe(1);
   });
 
   it('fetches a map again after a fetch that failed', async () => {

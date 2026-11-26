@@ -280,12 +280,12 @@ func TestJoinSendsTheSnapshotThenFramesOnTheGatewaysStream(t *testing.T) {
 	gw := s.gateway("gw-1")
 	ayla := s.character("Ayla")
 	view := s.join(t, "gw-1", "conn-1", ayla)
-	if view.ID != ayla.ID || view.Name != "Ayla" || view.MapID != "town" || view.MaxHP != 144 || view.Stats.STR != 7 {
+	if view.ID != ayla.ID || view.Name != "Ayla" || view.MapID != "willowmere" || view.MaxHP != 144 || view.Stats.STR != 7 {
 		t.Fatalf("view %+v", view)
 	}
 	first := until(t, gw, "the first delivery", func(world.Delivery) bool { return true })
 	snap, ok := first.Event.(world.Snapshot)
-	if !ok || first.Character != ayla.ID || first.Conn != "conn-1" || snap.MapID != "town" {
+	if !ok || first.Character != ayla.ID || first.Conn != "conn-1" || snap.MapID != "willowmere" {
 		t.Fatalf("first delivery %+v", first)
 	}
 	if _, ok := playerIn(snap.Players, ayla.ID); !ok {
@@ -642,7 +642,7 @@ func TestPromoteAnswersWithItsRefusals(t *testing.T) {
 	town := s.data.StartTown()
 	ayla := model.Character{
 		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("beginner"), Level: 3,
-		HP: 120, MapID: town.ID, X: 36, Z: 13, // beside the Warrior Trainer
+		HP: 120, MapID: town.ID, X: 550, Z: 126, // beside the Warrior Trainer
 	}
 	s.chars.add(ayla)
 	s.join(t, "gw-1", "c1", ayla)
@@ -727,7 +727,7 @@ func TestTalkSendsTheDialogComputedFromTheLoadedLog(t *testing.T) {
 	s := newStack(t)
 	stream := s.gateway("gw-1")
 	ayla := model.Character{
-		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MapID: "town", X: 16, Z: 14, // beside the town guide
+		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MapID: "willowmere", X: 491, Z: 150, // beside the town guide
 		Quests: model.Quests{"slime_cleanup": {Status: model.QuestFinished, TimesFinished: 1}},
 	}
 	s.chars.add(ayla)
@@ -756,7 +756,7 @@ func TestQuestsOverTheWorld(t *testing.T) {
 	s := newStack(t)
 	stream := s.gateway("gw-1")
 	ayla := model.Character{
-		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MapID: "town", X: 16, Z: 14, // beside the town guide
+		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MapID: "willowmere", X: 491, Z: 150, // beside the town guide
 		Quests: model.Quests{"slime_cleanup": {Status: model.QuestFinished, TimesFinished: 1}},
 	}
 	s.chars.add(ayla)
@@ -790,7 +790,7 @@ func TestARefusedHandInKeepsTheItemModulesReason(t *testing.T) {
 	s := newStackWearing(t, wears{err: fmt.Errorf("%w: no gel in the Etc tab", kernel.ErrNotEnoughItems)})
 	s.gateway("gw-1")
 	ayla := model.Character{
-		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MapID: "town", X: 16, Z: 14, // beside the town guide
+		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MapID: "willowmere", X: 491, Z: 150, // beside the town guide
 		Quests: model.Quests{"sticky_samples": {Status: model.QuestActive, Progress: []int{0}}},
 	}
 	s.chars.add(ayla)

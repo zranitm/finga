@@ -310,18 +310,23 @@ describe('generated gamedata', () => {
   });
 
   it('maps carry their kind and art keys, a hunting map its town and level range', () => {
-    expect(maps.find((m) => m.id === 'town')).toMatchObject({
+    expect(maps.find((m) => m.id === 'crossroads')).toMatchObject({
       kind: 'town',
-      town: 'town',
-      start: true,
+      town: 'crossroads',
+      start: false,
       min_level: null,
     });
-    expect(maps.find((m) => m.id === 'cave')).toMatchObject({
+    expect(maps.find((m) => m.id === 'shroom_grove')).toMatchObject({
       kind: 'hunting',
-      town: 'town',
+      town: 'crossroads',
       start: false,
-      min_level: 10,
-      max_level: 14,
+      min_level: 15,
+      max_level: 16,
+    });
+    expect(maps.find((m) => m.id === 'willowmere')).toMatchObject({
+      kind: 'region',
+      town: 'willowmere',
+      start: true,
     });
   });
 
@@ -357,13 +362,15 @@ describe('generated gamedata', () => {
     }
   });
 
-  it('a region is a map of its plan: its own town, the region above a place below, its camps as spawns and gates as portals, its areas with their corners, levels and bosses, no boss of its own, on no chart', () => {
+  it('a region is a map of its plan: its own town, the region above a place below, its camps as spawns and gates as portals, its areas with their corners, levels and bosses, no boss of its own, a place only if world.yaml gives one', () => {
     const regions = maps.filter((m) => m.kind === 'region');
+    const worldPlaces = yaml('world.yaml').places as Record<string, [number, number]>;
     expect(regions.map((m) => m.id)).toContain('test_region');
     for (const m of regions) {
       const raw = yaml(`regions/${m.id}.yaml`) as {
         name: string;
         look: { sky: string };
+        beginning?: boolean;
         under?: string;
         camps?: { mob: string; at: [number, number]; radius: number }[];
         gates?: { name: string; at: [number, number]; radius: number; to: { region: string } }[];
@@ -381,7 +388,7 @@ describe('generated gamedata', () => {
         name: raw.name,
         kind: 'region',
         town: m.id,
-        start: false,
+        start: raw.beginning === true,
         ground: null,
         sky: raw.look.sky,
         min_level: null,
@@ -401,7 +408,7 @@ describe('generated gamedata', () => {
           to: g.to.region,
         })),
         boss: null,
-        place: null,
+        place: worldPlaces[m.id] ?? null,
         areas: raw.areas.map((a) => ({
           id: a.id,
           name: a.name,
@@ -439,10 +446,12 @@ describe('generated gamedata', () => {
     expect(npcs.npcs.map((n) => n.id)).toEqual(
       (raw.npcs as Record<string, unknown>[]).map((n) => n.id),
     );
-    const placed = (yaml('maps/town.yaml').npcs as { id: string; at: number[]; yaw: number }[])[0]!;
+    const placed = (
+      yaml('regions/willowmere.yaml').npcs as { id: string; at: number[]; yaw: number }[]
+    )[0]!;
     const npc = npcs.npcs.find((n) => n.id === placed.id);
     expect(npc).toMatchObject({
-      map: 'town',
+      map: 'willowmere',
       x: placed.at[0],
       z: placed.at[1],
       yaw: (placed.yaw * Math.PI) / 180,

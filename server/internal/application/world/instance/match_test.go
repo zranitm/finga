@@ -328,7 +328,7 @@ func TestAMatchRefusesItemsGearPointsTraitsAndTeleports(t *testing.T) {
 			"stat points":  inst.SpendPoints(ctx, ayla.ID, c, 0, gamedata.Stats{STR: 1}),
 			"skill points": inst.SpendSkillPoints(ctx, ayla.ID, c, 0, map[string]int{"strike": 1}),
 			"a trait":      inst.ChooseTrait(ctx, ayla.ID, c, "strike", "x"),
-			"a teleport":   inst.Teleport(ctx, ayla.ID, c, "town", "", 0),
+			"a teleport":   inst.Teleport(ctx, ayla.ID, c, "crossroads", "", 0),
 		} {
 			if !errors.Is(err, model.ErrInMatch) {
 				t.Errorf("%s: %v, want ErrInMatch", name, err)

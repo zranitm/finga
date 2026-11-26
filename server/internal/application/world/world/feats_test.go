@@ -109,7 +109,7 @@ func trainee(data *gamedata.Data) model.Character {
 	trainer, _ := data.NPC("warrior_trainer")
 	sin, cos := math.Sincos(trainer.Yaw)
 	return model.Character{
-		ID: kernel.NewCharacterID(), Account: kernel.NewAccountID(), Name: "Ayla", Class: "beginner", Level: 10, HP: 50, Energy: 5, MapID: "town", X: trainer.At.X + sin, Z: trainer.At.Z + cos,
+		ID: kernel.NewCharacterID(), Account: kernel.NewAccountID(), Name: "Ayla", Class: "beginner", Level: 10, HP: 50, Energy: 5, MapID: "willowmere", X: trainer.At.X + sin, Z: trainer.At.Z + cos,
 		Points: model.Points{Spent: gamedata.Stats{STR: 23}},
 		Skills: model.Skills{Points: map[string]int{"strike": 10}},
 		Quests: model.Quests{"warriors_trial": {Status: model.QuestFinished, TimesFinished: 1}},

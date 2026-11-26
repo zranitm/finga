@@ -21,6 +21,18 @@ func shippedMap(t *testing.T, id string) (*gamedata.Map, float64) {
 	return m, data.Movement().Radius
 }
 
+// ledgeMap is an 80 by 40 m open field with a 1.2 m ledge from x 46 to 60 that only a jump gets onto.
+func ledgeMap(t *testing.T) (*gamedata.Map, float64) {
+	t.Helper()
+	p := gamedatatest.Shipped(t).Movement()
+	g := sim.Geometry{SizeX: 80, SizeZ: 40, Terrain: sim.NewTerrain(80, 2, 2, []float64{0, 0, 0, 0}, p.MaxSlope),
+		Boxes: []sim.Box{{X: 53, Z: 28, HalfW: 7, HalfD: 6, UX: 1, UZ: 0, Top: 1.2}}}
+	m := &gamedata.Map{ID: "ledge", Geometry: g}
+	grid := nav.New(g, p.Step)
+	m.Grid = func() *nav.Grid { return grid }
+	return m, p.Radius
+}
+
 func TestKeysWalkTheWayNearestTheWayWanted(t *testing.T) {
 	for _, c := range []struct {
 		dx, dz float64
@@ -88,8 +100,8 @@ func TestAStallIsAWayPressedOnTheGroundThatGoesNowhere(t *testing.T) {
 }
 
 func TestAStalledWalkerJumpsThenStepsAsideEachSideInTurn(t *testing.T) {
-	m, r := shippedMap(t, "town")
-	from, now := nav.Point{X: m.PlayerSpawn.X, Z: m.PlayerSpawn.Z}, 1000*time.Second
+	m, r := ledgeMap(t)
+	from, now := nav.Point{X: 14, Z: 10}, 1000*time.Second
 	to := nav.Point{X: from.X + 4, Z: from.Z}
 	var wk Walker
 	ahead := wayOf(wk.Keys(m, m.Grid(), r, from, to, now, false))
@@ -118,7 +130,7 @@ func TestAStalledWalkerJumpsThenStepsAsideEachSideInTurn(t *testing.T) {
 }
 
 func TestAWalkerWithNoWayWalksStraightAndLooksAgainASecondOn(t *testing.T) {
-	m, r := shippedMap(t, "forest")
+	m, r := ledgeMap(t)
 	from, onTop, now := nav.Point{X: 40, Z: 28}, nav.Point{X: 50, Z: 28}, 1000*time.Second // a ledge only a jump gets onto
 	var wk Walker
 	if got := wayOf(wk.Keys(m, m.Grid(), r, from, onTop, now, false)); !wk.Lost() || got != [2]int{1, 0} {

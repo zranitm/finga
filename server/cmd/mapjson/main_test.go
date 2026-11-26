@@ -43,8 +43,8 @@ func TestEveryMapIsWrittenAsTheServerBuildsIt(t *testing.T) {
 			for _, w := range m.Waypoints {
 				waypoints = append(waypoints, Waypoint{ID: w.ID, Name: w.Name, At: [2]float64{w.At.X, w.At.Z}, Ground: m.Geometry.Terrain.Height(w.At.X, w.At.Z), Main: w.Main})
 			}
-			if !reflect.DeepEqual(got.Waypoints, waypoints) || !slices.ContainsFunc(waypoints, func(w Waypoint) bool { return w.Main }) {
-				t.Errorf("%s: waypoints %+v; want the server's %+v, a main town's among them", m.ID, got.Waypoints, waypoints)
+			if !reflect.DeepEqual(got.Waypoints, waypoints) || (m.Under == "") != slices.ContainsFunc(waypoints, func(w Waypoint) bool { return w.Main }) {
+				t.Errorf("%s: waypoints %+v; want the server's %+v, a main town's among them on the land and none in a place below", m.ID, got.Waypoints, waypoints)
 			}
 			regions++
 		case got.Region != nil || len(got.Waypoints) > 0 || len(got.BoxModels) != len(want.Boxes) || len(got.CylinderModels) != len(want.Cylinders):

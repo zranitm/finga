@@ -214,7 +214,7 @@ func TestAcceptingAQuest(t *testing.T) {
 	t.Run("out of reach", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			q := newQuestTown(t, 1, nil, nil)
-			worldtest.Walk(q.inst, q.p.ID, 0, sim.Input{Left: true}, 10)
+			worldtest.Walk(q.inst, q.p.ID, 0, sim.Input{Right: true}, 10)
 			if err := q.accept("errand"); !errors.Is(err, model.ErrNpcOutOfReach) {
 				t.Fatalf("err = %v", err)
 			}

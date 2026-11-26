@@ -113,8 +113,7 @@ func TestTheBotHandsInWhatIsReadyAndTakesWhatIsOpen(t *testing.T) {
 			}
 		})
 	}
-	town, _ := data.Map("town")
-	if got := townNPCs(data, town); len(got) != 3 || got[0].ID != "town_guide" || got[1].ID != "magician_trainer" || got[2].ID != "warrior_trainer" {
+	if got := townNPCs(data, data.StartTown()); len(got) != 4 || got[0].ID != "town_guide" || got[1].ID != "magician_trainer" || got[2].ID != "warrior_trainer" || got[3].ID != "bowman_trainer" {
 		t.Fatalf("a town visit talks to %v; want each next the nearest, from where players appear", got)
 	}
 }
