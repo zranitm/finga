@@ -30,6 +30,7 @@ import (
 	"finga/internal/shared/gamedata/load"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/nav"
+	"finga/internal/shared/regiongen"
 	"finga/internal/shared/sim"
 	"finga/pkg/observability/tracing"
 	"finga/pkg/panics"
@@ -248,10 +249,26 @@ func WithoutRegions(t testing.TB, edits map[string]func(string) string) map[stri
 	return edits
 }
 
-// TownSpawn is where players appear in the town, x and z.
+// Town is the small shipped town tests run in, Crossroads, rather than the start region.
+func Town(data *gamedata.Data) *gamedata.Map {
+	m, ok := data.Map("crossroads")
+	if !ok {
+		panic("no crossroads map")
+	}
+	return m
+}
+
+// StartTown is the start region run as a town, for tests that need its NPCs: no mobs or areas, so its walk grid, slow to build, is never needed.
+func StartTown(data *gamedata.Data) *gamedata.Map {
+	m := *data.StartTown()
+	m.Kind, m.Spawns, m.Boss, m.Areas, m.AreaGrid = gamedata.Town, nil, nil, nil, regiongen.AreaGrid{}
+	return &m
+}
+
+// TownSpawn is where players appear in the test town, x and z.
 func TownSpawn(t *testing.T, data *gamedata.Data) (float64, float64) {
 	t.Helper()
-	town := data.StartTown()
+	town := Town(data)
 	return town.PlayerSpawn.X, town.PlayerSpawn.Z
 }
 
@@ -475,10 +492,10 @@ func NewWorld(data *gamedata.Data, saver world.Saver, o Options) *World {
 	}), calls: o.ItemCalls}
 }
 
-// Run starts a town map in the synctest bubble; stop waits for Run so nothing outlives it.
+// Run starts the test town in the synctest bubble; stop waits for Run so nothing outlives it.
 func Run(t *testing.T, data *gamedata.Data, cps *Checkpoints, o Options) (*instance.Instance, func()) {
 	t.Helper()
-	return RunMap(t, data, data.StartTown(), cps, o)
+	return RunMap(t, data, Town(data), cps, o)
 }
 
 // RunMap starts m's map in the synctest bubble, as Run does the town's.

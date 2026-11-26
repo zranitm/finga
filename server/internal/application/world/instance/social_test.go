@@ -68,7 +68,7 @@ func TestANewPartySubscriptionRetellsEveryPlayer(t *testing.T) {
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		got := parties.updated()[before:]
-		if len(got) != 2 || got[0].ID != ayla.ID || got[1].ID != robin.ID || got[0].Level != 1 || got[0].MapID != data.StartTown().ID || got[0].Class != "warrior" {
+		if len(got) != 2 || got[0].ID != ayla.ID || got[1].ID != robin.ID || got[0].Level != 1 || got[0].MapID != worldtest.Town(data).ID || got[0].Class != "warrior" {
 			t.Fatalf("updates %+v; want each player's again", got)
 		}
 		time.Sleep(worldtest.TickInterval)

@@ -113,7 +113,7 @@ func questTownWith(t *testing.T, level int, log model.Quests, o worldtest.Option
 	data := questData(t)
 	cps := &worldtest.Checkpoints{}
 	o.CheckpointInterval, o.ItemCalls = time.Hour, runningPool(t)
-	inst, stop := worldtest.Run(t, data, cps, o)
+	inst, stop := worldtest.RunMap(t, data, worldtest.StartTown(data), cps, o)
 	t.Cleanup(stop)
 	p := besideNPC(t, data, "Ayla", "town_guide")
 	p.Level, p.Connection, p.Quests = level, "c1", log
@@ -509,7 +509,7 @@ func TestHandingInAQuest(t *testing.T) {
 				synctest.Test(t, func(t *testing.T) {
 					var logs bytes.Buffer
 					cps := &worldtest.Checkpoints{}
-					inst, stop := worldtest.Run(t, questData(t), cps, worldtest.Options{CheckpointInterval: time.Hour, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+					inst, stop := worldtest.RunMap(t, questData(t), worldtest.StartTown(questData(t)), cps, worldtest.Options{CheckpointInterval: time.Hour, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
 					defer stop()
 					p := besideNPC(t, questData(t), "Ayla", "town_guide")
 					p.Connection, p.Quests, p.HandedIn = "c1", c.log, c.handedIn
@@ -623,9 +623,9 @@ func TestAQuestChangeInThePortalsTickReachesThePlayer(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := questData(t)
 		tr := &transferRecorder{}
-		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{CheckpointInterval: time.Hour, ItemCalls: runningPool(t), Transfer: tr})
+		inst, stop := worldtest.RunMap(t, data, worldtest.StartTown(data), nil, worldtest.Options{CheckpointInterval: time.Hour, ItemCalls: runningPool(t), Transfer: tr})
 		defer stop()
-		at := data.StartTown().Portals[0].At
+		at := worldtest.StartTown(data).Portals[0].At
 		p := worldtest.NewPlayer("Ayla", at.X, at.Z)
 		p.Connection, p.Quests = "c1", model.Quests{"slime_cleanup": {Status: model.QuestActive, Progress: []int{3}}}
 		s := join(t, inst, p)

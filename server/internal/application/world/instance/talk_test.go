@@ -20,7 +20,7 @@ import (
 func TestTalk(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{CheckpointInterval: time.Hour})
+		inst, stop := worldtest.RunMap(t, data, worldtest.StartTown(data), nil, worldtest.Options{CheckpointInterval: time.Hour})
 		defer stop()
 		p := besideNPC(t, data, "Ayla", "town_guide")
 		p.Level, p.Connection = 2, "c1"
@@ -95,7 +95,7 @@ func TestACheckpointCarriesACopyOfTheQuestLog(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		cps := &worldtest.Checkpoints{}
-		inst, stop := worldtest.Run(t, data, cps, worldtest.Options{CheckpointInterval: time.Hour})
+		inst, stop := worldtest.RunMap(t, data, worldtest.StartTown(data), cps, worldtest.Options{CheckpointInterval: time.Hour})
 		defer stop()
 		p := besideNPC(t, data, "Ayla", "town_guide")
 		p.Connection = "c1"
@@ -127,15 +127,8 @@ func besideNPC(t *testing.T, data *gamedata.Data, name, id string) model.Player 
 	return worldtest.NewPlayer(name, npc.At.X+sin, npc.At.Z+cos)
 }
 
-// townOf is the start region run as a town, which has the town's plain walking speed and no hunting.
-func townOf(data *gamedata.Data) *gamedata.Map {
-	town := *data.StartTown()
-	town.Kind = gamedata.Town
-	return &town
-}
-
-// atSpawn is a new player named name at the start town's spawn.
+// atSpawn is a new player named name at the test town's spawn.
 func atSpawn(data *gamedata.Data, name string) model.Player {
-	at := data.StartTown().PlayerSpawn
+	at := worldtest.StartTown(data).PlayerSpawn
 	return worldtest.NewPlayer(name, at.X, at.Z)
 }

@@ -61,7 +61,7 @@ func TestATeleportTakesThePlayerToTheMapsSpawnAtTheChannelsEnd(t *testing.T) {
 		data := worldtest.LoadData(t)
 		cps := &worldtest.Checkpoints{}
 		tr := &transferRecorder{}
-		inst, stop := worldtest.Run(t, data, cps, worldtest.Options{Transfer: tr, CheckpointInterval: time.Hour})
+		inst, stop := worldtest.RunMap(t, data, worldtest.StartTown(data), cps, worldtest.Options{Transfer: tr, CheckpointInterval: time.Hour})
 		defer stop()
 		p := atSpawn(data, "Ayla")
 		p.Connection = "c1"
@@ -113,7 +113,7 @@ func TestATeleportIsRefused(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				data := worldtest.LoadData(t)
-				inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Transfer: &transferRecorder{}})
+				inst, stop := worldtest.RunMap(t, data, worldtest.StartTown(data), nil, worldtest.Options{Transfer: &transferRecorder{}})
 				defer stop()
 				p := atSpawn(data, "Ayla")
 				p.Connection = "c1"
@@ -147,7 +147,7 @@ func TestATeleportIsRefused(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			data := worldtest.LoadData(t)
 			tr := &transferRecorder{}
-			inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Transfer: tr})
+			inst, stop := worldtest.RunMap(t, data, worldtest.StartTown(data), nil, worldtest.Options{Transfer: tr})
 			defer stop()
 			p := atSpawn(data, "Ayla")
 			p.Connection = "c1"
@@ -254,7 +254,7 @@ func TestATeleportIsCancelled(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				data := worldtest.LoadData(t)
 				tr := &transferRecorder{}
-				inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Transfer: tr})
+				inst, stop := worldtest.RunMap(t, data, worldtest.StartTown(data), nil, worldtest.Options{Transfer: tr})
 				defer stop()
 				p := atSpawn(data, "Ayla")
 				p.Connection = "c1"
@@ -275,7 +275,7 @@ func TestATeleportIsCancelled(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			data := worldtest.LoadData(t)
 			tr := &transferRecorder{}
-			inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Transfer: tr})
+			inst, stop := worldtest.RunMap(t, data, worldtest.StartTown(data), nil, worldtest.Options{Transfer: tr})
 			defer stop()
 			p := atSpawn(data, "Ayla")
 			p.Connection = "c1"
@@ -406,7 +406,7 @@ func TestATeleportRunsOnThrough(t *testing.T) {
 	t.Run("inputs pressed before it, keys held", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			data := worldtest.LoadData(t)
-			inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Transfer: &transferRecorder{}})
+			inst, stop := worldtest.RunMap(t, data, worldtest.StartTown(data), nil, worldtest.Options{Transfer: &transferRecorder{}})
 			defer stop()
 			p := atSpawn(data, "Ayla")
 			p.Connection = "c1"
@@ -443,7 +443,7 @@ func TestATeleportRunsOnThrough(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			data := worldtest.LoadData(t)
 			potions := &fakePotions{answer: redPotionsLeft(4)}
-			inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Potions: potions, ItemCalls: runningPool(t), Transfer: &transferRecorder{}})
+			inst, stop := worldtest.RunMap(t, data, worldtest.StartTown(data), nil, worldtest.Options{Potions: potions, ItemCalls: runningPool(t), Transfer: &transferRecorder{}})
 			defer stop()
 			p := atSpawn(data, "Ayla")
 			p.HP, p.Connection = 10, "c1"
@@ -463,7 +463,7 @@ func TestATeleportRunsOnThrough(t *testing.T) {
 	t.Run("talking to an NPC", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			data := worldtest.LoadData(t)
-			inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Transfer: &transferRecorder{}})
+			inst, stop := worldtest.RunMap(t, data, worldtest.StartTown(data), nil, worldtest.Options{Transfer: &transferRecorder{}})
 			defer stop()
 			p := besideNPC(t, data, "Ayla", "town_guide")
 			p.Connection = "c1"
@@ -510,7 +510,7 @@ func TestATeleportIsDroppedSilently(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			data := worldtest.LoadData(t)
 			tr := &transferRecorder{}
-			inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Transfer: tr})
+			inst, stop := worldtest.RunMap(t, data, worldtest.StartTown(data), nil, worldtest.Options{Transfer: tr})
 			defer stop()
 			p := atSpawn(data, "Ayla")
 			p.Connection = "c1"
@@ -532,7 +532,7 @@ func TestATeleportIsDroppedSilently(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			data := worldtest.LoadData(t)
 			tr := &transferRecorder{}
-			inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Transfer: tr})
+			inst, stop := worldtest.RunMap(t, data, worldtest.StartTown(data), nil, worldtest.Options{Transfer: tr})
 			defer stop()
 			p := atSpawn(data, "Ayla")
 			p.Connection = "c1"
@@ -555,7 +555,7 @@ func TestATeleportWaitsForAnItemCallInFlight(t *testing.T) {
 		data := worldtest.LoadData(t)
 		eq := &fakeEquipment{answer: sword(), gate: make(chan struct{})}
 		tr := &transferRecorder{}
-		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t), Transfer: tr})
+		inst, stop := worldtest.RunMap(t, data, worldtest.StartTown(data), nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t), Transfer: tr})
 		defer stop()
 		p := atSpawn(data, "Ayla")
 		p.Connection = "c1"

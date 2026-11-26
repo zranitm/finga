@@ -149,7 +149,7 @@ func TestAPortalCarriesTheEnergy(t *testing.T) {
 		tr := &transferRecorder{}
 		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Transfer: tr})
 		defer stop()
-		at := data.StartTown().Portals[0].At
+		at := worldtest.Town(data).Portals[0].At
 		p := worldtest.NewPlayer("Ayla", at.X, at.Z)
 		p.Connection, p.Energy = "c1", 6
 		join(t, inst, p)

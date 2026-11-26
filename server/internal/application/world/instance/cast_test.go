@@ -150,7 +150,7 @@ func TestASkillIsRefused(t *testing.T) {
 				data := skillData(t)
 				m := arena(t, time.Hour)
 				if tc.town {
-					m = data.StartTown()
+					m = worldtest.Town(data)
 				}
 				inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{})
 				defer stop()
@@ -518,7 +518,7 @@ func TestAMapChangeCarriesCooldownsAndBuffs(t *testing.T) {
 		defer stopNext()
 		tick(1)
 		p := caster(spawnZ)
-		at := data.StartTown().Portals[0].At
+		at := worldtest.Town(data).Portals[0].At
 		p.X, p.Z = at.X, at.Z
 		join(t, town, p)
 		if err := cast(town, p.ID, "rally"); err != nil {

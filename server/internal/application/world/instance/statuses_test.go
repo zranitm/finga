@@ -637,7 +637,7 @@ func TestAStatusSkillHurtsNothingAndATownRefusesIt(t *testing.T) {
 	})
 	synctest.Test(t, func(t *testing.T) {
 		data := statusData(t, "", false)
-		town := data.StartTown()
+		town := worldtest.Town(data)
 		inst, stop := worldtest.RunMap(t, data, town, nil, worldtest.Options{})
 		defer stop()
 		p := statusCaster()
@@ -653,7 +653,7 @@ func TestAStatusSkillHurtsNothingAndATownRefusesIt(t *testing.T) {
 func TestAMapChangeLeavesStatusesBehind(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := statusData(t, "{id: stun, time: 2s}", false)
-		town := data.StartTown()
+		town := worldtest.Town(data)
 		m := arena(t, time.Hour)
 		m.Portals = []gamedata.Portal{{Name: "out", At: gamedata.Point{X: arenaX, Z: nextToSlime - 0.8}, Radius: 1, TargetMap: town.ID, TargetPortal: town.Portals[0].Name}} // round where the hop leaves them, clear of the slime's reach
 		tr := &transferRecorder{}

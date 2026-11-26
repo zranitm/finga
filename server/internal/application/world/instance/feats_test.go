@@ -84,7 +84,7 @@ func featData(t *testing.T) *gamedata.Data {
 // featTown runs the town with feats and a running item-call pool, and joins p, its errand ready to hand in.
 func featTown(t *testing.T, data *gamedata.Data, p model.Player, feats *fakeFeats) (*instance.Instance, *worldtest.Sink) {
 	t.Helper()
-	inst, stop := worldtest.Run(t, data, &worldtest.Checkpoints{}, worldtest.Options{Feats: feats, CheckpointInterval: time.Hour, ItemCalls: runningPool(t)})
+	inst, stop := worldtest.RunMap(t, data, worldtest.StartTown(data), &worldtest.Checkpoints{}, worldtest.Options{Feats: feats, CheckpointInterval: time.Hour, ItemCalls: runningPool(t)})
 	t.Cleanup(stop)
 	p.Connection, p.Account = "c1", kernel.NewAccountID()
 	p.Quests = model.Quests{"errand": {Status: model.QuestActive, Progress: []int{1}}}
@@ -215,7 +215,7 @@ func TestAPromotionAsksForThePromotedFeat(t *testing.T) {
 		p := trainee(t)
 		p.Account = kernel.NewAccountID()
 		feats := &fakeFeats{}
-		inst, stop := worldtest.Run(t, worldtest.LoadData(t), &worldtest.Checkpoints{}, worldtest.Options{Gifts: &fakeGifts{}, Feats: feats, CheckpointInterval: time.Hour, ItemCalls: runningPool(t)})
+		inst, stop := worldtest.RunMap(t, worldtest.LoadData(t), worldtest.StartTown(worldtest.LoadData(t)), &worldtest.Checkpoints{}, worldtest.Options{Gifts: &fakeGifts{}, Feats: feats, CheckpointInterval: time.Hour, ItemCalls: runningPool(t)})
 		defer stop()
 		s := join(t, inst, p)
 		if asked, calls := feats.asked(); calls != 0 {
@@ -257,7 +257,7 @@ func TestAskMetFeatsAsksForWhatTheSaveShows(t *testing.T) {
 				p := besideNPC(t, data, "Ayla", "town_guide")
 				p.Class, p.Level, p.Quests, p.Connection, p.Account = c.class, c.level, c.quests, "c1", kernel.NewAccountID()
 				feats := &fakeFeats{}
-				inst, stop := worldtest.Run(t, data, &worldtest.Checkpoints{}, worldtest.Options{Feats: feats, CheckpointInterval: time.Hour, ItemCalls: runningPool(t)})
+				inst, stop := worldtest.RunMap(t, data, worldtest.StartTown(data), &worldtest.Checkpoints{}, worldtest.Options{Feats: feats, CheckpointInterval: time.Hour, ItemCalls: runningPool(t)})
 				defer stop()
 				s := join(t, inst, p)
 				if err := inst.AskMetFeats(p.ID); err != nil {
