@@ -1,4 +1,4 @@
-# Mob types, with stats, the damage type of their attacks, patrol behavior and drop tables whose entries roll independently: the forest (levels 1 to 4) and the cave (10 to 14), then two per new map, a normal mob and its elite; the sunken shrine's fish (9 to 11 until its layout sets them) and the green region's eight new mobs wait unplaced for their regions.
+# Mob types, with stats, the damage type of their attacks, patrol behavior and drop tables whose entries roll independently: the green region, Willowmere (levels 1 to 14, its areas' new mobs and bosses beside the first slimes and mushrooms) with the cave (10 to 14) and the sunken shrine's fish (9 to 11) below it, then two per new map, a normal mob and its elite.
 # HP and attack are set so a character who spends its points by its class's split, in the gear of the mob's level, needs as many hits to kill it, and survives as many of its hits, as its region's targets in the world's balance test; a magic attack meets the low magic defense most builds have, so it hits for less.
 # Each map drops its own band's gear at normal rates and the next band's rarely; the cave bat's rare finds are the gear of levels 20 to 24, and only the keep drops the level 30 ★6 and ★7 pieces.
 # attacks name the table's by family: slimes hop, snails charge, mice bite and flies spit, and each fish as it hunts; an elite's reach is 1.5 times as far, a boss's about twice, and a boss adds a slam it alternates with.
@@ -1207,7 +1207,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: bite, reach: 1.5, cooldown: 3500ms}, {use: slam, cooldown: 8250ms}]
-    look: {model: lake_lurker, scale: 3}
+    look: {model: fish_big, scale: 3}
     drops:
       - {item: red_potion, chance: 1, min: 2, max: 4}
       - {item: iron_helm, chance: 0.6, min: 1, max: 1}
@@ -1233,7 +1233,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: spit, size: 0.75, cooldown: 4250ms}, {use: slam, cooldown: 8250ms}]
-    look: {model: crag_king, scale: 3}
+    look: {model: alpaking_evolved, scale: 3}
     drops:
       - {item: red_potion, chance: 1, min: 2, max: 4}
       - {item: chain_leggings, chance: 0.6, min: 1, max: 1}
