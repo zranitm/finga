@@ -19,6 +19,11 @@ export function roundsToWin(id: string): number {
   return best > 0 ? Math.floor(best / 2) + 1 : 0;
 }
 
+/** Whether the mode's matches move a rating; false for one this client doesn't know. */
+export function isRated(id: string): boolean {
+  return modeById(id)?.rated ?? false;
+}
+
 /** Whether the mode is a battle, fought for points and a score rather than rounds (pvp.md section 7); false for one this client doesn't know. */
 export function isBattle(id: string): boolean {
   return modeById(id)?.best_of === null;
