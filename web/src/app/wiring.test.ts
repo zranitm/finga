@@ -491,6 +491,25 @@ describe('wiring', () => {
     expect(chat.getState().lines).toHaveLength(1);
   });
 
+  it('a 15v15 battle’s leaver hears only that it counts as a loss: an unrated match has no rating to update', async () => {
+    const { ws } = await connectedSocket();
+    ws.push('mapChange', { mapId: 'battlefield' });
+    ws.push('matchState', {
+      match: 'mt-1',
+      mode: 'battle',
+      phase: MatchPhase.FIGHT,
+      endsInMs: 600_000,
+      sides: [
+        { fighters: [{ id: 'c-ayla', name: 'Ayla' }] },
+        { fighters: [{ id: 'b-1', name: 'Ash', bot: true }] },
+      ],
+    });
+    ws.push('mapChange', { mapId: 'forest' });
+    expect(toasts.getState().toasts.map((t) => t.text)).toEqual([
+      'You left the match: it counts as a loss.',
+    ]);
+  });
+
   it('a Welcome tells in General each match that ended while the player was away, and how many more (pvp.md section 4)', async () => {
     const { ws } = await connectedSocket();
     ws.push('welcome', {

@@ -1,10 +1,10 @@
-// A match's outcome in words (pvp.md section 13): the result card's title and rating, the General line a team match's leaver gets instead of the card, and a Welcome's lines for matches that ended while the player was away.
+// A match's outcome in words (pvp.md section 13): the result card's title and rating, what a team match's leaver hears as they go and the General line they get instead of the card, and a Welcome's lines for matches that ended while the player was away.
 import { rankName } from '@/progression/names';
 import { MatchOutcome } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import type { RatingChange } from '@/state/pvp';
 
-import { modeName } from './modes';
+import { isRated, modeName } from './modes';
 
 const TITLE: Readonly<Record<MatchOutcome, string>> = {
   [MatchOutcome.UNSPECIFIED]: 'Match over',
@@ -29,6 +29,12 @@ export function ratingNote(r: RatingChange): string | null {
     return `${r.placementLeft} placement ${r.placementLeft === 1 ? 'match' : 'matches'} left`;
   }
   return r.rankAfter !== r.rankBefore ? `New rank: ${rankName(r.rankAfter)}` : null;
+}
+
+/** What leaving a match of mode under way costs, said as the player goes: a rated mode's rating moves only once the match ends. */
+export function quitLine(mode: string): string {
+  const loss = 'You left the match: it counts as a loss.';
+  return isRated(mode) ? `${loss} Your rating updates when the match ends.` : loss;
 }
 
 /** "Your 3v3 match ended: Defeat. Rating 1000 → 968 (−32). 4 placement matches left." */
