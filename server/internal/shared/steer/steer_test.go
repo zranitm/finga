@@ -207,7 +207,7 @@ func TestAKeepingWalkerLooksAgainOnlyWhenItsEndMovesItStallsOrItLeavesThePath(t 
 		stall bool
 		again bool
 	}{
-		{"a minute on along the path, the same end", time.Minute, func(*Walker) nav.Point { return from }, to, false, false},
+		{"a minute without reaching a waypoint, the same end", time.Minute, func(*Walker) nav.Point { return from }, to, false, true},
 		{"its end 0.9 m on", time.Second / 2, func(*Walker) nav.Point { return from }, nav.Point{X: to.X + 0.9, Z: to.Z}, false, false},
 		{"its end 1.1 m on", time.Second / 2, func(*Walker) nav.Point { return from }, nav.Point{X: to.X + 1.1, Z: to.Z}, false, true},
 		{"a stall", time.Second / 2, func(*Walker) nav.Point { return from }, to, true, true},
@@ -227,10 +227,21 @@ func TestAKeepingWalkerLooksAgainOnlyWhenItsEndMovesItStallsOrItLeavesThePath(t 
 			}
 		})
 	}
-	var wk Walker
-	wk.Keys(m, m.Grid(), r, from, to, start, false)
-	if wk.Keys(m, m.Grid(), r, from, to, start+time.Minute, false); wk.found == start {
+	var each Walker
+	each.Keys(m, m.Grid(), r, from, to, start, false)
+	if each.Keys(m, m.Grid(), r, from, to, start+time.Minute, false); each.found == start {
 		t.Fatal("Keys didn't look again a minute on")
+	}
+	// walking its path, a waypoint reached at each decision, a keeping walker looks again not at all, in the seconds that Keys looks again each of.
+	wk := begin()
+	walked := append([]nav.Point(nil), wk.path...)
+	now := start
+	for _, at := range walked[:len(walked)-1] {
+		now += 150 * time.Millisecond
+		wk.KeepKeys(m, m.Grid(), r, at, to, now, false)
+	}
+	if now-start < 3*time.Second || wk.found != start {
+		t.Fatalf("walked its path for %v and looked again at %v", now-start, wk.found-start)
 	}
 }
 
@@ -247,6 +258,87 @@ func TestAKeepingWalkerWithNoWayLooksAgainASecondOn(t *testing.T) {
 	}
 	if wk.KeepKeys(m, m.Grid(), r, from, onTop, now+repathEvery+time.Millisecond, false); wk.found == now {
 		t.Fatal("didn't look again a second on")
+	}
+}
+
+// trunkMap is a 120 m open field with an oak's trunk, 0.5 m across its radius, at (80, 110 + dz).
+func trunkMap(t *testing.T, dz float64) (*gamedata.Map, sim.Params) {
+	t.Helper()
+	p := gamedatatest.Shipped(t).Movement()
+	g := sim.Geometry{SizeX: 120, SizeZ: 120, Terrain: sim.NewTerrain(120, 2, 2, []float64{0, 0, 0, 0}, p.MaxSlope),
+		Cylinders: []sim.Cylinder{{X: 80, Z: 110 + dz, Radius: 0.5, Top: 8}}}
+	m := &gamedata.Map{ID: "trunk", Geometry: g}
+	grid := nav.New(g, p.Step)
+	m.Grid = func() *nav.Grid { return grid }
+	return m, p
+}
+
+// ticksToWalk is how many 20 Hz ticks a body takes to walk from from to within 0.375 m of to on m, deciding each tick as the e2e kit does, or 0 if it takes a minute: with its position seen lag ticks late, and its keys taking lag ticks to arrive, as over a connection.
+func ticksToWalk(m *gamedata.Map, p sim.Params, from, to nav.Point, keep bool, lag int) int {
+	s := sim.State{X: from.X, Y: sim.Ground(from.X, from.Z, math.Inf(1), m.Geometry), Z: from.Z, OnGround: true}
+	var wk Walker
+	var stall Stall
+	var held sim.Input
+	var seen []nav.Point
+	var sent []sim.Input
+	for tick := range 1200 {
+		here := nav.Point{X: s.X, Z: s.Z}
+		if nav.Distance(here, to) <= 0.375 {
+			return tick
+		}
+		seen = append(seen, here)
+		at := seen[max(0, tick-lag)]
+		stalled := stall.Stalled(at, s.OnGround, held)
+		now := time.Duration(tick) * 50 * time.Millisecond
+		if keep {
+			held = wk.KeepKeys(m, m.Grid(), p.Radius, at, to, now, stalled)
+		} else {
+			held = wk.Keys(m, m.Grid(), p.Radius, at, to, now, stalled)
+		}
+		sent = append(sent, held)
+		var arrived sim.Input
+		if tick >= lag {
+			arrived = sent[tick-lag]
+		}
+		s = sim.Step(s, arrived, m.Geometry, p)
+	}
+	return 0
+}
+
+// A walker that keeps its path goes round a trunk on its straight line as fast as one that looks again each second, when it sees the body one or two ticks late: a body that strides past a waypoint by more than its reach circles it, so a walker that doesn't look again must go on past it, or look again once it is stuck.
+func TestAKeepingWalkerRoundATrunkIsNoSlowerThanOneThatLooksEachSecond(t *testing.T) {
+	for _, lag := range []int{0, 1, 2} {
+		for _, dz := range []float64{0, 0.2, -0.2} {
+			m, p := trunkMap(t, dz)
+			for _, sz := range []float64{-1, 0, 1} {
+				from, to := nav.Point{X: 66, Z: 110 + sz}, nav.Point{X: 82, Z: 110}
+				each := ticksToWalk(m, p, from, to, false, lag)
+				kept := ticksToWalk(m, p, from, to, true, lag)
+				if each == 0 || kept == 0 || kept > each+10 {
+					t.Errorf("lag %d ticks, trunk %.1f m off the line, from %.0f m off it: Keys %d ticks, KeepKeys %d (0 is a minute)", lag, dz, sz, each, kept)
+				}
+			}
+		}
+	}
+}
+
+// A body is past a waypoint when it has gone on from it toward the next, and within a metre of it.
+func TestABodyIsPastAWaypointWhenItHasGoneOnTowardTheNext(t *testing.T) {
+	a, b := nav.Point{X: 10, Z: 10}, nav.Point{X: 11, Z: 10} // the next waypoint a metre east
+	for _, c := range []struct {
+		name string
+		from nav.Point
+		want bool
+	}{
+		{"0.6 m on toward the next", nav.Point{X: 10.6, Z: 10}, true},
+		{"0.6 m on and a little off the line", nav.Point{X: 10.6, Z: 10.3}, true},
+		{"0.6 m short of it", nav.Point{X: 9.4, Z: 10}, false},
+		{"level with it, to the side", nav.Point{X: 10, Z: 10.5}, false},
+		{"on past it but 2 m away", nav.Point{X: 12, Z: 10}, false},
+	} {
+		if got := passed(c.from, a, b); got != c.want {
+			t.Errorf("%s: passed %v, want %v", c.name, got, c.want)
+		}
 	}
 }
 
