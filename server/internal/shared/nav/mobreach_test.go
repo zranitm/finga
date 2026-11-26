@@ -6,7 +6,6 @@ import (
 
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/gamedata/gamedatatest"
-	"finga/internal/shared/mapfile"
 	"finga/internal/shared/nav"
 	"finga/internal/shared/sim"
 )
@@ -60,49 +59,29 @@ func lands(g *nav.Grid, walk nav.Reached, q nav.Point, py float64, bs []band) bo
 	return false
 }
 
-// On every shipped map, each mob lands a blow on a player wherever they stand inside its leash: no ledge or nook keeps a player out of its reach while they hit it.
+// On every hunting map and every shipped region's hunting areas, each mob lands a blow on a player wherever they stand inside its leash: no ledge or nook keeps a player out of its reach while they hit it.
 func TestEveryMobReachesAPlayerAnywhereInItsLeash(t *testing.T) {
-	data := gamedatatest.Shipped(t)
-	d := shipped(t)
-	p := d.params
+	data := gamedatatest.Full(t)
+	p := shipped(t).params
 	rise := nav.JumpRise(p) // the highest a jump lifts the feet, at the slowest speed
-	for _, m := range d.maps {
-		if m.Kind != "hunting" {
-			continue // a town's mobs never attack
-		}
-		t.Run(m.ID, func(t *testing.T) {
-			g := m.Grid()
-			starts := []nav.Point{mapfile.Point(m.PlayerSpawn.At)}
-			for _, pt := range m.Portals {
-				starts = append(starts, mapfile.Point(pt.At))
-			}
-			player := g.Reach(starts, p.Radius, rise)
-			type home struct {
-				what, mob string
-				at        [2]float64
-				r         float64
-			}
-			var homes []home
-			for _, s := range m.Spawns {
-				homes = append(homes, home{"spawn " + s.Name, s.Mob, s.At, s.Radius})
-			}
-			if b := m.Boss; b != nil {
-				homes = append(homes, home{"the boss", b.Mob, b.At, b.Radius})
-			}
-			for _, h := range homes {
+	for _, m := range huntingGrounds(t, data) {
+		t.Run(m.id, func(t *testing.T) {
+			g := m.grid()
+			player := g.Reach(m.starts, p.Radius, rise)
+			for _, h := range m.homes {
 				def, ok := data.Mob(h.mob)
 				if !ok {
 					t.Fatalf("%s: no mob %q", h.what, h.mob)
 				}
-				c := mapfile.Point(h.at)
+				c := h.at
 				leash := h.r + data.MobRules().Leash
 				walk := g.WalkWithin(c, def.Radius, c, leash)
 				bs := bands(def, p)
 				missed, first := 0, nav.Point{}
-				for z := 0.25; z < m.Size[1]; z += 0.5 {
-					for x := 0.25; x < m.Size[0]; x += 0.5 {
+				for z := 0.25; z < m.geo.SizeZ; z += 0.5 {
+					for x := 0.25; x < m.geo.SizeX; x += 0.5 {
 						q := nav.Point{X: x, Z: z}
-						if nav.Distance(q, c) > leash || !player.Has(q) || excused(m.ID, q) {
+						if nav.Distance(q, c) > leash || !player.Has(q) || !g.Fits(q, p.Radius) || excused(m.id, q) {
 							continue
 						}
 						if !lands(g, walk, q, g.GroundAt(q), bs) {

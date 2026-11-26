@@ -331,7 +331,7 @@ func TestAnEquipInFlightHoldsThePlayerOnItsMap(t *testing.T) {
 					tr := &transferRecorder{}
 					inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t), Transfer: tr})
 					defer stop()
-					portal := data.StartTown().Portals[0]
+					portal := worldtest.Town(data).Portals[0]
 					p := worldtest.NewPlayer("Ayla", portal.At.X, portal.At.Z)
 					p.Connection = "c1"
 					s := join(t, inst, p)
@@ -389,7 +389,7 @@ func TestAnAnswerToAnEarlierJoinLeavesTheNewJoinsCallsCounted(t *testing.T) {
 		tr := &transferRecorder{}
 		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t), Transfer: tr})
 		defer stop()
-		at := data.StartTown().Portals[0].At
+		at := worldtest.Town(data).Portals[0].At
 		p := worldtest.NewPlayer("Ayla", at.X, at.Z)
 		p.Connection = "c1"
 		join(t, inst, p)

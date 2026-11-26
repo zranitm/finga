@@ -128,6 +128,7 @@ func TestAGrantMakesItsEntryOnce(t *testing.T) {
 			{Piece: "knight_plate", Cause: model.PieceFromRank, Ref: "gold"},
 			{Piece: "platinum_plate", Cause: model.PieceFromItem, Ref: "platinum"},
 			{Piece: "platinum_plate", Cause: model.PieceFromRank},
+			{Piece: "bronze_sword", Cause: model.PieceFromRank}, // no ref matches a source of another kind
 			{Piece: "no_such_piece", Cause: model.PieceFromRank, Ref: "gold"},
 		} {
 			if added, err := h.svc.GrantPieces(ctx, h.actor.Account, []model.PieceGrant{platinum, bad}); err == nil {

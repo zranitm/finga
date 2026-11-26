@@ -47,7 +47,7 @@ func inside(poly [][2]float64, at [2]float64) bool {
 
 // No player walks or jumps onto a cave's rock (underground-and-underwater.md section 4): it's a barrier from a wall's foot, though a steep wall is walked up slantwise. From the start and from each gate, as a cave is entered, the walk still reaches every camp and waypoint.
 func TestNoPlayerReachesACavesRock(t *testing.T) {
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	p := shipped(t).params
 	caves := 0
 	for id, plan := range everyPlan(t) {

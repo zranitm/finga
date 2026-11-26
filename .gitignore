@@ -32,3 +32,5 @@ web/public/regions/
 web/coverage/
 web/src/gamedata/
 web/src/protocol/gen/
+
+*.bak

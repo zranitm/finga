@@ -294,14 +294,25 @@ func (l *loader) linkMaps() error {
 			placed.MapID, placed.At, placed.Yaw = m.ID, gamedata.Point{X: n.At[0], Z: n.At[1]}, radians(n.Yaw)
 		}
 		if m.Start {
-			if m.Kind != string(gamedata.Town) || start != "" {
-				return fmt.Errorf("%s: start is for the one town new characters start in", file)
+			if (m.Kind != string(gamedata.Town) && m.Kind != string(gamedata.Region)) || start != "" {
+				return fmt.Errorf("%s: start is for the one town or region new characters start in", file)
+			}
+			if r, ok := l.regions[m.ID]; ok && !slices.ContainsFunc(r.areas, func(a gamedata.Area) bool { return a.Kind == gamedata.Town }) {
+				return fmt.Errorf("%s: beginning is for a region with a town, which a place below has none of, where new characters start", file)
 			}
 			start = m.ID
 		}
 	}
+	placed := map[string]bool{} // the bosses a region's areas place, which a map's boss may be too
+	for _, r := range l.regions {
+		for _, a := range r.areas {
+			if a.Boss != nil {
+				placed[a.Boss.Mob] = true
+			}
+		}
+	}
 	for _, mob := range l.mobs.list {
-		if _, ok := bossOn[mob.ID]; mob.Boss && !ok {
+		if _, ok := bossOn[mob.ID]; mob.Boss && !ok && !placed[mob.ID] {
 			return fmt.Errorf("%s: boss %s: no map places it", mapsDir, mob.ID)
 		}
 	}
@@ -311,7 +322,7 @@ func (l *loader) linkMaps() error {
 		}
 	}
 	if start == "" {
-		return fmt.Errorf("%s: no town has start, where new characters start", mapsDir)
+		return fmt.Errorf("%s: no town or region has start, where new characters start", mapsDir)
 	}
 	l.start = start
 	return nil

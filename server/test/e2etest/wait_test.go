@@ -84,7 +84,7 @@ func TestANewMapsClockCountsOneTickAtATimeFromItsStartWhicheverWayItLies(t *test
 	t.Parallel()
 	for _, start := range []uint64{200, 9000} {
 		msgs := frames(5001, 5010)
-		msgs = append(msgs, wsconn.Message{Type: "MapChange", Data: &clientv1.MapChange{MapId: "town"}}, wsconn.Message{Type: "Snapshot", Tick: start, Data: &clientv1.Snapshot{}})
+		msgs = append(msgs, wsconn.Message{Type: "MapChange", Data: &clientv1.MapChange{MapId: "willowmere"}}, wsconn.Message{Type: "Snapshot", Tick: start, Data: &clientv1.Snapshot{}})
 		msgs = append(msgs, frames(start+1, start+50)...)
 		l := fed(t, 5000, nil, append(msgs, reply("hop"))...)
 		Take(t, l, fmt.Sprintf("Response hop onto a map at tick %d", start), &l.Responses, 5*time.Second, func(r Reply) bool { return r.Req == "hop" })

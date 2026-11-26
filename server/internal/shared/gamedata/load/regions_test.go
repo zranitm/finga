@@ -82,6 +82,60 @@ func TestLoadsOfOnePlanShareItsGround(t *testing.T) {
 	}
 }
 
+// A region on the land may have a place on the world chart, as Willowmere does; no map is refused one that no chart shows.
+func TestALandRegionMayHaveAPlaceOnTheChart(t *testing.T) {
+	files := regioned(t)
+	files["world.yaml"] = strings.Replace(files["world.yaml"], "  field: [60, 50]\n", "  field: [60, 50]\n  vale: [10, 10]\n", 1)
+	if _, err := load.Dir(write(t, files)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A region with beginning: true is where new characters start, in the town's place; it and a town with start are refused together.
+func TestARegionMayBeWhereNewCharactersStart(t *testing.T) {
+	files := regioned(t)
+	files["regions/vale.yaml"] = strings.Replace(vale, "start:", "beginning: true\nstart:", 1)
+	if _, err := load.Dir(write(t, files)); err == nil || !strings.Contains(err.Error(), "start is for the one") {
+		t.Fatalf("a region and a town both start: error %v", err)
+	}
+	files["maps/town.yaml"] = strings.Replace(files["maps/town.yaml"], "start: true\n", "", 1)
+	d, err := load.Dir(write(t, files))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := d.StartTown(); got == nil || got.ID != "vale" {
+		t.Fatalf("new characters start in %+v; want vale", got)
+	}
+}
+
+// Beginning is for a region with a town: a place below, which has none, or a region of hunting areas alone, is refused it.
+func TestOnlyARegionOnTheLandWithATownMayBeWhereNewCharactersStart(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		files func() map[string]string
+	}{
+		{"a place below", func() map[string]string {
+			files := deep(t)
+			files["regions/hollow.yaml"] = strings.Replace(hollow, "start:", "beginning: true\nstart:", 1)
+			return files
+		}},
+		{"a region with no town", func() map[string]string {
+			files := regioned(t)
+			files["mobs.yaml"] = strings.Replace(files["mobs.yaml"], "  - id: slime_lord\n", "  - {id: slime_king, name: Slime King, boss: true, level: 5, hp: 900, attack: 12, damage: physical, physical_defense: 3, magic_defense: 2, accuracy: 8, evasion: 2, exp: 200, speed: 0.9375, radius: 1.5, height: 2.625, behavior: patrol, attacks: [{use: hop}], look: {model: green_blob}}\n  - id: slime_lord\n", 1)
+			files["regions/vale.yaml"] = strings.Replace(strings.Replace(vale, "kind: town}", "levels: [1, 5], kind: hunting,\n     boss: {at: [40, 30], radius: 4, mob: slime_king}}", 1), "start:", "beginning: true\nstart:", 1)
+			return files
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			files := tt.files()
+			files["maps/town.yaml"] = strings.Replace(files["maps/town.yaml"], "start: true\n", "", 1)
+			if _, err := load.Dir(write(t, files)); err == nil || !strings.Contains(err.Error(), "beginning is for a region with a town") {
+				t.Fatalf("error %v; want it refused as a start", err)
+			}
+		})
+	}
+}
+
 func TestARegionLoadsAsAMapOfItsPlan(t *testing.T) {
 	files := regioned(t)
 	files["maps/field.yaml"] = strings.Replace(files["maps/field.yaml"], "  - {id: hunter, at: [20, 12], yaw: 180}\n", "", 1)
@@ -278,7 +332,6 @@ func TestRegionRejections(t *testing.T) {
 		{"a gate in the ring", file, "name: west, at: [24, 64]", "name: west, at: [12, 64]", []string{file, "gate west at [12 64] stands in the ring"}},
 
 		// Across files.
-		{"a place for a region", "world.yaml", "  field: [60, 50]\n", "  field: [60, 50]\n  vale: [10, 10]\n", []string{"world.yaml", "vale", "region"}},
 		{"a region one interest block holds", "world.yaml", "  behind: 1\n", "  behind: 3\n", []string{file, "block", "whole"}},
 	}
 	for _, tt := range tests {

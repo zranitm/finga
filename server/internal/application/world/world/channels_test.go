@@ -152,10 +152,10 @@ func TestABossesQueryAnswersForThePlayersRegionChannel(t *testing.T) {
 		if _, err := w.Bosses(t.Context(), ayla.ID, "c-elsewhere"); !errors.Is(err, transient.ErrUnavailable) {
 			t.Fatalf("from another connection: %v; want unavailable", err)
 		}
-		bo := at(t, "Bo", "town")
-		w.enter(t, bo, "town", "c-Bo", &worldtest.Sink{})
+		bo := at(t, "Bo", "crossroads")
+		w.enter(t, bo, "crossroads", "c-Bo", &worldtest.Sink{})
 		if _, err := w.Bosses(t.Context(), bo.ID, "c-Bo"); !errors.Is(err, model.ErrNotARegion) {
-			t.Fatalf("in town: %v; want ErrNotARegion", err)
+			t.Fatalf("in a town: %v; want ErrNotARegion", err)
 		}
 	})
 }
@@ -191,10 +191,10 @@ func TestJoinsFillARegionsChannels(t *testing.T) {
 		if _, s := w.enterRegion(t, "Fay"); channelOf(t, s) != 1 {
 			t.Fatalf("Fay joined channel %d; want 1, as full as 3 and lower", channelOf(t, s))
 		}
-		bo, s := at(t, "Bo2", "town"), &worldtest.Sink{}
-		w.enter(t, bo, "town", "c-Bo2", s)
+		bo, s := at(t, "Bo2", "crossroads"), &worldtest.Sink{}
+		w.enter(t, bo, "crossroads", "c-Bo2", s)
 		if _, err := w.Channels(bo.ID, "c-Bo2"); !errors.Is(err, model.ErrNotARegion) {
-			t.Fatalf("channels in town: %v; want ErrNotARegion", err)
+			t.Fatalf("channels in a town: %v; want ErrNotARegion", err)
 		}
 		if snaps := worldtest.Of[model.Snapshot](s); snaps[0].Channel != 0 {
 			t.Fatalf("a town's snapshot says channel %d", snaps[0].Channel)
@@ -218,8 +218,8 @@ func TestAPartyJoinsItsChannelWhileItHasRoom(t *testing.T) {
 		}
 		synctest.Wait()
 		mira, nia := at(t, "Mira", "test_region"), at(t, "Nia", "test_region")
-		tom, sTom := at(t, "Tom", "town"), &worldtest.Sink{}
-		w.enter(t, tom, "town", "c-Tom", sTom) // in the party, but not in the region
+		tom, sTom := at(t, "Tom", "crossroads"), &worldtest.Sink{}
+		w.enter(t, tom, "crossroads", "c-Tom", sTom) // in the party, but not in the region
 		ps.mu.Lock()
 		ps.all = [][]kernel.CharacterID{{ayla.ID, mira.ID, nia.ID, tom.ID}}
 		ps.mu.Unlock()
@@ -238,8 +238,8 @@ func TestATeleportIntoARegionIsPicked(t *testing.T) {
 		data := worldtest.LoadData(t)
 		w := channelWorld(t, worldtest.Options{ChannelCap: 1})
 		w.enterRegion(t, "Ayla")
-		bo, s := at(t, "Bo", "town"), &worldtest.Sink{}
-		w.enter(t, bo, "town", "c-Bo", s)
+		bo, s := at(t, "Bo", "crossroads"), &worldtest.Sink{}
+		w.enter(t, bo, "crossroads", "c-Bo", s)
 		if err := w.Teleport(context.Background(), bo.ID, "c-Bo", "", "town", 1); err != nil {
 			t.Fatal(err)
 		}
@@ -343,8 +343,8 @@ func TestASwitchMovesToTheSameSpotInAnotherChannel(t *testing.T) {
 		bo, sb := w.enterRegion(t, "Bo")
 		w.enterRegion(t, "Cy")
 		dee, _ := w.enterRegion(t, "Dee")
-		tom := at(t, "Tom", "town")
-		w.enter(t, tom, "town", "c-Tom", &worldtest.Sink{})
+		tom := at(t, "Tom", "crossroads")
+		w.enter(t, tom, "crossroads", "c-Tom", &worldtest.Sink{})
 		ctx := context.Background()
 		for _, c := range []struct {
 			who  model.Player
@@ -442,7 +442,7 @@ func TestARefusedSwitchKeepsNoChannelOpen(t *testing.T) {
 		before := idle - world.ChannelSweep // a sweep short of the idle time
 		time.Sleep(before)
 		synctest.Wait()
-		if err := w.Teleport(ctx, ayla.ID, "c-Ayla", "town", "", 1); err != nil {
+		if err := w.Teleport(ctx, ayla.ID, "c-Ayla", "crossroads", "", 1); err != nil {
 			t.Fatal(err)
 		}
 		if err := w.SwitchChannel(ctx, ayla.ID, "c-Ayla", 2, 1); !errors.Is(err, model.ErrTeleportBusy) {

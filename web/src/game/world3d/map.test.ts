@@ -103,8 +103,8 @@ describe('loadMap', () => {
     expect(run(b.kept[1])).toBeGreaterThan(b.bases[1].x); // side 2 runs on into its own
   });
 
-  it('reads the town and forest as Go wrote them, the sim’s geometry number for number', async () => {
-    for (const id of ['town', 'forest']) {
+  it('reads the crossroads and the grove as Go wrote them, the sim’s geometry number for number', async () => {
+    for (const id of ['crossroads', 'shroom_grove']) {
       const raw = json(id) as {
         geometry: {
           size_x: number;
@@ -137,26 +137,24 @@ describe('loadMap', () => {
   });
 
   it('strews a scatter’s count over its area, the same way each time', async () => {
-    const m = await loadMap('forest');
+    const m = await loadMap('shroom_grove');
     const flowers = m.props.filter((p) => p.model === 'flowers');
-    expect(flowers).toHaveLength(120);
+    expect(flowers).toHaveLength(90);
     for (const p of flowers) {
-      expect(p.x).toBeGreaterThanOrEqual(0);
-      expect(p.x).toBeLessThan(72);
-      expect(p.z).toBeGreaterThanOrEqual(0);
-      expect(p.z).toBeLessThan(40);
+      expect(p.x).toBeGreaterThanOrEqual(3);
+      expect(p.x).toBeLessThan(69);
+      expect(p.z).toBeGreaterThanOrEqual(4);
+      expect(p.z).toBeLessThan(31);
     }
-    expect(new Set(flowers.map((p) => `${p.x} ${p.z}`)).size).toBe(120);
-    expect((await loadMap('forest')).props).toEqual(m.props);
-    expect(m.props.filter((p) => p.model === 'grass_tuft')).toEqual([
-      { model: 'grass_tuft', x: 12, z: 8, yaw: 0 },
-    ]);
+    expect(new Set(flowers.map((p) => `${p.x} ${p.z}`)).size).toBe(90);
+    expect((await loadMap('shroom_grove')).props).toEqual(m.props);
+    expect(m.props).toContainEqual({ model: 'tiny_mushrooms', x: 41, z: 18.5, yaw: 0 }); // a placed one beside the scatter's
   });
 
   it('carries each portal’s target', async () => {
-    expect((await loadMap('forest')).portals).toEqual([
-      { name: 'from_town', x: 2, z: 20, radius: 1.2, to: 'town' },
-      { name: 'to_cave', x: 70, z: 20, radius: 1.2, to: 'cave' },
+    expect((await loadMap('shroom_grove')).portals).toEqual([
+      { name: 'from_cave', x: 2, z: 18, radius: 1.2, to: 'willowmere' },
+      { name: 'to_hollow', x: 70, z: 18, radius: 1.2, to: 'spore_hollow' },
     ]);
   });
 
@@ -178,18 +176,18 @@ describe('loadMap', () => {
       y: ground,
       main: false,
     });
-    expect((await loadMap('forest')).waypoints).toEqual([]);
+    expect((await loadMap('shroom_grove')).waypoints).toEqual([]);
   });
 
   it('refuses what isn’t a map mapjson wrote', async () => {
     await expect(read({ id: 'x' })).rejects.toThrow();
     await expect(read(null)).rejects.toThrow();
-    const raw = json('town') as { box_models: unknown[] };
+    const raw = json('crossroads') as { box_models: unknown[] };
     await expect(read({ ...raw, box_models: raw.box_models.slice(1) })).rejects.toThrow();
   });
 
   it('reads the region a map names from its bake, and refuses one that names no bake', async () => {
-    const raw = json('town') as { id: string; portals: unknown[] };
+    const raw = json('crossroads') as { id: string; portals: unknown[] };
     const tiny = await read({
       id: 'tiny',
       sky: 'day',
@@ -206,7 +204,9 @@ describe('loadMap', () => {
     expect(tiny.region?.overview.nx).toBe(17);
     expect((await read(raw)).region).toBeNull();
     for (const region of [{ id: 'tiny' }, { hash: 'abc' }, { id: 'tiny', hash: 7 }, null]) {
-      await expect(read({ ...raw, region })).rejects.toThrow('map town: its region names no bake');
+      await expect(read({ ...raw, region })).rejects.toThrow(
+        'map crossroads: its region names no bake',
+      );
     }
   });
 
@@ -220,14 +220,14 @@ describe('loadMap', () => {
     expect(Object.keys(region.geometry.cylinders)).toEqual([]); // till its chunks come
     expect(region.solids).toEqual([]);
     expect((json('test_region') as { geometry?: unknown }).geometry).toBeUndefined();
-    const town = json('town') as { box_models: unknown[] };
-    await expect(read({ ...town, box_models: town.box_models.slice(1) })).rejects.toThrow(
-      'map town: its models and solids differ in number',
-    );
+    const crossroads = json('crossroads') as { box_models: unknown[] };
+    await expect(
+      read({ ...crossroads, box_models: crossroads.box_models.slice(1) }),
+    ).rejects.toThrow('map crossroads: its models and solids differ in number');
   });
 
   it('loads a map by its id from the page’s maps folder, and one not there throws', async () => {
-    expect((await loadMap('cave')).sky).toBe('cave');
+    expect((await loadMap('greyfang_cave')).sky).toBe('cave');
     await expect(loadMap('nowhere')).rejects.toThrow('map nowhere: 404');
   });
 });
@@ -252,9 +252,11 @@ describe('standsIn', () => {
     expect(standsIn({ x: 6, y, z: 5 }, m)?.name).toBe('out');
     expect(standsIn({ x: 5, y, z: 4 }, m)?.name).toBe('out');
     expect(standsIn({ x: 6 + 1e-9, y, z: 5 }, m)).toBeUndefined();
-    const forest = await loadMap('forest');
-    const p = forest.portals[1]!;
-    expect(standsIn({ x: p.x, y: groundUnder(forest, p.x, p.z), z: p.z }, forest)?.to).toBe('cave');
+    const grove = await loadMap('shroom_grove');
+    const p = grove.portals[1]!;
+    expect(standsIn({ x: p.x, y: groundUnder(grove, p.x, p.z), z: p.z }, grove)?.to).toBe(
+      'spore_hollow',
+    );
   });
 
   it('holds feet within 1 m of the portal’s ground, a low solid’s top under it', async () => {

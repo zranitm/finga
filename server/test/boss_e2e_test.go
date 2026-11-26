@@ -15,12 +15,9 @@ import (
 // bossBack is how long after it falls quickBoss's king is back: room for both boxes' takes and then Dee's join, seen at up to 4.2 s and 1 s on CI, before it stands on its boxes again.
 const bossBack = 10 * time.Second
 
-// quickBoss: one-hit mushrooms that bite 0.03 m out, and a still, weak boss paying 1001 EXP and a boar tusk, back bossBack after it falls.
+// quickBoss: a still, weak boss paying 1001 EXP and a boar tusk, back bossBack after it falls.
 func quickBoss() []e2etest.DataEdit {
 	return []e2etest.DataEdit{
-		{File: "mobs.yaml", Old: "    name: Orange Mushroom\n    level: 4\n    hp: 72\n", New: "    name: Orange Mushroom\n    level: 4\n    hp: 1\n"},
-		{File: "mobs.yaml", Old: "    attacks: [{use: charge, status: {id: poison, time: 1s, power: 0.15}}]\n    look: {model: mushnub, tint: 0xe08a3c}\n", New: "    attacks: [{use: bite, reach: 0.03}]\n    look: {model: mushnub, tint: 0xe08a3c}\n"},
-		{File: "maps/forest.yaml", Old: "mob: orange_mushroom, max: 4, respawn: 36s}", New: "mob: orange_mushroom, max: 4, respawn: 1s}"},
 		{File: "mobs.yaml", Old: "  respawn: 5m #", New: "  respawn: " + bossBack.String() + " #"},
 		{File: "mobs.yaml", Old: "    name: King Slime\n    boss: true\n    level: 6\n    hp: 4530\n    attack: 24\n", New: "    name: King Slime\n    boss: true\n    level: 6\n    hp: 40\n    attack: 1\n"},
 		{File: "mobs.yaml", Old: "    exp: 840\n    speed: 0.75\n", New: "    exp: 1001\n    speed: 0\n"},
@@ -87,13 +84,14 @@ func TestFieldBoss(t *testing.T) {
 	}
 	king, _ := data.Mob("king_slime")
 	reach := king.Radius + data.Movement().Radius + 0.125 // a fighter blocked at its side is within reach
-	// Ann and Ben stand south of the boss's spot at 53, 20, as a party, Ann on the map first; Cal waits in the town.
+	// Ann and Ben stand south of Sunmeadow's boss spot, as a party, Ann on the map first; Cal waits in Willowbrook, outside its area.
+	sp := e2etest.Spots(t)
 	var ls []*e2etest.Looter
 	snaps := map[*e2etest.Looter]*clientv1.Snapshot{}
 	for _, c := range []struct {
 		user, name, mapID string
 		at                gamedata.Point
-	}{{"ann", "Ann", "forest", gamedata.Point{X: 50, Z: 14}}, {"ben", "Ben", "forest", gamedata.Point{X: 56, Z: 14}}, {"cal", "Cal", "town", gamedata.Point{X: 20, Z: 10}}} {
+	}{{"ann", "Ann", "willowmere", gamedata.Point{X: sp.Boss.X - 3, Z: sp.Boss.Z - 7}}, {"ben", "Ben", "willowmere", gamedata.Point{X: sp.Boss.X + 3, Z: sp.Boss.Z - 7}}, {"cal", "Cal", "willowmere", sp.Start}} {
 		token, id := s.CreateCharacter(t, c.user, c.name, "warrior")
 		s.Place(t, id, c.mapID, c.at, 144, 0)
 		p, snap := s.Join(t, token, id)
@@ -102,7 +100,7 @@ func TestFieldBoss(t *testing.T) {
 	}
 	ann, ben, cal := ls[0], ls[1], ls[2]
 	deeToken, deeID := s.CreateCharacter(t, "dee", "Dee", "warrior")
-	s.Place(t, deeID, "forest", gamedata.Point{X: 20, Z: 30}, 144, 0)
+	s.Place(t, deeID, "willowmere", gamedata.Point{X: sp.Boss.X - 30, Z: sp.Boss.Z}, 144, 0) // 30 m west of the boss
 	if r := ann.Command(t, "inv-1", &clientv1.PartyInvite{CharacterId: ben.ID}); !r.GetOk() {
 		t.Fatalf("invite: %+v", r)
 	}
@@ -123,7 +121,7 @@ func TestFieldBoss(t *testing.T) {
 			}
 		}
 		if snaps[cal].GetFieldBoss() != nil || snaps[cal].GetFieldBossGone() != nil {
-			t.Fatalf("Cal, in the town, joined to a boss: %+v, %+v", snaps[cal].GetFieldBoss(), snaps[cal].GetFieldBossGone())
+			t.Fatalf("Cal, in Willowbrook, joined to a boss: %+v, %+v", snaps[cal].GetFieldBoss(), snaps[cal].GetFieldBossGone())
 		}
 	}) {
 		return
@@ -142,7 +140,7 @@ func TestFieldBoss(t *testing.T) {
 				t.Fatalf("%s heard the boss gone as %+v; want the king, back in %v", l.ID, g, bossBack)
 			}
 		}
-		// Each sees a box of their own holding a tusk, and none of the other's; each takes theirs. A pouch from a mushroom killed in the fight is no box, and isn't counted.
+		// Each sees a box of their own holding a tusk, and none of the other's; each takes theirs. A pouch from a mob killed in the fight is no box, and isn't counted.
 		for _, l := range []*e2etest.Looter{ann, ben} {
 			var box *clientv1.PouchView
 			found := l.Until(5*time.Second, func() bool {
@@ -196,9 +194,9 @@ func TestFieldBoss(t *testing.T) {
 				t.Fatalf("%s saw the king back as %+v on tick %d; want a new king on tick %d, %d ticks after it fell", l.ID, fb.Msg, fb.Tick, back, back-fell)
 			}
 		}
-		cal.Await(100*time.Millisecond, nil) // what the town sent meanwhile
+		cal.Await(100*time.Millisecond, nil) // what Willowbrook heard meanwhile
 		if len(cal.FieldBosses) != 0 || len(cal.BossesGone) != 0 {
-			t.Fatalf("Cal, in the town, heard of the forest's boss: %v, %v", cal.FieldBosses, cal.BossesGone)
+			t.Fatalf("Cal, in Willowbrook, heard of Sunmeadow's boss: %v, %v", cal.FieldBosses, cal.BossesGone)
 		}
 	})
 }

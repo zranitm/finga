@@ -37,7 +37,7 @@ func arena(t *testing.T, respawn time.Duration) *gamedata.Map {
 func arenaOf(t *testing.T, respawn time.Duration, side float64) *gamedata.Map {
 	t.Helper()
 	return worldtest.Gridded(t, &gamedata.Map{
-		ID: "arena", Kind: gamedata.Hunting, Town: "town", Geometry: worldtest.Flat(side),
+		ID: "arena", Kind: gamedata.Hunting, Town: "willowmere", Geometry: worldtest.Flat(side),
 		Spawns:      []gamedata.Spawn{{Mob: "green_slime", Max: 1, Respawn: respawn, At: gamedata.Point{X: arenaX, Z: slimeZ}, Radius: 0.01}},
 		PlayerSpawn: gamedata.Point{X: arenaX, Z: spawnZ},
 	})
@@ -778,7 +778,7 @@ func TestAnAttackLandsOnTheMobItsAimPoints(t *testing.T) {
 		data := worldtest.LoadData(t)
 		const z = 20.0
 		pair := worldtest.Gridded(t, &gamedata.Map{
-			ID: "arena", Kind: gamedata.Hunting, Town: "town", Geometry: worldtest.Flat(40),
+			ID: "arena", Kind: gamedata.Hunting, Town: "willowmere", Geometry: worldtest.Flat(40),
 			Spawns: []gamedata.Spawn{
 				{Mob: "green_slime", Max: 1, Respawn: time.Minute, At: gamedata.Point{X: arenaX - 1.5, Z: z}, Radius: 0.01},
 				{Mob: "green_slime", Max: 1, Respawn: time.Minute, At: gamedata.Point{X: arenaX + 1.5, Z: z}, Radius: 0.01},
@@ -822,7 +822,7 @@ func TestAnAttackAndASkillHitTheLockedMobBeforeANearerOne(t *testing.T) {
 		data := worldtest.LoadData(t)
 		const z = 20.0
 		pair := worldtest.Gridded(t, &gamedata.Map{
-			ID: "arena", Kind: gamedata.Hunting, Town: "town", Geometry: worldtest.Flat(40),
+			ID: "arena", Kind: gamedata.Hunting, Town: "willowmere", Geometry: worldtest.Flat(40),
 			Spawns: []gamedata.Spawn{
 				{Mob: "green_slime", Max: 1, Respawn: time.Minute, At: gamedata.Point{X: arenaX + 1.2, Z: z - 0.6}, Radius: 0.01},
 				{Mob: "green_slime", Max: 1, Respawn: time.Minute, At: gamedata.Point{X: arenaX + 2.3, Z: z + 0.4}, Radius: 0.01},

@@ -74,7 +74,7 @@ func TestASigtermedGameSavesItsPlayers(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("sends SIGTERM")
 	}
-	s, game := processStack(t, "../data", "FINGA_SHUTDOWN_GRACE=60s")
+	s, game := processStack(t, e2etest.GameData(t), "FINGA_SHUTDOWN_GRACE=60s")
 	token, id := s.CreateCharacter(t, "sam", "Sam", "warrior")
 	p, snap := s.Join(t, token, id)
 	sam := e2etest.NewLooter(p, snap)

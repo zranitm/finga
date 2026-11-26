@@ -29,7 +29,7 @@ func TestTheAdminAPI(t *testing.T) {
 	if err != nil || c.Level != 1 {
 		t.Fatalf("Ada at %+v (%v); want level 1", c, err)
 	}
-	progress := adminapi.Progress{Class: c.Class, MapID: "town", X: 13, Y: 0, Z: 2.5, Yaw: -1.25, HP: 1, Energy: 5, Level: 5, UnspentPoints: 12, UnspentSkillPoints: 4,
+	progress := adminapi.Progress{Class: c.Class, MapID: "willowmere", X: 513, Y: 0, Z: 162.5, Yaw: -1.25, HP: 1, Energy: 5, Level: 5, UnspentPoints: 12, UnspentSkillPoints: 4,
 		Quests: []adminapi.Quest{{ID: "slime_cleanup", Status: "active", Progress: []int{3}}}}
 
 	t.Run("progress", func(t *testing.T) {
@@ -41,7 +41,7 @@ func TestTheAdminAPI(t *testing.T) {
 		}
 		var level, count int
 		var z, yaw float32
-		if err := s.DB.QueryRow(context.Background(), `SELECT c.level, c.pos_z, c.yaw, q.progress[1] FROM characters c JOIN character_quests q ON q.character_id = c.id WHERE c.id = $1 AND q.quest_id = 'slime_cleanup'`, id).Scan(&level, &z, &yaw, &count); err != nil || level != 5 || z != 2.5 || yaw != -1.25 || count != 3 {
+		if err := s.DB.QueryRow(context.Background(), `SELECT c.level, c.pos_z, c.yaw, q.progress[1] FROM characters c JOIN character_quests q ON q.character_id = c.id WHERE c.id = $1 AND q.quest_id = 'slime_cleanup'`, id).Scan(&level, &z, &yaw, &count); err != nil || level != 5 || z != 162.5 || yaw != -1.25 || count != 3 {
 			t.Fatalf("the database holds level %d, z %v, yaw %v, quest count %d (%v)", level, z, yaw, count, err)
 		}
 	})
@@ -162,7 +162,7 @@ func TestTheAdminAPI(t *testing.T) {
 // The admin API listens only when the config enables it.
 func TestTheAdminAPIIsOffUnlessEnabled(t *testing.T) {
 	t.Parallel()
-	s := e2etest.NewStackBuilt(t, "../data", func(ctx context.Context, h *host.Host, cfg config.Config) error {
+	s := e2etest.NewStackBuilt(t, e2etest.GameData(t), func(ctx context.Context, h *host.Host, cfg config.Config) error {
 		cfg.Admin.Enabled = false
 		return dependencies.Build(ctx, h, cfg)
 	})

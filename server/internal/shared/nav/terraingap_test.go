@@ -41,9 +41,8 @@ func (g gap) String() string {
 	return fmt.Sprintf("%s leaves a gap of %.2f m to the terrain at (%.2f, %.2f), wide enough for a player and too narrow for the %s, %.2f m across", g.what, g.width, g.middle.X, g.middle.Z, g.mob, g.across)
 }
 
-// solids are m's solids that are walls to someone walking beside them.
-func solids(m *mapfile.Map, p sim.Params) []solid {
-	geo := m.Geometry
+// solids are geo's solids that are walls to someone walking beside them.
+func solids(geo sim.Geometry, p sim.Params) []solid {
 	var out []solid
 	for _, c := range geo.Cylinders {
 		base := geo.Terrain.Height(c.X, c.Z)
@@ -75,41 +74,24 @@ func solids(m *mapfile.Map, p sim.Params) []solid {
 }
 
 // terrainGaps is each narrowest gap on m between a solid and terrain too steep to walk that rises over the solid's foot, where a player fits and the widest mob whose leash reaches its middle doesn't. A gap is narrowest where the solid's distance to the terrain is least along it, so a solid hugging a bank has one gap, the hug.
-func terrainGaps(t *testing.T, data *gamedata.Data, m *mapfile.Map, p sim.Params) []gap {
+func terrainGaps(t *testing.T, data *gamedata.Data, m ground, p sim.Params) []gap {
 	t.Helper()
-	geo := m.Geometry
+	geo := m.geo
 	type sample struct {
 		at  nav.Point
 		top float64
 	}
 	var steep []sample
-	for z := half; z < m.Size[1]; z += 2 * half {
-		for x := half; x < m.Size[0]; x += 2 * half {
+	for z := half; z < geo.SizeZ; z += 2 * half {
+		for x := half; x < geo.SizeX; x += 2 * half {
 			if geo.Terrain.Steep(x, z, false) || geo.Terrain.Steep(x, z, true) {
 				steep = append(steep, sample{nav.Point{X: x, Z: z}, geo.Terrain.Top(x, z)})
 			}
 		}
 	}
-	g := m.Grid()
-	starts := []nav.Point{mapfile.Point(m.PlayerSpawn.At)}
-	for _, pt := range m.Portals {
-		starts = append(starts, mapfile.Point(pt.At))
-	}
-	player := g.Reach(starts, p.Radius, nav.JumpRise(p))
-	type home struct {
-		mob   string
-		at    nav.Point
-		leash float64
-	}
-	var homes []home
-	for _, s := range m.Spawns {
-		homes = append(homes, home{s.Mob, mapfile.Point(s.At), s.Radius + data.MobRules().Leash})
-	}
-	if b := m.Boss; b != nil {
-		homes = append(homes, home{b.Mob, mapfile.Point(b.At), b.Radius + data.MobRules().Leash})
-	}
+	player := m.grid().Reach(m.starts, p.Radius, nav.JumpRise(p))
 	var out []gap
-	for _, s := range solids(m, p) {
+	for _, s := range solids(geo, p) {
 		type near struct {
 			at    nav.Point
 			width float64
@@ -141,8 +123,8 @@ func terrainGaps(t *testing.T, data *gamedata.Data, m *mapfile.Map, p sim.Params
 				continue
 			}
 			widest := gap{what: s.what, width: w.width, middle: mid}
-			for _, h := range homes {
-				if nav.Distance(mid, h.at) > h.leash {
+			for _, h := range m.homes {
+				if nav.Distance(mid, h.at) > h.r+data.MobRules().Leash {
 					continue
 				}
 				if def, ok := data.Mob(h.mob); ok && 2*def.Radius > widest.across {
@@ -169,16 +151,13 @@ func open(t sim.Terrain, a, b nav.Point, d float64) bool {
 	return true
 }
 
-// On every hunting map, no solid leaves a gap to terrain too steep to walk that a player fits and the widest mob whose leash reaches it doesn't. The sim tests terrain at a body's centre, so a mob chasing into such a gap sinks into the bank, which the mob reach test can't see.
+// On every hunting map and every shipped region's hunting areas, no solid leaves a gap to terrain too steep to walk that a player fits and the widest mob whose leash reaches it doesn't. The sim tests terrain at a body's centre, so a mob chasing into such a gap sinks into the bank, which the mob reach test can't see.
 func TestNoSolidLeavesAGapByTheTerrainOnlyAPlayerFits(t *testing.T) {
-	data := gamedatatest.Shipped(t)
-	d := shipped(t)
-	for _, m := range d.maps {
-		if m.Kind != "hunting" {
-			continue
-		}
-		t.Run(m.ID, func(t *testing.T) {
-			for _, g := range terrainGaps(t, data, m, d.params) {
+	data := gamedatatest.Full(t)
+	p := shipped(t).params
+	for _, m := range huntingGrounds(t, data) {
+		t.Run(m.id, func(t *testing.T) {
+			for _, g := range terrainGaps(t, data, m, p) {
 				t.Error(g)
 			}
 		})
@@ -211,7 +190,7 @@ player_spawn: {at: [3.5, 10], yaw: 90}
 
 // The gap check finds the one gap a player fits and the weasel doesn't, and passes the wide gap and the hug.
 func TestTheTerrainGapCheckFindsTheGapOnlyAPlayerFits(t *testing.T) {
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	p := shipped(t).params
 	var f mapfile.File
 	if err := yaml.Unmarshal([]byte(gapFixture), &f); err != nil {
@@ -221,7 +200,15 @@ func TestTheTerrainGapCheckFindsTheGapOnlyAPlayerFits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := terrainGaps(t, data, m, p)
+	starts := []nav.Point{mapfile.Point(m.PlayerSpawn.At)}
+	for _, pt := range m.Portals {
+		starts = append(starts, mapfile.Point(pt.At))
+	}
+	var homes []home
+	for _, sp := range m.Spawns {
+		homes = append(homes, home{"spawn " + sp.Name, sp.Mob, mapfile.Point(sp.At), sp.Radius})
+	}
+	got := terrainGaps(t, data, ground{id: "gaps", geo: m.Geometry, grid: m.Grid, starts: starts, homes: homes}, p)
 	if len(got) != 1 {
 		t.Fatalf("found %d gaps, want the one by the boulder at (8, 12): %v", len(got), got)
 	}

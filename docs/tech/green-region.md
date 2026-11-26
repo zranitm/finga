@@ -45,7 +45,7 @@ The region is 1024 m square, with mountains 72 m wide round its edge. You start 
 - **Waypoints:** 13. There's one in each town, at each area's way in, at the cliff foot and top, and at the north pass.
 - **Camps:**
   - 31, six or seven per area;
-  - normal mobs come back after 30 s and elites after 40 s; Sunmeadow keeps the Forest's 24 s and 36 s;
+  - the new areas' normal mobs come back after 30 s and their elites after 40 s; Sunmeadow's green slimes keep the Forest's 24 s and its orange mushrooms 36 s (the Forest's 30 s mesa slimes aren't carried over);
   - every camp keeps clear of the stones, the start, the gates and the NPCs, by the loader's rule.
 - **Bosses:** one per hunting area, in its far corner from the way in, two levels over the area's top (section 4).
 
@@ -184,6 +184,13 @@ Gentle banks are built (#442). The rest goes in this order, each its own PR:
    - new and stranded characters starting in Willowbrook;
    - the chart, the teleport list, bots and tests.
    - Every shipped region's hunting areas then pass the maps' design tests: no mob sees an arrival, each mob reaches anywhere in its leash, and no solid leaves a gap only a player fits (large-regions.md section 14). If the giant mushrooms or pines by the cliffs fail the last one, the scatter keeps solids off cliff edges.
+
+**As built (PR 2):**
+- The three plans are in `data/regions`; Willowmere has `beginning: true`, which makes it the one map new characters start in, and a place on the world chart; a region on the land may have one. A character saved on a map that's gone joins at the start map's spawn.
+- The bosses are `oakshade_chief` (9), `mushroom_king` (11), `lake_lurker` (13) and `crag_king` (14), each set by hand to the rule from its area's top normal mob; the Anglerfish entry is the one tuned in #333. The Cave Bat is 12 and the Vampire Bat 14, their drops as they were. A flyer is the client's (`flies` in `model-looks.ts`), not a field of the mob.
+- The three design tests (no mob sees an arrival, each mob reaches a player anywhere in its leash, no gap only a player fits) now run on Willowmere, the cave and the shrine; `test_region` stays out, a generator fixture with known gaps. They moved four camps and a boss spot a few metres, and the "north caps" camp from the river to (185, 910); the reach test also asks that a spot be one a body fits on. No scatter rule was needed.
+- Bots start in Willowbrook and walk its 1 km, so `cmd/bot`'s tests take about 15 s, up from 3.
+- The e2e suite was rewritten for Willowmere without being run locally; CI is its first run.
 
 **Then:** the generator's previews of the built region, and a live walk from Willowbrook to the north pass, the cave and the shrine. The bot budget run (large-regions.md section 11) can then run on a region of full size.
 

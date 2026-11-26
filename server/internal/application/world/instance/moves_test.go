@@ -301,7 +301,7 @@ func walled(t *testing.T, z float64, boxes ...sim.Box) *gamedata.Map {
 	g := worldtest.Flat(40)
 	g.Boxes = boxes
 	return still(worldtest.Gridded(t, &gamedata.Map{
-		ID: "arena", Kind: gamedata.Hunting, Town: "town", Geometry: g,
+		ID: "arena", Kind: gamedata.Hunting, Town: "willowmere", Geometry: g,
 		Spawns:      []gamedata.Spawn{{Mob: "green_slime", Max: 1, Respawn: time.Hour, At: gamedata.Point{X: arenaX, Z: z}}},
 		PlayerSpawn: gamedata.Point{X: arenaX, Z: spawnZ},
 	}))

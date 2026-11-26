@@ -33,7 +33,7 @@ func TestATraitOpensAtTheLastStageAndWaitsOutAFight(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	s.Place(t, id, "forest", e2etest.OutOfSight, 134, 0)
+	s.Place(t, id, "willowmere", e2etest.Spots(t).OutOfSight, 134, 0)
 	l, _ := s.Hello(t, token, id)
 
 	var frame, lastFight, chosenAt uint64 // the latest frame's tick, the latest Damage's naming the player, and the latest sheet's

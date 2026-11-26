@@ -250,7 +250,7 @@ func TestAFighterHeldPastTheGraceHasLeft(t *testing.T) {
 			if got := f.results.All(); !f.gone(ayla.ID) || len(got) != 1 || got[0].Winner != 2 || !got[0].Sides[0][0].Left || !got[0].Sides[0][0].Away || got[0].Sides[1][0].Away {
 				t.Fatalf("drops %v, outcomes %+v; want Ayla dropped, away at the end, and Robin's win, there for it", f.moves.Drops(), got)
 			}
-			if cp := f.lastSaved(t, ayla.ID); cp.MapID != data.StartTown().ID {
+			if cp := f.lastSaved(t, ayla.ID); cp.MapID != worldtest.Town(data).ID {
 				t.Fatalf("Ayla saved on %s, want where she came from", cp.MapID)
 			}
 			if _, err := f.inst.Rejoin(context.Background(), ayla.ID, "c-Ayla-again", &worldtest.Sink{}); !errors.Is(err, model.ErrNotInMatch) {
@@ -346,7 +346,7 @@ func TestAMatchEndingInTheGraceRatesTheHeldFighterByItsResult(t *testing.T) {
 		if !f.gone(ayla.ID) || slices.ContainsFunc(f.moves.All(), func(m worldtest.Move) bool { return m.Player.ID == ayla.ID }) {
 			t.Fatalf("drops %v, hand-offs %+v; want Ayla dropped as the match closed, handed nowhere", f.moves.Drops(), f.moves.All())
 		}
-		if cp := f.lastSaved(t, ayla.ID); cp.MapID != data.StartTown().ID {
+		if cp := f.lastSaved(t, ayla.ID); cp.MapID != worldtest.Town(data).ID {
 			t.Fatalf("Ayla saved on %s, want where she came from", cp.MapID)
 		}
 	})

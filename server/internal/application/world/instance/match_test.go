@@ -26,7 +26,7 @@ func fighterFrom(t *testing.T, data *gamedata.Data, name string) model.Player {
 	p := worldtest.NewPlayer(name, x, z)
 	p.Level, p.HP, p.Energy, p.Connection = 5, 150, 4, "c-"+name
 	p.Timers = model.SkillTimers{Cooldowns: map[string]time.Time{"war_cry": time.Now().Add(time.Hour)}}
-	p.Back = &model.Return{MapID: data.StartTown().ID, Player: p}
+	p.Back = &model.Return{MapID: worldtest.Town(data).ID, Player: p}
 	return p
 }
 
@@ -113,14 +113,14 @@ func TestAMatchAgainstABotRunsToItsEnd(t *testing.T) {
 			t.Fatal("the second round's reset sent no Respawned for each fighter")
 		}
 		mv := moves.All()
-		if len(mv) != 1 || mv[0].Dest.ID != data.StartTown().ID || mv[0].Player.Level != 5 || mv[0].Player.HP != 150 || mv[0].Player.Back != nil {
+		if len(mv) != 1 || mv[0].Dest.ID != worldtest.Town(data).ID || mv[0].Player.Level != 5 || mv[0].Player.HP != 150 || mv[0].Player.Back != nil {
 			t.Fatalf("hand-offs %+v, want Ayla back in town as she was", mv)
 		}
 		if _, running := mv[0].Player.Timers.Cooldowns["war_cry"]; !running {
 			t.Fatal("Ayla's cooldown from before the match is gone")
 		}
 		for _, cp := range cps.Drain() {
-			if cp.ID == bot.ID || cp.MapID != data.StartTown().ID || cp.Level != 5 {
+			if cp.ID == bot.ID || cp.MapID != worldtest.Town(data).ID || cp.Level != 5 {
 				t.Fatalf("checkpoint %+v, want only Ayla's return point", cp)
 			}
 		}
@@ -163,7 +163,7 @@ func TestAForfeitLosesAndGoesBack(t *testing.T) {
 		if len(got) != 1 || got[0].Winner != 2 || !got[0].Sides[0][0].Left {
 			t.Fatalf("outcomes %+v, want the bot's, Ayla gone", got)
 		}
-		if mv := moves.All(); len(mv) != 1 || mv[0].Dest.ID != data.StartTown().ID {
+		if mv := moves.All(); len(mv) != 1 || mv[0].Dest.ID != worldtest.Town(data).ID {
 			t.Fatalf("hand-offs %+v, want Ayla back in town", mv)
 		}
 		if err := inst.Forfeit(context.Background(), ayla.ID, ayla.Connection); !errors.Is(err, model.ErrNotInMatch) {
@@ -196,7 +196,7 @@ func TestALeaverLosesAndIsSavedWhereTheyCameFrom(t *testing.T) {
 		if len(saved) == 0 {
 			t.Fatal("no checkpoint on leaving")
 		}
-		if cp := saved[len(saved)-1]; cp.MapID != data.StartTown().ID || cp.Level != 5 || cp.HP != 150 || cp.Timers.Cooldowns["war_cry"].IsZero() {
+		if cp := saved[len(saved)-1]; cp.MapID != worldtest.Town(data).ID || cp.Level != 5 || cp.HP != 150 || cp.Timers.Cooldowns["war_cry"].IsZero() {
 			t.Fatalf("checkpoint %+v, want Ayla as she was in town", cp)
 		}
 	})
@@ -328,7 +328,7 @@ func TestAMatchRefusesItemsGearPointsTraitsAndTeleports(t *testing.T) {
 			"stat points":  inst.SpendPoints(ctx, ayla.ID, c, 0, gamedata.Stats{STR: 1}),
 			"skill points": inst.SpendSkillPoints(ctx, ayla.ID, c, 0, map[string]int{"strike": 1}),
 			"a trait":      inst.ChooseTrait(ctx, ayla.ID, c, "strike", "x"),
-			"a teleport":   inst.Teleport(ctx, ayla.ID, c, "town", "", 0),
+			"a teleport":   inst.Teleport(ctx, ayla.ID, c, "crossroads", "", 0),
 		} {
 			if !errors.Is(err, model.ErrInMatch) {
 				t.Errorf("%s: %v, want ErrInMatch", name, err)
@@ -500,7 +500,7 @@ func TestAForfeitBetweenRoundsLoses(t *testing.T) {
 		if len(got) != 1 || got[0].Winner != 1 || !got[0].Sides[1][0].Left || got[0].Sides[0][0].Left {
 			t.Fatalf("outcomes %+v, want Ayla's, Robin gone", got)
 		}
-		if mv := moves.All(); len(mv) != 1 || mv[0].Player.ID != robin.ID || mv[0].Dest.ID != data.StartTown().ID {
+		if mv := moves.All(); len(mv) != 1 || mv[0].Player.ID != robin.ID || mv[0].Dest.ID != worldtest.Town(data).ID {
 			t.Fatalf("hand-offs %+v, want Robin back in town", mv)
 		}
 	})
@@ -545,7 +545,7 @@ func TestAShutdownMidMatchSavesTheWayBack(t *testing.T) {
 		if len(saved) != 1 {
 			t.Fatalf("checkpoints at the stop %+v, want Ayla's alone", saved)
 		}
-		if cp := saved[0]; cp.ID != ayla.ID || cp.MapID != data.StartTown().ID || cp.Level != 5 || cp.HP != 150 || cp.Timers.Cooldowns["war_cry"].IsZero() {
+		if cp := saved[0]; cp.ID != ayla.ID || cp.MapID != worldtest.Town(data).ID || cp.Level != 5 || cp.HP != 150 || cp.Timers.Cooldowns["war_cry"].IsZero() {
 			t.Fatalf("checkpoint %+v, want Ayla as she was in town", cp)
 		}
 	})

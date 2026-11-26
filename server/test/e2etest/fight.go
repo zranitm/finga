@@ -2,6 +2,7 @@ package e2etest
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"net/http"
 	"testing"
@@ -14,18 +15,11 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// Spots on the shipped maps the rows stand at, in metres; each is open ground at height 0 unless it says otherwise.
-var (
-	SlimeField     = gamedata.Point{X: 13.5, Z: 12} // the forest's west, at the edge of the slimes' circle, which sees it
-	AmongSlimes    = gamedata.Point{X: 20, Z: 12}   // the middle of the slimes' circle, where they're on a player at once
-	OutOfSight     = gamedata.Point{X: 1, Z: 6}     // the forest's south-west corner, farther than any mob of the forest sees
-	ClearOfSlimes  = gamedata.Point{X: 2, Z: 30}    // the forest's north-west, out of the slimes' sight, even of those that chase a player there till they let them go
-	TownPortal     = gamedata.Point{X: 46, Z: 16}   // the town's to_forest
-	ForestFromTown = gamedata.Point{X: 2, Z: 20}    // the forest's way back to the town
-	ForestToCave   = gamedata.Point{X: 70, Z: 20}
-	CaveFromForest = gamedata.Point{X: 2, Z: 16}
-	ByTheTrainer   = gamedata.Point{X: 36.5, Z: 13} // in talking reach of the town's Warrior Trainer, at 36, 14
-)
+// GateByTheSlimes moves Willowmere's gate to the cave from the cliffs to Spots(t).SlimesGate, 16 m west of the slimes' camp, so a hunt and a hop are a few steps; the camp keeps clear of it by a mob's sight.
+func GateByTheSlimes(t testing.TB) DataEdit {
+	sp := Spots(t)
+	return DataEdit{File: "regions/willowmere.yaml", Old: fmt.Sprintf("name: cave_mouth, at: [%v, %v],", sp.CaveGate.X, sp.CaveGate.Z), New: fmt.Sprintf("name: cave_mouth, at: [%v, %v],", sp.SlimesGate.X, sp.SlimesGate.Z)}
+}
 
 // Place moves a character straight in the database, as a checkpoint would have left it; the join stands it on the ground at (x, z).
 func (s *Stack) Place(t *testing.T, charID, mapID string, at gamedata.Point, hp int, exp int64) {

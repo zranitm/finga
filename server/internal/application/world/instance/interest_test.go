@@ -32,7 +32,7 @@ func plain(t *testing.T, spawns []gamedata.Spawn, boss *gamedata.BossSpot) *game
 	t.Helper()
 	plainGround.once.Do(func() { plainGround.m = worldtest.Gridded(t, &gamedata.Map{Geometry: worldtest.Flat(plainSize)}) })
 	return &gamedata.Map{
-		ID: "plain", Kind: gamedata.Hunting, Town: "town", Geometry: plainGround.m.Geometry, Grid: plainGround.m.Grid, Spawns: spawns, Boss: boss,
+		ID: "plain", Kind: gamedata.Hunting, Town: "willowmere", Geometry: plainGround.m.Geometry, Grid: plainGround.m.Grid, Spawns: spawns, Boss: boss,
 		PlayerSpawn: gamedata.Point{X: plainSize / 2, Z: plainSize / 2},
 	}
 }
@@ -447,7 +447,7 @@ func TestAMapARowPastTheBlockIsCutByCells(t *testing.T) {
 		data := worldtest.LoadData(t)
 		cell := data.Interest().Cell
 		side := float64(data.Interest().Behind+2) * cell // rows 0 to 2
-		m := worldtest.Gridded(t, &gamedata.Map{ID: "tall", Kind: gamedata.Hunting, Town: "town", Geometry: worldtest.Flat(side), PlayerSpawn: gamedata.Point{X: 10, Z: 10}})
+		m := worldtest.Gridded(t, &gamedata.Map{ID: "tall", Kind: gamedata.Hunting, Town: "willowmere", Geometry: worldtest.Flat(side), PlayerSpawn: gamedata.Point{X: 10, Z: 10}})
 		inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{})
 		defer stop()
 		south, north := worldtest.NewPlayer("Ayla", 10, 10), worldtest.NewPlayer("Robin", 10, side-10)

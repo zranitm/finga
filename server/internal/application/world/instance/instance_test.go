@@ -43,7 +43,7 @@ func TestATicksFrameGoesOnceToEachStream(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		x, z := worldtest.TownSpawn(t, data)
-		inst, stop := worldtest.RunMap(t, data, data.StartTown(), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, data, worldtest.Town(data), nil, worldtest.Options{})
 		defer stop()
 		gateway := &frames{}
 		ayla, robin, bruno := worldtest.NewPlayer("Ayla", x, z), worldtest.NewPlayer("Robin", x, z), worldtest.NewPlayer("Bruno", x, z)
@@ -87,7 +87,7 @@ func TestJoinSnapshotAndDeltas(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		x, z := worldtest.TownSpawn(t, data)
-		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
+		inst, cancel := worldtest.RunMap(t, data, worldtest.Town(data), nil, worldtest.Options{})
 		defer cancel()
 
 		ayla, robin := worldtest.NewPlayer("Ayla", x, z), worldtest.NewPlayer("Robin", x+3, z)
@@ -104,7 +104,7 @@ func TestJoinSnapshotAndDeltas(t *testing.T) {
 				t.Fatal("no events")
 			}
 			snap, ok := events[0].(model.Snapshot)
-			if !ok || snap.MapID != "town" || len(snap.Players) != 1 || snap.Players[0].ID != ayla.ID || snap.Players[0].State.X != x {
+			if !ok || snap.MapID != worldtest.Town(data).ID || len(snap.Players) != 1 || snap.Players[0].ID != ayla.ID || snap.Players[0].State.X != x {
 				t.Fatalf("first event %+v", events[0])
 			}
 			if _, ok := events[1].(worldtest.Delta); !ok {
@@ -172,7 +172,7 @@ func TestInputsApplyInSequenceOrder(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		x, z := worldtest.TownSpawn(t, data)
-		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
+		inst, cancel := worldtest.RunMap(t, data, worldtest.Town(data), nil, worldtest.Options{})
 		defer cancel()
 		p := worldtest.NewPlayer("Ayla", x, z)
 		s := &worldtest.Sink{}
@@ -288,7 +288,7 @@ func TestAFloodedInboxCarriesOverToTheNextTick(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		x, z := worldtest.TownSpawn(t, data)
-		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
+		inst, cancel := worldtest.RunMap(t, data, worldtest.Town(data), nil, worldtest.Options{})
 		defer cancel()
 		p := worldtest.NewPlayer("Ayla", x, z)
 		s := &worldtest.Sink{}
@@ -317,7 +317,7 @@ func TestInputQueueAppliesOnePerTick(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		x, z := worldtest.TownSpawn(t, data)
-		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
+		inst, cancel := worldtest.RunMap(t, data, worldtest.Town(data), nil, worldtest.Options{})
 		defer cancel()
 		p := worldtest.NewPlayer("Ayla", x, z)
 		s := &worldtest.Sink{}
@@ -383,7 +383,7 @@ func fedInputs(t *testing.T, ticks int, arrive func(n int) int) (leads []int, sk
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		x, z := worldtest.TownSpawn(t, data)
-		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
+		inst, cancel := worldtest.RunMap(t, data, worldtest.Town(data), nil, worldtest.Options{})
 		defer cancel()
 		p := worldtest.NewPlayer("Ayla", x, z)
 		s := &worldtest.Sink{}
@@ -456,7 +456,7 @@ func TestTheInputHoldLastsAsLongAtAnyRate(t *testing.T) {
 		interval := time.Second / 60
 		data := worldtest.LoadData(t)
 		x, z := worldtest.TownSpawn(t, data)
-		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{TickInterval: interval})
+		inst, cancel := worldtest.RunMap(t, data, worldtest.Town(data), nil, worldtest.Options{TickInterval: interval})
 		defer cancel()
 		p := worldtest.NewPlayer("Ayla", x, z)
 		s := &worldtest.Sink{}
@@ -483,7 +483,7 @@ func TestInputGapHoldsThePlayer(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		x, z := worldtest.TownSpawn(t, data)
-		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
+		inst, cancel := worldtest.RunMap(t, data, worldtest.Town(data), nil, worldtest.Options{})
 		defer cancel()
 		p := worldtest.NewPlayer("Ayla", x, z)
 		s := &worldtest.Sink{}
@@ -494,7 +494,7 @@ func TestInputGapHoldsThePlayer(t *testing.T) {
 		synctest.Wait()
 		start, _ := s.Own(p.ID)
 		state := start.State
-		geom := data.StartTown().Geometry
+		geom := worldtest.Town(data).Geometry
 		params := data.Movement()
 		tick := func(in *sim.Input, seq uint32) model.PlayerView {
 			if in != nil {
@@ -568,7 +568,7 @@ func TestServerStateMatchesSimStepExactly(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		x, z := worldtest.TownSpawn(t, data)
-		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
+		inst, cancel := worldtest.RunMap(t, data, worldtest.Town(data), nil, worldtest.Options{})
 		defer cancel()
 		p := worldtest.NewPlayer("Ayla", x, z)
 		s := &worldtest.Sink{}
@@ -585,7 +585,7 @@ func TestServerStateMatchesSimStepExactly(t *testing.T) {
 			{}, {}, {Left: true}, {Left: true, Jump: true}, {Left: true}, {Left: true}, {},
 			{Right: true}, {Right: true}, {Right: true}, {}, {}, {}, {}, {},
 		}
-		geom := data.StartTown().Geometry
+		geom := worldtest.Town(data).Geometry
 		params := data.Movement()
 		for n, in := range inputs {
 			_ = inst.Input(p.ID, uint32(n+1), in, 0)
@@ -609,7 +609,7 @@ func TestTickObserver(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		obs := &worldtest.Observer{}
-		_, cancel := worldtest.Run(t, data, nil, worldtest.Options{Observer: obs})
+		_, cancel := worldtest.RunMap(t, data, worldtest.Town(data), nil, worldtest.Options{Observer: obs})
 		defer cancel()
 		time.Sleep(5 * worldtest.TickInterval)
 		synctest.Wait()
@@ -624,7 +624,7 @@ func TestCheckpoints(t *testing.T) {
 		data := worldtest.LoadData(t)
 		x, z := worldtest.TownSpawn(t, data)
 		cps := &worldtest.Checkpoints{}
-		inst, cancel := worldtest.Run(t, data, cps, worldtest.Options{CheckpointInterval: 30 * time.Second})
+		inst, cancel := worldtest.RunMap(t, data, worldtest.Town(data), cps, worldtest.Options{CheckpointInterval: 30 * time.Second})
 		defer cancel()
 		p := worldtest.NewPlayer("Ayla", x, z)
 		p.Exp, p.Energy = 12, 6
@@ -653,7 +653,7 @@ func TestCheckpoints(t *testing.T) {
 				t.Fatalf("%d checkpoints at 30 s, want 1", len(got))
 			}
 			cp := got[0]
-			if cp.ID != p.ID || cp.MapID != "town" || cp.X <= x || cp.Yaw != model.YawOf(1, 0) || cp.Exp != 12 || cp.HP != 144 || cp.Energy != 6 || cp.Level != 1 || cp.Points != p.Points {
+			if cp.ID != p.ID || cp.MapID != worldtest.Town(data).ID || cp.X <= x || cp.Yaw != model.YawOf(1, 0) || cp.Exp != 12 || cp.HP != 144 || cp.Energy != 6 || cp.Level != 1 || cp.Points != p.Points {
 				t.Fatalf("checkpoint %+v", cp)
 			}
 		}
@@ -696,7 +696,7 @@ func TestASavedYawTurnsThePlayer(t *testing.T) {
 		data := worldtest.LoadData(t)
 		x, z := worldtest.TownSpawn(t, data)
 		cps := &worldtest.Checkpoints{}
-		inst, cancel := worldtest.Run(t, data, cps, worldtest.Options{CheckpointInterval: time.Hour})
+		inst, cancel := worldtest.RunMap(t, data, worldtest.Town(data), cps, worldtest.Options{CheckpointInterval: time.Hour})
 		defer cancel()
 		p := worldtest.NewPlayer("Ayla", x, z)
 		p.Yaw = -2 // south-west
@@ -723,9 +723,9 @@ func TestAPortalArrivalFacesIntoTheMap(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		tr := &transferRecorder{}
-		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Transfer: tr})
+		inst, stop := worldtest.RunMap(t, data, worldtest.Town(data), nil, worldtest.Options{Transfer: tr})
 		defer stop()
-		portal := data.StartTown().Portals[0]
+		portal := worldtest.Town(data).Portals[0]
 		p := worldtest.NewPlayer("Ayla", portal.At.X, portal.At.Z)
 		p.Connection = "c1"
 		s := join(t, inst, p)
@@ -759,7 +759,7 @@ func TestCheckpointSweepsAreStaggered(t *testing.T) {
 		data := worldtest.LoadData(t)
 		x, z := worldtest.TownSpawn(t, data)
 		cps := &worldtest.Checkpoints{}
-		inst, cancel := worldtest.Run(t, data, cps, worldtest.Options{CheckpointInterval: 4 * worldtest.TickInterval})
+		inst, cancel := worldtest.RunMap(t, data, worldtest.Town(data), cps, worldtest.Options{CheckpointInterval: 4 * worldtest.TickInterval})
 		defer cancel()
 		drain := func() []kernel.CharacterID {
 			var out []kernel.CharacterID
@@ -804,7 +804,7 @@ func TestSlowConsumerIsRemoved(t *testing.T) {
 		data := worldtest.LoadData(t)
 		x, z := worldtest.TownSpawn(t, data)
 		tr := &transferRecorder{}
-		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{Transfer: tr})
+		inst, cancel := worldtest.RunMap(t, data, worldtest.Town(data), nil, worldtest.Options{Transfer: tr})
 		defer cancel()
 		ayla, robin := worldtest.NewPlayer("Ayla", x, z), worldtest.NewPlayer("Robin", x, z)
 		robin.Connection = "c-robin"
@@ -845,7 +845,7 @@ func TestReplayMatchesSim(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		x, z := worldtest.TownSpawn(t, data)
-		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
+		inst, cancel := worldtest.RunMap(t, data, worldtest.Town(data), nil, worldtest.Options{})
 		defer cancel()
 		p := worldtest.NewPlayer("Ayla", x, z)
 		s := &worldtest.Sink{}
@@ -857,7 +857,7 @@ func TestReplayMatchesSim(t *testing.T) {
 		snap := s.All()[0].(model.Snapshot)
 		state := snap.Players[0].State
 		for range 3 { // the join tick itself ran 3 sub-steps with no input
-			state = sim.Step(state, sim.Input{}, data.StartTown().Geometry, data.Movement())
+			state = sim.Step(state, sim.Input{}, worldtest.Town(data).Geometry, data.Movement())
 		}
 		recorded := []sim.Input{
 			{Right: true}, {Right: true}, {Right: true, Jump: true}, {Right: true}, {Right: true}, {}, {}, {Left: true}, {Left: true, Jump: true}, {Left: true},
@@ -868,7 +868,7 @@ func TestReplayMatchesSim(t *testing.T) {
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			for range 3 {
-				state = sim.Step(state, in, data.StartTown().Geometry, data.Movement())
+				state = sim.Step(state, in, worldtest.Town(data).Geometry, data.Movement())
 			}
 			got, ok := s.Own(p.ID)
 			if !ok {
@@ -890,7 +890,7 @@ func near(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
 func TestOneWhoLeavesInTheTickAnotherJoinsIsntLeftOnTheirScreen(t *testing.T) {
 	data := worldtest.LoadData(t)
 	region, _ := data.Map("test_region")
-	for _, m := range []*gamedata.Map{data.StartTown(), region} {
+	for _, m := range []*gamedata.Map{worldtest.Town(data), region} {
 		t.Run(m.ID, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				x, z := 124.0, 80.0
@@ -939,7 +939,7 @@ func TestALeaveAndARejoinInOneTickKeepThePlayerShown(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		x, z := worldtest.TownSpawn(t, data)
-		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
+		inst, cancel := worldtest.RunMap(t, data, worldtest.Town(data), nil, worldtest.Options{})
 		defer cancel()
 		ayla, robin := worldtest.NewPlayer("Ayla", x, z), worldtest.NewPlayer("Robin", x+3, z)
 		ayla.Connection = "c-1"

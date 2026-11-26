@@ -53,8 +53,38 @@ func walkGrid(keyed *sync.Once, at **sharedGrid, g sim.Geometry, p sim.Params) *
 	return s.grid
 }
 
-// gridFor is the shared grid for g under p, or one of its own when g can't be keyed.
+// byBacking keys grids by the slices a geometry is built on, so the loads of one generated region, which share them, find its grid without hashing a million samples again.
+var byBacking sync.Map // backing → *sharedGrid
+
+type backing struct {
+	heights   *float64
+	boxes     *sim.Box
+	cylinders *sim.Cylinder
+	sizes     [3]int
+	params    sim.Params
+}
+
+// gridFor is the shared grid for g under p: found by its backing slices when a load of it has been before, else by its content.
 func gridFor(g sim.Geometry, p sim.Params) *sharedGrid {
+	if len(g.Terrain.Heights) == 0 {
+		return gridByContent(g, p)
+	}
+	k := backing{heights: &g.Terrain.Heights[0], sizes: [3]int{len(g.Terrain.Heights), len(g.Boxes), len(g.Cylinders)}, params: p}
+	if len(g.Boxes) > 0 {
+		k.boxes = &g.Boxes[0]
+	}
+	if len(g.Cylinders) > 0 {
+		k.cylinders = &g.Cylinders[0]
+	}
+	if s, ok := byBacking.Load(k); ok {
+		return s.(*sharedGrid)
+	}
+	s, _ := byBacking.LoadOrStore(k, gridByContent(g, p))
+	return s.(*sharedGrid)
+}
+
+// gridByContent is the shared grid for g under p, or one of its own when g can't be keyed.
+func gridByContent(g sim.Geometry, p sim.Params) *sharedGrid {
 	raw, err := json.Marshal(struct {
 		Geometry sim.Geometry
 		Params   sim.Params

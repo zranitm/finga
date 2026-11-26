@@ -30,7 +30,7 @@ func TestASlamStunsAPlayer(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	s.Place(t, id, "forest", e2etest.SlimeField, 134, 0)
+	s.Place(t, id, "willowmere", e2etest.Spots(t).SlimeField, 134, 0)
 	l := e2etest.NewLooter(s.Join(t, token, id))
 	l.Await(300*time.Millisecond, nil)
 
@@ -96,7 +96,7 @@ func TestAStunnedPlayerBreaksFree(t *testing.T) {
 	t.Parallel()
 	s := newStackOver(t, e2etest.GameData(t, slamming...))
 	token, id := s.CreateCharacter(t, "breaker", "Breaker", "beginner")
-	s.Place(t, id, "forest", e2etest.SlimeField, 134, 0)
+	s.Place(t, id, "willowmere", e2etest.Spots(t).SlimeField, 134, 0)
 	l := e2etest.NewLooter(s.Join(t, token, id))
 	l.Await(300*time.Millisecond, nil)
 

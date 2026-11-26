@@ -15,14 +15,14 @@ import (
 
 func TestPlayTogether(t *testing.T) {
 	t.Parallel()
-	s := newStack(t)
-	// Three hunters in the slime field; Dan stands on the forest's way back to the town to leave later.
+	s := newStackOver(t, e2etest.GameData(t, e2etest.GateByTheSlimes(t)))
+	// Three hunters in the slime field; Dan stands on the cave's gate, west of it, to leave later.
 	names := [][2]string{{"ann", "Ann"}, {"ben", "Ben"}, {"cat", "Cat"}, {"dan", "Dan"}}
-	at := []gamedata.Point{{X: e2etest.SlimeField.X, Z: e2etest.SlimeField.Z - 1}, e2etest.SlimeField, {X: e2etest.SlimeField.X, Z: e2etest.SlimeField.Z + 1}, e2etest.ForestFromTown}
+	at := []gamedata.Point{{X: e2etest.Spots(t).SlimeField.X, Z: e2etest.Spots(t).SlimeField.Z - 1}, e2etest.Spots(t).SlimeField, {X: e2etest.Spots(t).SlimeField.X, Z: e2etest.Spots(t).SlimeField.Z + 1}, e2etest.Spots(t).SlimesGate}
 	var ls []*e2etest.Looter
 	for k, n := range names {
 		token, id := s.CreateCharacter(t, n[0], n[1], "warrior")
-		s.Place(t, id, "forest", at[k], 144, 0)
+		s.Place(t, id, "willowmere", at[k], 144, 0)
 		p, snap := s.Join(t, token, id)
 		ls = append(ls, e2etest.NewLooter(p, snap))
 	}
@@ -45,7 +45,7 @@ func TestPlayTogether(t *testing.T) {
 			}
 			for _, l := range ls[:k+2] {
 				ps := l.PartyState(t, k+2)
-				if ps.GetParty().GetLeader() != ann.ID || ps.GetParty().GetMembers()[0].GetCharacterId() != ann.ID || !ps.GetParty().GetMembers()[k+1].GetOnline() || ps.GetParty().GetMembers()[k+1].GetMapId() != "forest" || ps.GetParty().GetMembers()[k+1].GetClass() != "warrior" {
+				if ps.GetParty().GetLeader() != ann.ID || ps.GetParty().GetMembers()[0].GetCharacterId() != ann.ID || !ps.GetParty().GetMembers()[k+1].GetOnline() || ps.GetParty().GetMembers()[k+1].GetMapId() != "willowmere" || ps.GetParty().GetMembers()[k+1].GetClass() != "warrior" {
 					t.Fatalf("%s sees %+v", l.ID, ps.Party)
 				}
 			}
@@ -60,9 +60,9 @@ func TestPlayTogether(t *testing.T) {
 	})
 
 	t.Run("E1/map-chat-reaches-the-map-cleaned-and-limited", func(t *testing.T) {
-		ann.Say(t, clientv1.ChatChannel_CHAT_CHANNEL_MAP, "hello\tforest\n")
+		ann.Say(t, clientv1.ChatChannel_CHAT_CHANNEL_MAP, "hello\twillowmere\n")
 		for _, l := range ls {
-			cm := l.Hears(t, "helloforest")
+			cm := l.Hears(t, "hellowillowmere")
 			if cm.Channel != clientv1.ChatChannel_CHAT_CHANNEL_MAP || cm.Sender != ann.ID || cm.SenderName != "Ann" {
 				t.Fatalf("%s heard %+v", l.ID, cm)
 			}
@@ -116,10 +116,10 @@ func TestPlayTogether(t *testing.T) {
 	})
 
 	t.Run("E1-E3/party-chat-crosses-maps-and-map-chat-does-not", func(t *testing.T) {
-		dan.Hop(t, e2etest.ForestFromTown, "town", e2etest.TownPortal)
+		dan.Hop(t, e2etest.Spots(t).SlimesGate, "greyfang_cave", e2etest.Spots(t).CaveMouth)
 		for _, l := range ls {
-			ps := e2etest.Take(t, l, "PartyState with Dan in the town", &l.PartyStates, 5*time.Second, func(ps *clientv1.PartyState) bool {
-				return ps.Party != nil && len(ps.GetParty().GetMembers()) == 4 && ps.GetParty().GetMembers()[3].GetMapId() == "town"
+			ps := e2etest.Take(t, l, "PartyState with Dan in the cave", &l.PartyStates, 5*time.Second, func(ps *clientv1.PartyState) bool {
+				return ps.Party != nil && len(ps.GetParty().GetMembers()) == 4 && ps.GetParty().GetMembers()[3].GetMapId() == "greyfang_cave"
 			})
 			if ps.GetParty().GetMembers()[3].GetCharacterId() != dan.ID {
 				t.Fatalf("%s sees %+v", l.ID, ps.Party)
@@ -131,17 +131,17 @@ func TestPlayTogether(t *testing.T) {
 				t.Fatalf("%s heard %+v", l.ID, cm)
 			}
 		}
-		ann.Say(t, clientv1.ChatChannel_CHAT_CHANNEL_MAP, "forest only")
+		ann.Say(t, clientv1.ChatChannel_CHAT_CHANNEL_MAP, "field only")
 		for _, l := range ls[:3] {
-			l.Hears(t, "forest only")
+			l.Hears(t, "field only")
 		}
-		if !dan.DoesNotHear("forest only", 700*time.Millisecond) {
-			t.Fatal("a map line reached the town")
+		if !dan.DoesNotHear("field only", 700*time.Millisecond) {
+			t.Fatal("a map line reached the cave")
 		}
 	})
 
 	t.Run("E3/a-kill-shares-exp-with-the-members-alive-on-the-map", func(t *testing.T) {
-		// Ann, Ben and Cat share floor(8 × 1.2) = 9, 3 each; Dan, in the town, gets nothing.
+		// Ann, Ben and Cat share floor(8 × 1.2) = 9, 3 each; Dan, in the cave, gets nothing.
 		before := len(ann.Exp)
 		ann.HuntUntil(90*time.Second, func() bool { return len(ann.Exp) != before }, nil) // the gain is taken from what Ann heard
 		if got := ann.Exp[before:]; len(got) != 1 || got[0].GetAmount() != 3 {

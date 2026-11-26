@@ -173,7 +173,7 @@ func TestALookAndAPromotionWaitForEachOther(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				p := trainee(t)
 				gifts, looks := &fakeGifts{gate: make(chan struct{})}, &fakeLooks{gate: make(chan struct{})}
-				inst, stop := worldtest.Run(t, worldtest.LoadData(t), &worldtest.Checkpoints{}, worldtest.Options{Gifts: gifts, Looks: looks, CheckpointInterval: time.Hour, ItemCalls: runningPool(t)})
+				inst, stop := worldtest.RunMap(t, worldtest.LoadData(t), worldtest.StartTown(worldtest.LoadData(t)), &worldtest.Checkpoints{}, worldtest.Options{Gifts: gifts, Looks: looks, CheckpointInterval: time.Hour, ItemCalls: runningPool(t)})
 				defer stop()
 				join(t, inst, p)
 				look := func() <-chan error { return setLookAsync(inst, p.ID, "k1", model.Look{Weapon: "oak_wand"}) }

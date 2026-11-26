@@ -33,7 +33,7 @@ func BenchmarkAnEmptyWorldsTick(b *testing.B) {
 // One tick of the start town with 50 players walking about it, each frame carrying them all to all.
 func BenchmarkABusyTownsTick(b *testing.B) {
 	data := gamedatatest.Shipped(b)
-	town := data.StartTown()
+	town := worldtest.Town(data)
 	inst := worldtest.NewInstance(town, data, nil, worldtest.Options{})
 	r := rand.New(rand.NewPCG(4, 1))
 	ids := make([]kernel.CharacterID, 50)

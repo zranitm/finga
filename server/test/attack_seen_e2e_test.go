@@ -15,9 +15,9 @@ func TestOthersSeeAPlayersAttacks(t *testing.T) {
 	t.Parallel()
 	s := newStackOver(t, e2etest.GameData(t, stillSlimes()...))
 	token, id := s.CreateCharacter(t, "attacker", "Attacker", "beginner")
-	s.Place(t, id, "forest", e2etest.OutOfSight, 135, 0) // where no mob sees them, the slimes standing still, so no mob reaches them
+	s.Place(t, id, "willowmere", e2etest.Spots(t).OutOfSight, 135, 0) // where no mob sees them, the slimes standing still, so no mob reaches them
 	watcherToken, watcherID := s.CreateCharacter(t, "watcher", "Watcher", "beginner")
-	s.Place(t, watcherID, "forest", gamedata.Point{X: e2etest.OutOfSight.X, Z: e2etest.OutOfSight.Z + 1.5}, 135, 0)
+	s.Place(t, watcherID, "willowmere", gamedata.Point{X: e2etest.Spots(t).OutOfSight.X, Z: e2etest.Spots(t).OutOfSight.Z + 1.5}, 135, 0)
 	p, _ := s.Join(t, token, id)
 	w, _ := s.Join(t, watcherToken, watcherID)
 	p.Drain(300 * time.Millisecond)

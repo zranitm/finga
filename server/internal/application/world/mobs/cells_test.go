@@ -19,7 +19,7 @@ import (
 	"finga/internal/shared/sim"
 )
 
-// withCell is the shipped data with interest cells cell metres wide, and as many rows behind a player as cover 32 m, as the loader asks; without its regions, which one block may hold, as the loader refuses.
+// withCell is the shipped data with interest cells cell metres wide, and as many rows behind a player as cover 32 m, as the loader asks; 120 m is the widest cell that no 256 m region fits whole in.
 func withCell(t *testing.T, cell string) *gamedata.Data {
 	t.Helper()
 	m, err := strconv.ParseFloat(cell, 64)
@@ -27,9 +27,9 @@ func withCell(t *testing.T, cell string) *gamedata.Data {
 		t.Fatal(err)
 	}
 	behind := strconv.Itoa(int(math.Ceil(32 / m)))
-	return worldtest.LoadDataWith(t, worldtest.WithoutRegions(t, map[string]func(string) string{"world.yaml": func(s string) string {
+	return worldtest.LoadDataWith(t, map[string]func(string) string{"world.yaml": func(s string) string {
 		return strings.NewReplacer("  cell: 32\n", "  cell: "+cell+"\n", "  behind: 1\n", "  behind: "+behind+"\n").Replace(s)
-	}}))
+	}})
 }
 
 // The mobs a scene draws from: every kind of attack, and a boss's slam and wide body.
@@ -38,15 +38,15 @@ var sceneMobs = []string{"green_slime", "orange_mushroom", "wild_boar", "cave_ba
 // large-regions.md section 5: an arena reading its bodies by interest cell runs as one whose single cell holds the whole map, which reads every body. Cells of 2 to 32 m, so a query too short by any of a body's width shows, and each kind walks cells in some and all bodies in others; spawns across cell lines, players among them who wander, jump across the map and strike at the mobs, and ticks with nobody there; compared tick by tick: every view, attack begun, landing, damage over time, change and blow.
 func TestAnArenaInCellsRunsAsOneReadingEveryBody(t *testing.T) {
 	inCells := map[float64]*gamedata.Data{2: withCell(t, "2"), 4: withCell(t, "4"), 8: withCell(t, "8"), 32: worldtest.LoadData(t)}
-	oneCell := withCell(t, "100000")
+	oneCell := withCell(t, "120") // holds the widest scene whole
 	for c, d := range inCells {
-		if d.Interest().Cell != c || oneCell.Interest().Cell != 100000 {
-			t.Fatalf("interest cells %v and %v; want %v and 100000", d.Interest().Cell, oneCell.Interest().Cell, c)
+		if d.Interest().Cell != c || oneCell.Interest().Cell != 120 {
+			t.Fatalf("interest cells %v and %v; want %v and 120", d.Interest().Cell, oneCell.Interest().Cell, c)
 		}
 	}
 	grounds := map[float64]sim.Geometry{}
 	grids := map[float64]*nav.Grid{}
-	for _, size := range []float64{40, 72, 130} { // flat ground with a wall every 13 m, which mobs stall at, its grid built once
+	for _, size := range []float64{40, 72, 120} { // flat ground with a wall every 13 m, which mobs stall at, its grid built once
 		var walls []sim.Box
 		for x := 7.0; x < size-4; x += 13 {
 			for z := 9.0; z < size-4; z += 13 {
@@ -58,7 +58,7 @@ func TestAnArenaInCellsRunsAsOneReadingEveryBody(t *testing.T) {
 	}
 	rapid.Check(t, func(t *rapid.T) {
 		cell := rapid.SampledFrom([]float64{2, 4, 8, 32}).Draw(t, "cell")
-		size := rapid.SampledFrom([]float64{40, 72, 130}).Draw(t, "size")
+		size := rapid.SampledFrom([]float64{40, 72, 120}).Draw(t, "size")
 		across := func(label string) float64 { // by a cell line
 			line := cell * float64(rapid.IntRange(1, max(1, int(size/cell)-1)).Draw(t, label+" line"))
 			return min(max(line+rapid.Float64Range(-3, 3).Draw(t, label), 3), size-3)

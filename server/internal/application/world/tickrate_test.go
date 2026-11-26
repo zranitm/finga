@@ -9,6 +9,7 @@ import (
 	"finga/config"
 	adapter "finga/internal/adapter/world"
 	"finga/internal/application/world"
+	"finga/internal/shared/gamedata/gamedatatest"
 	"finga/internal/shared/host"
 	"finga/pkg/observability/metrics"
 )
@@ -16,7 +17,7 @@ import (
 // built is what world.New answers for a tick of hz over the game's own data; the other modules are never called while it builds.
 func built(t *testing.T, hz int) error {
 	t.Helper()
-	h, err := host.New(host.Options{Name: "finga", Settings: host.Settings{DataDir: "../../../data"}, Logger: slog.New(slog.DiscardHandler), Registry: metrics.NewRegistry()})
+	h, err := host.New(host.Options{Name: "finga", Settings: host.Settings{DataDir: gamedatatest.ShippedDir(t)}, Logger: slog.New(slog.DiscardHandler), Registry: metrics.NewRegistry()})
 	if err != nil {
 		t.Fatal(err)
 	}

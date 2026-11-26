@@ -10,6 +10,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
+	"finga/internal/shared/gamedata"
 	"finga/internal/shared/progression"
 	"finga/pkg/wsconn"
 	"finga/test/e2etest"
@@ -18,7 +19,7 @@ import (
 // capsOnly is a copy of the game data where a green slime dies to one hit and drops a leather cap every kill, and nothing else.
 func capsOnly(t *testing.T) string {
 	t.Helper()
-	return e2etest.GameData(t, append(e2etest.QuickSlimes(), slimesDrop(oneCap), e2etest.LootRules(1, "60s"))...) // every kill a pouch, so a hunt takes a shot or two
+	return e2etest.GameData(t, append(e2etest.QuickSlimes(t), slimesDrop(oneCap), e2etest.LootRules(1, "60s"))...) // every kill a pouch, so a hunt takes a shot or two
 }
 
 func TestEquipment(t *testing.T) {
@@ -47,7 +48,7 @@ func TestEquipment(t *testing.T) {
 		t.Parallel()
 		s := newStackOver(t, capsOnly(t))
 		token, id := s.CreateCharacter(t, "tess", "Tess", "bowman")
-		s.Place(t, id, "forest", e2etest.SlimeField, 134, 0)
+		s.Place(t, id, "willowmere", e2etest.Spots(t).SlimeField, 134, 0)
 		// The Equip tab's 24 slots: a better bow in the first, caps in the rest.
 		better := s.Give(t, id, "short_bow", &progression.ItemStats{PhysicalAttack: 11})
 		for range 23 {
@@ -144,9 +145,7 @@ func TestEquipment(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.CreateCharacter(t, "vic", "Vic", "warrior")
-		if _, err := s.DB.Exec(context.Background(), `UPDATE characters SET pos_x = $2, pos_z = $3 WHERE id = $1`, id, e2etest.TownPortal.X-2, e2etest.TownPortal.Z); err != nil { // by the portal: the walk there isn't what's tested
-			t.Fatal(err)
-		}
+		s.Place(t, id, "willowmere", gamedata.Point{X: e2etest.Spots(t).CaveGate.X - 2, Z: e2etest.Spots(t).CaveGate.Z}, 134, 0) // by the cave's gate: the walk there isn't what's tested
 		leatherCap := s.Give(t, id, "leather_cap", &progression.ItemStats{PhysicalDefense: 4})
 		l, _ := s.Hello(t, token, id)
 		l.Send(wsconn.Message{ReqID: "e-1", Data: &clientv1.Equip{IdempotencyKey: e2etest.Key(), ItemId: leatherCap}})
@@ -158,15 +157,15 @@ func TestEquipment(t *testing.T) {
 		if sheet.GetDerivedWorn().GetPhysicalDefense() != 4 {
 			t.Fatalf("sheet %+v; want the cap's 4 defense as the equipment's share", sheet)
 		}
-		l.Hop(t, e2etest.TownPortal, "forest", e2etest.ForestFromTown)
+		l.Hop(t, e2etest.Spots(t).CaveGate, "greyfang_cave", e2etest.Spots(t).CaveMouth)
 		_, w := s.Welcome(t, "vic", id)
 		wearing := map[string]*clientv1.ItemView{}
 		for _, e := range w.Equipment {
 			wearing[e.GetEquipSlot()] = e.GetItem()
 		}
-		if w.GetMapId() != "forest" || len(wearing) != 2 || wearing["weapon"].GetTemplate() != "wooden_club" ||
+		if w.GetMapId() != "greyfang_cave" || len(wearing) != 2 || wearing["weapon"].GetTemplate() != "wooden_club" ||
 			wearing["hat"].GetItemId() != leatherCap || wearing["hat"].GetStats().GetPhysicalDefense() != 4 {
-			t.Fatalf("welcomed on %s wearing %+v; want the forest, the club and the cap", w.GetMapId(), w.Equipment)
+			t.Fatalf("welcomed on %s wearing %+v; want the cave, the club and the cap", w.GetMapId(), w.Equipment)
 		}
 		if !proto.Equal(w.GetCharacter().GetSheet(), sheet) {
 			t.Fatalf("welcome sheet %+v, StatsChanged said %+v", w.GetCharacter().GetSheet(), sheet)
@@ -182,7 +181,7 @@ func TestEquipment(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.CreateCharacter(t, "wes", "Wes", "warrior")
-		s.Place(t, id, "forest", e2etest.AmongSlimes, 1, 0)
+		s.Place(t, id, "willowmere", e2etest.Spots(t).AmongSlimes, 1, 0)
 		l, w := s.Hello(t, token, id)
 		sword := w.Equipment[0].GetItem().GetItemId()
 		l.DieAmongSlimes(t)

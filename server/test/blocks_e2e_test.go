@@ -18,7 +18,7 @@ var longGuard = []e2etest.DataEdit{
 	{File: "skills.yaml", Old: "    cooldown: 6s\n    length: 600ms\n    block: 600ms\n", New: "    cooldown: 1s\n    length: 4s\n    block: 4s\n"},
 }
 
-// guardTicks is longGuard's 4 s in the forest's 20 ticks a second.
+// guardTicks is longGuard's 4 s at the game's 20 ticks a second.
 const guardTicks = 80
 
 // C21: a Beginner's Guard aimed east, at the slimes' circle, blocks their blows: BLOCK crosses the wire with no damage, and the use gives 2 energy once. Aimed west, the same blows come from behind and land.
@@ -30,7 +30,7 @@ func TestAGuardBlocksSlimesInFrontAndNotBehind(t *testing.T) {
 	if _, err := s.DB.Exec(context.Background(), `UPDATE characters SET energy = 0 WHERE id = $1`, id); err != nil {
 		t.Fatal(err)
 	}
-	s.Place(t, id, "forest", e2etest.SlimeField, 134, 0)
+	s.Place(t, id, "willowmere", e2etest.Spots(t).SlimeField, 134, 0)
 	l := e2etest.NewLooter(s.Join(t, token, id))
 	l.Await(300*time.Millisecond, nil)
 

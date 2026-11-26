@@ -20,7 +20,7 @@ import (
 func TestTalk(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{CheckpointInterval: time.Hour})
+		inst, stop := worldtest.RunMap(t, data, worldtest.StartTown(data), nil, worldtest.Options{CheckpointInterval: time.Hour})
 		defer stop()
 		p := besideNPC(t, data, "Ayla", "town_guide")
 		p.Level, p.Connection = 2, "c1"
@@ -64,7 +64,7 @@ func TestTalk(t *testing.T) {
 				t.Fatalf("%s: %v, want %v", c.name, err, c.want)
 			}
 		}
-		worldtest.Walk(inst, p.ID, 0, sim.Input{Left: true}, 10) // 2.5 m aside: out of reach
+		worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 10) // 2.5 m aside: out of reach
 		if err := talk("c1", "town_guide"); !errors.Is(err, model.ErrNpcOutOfReach) {
 			t.Fatalf("out of reach: %v", err)
 		}
@@ -95,7 +95,7 @@ func TestACheckpointCarriesACopyOfTheQuestLog(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		cps := &worldtest.Checkpoints{}
-		inst, stop := worldtest.Run(t, data, cps, worldtest.Options{CheckpointInterval: time.Hour})
+		inst, stop := worldtest.RunMap(t, data, worldtest.StartTown(data), cps, worldtest.Options{CheckpointInterval: time.Hour})
 		defer stop()
 		p := besideNPC(t, data, "Ayla", "town_guide")
 		p.Connection = "c1"
@@ -127,8 +127,8 @@ func besideNPC(t *testing.T, data *gamedata.Data, name, id string) model.Player 
 	return worldtest.NewPlayer(name, npc.At.X+sin, npc.At.Z+cos)
 }
 
-// atSpawn is a new player named name at the start town's spawn.
+// atSpawn is a new player named name at the test town's spawn.
 func atSpawn(data *gamedata.Data, name string) model.Player {
-	at := data.StartTown().PlayerSpawn
+	at := worldtest.StartTown(data).PlayerSpawn
 	return worldtest.NewPlayer(name, at.X, at.Z)
 }

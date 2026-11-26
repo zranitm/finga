@@ -7,7 +7,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 	"finga/internal/application/item"
 	"finga/internal/repository/item/itemtest"
 	"finga/internal/shared/gamedata"
+	"finga/internal/shared/gamedata/gamedatatest"
 	"finga/internal/shared/gamedata/load"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"
@@ -423,19 +423,13 @@ func Templates(lt *clientv1.Loot) []string {
 // DataEdit replaces Old with New in a game data file, or writes the whole file when Old is empty.
 type DataEdit struct{ File, Old, New string }
 
-// dataDir is the server's game data, found from this file, so every package's tests read the same.
-var dataDir = func() string {
-	_, file, _, _ := runtime.Caller(0)
-	return filepath.Join(filepath.Dir(file), "..", "..", "data")
-}()
+// RealDataDir is the game data the server ships, with the real Willowmere: only a smoke test runs a stack on it, as generating the region is slow.
+func RealDataDir() string { return gamedatatest.Dir() }
 
-// GameData is a copy of the game data with the edits made; a file that no longer holds what an edit replaces fails the test.
+// GameData is a copy of the game data with the edits made, over the stand-ins of Willowmere, Greyfang Cave and the Sunken Shrine; a file that no longer holds what an edit replaces fails the test.
 func GameData(t *testing.T, edits ...DataEdit) string {
 	t.Helper()
-	dir := t.TempDir()
-	if err := os.CopyFS(dir, os.DirFS(dataDir)); err != nil {
-		t.Fatal(err)
-	}
+	dir := gamedatatest.ShippedDir(t)
 	for _, e := range edits {
 		path := filepath.Join(dir, e.File)
 		b := []byte(e.New)
@@ -461,11 +455,13 @@ func LootRules(chance float64, pouchLife string) DataEdit {
 	return DataEdit{File: "loot.yaml", New: fmt.Sprintf("pouch: {normal: %v, elite: %v}\nreach: 2\npouch_life: %s\nbox_life: 2m\npouches_max: 30\n", chance, chance, pouchLife)}
 }
 
-// QuickSlimes has the forest's ground slimes die to one hit and come back a second later, so a hunt takes a shot or two.
-func QuickSlimes() []DataEdit {
+// QuickSlimes has Sunmeadow's slimes in their camp die to one hit and come back a second later, so a hunt takes a shot or two.
+func QuickSlimes(t testing.TB) []DataEdit {
+	camp := Spots(t).Slimes
+	at := fmt.Sprintf("at: [%v, %v], radius: %v, mob: green_slime, max: %d, respawn: ", camp.At.X, camp.At.Z, camp.Radius, camp.Max)
 	return []DataEdit{
 		{"mobs.yaml", "    name: Green Slime\n    level: 1\n    hp: 34\n", "    name: Green Slime\n    level: 1\n    hp: 1\n"},
-		{"maps/forest.yaml", "respawn: 24s}", "respawn: 1s}"}, // the slimes' circle
+		{"regions/willowmere.yaml", at + "24s}", at + "1s}"}, // the slimes' camp
 	}
 }
 

@@ -15,7 +15,7 @@ import (
 // regionWorld is a soak's world on the test region.
 func regionWorld(t *testing.T) (*gamedata.Data, *world) {
 	t.Helper()
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	w, err := newWorld(data, "test_region")
 	if err != nil {
 		t.Fatal(err)
@@ -29,7 +29,7 @@ func TestASoakWalksItsRegionAlone(t *testing.T) {
 	if got := slices.Sorted(maps.Keys(w.maps)); !slices.Equal(got, []string{"test_region"}) || w.region.ID != "test_region" {
 		t.Fatalf("the soak's maps are %v", got)
 	}
-	for _, bad := range []string{"town", "nowhere"} {
+	for _, bad := range []string{"shroom_grove", "nowhere"} {
 		if _, err := newWorld(data, bad); err == nil {
 			t.Errorf("a soak in %s", bad)
 		}
@@ -106,7 +106,7 @@ func TestARegionsBotPastEveryBandHuntsInTheHighest(t *testing.T) {
 // A soak's bot off its region teleports to its main town, holding still till it lands; once there it stays.
 func TestASoaksBotTeleportsIntoItsRegion(t *testing.T) {
 	data, w := regionWorld(t)
-	b := &bot{data: data, world: w, mapID: "town", held: &clientv1.Input{Up: true}}
+	b := &bot{data: data, world: w, mapID: "shroom_grove", held: &clientv1.Input{Up: true}}
 	if !b.enterRegion() || len(b.actions) != 1 || b.actions[0].Data.(*clientv1.Teleport).GetWaypoint() != "town" || b.held.GetUp() || !b.channelling() {
 		t.Fatalf("off the region: actions %v, held %v", b.actions, b.held)
 	}
@@ -149,8 +149,8 @@ func TestARegionsBotTeleportsToAFarCampsWaypoint(t *testing.T) {
 	if b.tripTo(glow) {
 		t.Error("teleported for a camp near")
 	}
-	b.mapID = "town"
-	if b.tripTo(spot{mapID: "town", at: nav.Point{X: 500, Z: 500}}) {
+	b.mapID = "shroom_grove"
+	if b.tripTo(spot{mapID: "shroom_grove", at: nav.Point{X: 500, Z: 500}}) {
 		t.Error("teleported on a map with no waypoints")
 	}
 }

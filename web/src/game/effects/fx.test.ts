@@ -64,7 +64,7 @@ describe('effects', () => {
     engine = new NullEngine();
     scene = new Scene(engine);
     servePublic();
-    map = await loadMap('forest');
+    map = await loadMap('shroom_grove');
     played.length = 0;
     sounds.loaded = false;
   });

@@ -15,7 +15,7 @@ import (
 
 // Every ford is a way across its river both ways (large-regions.md decision 9), in every shipped region and every test plan: a body walks, as a mob does, with no jump, from the ground past one bank to the ground past the other, staying by the ford.
 func TestEveryFordIsCrossedBothWays(t *testing.T) {
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	p := data.Movement()
 	fords := 0
 	for id, plan := range everyPlan(t) {
@@ -109,7 +109,7 @@ func fordedRivers(plan regiongen.Plan) []*regiongen.River {
 
 // A river is crossed only at its fords and causeways (from 4b-2b's playtest, where a player walked round both its ends along the ring's cliff): in every shipped region and test plan, a player beside its first ford reaches the other side, walking and jumping; with its crossings taken out, a flood from there reaches one side alone beside each of its fords.
 func TestARiverIsCrossedOnlyAtItsFordsAndCauseways(t *testing.T) {
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	p := data.Movement()
 	rise := fastRise(data, p)
 	checked := 0

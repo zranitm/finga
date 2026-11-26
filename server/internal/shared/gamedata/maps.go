@@ -186,5 +186,5 @@ func (d *Data) GetUp(m *Map, x, z float64) (*Map, Point, float64) {
 	return m, at, yaw
 }
 
-// StartTown is the town new characters start in, the one map with the property start.
+// StartTown is the town, or the region, new characters start in: the one map with the property start.
 func (d *Data) StartTown() *Map { return d.p.StartTown }

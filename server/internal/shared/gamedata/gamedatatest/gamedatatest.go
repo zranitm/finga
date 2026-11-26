@@ -2,6 +2,7 @@
 package gamedatatest
 
 import (
+	"os"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -17,13 +18,58 @@ func Dir() string {
 	return filepath.Join(filepath.Dir(here), "..", "..", "..", "..", "data")
 }
 
-// shipped loads it once per test binary: under -race a load takes ~0.1 s, and hundreds of tests use it.
-var shipped = sync.OnceValues(func() (*gamedata.Data, error) { return load.Dir(Dir()) })
+// full loads it once per test binary: with the real regions a load takes seconds under -race.
+var full = sync.OnceValues(func() (*gamedata.Data, error) { return load.Dir(Dir()) })
 
-// Shipped is the game data the server ships, shared by every test in the binary: it is read-only.
+// small loads the shipped data with its three big regions swapped for StandIns.
+var small = sync.OnceValues(func() (*gamedata.Data, error) {
+	dst, err := os.MkdirTemp("", "gamedatatest")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(dst)
+	if err := standInsIn(dst); err != nil {
+		return nil, err
+	}
+	return load.Dir(dst)
+})
+
+func standInsIn(dst string) error {
+	if err := os.CopyFS(dst, os.DirFS(Dir())); err != nil {
+		return err
+	}
+	for name, text := range StandIns {
+		if err := os.WriteFile(filepath.Join(dst, name), []byte(text), 0o600); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ShippedDir is a copy of the shipped data folder with the regions swapped for StandIns, for tests that load a folder themselves; it goes with the test.
+func ShippedDir(t testing.TB) string {
+	t.Helper()
+	dst := t.TempDir()
+	if err := standInsIn(dst); err != nil {
+		t.Fatal(err)
+	}
+	return dst
+}
+
+// Full is the game data the server ships, shared by every test in the binary: it is read-only. Only tests of the shipped regions themselves need it.
+func Full(t testing.TB) *gamedata.Data {
+	t.Helper()
+	d, err := full()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
+// Shipped is the shipped game data with Willowmere, Greyfang Cave and the Sunken Shrine small stand-ins of the same ids, gates, start and waypoints, shared by every test in the binary: it is read-only.
 func Shipped(t testing.TB) *gamedata.Data {
 	t.Helper()
-	d, err := shipped()
+	d, err := small()
 	if err != nil {
 		t.Fatal(err)
 	}

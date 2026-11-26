@@ -74,6 +74,7 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	if pending {
 		c = withCheckpoint(c, unsaved)
 	}
+	c = w.stranded(ctx, c)
 	handedIn, err := w.handedIn(ctx, id, c.Quests)
 	if err != nil {
 		return model.View{}, err
@@ -247,6 +248,18 @@ func whileBusy(ctx context.Context, try func() error) error {
 		return struct{}{}, err
 	}, backoff.WithBackOff(busyBackOff()), backoff.WithMaxElapsedTime(0))
 	return err
+}
+
+// stranded is c, saved on a map the game no longer has, at the start map's spawn.
+func (w *World) stranded(ctx context.Context, c model.Character) model.Character {
+	if _, ok := w.data.Map(c.MapID); ok {
+		return c
+	}
+	start := w.data.StartTown()
+	w.deps.Logger.WarnContext(ctx, "a character saved on a map that's gone starts at the start map", "character_id", c.ID, "map_id", c.MapID, "start", start.ID)
+	c.MapID, c.X, c.Z, c.Yaw = start.ID, start.PlayerSpawn.X, start.PlayerSpawn.Z, float32(start.SpawnYaw)
+	c.Y = start.Geometry.Terrain.Height(c.X, c.Z)
+	return c
 }
 
 // respawned is c, saved dead before dead players were saved as respawned, as the respawn it was owed, where it would have got up.

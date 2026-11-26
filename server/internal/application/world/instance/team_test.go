@@ -197,7 +197,7 @@ func TestATeamLeaverIsStoodInTheTickTheyGo(t *testing.T) {
 				if err := inst.Join(context.Background(), ayla, &worldtest.Sink{}); !errors.Is(err, model.ErrNotInMatch) {
 					t.Fatalf("Ayla coming back: %v, want her place taken", err)
 				}
-				if mv := moves.All(); len(mv) == 0 && tc.name == "a forfeit" || len(mv) > 0 && mv[0].Dest.ID != data.StartTown().ID {
+				if mv := moves.All(); len(mv) == 0 && tc.name == "a forfeit" || len(mv) > 0 && mv[0].Dest.ID != worldtest.Town(data).ID {
 					t.Fatalf("hand-offs %+v, want Ayla back in town", mv)
 				}
 				sleep(10 * time.Second)

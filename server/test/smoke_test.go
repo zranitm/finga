@@ -31,7 +31,7 @@ func TestSmoke(t *testing.T) {
 	p := s.Connect(t, id)
 	p.Send(wsconn.Message{Data: &clientv1.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterId: id}})
 	w := p.Expect("Welcome").Data.(*clientv1.Welcome)
-	if w.GetMapId() != "town" || w.Token == "" {
+	if w.GetMapId() != "willowmere" || w.Token == "" {
 		t.Fatalf("welcome %+v", w)
 	}
 	snap := p.Expect("Snapshot").Data.(*clientv1.Snapshot)

@@ -117,29 +117,14 @@ func TestWinsCountOverEveryMode(t *testing.T) {
 // tenWinsData is the shipped data with a feat of ten wins, giving a cape.
 func tenWinsData(t *testing.T) *gamedata.Data {
 	t.Helper()
-	dir := t.TempDir()
-	entries, err := os.ReadDir(gamedatatest.Dir())
+	dir := gamedatatest.ShippedDir(t)
+	raw, err := os.ReadFile(filepath.Join(dir, "outfits.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, e := range entries {
-		if e.IsDir() {
-			if err := os.Symlink(filepath.Join(gamedatatest.Dir(), e.Name()), filepath.Join(dir, e.Name())); err != nil {
-				t.Fatal(err)
-			}
-			continue
-		}
-		raw, err := os.ReadFile(filepath.Join(gamedatatest.Dir(), e.Name()))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if e.Name() == "outfits.yaml" {
-			text := strings.Replace(string(raw), "\nfeats:\n", "\n  - {id: ten_win_cape, slot: outfit, name: Ten-Win Cape, stars: 3, look: knight_body, from: [{feat: ten_wins}]}\nfeats:\n", 1)
-			raw = []byte(text + "  - {id: ten_wins, name: Win ten PvP matches, when: {pvp_wins: 10}}\n")
-		}
-		if err := os.WriteFile(filepath.Join(dir, e.Name()), raw, 0o600); err != nil {
-			t.Fatal(err)
-		}
+	text := strings.Replace(string(raw), "\nfeats:\n", "\n  - {id: ten_win_cape, slot: outfit, name: Ten-Win Cape, stars: 3, look: knight_body, from: [{feat: ten_wins}]}\nfeats:\n", 1)
+	if err := os.WriteFile(filepath.Join(dir, "outfits.yaml"), []byte(text+"  - {id: ten_wins, name: Win ten PvP matches, when: {pvp_wins: 10}}\n"), 0o600); err != nil {
+		t.Fatal(err)
 	}
 	d, err := load.Dir(dir)
 	if err != nil {

@@ -105,8 +105,8 @@ func dbWorld(t *testing.T, d *db) *worldtest.World {
 // walkAway joins Ayla, saved at the town's spawn, through c-1 and walks her right, then stops her.
 func walkAway(t *testing.T, w *worldtest.World, d *db) (model.Character, *worldtest.Sink, float64) {
 	t.Helper()
-	p := at(t, "Ayla", "town")
-	ayla := model.Character{ID: p.ID, Account: kernel.NewAccountID(), Name: p.Name, Class: p.Class, Level: p.Level, Points: p.Points, HP: p.HP, Energy: p.Energy, MapID: "town", X: p.X, Y: p.Y, Z: p.Z}
+	p := at(t, "Ayla", "crossroads")
+	ayla := model.Character{ID: p.ID, Account: kernel.NewAccountID(), Name: p.Name, Class: p.Class, Level: p.Level, Points: p.Points, HP: p.HP, Energy: p.Energy, MapID: "crossroads", X: p.X, Y: p.Y, Z: p.Z}
 	d.mu.Lock()
 	d.chars[ayla.ID] = ayla
 	d.mu.Unlock()
@@ -171,7 +171,7 @@ func TestARejoinStartsFromTheNewestState(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if at := joinedAt(t, s, ayla.ID); at.X != x || v.MapID != "town" {
+					if at := joinedAt(t, s, ayla.ID); at.X != x || v.MapID != "crossroads" {
 						t.Fatalf("joined at %s %v, want town %v", v.MapID, at.X, x)
 					}
 					time.Sleep(worldtest.TickInterval)

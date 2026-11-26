@@ -166,3 +166,21 @@ func TestMapsBuiltAlikeShareTheirGrid(t *testing.T) {
 		t.Fatal("a map with other solids or another step shares a grid")
 	}
 }
+
+// Maps generated over the same geometry, as every load of one region is, share its grid by the slices they're built on; another step gets its own.
+func TestMapsGeneratedOverOneGeometryShareTheirGrid(t *testing.T) {
+	m, err := Build("test", File{Look: Look{Ground: "g", Sky: "s"}, Size: [2]float64{20, 20}, Terrain: Terrain{Cell: 0.5}}, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, b := Generated("a", File{}, m.Geometry, params), Generated("b", File{}, m.Geometry, params)
+	stepped := params
+	stepped.Step = 0.5
+	c := Generated("c", File{}, m.Geometry, stepped)
+	if a.Grid() != b.Grid() || a.Grid() == nil {
+		t.Fatal("two loads of one geometry have their own grids")
+	}
+	if c.Grid() == a.Grid() {
+		t.Fatal("a map with another step shares the grid")
+	}
+}

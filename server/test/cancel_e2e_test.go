@@ -23,14 +23,14 @@ func TestAChainLandsSoonerThanOneAtATime(t *testing.T) {
 	t.Parallel()
 	// Strike cools down as it ends, so the test needn't wait out its 4.5 s.
 	quickStrike := e2etest.DataEdit{File: "skills.yaml", Old: "radius: 2.375, angle: 120, height: 1.75}\n    energy: 2\n    cooldown: 4500ms\n", New: "radius: 2.375, angle: 120, height: 1.75}\n    energy: 2\n    cooldown: 1500ms\n"}
-	s := newStackOver(t, e2etest.GameData(t, append(stillSlimes(), quickStrike, loneSlime())...))
-	// A scout starts the forest and finds its one slime in the slimes' circle, which stays put: a second beside it would bite the player through it.
+	s := newStackOver(t, e2etest.GameData(t, append(stillSlimes(), quickStrike, loneSlime(t))...))
+	// A scout joins Sunmeadow and finds its one slime in the slimes' circle, which stays put: a second beside it would bite the player through it.
 	slime := groundSlime(t, s)
 	token, id := s.CreateCharacter(t, "chain", "Chain", "beginner")
 	if _, err := s.DB.Exec(context.Background(), `INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at) VALUES ($1, 'strike', 1, now(), now())`, id); err != nil {
 		t.Fatal(err)
 	}
-	s.Place(t, id, "forest", beside(slime, -1.25), 135, 0) // in reach of a 1.875 m swing, its body clear of the slime's
+	s.Place(t, id, "willowmere", beside(slime, -1.25), 135, 0) // in reach of a 1.875 m swing, its body clear of the slime's
 	p, _ := s.Join(t, token, id)
 	p.Drain(300 * time.Millisecond)
 

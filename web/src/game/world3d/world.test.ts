@@ -102,7 +102,7 @@ import { Figures } from './figures';
 import { CHEST_M } from './follow';
 import type * as Kit from './kit-models';
 import { TORCH_SCALE } from './kit-models';
-import { classLook, mobLook } from './looks';
+import { classLook, mobLook, npcLook } from './looks';
 import type { ModelLook } from './looks';
 import { loadMap } from './map';
 import { bakeUrl } from './region-bake';
@@ -118,7 +118,7 @@ const NEAR_MAP_M = 1000; // the test maps' size, well inside the warm's distance
 const MODELS = path.resolve(process.cwd(), 'public/models');
 const WAIT = { timeout: 3000, interval: 5 }; // polled every 5 ms, not 50; 3 s for a build on a CI runner under coverage
 
-// Every key but the torches and the vent a stand-in: place.test draws town and forest with the real kit models, a cave's torches stand by their flames here, and a sea's vents give off its bubbles.
+// Every key but the torches and the vent a stand-in: place.test draws the crossroads and the grove with the real kit models, a cave's torches stand by their flames here, and a sea's vents give off its bubbles.
 vi.mock('./kit-models', async (actual) => {
   const real = await actual<typeof Kit>();
   const { torch_mounted, torch_lit, vent } = real.kitModels;
@@ -129,9 +129,11 @@ vi.mock('@/progression/places', async (actual) => {
   return { ...real, gateBetween: vi.fn(real.gateBetween) }; // no shipped region has a place below yet: a test says where a gate is
 });
 
+const GROVE = 'shroom_grove'; // the real map the tests that walk or draw one use, from disk
+
 /** Hunting maps with no NPCs, served flat and bare for the tests no map's own layout bears on: FLAT, the two a map change goes to, one served as a region, the widest a block holds, that with a tower, one served as a cave and one as a sea. */
 const [FLAT, FLAT2, FLAT3, REGIONED, WIDE, TOWERED, CAVED, SUNK] = maps
-  .filter((m) => m.kind === 'hunting' && npcsOn(m.id).length === 0)
+  .filter((m) => m.kind === 'hunting' && m.id !== GROVE && npcsOn(m.id).length === 0)
   .map((m) => m.id) as [string, string, string, string, string, string, string, string];
 
 /** Map id flat and bare, 72 by 40 m. */
@@ -244,7 +246,7 @@ const SERVED = {
   [`regions/${TINY.id}/${TINY.hash}/region.json`]: townedTiny(),
   [WIDE]: wide(WIDE),
   [TOWERED]: towered(TOWERED),
-  town: slim('town'),
+  crossroads: slim('crossroads'),
   ring: { ...bare('ring'), prep_wall: (mapJson('ring') as { prep_wall: unknown }).prep_wall }, // flat, with its own prep wall
   battlefield: {
     ...slim('battlefield'), // its own size, flat, with its bases and points
@@ -535,10 +537,10 @@ describe('World', () => {
   });
 
   it('draws the map and places the player where its Snapshot says, sending an Input each tick', async () => {
-    const p = await playing('forest', 4, 20);
+    const p = await playing(GROVE, 4, 20);
     const me = p.root(classLook('warrior').file)!;
     expect([me.position.x, me.position.y, me.position.z]).toEqual([4, 0, 20]);
-    expect(p.scene()?.transformNodes.some((n) => n.name === 'place forest')).toBe(true);
+    expect(p.scene()?.transformNodes.some((n) => n.name === `place ${GROVE}`)).toBe(true);
     const before = p.inputs();
     p.frames(10);
     expect(p.inputs() - before).toBe(10);
@@ -1001,15 +1003,15 @@ describe('World', () => {
     expect(chunkWork.closed).toBe(closed + 2);
   });
 
-  it('walks the player east till the tree in its way stops them, as the server’s sim would', async () => {
-    const p = await playing('forest', 4, 20);
+  it('walks the player east till the mushroom in its way stops them, as the server’s sim would', async () => {
+    const p = await playing(GROVE, 4, 19.5);
     key('ArrowRight', true);
     p.live(60);
     key('ArrowRight', false);
     p.live(2);
     const me = p.root(classLook('warrior').file)!;
-    expect(me.position.x).toBeCloseTo(16 - 0.34 - movement.radius, 3); // the oak at 16, 20
-    expect(me.position.z).toBeCloseTo(20, 6);
+    expect(me.position.x).toBeCloseTo(9.5 - 2.79 - movement.radius, 3); // the ring mushroom at 9.5, 19.5
+    expect(me.position.z).toBeCloseTo(19.5, 6);
     expect(p.sent('input').some((d) => d.right === true)).toBe(true);
   });
 
@@ -1214,41 +1216,40 @@ describe('World', () => {
   });
 
   it('draws the NPCs with their names, and the portals with the maps they go to', async () => {
-    const p = await playing('town', 14, 16, 'thief');
-    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), WAIT); // the warrior trainer
-    expect(p.label('npc:town_guide')).toBe('Town Guide');
-    expect(p.label('npc:warrior_trainer')).toBe('Warrior Trainer');
-    expect(p.label('portal:to_forest')).toBe('To Forest');
+    const p = await playing('crossroads', 17, 20, 'thief');
+    await vi.waitFor(() => expect(p.root(npcLook('guide').file)).toBeDefined(), WAIT); // the guide
+    expect(p.label('npc:crossroads_guide')).toBe('Crossroads Guide');
+    expect(p.label('portal:to_dune')).toBe('To Dune Road');
   });
 
   it('talks to the NPC in reach with the talk key, and in a portal enters it instead', async () => {
-    const near = await playing('town', 16, 14.5, 'thief'); // 1.5 m from the guide
+    const near = await playing('crossroads', 20.5, 21, 'thief'); // 1.5 m from the guide
     key('KeyZ', true);
     key('KeyZ', false);
-    expect(near.sent('talk')).toEqual([expect.objectContaining({ npcId: 'town_guide' })]);
+    expect(near.sent('talk')).toEqual([expect.objectContaining({ npcId: 'crossroads_guide' })]);
     leave(near);
 
-    const inPortal = await playing('town', 46, 16, 'thief');
+    const inPortal = await playing('crossroads', 50, 20, 'thief');
     key('KeyZ', true);
     key('KeyZ', false);
     expect([inPortal.sent('enterPortal').length, inPortal.sent('talk').length]).toEqual([1, 0]);
   });
 
   it('prompts the talk key, as bound, over the NPC in reach or the portal the player stands in, and nowhere else', async () => {
-    const near = await playing('town', 16, 14.5, 'thief');
+    const near = await playing('crossroads', 20.5, 21, 'thief');
     near.frames(1);
     expect(near.label('prompt')).toBe('Z Talk');
     settings.getState().setKeys({ talk: 'KeyG' });
     near.frames(1);
     expect(near.label('prompt')).toBe('G Talk');
-    quests.getState().applyNpcDialog(create(NpcDialogSchema, { npcId: 'town_guide' }));
+    quests.getState().applyNpcDialog(create(NpcDialogSchema, { npcId: 'crossroads_guide' }));
     ui.getState().openWindow('npc');
     near.frames(1);
     expect(near.label('prompt')).toBe(''); // its dialog is open
     leave(near);
 
     settings.getState().setKeys({});
-    const inPortal = await playing('town', 46, 16, 'thief');
+    const inPortal = await playing('crossroads', 50, 20, 'thief');
     inPortal.frames(1);
     expect(inPortal.label('prompt')).toBe('Z Enter');
     leave(inPortal);
@@ -2817,7 +2818,7 @@ describe('World', () => {
     const glowing = () =>
       meshesOn(p, 'ring').filter((m) => m.isEnabled() && m.visibility > 0).length;
     const channel = () => {
-      teleport.getState().start({ map: 'cave' });
+      teleport.getState().start({ map: 'greyfang_cave' });
       p.live(1);
       expect(glowing()).toBe(2);
     };
@@ -2828,7 +2829,7 @@ describe('World', () => {
     };
     channel();
     p.live(10);
-    expect([teleport.getState().to, glowing()]).toEqual([{ map: 'cave' }, 2]);
+    expect([teleport.getState().to, glowing()]).toEqual([{ map: 'greyfang_cave' }, 2]);
     key('ArrowRight', true);
     ended();
     key('ArrowRight', false);
@@ -3056,12 +3057,12 @@ describe('World', () => {
   });
 
   it('leaves a teleport channelling at the attack key in a town, which starts no attack', async () => {
-    const p = await playing('town', 14, 16);
-    teleport.getState().start({ map: 'forest' });
+    const p = await playing('crossroads', 17, 20);
+    teleport.getState().start({ map: 'shroom_grove' });
     key('KeyX', true);
     key('KeyX', false);
     p.frames(2);
-    expect([p.sent('attack'), teleport.getState().to]).toEqual([[], { map: 'forest' }]);
+    expect([p.sent('attack'), teleport.getState().to]).toEqual([[], { map: 'shroom_grove' }]);
   });
 
   it('in a match’s prep the wall across the ring stands, drawn and walked against, and attacks and skills wait; the round takes it down', async () => {
@@ -3254,7 +3255,7 @@ describe('World', () => {
           members: [
             { characterId: ME, name: 'Ayla', mapId: FLAT, online: true },
             { characterId: 'c-robin', name: 'Robin', mapId: FLAT, online: true },
-            { characterId: 'c-jade', name: 'Jade', mapId: 'cave', online: true },
+            { characterId: 'c-jade', name: 'Jade', mapId: 'spore_hollow', online: true },
           ],
         }),
       }),
@@ -3307,7 +3308,7 @@ describe('World', () => {
           members: [
             { characterId: ME, name: 'Ayla', mapId: REGIONED, online: true },
             { characterId: 'c-robin', name: 'Robin', ...robin },
-            { characterId: 'c-jade', name: 'Jade', mapId: 'cave', online: true },
+            { characterId: 'c-jade', name: 'Jade', mapId: 'spore_hollow', online: true },
           ],
         }),
       });
@@ -3356,7 +3357,7 @@ describe('World', () => {
       party.getState().applyPartyState(party3({ mapId: REGIONED, online: false }));
       frames(2);
       expect(seen()).toEqual({ marked: [], statuses: {} });
-      party.getState().applyPartyState(party3({ mapId: 'cave', online: true }));
+      party.getState().applyPartyState(party3({ mapId: 'spore_hollow', online: true }));
       frames(2);
       expect(seen()).toEqual({ marked: [], statuses: {} });
       party.getState().applyPartyState(party3({ mapId: REGIONED, online: true }));
@@ -4329,7 +4330,7 @@ describe('World', () => {
             members: [
               { characterId: ME, name: 'Ayla', mapId: FLAT, online: true },
               { characterId: 'c-robin', name: 'Robin', mapId: FLAT, online: true },
-              { characterId: 'c-jade', name: 'Jade', mapId: 'cave', online: true },
+              { characterId: 'c-jade', name: 'Jade', mapId: 'spore_hollow', online: true },
             ],
           }),
         }),
@@ -4356,7 +4357,7 @@ describe('World', () => {
       expect(now.me).toBe(first); // its timing kept, so its frame doesn't render again
       const stun = first[0]!.until;
       expect(now.target.map((s) => [s.id, s.until - stun])).toEqual([['poison', 10 * 50]]);
-      expect(Object.keys(now.party)).toEqual(['c-robin']); // Jade is in the cave, beyond the frames
+      expect(Object.keys(now.party)).toEqual(['c-robin']); // Jade is on another map, beyond the frames
       expect(now.party['c-robin']!.map((s) => [s.id, s.until - stun])).toEqual([['slow', 20 * 50]]);
       send(13, { ...standing(10, 20), statuses: on('stun', 35) }, poisoned); // restarted
       const again = statuses.getState().me[0]!;
@@ -4542,8 +4543,8 @@ describe('World', () => {
   });
 
   it('walks on the world’s own frames, each input acked with the state its sim gave, and never resets', async () => {
-    const p = await playing('forest', 4, 20);
-    const g = (await loadMap('forest')).geometry;
+    const p = await playing(GROVE, 4, 20);
+    const g = (await loadMap(GROVE)).geometry;
     const steps = tickTiming(RATE, movement.dt).stepsPerTick;
     let server: State = { x: 4, y: 0, z: 20, vx: 0, vy: 0, vz: 0, on_ground: true, hx: 1, hz: 0 };
     let ran = 0;

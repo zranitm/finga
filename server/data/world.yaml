@@ -1,9 +1,7 @@
 # Each map's place on the world chart: x across and y down, 0 to 100. Links are drawn from the maps' portals.
 # The towns sit near the middle: the first maps arc from the start town round to the crossroads, and its two roads go east, the desert's south of the snow's, the levels rising outward.
 places:
-  town:              [36, 66]
-  forest:            [24, 60]
-  cave:              [16, 46]
+  willowmere:        [26, 56]
   shroom_grove:      [20, 32]
   spore_hollow:      [32, 22]
   toadstool_heights: [46, 30]

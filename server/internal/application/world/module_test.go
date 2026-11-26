@@ -280,12 +280,12 @@ func TestJoinSendsTheSnapshotThenFramesOnTheGatewaysStream(t *testing.T) {
 	gw := s.gateway("gw-1")
 	ayla := s.character("Ayla")
 	view := s.join(t, "gw-1", "conn-1", ayla)
-	if view.ID != ayla.ID || view.Name != "Ayla" || view.MapID != "town" || view.MaxHP != 144 || view.Stats.STR != 7 {
+	if view.ID != ayla.ID || view.Name != "Ayla" || view.MapID != "willowmere" || view.MaxHP != 144 || view.Stats.STR != 7 {
 		t.Fatalf("view %+v", view)
 	}
 	first := until(t, gw, "the first delivery", func(world.Delivery) bool { return true })
 	snap, ok := first.Event.(world.Snapshot)
-	if !ok || first.Character != ayla.ID || first.Conn != "conn-1" || snap.MapID != "town" {
+	if !ok || first.Character != ayla.ID || first.Conn != "conn-1" || snap.MapID != "willowmere" {
 		t.Fatalf("first delivery %+v", first)
 	}
 	if _, ok := playerIn(snap.Players, ayla.ID); !ok {
@@ -408,13 +408,13 @@ func TestJoinFailures(t *testing.T) {
 			t.Fatalf("err = %v", err)
 		}
 	})
-	t.Run("a character on a map the world does not run", func(t *testing.T) {
+	t.Run("a character on a map that's gone starts on the start map", func(t *testing.T) {
 		lost := s.character("Lost")
 		lost.MapID = "limbo"
 		s.chars.add(lost)
-		_, err := s.world.Join(s.ctx, "gw-1", s.account, world.Presence{Character: lost.ID, Conn: "c"})
-		if !errors.Is(err, kernel.ErrNoMap) {
-			t.Fatalf("err = %v", err)
+		view, err := s.world.Join(s.ctx, "gw-1", s.account, world.Presence{Character: lost.ID, Conn: "c"})
+		if err != nil || view.MapID != "willowmere" {
+			t.Fatalf("view map %q, err %v; want it on willowmere", view.MapID, err)
 		}
 	})
 }
@@ -642,7 +642,7 @@ func TestPromoteAnswersWithItsRefusals(t *testing.T) {
 	town := s.data.StartTown()
 	ayla := model.Character{
 		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("beginner"), Level: 3,
-		HP: 120, MapID: town.ID, X: 36, Z: 13, // beside the Warrior Trainer
+		HP: 120, MapID: town.ID, X: s.npc("warrior_trainer").X, Z: s.npc("warrior_trainer").Z + 1, // beside the Warrior Trainer
 	}
 	s.chars.add(ayla)
 	s.join(t, "gw-1", "c1", ayla)
@@ -727,7 +727,7 @@ func TestTalkSendsTheDialogComputedFromTheLoadedLog(t *testing.T) {
 	s := newStack(t)
 	stream := s.gateway("gw-1")
 	ayla := model.Character{
-		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MapID: "town", X: 16, Z: 14, // beside the town guide
+		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MapID: "willowmere", X: s.npc("town_guide").X + 1, Z: s.npc("town_guide").Z,
 		Quests: model.Quests{"slime_cleanup": {Status: model.QuestFinished, TimesFinished: 1}},
 	}
 	s.chars.add(ayla)
@@ -756,7 +756,7 @@ func TestQuestsOverTheWorld(t *testing.T) {
 	s := newStack(t)
 	stream := s.gateway("gw-1")
 	ayla := model.Character{
-		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MapID: "town", X: 16, Z: 14, // beside the town guide
+		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MapID: "willowmere", X: s.npc("town_guide").X + 1, Z: s.npc("town_guide").Z,
 		Quests: model.Quests{"slime_cleanup": {Status: model.QuestFinished, TimesFinished: 1}},
 	}
 	s.chars.add(ayla)
@@ -790,7 +790,7 @@ func TestARefusedHandInKeepsTheItemModulesReason(t *testing.T) {
 	s := newStackWearing(t, wears{err: fmt.Errorf("%w: no gel in the Etc tab", kernel.ErrNotEnoughItems)})
 	s.gateway("gw-1")
 	ayla := model.Character{
-		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MapID: "town", X: 16, Z: 14, // beside the town guide
+		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MapID: "willowmere", X: s.npc("town_guide").X + 1, Z: s.npc("town_guide").Z,
 		Quests: model.Quests{"sticky_samples": {Status: model.QuestActive, Progress: []int{0}}},
 	}
 	s.chars.add(ayla)
@@ -799,4 +799,10 @@ func TestARefusedHandInKeepsTheItemModulesReason(t *testing.T) {
 	if !errors.Is(err, kernel.ErrNotEnoughItems) {
 		t.Fatalf("got %v", err)
 	}
+}
+
+// npc is where the NPC stands.
+func (s *stack) npc(id string) gamedata.Point {
+	g, _ := s.data.NPC(id)
+	return g.At
 }

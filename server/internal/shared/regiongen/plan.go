@@ -34,6 +34,7 @@ type Plan struct {
 	Pieces    []Piece          `yaml:"pieces,omitempty"`
 	Gates     []Gate           `yaml:"gates,omitempty"`
 	Start     Place            `yaml:"start,flow"`
+	Beginning bool             `yaml:"beginning,omitempty"` // new characters start in this region, which then has the one start
 	Biomes    map[string]Biome `yaml:"biomes"`
 }
 

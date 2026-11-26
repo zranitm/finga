@@ -54,7 +54,7 @@ func seedStores(ctx context.Context, url string) (seededStores, error) {
 func startedOver(t *testing.T, ttl time.Duration) (*e2etest.Stack, seededStores) {
 	t.Helper()
 	var seeded seededStores
-	s := e2etest.NewStackBuilt(t, "../data", func(ctx context.Context, h *host.Host, cfg config.Config) error {
+	s := e2etest.NewStackBuilt(t, e2etest.GameData(t), func(ctx context.Context, h *host.Host, cfg config.Config) error {
 		var err error
 		if seeded, err = seedStores(ctx, cfg.Database.URL); err != nil {
 			return err
@@ -104,7 +104,7 @@ func TestAnUnsentOutboxRowStaysWithTheTTLOff(t *testing.T) {
 func TestTheOpsPageShowsTheWorldFromItsStart(t *testing.T) {
 	t.Parallel()
 	s := newStack(t)
-	runnertest.GetUntil(t, s.Ops+"/metrics", `finga_tick_duration_seconds_count{channel="0",map="town"}`)
+	runnertest.GetUntil(t, s.Ops+"/metrics", `finga_tick_duration_seconds_count{channel="0",map="shroom_grove"}`)
 	runnertest.GetUntil(t, s.Ops+"/metrics", `finga_tick_duration_seconds_count{channel="1",map="test_region"}`)
 	_, body := runnertest.Get(t, s.Ops+"/metrics")
 	if want := `finga_channels_open{region="test_region"} 1`; !strings.Contains(body, want) {

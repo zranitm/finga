@@ -11,7 +11,7 @@ import (
 
 // No region has a one-way pocket (from 4b-2b's playtest, whose riverbanks a player walks down but not up): every cell a player reaches from a shipped region's start leads back to it. A pit would fail it, as one here does.
 func TestNoRegionHasAOneWayPocket(t *testing.T) {
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	p := shipped(t).params
 	rise := fastRise(data, p)
 	for id, plan := range shippedRegions(t) {

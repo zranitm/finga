@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"math"
 	"math/rand/v2"
+	"slices"
 	"testing"
 	"time"
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/shared/gamedata"
+	"finga/internal/shared/gamedata/gamedatatest"
 	"finga/internal/shared/nav"
 	"finga/internal/shared/sim"
 	"finga/internal/shared/steer"
@@ -34,13 +36,21 @@ func TestABotWalksToEveryPortalNPCAndHuntOnItsMaps(t *testing.T) {
 			targets = append(targets, target{name: "NPC " + n.ID, at: point(n.At), within: b.talkWithin()})
 		}
 		b.mapID = id
+		walked := map[int]bool{}
 		for i, sp := range m.Spawns {
+			if k := m.AreaAt(sp.At.X, sp.At.Z); m.Kind == gamedata.Region && walked[k] { // a region's walks are long: one camp an area
+				continue
+			} else {
+				walked[k] = true
+			}
 			s := spot{mapID: id, at: point(sp.At), radius: sp.Radius}
 			targets = append(targets, target{fmt.Sprintf("a roam in spawn %d's %s", i, sp.Mob), b.roll(s), 1, true})
 		}
 		starts := []target{{name: "where players appear", at: point(m.PlayerSpawn)}}
 		for _, p := range m.Portals {
-			starts = append(starts, target{name: "portal " + p.Name, at: point(p.At)})
+			if m.Kind != gamedata.Region { // a region's walks are long, and its gates are reached from where players appear
+				starts = append(starts, target{name: "portal " + p.Name, at: point(p.At)})
+			}
 		}
 		for _, from := range starts {
 			for _, to := range targets {
@@ -85,14 +95,15 @@ func walkOffline(m *gamedata.Map, mv sim.Params, from, to nav.Point, within floa
 
 // C12: with a field boss up, a bot hunts its map clear of where its blows could reach the boss; a beaten one, not yet back, keeps it from nothing.
 func TestABotKeepsClearOfAFieldBoss(t *testing.T) {
-	data, w := testWorld(t)
-	b := &bot{data: data, world: w, mapID: "forest", rng: rand.New(rand.NewPCG(1, 2))}
-	at, r := point(w.maps["forest"].Boss.At), w.maps["forest"].Boss.Radius
-	b.bossBackIn("forest", time.Minute)
-	if b.nearBoss("forest", at) {
+	data := gamedatatest.Full(t)
+	grove, _ := data.Map("shroom_grove")
+	b := &bot{data: data, mapID: "shroom_grove", rng: rand.New(rand.NewPCG(1, 2))}
+	at, r := point(grove.Boss.At), grove.Boss.Radius
+	b.bossBackIn("shroom_grove", time.Minute)
+	if b.nearBoss("shroom_grove", at) {
 		t.Fatal("near a boss that isn't back yet")
 	}
-	b.bossBackIn("forest", 0)
+	b.bossBackIn("shroom_grove", 0)
 	clear := bossClear
 	for _, c := range []struct {
 		name string
@@ -108,28 +119,41 @@ func TestABotKeepsClearOfAFieldBoss(t *testing.T) {
 	} {
 		b.mobs, b.boss = nil, 0
 		if c.seen {
-			b.mobs, b.boss = map[uint32]*clientv1.MobView{9: {Id: 9, Type: "king_slime", X: at.X, Z: at.Z, Hp: 100}}, 9
+			b.mobs, b.boss = map[uint32]*clientv1.MobView{9: {Id: 9, Type: "spore_mother", X: at.X, Z: at.Z, Hp: 100}}, 9
 		}
-		if got := b.nearBoss("forest", c.at); got != c.want {
+		if got := b.nearBoss("shroom_grove", c.at); got != c.want {
 			t.Errorf("%s: near %v, want %v", c.name, got, c.want)
 		}
 	}
-	slimes, _ := w.levelSpot(1, 0)
-	b.mobs, b.boss = map[uint32]*clientv1.MobView{9: {Id: 9, Type: "king_slime", X: at.X, Z: at.Z, Hp: 100}}, 9 // on its map, a bot sees the boss
+	b.mobs, b.boss = map[uint32]*clientv1.MobView{9: {Id: 9, Type: "spore_mother", X: at.X - r, Z: at.Z, Hp: 100}}, 9
+	far := nav.Point{X: at.X - r + clear + 0.5, Z: at.Z} // past the boss's reach where it's seen, in its circle's
+	if b.nearBoss("shroom_grove", far) {
+		t.Errorf("%+v is near the boss seen at its circle's west edge, want it clear", far)
+	}
+}
+
+// A hunt in Willowmere never rolls a point where a blow could reach an area's boss, and a gate brings a player out at the portal it names.
+func TestABotKeepsOffWillowmeresBossesAndComesOutAtItsGates(t *testing.T) {
+	data, w := testWorld(t)
+	town := data.StartTown()
+	sun := town.Areas[town.AreaAt(820, 130)]
+	if sun.Boss == nil || sun.Boss.Mob != "king_slime" {
+		t.Fatalf("Sunmeadow's boss is %+v, want the king slime", sun.Boss)
+	}
+	b := &bot{data: data, world: w, mapID: town.ID, rng: rand.New(rand.NewPCG(1, 2))}
+	ring := spot{mapID: town.ID, at: point(sun.Boss.At), radius: sun.Boss.Radius + 2*bossClear} // a circle that takes in the boss's reach
 	for range 200 {
-		if p := b.roll(slimes); b.nearBoss("forest", p) {
+		if p := b.roll(ring); b.nearBoss(town.ID, p) {
 			t.Fatalf("rolled %+v, near the boss", p)
 		}
 	}
-
-	b.mobs, b.boss = map[uint32]*clientv1.MobView{9: {Id: 9, Type: "king_slime", X: at.X - r, Z: at.Z, Hp: 100}}, 9
-	far := nav.Point{X: at.X - r + clear + 0.5, Z: at.Z} // past the boss's reach where it's seen, in its circle's
-	if b.nearBoss("forest", far) {
-		t.Errorf("%+v is near the boss seen at its circle's west edge, want it clear", far)
+	i := slices.IndexFunc(town.Portals, func(p gamedata.Portal) bool { return p.Name == "cave_mouth" })
+	cave := w.maps["greyfang_cave"]
+	if i < 0 {
+		t.Fatal("no cave_mouth gate")
 	}
-	toForest := w.maps["town"].Portals[0]
-	if at, ok := w.arrival(toForest); !ok || at != point(w.maps["forest"].Portals[0].At) {
-		t.Errorf("through the town's portal a player comes out at %+v, want the forest's from_town", at)
+	if at, ok := w.arrival(town.Portals[i]); !ok || at != point(cave.Portals[slices.IndexFunc(cave.Portals, func(p gamedata.Portal) bool { return p.Name == "mouth" })].At) {
+		t.Errorf("through the cave mouth a player comes out at %+v, want the cave's mouth", at)
 	}
 }
 

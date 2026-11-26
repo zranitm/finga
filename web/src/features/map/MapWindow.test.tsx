@@ -38,7 +38,7 @@ const map = (id: string) => maps.find((m) => m.id === id)!;
 /** A map's layout as the app gives it: its size, and no image, as jsdom draws none. */
 const layoutOf = vi.fn((id: string) =>
   Promise.resolve({
-    size: id === 'town' ? ([48, 32] as const) : ([72, 40] as const),
+    size: id === 'crossroads' ? ([48, 32] as const) : ([72, 40] as const),
     ground: NO_GROUND,
     waypoints: [],
   }),
@@ -46,7 +46,7 @@ const layoutOf = vi.fn((id: string) =>
 
 function onMap(id: string, x: number, z: number) {
   const m = map(id);
-  const size = id === 'town' ? ([48, 32] as const) : ([72, 40] as const);
+  const size = id === 'crossroads' ? ([48, 32] as const) : ([72, 40] as const);
   act(() => {
     mapView.getState().showMap(m.id, size, NO_GROUND, []);
     mapView.getState().mark({ me: { x, z, yaw: 0 }, party: [], lock: null, boss: null });
@@ -71,20 +71,27 @@ describe('MapWindow', () => {
   });
 
   it('This map names each spawn by its mob and level, each portal by where it leads, and the player', () => {
-    onMap('forest', 30, 10);
+    onMap('shroom_grove', 30, 10);
     render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
-    const svg = screen.getByRole('img', { name: 'Forest' });
-    const slime = mobById('green_slime')!;
-    const mushroom = mobById('orange_mushroom')!;
+    const svg = screen.getByRole('img', { name: 'Shroom Grove' });
+    const slime = mobById('spore_slime')!;
+    const snail = mobById('mossback_snail')!;
     expect(texts(svg, '.map-label-spawn')).toEqual(
       expect.arrayContaining([
         `${slime.name} Lv ${slime.level}`,
-        `${mushroom.name} Lv ${mushroom.level}`,
+        `${snail.name} Lv ${snail.level}`,
       ]),
     );
-    expect(texts(svg, '.map-label-portal').sort()).toEqual(['To Cave', 'To Town']);
-    expect(texts(svg, '.map-label-npc')).toEqual(['Bowman Trainer']);
+    expect(texts(svg, '.map-label-portal').sort()).toEqual(['To Spore Hollow', 'To Willowmere']);
     expect(texts(svg, '.map-label-me')).toEqual(['You']);
+  });
+
+  it('This map names an NPC by its name: the crossroads’ guide', () => {
+    onMap('crossroads', 20, 10);
+    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
+    expect(texts(screen.getByRole('img', { name: 'Crossroads' }), '.map-label-npc')).toEqual([
+      'Crossroads Guide',
+    ]);
   });
 
   it('names a region’s areas at their middles, a hunting area with its levels and a town by its name, and outlines each, a town tinted', () => {
@@ -245,9 +252,9 @@ describe('MapWindow', () => {
     return { labels, boss: labels.find((l) => l.kind === 'boss')!, crown: (sz - spot.z) * scale };
   };
 
-  it('puts a beaten boss’s label under its crown when that has more room than tags keep: the forest’s, by the mesa slimes’ label', () => {
+  it('puts a beaten boss’s label under its crown when that has more room than tags keep: the frost trail’s', () => {
     const room = 6; // the boss label's, past the tags' 2 px
-    const { labels, boss, crown } = bossLabels('forest');
+    const { labels, boss, crown } = bossLabels('frost_trail');
     const near = labels.filter(
       (l) =>
         l !== boss &&
@@ -332,9 +339,9 @@ describe('MapWindow', () => {
   });
 
   it('lifts the player’s label above an NPC’s name when the player stands at the NPC', () => {
-    const guide = npcs.npcs.find((n) => n.id === 'town_guide')!;
+    const guide = npcs.npcs.find((n) => n.id === 'crossroads_guide')!;
     const labels = mapLabels(
-      map('town'),
+      map('crossroads'),
       { x: guide.x, z: guide.z },
       6,
       [48, 32],
@@ -347,28 +354,37 @@ describe('MapWindow', () => {
     expect(you.bottom).toBeLessThanOrEqual(name.bottom - name.h - 2);
   });
 
-  it('World draws every map but a match’s and a region’s at its place, a line for each pair of maps a portal joins, and a house for a town with no levels', async () => {
-    onMap('forest', 30, 10);
+  it('World draws every map with a place, a match’s excepted, a line for each pair of maps a portal joins, and a house for a town with no levels', async () => {
+    onMap('shroom_grove', 30, 10);
     render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
     await user.click(screen.getByRole('tab', { name: 'World' }));
     const chart = screen.getByRole('group', { name: 'World' });
     expect(chart.querySelectorAll('.map-node')).toHaveLength(
-      maps.filter((m) => m.kind !== 'pvp' && m.kind !== 'region').length,
+      maps.filter((m) => m.place !== null).length,
     );
     expect(chart.querySelector('.map-node[data-map="ring"]')).toBeNull(); // only a match reaches it
     expect(map('test_region').kind).toBe('region');
-    expect(chart.querySelector('.map-node[data-map="test_region"]')).toBeNull(); // only a teleport to its id reaches it, so nothing on the chart picks it
+    expect(chart.querySelector('.map-node[data-map="test_region"]')).toBeNull(); // no place on the chart: only a teleport to its id reaches it
+    expect(map('greyfang_cave').place).toBeNull(); // a place below is reached through its region
+    expect(chart.querySelector('.map-node[data-map="greyfang_cave"]')).toBeNull();
     expect(
       [...chart.querySelectorAll('.map-link')].map((l) => l.getAttribute('data-link')).sort(),
     ).toEqual(mapLinks.map(([a, b]) => `${a}-${b}`).sort());
-    const forest = chart.querySelector('.map-node[data-map="forest"]')!;
-    const [fx, fy] = map('forest').place!;
+    const grove = chart.querySelector('.map-node[data-map="shroom_grove"]')!;
+    const [fx, fy] = map('shroom_grove').place!;
     expect([
-      forest.querySelector('.map-hunt')!.getAttribute('cx'),
-      forest.querySelector('.map-hunt')!.getAttribute('cy'),
+      grove.querySelector('.map-hunt')!.getAttribute('cx'),
+      grove.querySelector('.map-hunt')!.getAttribute('cy'),
     ]).toEqual([String(fx), String(fy)]);
-    expect(texts(forest, '.map-node-levels')).toEqual(['Lv 1–4']);
-    const town = chart.querySelector('.map-node[data-map="town"]')!;
+    expect(texts(grove, '.map-node-levels')).toEqual(['Lv 15–16']);
+    const region = chart.querySelector('.map-node[data-map="willowmere"]')!; // a region is drawn as a hunting map, its kind under its name
+    const [wx, wy] = map('willowmere').place!;
+    expect([
+      region.querySelector('.map-hunt')!.getAttribute('cx'),
+      region.querySelector('.map-hunt')!.getAttribute('cy'),
+      texts(region, '.map-node-levels'),
+    ]).toEqual([String(wx), String(wy), ['Region']]);
+    const town = chart.querySelector('.map-node[data-map="crossroads"]')!;
     expect([town.querySelector('.map-town'), town.querySelector('.map-node-levels')]).toEqual([
       expect.anything(),
       null,
@@ -396,15 +412,15 @@ describe('MapWindow', () => {
   });
 
   it('World rings the player’s map, “You are here”, and names each online party member under their map', async () => {
-    onMap('forest', 30, 10);
+    onMap('shroom_grove', 30, 10);
     party.getState().applyPartyState(
       create(PartyStateSchema, {
         party: create(PartyViewSchema, {
           leader: 'c-robin',
           members: [
-            { characterId: 'c-robin', name: 'Robin', mapId: 'cave', online: true },
-            { characterId: 'c-jade', name: 'Jade', mapId: 'cave', online: false },
-            { characterId: 'c-kai', name: 'Kai', mapId: 'town', online: true },
+            { characterId: 'c-robin', name: 'Robin', mapId: 'spore_hollow', online: true },
+            { characterId: 'c-jade', name: 'Jade', mapId: 'spore_hollow', online: false },
+            { characterId: 'c-kai', name: 'Kai', mapId: 'crossroads', online: true },
           ],
         }),
       }),
@@ -414,56 +430,55 @@ describe('MapWindow', () => {
     const chart = screen.getByRole('group', { name: 'World' });
     const node = (id: string) => chart.querySelector(`.map-node[data-map="${id}"]`)!;
     expect([
-      node('forest').querySelector('.map-here-ring'),
-      texts(node('forest'), '.map-node-you'),
+      node('shroom_grove').querySelector('.map-here-ring'),
+      texts(node('shroom_grove'), '.map-node-you'),
     ]).toEqual([expect.anything(), ['You are here']]);
     expect(chart.querySelectorAll('.map-here-ring')).toHaveLength(1);
     expect([
-      texts(node('cave'), '.map-node-party'),
-      texts(node('town'), '.map-node-party'),
+      texts(node('spore_hollow'), '.map-node-party'),
+      texts(node('crossroads'), '.map-node-party'),
     ]).toEqual([['Robin'], ['Kai']]);
   });
 
   it('pointing at a map on World shows its name, levels and mobs with their levels', async () => {
-    onMap('town', 20, 10);
+    onMap('crossroads', 20, 10);
     render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
     await user.click(screen.getByRole('tab', { name: 'World' }));
     const chart = screen.getByRole('group', { name: 'World' });
-    fireEvent.pointerEnter(chart.querySelector('.map-node[data-map="forest"]')!);
+    fireEvent.pointerEnter(chart.querySelector('.map-node[data-map="shroom_grove"]')!);
     const card = within(screen.getByRole('tooltip'));
-    const slime = mobById('green_slime')!;
-    expect(card.getByText('Forest')).toBeInTheDocument();
-    expect(card.getByText('Lv 1–4')).toBeInTheDocument();
+    const slime = mobById('spore_slime')!;
+    expect(card.getByText('Shroom Grove')).toBeInTheDocument();
+    expect(card.getByText('Lv 15–16')).toBeInTheDocument();
     expect(card.getByText(`${slime.name} Lv ${slime.level}`)).toBeInTheDocument();
-    fireEvent.pointerLeave(chart.querySelector('.map-node[data-map="forest"]')!);
+    fireEvent.pointerLeave(chart.querySelector('.map-node[data-map="shroom_grove"]')!);
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
   });
 
   it('clicking a map on World shows its layout: its spawns, portals and NPCs named, and Back to the chart', async () => {
-    onMap('town', 20, 10);
+    onMap('crossroads', 20, 10);
     render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
     await user.click(screen.getByRole('tab', { name: 'World' }));
-    await user.click(screen.getByRole('button', { name: 'Forest' }));
-    const svg = await screen.findByRole('img', { name: 'Forest' });
-    expect(layoutOf).toHaveBeenCalledWith('forest');
-    expect(screen.getByText('Lv 1–4')).toBeInTheDocument();
-    const slime = mobById('green_slime')!;
+    await user.click(screen.getByRole('button', { name: 'Shroom Grove' }));
+    const svg = await screen.findByRole('img', { name: 'Shroom Grove' });
+    expect(layoutOf).toHaveBeenCalledWith('shroom_grove');
+    expect(screen.getByText('Lv 15–16')).toBeInTheDocument();
+    const slime = mobById('spore_slime')!;
     expect(texts(svg, '.map-label-spawn')).toContain(`${slime.name} Lv ${slime.level}`);
-    expect(texts(svg, '.map-label-portal').sort()).toEqual(['To Cave', 'To Town']);
-    expect(texts(svg, '.map-label-npc')).toEqual(['Bowman Trainer']);
+    expect(texts(svg, '.map-label-portal').sort()).toEqual(['To Spore Hollow', 'To Willowmere']);
     expect(
       [...svg.querySelectorAll('.map-spawn')].map((c) => [
         c.getAttribute('data-mob'),
         c.getAttribute('cx'),
       ]),
-    ).toEqual(map('forest').spawns.map((sp) => [sp.mob, String(sp.x)]));
+    ).toEqual(map('shroom_grove').spawns.map((sp) => [sp.mob, String(sp.x)]));
     expect(svg.getAttribute('viewBox')).toBe('0 0 72 40');
     await user.click(screen.getByRole('button', { name: 'Back' }));
     expect(screen.getByRole('group', { name: 'World' })).toBeInTheDocument();
   });
 
   it('a picked map shows the player and the live marks only when it’s the player’s own', async () => {
-    onMap('forest', 30, 10);
+    onMap('shroom_grove', 30, 10);
     act(() => {
       mapView.getState().mark({
         me: { x: 30, z: 10, yaw: 0 },
@@ -476,20 +491,20 @@ describe('MapWindow', () => {
     render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
     await user.click(screen.getByRole('tab', { name: 'World' }));
     const live = '.map-me, .map-party, .map-lock, .map-boss, .map-label-me';
-    await user.click(screen.getByRole('button', { name: 'Forest' }));
-    const own = screen.getByRole('img', { name: 'Forest' });
+    await user.click(screen.getByRole('button', { name: 'Shroom Grove' }));
+    const own = screen.getByRole('img', { name: 'Shroom Grove' });
     expect(own.querySelectorAll(live)).toHaveLength(5);
     expect(layoutOf).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Back' }));
-    await user.click(screen.getByRole('button', { name: 'Cave' }));
-    const other = await screen.findByRole('img', { name: 'Cave' });
+    await user.click(screen.getByRole('button', { name: 'Spore Hollow' }));
+    const other = await screen.findByRole('img', { name: 'Spore Hollow' });
     expect(other.querySelectorAll(live)).toHaveLength(0);
   });
 
   it('a beaten boss shows grey at its spot on its own map, the time until it’s back counting down, till it’s back', () => {
     vi.useFakeTimers();
     try {
-      onMap('forest', 30, 10);
+      onMap('shroom_grove', 30, 10);
       act(() => {
         fieldBoss
           .getState()
@@ -498,8 +513,8 @@ describe('MapWindow', () => {
           );
       });
       render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
-      const here = screen.getByRole('img', { name: 'Forest' });
-      const [spotX, spotZ] = [map('forest').boss!.x, map('forest').boss!.z];
+      const here = screen.getByRole('img', { name: 'Shroom Grove' });
+      const [spotX, spotZ] = [map('shroom_grove').boss!.x, map('shroom_grove').boss!.z];
       expect(here.querySelector('.map-boss-down')?.getAttribute('transform')).toMatch(
         new RegExp(`^translate\\(${spotX} ${40 - spotZ}\\)`),
       );
@@ -523,7 +538,7 @@ describe('MapWindow', () => {
   });
 
   it('a picked map shows no beaten boss of the player’s own map, at its own boss’s spot or anywhere', async () => {
-    onMap('forest', 30, 10);
+    onMap('shroom_grove', 30, 10);
     act(() => {
       fieldBoss
         .getState()
@@ -531,8 +546,8 @@ describe('MapWindow', () => {
     });
     render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
     await user.click(screen.getByRole('tab', { name: 'World' }));
-    await user.click(screen.getByRole('button', { name: 'Cave' }));
-    const other = await screen.findByRole('img', { name: 'Cave' });
+    await user.click(screen.getByRole('button', { name: 'Spore Hollow' }));
+    const other = await screen.findByRole('img', { name: 'Spore Hollow' });
     expect([
       other.querySelectorAll('.map-boss-down').length,
       texts(other, '.map-label-boss'),
@@ -540,23 +555,23 @@ describe('MapWindow', () => {
   });
 
   it('a picked map names the party members online on it under its header', async () => {
-    onMap('forest', 30, 10);
+    onMap('shroom_grove', 30, 10);
     party.getState().applyPartyState(
       create(PartyStateSchema, {
         party: create(PartyViewSchema, {
           leader: 'c-robin',
           members: [
-            { characterId: 'c-robin', name: 'Robin', mapId: 'cave', online: true },
-            { characterId: 'c-jade', name: 'Jade', mapId: 'cave', online: false },
-            { characterId: 'c-kai', name: 'Kai', mapId: 'town', online: true },
+            { characterId: 'c-robin', name: 'Robin', mapId: 'spore_hollow', online: true },
+            { characterId: 'c-jade', name: 'Jade', mapId: 'spore_hollow', online: false },
+            { characterId: 'c-kai', name: 'Kai', mapId: 'crossroads', online: true },
           ],
         }),
       }),
     );
     render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
     await user.click(screen.getByRole('tab', { name: 'World' }));
-    fireEvent.keyDown(screen.getByRole('button', { name: 'Cave' }), { key: 'Enter' });
-    const names = await screen.findByRole('list', { name: 'Party in Cave' });
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Spore Hollow' }), { key: 'Enter' });
+    const names = await screen.findByRole('list', { name: 'Party in Spore Hollow' });
     expect(
       within(names)
         .getAllByRole('listitem')
@@ -565,49 +580,49 @@ describe('MapWindow', () => {
   });
 
   it('a picked map whose layout won’t load says so', async () => {
-    onMap('town', 20, 10);
+    onMap('crossroads', 20, 10);
     render(
       <MapWindow
         socket={idle}
-        layoutOf={() => Promise.reject(new Error('map cave: 500'))}
+        layoutOf={() => Promise.reject(new Error('map spore_hollow: 500'))}
         onClose={vi.fn()}
       />,
     );
     await user.click(screen.getByRole('tab', { name: 'World' }));
-    await user.click(screen.getByRole('button', { name: 'Cave' }));
+    await user.click(screen.getByRole('button', { name: 'Spore Hollow' }));
     expect(await screen.findByText('The map didn’t load.')).toBeInTheDocument();
   });
 
   it('a picked map offers Teleport here, but not on the player’s own map, nor while they’re dead', async () => {
-    onMap('town', 20, 10);
+    onMap('crossroads', 20, 10);
     render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
     await user.click(screen.getByRole('tab', { name: 'World' }));
-    await user.click(screen.getByRole('button', { name: 'Forest' }));
+    await user.click(screen.getByRole('button', { name: 'Shroom Grove' }));
     expect(screen.getByRole('button', { name: 'Teleport here' })).toBeEnabled();
     await user.click(screen.getByRole('button', { name: 'Back' }));
-    await user.click(screen.getByRole('button', { name: 'Town' }));
+    await user.click(screen.getByRole('button', { name: 'Crossroads' }));
     expect(screen.queryByRole('button', { name: 'Teleport here' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Back' }));
     act(() => {
       character.getState().setDead(true);
     });
-    await user.click(screen.getByRole('button', { name: 'Forest' }));
+    await user.click(screen.getByRole('button', { name: 'Shroom Grove' }));
     expect(screen.queryByRole('button', { name: 'Teleport here' })).not.toBeInTheDocument();
   });
 
   it('Teleport here asks the server with the latest input’s seq; its answer closes the window and starts the channel', async () => {
-    onMap('town', 20, 10);
+    onMap('crossroads', 20, 10);
     const { socket, request } = asking(() => Promise.resolve({ ok: true, code: 0 }));
     const onClose = vi.fn();
     render(<MapWindow socket={socket} layoutOf={layoutOf} onClose={onClose} />);
     await user.click(screen.getByRole('tab', { name: 'World' }));
-    await user.click(screen.getByRole('button', { name: 'Forest' }));
+    await user.click(screen.getByRole('button', { name: 'Shroom Grove' }));
     await user.click(screen.getByRole('button', { name: 'Teleport here' }));
-    expect(request).toHaveBeenCalledWith('teleport', { mapId: 'forest' }, 42);
+    expect(request).toHaveBeenCalledWith('teleport', { mapId: 'shroom_grove' }, 42);
     await waitFor(() => {
       expect(onClose).toHaveBeenCalledOnce();
     });
-    expect(teleport.getState().to).toEqual({ map: 'forest' });
+    expect(teleport.getState().to).toEqual({ map: 'shroom_grove' });
   });
 
   describe('in a region’s channel', () => {
@@ -726,7 +741,7 @@ describe('MapWindow', () => {
       expect((await rows()).map(([, , s]) => s)).toEqual([false, false, false]);
       unmount();
       request.mockClear();
-      onMap('forest', 30, 10);
+      onMap('shroom_grove', 30, 10);
       act(() => mapView.getState().inChannel(0));
       render(<MapWindow socket={socket} layoutOf={layoutOf} onClose={vi.fn()} />);
       expect(screen.queryByRole('region', { name: 'Channels' })).not.toBeInTheDocument();
@@ -879,7 +894,7 @@ describe('MapWindow', () => {
       inRegion();
       render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
       await user.click(screen.getByRole('button', { name: 'West Field' }));
-      onMap('forest', 30, 10);
+      onMap('shroom_grove', 30, 10);
       expect(screen.queryByRole('region', { name: 'Waypoint' })).not.toBeInTheDocument();
       expect(document.querySelector('.map-waypoint')).toBeNull();
     });
@@ -1046,7 +1061,7 @@ describe('MapWindow', () => {
         vi.advanceTimersByTime(5000);
         expect(asked()).toBe(2);
         const off = answering([]);
-        onMap('forest', 30, 10);
+        onMap('shroom_grove', 30, 10);
         render(
           <MapWindow
             socket={{ request: off, sequence: 0 } as never}
@@ -1108,8 +1123,10 @@ describe('MapWindow', () => {
       }
       expect(svg.getAttribute('viewBox')).toBe('0 0 1024 1024');
       await user.click(zoomIn());
-      onMap('forest', 30, 10);
-      expect(screen.getByRole('img', { name: 'Forest' }).getAttribute('viewBox')).toBe('0 0 72 40'); // a new map whole
+      onMap('shroom_grove', 30, 10);
+      expect(screen.getByRole('img', { name: 'Shroom Grove' }).getAttribute('viewBox')).toBe(
+        '0 0 72 40',
+      ); // a new map whole
       expect(tab()).toEqual(['This map', 'World']);
     });
 
@@ -1205,13 +1222,13 @@ describe('MapWindow', () => {
 
     it('a map, however large, keeps its fit, with no buttons, and the wheel and a drag leave it be', () => {
       act(() => {
-        mapView.getState().showMap('forest', [720, 400], NO_GROUND, []); // 0.67 px a metre, as a region zooms from
+        mapView.getState().showMap('shroom_grove', [720, 400], NO_GROUND, []); // 0.67 px a metre, as a region zooms from
         mapView
           .getState()
           .mark({ me: { x: 30, z: 10, yaw: 0 }, party: [], lock: null, boss: null });
       });
       render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
-      const svg = screen.getByRole('img', { name: 'Forest' });
+      const svg = screen.getByRole('img', { name: 'Shroom Grove' });
       expect(screen.queryByRole('group', { name: 'Zoom' })).not.toBeInTheDocument();
       expect(fireEvent.wheel(svg, { deltaY: -400 })).toBe(true); // the page's, as before
       fireEvent.pointerDown(svg, { button: 0, clientX: 100, clientY: 100 });
@@ -1222,12 +1239,12 @@ describe('MapWindow', () => {
   });
 
   it('a refused teleport says why as a notice and leaves the window open', async () => {
-    onMap('town', 20, 10);
+    onMap('crossroads', 20, 10);
     const { socket } = asking(() => Promise.reject(refusal(ERR.TELEPORT_BUSY)));
     const onClose = vi.fn();
     render(<MapWindow socket={socket} layoutOf={layoutOf} onClose={onClose} />);
     await user.click(screen.getByRole('tab', { name: 'World' }));
-    await user.click(screen.getByRole('button', { name: 'Forest' }));
+    await user.click(screen.getByRole('button', { name: 'Shroom Grove' }));
     await user.click(screen.getByRole('button', { name: 'Teleport here' }));
     await waitFor(() => {
       expect(toasts.getState().toasts.map((t) => t.text)).toEqual(['You’re already teleporting.']);

@@ -48,7 +48,7 @@ func runsProcessTests() bool {
 
 func newStack(t *testing.T) *e2etest.Stack {
 	t.Helper()
-	return newStackOver(t, "../data")
+	return newStackOver(t, e2etest.GameData(t))
 }
 
 // newStackOver runs cmd/finga's app over the game data in data.
@@ -153,8 +153,8 @@ func TestAcceptance(t *testing.T) {
 		token := login.Body["token"].(string)
 		created := s.Call("POST", "/api/characters", token, map[string]string{"name": "Ayla"})
 		s.MustStatus(created, http.StatusCreated)
-		if created.Body["level"] != float64(1) || created.Body["class"] != "beginner" || created.Body["map_id"] != "town" || created.Body["hp"] != float64(124) {
-			t.Fatalf("character %v; want a level 1 Beginner in town at full HP", created.Body)
+		if created.Body["level"] != float64(1) || created.Body["class"] != "beginner" || created.Body["map_id"] != "willowmere" || created.Body["hp"] != float64(124) {
+			t.Fatalf("character %v; want a level 1 Beginner in Willowmere at full HP", created.Body)
 		}
 		s.MustStatus(s.Call("POST", "/api/characters", token, map[string]string{"name": "ayla"}), http.StatusConflict)
 		// Every character starts a Beginner: a class in the body is refused.
