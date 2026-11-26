@@ -260,7 +260,7 @@ mobs:
     height: 1
     behavior: patrol
     attacks: [{use: hop}]
-    look: {model: pink_blob}
+    look: {model: birb_blob}
     drops:
       - {item: birb_feather, chance: 0.9, min: 1, max: 2}
       - {item: red_potion, chance: 0.3, min: 1, max: 1}
@@ -291,7 +291,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: bite, reach: 1.125}]
-    look: {model: monkroose}
+    look: {model: birb_big}
     drops:
       - {item: great_plume, chance: 0.75, min: 1, max: 1}
       - {item: red_potion, chance: 0.75, min: 1, max: 2}
@@ -320,7 +320,7 @@ mobs:
     height: 1
     behavior: patrol
     attacks: [{use: spit, status: {id: poison, time: 4s, power: 0.15}}]
-    look: {model: pink_blob}
+    look: {model: alien_blob}
     drops:
       - {item: puff_spore, chance: 0.9, min: 1, max: 2}
       - {item: red_potion, chance: 0.3, min: 1, max: 1}
@@ -350,7 +350,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: hop}]
-    look: {model: monkroose}
+    look: {model: frog}
     drops:
       - {item: toad_skin, chance: 0.75, min: 1, max: 1}
       - {item: red_potion, chance: 0.75, min: 1, max: 2}
@@ -378,7 +378,7 @@ mobs:
     height: 1
     behavior: patrol
     attacks: [{use: spit}]
-    look: {model: bat}
+    look: {model: glub}
     drops:
       - {item: glub_jelly, chance: 0.9, min: 1, max: 2}
       - {item: red_potion, chance: 0.375, min: 1, max: 2}
@@ -406,7 +406,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: spit, status: {id: slow, time: 2s}}]
-    look: {model: bat}
+    look: {model: glub_evolved}
     drops:
       - {item: glub_eye, chance: 0.75, min: 1, max: 1}
       - {item: red_potion, chance: 0.75, min: 1, max: 2}
@@ -432,7 +432,7 @@ mobs:
     height: 1.5
     behavior: patrol
     attacks: [{use: charge}]
-    look: {model: monkroose}
+    look: {model: orc}
     drops:
       - {item: orc_tooth, chance: 0.75, min: 1, max: 1}
       - {item: red_potion, chance: 0.375, min: 1, max: 2}
@@ -462,7 +462,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: bite, reach: 1.125, status: {id: bleed, time: 3s, power: 0.15}}]
-    look: {model: monkroose}
+    look: {model: dino}
     drops:
       - {item: grey_fang, chance: 0.75, min: 1, max: 1}
       - {item: red_potion, chance: 0.75, min: 1, max: 2}
