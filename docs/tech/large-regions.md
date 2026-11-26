@@ -66,8 +66,8 @@ colour: {slope: 0.25, high: 30}               # where flat ground's colour turns
 features:                                     # applied in order
   - {ridge:   {path: [[x, z], ...], width: 60, height: 30}}
   - {plateau: {area: [[x, z], ...], height: 8, edge: cliff}}   # or ramp
-  - {river:   {path: [...], width: 14, depth: 3, fords: [[x, z]]}}   # its path runs downstream
-  - {lake:    {area: [...], depth: 4}}
+  - {river:   {path: [...], width: 14, depth: 3, fords: [[x, z]], banks: gentle}}   # its path runs downstream; banks steep (the default) or gentle
+  - {lake:    {area: [...], depth: 4, banks: gentle}}
   - {road:    {path: [...], width: 5}}        # flattened, dirt-coloured, kept clear
 areas:
   - {id: ..., name: ..., area: [[x, z], ...], levels: [1, 4], biome: meadow, kind: hunting,
@@ -168,6 +168,7 @@ biomes:
      - plateaus with cliff or ramp edges;
      - rivers and lakes carved, with fords left shallow;
        - **As built (step 4b-2a):** once the edge is raised, a sample still under a river or a lake whose water stands more than 0.6 m over it, twice a ford's depth, is marked deep (`sim.Terrain.Barrier`, per sample, named `DeepWater` until a cave's rock took the mark too). Roads, towns and the edge reshape the ground after the water, so the marks are judged on the final heights: a causeway or a town over a river is dry, and a bank's edge is wadeable.
+       - **As built (gentle banks, large regions step 8):** a river or a lake takes `banks: steep | gentle`; an unknown value is refused, and the default is steep, the carve above, so the test region and its bake hashes are as they were. Gentle rounds the whole water: the ground beside it is held under a cone that rises from the waterline at the ford's ramp, 0.5 m a metre, so a player who walks down to the water walks straight back up. A river measures along its smoothed path, from the water's edge at half its width, at the level of the nearest path point; a lake from its edge, at its level. Nothing under the water changes: the bed and the steep fall below wading depth stay, since deep water blocks anyway. A ford inside it keeps its own ramp, the lower of the two. The cost is a wider, valley-like river where the ground stands high, up to the region's highest ground over the waterline, its banks coloured as dirt by slope. Tests: the ground beside a gentle river and a gentle lake stands under the cone on a ramp up to a plateau, and no dry cell near the river is steep; the bed and the water are as steep banks leave them; a gentle river and lake on a slope leave no one-way pocket where the same plan's steep lake leaves them (nav's `TestNoRegionHasAOneWayPocket`; a steep river alone didn't strand a cell in any plan tried, so the river's cone is pinned by the generator's tests); an unknown `banks` is refused.
      - roads flattened to their mean height along a smoothed path.
   3. **Towns:** each town area flattened toward its mean.
   4. **Edge:** the mountain ring, raised last so no feature or town opens it: a cliff 10 m over the highest ground inside the ring at its inner face, then rising smoothly by between its heights to the sides, noise choosing where.

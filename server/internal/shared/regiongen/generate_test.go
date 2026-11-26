@@ -390,6 +390,61 @@ func TestARiverCarvesABedWithSteepBanksAndAWalkableFord(t *testing.T) {
 	}
 }
 
+// Gentle banks hold the ground beside a river under a cone from its waterline, rising fordRamp a metre: a ramp up to a plateau, which steep banks leave rising from the river's edge, is cut back into a valley; the bed and the water stay as they are.
+func TestGentleBanksHoldTheGroundUnderAConeFromTheWaterline(t *testing.T) {
+	plan := func(banks string) Plan {
+		p := flat()
+		p.Features = []Feature{
+			{Plateau: &Plateau{Area: [][2]float64{{70, 0}, {128, 0}, {128, 128}, {70, 128}}, Height: 10, Edge: Ramp}},
+			{River: &River{Path: [][2]float64{{40, 0}, {40, 128}}, Width: 6, Depth: 2, Banks: banks}},
+		}
+		return p
+	}
+	steep, gentle := build(t, plan("")), build(t, plan(GentleBanks))
+	level := gentle.Rivers[0].Levels[0]
+	for z := 16; z < 112; z++ {
+		for x := 10; x < 90; x++ {
+			d := max(math.Abs(float64(x)-40)-3, 0)
+			if got, bound := gentle.at(x, z), level+fordRamp*d; got > bound+1e-9 {
+				t.Fatalf("(%d, %d) stands at %v over the cone's %v", x, z, got, bound)
+			}
+			if dry := x <= 36 || x >= 43; dry && (gentle.steepBetween(x, z, false) || gentle.steepBetween(x, z, true)) {
+				t.Fatalf("the dry cell at (%d, %d) is steep with gentle banks", x, z)
+			}
+		}
+		for _, x := range []int{40, 38, 42} {
+			near(t, "its bed", gentle.at(x, z), steep.at(x, z))
+		}
+		if cut, was := gentle.at(44, z), steep.at(44, z); cut > was-0.3 {
+			t.Fatalf("the bank at (44, %d) is %v; want it cut from %v", z, cut, was)
+		}
+	}
+	if got := gentle.Rivers[0].Levels; !slices.Equal(got, steep.Rivers[0].Levels) {
+		t.Errorf("its water changed: %v; want %v", got, steep.Rivers[0].Levels)
+	}
+}
+
+// A lake's gentle banks hold the ground round it under the same cone, from its edge at its level.
+func TestAGentleLakeHoldsTheGroundRoundItUnderACone(t *testing.T) {
+	p := flat()
+	p.Features = []Feature{
+		{Plateau: &Plateau{Area: [][2]float64{{70, 0}, {128, 0}, {128, 128}, {70, 128}}, Height: 10, Edge: Cliff}},
+		{Lake: &Lake{Area: [][2]float64{{40.9, 40.9}, {60.1, 40.9}, {60.1, 60.1}, {40.9, 60.1}}, Depth: 3, Banks: GentleBanks}},
+	}
+	r := build(t, p)
+	level := r.Lakes[0].Level
+	for z := 20; z < 80; z++ {
+		for x := 20; x < 100; x++ {
+			dx, dz := max(40.9-float64(x), float64(x)-60.1, 0), max(40.9-float64(z), float64(z)-60.1, 0)
+			d := math.Sqrt(dx*dx + dz*dz)
+			if got, bound := r.at(x, z), level+fordRamp*d; got > bound+1e-5 {
+				t.Fatalf("(%d, %d) stands at %v over the cone's %v", x, z, got, bound)
+			}
+		}
+	}
+	near(t, "its bed", r.at(50, 50), level-3)
+}
+
 // A river's water follows the ground down and never climbs: drawn up a slope, it stays at the lowest it has been.
 func TestARiversWaterFallsWithTheGroundAndNeverRises(t *testing.T) {
 	p := flat()
