@@ -63,7 +63,7 @@ func TestAFollowUpGoesFromItsRootsKeyAfterTheRoot(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	s.Place(t, id, "willowmere", e2etest.OutOfSight, 134, 0)
+	s.Place(t, id, "willowmere", e2etest.Spots(t).OutOfSight, 134, 0)
 	l := e2etest.NewLooter(s.Join(t, token, id))
 	l.Await(300*time.Millisecond, nil)
 	use := func(req, skill string) *clientv1.Response {
@@ -88,21 +88,21 @@ func TestAFollowUpGoesFromItsRootsKeyAfterTheRoot(t *testing.T) {
 
 // stunnableSlime is the one slime in the slimes' circle, standing still and outlasting any fight with no super armor, so a stun takes; a hit lands but for one in a million.
 // Charge's hit comes at 0.9, so its dash is over by then on any runner whose inputs lag the world's ticks.
-func stunnableSlime() []e2etest.DataEdit {
+func stunnableSlime(t testing.TB) []e2etest.DataEdit {
 	return []e2etest.DataEdit{
 		{File: "skills.yaml", Old: "    hit: 0.3\n    cancel: 0.45\n    power: {base: 1.8, per_point: 0.05}\n    targets: 1\n    move: {kind: dash, distance: 7,", New: "    hit: 0.9\n    cancel: 0.9\n    power: {base: 1.8, per_point: 0.05}\n    targets: 1\n    move: {kind: dash, distance: 7,"},
 		{File: "mobs.yaml", Old: "    name: Green Slime\n    level: 1\n    hp: 34\n", New: "    name: Green Slime\n    level: 1\n    hp: 1000000\n"},
 		{File: "mobs.yaml", Old: greenSlimeBody, New: "    exp: 8\n    speed: 0\n    radius: 0.5\n    height: 0.875\n    behavior: patrol\n    attacks: [{use: bite, reach: 0.03}]\n"},
 		{File: "stats.yaml", Old: "hit: {top: 0.94, k: 0.175,", New: "hit: {top: 1, k: 0.000001,"},
 		{File: "stats.yaml", Old: "hit_chance: [0.20, 0.99]", New: "hit_chance: [0.20, 1]"},
-		loneSlime(),
+		loneSlime(t),
 	}
 }
 
 // C18: a Warrior's Strike key is Charge at a lock past 3 m and Ground Slam on the lock Charge stunned, as the client offers them: the world takes each from Strike's key, judged at the press, and refuses Ground Slam there before the stun.
 func TestAWarriorsStrikeKeyChargesThenSlams(t *testing.T) {
 	t.Parallel()
-	s := newStackOver(t, e2etest.GameData(t, stunnableSlime()...))
+	s := newStackOver(t, e2etest.GameData(t, stunnableSlime(t)...))
 	slime := groundSlime(t, s)
 	token, id := chainer(t, s, "Charger", "warrior", "strike", "charge", "ground_slam")
 	s.Place(t, id, "willowmere", beside(slime, -6), 500, 0)
@@ -146,7 +146,7 @@ var longDisengage = e2etest.DataEdit{File: "skills.yaml", Old: "    move: {kind:
 // C18: a Bowman's Disengage key is Power Shot right after a dodge: the world refuses it from that key before any, and takes it once the slime's bite passed through Disengage's dodge, counted from the dodge's frame.
 func TestABowmansDisengageKeyShootsAfterADodge(t *testing.T) {
 	t.Parallel()
-	s := newStackOver(t, e2etest.GameData(t, append(biters(true), loneSlime(), longDisengage)...))
+	s := newStackOver(t, e2etest.GameData(t, append(biters(true), loneSlime(t), longDisengage)...))
 	slime := groundSlime(t, s)
 	token, id := chainer(t, s, "Counter", "bowman", "disengage", "power_shot")
 	s.Place(t, id, "willowmere", beside(slime, -1), 300, 0) // in its bite's reach

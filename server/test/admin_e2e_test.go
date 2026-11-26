@@ -162,7 +162,7 @@ func TestTheAdminAPI(t *testing.T) {
 // The admin API listens only when the config enables it.
 func TestTheAdminAPIIsOffUnlessEnabled(t *testing.T) {
 	t.Parallel()
-	s := e2etest.NewStackBuilt(t, "../data", func(ctx context.Context, h *host.Host, cfg config.Config) error {
+	s := e2etest.NewStackBuilt(t, e2etest.GameData(t), func(ctx context.Context, h *host.Host, cfg config.Config) error {
 		cfg.Admin.Enabled = false
 		return dependencies.Build(ctx, h, cfg)
 	})

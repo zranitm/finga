@@ -45,7 +45,7 @@ func TestRoomForAReward(t *testing.T) {
 		for range 24 {
 			s.Give(t, id, "leather_cap", &progression.ItemStats{PhysicalDefense: 3})
 		}
-		s.Place(t, id, "willowmere", byTheGuide, 134, 0)
+		s.Place(t, id, "willowmere", e2etest.Spots(t).ByTheGuide, 134, 0)
 		l, _ := s.Hello(t, token, id)
 		handIn := &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}
 		if r := l.Command(t, "h-1", handIn); r.GetOk() || r.GetCode() != code("EQUIP_TAB_FULL") {
@@ -80,7 +80,7 @@ func TestRoomForAReward(t *testing.T) {
 		for range 24 {
 			s.Give(t, id, "leather_cap", &progression.ItemStats{PhysicalDefense: 3})
 		}
-		s.Place(t, id, "willowmere", e2etest.ByTheTrainer, 134, 0)
+		s.Place(t, id, "willowmere", e2etest.Spots(t).ByTheTrainer, 134, 0)
 		l, _ := s.Hello(t, token, id)
 		gift := uuidv7.Derived(uuid.MustParse(id), "promotion:warrior").String()
 		keyed := func() int {

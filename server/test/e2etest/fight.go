@@ -2,6 +2,7 @@ package e2etest
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"net/http"
 	"testing"
@@ -14,20 +15,11 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// Spots on the shipped regions the rows stand at, in metres, on open ground; Willowmere's Sunmeadow holds the slimes' circle at (650, 250), 8 m round, and the town's trainer and guide stand in Willowbrook.
-var (
-	SlimeField    = gamedata.Point{X: 641.5, Z: 250} // the circle's west edge, which its slimes see
-	AmongSlimes   = gamedata.Point{X: 650, Z: 250}   // the middle of the slimes' circle, where they're on a player at once
-	OutOfSight    = gamedata.Point{X: 625, Z: 250}   // west of the circle, farther than any mob sees
-	ClearOfSlimes = gamedata.Point{X: 610, Z: 250}   // farther west, out of the slimes' sight, even of those that chase a player there till they let them go
-	ByTheTrainer  = gamedata.Point{X: 550.5, Z: 124} // in talking reach of the Warrior Trainer, at (550, 125)
-	CaveGate      = gamedata.Point{X: 450, Z: 780}   // Willowmere's gate to Greyfang Cave
-	CaveMouth     = gamedata.Point{X: 192, Z: 32}    // the cave's gate back, where a hop lands
-	SlimesGate    = gamedata.Point{X: 626, Z: 250}   // where GateByTheSlimes stands the cave's gate
-)
-
-// GateByTheSlimes moves Willowmere's gate to the cave from the cliffs to SlimesGate, 16 m west of the slimes' circle, so a hunt and a hop are a few steps; the circle keeps clear of it by a mob's sight.
-var GateByTheSlimes = DataEdit{File: "regions/willowmere.yaml", Old: "name: cave_mouth, at: [450, 780],", New: "name: cave_mouth, at: [626, 250],"}
+// GateByTheSlimes moves Willowmere's gate to the cave from the cliffs to Spots(t).SlimesGate, 16 m west of the slimes' camp, so a hunt and a hop are a few steps; the camp keeps clear of it by a mob's sight.
+func GateByTheSlimes(t testing.TB) DataEdit {
+	sp := Spots(t)
+	return DataEdit{File: "regions/willowmere.yaml", Old: fmt.Sprintf("name: cave_mouth, at: [%v, %v],", sp.CaveGate.X, sp.CaveGate.Z), New: fmt.Sprintf("name: cave_mouth, at: [%v, %v],", sp.SlimesGate.X, sp.SlimesGate.Z)}
+}
 
 // Place moves a character straight in the database, as a checkpoint would have left it; the join stands it on the ground at (x, z).
 func (s *Stack) Place(t *testing.T, charID, mapID string, at gamedata.Point, hp int, exp int64) {

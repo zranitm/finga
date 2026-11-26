@@ -13,7 +13,7 @@ import (
 // C14: a character starts with no energy, an attack that reaches a mob earns it, a skill spends it, and a rejoin keeps it.
 func TestEnergyIsEarnedSpentAndKept(t *testing.T) {
 	t.Parallel()
-	s := newStackOver(t, e2etest.GameData(t, append(stillSlimes(), loneSlime())...))
+	s := newStackOver(t, e2etest.GameData(t, append(stillSlimes(), loneSlime(t))...))
 	slime := groundSlime(t, s)
 	token, id := s.CreateCharacter(t, "spark", "Spark", "beginner")
 	if _, err := s.DB.Exec(context.Background(), `INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at) VALUES ($1, 'strike', 1, now(), now())`, id); err != nil {
@@ -136,7 +136,7 @@ func TestEnergyIsEarnedSpentAndKept(t *testing.T) {
 // Animation cancel §15: an attack's gain reaches the client in a Delta ahead of the attack's own AttackUsed, in the same tick, so a skill short of energy waits for that AttackUsed, then goes at the attack's cancel point and lands.
 func TestASkillWaitingForItsAttacksGainCutsIt(t *testing.T) {
 	t.Parallel()
-	s := newStackOver(t, e2etest.GameData(t, append(stillSlimes(), loneSlime())...))
+	s := newStackOver(t, e2etest.GameData(t, append(stillSlimes(), loneSlime(t))...))
 	slime := groundSlime(t, s)
 	token, id := s.CreateCharacter(t, "count", "Count", "beginner")
 	if _, err := s.DB.Exec(context.Background(), `INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at) VALUES ($1, 'strike', 1, now(), now())`, id); err != nil {

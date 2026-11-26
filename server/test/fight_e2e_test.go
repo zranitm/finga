@@ -30,8 +30,8 @@ func TestFightAndGrow(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.CreateCharacter(t, "fiona", "Fiona", "bowman")
-		// Where the blocks of interest cells hold both the slimes' circle and the south mushrooms' at (700, 110): the snapshot holds the mobs of those cells alone.
-		inView := gamedata.Point{X: 672, Z: 140}
+		// Between the slimes' camp and the mushrooms', where the block of interest cells holds both: the snapshot holds the mobs of those cells alone.
+		inView := e2etest.Spots(t).InView
 		s.Place(t, id, "willowmere", inView, 134, 0)
 		p, snap := s.Join(t, token, id)
 		if len(snap.Mobs) < 3 {
@@ -89,10 +89,10 @@ func TestFightAndGrow(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.CreateCharacter(t, "hana", "Hana", "bowman")
-		s.Place(t, id, "willowmere", e2etest.SlimeField, 134, 0)
+		s.Place(t, id, "willowmere", e2etest.Spots(t).SlimeField, 134, 0)
 		p := e2etest.NewLooter(s.Join(t, token, id))
 		token2, id2 := s.CreateCharacter(t, "ivan", "Ivan", "warrior")
-		s.Place(t, id2, "willowmere", gamedata.Point{X: e2etest.SlimeField.X - 0.625, Z: e2etest.SlimeField.Z}, 144, 0)
+		s.Place(t, id2, "willowmere", gamedata.Point{X: e2etest.Spots(t).SlimeField.X - 0.625, Z: e2etest.Spots(t).SlimeField.Z}, 144, 0)
 		watcher, _ := s.Join(t, token2, id2)
 		p.Await(300*time.Millisecond, nil)
 		var hit *clientv1.Damage
@@ -138,7 +138,7 @@ func TestFightAndGrow(t *testing.T) {
 		}
 		_, stone, _ := data.Waypoint("sunmeadow_east") // the nearest to the slimes' circle: 133 m off, where Sunmeadow's other stone is 153 m
 		token, id := s.CreateCharacter(t, "joan", "Joan", "warrior")
-		s.Place(t, id, "willowmere", e2etest.AmongSlimes, 1, 10) // one hit from death; level 1 with 10 EXP
+		s.Place(t, id, "willowmere", e2etest.Spots(t).AmongSlimes, 1, 10) // one hit from death; level 1 with 10 EXP
 		p, _ := s.Hello(t, token, id)
 		p.DieAmongSlimes(t)
 		r := p.Expect("Respawned").Data.(*clientv1.Respawned)
@@ -162,7 +162,7 @@ func TestFightAndGrow(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.CreateCharacter(t, "kim", "Kim", "bowman")
-		s.Place(t, id, "willowmere", e2etest.SlimeField, 134, 18) // two EXP short of level 2
+		s.Place(t, id, "willowmere", e2etest.Spots(t).SlimeField, 134, 18) // two EXP short of level 2
 		p := e2etest.NewLooter(s.Join(t, token, id))
 		p.Await(300*time.Millisecond, nil)
 		var lu *clientv1.LevelUp
@@ -260,7 +260,7 @@ func TestFightAndGrow(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.CreateCharacter(t, "nell", "Nell", "warrior")
-		s.Place(t, id, "greyfang_cave", gamedata.Point{X: 229, Z: 198}, 400, 0) // 2 m east of the far bats' circle in the flat gallery, with no solid between, and out of the boars' sight
+		s.Place(t, id, "greyfang_cave", e2etest.Spots(t).FarBats, 400, 0) // 2 m west of the bats' camp in the flat hall, with no solid between, and out of the boars' sight
 		// 100 INT: magic defense 3 + 0.5 × 107 + 0.5 × 7 = 60, physical defense 5 + 7 = 12.
 		if _, err := s.DB.Exec(context.Background(), `UPDATE characters SET level = 21, int_points = 100 WHERE id = $1`, id); err != nil {
 			t.Fatal(err)
@@ -358,13 +358,13 @@ func TestFightAndGrow(t *testing.T) {
 			t.Fatalf("listed skill bar %v; want %v", got, bar)
 		}
 
-		s.Place(t, id, "willowmere", e2etest.SlimeField, 135, 0)
+		s.Place(t, id, "willowmere", e2etest.Spots(t).SlimeField, 135, 0)
 		if _, err := s.DB.Exec(context.Background(), `UPDATE characters SET energy = 10 WHERE id = $1`, id); err != nil { // five Throws
 			t.Fatal(err)
 		}
 		p, _ := s.Hello(t, token, id)
 		token2, id2 := s.CreateCharacter(t, "omar", "Omar", "beginner")
-		s.Place(t, id2, "willowmere", gamedata.Point{X: e2etest.SlimeField.X - 0.625, Z: e2etest.SlimeField.Z}, 135, 0)
+		s.Place(t, id2, "willowmere", gamedata.Point{X: e2etest.Spots(t).SlimeField.X - 0.625, Z: e2etest.Spots(t).SlimeField.Z}, 135, 0)
 		watcher, _ := s.Join(t, token2, id2)
 		p.Await(300*time.Millisecond, nil)
 

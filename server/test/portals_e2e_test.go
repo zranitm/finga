@@ -51,10 +51,10 @@ func TestTravel(t *testing.T) {
 	t.Run("through-the-cave-gate-and-back", func(t *testing.T) {
 		// Gate centres, where hops start and arrivals land; Tia stands by the cliffs' gate, as a walk there would end.
 		token, id := s.CreateCharacter(t, "tia", "Tia", "warrior")
-		s.Place(t, id, "willowmere", gamedata.Point{X: e2etest.CaveGate.X - 2, Z: e2etest.CaveGate.Z}, 144, 0)
+		s.Place(t, id, "willowmere", gamedata.Point{X: e2etest.Spots(t).CaveGate.X - 2, Z: e2etest.Spots(t).CaveGate.Z}, 144, 0)
 		p, snap := s.Join(t, token, id)
 		tia := e2etest.NewLooter(p, snap)
-		cave := tia.Hop(t, e2etest.CaveGate, "greyfang_cave", e2etest.CaveMouth)
+		cave := tia.Hop(t, e2etest.Spots(t).CaveGate, "greyfang_cave", e2etest.Spots(t).CaveMouth)
 		boars := 0
 		for _, m := range cave.Mobs {
 			if m.Type == "wild_boar" {
@@ -65,7 +65,7 @@ func TestTravel(t *testing.T) {
 			t.Fatalf("no boars in the cave snapshot: %+v", cave.Mobs)
 		}
 		// Straight back: the arrival gate leads to where she came from.
-		tia.Hop(t, e2etest.CaveMouth, "willowmere", e2etest.CaveGate)
+		tia.Hop(t, e2etest.Spots(t).CaveMouth, "willowmere", e2etest.Spots(t).CaveGate)
 		// Each hop checkpointed the target map, so the database and a fresh login both say Willowmere, on the gate.
 		var mapID string
 		var x, z float64
@@ -74,13 +74,13 @@ func TestTravel(t *testing.T) {
 			if err := s.DB.QueryRow(context.Background(), `SELECT map_id, pos_x, pos_z FROM characters WHERE id = $1`, id).Scan(&mapID, &x, &z); err != nil {
 				t.Fatal(err)
 			}
-			if mapID == "willowmere" && x == e2etest.CaveGate.X && z == e2etest.CaveGate.Z {
+			if mapID == "willowmere" && x == e2etest.Spots(t).CaveGate.X && z == e2etest.Spots(t).CaveGate.Z {
 				break
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
-		if mapID != "willowmere" || x != e2etest.CaveGate.X || z != e2etest.CaveGate.Z {
-			t.Fatalf("saved on %s at (%v, %v), want willowmere at (%v, %v)", mapID, x, z, e2etest.CaveGate.X, e2etest.CaveGate.Z)
+		if mapID != "willowmere" || x != e2etest.Spots(t).CaveGate.X || z != e2etest.Spots(t).CaveGate.Z {
+			t.Fatalf("saved on %s at (%v, %v), want willowmere at (%v, %v)", mapID, x, z, e2etest.Spots(t).CaveGate.X, e2etest.Spots(t).CaveGate.Z)
 		}
 		_, w := s.Welcome(t, "tia", id)
 		if w.GetMapId() != "willowmere" {
@@ -90,7 +90,7 @@ func TestTravel(t *testing.T) {
 
 	t.Run("from-the-north-pass-to-shroom-grove-and-back", func(t *testing.T) {
 		// The north pass leads out of the region to a map, and the map's way back leads to the pass.
-		northPass, grove := gamedata.Point{X: 940, Z: 880}, gamedata.Point{X: 2, Z: 18}
+		northPass, grove := e2etest.Spots(t).NorthPass, e2etest.Spots(t).Grove
 		token, id := s.CreateCharacter(t, "una", "Una", "warrior")
 		s.Place(t, id, "willowmere", gamedata.Point{X: northPass.X - 2, Z: northPass.Z}, 144, 0)
 		p, snap := s.Join(t, token, id)
@@ -153,4 +153,37 @@ func treeInTheWay(m *gamedata.Map, radius float64) (west, east gamedata.Point, o
 		}
 	}
 	return gamedata.Point{}, gamedata.Point{}, false
+}
+
+// The one row on the shipped data, whose Willowmere is generated whole, 1 km across: every other row runs on the stand-ins. A new character joins at Willowmere's start, a hop through the real cave gate goes down and back, and one placed in the Sunken Shrine joins there.
+func TestTheShippedRegionsRunOnTheRealData(t *testing.T) {
+	t.Parallel()
+	s := newStackOver(t, e2etest.RealDataDir())
+	data, err := load.Dir(s.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sp, err := e2etest.LayoutOf(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, id := s.CreateCharacter(t, "rey", "Rey", "warrior")
+	l, w := s.Hello(t, token, id)
+	if w.GetMapId() != "willowmere" || math.Hypot(l.X-sp.Start.X, l.Z-sp.Start.Z) > 1 {
+		t.Fatalf("a new character joined %s at (%.1f, %.1f); want willowmere at %+v", w.GetMapId(), l.X, l.Z, sp.Start)
+	}
+
+	token, id = s.CreateCharacter(t, "kai", "Kai", "warrior")
+	s.Place(t, id, "willowmere", gamedata.Point{X: sp.CaveGate.X - 2, Z: sp.CaveGate.Z}, 144, 0)
+	p, snap := s.Join(t, token, id)
+	kai := e2etest.NewLooter(p, snap)
+	kai.Hop(t, sp.CaveGate, "greyfang_cave", sp.CaveMouth)
+	kai.Hop(t, sp.CaveMouth, "willowmere", sp.CaveGate)
+
+	shrine, _ := data.Map("sunken_shrine")
+	token, id = s.CreateCharacter(t, "lou", "Lou", "warrior")
+	s.Place(t, id, "sunken_shrine", shrine.PlayerSpawn, 144, 0)
+	if _, w := s.Hello(t, token, id); w.GetMapId() != "sunken_shrine" {
+		t.Fatalf("a character placed in the Sunken Shrine joined %s", w.GetMapId())
+	}
 }

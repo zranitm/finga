@@ -54,7 +54,7 @@ func seedStores(ctx context.Context, url string) (seededStores, error) {
 func startedOver(t *testing.T, ttl time.Duration) (*e2etest.Stack, seededStores) {
 	t.Helper()
 	var seeded seededStores
-	s := e2etest.NewStackBuilt(t, "../data", func(ctx context.Context, h *host.Host, cfg config.Config) error {
+	s := e2etest.NewStackBuilt(t, e2etest.GameData(t), func(ctx context.Context, h *host.Host, cfg config.Config) error {
 		var err error
 		if seeded, err = seedStores(ctx, cfg.Database.URL); err != nil {
 			return err

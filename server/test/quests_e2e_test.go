@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -28,25 +29,21 @@ func quickCleanup() []e2etest.DataEdit {
 	}
 }
 
-// byTheGuide is a spot in talking reach of the guide in Willowbrook, at (490, 150).
-var byTheGuide = gamedata.Point{X: 489.5, Z: 149.5}
-
-// byTheFieldGuide is a spot in talking reach of the guide where guideByTheSlimes stands it, at (628, 250).
-var byTheFieldGuide = gamedata.Point{X: 627.5, Z: 249.5}
-
-// guideByTheSlimes moves the guide from Willowbrook to Sunmeadow, 14 m west of the slimes' circle, so a hunt and a hand-in are a few steps; the circle keeps clear of it by a mob's sight.
-func guideByTheSlimes() e2etest.DataEdit {
-	return e2etest.DataEdit{File: "regions/willowmere.yaml", Old: "{id: town_guide, at: [490, 150], yaw: 90}", New: "{id: town_guide, at: [628, 250], yaw: 180}"}
+// guideByTheSlimes moves the guide from Willowbrook to Sunmeadow, 14 m west of the slimes' camp, so a hunt and a hand-in are a few steps; the camp keeps clear of it by a mob's sight.
+func guideByTheSlimes(t testing.TB) e2etest.DataEdit {
+	sp := e2etest.Spots(t)
+	return e2etest.DataEdit{File: "regions/willowmere.yaml", Old: fmt.Sprintf("{id: town_guide, at: [%v, %v], yaw: 90}", sp.ByTheGuide.X+0.5, sp.ByTheGuide.Z+0.5), New: fmt.Sprintf("{id: town_guide, at: [%v, %v], yaw: 180}", sp.FieldGuide.X, sp.FieldGuide.Z)}
 }
 
 func TestQuests(t *testing.T) {
 	t.Parallel()
-	s := newStackOver(t, e2etest.GameData(t, slices.Concat(quickCleanup(), e2etest.QuickSlimes(), []e2etest.DataEdit{slimesDrop(oneGel), everyKill, guideByTheSlimes()})...))
+	s := newStackOver(t, e2etest.GameData(t, slices.Concat(quickCleanup(), e2etest.QuickSlimes(t), []e2etest.DataEdit{slimesDrop(oneGel), everyKill, guideByTheSlimes(t)})...))
 	quinnToken, quinnID := s.CreateCharacter(t, "quinn", "Quinn", "bowman")
 	riaToken, riaID := s.CreateCharacter(t, "ria", "Ria", "warrior")
-	// Both stand by the guide.
+	// Both stand by the guide, in talking reach.
+	byTheFieldGuide := gamedata.Point{X: e2etest.Spots(t).FieldGuide.X - 0.5, Z: e2etest.Spots(t).FieldGuide.Z - 0.5}
 	s.Place(t, quinnID, "willowmere", byTheFieldGuide, 144, 0)
-	s.Place(t, riaID, "willowmere", gamedata.Point{X: 628.5, Z: 249.5}, 144, 0)
+	s.Place(t, riaID, "willowmere", gamedata.Point{X: byTheFieldGuide.X + 1, Z: byTheFieldGuide.Z}, 144, 0)
 	quinn, ria := e2etest.NewLooter(s.Join(t, quinnToken, quinnID)), e2etest.NewLooter(s.Join(t, riaToken, riaID))
 
 	t.Run("H1/the-guide-offers-its-quests-and-both-accept-the-first", func(t *testing.T) {
@@ -85,13 +82,13 @@ func TestQuests(t *testing.T) {
 		}
 		quinn.PartyState(t, 2)
 		// Ria waits west of the guide, out of the slimes' field; Quinn hunts in it.
-		if !ria.WalkTo(e2etest.ClearOfSlimes, 30*time.Second) {
+		if !ria.WalkTo(e2etest.Spots(t).ClearOfSlimes, 30*time.Second) {
 			t.Fatalf("Ria could not reach her spot (at %.2f, %.2f)", ria.X, ria.Z)
 		}
 		if r := ria.Command(t, "t-2", &clientv1.Talk{NpcId: "town_guide"}); r.GetOk() || r.GetCode() != code("NPC_OUT_OF_REACH") {
 			t.Fatalf("talking to the guide from the field's west: %+v", r)
 		}
-		if !quinn.WalkTo(e2etest.SlimeField, 30*time.Second) {
+		if !quinn.WalkTo(e2etest.Spots(t).SlimeField, 30*time.Second) {
 			t.Fatalf("Quinn could not reach the slimes (at %.2f, %.2f)", quinn.X, quinn.Z)
 		}
 		done := func(q *clientv1.QuestChanged) bool {

@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"math"
 	"slices"
@@ -40,13 +41,13 @@ func TestLootAndKeep(t *testing.T) {
 	t.Parallel()
 	t.Run("D1-D2/a-kill-leaves-its-killer-a-pouch-nobody-else-sees-and-a-take-grants-each-item-once", func(t *testing.T) {
 		t.Parallel()
-		s := newStackOver(t, e2etest.GameData(t, append(e2etest.QuickSlimes(), everyKill)...))
+		s := newStackOver(t, e2etest.GameData(t, append(e2etest.QuickSlimes(t), everyKill)...))
 		token, id := s.CreateCharacter(t, "liam", "Liam", "bowman")
-		s.Place(t, id, "willowmere", e2etest.SlimeField, 134, 0)
+		s.Place(t, id, "willowmere", e2etest.Spots(t).SlimeField, 134, 0)
 		p, snap := s.Join(t, token, id)
 		killer := e2etest.NewLooter(p, snap)
 		token2, id2 := s.CreateCharacter(t, "mia", "Mia", "bowman")
-		s.Place(t, id2, "willowmere", gamedata.Point{X: e2etest.SlimeField.X - 0.625, Z: e2etest.SlimeField.Z}, 134, 0)
+		s.Place(t, id2, "willowmere", gamedata.Point{X: e2etest.Spots(t).SlimeField.X - 0.625, Z: e2etest.Spots(t).SlimeField.Z}, 134, 0)
 		wp, wsnap := s.Join(t, token2, id2)
 		watcher := e2etest.NewLooter(wp, wsnap)
 		killer.Await(300*time.Millisecond, nil)
@@ -158,13 +159,13 @@ func TestLootAndKeep(t *testing.T) {
 			{File: "mobs.yaml", Old: "    hp: 1\n    attack: 6\n", New: "    hp: 1\n    attack: 1\n"},
 			{File: "stats.yaml", Old: "vit: {max_hp: 10, physical_defense: 1, magic_defense: 0.5, hp_regen: 0.05}", New: "vit: {max_hp: 10, physical_defense: 1, magic_defense: 0.5, hp_regen: 0}"},
 		}
-		s := newStackOver(t, e2etest.GameData(t, slices.Concat(e2etest.QuickSlimes(), []e2etest.DataEdit{slimesDrop(oneGel), everyKill}, gentle)...))
+		s := newStackOver(t, e2etest.GameData(t, slices.Concat(e2etest.QuickSlimes(t), []e2etest.DataEdit{slimesDrop(oneGel), everyKill}, gentle)...))
 		var ls []*e2etest.Looter
 		for _, n := range []struct {
 			user, name, class string
 			at                gamedata.Point
 			hp                int
-		}{{"pia", "Pia", "bowman", e2etest.SlimeField, 134}, {"ravi", "Ravi", "warrior", e2etest.OutOfSight, 1}} { // Ravi waits where no mob sees him
+		}{{"pia", "Pia", "bowman", e2etest.Spots(t).SlimeField, 134}, {"ravi", "Ravi", "warrior", e2etest.Spots(t).OutOfSight, 1}} { // Ravi waits where no mob sees him
 			token, id := s.CreateCharacter(t, n.user, n.name, n.class)
 			s.Place(t, id, "willowmere", n.at, n.hp, 0)
 			p, snap := s.Join(t, token, id)
@@ -248,7 +249,7 @@ func TestLootAndKeep(t *testing.T) {
 
 		// Ravi walks into the slimes, which kill him, and drops off the game before he gets up on the map; dead or gone, he gets no turn: Pia's next pouches follow one another. A slime keeps the player it's after while it sees them, and among slimes all after Pia, Ravi stood a whole 30 s unhurt: so Pia walks out of their sight as he goes, and they let her go for him.
 		clear := make(chan bool, 1)
-		go func() { clear <- pia.WalkTo(e2etest.ClearOfSlimes, 30*time.Second) }()
+		go func() { clear <- pia.WalkTo(e2etest.Spots(t).ClearOfSlimes, 30*time.Second) }()
 		dead := func(m wsconn.Message) bool {
 			d, ok := m.Data.(*clientv1.Died)
 			return ok && d.GetCharacterId() == ravi.ID
@@ -261,7 +262,7 @@ func TestLootAndKeep(t *testing.T) {
 			t.Fatalf("Ravi never died among the slimes (at %.2f, %.2f, %.2f, %d HP)", ravi.X, ravi.Y, ravi.Z, ravi.HP)
 		}
 		_ = ravi.Conn.Close(websocket.StatusNormalClosure, "gone") // the region gets him up beside a stone on the same map, a member alive there who'd take his turns
-		if !pia.WalkTo(e2etest.SlimeField, 30*time.Second) {
+		if !pia.WalkTo(e2etest.Spots(t).SlimeField, 30*time.Second) {
 			t.Fatalf("Pia never got back to the slimes (at %.2f, %.2f)", pia.X, pia.Z)
 		}
 		before := len(pia.Seen)
@@ -277,9 +278,9 @@ func TestLootAndKeep(t *testing.T) {
 
 	t.Run("D1/a-full-tab-leaves-the-item-in-its-pouch-until-there-is-room-or-its-life-ends", func(t *testing.T) {
 		t.Parallel()
-		s := newStackOver(t, e2etest.GameData(t, append(e2etest.QuickSlimes(), slimesDrop(oneCap), e2etest.LootRules(1, "8s"))...)) // a life that outlasts the first cap's take, and is short to sit out for the second
+		s := newStackOver(t, e2etest.GameData(t, append(e2etest.QuickSlimes(t), slimesDrop(oneCap), e2etest.LootRules(1, "8s"))...)) // a life that outlasts the first cap's take, and is short to sit out for the second
 		token, id := s.CreateCharacter(t, "sol", "Sol", "bowman")
-		s.Place(t, id, "willowmere", e2etest.SlimeField, 134, 0)
+		s.Place(t, id, "willowmere", e2etest.Spots(t).SlimeField, 134, 0)
 		for range 24 {
 			s.Give(t, id, "leather_cap", &progression.ItemStats{PhysicalDefense: 3})
 		}
@@ -338,25 +339,26 @@ func TestLootAndKeep(t *testing.T) {
 
 	t.Run("D1/a-pouch-stays-on-its-map-while-its-owner-is-away", func(t *testing.T) {
 		t.Parallel()
-		// The slimes' circle moves to (640, 250), 2 m round, 12 m from the cave's gate: its slimes see a hunter by the gate and come to them.
+		// The slimes' camp moves to 14 m east of the cave's gate, 2 m round: its slimes see a hunter by the gate and come to them.
+		sp := e2etest.Spots(t)
+		gate := sp.SlimesGate
 		byTheGate := []e2etest.DataEdit{
-			e2etest.GateByTheSlimes,
-			{File: "regions/willowmere.yaml", Old: "name: slimes, at: [650, 250], radius: 8,", New: "name: slimes, at: [640, 250], radius: 2,"},
+			e2etest.GateByTheSlimes(t),
+			{File: "regions/willowmere.yaml", Old: fmt.Sprintf("name: slimes, at: [%v, %v], radius: %v,", sp.Slimes.At.X, sp.Slimes.At.Z, sp.Slimes.Radius), New: fmt.Sprintf("name: slimes, at: [%v, %v], radius: 2,", gate.X+14, gate.Z)},
 		}
-		gate := e2etest.SlimesGate
-		s := newStackOver(t, e2etest.GameData(t, slices.Concat(e2etest.QuickSlimes(), []e2etest.DataEdit{slimesDrop(oneGel), everyKill}, byTheGate)...))
+		s := newStackOver(t, e2etest.GameData(t, slices.Concat(e2etest.QuickSlimes(t), []e2etest.DataEdit{slimesDrop(oneGel), everyKill}, byTheGate)...))
 		token, id := s.CreateCharacter(t, "uma", "Uma", "bowman")
-		s.Place(t, id, "willowmere", gamedata.Point{X: 632, Z: 250}, 134, 0) // a second's walk from the gate
+		s.Place(t, id, "willowmere", gamedata.Point{X: gate.X + 6, Z: gate.Z}, 134, 0) // a second's walk from the gate
 		p, snap := s.Join(t, token, id)
 		l := e2etest.NewLooter(p, snap)
 		gel, ok := l.Hunt(30*time.Second, "slime_gel")
 		if !ok {
 			t.Fatal("no gel in 30 s of hunting")
 		}
-		if cave := l.Hop(t, gate, "greyfang_cave", e2etest.CaveMouth); len(cave.GetPouches()) != 0 {
+		if cave := l.Hop(t, gate, "greyfang_cave", e2etest.Spots(t).CaveMouth); len(cave.GetPouches()) != 0 {
 			t.Fatalf("the cave's Snapshot holds pouches %v", cave.GetPouches())
 		}
-		back := l.Hop(t, e2etest.CaveMouth, "willowmere", gate)
+		back := l.Hop(t, e2etest.Spots(t).CaveMouth, "willowmere", gate)
 		if !slices.ContainsFunc(back.GetPouches(), func(p *clientv1.PouchView) bool { return p.GetId() == gel.GetId() }) {
 			t.Fatalf("back in Willowmere to pouches %v; want the gel's still there", back.GetPouches())
 		}
@@ -440,13 +442,13 @@ func TestCrashDuringTakes(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds and runs the game as its own process")
 	}
-	s, game := processStack(t, e2etest.GameData(t, append(e2etest.QuickSlimes(), everyKill)...))
+	s, game := processStack(t, e2etest.GameData(t, append(e2etest.QuickSlimes(t), everyKill)...))
 
 	names := [][2]string{{"pat", "Pat"}, {"quinn", "Quinn"}, {"rae", "Rae"}}
 	var hunters []*e2etest.Looter
 	for k, n := range names {
 		token, id := s.CreateCharacter(t, n[0], n[1], "warrior")
-		s.Place(t, id, "willowmere", gamedata.Point{X: e2etest.SlimeField.X, Z: e2etest.SlimeField.Z + 1.5*float64(k-1)}, 144, 0)
+		s.Place(t, id, "willowmere", gamedata.Point{X: e2etest.Spots(t).SlimeField.X, Z: e2etest.Spots(t).SlimeField.Z + 1.5*float64(k-1)}, 144, 0)
 		hunters = append(hunters, e2etest.NewLooter(s.Join(t, token, id)))
 	}
 	var wg sync.WaitGroup

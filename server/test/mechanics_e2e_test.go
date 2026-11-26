@@ -36,7 +36,7 @@ var test_meteor = []e2etest.DataEdit{
 // C17: an area at the lock falls on the locked slime 10 m off; with no lock it falls 14 m along the aim, past the slime.
 func TestAnAreaAtTheLockFallsOnTheLockedSlime(t *testing.T) {
 	t.Parallel()
-	s := newStackOver(t, e2etest.GameData(t, append(append(stillSlimes(), loneSlime()), test_meteor...)...))
+	s := newStackOver(t, e2etest.GameData(t, append(append(stillSlimes(), loneSlime(t)), test_meteor...)...))
 	slime := groundSlime(t, s)
 	token, id := s.CreateCharacter(t, "caster", "Caster", "beginner")
 	for _, q := range []string{

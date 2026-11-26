@@ -16,7 +16,7 @@ import (
 // A region's channels through the stack (large-regions.md section 4): with two players a channel, a third joins channel 2, the list shows both, and a switch to 2 lands where the player stood, among channel 2's players, who see them come.
 func TestARegionsChannels(t *testing.T) {
 	t.Parallel()
-	s := e2etest.NewStackBuilt(t, "../data", dependencies.Build, func(c *config.Config) { c.World.Channels.Cap = 2 })
+	s := e2etest.NewStackBuilt(t, e2etest.GameData(t), dependencies.Build, func(c *config.Config) { c.World.Channels.Cap = 2 })
 	join := func(user, name string, at gamedata.Point) (*e2etest.Looter, *clientv1.Snapshot, string) {
 		token, id := s.CreateCharacter(t, user, name, "warrior")
 		s.Place(t, id, "test_region", at, 100, 0)

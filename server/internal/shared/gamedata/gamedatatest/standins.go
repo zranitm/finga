@@ -1,6 +1,6 @@
 package gamedatatest
 
-// StandIns are the small plans Shipped swaps in for the shipped regions, by their file in the data folder: same ids, gates, start, waypoints, NPCs and bosses, a fraction of the size; the two places below are taller than 240 m so that a 120 m interest cell cannot hold one whole.
+// StandIns are the small plans Shipped swaps in for the shipped regions, by their file in the data folder: same ids, gates, start, waypoints, NPCs and bosses, a fraction of the size, one oak standing alone in Oakshade for the walk test; the two places below are taller than 240 m so that a 120 m interest cell cannot hold one whole.
 var StandIns = map[string]string{
 	"regions/willowmere.yaml":    willowmere,
 	"regions/greyfang_cave.yaml": greyfangCave,
@@ -17,7 +17,7 @@ edge: {width: 16, height: [6, 10], biome: meadow}
 colour: {slope: 0.25, high: 100}
 areas:
   - {id: willowbrook, name: Willowbrook, area: [[16, 16], [96, 16], [96, 80], [16, 80]], biome: meadow, kind: town}
-  - {id: sunmeadow, name: Sunmeadow, area: [[96, 16], [240, 16], [240, 96], [96, 96]], levels: [1, 4], biome: meadow, kind: hunting, boss: {at: [225, 30], radius: 6, mob: king_slime}}
+  - {id: sunmeadow, name: Sunmeadow, area: [[96, 16], [240, 16], [240, 96], [96, 96]], levels: [1, 4], biome: meadow, kind: hunting, boss: {at: [225, 40], radius: 6, mob: king_slime}}
   - {id: oakshade, name: Oakshade Woods, area: [[16, 80], [96, 80], [96, 176], [16, 176]], levels: [4, 7], biome: meadow, kind: hunting, boss: {at: [80, 160], radius: 6, mob: oakshade_chief}}
   - {id: toadcap, name: Toadcap Glade, area: [[16, 176], [96, 176], [96, 240], [16, 240]], levels: [6, 9], biome: meadow, kind: hunting, boss: {at: [80, 232], radius: 6, mob: mushroom_king}}
   - {id: mirrorlake, name: Mirrorlake Shore, area: [[96, 96], [240, 96], [240, 176], [96, 176]], levels: [8, 11], biome: meadow, kind: hunting, boss: {at: [225, 130], radius: 6, mob: lake_lurker}}
@@ -48,6 +48,8 @@ npcs:
   - {id: warrior_trainer, at: [64, 30], yaw: 0}
   - {id: magician_trainer, at: [66, 50], yaw: 270}
   - {id: bowman_trainer, at: [46, 62], yaw: 0}
+pieces:
+  - {model: tree_oak, at: [80, 110], yaw: 0}
 gates:
   - {name: north_pass, at: [232, 215], radius: 1.6, to: {region: shroom_grove, gate: from_cave}}
   - {name: cave_mouth, at: [125, 195], radius: 1.6, to: {region: greyfang_cave, gate: mouth}}

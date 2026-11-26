@@ -30,7 +30,7 @@ func TestAGuardBlocksSlimesInFrontAndNotBehind(t *testing.T) {
 	if _, err := s.DB.Exec(context.Background(), `UPDATE characters SET energy = 0 WHERE id = $1`, id); err != nil {
 		t.Fatal(err)
 	}
-	s.Place(t, id, "willowmere", e2etest.SlimeField, 134, 0)
+	s.Place(t, id, "willowmere", e2etest.Spots(t).SlimeField, 134, 0)
 	l := e2etest.NewLooter(s.Join(t, token, id))
 	l.Await(300*time.Millisecond, nil)
 

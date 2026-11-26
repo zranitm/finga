@@ -84,13 +84,14 @@ func TestFieldBoss(t *testing.T) {
 	}
 	king, _ := data.Mob("king_slime")
 	reach := king.Radius + data.Movement().Radius + 0.125 // a fighter blocked at its side is within reach
-	// Ann and Ben stand south of Sunmeadow's boss spot at (820, 130), as a party, Ann on the map first; Cal waits in Willowbrook, outside its area.
+	// Ann and Ben stand south of Sunmeadow's boss spot, as a party, Ann on the map first; Cal waits in Willowbrook, outside its area.
+	sp := e2etest.Spots(t)
 	var ls []*e2etest.Looter
 	snaps := map[*e2etest.Looter]*clientv1.Snapshot{}
 	for _, c := range []struct {
 		user, name, mapID string
 		at                gamedata.Point
-	}{{"ann", "Ann", "willowmere", gamedata.Point{X: 817, Z: 123}}, {"ben", "Ben", "willowmere", gamedata.Point{X: 823, Z: 123}}, {"cal", "Cal", "willowmere", gamedata.Point{X: 512, Z: 160}}} {
+	}{{"ann", "Ann", "willowmere", gamedata.Point{X: sp.Boss.X - 3, Z: sp.Boss.Z - 7}}, {"ben", "Ben", "willowmere", gamedata.Point{X: sp.Boss.X + 3, Z: sp.Boss.Z - 7}}, {"cal", "Cal", "willowmere", sp.Start}} {
 		token, id := s.CreateCharacter(t, c.user, c.name, "warrior")
 		s.Place(t, id, c.mapID, c.at, 144, 0)
 		p, snap := s.Join(t, token, id)
@@ -99,7 +100,7 @@ func TestFieldBoss(t *testing.T) {
 	}
 	ann, ben, cal := ls[0], ls[1], ls[2]
 	deeToken, deeID := s.CreateCharacter(t, "dee", "Dee", "warrior")
-	s.Place(t, deeID, "willowmere", gamedata.Point{X: 820, Z: 100}, 144, 0)
+	s.Place(t, deeID, "willowmere", gamedata.Point{X: sp.Boss.X - 30, Z: sp.Boss.Z}, 144, 0) // 30 m west of the boss
 	if r := ann.Command(t, "inv-1", &clientv1.PartyInvite{CharacterId: ben.ID}); !r.GetOk() {
 		t.Fatalf("invite: %+v", r)
 	}

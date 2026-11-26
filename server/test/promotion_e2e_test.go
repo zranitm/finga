@@ -27,7 +27,7 @@ func TestPromotion(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		s.Place(t, id, "willowmere", e2etest.ByTheTrainer, 50, 0)
+		s.Place(t, id, "willowmere", e2etest.Spots(t).ByTheTrainer, 50, 0)
 		p := e2etest.NewLooter(s.Join(t, token, id))
 
 		if r := p.Command(t, "t-1", &clientv1.Talk{NpcId: "warrior_trainer"}); !r.GetOk() {

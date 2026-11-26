@@ -46,7 +46,7 @@ func TestASlimesAttackPassesThroughADodge(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	s.Place(t, id, "willowmere", e2etest.SlimeField, 134, 0)
+	s.Place(t, id, "willowmere", e2etest.Spots(t).SlimeField, 134, 0)
 	l := e2etest.NewLooter(s.Join(t, token, id))
 	ticks := func(d time.Duration) uint64 { return uint64(d / s.Cfg.World.TickInterval()) } //nolint:gosec // seconds of ticks
 
@@ -146,7 +146,7 @@ func TestAMoveStartsFromTheInputAfterAPressMidSwing(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	s.Place(t, id, "willowmere", e2etest.OutOfSight, 134, 0)
+	s.Place(t, id, "willowmere", e2etest.Spots(t).OutOfSight, 134, 0)
 	l := e2etest.NewLooter(s.Join(t, token, id))
 	l.Await(300*time.Millisecond, nil)
 

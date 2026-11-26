@@ -78,7 +78,7 @@ func TestAMobsHitCancelsATeleport(t *testing.T) {
 	// A channel long enough that Sunmeadow's slimes surely reach the player in it.
 	s := newStackOver(t, e2etest.GameData(t, e2etest.DataEdit{File: "world.yaml", Old: "channel: 3s", New: "channel: 10s"}))
 	token, id := s.CreateCharacter(t, "hal", "Hal", "warrior")
-	s.Place(t, id, "willowmere", e2etest.SlimeField, 134, 0)
+	s.Place(t, id, "willowmere", e2etest.Spots(t).SlimeField, 134, 0)
 	l := e2etest.NewLooter(s.Join(t, token, id))
 	l.Await(300*time.Millisecond, nil)
 

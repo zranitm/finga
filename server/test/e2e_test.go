@@ -48,7 +48,7 @@ func runsProcessTests() bool {
 
 func newStack(t *testing.T) *e2etest.Stack {
 	t.Helper()
-	return newStackOver(t, "../data")
+	return newStackOver(t, e2etest.GameData(t))
 }
 
 // newStackOver runs cmd/finga's app over the game data in data.

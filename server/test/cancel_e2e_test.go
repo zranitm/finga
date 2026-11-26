@@ -23,7 +23,7 @@ func TestAChainLandsSoonerThanOneAtATime(t *testing.T) {
 	t.Parallel()
 	// Strike cools down as it ends, so the test needn't wait out its 4.5 s.
 	quickStrike := e2etest.DataEdit{File: "skills.yaml", Old: "radius: 2.375, angle: 120, height: 1.75}\n    energy: 2\n    cooldown: 4500ms\n", New: "radius: 2.375, angle: 120, height: 1.75}\n    energy: 2\n    cooldown: 1500ms\n"}
-	s := newStackOver(t, e2etest.GameData(t, append(stillSlimes(), quickStrike, loneSlime())...))
+	s := newStackOver(t, e2etest.GameData(t, append(stillSlimes(), quickStrike, loneSlime(t))...))
 	// A scout joins Sunmeadow and finds its one slime in the slimes' circle, which stays put: a second beside it would bite the player through it.
 	slime := groundSlime(t, s)
 	token, id := s.CreateCharacter(t, "chain", "Chain", "beginner")
