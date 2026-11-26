@@ -82,6 +82,32 @@ func TestLoadsOfOnePlanShareItsGround(t *testing.T) {
 	}
 }
 
+// A region on the land may have a place on the world chart, as Willowmere does; no map is refused one that no chart shows.
+func TestALandRegionMayHaveAPlaceOnTheChart(t *testing.T) {
+	files := regioned(t)
+	files["world.yaml"] = strings.Replace(files["world.yaml"], "  field: [60, 50]\n", "  field: [60, 50]\n  vale: [10, 10]\n", 1)
+	if _, err := load.Dir(write(t, files)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A region with beginning: true is where new characters start, in the town's place; it and a town with start are refused together.
+func TestARegionMayBeWhereNewCharactersStart(t *testing.T) {
+	files := regioned(t)
+	files["regions/vale.yaml"] = strings.Replace(vale, "start:", "beginning: true\nstart:", 1)
+	if _, err := load.Dir(write(t, files)); err == nil || !strings.Contains(err.Error(), "start is for the one") {
+		t.Fatalf("a region and a town both start: error %v", err)
+	}
+	files["maps/town.yaml"] = strings.Replace(files["maps/town.yaml"], "start: true\n", "", 1)
+	d, err := load.Dir(write(t, files))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := d.StartTown(); got == nil || got.ID != "vale" {
+		t.Fatalf("new characters start in %+v; want vale", got)
+	}
+}
+
 func TestARegionLoadsAsAMapOfItsPlan(t *testing.T) {
 	files := regioned(t)
 	files["maps/field.yaml"] = strings.Replace(files["maps/field.yaml"], "  - {id: hunter, at: [20, 12], yaw: 180}\n", "", 1)
@@ -278,7 +304,6 @@ func TestRegionRejections(t *testing.T) {
 		{"a gate in the ring", file, "name: west, at: [24, 64]", "name: west, at: [12, 64]", []string{file, "gate west at [12 64] stands in the ring"}},
 
 		// Across files.
-		{"a place for a region", "world.yaml", "  field: [60, 50]\n", "  field: [60, 50]\n  vale: [10, 10]\n", []string{"world.yaml", "vale", "region"}},
 		{"a region one interest block holds", "world.yaml", "  behind: 1\n", "  behind: 3\n", []string{file, "block", "whole"}},
 	}
 	for _, tt := range tests {

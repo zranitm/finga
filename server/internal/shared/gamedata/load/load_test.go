@@ -1477,7 +1477,7 @@ func TestRealDataLoads(t *testing.T) {
 		ok   bool
 	}{
 		{"level cap 30", d.LevelCap() == 30},
-		{"new characters start in a town", d.StartTown() != nil && d.StartTown().Kind == gamedata.Town},
+		{"new characters start in Willowmere", d.StartTown() != nil && d.StartTown().ID == "willowmere" && d.StartTown().Kind == gamedata.Region},
 		{"every listed item loaded", len(items) > 0 && allLoaded(d, items)},
 		{"the expected movement constants", d.Movement() == wantMovement},
 		{"cave bats deal magic damage, the forest's mobs physical", mobDamage(d, "cave_bat") == gamedata.Magic && mobDamage(d, "green_slime") == gamedata.Physical},
