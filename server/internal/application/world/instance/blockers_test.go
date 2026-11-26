@@ -206,7 +206,7 @@ func TestNoMobEndsATickInsideAPlayer(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		m := worldtest.Gridded(t, &gamedata.Map{
-			ID: "crowd", Kind: gamedata.Hunting, Town: "town", Geometry: worldtest.Flat(40),
+			ID: "crowd", Kind: gamedata.Hunting, Town: "willowmere", Geometry: worldtest.Flat(40),
 			Spawns: []gamedata.Spawn{
 				{Mob: "green_slime", Max: 2, Respawn: time.Hour, At: gamedata.Point{X: 20, Z: 23}, Radius: 1.5},
 				{Mob: "wild_boar", Max: 2, Respawn: time.Hour, At: gamedata.Point{X: 17, Z: 20}, Radius: 1.5},
