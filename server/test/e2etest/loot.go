@@ -306,15 +306,19 @@ func (l *Looter) GoTake(t *testing.T, p *clientv1.PouchView) *clientv1.Response 
 	return l.Take(t, All(p)...)
 }
 
-// Farm hunts for d of the world's ticks: it swings every swingEvery, and walks to each pouch of its own and takes all it holds, one take at a time without waiting on it; it returns the InventoryChanged seen.
+// Farm hunts for d of the world's ticks: it swings every swingEvery, and walks to each pouch of its own until it's within the game's take reach and takes all it holds, one take at a time without waiting on it; it returns the InventoryChanged seen.
 func (l *Looter) Farm(d time.Duration) int {
+	takeFrom := 1.0 // metres; the game's reach less the slack it gives a client's lead, so a pouch a slime's body stands next to is still taken
+	if data, err := l.stack.gameData(); err == nil {
+		takeFrom = data.Loot().Reach - 0.5
+	}
 	nextAttack := l.elapsed
 	walking := false
 	var w Walk
 	var toward uint32 // the pouch w walks to
 	l.During(d, nil, nil, func() error {
 		switch p := l.nearestPouch(""); {
-		case p != nil && l.taking == "" && math.Hypot(p.GetX()-l.X, p.GetZ()-l.Z) <= 1:
+		case p != nil && l.taking == "" && math.Hypot(p.GetX()-l.X, p.GetZ()-l.Z) <= takeFrom:
 			if walking {
 				_ = l.Input(&clientv1.Input{})
 				walking = false
