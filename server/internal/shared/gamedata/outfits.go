@@ -51,12 +51,13 @@ type Feat struct {
 	When FeatWhen
 }
 
-// FeatWhen is a feat's one condition: a level-up to Level or past it, a field boss's rewards (Boss, or AnyBoss), a promotion, or Quest's hand-in.
+// FeatWhen is a feat's one condition: a level-up to Level or past it, a field boss's rewards (Boss, or AnyBoss), a promotion, Quest's hand-in, or a PvP win that brings the character's wins over every mode to PvpWins or past it.
 type FeatWhen struct {
 	Level    int
 	Boss     string
 	Promoted bool
 	Quest    string
+	PvpWins  int
 }
 
 // AnyBoss is a boss feat's condition met by every field boss.

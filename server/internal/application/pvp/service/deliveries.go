@@ -91,9 +91,10 @@ type RatingChange struct {
 	PlacementLeft         int
 }
 
-// PiecesAdded is the ranks' pieces a match's end gave the player's account, each new to it.
+// PiecesAdded is the pieces a match's end gave the player's account, each new to it: ranks' or win feats'.
 type PiecesAdded struct {
 	Pieces []model.RankPiece
+	Feats  []model.FeatPiece
 }
 
 func (Queued) delivery()      {}

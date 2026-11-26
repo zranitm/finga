@@ -109,6 +109,12 @@ export const PIECE_LOOKS: Readonly<Record<string, PieceLook>> = {
     meshes: body('Knight'),
     colourway: 'knight_veteran',
   },
+  barbarian_hat_victor: {
+    slot: 'headwear',
+    file: BARBARIAN,
+    meshes: ['Barbarian_Hat'],
+    colourway: 'barbarian_victor',
+  },
   barbarian_hat: { slot: 'headwear', file: BARBARIAN, meshes: ['Barbarian_Hat'] },
   mage_hat: { slot: 'headwear', file: MAGE, meshes: ['Mage_Hat'] },
   two_handed_sword: { slot: 'weapon', file: KNIGHT, meshes: ['2H_Sword'] },
@@ -143,4 +149,6 @@ export const COLOURWAYS: Readonly<Record<string, Colourway>> = {
   // Stand-ins for the feats' pieces: the Mage's hat in green, the Knight's plate in dark steel with a blue tabard.
   mage_green: { file: MAGE, swatches: { '1,1': 0x4f7f3a } },
   knight_veteran: { file: KNIGHT, swatches: { '3,0': 0x59626e, '7,0': 0x3a4049, '0,1': 0x2c5aa0 } },
+  // The PvP win's stand-in: the Barbarian's hat in red fur with gold horns.
+  barbarian_victor: { file: BARBARIAN, swatches: { '7,0': 0x8c2a24, '2,1': 0xd8a23e } },
 };

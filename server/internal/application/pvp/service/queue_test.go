@@ -251,6 +251,10 @@ func (s *store) Record(_ context.Context, m model.Match, characters []kernel.Cha
 	rated := rate(had)
 	s.matches[m.ID], s.recorded[m.ID], s.stored[m.ID] = rated, m.Mode, m
 	maps.Copy(s.ratings, rated.After)
+	if s.modes[m.Mode] == nil {
+		s.modes[m.Mode] = map[kernel.CharacterID]model.Rating{}
+	}
+	maps.Copy(s.modes[m.Mode], rated.After)
 	if s.lost > 0 {
 		s.lost--
 		return nil, fmt.Errorf("%w: the commit's answer was lost", transient.ErrUnavailable)
@@ -364,7 +368,12 @@ func newFixture(t *testing.T) fixture {
 // seeded is a fixture whose bots are drawn from seed.
 func seeded(t *testing.T, seed uint64) fixture {
 	t.Helper()
-	data := gamedatatest.Shipped(t)
+	return seededWith(t, seed, gamedatatest.Shipped(t))
+}
+
+// seededWith is a fixture over data whose bots are drawn from seed.
+func seededWith(t *testing.T, seed uint64, data *gamedata.Data) fixture {
+	t.Helper()
 	f := fixture{world: &world{cant: map[kernel.CharacterID]error{}, builds: map[kernel.CharacterID][]model.Build{}}, store: newStore(), chars: &characters{of: map[kernel.CharacterID]model.Character{}, as: map[kernel.CharacterID]model.Named{}}, items: &items{has: map[kernel.AccountID]map[string]bool{}}, notes: &notes{got: map[kernel.CharacterID][]service.Delivery{}}, social: &social{}, data: data}
 	log := slog.New(slog.DiscardHandler)
 	f.svc = service.New(service.Deps{Data: data, World: f.world, Social: f.social, Characters: f.chars, Store: f.store, Items: f.items, Notifier: f.notes, Logger: log, Panics: panics.NewRecorder(log, nil), Rand: rand.New(rand.NewPCG(seed, 2))}) //nolint:gosec // a test's bots

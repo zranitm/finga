@@ -41,3 +41,20 @@ func TestARanksPieceIsGrantedForItsRank(t *testing.T) {
 		t.Fatalf("err %v", err)
 	}
 }
+
+// Each win feat's piece goes to the item module as a grant for its feat, and comes back as the feat's piece; an error passes as it is.
+func TestAWinFeatsPieceIsGrantedForItsFeat(t *testing.T) {
+	account := kernel.NewAccountID()
+	w := &wardrobe{added: []item.PieceGrant{{Piece: "victors_horns", Cause: item.PieceFromFeat, Ref: "first_pvp_win"}}}
+	got, err := adapter.NewItems(w).GrantFeatPieces(context.Background(), account, []model.FeatPiece{{Piece: "victors_horns", Feat: "first_pvp_win"}})
+	if err != nil || w.account != account || !slices.Equal(w.asked, []item.PieceGrant{{Piece: "victors_horns", Cause: "feat", Ref: "first_pvp_win"}}) {
+		t.Fatalf("asked %+v for %v, err %v", w.asked, w.account, err)
+	}
+	if !slices.Equal(got, []model.FeatPiece{{Piece: "victors_horns", Feat: "first_pvp_win"}}) {
+		t.Fatalf("added %+v", got)
+	}
+	w.err = errors.New("down")
+	if _, err := adapter.NewItems(w).GrantFeatPieces(context.Background(), account, nil); !errors.Is(err, w.err) {
+		t.Fatalf("err %v", err)
+	}
+}

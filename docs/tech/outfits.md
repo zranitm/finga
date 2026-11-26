@@ -84,7 +84,7 @@ feats:
   - `promoted: true`, at a promotion;
   - `pvp_wins: N`, at a match's end, counting the character's wins over every mode;
   - `quest: <id>`, at a hand-in.
-  - **As built (4b-2):** the loader reads `feats:` from `outfits.yaml`. Each has an id of its own, a name, and exactly one condition: a level from 2 to the cap, `any` or a field boss, `promoted: true`, or a quest. Every feat must give some piece. `pvp_wins` waits for 4b-3, so the loader still refuses it as an unknown key.
+  - **As built (4b-2):** the loader reads `feats:` from `outfits.yaml`. Each has an id of its own, a name, and exactly one condition: a level from 2 to the cap, `any` or a field boss, `promoted: true`, or a quest. Every feat must give some piece. As built (4b-3), `pvp_wins` joins them, counting from 1.
 - **Items for pieces:**
   - Every piece with a `boss` source gets an item template the loader makes: id `piece.<id>`, tab `etc`, stack 100, the piece's stars, and a description naming the piece.
   - Vendor and gacha sources later use the same items.
@@ -143,8 +143,13 @@ feats:
     - **A feat added later** reaches every character who already meets it at their next join.
     - **The notice:** the player hears `PiecesAdded` (cause `feat`) for the pieces new to the account. One gone from the map hears nothing and finds them in the wardrobe.
     - **Bots** do no feat.
+  - **As built (4b-3), the PvP win feats:**
+    - **When pvp asks:** at a match's end, rated or not, for each winner who didn't leave. A loss, a draw, or a win the character left asks for nothing.
+    - **What it counts:** the character's wins over every mode, read from the store's records once this match is stored. It asks for the pieces of each `pvp_wins` feat that count reaches.
+    - **How:** pvp grants through the item module's `GrantPieces` (cause `feat`, `cause_ref` the feat), retrying within the match's one grant budget, shared with the ranks' pieces. The winner hears `PiecesAdded` (cause `feat`) after the match's outcome, for the pieces new to the account.
+    - **A lost grant:** a failed or given-up grant is logged. Every win asks again, so it comes with the next win. A join doesn't ask for win feats, since the world doesn't see pvp's records.
 - **Notices** (step 4): a grant or an add that made a row pushes `PiecesAdded{pieces}` to the account's live session. Until then the add's answer is the only word.
-  - **Who pushes it:** the caller of the item module, on the stream it already has to the player; the item module keeps no stream of its own. A rank's at a match's end goes through pvp's deliveries (as built, 4a-2); a quest's (as built, 4b-1) and a feat's at a level, a boss, a promotion or a quest (as built, 4b-2) go through the world's; planned, the PvP win feat's at a match's end through pvp's (4b-3).
+  - **Who pushes it:** the caller of the item module, on the stream it already has to the player; the item module keeps no stream of its own. A rank's at a match's end goes through pvp's deliveries (as built, 4a-2); a quest's (as built, 4b-1) and a feat's at a level, a boss, a promotion or a quest (as built, 4b-2) go through the world's; the PvP win feat's at a match's end goes through pvp's (as built, 4b-3).
   - **As built (4a-1):** only the add. The gateway delivers it to the adding session once the add succeeds; a refused add pushes none. A replayed add (the same idempotency key) pushes it again, and the client shows a piece's notice once each time the player enters the world.
 - **The look:**
   - `SetLook{look}` goes through the world, as `Equip` does. The world refuses a dead player (`CHARACTER_DEAD`) or one in combat (C20's 5 s clock, `IN_COMBAT`, as a trait change is).
@@ -347,7 +352,7 @@ Changing looks in combat is `IN_COMBAT` (330037), the code a trait change in com
    - `PlayerView.look`, `/api/wardrobe`, the failures and the invariant.
 2. **The client's looks:** parts files, binding to the class's rig, colourways, attach and fit, wings' hinges and motion, the cape hidden under wings, others redrawn, and the swing trail.
 3. **The wardrobe window,** the character window's figure, the inventory card actions, notices and the `wardrobe` key. Built in two parts: 3a the window and its key, 3b the character window, the inventory card and an add's notice.
-4. **Sources:** ranks from the pvp module, quest pieces and feats, with `GrantPieces` and `PiecesAdded`. Built in five parts: 4a-1 `PiecesAdded`, which an add pushes; 4a-2 `GrantPieces` and the ranks' pieces, with stand-ins for silver, gold and platinum (the Knight's helm and plate in new colourways) till step 5; 4b-1 quests' pieces, with stand-ins for the four class trials (each class's own weapon in bronze) till step 5; 4b-2 the feats the world sees (Reach level 10, Beat a field boss, Take a second class), with stand-ins (Wanderer's Hat, Crimson Helm, Veteran's Plate) till step 5; 4b-3 the PvP win feat.
+4. **Sources:** ranks from the pvp module, quest pieces and feats, with `GrantPieces` and `PiecesAdded`. Built in five parts: 4a-1 `PiecesAdded`, which an add pushes; 4a-2 `GrantPieces` and the ranks' pieces, with stand-ins for silver, gold and platinum (the Knight's helm and plate in new colourways) till step 5; 4b-1 quests' pieces, with stand-ins for the four class trials (each class's own weapon in bronze) till step 5; 4b-2 the feats the world sees (Reach level 10, Beat a field boss, Take a second class), with stand-ins (Wanderer's Hat, Crimson Helm, Veteran's Plate) till step 5; 4b-3 the PvP win feat (Win a PvP match), with a stand-in (Victor's Horns, the Barbarian's hat in red fur with gold horns) till step 5.
 5. **The catalogue:**
    - the Skeletons pack added, and the face pieces and wings modelled;
    - colourways and sources designed with the user from the preview sheet;

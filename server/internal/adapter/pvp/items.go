@@ -32,3 +32,17 @@ func (i Items) GrantRankPieces(ctx context.Context, account kernel.AccountID, pi
 	}
 	return out, err
 }
+
+// GrantFeatPieces puts each feat's piece in the account's wardrobe, giving back those new to it.
+func (i Items) GrantFeatPieces(ctx context.Context, account kernel.AccountID, pieces []model.FeatPiece) ([]model.FeatPiece, error) {
+	grants := make([]item.PieceGrant, 0, len(pieces))
+	for _, p := range pieces {
+		grants = append(grants, item.PieceGrant{Piece: p.Piece, Cause: item.PieceFromFeat, Ref: p.Feat})
+	}
+	added, err := i.m.GrantPieces(ctx, account, grants)
+	out := make([]model.FeatPiece, 0, len(added))
+	for _, g := range added {
+		out = append(out, model.FeatPiece{Piece: g.Piece, Feat: g.Ref})
+	}
+	return out, err
+}
