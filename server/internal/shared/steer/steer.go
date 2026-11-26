@@ -16,6 +16,7 @@ const (
 	mostReach     = 1.0         // metres, however far the body moved
 	repathEvery   = time.Second // a path is found again this often, or sooner when its end moves
 	repathMoved   = 1.0         // metres its end may move before the path is found again
+	progressEvery = time.Second // a walker that keeps its path finds it again when no waypoint has been reached for this long: a body that sees the world late and strides past a waypoint by more than its reach circles it, which the per-second search of Keys always undid
 	strayReach    = 3.0         // metres from its next waypoint a body that keeps its path may be before the path is found again: waypoints are a cell apart and the walker turns to the next within a metre, so past this a knockback, a slide or a hop has taken it off the path
 	stallMoved    = 0.05        // metres a body pressing a way must move in stallFor decisions not to have stalled
 	stallFor      = 4           // decisions
@@ -58,9 +59,10 @@ type Walker struct {
 	mapID  string
 	to     nav.Point
 	found  time.Duration
-	none   bool // the last search found no way
-	stalls int  // since it last reached a waypoint
-	aside  int  // decisions left stepping aside
+	moved  time.Duration // when the path was found, or a waypoint of it last reached
+	none   bool          // the last search found no way
+	stalls int           // since it last reached a waypoint
+	aside  int           // decisions left stepping aside
 	at     nav.Point
 	walked bool // at is where the body was at the last call
 }
@@ -70,7 +72,7 @@ func (w *Walker) Keys(m *gamedata.Map, g *nav.Grid, r float64, from, to nav.Poin
 	return w.keys(m, g, r, from, to, now, stalled, false)
 }
 
-// KeepKeys is Keys for a walker that keeps and follows its path: it looks again only when its end moves or its map changes, after a stall (a solid or a mob in the way), and when the body is farther than strayReach from its next waypoint, as a knockback, a slide or a hop leaves it. A walker with no way looks again each second, as Keys' does. The test bots, the load bots and the e2e kit walk with it, and the game's own match bots with Keys.
+// KeepKeys is Keys for a walker that keeps and follows its path: it looks again only when its end moves or its map changes, after a stall (a solid or a mob in the way), when the body is farther than strayReach from its next waypoint, as a knockback, a slide or a hop leaves it, and when no waypoint has been reached for progressEvery. A walker with no way looks again each second, as Keys' does. The test bots, the load bots and the e2e kit walk with it, and the game's own match bots with Keys.
 func (w *Walker) KeepKeys(m *gamedata.Map, g *nav.Grid, r float64, from, to nav.Point, now time.Duration, stalled bool) sim.Input {
 	return w.keys(m, g, r, from, to, now, stalled, true)
 }
@@ -78,7 +80,7 @@ func (w *Walker) KeepKeys(m *gamedata.Map, g *nav.Grid, r float64, from, to nav.
 func (w *Walker) keys(m *gamedata.Map, g *nav.Grid, r float64, from, to nav.Point, now time.Duration, stalled, keep bool) sim.Input {
 	again := now-w.found > repathEvery
 	if keep {
-		again = w.none && again || len(w.path) > 0 && nav.Distance(from, w.path[0]) > strayReach
+		again = w.none && again || len(w.path) > 0 && (nav.Distance(from, w.path[0]) > strayReach || now-w.moved > progressEvery)
 	}
 	if w.mapID != m.ID || nav.Distance(w.to, to) > repathMoved || again || (!w.none && (stalled || len(w.path) == 0)) {
 		leash := math.Hypot(m.Geometry.SizeX, m.Geometry.SizeZ)
@@ -89,15 +91,15 @@ func (w *Walker) keys(m *gamedata.Map, g *nav.Grid, r float64, from, to nav.Poin
 		if n := len(w.path); n > 0 {
 			w.path[n-1] = to
 		}
-		w.mapID, w.to, w.found, w.none = m.ID, to, now, len(w.path) == 0
+		w.mapID, w.to, w.found, w.moved, w.none = m.ID, to, now, now, len(w.path) == 0
 	}
 	reach := waypointReach
 	if w.walked {
 		reach = min(max(reach, strideReach*nav.Distance(from, w.at)), mostReach)
 	}
 	w.at, w.walked = from, true
-	for len(w.path) > 1 && nav.Distance(from, w.path[0]) < reach {
-		w.path, w.stalls = w.path[1:], 0
+	for len(w.path) > 1 && (nav.Distance(from, w.path[0]) < reach || keep && passed(from, w.path[0], w.path[1])) {
+		w.path, w.stalls, w.moved = w.path[1:], 0, now
 	}
 	next := to
 	if len(w.path) > 0 {
@@ -119,6 +121,11 @@ func (w *Walker) keys(m *gamedata.Map, g *nav.Grid, r float64, from, to nav.Poin
 		return KeysToward(-dz*side, dx*side)
 	}
 	return KeysToward(dx, dz)
+}
+
+// passed is whether a body at from, within mostReach of the waypoint a, has gone past it toward b: a keeping walker that strides by a waypoint by more than its reach, as one seeing the world late does, would circle it.
+func passed(from, a, b nav.Point) bool {
+	return nav.Distance(from, a) < mostReach && float64((from.X-a.X)*(b.X-a.X))+float64((from.Z-a.Z)*(b.Z-a.Z)) > 0
 }
 
 // Lost reports whether the last search found no way to the walker's end.
