@@ -139,7 +139,7 @@ func TestFieldBoss(t *testing.T) {
 				t.Fatalf("%s heard the boss gone as %+v; want the king, back in %v", l.ID, g, bossBack)
 			}
 		}
-		// Each sees a box of their own holding a tusk, and none of the other's; each takes theirs. A pouch from a mushroom killed in the fight is no box, and isn't counted.
+		// Each sees a box of their own holding a tusk, and none of the other's; each takes theirs. A pouch from a mob killed in the fight is no box, and isn't counted.
 		for _, l := range []*e2etest.Looter{ann, ben} {
 			var box *clientv1.PouchView
 			found := l.Until(5*time.Second, func() bool {

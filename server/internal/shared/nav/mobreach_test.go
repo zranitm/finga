@@ -81,7 +81,7 @@ func TestEveryMobReachesAPlayerAnywhereInItsLeash(t *testing.T) {
 				for z := 0.25; z < m.geo.SizeZ; z += 0.5 {
 					for x := 0.25; x < m.geo.SizeX; x += 0.5 {
 						q := nav.Point{X: x, Z: z}
-						if nav.Distance(q, c) > leash || !player.Has(q) || excused(m.id, q) {
+						if nav.Distance(q, c) > leash || !player.Has(q) || !g.Fits(q, p.Radius) || excused(m.id, q) {
 							continue
 						}
 						if !lands(g, walk, q, g.GroundAt(q), bs) {

@@ -22,7 +22,7 @@ features:
 areas:
   - {id: willowbrook, name: Willowbrook, area: [[432, 72], [592, 72], [592, 192], [432, 192]], biome: meadow, kind: town}
   - {id: sunmeadow, name: Sunmeadow, area: [[592, 72], [952, 72], [952, 352], [352, 352], [352, 192], [592, 192]], levels: [1, 4], biome: meadow, kind: hunting, boss: {at: [820, 130], radius: 6, mob: king_slime}}
-  - {id: oakshade, name: Oakshade Woods, area: [[72, 72], [432, 72], [432, 192], [352, 192], [352, 448], [72, 448]], levels: [4, 7], biome: woods, kind: hunting, boss: {at: [150, 150], radius: 6, mob: oakshade_chief}}
+  - {id: oakshade, name: Oakshade Woods, area: [[72, 72], [432, 72], [432, 192], [352, 192], [352, 448], [72, 448]], levels: [4, 7], biome: woods, kind: hunting, boss: {at: [154, 146], radius: 6, mob: oakshade_chief}}
   - {id: toadcap, name: Toadcap Glade, area: [[72, 448], [352, 448], [352, 352], [448, 352], [448, 704], [304, 704], [304, 952], [72, 952]], levels: [6, 9], biome: glade, kind: hunting, boss: {at: [140, 640], radius: 6, mob: mushroom_king}}
   - {id: fernbridge, name: Fernbridge, area: [[448, 448], [560, 448], [560, 544], [448, 544]], biome: meadow, kind: town}
   - {id: mirrorlake, name: Mirrorlake Shore, area: [[448, 352], [952, 352], [952, 704], [448, 704], [448, 544], [560, 544], [560, 448], [448, 448]], levels: [8, 11], biome: shore, kind: hunting, boss: {at: [932, 540], radius: 6, mob: lake_lurker}}
@@ -44,7 +44,7 @@ camps:
   - {area: toadcap, name: river bend, at: [320, 470], radius: 8, mob: puffcap, max: 5, respawn: 30s}
   - {area: toadcap, name: rings, at: [330, 650], radius: 9, mob: toadcap_toad, max: 3, respawn: 40s}
   - {area: toadcap, name: west caps, at: [120, 720], radius: 8, mob: puffcap, max: 5, respawn: 30s}
-  - {area: toadcap, name: north caps, at: [250, 900], radius: 8, mob: puffcap, max: 5, respawn: 30s}
+  - {area: toadcap, name: north caps, at: [185, 910], radius: 8, mob: puffcap, max: 5, respawn: 30s}
   - {area: toadcap, name: far caps, at: [130, 880], radius: 9, mob: toadcap_toad, max: 3, respawn: 40s}
   - {area: toadcap, name: east caps, at: [410, 400], radius: 8, mob: puffcap, max: 4, respawn: 30s}
   - {area: mirrorlake, name: south shore, at: [600, 420], radius: 8, mob: glub, max: 5, respawn: 30s}
@@ -53,8 +53,8 @@ camps:
   - {area: mirrorlake, name: north shore, at: [600, 665], radius: 9, mob: twin_glub, max: 3, respawn: 40s}
   - {area: mirrorlake, name: east shore, at: [930, 660], radius: 8, mob: glub, max: 5, respawn: 30s}
   - {area: mirrorlake, name: far reeds, at: [935, 420], radius: 9, mob: twin_glub, max: 3, respawn: 40s}
-  - {area: greyfang, name: west foot, at: [360, 740], radius: 8, mob: cliff_orc, max: 5, respawn: 30s}
-  - {area: greyfang, name: foot, at: [700, 740], radius: 8, mob: cliff_orc, max: 5, respawn: 30s}
+  - {area: greyfang, name: west foot, at: [360, 743], radius: 8, mob: cliff_orc, max: 5, respawn: 30s}
+  - {area: greyfang, name: foot, at: [700, 743], radius: 8, mob: cliff_orc, max: 5, respawn: 30s}
   - {area: greyfang, name: east foot, at: [860, 740], radius: 9, mob: greyfang_raptor, max: 3, respawn: 40s}
   - {area: greyfang, name: west top, at: [450, 880], radius: 8, mob: cliff_orc, max: 5, respawn: 30s}
   - {area: greyfang, name: top, at: [560, 920], radius: 9, mob: greyfang_raptor, max: 3, respawn: 40s}

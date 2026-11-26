@@ -23,7 +23,11 @@ var (
 	ByTheTrainer  = gamedata.Point{X: 550.5, Z: 124} // in talking reach of the Warrior Trainer, at (550, 125)
 	CaveGate      = gamedata.Point{X: 450, Z: 780}   // Willowmere's gate to Greyfang Cave
 	CaveMouth     = gamedata.Point{X: 192, Z: 32}    // the cave's gate back, where a hop lands
+	SlimesGate    = gamedata.Point{X: 626, Z: 250}   // where GateByTheSlimes stands the cave's gate
 )
+
+// GateByTheSlimes moves Willowmere's gate to the cave from the cliffs to SlimesGate, 16 m west of the slimes' circle, so a hunt and a hop are a few steps; the circle keeps clear of it by a mob's sight.
+var GateByTheSlimes = DataEdit{File: "regions/willowmere.yaml", Old: "name: cave_mouth, at: [450, 780],", New: "name: cave_mouth, at: [626, 250],"}
 
 // Place moves a character straight in the database, as a checkpoint would have left it; the join stands it on the ground at (x, z).
 func (s *Stack) Place(t *testing.T, charID, mapID string, at gamedata.Point, hp int, exp int64) {

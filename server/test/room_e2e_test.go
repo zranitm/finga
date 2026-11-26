@@ -15,7 +15,6 @@ import (
 // TestRoomForAReward is the user's rule of 2026-11-12: a reward that doesn't fit is refused for the first short tab, and goes through once the slots the client counts are free. Nothing else waits for room: an item a pouch holds stays in it.
 func TestRoomForAReward(t *testing.T) {
 	t.Parallel()
-	data := e2etest.GameData(t, guideByThePortal())
 	// freeOne discards a cap from the bag.
 	freeOne := func(t *testing.T, s *e2etest.Stack, l *e2etest.Looter, req string) {
 		t.Helper()
@@ -29,7 +28,7 @@ func TestRoomForAReward(t *testing.T) {
 	}
 	t.Run("H1/a-hand-in-refused-for-a-full-tab-goes-through-once-the-reward-has-room", func(t *testing.T) {
 		t.Parallel()
-		s := newStackOver(t, data)
+		s := newStack(t)
 		token, id := s.CreateCharacter(t, "hana", "Hana", "bowman")
 		for _, q := range []string{
 			`UPDATE characters SET level = 2 WHERE id = $1`,
@@ -66,7 +65,7 @@ func TestRoomForAReward(t *testing.T) {
 
 	t.Run("C8/a-promotion-refused-for-a-full-tab-gives-its-weapon-once-under-its-key-when-there-is-room", func(t *testing.T) {
 		t.Parallel()
-		s := newStackOver(t, data)
+		s := newStack(t)
 		ctx := context.Background()
 		token, id := s.CreateCharacter(t, "pavo", "Pavo", "beginner")
 		for _, q := range []string{

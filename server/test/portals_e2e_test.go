@@ -1,13 +1,17 @@
 package e2e_test
 
 import (
+	"cmp"
 	"context"
 	"math"
+	"slices"
 	"testing"
 	"time"
 
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/gamedata/load"
+	"finga/internal/shared/nav"
+	"finga/internal/shared/sim"
 	"finga/pkg/wsconn"
 	"finga/test/e2etest"
 )
@@ -44,46 +48,13 @@ func TestTravel(t *testing.T) {
 		}
 	})
 
-	t.Run("walk-from-the-town-to-the-forest-and-back", func(t *testing.T) {
-		// Portal centres, where hops start and arrivals land.
-		forest := l.Hop(t, e2etest.TownPortal, "forest", e2etest.ForestFromTown)
-		if len(forest.Mobs) == 0 {
-			t.Fatal("no mobs in the forest snapshot")
-		}
-		// Straight back: the arrival portal leads to where she came from.
-		town := l.Hop(t, e2etest.ForestFromTown, "town", e2etest.TownPortal)
-		if len(town.Mobs) != 0 {
-			t.Fatal("mobs in the town")
-		}
-		// Each hop checkpointed the target map, so the database and a fresh login both say town.
-		var mapID string
-		var x, z float64
-		deadline := time.Now().Add(5 * time.Second)
-		for time.Now().Before(deadline) {
-			if err := s.DB.QueryRow(context.Background(), `SELECT map_id, pos_x, pos_z FROM characters WHERE id = $1`, id).Scan(&mapID, &x, &z); err != nil {
-				t.Fatal(err)
-			}
-			if mapID == "town" && x == e2etest.TownPortal.X && z == e2etest.TownPortal.Z {
-				break
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-		if mapID != "town" || x != e2etest.TownPortal.X || z != e2etest.TownPortal.Z {
-			t.Fatalf("saved on %s at (%v, %v), want town at (%v, %v)", mapID, x, z, e2etest.TownPortal.X, e2etest.TownPortal.Z)
-		}
-		_, w := s.Welcome(t, "sam", id)
-		if w.GetMapId() != "town" {
-			t.Fatalf("welcomed on %s", w.GetMapId())
-		}
-	})
-
-	t.Run("from-the-forest-to-the-cave-and-back", func(t *testing.T) {
-		// She starts on the forest's to_cave portal, as a walk across the forest would end.
+	t.Run("through-the-cave-gate-and-back", func(t *testing.T) {
+		// Gate centres, where hops start and arrivals land; Tia stands by the cliffs' gate, as a walk there would end.
 		token, id := s.CreateCharacter(t, "tia", "Tia", "warrior")
-		s.Place(t, id, "forest", e2etest.ForestToCave, 144, 0)
+		s.Place(t, id, "willowmere", gamedata.Point{X: e2etest.CaveGate.X - 2, Z: e2etest.CaveGate.Z}, 144, 0)
 		p, snap := s.Join(t, token, id)
 		tia := e2etest.NewLooter(p, snap)
-		cave := tia.Hop(t, e2etest.ForestToCave, "cave", e2etest.CaveFromForest)
+		cave := tia.Hop(t, e2etest.CaveGate, "greyfang_cave", e2etest.CaveMouth)
 		boars := 0
 		for _, m := range cave.Mobs {
 			if m.Type == "wild_boar" {
@@ -93,11 +64,43 @@ func TestTravel(t *testing.T) {
 		if boars == 0 {
 			t.Fatalf("no boars in the cave snapshot: %+v", cave.Mobs)
 		}
-		tia.Hop(t, e2etest.CaveFromForest, "forest", e2etest.ForestToCave)
+		// Straight back: the arrival gate leads to where she came from.
+		tia.Hop(t, e2etest.CaveMouth, "willowmere", e2etest.CaveGate)
+		// Each hop checkpointed the target map, so the database and a fresh login both say Willowmere, on the gate.
+		var mapID string
+		var x, z float64
+		deadline := time.Now().Add(5 * time.Second)
+		for time.Now().Before(deadline) {
+			if err := s.DB.QueryRow(context.Background(), `SELECT map_id, pos_x, pos_z FROM characters WHERE id = $1`, id).Scan(&mapID, &x, &z); err != nil {
+				t.Fatal(err)
+			}
+			if mapID == "willowmere" && x == e2etest.CaveGate.X && z == e2etest.CaveGate.Z {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		if mapID != "willowmere" || x != e2etest.CaveGate.X || z != e2etest.CaveGate.Z {
+			t.Fatalf("saved on %s at (%v, %v), want willowmere at (%v, %v)", mapID, x, z, e2etest.CaveGate.X, e2etest.CaveGate.Z)
+		}
+		_, w := s.Welcome(t, "tia", id)
+		if w.GetMapId() != "willowmere" {
+			t.Fatalf("welcomed on %s", w.GetMapId())
+		}
+	})
+
+	t.Run("from-the-north-pass-to-shroom-grove-and-back", func(t *testing.T) {
+		// The north pass leads out of the region to a map, and the map's way back leads to the pass.
+		northPass, grove := gamedata.Point{X: 940, Z: 880}, gamedata.Point{X: 2, Z: 18}
+		token, id := s.CreateCharacter(t, "una", "Una", "warrior")
+		s.Place(t, id, "willowmere", gamedata.Point{X: northPass.X - 2, Z: northPass.Z}, 144, 0)
+		p, snap := s.Join(t, token, id)
+		una := e2etest.NewLooter(p, snap)
+		una.Hop(t, northPass, "shroom_grove", grove)
+		una.Hop(t, grove, "willowmere", northPass)
 	})
 }
 
-// From a finga/test flake: Quinn ended her hunt just east of the forest's oak at (16, 20), and the way to the town portal at (2, 20) runs straight through its trunk. A walk goes round it either way, on the map the hop took it to, never stalling: each leg takes at most 2.5 times its straight line at walking speed, where walking straight into the trunk and jumping takes five.
+// From a finga/test flake: Quinn ended her hunt just east of an oak, and the way to the portal west of it ran straight through its trunk. A walk goes round it either way, on the region's paths, never stalling: each leg takes at most 2.5 times its straight line at walking speed, where walking straight into the trunk and jumping takes five.
 func TestAWalkGoesRoundATreeInItsWay(t *testing.T) {
 	t.Parallel()
 	s := newStack(t)
@@ -105,17 +108,15 @@ func TestAWalkGoesRoundATreeInItsWay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	region, _ := data.Map("willowmere")
+	west, east, ok := treeInTheWay(region, data.Movement().Radius)
+	if !ok {
+		t.Fatal("no tree of Willowmere's stands with open ground 14 m west of it and 2 m east")
+	}
 	token, id := s.CreateCharacter(t, "oak", "Oak", "warrior")
-	if _, err := s.DB.Exec(context.Background(), `UPDATE characters SET pos_x = $2, pos_z = $3 WHERE id = $1`, id, e2etest.TownPortal.X-2, e2etest.TownPortal.Z); err != nil { // by the portal: the walk there isn't what's tested
-		t.Fatal(err)
-	}
+	s.Place(t, id, "willowmere", west, 144, 0)
 	l, _ := s.Hello(t, token, id)
-	l.Hop(t, e2etest.TownPortal, "forest", e2etest.ForestFromTown)
-	if l.MapID != "forest" {
-		t.Fatalf("after the hop the looter walks on %q, want the forest's paths", l.MapID)
-	}
-	eastOfTheOak := gamedata.Point{X: 18, Z: 20}
-	for _, to := range []gamedata.Point{eastOfTheOak, e2etest.ForestFromTown} {
+	for _, to := range []gamedata.Point{east, west} {
 		from, start := gamedata.Point{X: l.X, Z: l.Z}, l.Tick()
 		if !l.WalkTo(to, 30*time.Second) {
 			t.Fatalf("stopped at (%.2f, %.2f) on %s, short of %+v", l.X, l.Z, l.MapID, to)
@@ -126,4 +127,30 @@ func TestAWalkGoesRoundATreeInItsWay(t *testing.T) {
 		}
 		t.Logf("%+v to %+v in %d ticks, %.0f straight", from, to, l.Tick()-start, straight)
 	}
+}
+
+// treeInTheWay finds the tree of m nearest its start with open ground 2 m east of its trunk and 14 m west of it, a line along z with no other solid on it and no camp's mobs within 40 m of it, so the way between the two runs through the trunk alone.
+func treeInTheWay(m *gamedata.Map, radius float64) (west, east gamedata.Point, ok bool) {
+	g := m.Geometry
+	trees := slices.SortedFunc(slices.Values(g.Cylinders), func(a, b sim.Cylinder) int {
+		return cmp.Compare(math.Hypot(a.X-m.PlayerSpawn.X, a.Z-m.PlayerSpawn.Z), math.Hypot(b.X-m.PlayerSpawn.X, b.Z-m.PlayerSpawn.Z))
+	})
+	for _, c := range trees {
+		if c.Radius > 0.5 || c.Top-g.Terrain.Height(c.X, c.Z) < 4 {
+			continue // not a trunk
+		}
+		clear := true
+		for x := c.X - 14; x <= c.X+2 && clear; x += 0.5 {
+			if math.Abs(x-c.X) > c.Radius+1 {
+				clear = m.Grid().Fits(nav.Point{X: x, Z: c.Z}, radius+0.5) && !g.SolidOver(x, c.Z, g.Terrain.Height(x, c.Z)+0.3)
+			}
+		}
+		for _, sp := range m.Spawns {
+			clear = clear && math.Hypot(sp.At.X-c.X, sp.At.Z-c.Z) > sp.Radius+40
+		}
+		if clear {
+			return gamedata.Point{X: c.X - 14, Z: c.Z}, gamedata.Point{X: c.X + 2, Z: c.Z}, true
+		}
+	}
+	return gamedata.Point{}, gamedata.Point{}, false
 }

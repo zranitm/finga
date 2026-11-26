@@ -11,20 +11,20 @@ import (
 	"finga/test/e2etest"
 )
 
-// smallCells cuts the 72 m forest in 6 m cells, so a block of 7 by 7 is 42 m wide: three rows behind still cover the 17 m of the longest reach.
+// smallCells cuts the maps in 6 m cells, so a block of 7 by 7 is 42 m wide: three rows behind still cover the 17 m of the longest reach.
 var smallCells = e2etest.DataEdit{File: "world.yaml", Old: "interest:\n  cell: 32\n  behind: 1\n", New: "interest:\n  cell: 6\n  behind: 3\n"}
 
-// cellEdge is the line between the forest's 6 m columns 3 and 4: Ayla's block, round column 0, ends at it.
-const cellEdge = 24.0
+// cellEdge is the line between Willowmere's 6 m columns 87 and 88, in Sunmeadow's empty ground north of Willowbrook: Ayla's block, round column 84, ends at it.
+const cellEdge = 528.0
 
 // Region step 1a through the whole stack: on a map cut by cells, a player comes into another's frames whole as they cross into their block and goes out of them, as unseen, as they leave it, and a swing three cells off is heard only from inside it.
 func TestPlayersOnAMapCutByCellsComeAndGoAtTheBlocksEdge(t *testing.T) {
 	t.Parallel()
-	s := newStackOver(t, e2etest.GameData(t, append(stillSlimes(), smallCells)...))
+	s := newStackOver(t, e2etest.GameData(t, smallCells))
 	robinToken, robinID := s.CreateCharacter(t, "robin", "Robin", "beginner")
-	s.Place(t, robinID, "forest", gamedata.Point{X: cellEdge + 1, Z: 26}, 135, 0) // column 4, clear of props and mobs
+	s.Place(t, robinID, "willowmere", gamedata.Point{X: cellEdge + 1, Z: 229}, 135, 0) // column 88, clear of props and mobs
 	aylaToken, aylaID := s.CreateCharacter(t, "ayla", "Ayla", "beginner")
-	s.Place(t, aylaID, "forest", gamedata.Point{X: 4, Z: 26}, 135, 0) // column 0
+	s.Place(t, aylaID, "willowmere", gamedata.Point{X: cellEdge - 20, Z: 229}, 135, 0) // column 84
 	robin := clientOf(t, s, robinToken, robinID)
 	ayla := clientOf(t, s, aylaToken, aylaID)
 	if ayla.held[robinID] != nil || robin.held[robinID] == nil {

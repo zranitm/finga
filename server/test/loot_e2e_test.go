@@ -338,12 +338,12 @@ func TestLootAndKeep(t *testing.T) {
 
 	t.Run("D1/a-pouch-stays-on-its-map-while-its-owner-is-away", func(t *testing.T) {
 		t.Parallel()
-		// The cave's gate moves to (626, 250), and the slimes' circle to (640, 250), 2 m round: its slimes see a hunter by the gate and come to them, and the circle keeps a mob's sight and 2 m from the gate.
+		// The slimes' circle moves to (640, 250), 2 m round, 12 m from the cave's gate: its slimes see a hunter by the gate and come to them.
 		byTheGate := []e2etest.DataEdit{
+			e2etest.GateByTheSlimes,
 			{File: "regions/willowmere.yaml", Old: "name: slimes, at: [650, 250], radius: 8,", New: "name: slimes, at: [640, 250], radius: 2,"},
-			{File: "regions/willowmere.yaml", Old: "name: cave_mouth, at: [450, 780],", New: "name: cave_mouth, at: [626, 250],"},
 		}
-		gate := gamedata.Point{X: 626, Z: 250}
+		gate := e2etest.SlimesGate
 		s := newStackOver(t, e2etest.GameData(t, slices.Concat(e2etest.QuickSlimes(), []e2etest.DataEdit{slimesDrop(oneGel), everyKill}, byTheGate)...))
 		token, id := s.CreateCharacter(t, "uma", "Uma", "bowman")
 		s.Place(t, id, "willowmere", gamedata.Point{X: 632, Z: 250}, 134, 0) // a second's walk from the gate

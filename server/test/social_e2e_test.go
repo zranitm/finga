@@ -15,10 +15,10 @@ import (
 
 func TestPlayTogether(t *testing.T) {
 	t.Parallel()
-	s := newStack(t)
-	// Three hunters in the slime field; Dan stands on Willowmere's gate to the cave to leave later.
+	s := newStackOver(t, e2etest.GameData(t, e2etest.GateByTheSlimes))
+	// Three hunters in the slime field; Dan stands on the cave's gate, west of it, to leave later.
 	names := [][2]string{{"ann", "Ann"}, {"ben", "Ben"}, {"cat", "Cat"}, {"dan", "Dan"}}
-	at := []gamedata.Point{{X: e2etest.SlimeField.X, Z: e2etest.SlimeField.Z - 1}, e2etest.SlimeField, {X: e2etest.SlimeField.X, Z: e2etest.SlimeField.Z + 1}, e2etest.CaveGate}
+	at := []gamedata.Point{{X: e2etest.SlimeField.X, Z: e2etest.SlimeField.Z - 1}, e2etest.SlimeField, {X: e2etest.SlimeField.X, Z: e2etest.SlimeField.Z + 1}, e2etest.SlimesGate}
 	var ls []*e2etest.Looter
 	for k, n := range names {
 		token, id := s.CreateCharacter(t, n[0], n[1], "warrior")
@@ -116,7 +116,7 @@ func TestPlayTogether(t *testing.T) {
 	})
 
 	t.Run("E1-E3/party-chat-crosses-maps-and-map-chat-does-not", func(t *testing.T) {
-		dan.Hop(t, e2etest.CaveGate, "greyfang_cave", e2etest.CaveMouth)
+		dan.Hop(t, e2etest.SlimesGate, "greyfang_cave", e2etest.CaveMouth)
 		for _, l := range ls {
 			ps := e2etest.Take(t, l, "PartyState with Dan in the cave", &l.PartyStates, 5*time.Second, func(ps *clientv1.PartyState) bool {
 				return ps.Party != nil && len(ps.GetParty().GetMembers()) == 4 && ps.GetParty().GetMembers()[3].GetMapId() == "greyfang_cave"

@@ -6,13 +6,14 @@ import (
 	"time"
 
 	clientv1 "finga/api/gen/client/v1"
+	"finga/internal/shared/gamedata"
 	"finga/internal/shared/gamedata/load"
 	"finga/pkg/wsconn"
 	"finga/test/e2etest"
 )
 
-// B9: a player teleports from the town to the forest and back, each landing at the map's player spawn no sooner than the channel allows, and the database keeps the last.
-func TestTeleportFromTheTownToTheForestAndBack(t *testing.T) {
+// B9: a player teleports from Willowbrook to Shroom Grove and back, the map by its id to its player spawn and the region by its main town's waypoint to beside the stone, each landing no sooner than the channel allows, and the database keeps the last.
+func TestTeleportFromTheTownToAMapAndBack(t *testing.T) {
 	t.Parallel()
 	s := newStackOver(t, e2etest.GameData(t, e2etest.DataEdit{File: "world.yaml", Old: "channel: 3s", New: "channel: 1s"})) // twenty ticks still tell a landing before its channel ends
 	data, err := load.Dir(s.Data)
@@ -23,11 +24,20 @@ func TestTeleportFromTheTownToTheForestAndBack(t *testing.T) {
 	l := e2etest.NewLooter(s.Join(t, token, id))
 	l.Await(300*time.Millisecond, nil)
 
-	for _, to := range []string{"forest", "town"} {
-		target, _ := data.Map(to)
+	grove, _ := data.Map("shroom_grove")
+	_, stone, _ := data.Waypoint("willowbrook")
+	for _, step := range []struct {
+		req    *clientv1.Teleport
+		mapID  string
+		at     gamedata.Point
+		facing float64
+	}{
+		{&clientv1.Teleport{MapId: "shroom_grove"}, "shroom_grove", grove.PlayerSpawn, grove.SpawnYaw},
+		{&clientv1.Teleport{Waypoint: "willowbrook"}, "willowmere", stone.Arrive, stone.Yaw},
+	} {
 		sent := time.Now() // the channel starts on the first tick to drain the request, after this
-		if r := l.Teleport(t, "tp-"+to, &clientv1.Teleport{MapId: to}); !r.GetOk() {
-			t.Fatalf("teleport to %s refused with %d", to, r.GetCode())
+		if r := l.Teleport(t, "tp-"+step.mapID, step.req); !r.GetOk() {
+			t.Fatalf("teleport to %s refused with %d", step.mapID, r.GetCode())
 		}
 		var mc *clientv1.MapChange
 		l.Await(data.TeleportChannel()+3*time.Second, func(m wsconn.Message) bool {
@@ -36,44 +46,43 @@ func TestTeleportFromTheTownToTheForestAndBack(t *testing.T) {
 		})
 		took := time.Since(sent)
 		if mc == nil {
-			t.Fatalf("no MapChange to %s", to)
+			t.Fatalf("no MapChange to %s", step.mapID)
 		}
-		if mc.GetMapId() != to || mc.GetX() != target.PlayerSpawn.X || mc.GetZ() != target.PlayerSpawn.Z || mc.GetYaw() != float32(target.SpawnYaw) {
-			t.Fatalf("map change %+v, want %s's spawn %+v at yaw %v", mc, to, target.PlayerSpawn, target.SpawnYaw)
+		if mc.GetMapId() != step.mapID || mc.GetX() != step.at.X || mc.GetZ() != step.at.Z || mc.GetYaw() != float32(step.facing) {
+			t.Fatalf("map change %+v, want %s at %+v facing %v", mc, step.mapID, step.at, step.facing)
 		}
 		// Ticks keep a fixed grid, so the start's tick may run up to a tick late and the end's on time.
 		if least := data.TeleportChannel() - s.Cfg.World.TickInterval(); took < least {
 			t.Fatalf("landed %v after the request, under the %v channel less a tick", took, data.TeleportChannel())
 		}
 		if !l.Pump(5*time.Second, func(m wsconn.Message) bool { return m.Type == "Snapshot" }) {
-			t.Fatalf("no Snapshot on %s", to)
+			t.Fatalf("no Snapshot on %s", step.mapID)
 		}
 	}
-	town, _ := data.Map("town")
 	var mapID string
 	var x, z float64
 	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(100 * time.Millisecond) {
 		if err := s.DB.QueryRow(context.Background(), `SELECT map_id, pos_x, pos_z FROM characters WHERE id = $1`, id).Scan(&mapID, &x, &z); err != nil {
 			t.Fatal(err)
 		}
-		if mapID == "town" && x == town.PlayerSpawn.X && z == town.PlayerSpawn.Z {
+		if mapID == "willowmere" && x == stone.Arrive.X && z == stone.Arrive.Z {
 			return
 		}
 	}
-	t.Fatalf("saved on %s at (%v, %v), want the town's spawn %+v", mapID, x, z, town.PlayerSpawn)
+	t.Fatalf("saved on %s at (%v, %v), want Willowbrook's stone at %+v", mapID, x, z, stone.Arrive)
 }
 
 // B9: a mob's hit landing on a channelling player cancels the teleport, as HIT on the hit's tick; a MISS before it doesn't.
 func TestAMobsHitCancelsATeleport(t *testing.T) {
 	t.Parallel()
-	// A channel long enough that the forest's slimes surely reach the player in it.
+	// A channel long enough that Sunmeadow's slimes surely reach the player in it.
 	s := newStackOver(t, e2etest.GameData(t, e2etest.DataEdit{File: "world.yaml", Old: "channel: 3s", New: "channel: 10s"}))
 	token, id := s.CreateCharacter(t, "hal", "Hal", "warrior")
-	s.Place(t, id, "forest", e2etest.SlimeField, 134, 0)
+	s.Place(t, id, "willowmere", e2etest.SlimeField, 134, 0)
 	l := e2etest.NewLooter(s.Join(t, token, id))
 	l.Await(300*time.Millisecond, nil)
 
-	if r := l.Teleport(t, "tp-town", &clientv1.Teleport{MapId: "town"}); !r.GetOk() {
+	if r := l.Teleport(t, "tp-grove", &clientv1.Teleport{MapId: "shroom_grove"}); !r.GetOk() {
 		t.Fatalf("teleport refused with %d", r.GetCode())
 	}
 	var hit uint64
