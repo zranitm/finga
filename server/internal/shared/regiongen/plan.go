@@ -128,18 +128,26 @@ const (
 	Ramp  = "ramp"
 )
 
-// River carves a bed Depth below its water along Path, which runs downstream, Width across between steep banks, its water falling with the ground; at each of Fords it's shallow enough to wade.
+// The banks of a river or a lake.
+const (
+	SteepBanks  = "steep"  // the ground beside the water falls to it as the carve leaves it
+	GentleBanks = "gentle" // the ground beside the water is held under a cone rising from the waterline, so a body walks back up from it
+)
+
+// River carves a bed Depth below its water along Path, which runs downstream, Width across between Banks (steep when empty), its water falling with the ground; at each of Fords it's shallow enough to wade.
 type River struct {
 	Path  [][2]float64 `yaml:"path,flow"`
 	Width float64      `yaml:"width"`
 	Depth float64      `yaml:"depth"`
 	Fords [][2]float64 `yaml:"fords,omitempty,flow"`
+	Banks string       `yaml:"banks,omitempty"`
 }
 
-// Lake carves Area to Depth below its water, between steep banks.
+// Lake carves Area to Depth below its water, between Banks (steep when empty).
 type Lake struct {
 	Area  [][2]float64 `yaml:"area,flow"`
 	Depth float64      `yaml:"depth"`
+	Banks string       `yaml:"banks,omitempty"`
 }
 
 // Road is a way Width across along Path, smoothed, flattened to the ground's mean along it, and coloured earth.
@@ -438,6 +446,9 @@ func (p Plan) checkFeature(f Feature, radius float64) error {
 		}
 	case f.River != nil:
 		r := f.River
+		if r.Banks != "" && r.Banks != SteepBanks && r.Banks != GentleBanks {
+			return fmt.Errorf("a river's banks are %s or %s, not %q", SteepBanks, GentleBanks, r.Banks)
+		}
 		if !p.path(r.Path, 2) || !reach(r.Width, maxReach) || !reach(r.Depth, maxHeight) || !p.path(r.Fords, 0) {
 			return fmt.Errorf("a river needs a path and fords in the region, a width up to %d m and a depth up to %d m", maxReach, maxHeight)
 		}
@@ -452,6 +463,9 @@ func (p Plan) checkFeature(f Feature, radius float64) error {
 			}
 		}
 	case f.Lake != nil:
+		if b := f.Lake.Banks; b != "" && b != SteepBanks && b != GentleBanks {
+			return fmt.Errorf("a lake's banks are %s or %s, not %q", SteepBanks, GentleBanks, b)
+		}
 		if !p.path(f.Lake.Area, 3) || !reach(f.Lake.Depth, maxHeight) {
 			return fmt.Errorf("a lake needs an area in the region and a depth up to %d m", maxHeight)
 		}

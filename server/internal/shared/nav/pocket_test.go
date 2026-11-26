@@ -22,6 +22,32 @@ func TestNoRegionHasAOneWayPocket(t *testing.T) {
 			}
 		})
 	}
+	banked := func(banks string) regiongen.Plan {
+		plan := flatRegion()
+		plan.Features = []regiongen.Feature{
+			{Plateau: &regiongen.Plateau{Area: [][2]float64{{0, 0}, {128, 0}, {128, 40}, {0, 40}}, Height: 6, Edge: regiongen.Ramp}},
+			{River: &regiongen.River{Path: [][2]float64{{0, 70}, {64, 80}, {128, 70}}, Width: 8, Depth: 2, Banks: banks}},
+			{Lake: &regiongen.Lake{Area: [][2]float64{{80, 20}, {110, 20}, {110, 45}, {80, 45}}, Depth: 3, Banks: banks}},
+		}
+		return plan
+	}
+	stranded := func(t *testing.T, plan regiongen.Plan) int {
+		r, err := regiongen.Generate(plan, shippedKit(t), p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(nav.New(r.Geometry, p.Step).Stranded(mapfile.Point(plan.Start.At), p.Radius, rise))
+	}
+	t.Run("steep banks", func(t *testing.T) {
+		if n := stranded(t, banked("")); n == 0 {
+			t.Fatal("no cell is stranded at steep banks")
+		}
+	})
+	t.Run("gentle banks", func(t *testing.T) {
+		if n := stranded(t, banked(regiongen.GentleBanks)); n != 0 {
+			t.Fatalf("%d cells reached from the start lead back to it by no steps, with gentle banks", n)
+		}
+	})
 	t.Run("a pit", func(t *testing.T) {
 		plan := flatRegion()
 		plan.Features = []regiongen.Feature{{Plateau: &regiongen.Plateau{Area: [][2]float64{{40, 40}, {56, 40}, {56, 56}, {40, 56}}, Height: -4, Edge: regiongen.Cliff}}}

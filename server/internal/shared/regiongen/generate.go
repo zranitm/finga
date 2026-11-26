@@ -315,6 +315,13 @@ func (b *builder) river(r River) {
 		b.carve(int(s), level-depth, (math.Sqrt(b.f.d2[s])-(half-bk))/bk)
 		b.r.Wet[s], b.water[s] = true, max(b.water[s], level)
 	}
+	if r.Banks == GentleBanks {
+		b.f.near(b.g, path, false, b.gentleReach(slices.Min(levels), half))
+		for _, s := range b.f.touched {
+			level := lerp(levels[b.f.seg[s]], levels[b.f.seg[s]+1], b.f.t[s])
+			b.hold(int(s), level, max(math.Sqrt(b.f.d2[s])-half, 0))
+		}
+	}
 	for i, at := range r.Fords {
 		c := fordCone{at: at, bed: fordBeds[i], floor: half - bk, reach: fordR}
 		b.fords = append(b.fords, c)
@@ -322,6 +329,16 @@ func (b *builder) river(r River) {
 			b.h[s] = min(b.h[s], c.under(b.g, s))
 		}
 	}
+}
+
+// gentleReach is how far from the water's edge, edge in from the path or the area's sides, the ground can stand over the cone of banks from level: out to the region's highest ground.
+func (b *builder) gentleReach(level, edge float64) float64 {
+	return edge + (slices.Max(b.h)-level)/fordRamp
+}
+
+// hold keeps sample s under the cone rising fordRamp a metre from level at d past the water's edge.
+func (b *builder) hold(s int, level, d float64) {
+	b.h[s] = min(b.h[s], level+float64(fordRamp*d))
 }
 
 // fordCone is the ground a ford's ramp holds under: flat at bed within floor of it, then rising fordRamp a metre, so the river's banks there fall no steeper and a body walks into the ford and out of it every way; reach is the ford's own disc, where the river runs shallow.
@@ -372,6 +389,17 @@ func (b *builder) lake(l Lake) {
 		}
 		b.carve(s, level-l.Depth, up)
 		b.r.Wet[s], b.water[s] = true, max(b.water[s], level)
+	}
+	if l.Banks == GentleBanks {
+		b.f.near(b.g, l.Area, true, b.gentleReach(level, 0))
+		inside := b.inside(l.Area)
+		for _, s := range b.f.touched {
+			d := 0.0
+			if !inside[s] {
+				d = math.Sqrt(b.f.d2[s])
+			}
+			b.hold(int(s), level, d)
+		}
 	}
 }
 

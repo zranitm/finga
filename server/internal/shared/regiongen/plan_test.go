@@ -69,6 +69,12 @@ func TestABadPlanIsRefused(t *testing.T) {
 		{"a plateau's edge neither", func(p *Plan) {
 			p.Features = []Feature{{Plateau: &Plateau{Area: [][2]float64{{1, 1}, {9, 1}, {9, 9}}, Height: 1, Edge: "wall"}}}
 		}, "a cliff or ramp edge"},
+		{"a river with sloping banks", func(p *Plan) {
+			p.Features = []Feature{{River: &River{Path: [][2]float64{{1, 1}, {9, 9}}, Width: 4, Depth: 1, Banks: "sloping"}}}
+		}, `a river's banks are steep or gentle, not "sloping"`},
+		{"a lake with sloping banks", func(p *Plan) {
+			p.Features = []Feature{{Lake: &Lake{Area: [][2]float64{{20, 20}, {40, 20}, {40, 40}}, Depth: 1, Banks: "sloping"}}}
+		}, `a lake's banks are steep or gentle, not "sloping"`},
 		{"a dry river", func(p *Plan) { p.Features = []Feature{{River: &River{Path: [][2]float64{{1, 1}, {9, 9}}, Width: 4}}} }, "a depth up to 1000 m"},
 		{"a lake whose surface crosses itself", func(p *Plan) { // a U whose arms are 3 m apart, which its 2 m banks close
 			p.Features = []Feature{{Lake: &Lake{Area: [][2]float64{{10, 10}, {50, 10}, {50, 40}, {31.5, 40}, {31.5, 20}, {28.5, 20}, {28.5, 40}, {10, 40}}, Depth: 1}}}
