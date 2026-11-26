@@ -55,6 +55,7 @@ func TestABotWalksToEveryPortalNPCAndHuntOnItsMaps(t *testing.T) {
 		for _, from := range starts {
 			for _, to := range targets {
 				t.Run(fmt.Sprintf("%s from %s to %s", id, from.name, to.name), func(t *testing.T) {
+					t.Parallel() // each walk reads the map and its grid alone
 					var finder nav.Finder
 					leash := math.Hypot(m.Geometry.SizeX, m.Geometry.SizeZ)
 					if len(finder.Path(m.Grid(), from.at, to.at, mv.Radius, from.at, leash)) == 0 {
