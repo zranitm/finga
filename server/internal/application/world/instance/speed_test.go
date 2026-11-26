@@ -191,7 +191,7 @@ func TestMoveSpeedCountsInHuntingMapsOnly(t *testing.T) {
 		return d
 	}
 	hunting := func(*gamedata.Data) *gamedata.Map { return arena(t, time.Hour) }
-	town := func(d *gamedata.Data) *gamedata.Map { return townOf(d) }
+	town := townOf
 	pace, townFast := walked(t, town, 0), walked(t, town, 300)
 	if pace <= 0 || townFast != pace {
 		t.Fatalf("in town: walked %v m with the boots, %v without; want the same", townFast, pace)
