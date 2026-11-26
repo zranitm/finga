@@ -445,7 +445,7 @@ beforeAll(async () => {
       seen: [...seen(map, spots)],
     });
   }
-});
+}, 120_000); // Willowmere's sweep alone is a second of work, which coverage makes tens
 
 describe('the cut-away round the player', () => {
   it('drops a place fragment over 0.5 m nearer the camera than the chest and within about 1.2 m of it on screen, dithered at the edge, and squashed below it; a body’s material has no cut', async () => {
