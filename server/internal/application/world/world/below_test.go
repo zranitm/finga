@@ -14,9 +14,31 @@ import (
 	"finga/internal/shared/kernel"
 )
 
-// hollow is a place below the test region, a cave whose gate up leads to the gate down the edit gives the test region.
+// above is a small town region on the land with the gates the place below and the region beside lead to, and no mob to step while players wait out a channel's idle.
+const above = `name: Test Above
+size: [128, 128]
+cell: 1
+seed: 9
+look: {sky: day}
+ground: {noise: {scale: 60, amplitude: 1, octaves: 1}}
+edge: {width: 16, height: [6, 10], biome: meadow}
+colour: {slope: 0.25, high: 100}
+areas:
+  - {id: above, name: Above, area: [[16, 16], [112, 16], [112, 112], [16, 112]], biome: meadow, kind: town}
+waypoints:
+  - {id: above, name: Above, at: [64, 40]}
+gates:
+  - {name: down, at: [40, 80], radius: 1.6, to: {region: test_hollow, gate: up}}
+  - {name: east, at: [96, 80], radius: 1.6, to: {region: test_beside, gate: west}}
+start: {at: [64, 48], yaw: 0}
+biomes:
+  meadow:
+    colours: {flat: grass, slope: dirt, steep: stone, high: stone}
+`
+
+// hollow is a place below the region above, a cave whose gate up leads to its gate down.
 const hollow = `name: Test Hollow
-under: test_region
+under: test_above
 size: [128, 128]
 cell: 1
 seed: 5
@@ -37,7 +59,7 @@ camps:
 waypoints:
   - {id: hollow, name: The Hollow, at: [30, 64]}
 gates:
-  - {name: up, at: [22, 64], radius: 1.6, to: {region: test_region, gate: down}}
+  - {name: up, at: [22, 64], radius: 1.6, to: {region: test_above, gate: down}}
 start: {at: [26, 64], yaw: 90}
 biomes:
   cave:
@@ -46,7 +68,7 @@ biomes:
     colours: {flat: cave_rock, slope: cave_rock, steep: cave_rock, high: cave_rock}
 `
 
-// beside is a region on the land beside the test region, through a gate in its woods.
+// beside is a region on the land beside the region above, through its gate east.
 const beside = `name: Test Beside
 size: [128, 128]
 cell: 1
@@ -59,24 +81,30 @@ areas:
   - {id: beside, name: Beside, area: [[16, 16], [112, 16], [112, 112], [16, 112]], levels: [1, 4], biome: meadow, kind: hunting,
      boss: {at: [90, 64], radius: 5, mob: king_slime}}
 gates:
-  - {name: west, at: [24, 64], radius: 1.6, to: {region: test_region, gate: east}}
+  - {name: west, at: [24, 64], radius: 1.6, to: {region: test_above, gate: east}}
 start: {at: [30, 64], yaw: 90}
 biomes:
   meadow:
     colours: {flat: grass, slope: dirt, steep: stone, high: stone}
 `
 
-// belowData is the shipped data with the hollow below the test region, through a gate down in its west field, and a region beside it, through a gate east in its woods.
+// belowData is the shipped data with the region above, the hollow below it through its gate down, and the region beside it through its gate east.
 func belowData(t *testing.T) *gamedata.Data {
 	t.Helper()
 	return worldtest.LoadDataWith(t, map[string]func(string) string{
-		"regions/test_region.yaml": func(s string) string {
-			return s + "gates:\n  - {name: down, at: [64, 90], radius: 1.6, to: {region: test_hollow, gate: up}}\n" +
-				"  - {name: east, at: [180, 200], radius: 1.6, to: {region: test_beside, gate: west}}\n"
-		},
+		"regions/test_above.yaml":  func(string) string { return above },
 		"regions/test_hollow.yaml": func(string) string { return hollow },
 		"regions/test_beside.yaml": func(string) string { return beside },
 	})
+}
+
+// enterAbove joins name to the region above at its start, and gives where they landed.
+func (w *testWorld) enterAbove(t *testing.T, data *gamedata.Data, name string) (model.Player, *worldtest.Sink) {
+	t.Helper()
+	m, _ := data.Map("test_above")
+	p, s := worldtest.NewPlayer(name, m.PlayerSpawn.X, m.PlayerSpawn.Z), &worldtest.Sink{}
+	w.enter(t, p, "test_above", "c-"+name, s)
+	return p, s
 }
 
 // through hands name, on conn, through the gate they stand in, and gives the newest snapshot s heard after.
@@ -97,14 +125,13 @@ func TestAGateBelowKeepsTheChannel(t *testing.T) {
 		data := belowData(t)
 		heard := &opens{}
 		w := channelWorldOn(t, data, worldtest.Options{ChannelCap: 2, ChannelIdle: idle, Channels: heard})
-		region, _ := data.Map("test_region")
+		region, _ := data.Map("test_above")
 		down := portalNamed(t, region, "down")
-		ayla := worldtest.NewPlayer("Ayla", region.PlayerSpawn.X, region.PlayerSpawn.Z)
-		w.enter(t, ayla, "test_region", "c-Ayla", &worldtest.Sink{})
+		ayla, _ := w.enterAbove(t, data, "Ayla")
 		bo, sb := worldtest.NewPlayer("Bo", down.At.X, down.At.Z), &worldtest.Sink{}
-		w.enter(t, bo, "test_region", "c-Bo", sb)
+		w.enter(t, bo, "test_above", "c-Bo", sb)
 		kai, sk := worldtest.NewPlayer("Kai", down.At.X, down.At.Z), &worldtest.Sink{}
-		w.enter(t, kai, "test_region", "c-Kai", sk)
+		w.enter(t, kai, "test_above", "c-Kai", sk)
 		if channelOf(t, sk) != 2 || !slices.Equal(heard.of("test_hollow"), []int{0}) || w.Opened("test_hollow/1") != nil {
 			t.Fatalf("Kai joined %d, the hollow heard %v open; want channel 2, the hollow with none", channelOf(t, sk), heard.of("test_hollow"))
 		}
@@ -116,14 +143,14 @@ func TestAGateBelowKeepsTheChannel(t *testing.T) {
 		}
 		time.Sleep(closed)
 		synctest.Wait()
-		if w.Opened("test_region/2") != nil {
-			t.Fatal("the test region's channel 2 still open, empty past the idle time")
+		if w.Opened("test_above/2") != nil {
+			t.Fatal("the region above's channel 2 still open, empty past the idle time")
 		}
-		if got := w.through(t, kai, sk); got.MapID != "test_region" || got.Channel != 2 {
-			t.Fatalf("Kai went up to %s %d; want the test region's channel 2 opened again, though 1 has room", got.MapID, got.Channel)
+		if got := w.through(t, kai, sk); got.MapID != "test_above" || got.Channel != 2 {
+			t.Fatalf("Kai went up to %s %d; want the region above's channel 2 opened again, though 1 has room", got.MapID, got.Channel)
 		}
 		if got := w.open(t, ayla); !slices.Equal(got, []model.ChannelLoad{{Channel: 1, Players: 1}, {Channel: 2, Players: 1}}) {
-			t.Fatalf("the test region's channels %+v", got)
+			t.Fatalf("the region above's channels %+v", got)
 		}
 		time.Sleep(closed)
 		synctest.Wait()
@@ -132,9 +159,9 @@ func TestAGateBelowKeepsTheChannel(t *testing.T) {
 		}
 		east := portalNamed(t, region, "east")
 		mira, sm := worldtest.NewPlayer("Mira", east.At.X, east.At.Z), &worldtest.Sink{}
-		w.enter(t, mira, "test_region", "c-Mira", sm)
+		w.enter(t, mira, "test_above", "c-Mira", sm)
 		nia, sn := worldtest.NewPlayer("Nia", east.At.X, east.At.Z), &worldtest.Sink{}
-		w.enter(t, nia, "test_region", "c-Nia", sn)
+		w.enter(t, nia, "test_above", "c-Nia", sn)
 		if channelOf(t, sm) != 1 || channelOf(t, sn) != 2 {
 			t.Fatalf("Mira joined %d, Nia %d; want 1 and 2, the least full in turn", channelOf(t, sm), channelOf(t, sn))
 		}
@@ -150,13 +177,13 @@ func TestAPartyGoesDownByItsOwnChannels(t *testing.T) {
 		data := belowData(t)
 		ps := &parties{}
 		w := channelWorldOn(t, data, worldtest.Options{ChannelCap: 2, Parties: ps})
-		region, _ := data.Map("test_region")
+		region, _ := data.Map("test_above")
 		down := portalNamed(t, region, "down")
 		ayla, sa := worldtest.NewPlayer("Ayla", down.At.X, down.At.Z), &worldtest.Sink{}
-		w.enter(t, ayla, "test_region", "c-Ayla", sa)
-		w.enterRegion(t, "Cy")
+		w.enter(t, ayla, "test_above", "c-Ayla", sa)
+		w.enterAbove(t, data, "Cy")
 		bo, sb := worldtest.NewPlayer("Bo", down.At.X, down.At.Z), &worldtest.Sink{}
-		w.enter(t, bo, "test_region", "c-Bo", sb)
+		w.enter(t, bo, "test_above", "c-Bo", sb)
 		if channelOf(t, sa) != 1 || channelOf(t, sb) != 2 {
 			t.Fatalf("Ayla joined %d, Bo %d; want 1 and 2", channelOf(t, sa), channelOf(t, sb))
 		}
@@ -178,7 +205,7 @@ func TestAPlaceBelowKeepsItsOwn(t *testing.T) {
 		data := belowData(t)
 		w := channelWorldOn(t, data, worldtest.Options{})
 		place, _ := data.Map("test_hollow")
-		_, so := w.enterRegion(t, "Ayla")
+		_, so := w.enterAbove(t, data, "Ayla")
 		bo, sb := worldtest.NewPlayer("Bo", place.PlayerSpawn.X, place.PlayerSpawn.Z), &worldtest.Sink{}
 		w.enter(t, bo, "test_hollow", "c-Bo", sb)
 		if channelOf(t, sb) != 1 || w.Opened("test_hollow/1") == nil {
@@ -218,10 +245,10 @@ func TestAPlaceBelowKeepsItsOwn(t *testing.T) {
 		for _, e := range so.All() {
 			switch ev := e.(type) {
 			case model.Chat:
-				t.Fatalf("Ayla, in the test region, heard %+v from the hollow", ev)
+				t.Fatalf("Ayla, in the region above, heard %+v from the hollow", ev)
 			case model.FieldBoss:
 				if ev.Type == "vampire_bat" {
-					t.Fatalf("Ayla, in the test region, heard the hollow's boss: %+v", ev)
+					t.Fatalf("Ayla, in the region above, heard the hollow's boss: %+v", ev)
 				}
 			}
 		}
