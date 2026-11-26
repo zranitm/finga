@@ -917,10 +917,12 @@ Built with step 1, which says who watches a cell.
    - Designed with the user from previews first: its areas, towns, camps, waypoints and roads.
    - Then built (green-region.md): its NPCs are re-placed and its quests need no change; four areas get new mobs, and only the Cave Bat and the Vampire Bat move down, to levels 12 and 14.
    - Town, Forest and Cave are retired.
-   - A gate at its north edge leads to Shroom Grove, the mushroom woods' first map, whose `from_cave` portal now leads back to that gate; the Crossroads is unchanged.
+   - A gate at its edge leads to Shroom Grove, the mushroom woods' first map, whose portal to the Cave now leads to that gate. The Crossroads comes after the woods, as today. (Planned first as a gate to the Crossroads, whose only way back leads into the woods' top map.)
+   - **As designed** in [The green region](./green-region.md): Willowmere, its five hunting areas and two towns, twelve new mobs for levels 5 to 14, and its cave and shrine.
+   - **As built (green-region PR 2):** the three plans are in `data/regions` and Town, Forest and Cave are gone. Willowmere's plan has `beginning: true`, so it's the one map new characters start in (the loader takes a town or a region); a region on the land may have a place on the world chart, and Willowmere's is where the three stood. The area bosses of regions count as placing a boss, as a map's own boss did.
 4. **The desert,** then **the snow mountains,** each retiring the old maps whose levels it covers. The last retires the Crossroads and the gate.
 
-- **Characters on a retired map:** `World.Join` places a character whose map no longer exists at the green region's start, in place of `ErrNoMap`.
+- **Characters on a retired map:** `World.Join` places a character whose map no longer exists at the green region's start, in place of `ErrNoMap`. Built with the plan: `World.Join` starts a character saved on a map that's gone at the start map's spawn.
 - There's no other migration, since the game hasn't gone live.
 
 ## 13. Testing
@@ -1032,6 +1034,7 @@ Built with step 1, which says who watches a cell.
    - As built: the bots (section 11). The budget run and the road graph wait for a full-sized region.
    - Hollow cut models (3d-world.md section 10) cost about 0.25 ms on a dense woods view. If regions run tight, the per-instance swap is the fix: only the instances an opening shows draw hollow.
 8. **The green region:** its design first, then its build.
+   - Designed in [The green region](./green-region.md), section 9 for its build: gentle banks (#442), the new mobs, then the region and its places with the old maps retired.
    - When regions join the world chart, its party names say each member's channel ("Bo · Ch. 2"), in a picked map's list and under its node. 4b-3b left these two lists alone, as no region was charted.
 9. **The desert,** then **the snow mountains.**
 

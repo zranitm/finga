@@ -108,8 +108,8 @@ func TestADuelAgainstABotRunsToItsEnd(t *testing.T) {
 		t.Fatalf("no way back; heard %v", h.types(into))
 	}
 	back := h.got[out].Data.(*clientv1.MapChange)
-	if back.GetMapId() != "town" || back.GetX() != home.GetX() || back.GetZ() != home.GetZ() {
-		t.Fatalf("back at %+v, want town at (%v, %v)", back, home.GetX(), home.GetZ())
+	if back.GetMapId() != "willowmere" || back.GetX() != home.GetX() || back.GetZ() != home.GetZ() {
+		t.Fatalf("back at %+v, want willowmere at (%v, %v)", back, home.GetX(), home.GetZ())
 	}
 	k = h.since(out, time.Minute, func(m wsconn.Message) bool {
 		sc, ok := m.Data.(*clientv1.StatsChanged)
@@ -221,8 +221,8 @@ func TestAPartyOfTwoMeetsBotsIn3v3(t *testing.T) {
 		if ended < 0 || h.got[ended].Data.(*clientv1.MatchEnded).GetRating() == nil {
 			t.Fatalf("%s: no rated outcome; heard %v", ids[k], h.types(into[k]))
 		}
-		if out := h.since(into[k]+1, time.Minute, func(m wsconn.Message) bool { return m.Type == "MapChange" }); out < 0 || h.got[out].Data.(*clientv1.MapChange).GetMapId() != "town" {
-			t.Fatalf("%s: no way back to town; heard %v", ids[k], h.types(into[k]))
+		if out := h.since(into[k]+1, time.Minute, func(m wsconn.Message) bool { return m.Type == "MapChange" }); out < 0 || h.got[out].Data.(*clientv1.MapChange).GetMapId() != "willowmere" {
+			t.Fatalf("%s: no way back to Willowmere; heard %v", ids[k], h.types(into[k]))
 		}
 		var matches int
 		if err := s.DB.QueryRow(ctx, `SELECT matches FROM pvp_ratings WHERE character_id = $1 AND mode = 'team'`, ids[k]).Scan(&matches); err != nil || matches != 1 {
@@ -305,8 +305,8 @@ func TestADroppedDuelistIsHeldThroughTheGraceButNotPastIt(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, w = s.Hello(t, l.Token, id); w.GetMapId() != "town" {
-		t.Fatalf("back past the grace on %q, want the town they queued in", w.GetMapId())
+	if _, w = s.Hello(t, l.Token, id); w.GetMapId() != "willowmere" {
+		t.Fatalf("back past the grace on %q, want Willowmere, where they queued", w.GetMapId())
 	}
 }
 

@@ -33,3 +33,4 @@ One rule runs through every page: **the client computes, the server validates.**
 - [Loot pouches and timed bosses](./loot-pouches.md): D1, C10; pouches and bosses' treasure boxes opened with T, and bosses back 5 minutes after they're beaten.
 - [Outfits](./outfits.md): D8, D9; a wardrobe per account with outfit, headwear, face, weapon looks and wings on KayKit's rig, from boss drops, PvP ranks, quests and feats.
 - [Underground and underwater](./underground-and-underwater.md): B13; caves lit by torches and a sunken shrine, small regions entered through a gate, with a baked light map and a sea look.
+- [The green region](./green-region.md): B10 and B13; Willowmere, levels 1 to 12, with twelve new mobs, Greyfang Cave and the Sunken Shrine, replacing Town, Forest and Cave.
