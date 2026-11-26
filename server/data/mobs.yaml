@@ -100,15 +100,15 @@ mobs:
       - {item: chain_leggings, chance: 0.03, min: 1, max: 1}
   - id: cave_bat
     name: Cave Bat
-    level: 14
-    hp: 140
-    attack: 22
+    level: 12
+    hp: 152
+    attack: 21
     damage: magic
     physical_defense: 8
     magic_defense: 8
-    accuracy: 45
-    evasion: 18
-    exp: 93
+    accuracy: 41
+    evasion: 15
+    exp: 78
     speed: 2.75
     radius: 0.625
     height: 1
@@ -865,15 +865,15 @@ mobs:
   - id: vampire_bat
     name: Vampire Bat
     boss: true
-    level: 16
-    hp: 14660
-    attack: 44
+    level: 14
+    hp: 12500
+    attack: 42
     damage: magic
-    physical_defense: 12
-    magic_defense: 12
-    accuracy: 45
-    evasion: 18
-    exp: 3720
+    physical_defense: 11
+    magic_defense: 11
+    accuracy: 41
+    evasion: 15
+    exp: 3120
     speed: 2.0625
     radius: 1.875
     height: 3

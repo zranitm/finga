@@ -1,0 +1,55 @@
+# DRAFT for B13 step 6, with the green region's layout: the shrine sunk under Mirrorlake, entered from Willowmere's dive_spot.
+# Levels 9 to 11: Piranha 9, Lionfish 10 and Swordfish 10, the Goblin Shark 11 as the elite, and the Anglerfish 13 as the boss.
+# The way in is a column of bubbles on the west sand. Two reefs rise north and south of the middle lane, and the shrine's court stands east, raised and ringed by pillars, open to the west and east.
+name: Sunken Shrine
+under: willowmere
+size: [256, 256]
+cell: 1
+seed: 43
+look: {sky: sea}
+ground: {noise: {scale: 70, amplitude: 2, octaves: 3}}
+edge: {width: 16, height: [6, 10], biome: reef_wall}
+colour: {slope: 0.25, high: 100}
+features:
+  - {plateau: {area: [[92, 176], [112, 168], [134, 170], [150, 180], [152, 198], [142, 212], [118, 216], [98, 208], [88, 192]], height: 2, edge: ramp}}   # the north reef
+  - {plateau: {area: [[100, 46], [122, 40], [146, 44], [158, 58], [154, 78], [136, 88], [112, 86], [98, 72], [94, 58]], height: 2, edge: ramp}}       # the south reef
+  - {plateau: {area: [[170, 96], [226, 96], [226, 160], [170, 160]], height: 3, edge: ramp}}   # the shrine's court
+areas:
+  - {id: sunken_shrine, name: Sunken Shrine, area: [[16, 16], [240, 16], [240, 240], [16, 240]], levels: [9, 11], biome: seabed, kind: hunting,
+     boss: {at: [198, 128], radius: 6, mob: anglerfish}}
+camps:
+  - {area: sunken_shrine, name: west piranhas, at: [84, 152], radius: 6, mob: piranha, max: 5, respawn: 30s}
+  - {area: sunken_shrine, name: south piranhas, at: [80, 100], radius: 6, mob: piranha, max: 5, respawn: 30s}
+  - {area: sunken_shrine, name: north reef lionfish, at: [120, 192], radius: 6, mob: lionfish, max: 4, respawn: 36s}
+  - {area: sunken_shrine, name: south reef lionfish, at: [126, 62], radius: 6, mob: lionfish, max: 4, respawn: 36s}
+  - {area: sunken_shrine, name: lane swordfish, at: [134, 128], radius: 7, mob: swordfish, max: 4, respawn: 36s}
+  - {area: sunken_shrine, name: north swordfish, at: [210, 206], radius: 6, mob: swordfish, max: 3, respawn: 36s}
+  - {area: sunken_shrine, name: sharks, at: [212, 54], radius: 6, mob: goblin_shark, max: 2, respawn: 45s}
+waypoints:
+  - {id: sunken_shrine, name: Sunken Shrine, at: [48, 128]}
+pieces:
+  # the shrine's pillars round its court, the west and east sides left open
+  - {model: pillar, at: [176, 102], yaw: 0}
+  - {model: pillar, at: [198, 100], yaw: 0}
+  - {model: pillar, at: [220, 102], yaw: 0}
+  - {model: pillar, at: [176, 154], yaw: 0}
+  - {model: pillar, at: [198, 156], yaw: 0}
+  - {model: pillar, at: [220, 154], yaw: 0}
+gates:
+  - {name: shore, at: [36, 128], radius: 1.6, to: {region: willowmere, gate: dive_spot}}
+start: {at: [40, 128], yaw: 90}
+biomes:
+  seabed:
+    colours: {flat: sea_sand, slope: sea_sand, steep: sea_rock, high: sea_rock}
+    scatter:
+      - {model: kelp, spacing: 7, away: {camp: 2, waypoint: 3}}
+      - {model: sea_grass, spacing: 3}
+      - {model: coral_branch, spacing: 11, away: {camp: 2, waypoint: 3}}
+      - {model: coral_fan, spacing: 14, away: {camp: 2, waypoint: 3}}
+      - {model: coral_brain, spacing: 16, away: {camp: 2, waypoint: 3}}
+      - {model: shell_scallop, spacing: 13}
+      - {model: shell_conch, spacing: 17}
+      - {model: vent, spacing: 24, away: {waypoint: 4}}
+      - {model: rock_small, spacing: 12, away: {camp: 2, waypoint: 3}}
+  reef_wall:
+    colours: {flat: sea_rock, slope: sea_rock, steep: sea_rock, high: sea_rock}

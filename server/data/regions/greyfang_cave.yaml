@@ -1,0 +1,61 @@
+# DRAFT for B13 step 6, with the green region's layout: the cave under Greyfang Cliffs, entered from Willowmere's cave_mouth.
+# Levels 10 to 12: Wild Boar 10, Cave Bat 12 (moved from 14), Vampire Bat 14 (moved from 16), and the Thief's trainer. The old Cave map retires.
+# The way in faces north into the cliff: the mouth hall in the south, boar halls west and east, the bats' flat gallery in the north, the Vampire Bat's roost north-east, and a tunnel back to the mouth so nobody has to walk back the way they came.
+name: Greyfang Cave
+under: willowmere
+size: [384, 256]
+cell: 0.5
+seed: 41
+look: {sky: cave}
+ground: {noise: {scale: 60, amplitude: 1.5, octaves: 2}}
+edge: {width: 16, height: [2, 4], biome: rock}
+colour: {slope: 0.25, high: 100}
+rock: {height: 4.5, rough: 1.5}
+torches: {spacing: 10, model: torch_mounted}
+features:
+  - {hall: {area: [[152, 24], [232, 24], [236, 72], [148, 72]], flat: true}}          # the mouth: gate, waypoint, Thief Trainer
+  - {tunnel: {path: [[156, 52], [120, 70], [96, 92]], width: 10}}
+  - {hall: {area: [[40, 84], [124, 84], [128, 150], [44, 156]]}}                         # the west warren: boars
+  - {tunnel: {path: [[90, 150], [110, 182], [140, 198]], width: 10}}
+  - {hall: {area: [[130, 168], [250, 164], [254, 228], [126, 228]], flat: true}}         # the gallery: bats, flat for their shots
+  - {tunnel: {path: [[250, 196], [276, 192], [298, 184]], width: 10}}
+  - {hall: {area: [[290, 140], [356, 140], [356, 224], [290, 224]], flat: true}}         # the roost: the Vampire Bat
+  - {tunnel: {path: [[318, 140], [300, 112], [270, 90], [232, 56]], width: 10}}
+  - {hall: {area: [[258, 86], [330, 86], [330, 128], [258, 128]]}}                       # the east warren: boars, on the way back
+areas:
+  - {id: greyfang_cave, name: Greyfang Cave, area: [[16, 16], [368, 16], [368, 240], [16, 240]], levels: [10, 12], biome: cave, kind: hunting,
+     boss: {at: [320, 180], radius: 5, mob: vampire_bat}}
+camps:
+  - {area: greyfang_cave, name: warren boars, at: [70, 108], radius: 6, mob: wild_boar, max: 4, respawn: 36s}
+  - {area: greyfang_cave, name: deep boars, at: [100, 134], radius: 5, mob: wild_boar, max: 3, respawn: 36s}
+  - {area: greyfang_cave, name: east boars, at: [296, 106], radius: 5, mob: wild_boar, max: 3, respawn: 36s}
+  - {area: greyfang_cave, name: gallery bats, at: [162, 198], radius: 5, mob: cave_bat, max: 4, respawn: 45s}
+  - {area: greyfang_cave, name: far bats, at: [222, 198], radius: 5, mob: cave_bat, max: 4, respawn: 45s}
+waypoints:
+  - {id: greyfang_cave, name: Greyfang Cave, at: [192, 46]}
+npcs:
+  - {id: thief_trainer, at: [222, 60], yaw: 270}
+pieces:
+  # standing torches round the camps and the boss, outside their circles
+  - {model: torch_lit, at: [60, 120], yaw: 0}
+  - {model: torch_lit, at: [82, 96], yaw: 0}
+  - {model: torch_lit, at: [110, 145], yaw: 0}
+  - {model: torch_lit, at: [306, 98], yaw: 0}
+  - {model: torch_lit, at: [150, 190], yaw: 0}
+  - {model: torch_lit, at: [234, 206], yaw: 0}
+  - {model: torch_lit, at: [192, 186], yaw: 0}
+  - {model: torch_lit, at: [312, 176], yaw: 0}
+  - {model: torch_lit, at: [336, 196], yaw: 0}
+  - {model: torch_lit, at: [324, 174], yaw: 0}
+  - {model: torch_lit, at: [200, 52], yaw: 0}
+gates:
+  - {name: mouth, at: [192, 32], radius: 1.6, to: {region: willowmere, gate: cave_mouth}}
+start: {at: [192, 36], yaw: 0}
+biomes:
+  cave:
+    colours: {flat: cave_floor, slope: cave_floor, steep: cave_rock, high: cave_rock}
+    scatter:
+      - {model: rock_small, spacing: 14, away: {camp: 2, waypoint: 3, torch: 1}}
+      - {model: pebbles, spacing: 6}
+  rock:
+    colours: {flat: cave_rock, slope: cave_rock, steep: cave_rock, high: cave_rock}

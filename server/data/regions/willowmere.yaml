@@ -1,0 +1,139 @@
+# The green region's plan (large-regions.md step 8), as picked on 2026-11-26: the layout, gentle banks on the river and lake, and the twelve new mobs.
+# Camps and bosses name the twelve new mobs the user picked on 2026-11-26 from the monster sheet; Sunmeadow keeps the Forest's. The north pass leads to Shroom Grove, where the old Cave led.
+# Areas sit on 4 m lines. The interior is 72 to 952 on both axes.
+name: Willowmere
+size: [1024, 1024]
+cell: 1
+seed: 23
+look: {sky: day}
+ground: {noise: {scale: 220, amplitude: 6, octaves: 4}}
+edge: {width: 72, height: [35, 60], biome: peaks}
+colour: {slope: 0.25, high: 30}
+features:
+  - {plateau: {area: [[380, 792], [1000, 792], [1000, 1000], [380, 1000]], height: 10, edge: cliff}}
+  - {river: {path: [[230, 1010], [240, 880], [290, 760], [360, 650], [420, 560], [440, 470], [440, 420], [540, 390], [660, 372], [800, 345], [900, 310], [1010, 290]], width: 14, depth: 3, fords: [[300, 745], [820, 338]], banks: gentle}}
+  - {lake: {area: [[700, 480], [740, 462], [800, 456], [845, 468], [872, 505], [880, 560], [862, 605], [815, 628], [755, 630], [715, 605], [698, 560], [694, 515]], depth: 4, banks: gentle}}
+  - {road: {path: [[512, 180], [505, 300], [505, 420], [504, 496], [520, 640], [600, 760], [610, 830], [700, 870], [900, 880], [935, 880]], width: 6}}
+  - {road: {path: [[432, 130], [330, 190], [230, 250], [190, 400], [230, 500], [260, 580], [300, 745], [200, 840]], width: 5}}
+  - {road: {path: [[448, 500], [430, 515], [330, 560], [260, 580]], width: 5}}
+  - {road: {path: [[560, 500], [640, 520], [680, 640], [790, 690]], width: 5}}
+  - {road: {path: [[592, 130], [700, 190], [780, 220], [820, 338], [900, 470], [900, 620], [790, 690]], width: 5}}
+  - {road: {path: [[573, 720], [500, 750], [455, 774]], width: 4}}
+areas:
+  - {id: willowbrook, name: Willowbrook, area: [[432, 72], [592, 72], [592, 192], [432, 192]], biome: meadow, kind: town}
+  - {id: sunmeadow, name: Sunmeadow, area: [[592, 72], [952, 72], [952, 352], [352, 352], [352, 192], [592, 192]], levels: [1, 4], biome: meadow, kind: hunting, boss: {at: [820, 130], radius: 6, mob: king_slime}}
+  - {id: oakshade, name: Oakshade Woods, area: [[72, 72], [432, 72], [432, 192], [352, 192], [352, 448], [72, 448]], levels: [4, 7], biome: woods, kind: hunting, boss: {at: [150, 150], radius: 6, mob: oakshade_chief}}
+  - {id: toadcap, name: Toadcap Glade, area: [[72, 448], [352, 448], [352, 352], [448, 352], [448, 704], [304, 704], [304, 952], [72, 952]], levels: [6, 9], biome: glade, kind: hunting, boss: {at: [140, 640], radius: 6, mob: mushroom_king}}
+  - {id: fernbridge, name: Fernbridge, area: [[448, 448], [560, 448], [560, 544], [448, 544]], biome: meadow, kind: town}
+  - {id: mirrorlake, name: Mirrorlake Shore, area: [[448, 352], [952, 352], [952, 704], [448, 704], [448, 544], [560, 544], [560, 448], [448, 448]], levels: [8, 11], biome: shore, kind: hunting, boss: {at: [932, 540], radius: 6, mob: lake_lurker}}
+  - {id: greyfang, name: Greyfang Cliffs, area: [[304, 704], [952, 704], [952, 952], [304, 952]], levels: [10, 12], biome: cliffs, kind: hunting, boss: {at: [780, 910], radius: 6, mob: crag_king}}
+camps:
+  - {area: sunmeadow, name: slimes, at: [650, 250], radius: 8, mob: green_slime, max: 5, respawn: 24s}
+  - {area: sunmeadow, name: slimes by the road, at: [720, 310], radius: 8, mob: green_slime, max: 5, respawn: 24s}
+  - {area: sunmeadow, name: west slimes, at: [400, 270], radius: 8, mob: green_slime, max: 4, respawn: 24s}
+  - {area: sunmeadow, name: river slimes, at: [420, 325], radius: 8, mob: green_slime, max: 4, respawn: 24s}
+  - {area: sunmeadow, name: mushrooms, at: [860, 250], radius: 8, mob: orange_mushroom, max: 4, respawn: 36s}
+  - {area: sunmeadow, name: south mushrooms, at: [700, 110], radius: 8, mob: orange_mushroom, max: 4, respawn: 36s}
+  - {area: oakshade, name: south woods, at: [120, 120], radius: 8, mob: oak_birb, max: 5, respawn: 30s}
+  - {area: oakshade, name: road woods, at: [280, 110], radius: 8, mob: oak_birb, max: 5, respawn: 30s}
+  - {area: oakshade, name: west woods, at: [120, 300], radius: 8, mob: oak_birb, max: 5, respawn: 30s}
+  - {area: oakshade, name: deep woods, at: [290, 330], radius: 9, mob: great_birb, max: 3, respawn: 40s}
+  - {area: oakshade, name: north woods, at: [130, 430], radius: 8, mob: oak_birb, max: 5, respawn: 30s}
+  - {area: oakshade, name: ridge woods, at: [300, 420], radius: 9, mob: great_birb, max: 3, respawn: 40s}
+  - {area: toadcap, name: glade edge, at: [120, 520], radius: 8, mob: puffcap, max: 5, respawn: 30s}
+  - {area: toadcap, name: river bend, at: [320, 470], radius: 8, mob: puffcap, max: 5, respawn: 30s}
+  - {area: toadcap, name: rings, at: [330, 650], radius: 9, mob: toadcap_toad, max: 3, respawn: 40s}
+  - {area: toadcap, name: west caps, at: [120, 720], radius: 8, mob: puffcap, max: 5, respawn: 30s}
+  - {area: toadcap, name: north caps, at: [250, 900], radius: 8, mob: puffcap, max: 5, respawn: 30s}
+  - {area: toadcap, name: far caps, at: [130, 880], radius: 9, mob: toadcap_toad, max: 3, respawn: 40s}
+  - {area: toadcap, name: east caps, at: [410, 400], radius: 8, mob: puffcap, max: 4, respawn: 30s}
+  - {area: mirrorlake, name: south shore, at: [600, 420], radius: 8, mob: glub, max: 5, respawn: 30s}
+  - {area: mirrorlake, name: reeds, at: [760, 415], radius: 8, mob: glub, max: 5, respawn: 30s}
+  - {area: mirrorlake, name: west shore, at: [600, 600], radius: 8, mob: glub, max: 5, respawn: 30s}
+  - {area: mirrorlake, name: north shore, at: [600, 665], radius: 9, mob: twin_glub, max: 3, respawn: 40s}
+  - {area: mirrorlake, name: east shore, at: [930, 660], radius: 8, mob: glub, max: 5, respawn: 30s}
+  - {area: mirrorlake, name: far reeds, at: [935, 420], radius: 9, mob: twin_glub, max: 3, respawn: 40s}
+  - {area: greyfang, name: west foot, at: [360, 740], radius: 8, mob: cliff_orc, max: 5, respawn: 30s}
+  - {area: greyfang, name: foot, at: [700, 740], radius: 8, mob: cliff_orc, max: 5, respawn: 30s}
+  - {area: greyfang, name: east foot, at: [860, 740], radius: 9, mob: greyfang_raptor, max: 3, respawn: 40s}
+  - {area: greyfang, name: west top, at: [450, 880], radius: 8, mob: cliff_orc, max: 5, respawn: 30s}
+  - {area: greyfang, name: top, at: [560, 920], radius: 9, mob: greyfang_raptor, max: 3, respawn: 40s}
+  - {area: greyfang, name: east top, at: [840, 920], radius: 8, mob: cliff_orc, max: 5, respawn: 30s}
+waypoints:
+  - {id: willowbrook, name: Willowbrook, at: [512, 140]}
+  - {id: sunmeadow, name: Sunmeadow, at: [505, 300]}
+  - {id: sunmeadow_east, name: Sunmeadow East, at: [780, 220]}
+  - {id: oakshade, name: Oakshade Woods, at: [230, 250]}
+  - {id: oakshade_north, name: Oakshade North, at: [190, 400]}
+  - {id: fernbridge, name: Fernbridge, at: [504, 496]}
+  - {id: toadcap, name: Toadcap Glade, at: [260, 580]}
+  - {id: toadcap_north, name: Toadcap North, at: [200, 840]}
+  - {id: mirror_landing, name: Lake Landing, at: [640, 520]}
+  - {id: mirror_north, name: North Shore, at: [790, 690]}
+  - {id: greyfang_foot, name: Cliff Foot, at: [500, 740]}
+  - {id: greyfang_top, name: Greyfang Top, at: [700, 870]}
+  - {id: north_pass, name: North Pass, at: [890, 880]}
+npcs:
+  - {id: town_guide, at: [490, 150], yaw: 90}
+  - {id: warrior_trainer, at: [550, 125], yaw: 0}
+  - {id: magician_trainer, at: [560, 165], yaw: 270}
+  - {id: bowman_trainer, at: [530, 470], yaw: 0}
+pieces:
+  - {model: well, at: [512, 118], yaw: 0}
+  - {model: shop, at: [470, 108], yaw: 0}
+  - {house: {area: [442, 160, 6.1, 7.4], height: 13.6, model: house_small}}
+  - {house: {area: [572, 92, 11, 14.95], height: 14, model: house_large}}
+  - {house: {area: [454, 86, 6.1, 7.4], height: 13.6, model: house_small}}
+  - {model: well, at: [488, 505], yaw: 0}
+  - {house: {area: [470, 525, 6.1, 7.4], height: 13.6, model: house_small}}
+  - {house: {area: [535, 515, 6.1, 7.4], height: 13.6, model: house_small}}
+gates:
+  - {name: north_pass, at: [940, 880], radius: 1.6, to: {region: shroom_grove, gate: from_cave}}
+  - {name: cave_mouth, at: [450, 780], radius: 1.6, to: {region: greyfang_cave, gate: mouth}}
+  - {name: dive_spot, at: [690, 540], radius: 1.6, to: {region: sunken_shrine, gate: shore}}
+start: {at: [512, 160], yaw: 0}
+beginning: true
+biomes:
+  meadow:
+    colours: {flat: grass, slope: dirt, steep: stone, high: stone}
+    scatter:
+      - {model: tree_oak, spacing: 16, slope: 0.4, away: {road: 4, water: 2, camp: 3, town: 2, waypoint: 2}}
+      - {model: bush_round, spacing: 12, away: {road: 2, town: 1}}
+      - {model: rock_small, spacing: 26, away: {road: 2, town: 2, camp: 2}}
+      - {model: flowers, spacing: 6, away: {road: 1}}
+      - {model: grass_tuft, spacing: 5}
+  woods:
+    colours: {flat: grass, slope: dirt, steep: stone, high: stone}
+    scatter:
+      - {model: tree_oak, spacing: 7, slope: 0.4, away: {road: 4, water: 2, camp: 3, town: 3, waypoint: 2}}
+      - {model: stump, spacing: 30, away: {road: 2, camp: 2}}
+      - {model: bush_round, spacing: 7, away: {road: 1}}
+      - {model: rock_large, spacing: 40, away: {road: 3, camp: 3, town: 3}}
+  glade:
+    colours: {flat: grass, slope: dirt, steep: stone, high: stone}
+    scatter:
+      - {model: giant_mushroom, spacing: 18, slope: 0.3, away: {road: 6, water: 3, camp: 4, town: 4, waypoint: 3}}
+      - {model: ring_mushroom, spacing: 30, away: {road: 4, camp: 3, town: 3}}
+      - {model: tree_oak, spacing: 14, slope: 0.4, away: {road: 4, water: 2, camp: 3, town: 3, waypoint: 2}}
+      - {model: small_mushrooms, spacing: 7}
+      - {model: tiny_mushrooms, spacing: 5}
+  shore:
+    colours: {flat: grass, slope: dirt, steep: stone, high: stone}
+    scatter:
+      - {model: tree_oak, spacing: 18, slope: 0.4, away: {road: 4, water: 3, camp: 3, town: 3, waypoint: 2}}
+      - {model: bush_round, spacing: 10, away: {road: 1, water: 1, town: 1}}
+      - {model: rock_small, spacing: 20, away: {road: 2, camp: 2, town: 2}}
+      - {model: grass_tuft, spacing: 4}
+      - {model: flowers, spacing: 9, away: {road: 1}}
+  cliffs:
+    colours: {flat: grass, slope: dirt, steep: stone, high: stone}
+    scatter:
+      - {model: tree_pine, spacing: 10, slope: 0.4, away: {road: 4, water: 2, camp: 3, waypoint: 2}}
+      - {model: boulder, spacing: 34, away: {road: 4, camp: 4, waypoint: 3}}
+      - {model: rock_large, spacing: 24, away: {road: 3, camp: 3}}
+      - {model: crag, spacing: 20}
+      - {model: pebbles, spacing: 9}
+  peaks:
+    colours: {flat: stone, slope: stone, steep: stone, high: snow}
+    scatter:
+      - {model: boulder, spacing: 30}

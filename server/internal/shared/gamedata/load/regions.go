@@ -256,7 +256,7 @@ func partsOf(p regiongen.Plan, grid regiongen.AreaGrid, bake string, waypoints [
 func regionFile(id string, p regiongen.Plan) mapfile.File {
 	f := mapfile.File{
 		Name: p.Name, Kind: string(gamedata.Region), Town: id, Look: mapfile.Look{Sky: p.Look.Sky}, Size: p.Size,
-		PlayerSpawn: mapfile.Place{At: p.Start.At, Yaw: p.Start.Yaw},
+		PlayerSpawn: mapfile.Place{At: p.Start.At, Yaw: p.Start.Yaw}, Start: p.Beginning,
 	}
 	for _, g := range p.Gates {
 		f.Portals = append(f.Portals, mapfile.Portal{Name: g.Name, At: g.At, Radius: g.Radius, To: mapfile.Target{Map: g.To.Region, Portal: g.To.Gate}})
