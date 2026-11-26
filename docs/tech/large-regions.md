@@ -916,7 +916,8 @@ Built with step 1, which says who watches a cell.
    - Designed with the user from previews first: its areas, towns, camps, waypoints and roads.
    - Then built: its NPCs and quests are re-placed, and mob levels are moved to their areas' bands, with the balance harness re-run.
    - Town, Forest and Cave are retired.
-   - A gate at its edge leads to the Crossroads, whose portal back now leads to that gate.
+   - A gate at its edge leads to Shroom Grove, the mushroom woods' first map, whose portal to the Cave now leads to that gate. The Crossroads comes after the woods, as today. (Planned first as a gate to the Crossroads, whose only way back leads into the woods' top map.)
+   - **As designed** in [The green region](./green-region.md): Willowmere, its five hunting areas and two towns, twelve new mobs for levels 5 to 14, and its cave and shrine.
 4. **The desert,** then **the snow mountains,** each retiring the old maps whose levels it covers. The last retires the Crossroads and the gate.
 
 - **Characters on a retired map:** `World.Join` places a character whose map no longer exists at the green region's start, in place of `ErrNoMap`.
@@ -1031,6 +1032,7 @@ Built with step 1, which says who watches a cell.
    - As built: the bots (section 11). The budget run and the road graph wait for a full-sized region.
    - Hollow cut models (3d-world.md section 10) cost about 0.25 ms on a dense woods view. If regions run tight, the per-instance swap is the fix: only the instances an opening shows draw hollow.
 8. **The green region:** its design first, then its build.
+   - Designed in [The green region](./green-region.md), section 9 for its build: gentle banks (#442), the new mobs, then the region and its places with the old maps retired.
    - When regions join the world chart, its party names say each member's channel ("Bo · Ch. 2"), in a picked map's list and under its node. 4b-3b left these two lists alone, as no region was charted.
 9. **The desert,** then **the snow mountains.**
 
