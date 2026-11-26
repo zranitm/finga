@@ -167,7 +167,7 @@ func FreeAddrs(t *testing.T, n int) []string {
 // start runs the game until the test ends, on the stack's addresses each time.
 func (s *Stack) start() {
 	s.T.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute) // the first start of a process generates Willowmere and builds its walk grid, which coverage makes slow
 	defer cancel()
 	settings, err := s.Cfg.Host("finga")
 	if err != nil {

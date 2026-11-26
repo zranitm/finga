@@ -101,7 +101,7 @@ func TestGrantsTheItemModuleFailsLandOnceEach(t *testing.T) {
 	flaky.after.Store(3)
 	s := e2etest.NewStackBuilt(t, e2etest.GameData(t, append(e2etest.QuickSlimes(), e2etest.LootRules(1, "60s"))...), flaky.build) // every kill a pouch, for the takes to meet the failures soon
 	token, id := s.CreateCharacter(t, "ola", "Ola", "warrior")
-	s.Place(t, id, "forest", e2etest.SlimeField, 144, 0)
+	s.Place(t, id, "willowmere", e2etest.SlimeField, 144, 0)
 	ola := e2etest.NewLooter(s.Join(t, token, id))
 	deadline := time.Now().Add(30 * time.Second)
 	for flaky.after.Load() >= 0 && time.Now().Before(deadline) { // until every failure was met, and a grant after them
