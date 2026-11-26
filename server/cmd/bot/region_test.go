@@ -15,7 +15,7 @@ import (
 // regionWorld is a soak's world on the test region.
 func regionWorld(t *testing.T) (*gamedata.Data, *world) {
 	t.Helper()
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	w, err := newWorld(data, "test_region")
 	if err != nil {
 		t.Fatal(err)

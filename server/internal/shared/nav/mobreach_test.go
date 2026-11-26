@@ -61,7 +61,7 @@ func lands(g *nav.Grid, walk nav.Reached, q nav.Point, py float64, bs []band) bo
 
 // On every hunting map and every shipped region's hunting areas, each mob lands a blow on a player wherever they stand inside its leash: no ledge or nook keeps a player out of its reach while they hit it.
 func TestEveryMobReachesAPlayerAnywhereInItsLeash(t *testing.T) {
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	p := shipped(t).params
 	rise := nav.JumpRise(p) // the highest a jump lifts the feet, at the slowest speed
 	for _, m := range huntingGrounds(t, data) {

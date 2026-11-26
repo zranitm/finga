@@ -40,7 +40,7 @@ func TestAMapHoldsFeetClearOfSolidsOverAStep(t *testing.T) {
 func TestEveryShippedCampWaitsToRefill(t *testing.T) {
 	const least = 24 * time.Second
 	camps := 0
-	for _, m := range gamedatatest.Shipped(t).Maps() {
+	for _, m := range gamedatatest.Full(t).Maps() {
 		for _, s := range m.Spawns {
 			camps++
 			if s.Respawn < least {

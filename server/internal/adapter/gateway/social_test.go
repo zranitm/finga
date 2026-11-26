@@ -13,6 +13,7 @@ import (
 
 	"finga/internal/application/social"
 	model "finga/internal/model/gateway"
+	"finga/internal/shared/gamedata/gamedatatest"
 	"finga/internal/shared/host"
 	"finga/internal/shared/kernel"
 	"finga/pkg/copytest"
@@ -38,7 +39,7 @@ func (l *leaving) GatewayLeft(gateway string) {
 func newSocial(t *testing.T) *social.Module {
 	t.Helper()
 	log := slog.New(slog.DiscardHandler)
-	h, err := host.New(host.Options{Name: "finga", Settings: host.Settings{DataDir: "../../../data"}, Logger: log, Registry: prometheus.NewRegistry()})
+	h, err := host.New(host.Options{Name: "finga", Settings: host.Settings{DataDir: gamedatatest.ShippedDir(t)}, Logger: log, Registry: prometheus.NewRegistry()})
 	if err != nil {
 		t.Fatal(err)
 	}

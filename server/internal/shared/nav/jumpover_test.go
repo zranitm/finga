@@ -9,7 +9,7 @@ import (
 
 // Every mob but a field boss can be jumped over from a run-up or pressed against it, at the slowest and fastest move speeds.
 func TestEveryShippedMobButABossCanBeJumpedOver(t *testing.T) {
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	slowest := data.Movement()
 	fastest := slowest.Faster(sim.SpeedFactor(data.StatRules().Curves.MoveSpeed.Limit))
 	for _, m := range data.Mobs() {

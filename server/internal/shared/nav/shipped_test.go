@@ -130,7 +130,7 @@ func fastRise(data *gamedata.Data, p sim.Params) float64 {
 
 // The reach check (docs/tech/3d-world.md section 4): on every shipped map, players get from each start to every target at every speed.
 func TestEveryShippedMapCanBeCrossed(t *testing.T) {
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	d := shipped(t)
 	p := d.params
 	rise := fastRise(data, p)
@@ -171,7 +171,7 @@ func TestEveryShippedMapCanBeCrossed(t *testing.T) {
 
 // pvp.md sections 3, 7 and 8: on every shipped battle map, each side, walking with the other's base standing, as its bots' grid has it, gets from its spots to every point at every speed, and never into the other's base however high it jumps; with the prep wall up, neither gets out of its bay.
 func TestEveryShippedBattleMapKeepsItsSides(t *testing.T) {
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	d := shipped(t)
 	p := d.params
 	rise, high := fastRise(data, p), highRise(p)
@@ -242,7 +242,7 @@ func startsOf(spots []spot) []nav.Point {
 
 // The reach check on every shipped region (large-regions.md section 3): from its start, each gate and beside each waypoint, where teleports land and the dead get up, players get to every waypoint, gate, NPC, camp and area boss at every speed, on the walk grid the server builds.
 func TestEveryShippedRegionCanBeCrossed(t *testing.T) {
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	p := shipped(t).params
 	rise := fastRise(data, p)
 	regions := shippedRegions(t)

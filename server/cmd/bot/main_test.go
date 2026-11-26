@@ -81,7 +81,7 @@ func TestTheReportPrintsBucketBoundsAsTheyAre(t *testing.T) {
 }
 
 func TestTheBotHandsInWhatIsReadyAndTakesWhatIsOpen(t *testing.T) {
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	gels := func(n int32) map[string]*clientv1.ItemView {
 		return map[string]*clientv1.ItemView{"etc/0": {Template: "slime_gel", Quantity: n - 1}, "etc/3": {Template: "slime_gel", Quantity: 1}}
 	}
@@ -120,7 +120,7 @@ func TestTheBotHandsInWhatIsReadyAndTakesWhatIsOpen(t *testing.T) {
 
 // A bot keeps its own pouches from the frames, takes all in reach, and leaves a pouch whose take was refused.
 func TestABotTakesItsPouchesInReachAndLeavesOnesRefused(t *testing.T) {
-	b := &bot{data: gamedatatest.Shipped(t), id: "c-bot", x: 10, z: 10, kills: newKills()}
+	b := &bot{data: gamedatatest.Full(t), id: "c-bot", x: 10, z: 10, kills: newKills()}
 	pouch := func(id uint32, x float64, items ...uint32) *clientv1.PouchView {
 		p := &clientv1.PouchView{Id: id, X: x, Z: 10}
 		for _, it := range items {
@@ -163,7 +163,7 @@ func TestABotInvitesABotOnItsOwnMap(t *testing.T) {
 
 // C18: a bot fights with its main skill from that skill's own key, naming it as the chain's root, and only when its class lets it stand there: a Beginner bound for a promotion asking Lunge, which the Beginner's chains make a follow-up, attacks instead.
 func TestABotUsesOnlyAMainSkillItsClassCanKey(t *testing.T) {
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	for _, c := range []struct {
 		skill string
 		used  bool

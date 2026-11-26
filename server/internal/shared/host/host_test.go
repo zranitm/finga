@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"finga/internal/shared/gamedata/gamedatatest"
 	"finga/internal/shared/host"
 	"finga/internal/shared/kernel"
 	"finga/pkg/observability/metrics"
@@ -275,7 +276,7 @@ func (b *lockedBuffer) String() string {
 }
 
 func TestGameDataLoadsOnce(t *testing.T) {
-	h := newHost(t, host.Options{Name: "mall", Settings: host.Settings{Ops: "127.0.0.1:0", ShutdownGrace: time.Second, DataDir: "../../../data"}, Logger: runnertest.NewLog().Logger(), Registry: metrics.NewRegistry()})
+	h := newHost(t, host.Options{Name: "mall", Settings: host.Settings{Ops: "127.0.0.1:0", ShutdownGrace: time.Second, DataDir: gamedatatest.ShippedDir(t)}, Logger: runnertest.NewLog().Logger(), Registry: metrics.NewRegistry()})
 	first, err := h.GameData()
 	if err != nil {
 		t.Fatal(err)

@@ -22,7 +22,7 @@ func ringDepth(plan regiongen.Plan, x, z float64) float64 {
 
 // No player walks or jumps onto a region's ring of mountains (large-regions.md section 3) or into its deep water (decision 9): nothing the walk grid reaches from the start lies in either.
 func TestNoPlayerReachesARegionsRingOrDeepWater(t *testing.T) {
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	p := shipped(t).params
 	for id, plan := range shippedRegions(t) {
 		t.Run(id, func(t *testing.T) {
@@ -47,7 +47,7 @@ func TestNoPlayerReachesARegionsRingOrDeepWater(t *testing.T) {
 
 // Nor does any skill's move (large-regions.md section 3). On each side of every shipped region, and of a flat one whose ground inside is all as high as at its face, a body stands at the face where the ground inside is highest, on it or on the highest kit solid it climbs to. It jumps or not, and fires each move at the ring with its key held 2 s: the body's centre gets no farther into the ring than the cliff's own cell, whose face rises past it.
 func TestNoMoveGetsOntoARegionsRing(t *testing.T) {
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	p := data.Movement()
 	type fired struct {
 		what string
@@ -211,7 +211,7 @@ func shippedKit(t *testing.T) regiongen.Kit {
 
 // A river too deep to wade is crossed at its ford (large-regions.md decision 9): from the west a player reaches the east bank by the ford, and never the deep channel. Nobody fits in it, no path leads into it, and one from inside it, as no body should be, leads out by the nearest dry cell.
 func TestADeepRiverIsCrossedAtItsFord(t *testing.T) {
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	p := data.Movement()
 	plan := flatRegion()
 	plan.Features = []regiongen.Feature{{River: &regiongen.River{Path: [][2]float64{{64, 0}, {64, 128}}, Width: 6, Depth: 2, Fords: [][2]float64{{64, 40}}}}}

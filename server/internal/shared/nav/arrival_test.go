@@ -102,7 +102,7 @@ func pointName(p gamedata.Point) string { return fmt.Sprintf("(%g, %g)", p.X, p.
 
 // On every hunting map and every shipped region's hunting areas, no mob sees a player arrive or stand at an NPC: each spawn and boss keep their circles a mob's sight plus arrivalMargin from the player spawn, every portal, every NPC and every waypoint's arrive point, so a fight is one a player walks into.
 func TestNoSpawnSeesAnArrivalOrAnNPC(t *testing.T) {
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	clear := data.MobRules().Sight + arrivalMargin
 	for _, g := range huntingGrounds(t, data) {
 		t.Run(g.id, func(t *testing.T) {

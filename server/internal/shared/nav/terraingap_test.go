@@ -153,7 +153,7 @@ func open(t sim.Terrain, a, b nav.Point, d float64) bool {
 
 // On every hunting map and every shipped region's hunting areas, no solid leaves a gap to terrain too steep to walk that a player fits and the widest mob whose leash reaches it doesn't. The sim tests terrain at a body's centre, so a mob chasing into such a gap sinks into the bank, which the mob reach test can't see.
 func TestNoSolidLeavesAGapByTheTerrainOnlyAPlayerFits(t *testing.T) {
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	p := shipped(t).params
 	for _, m := range huntingGrounds(t, data) {
 		t.Run(m.id, func(t *testing.T) {
@@ -190,7 +190,7 @@ player_spawn: {at: [3.5, 10], yaw: 90}
 
 // The gap check finds the one gap a player fits and the weasel doesn't, and passes the wide gap and the hug.
 func TestTheTerrainGapCheckFindsTheGapOnlyAPlayerFits(t *testing.T) {
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	p := shipped(t).params
 	var f mapfile.File
 	if err := yaml.Unmarshal([]byte(gapFixture), &f); err != nil {

@@ -20,7 +20,7 @@ import (
 
 func testWorld(t *testing.T) (*gamedata.Data, *world) {
 	t.Helper()
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	w, err := newWorld(data, "")
 	if err != nil {
 		t.Fatal(err)
@@ -264,7 +264,7 @@ func TestTheBotCountsTheTrialAmongThePromotionsConditions(t *testing.T) {
 
 // C12: a bot pressing into a mob at its height fights it; one beside, above or behind doesn't stop it.
 func TestABotFightsTheMobInItsWay(t *testing.T) {
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	right, left, upRight := &clientv1.Input{Right: true}, &clientv1.Input{Left: true}, &clientv1.Input{Up: true, Right: true}
 	slime := func(x, y, z float64) *clientv1.MobView { // radius 0.5 to the bot's 0.375
 		return &clientv1.MobView{Id: 1, Type: "green_slime", X: x, Y: y, Z: z, Hp: 10}
@@ -297,7 +297,7 @@ func TestABotFightsTheMobInItsWay(t *testing.T) {
 
 // C12: a map's boss stands for a bot until it hears it beaten there, from the fall or a Snapshot, and again once it's back or the bot sees it appear; a map without one has none.
 func TestABotKeepsOffAMapWhileItsBossIsUp(t *testing.T) {
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	b := &bot{data: data, mapID: "shroom_grove"}
 	if !b.bossUp("spore_hollow") || !b.bossUp("shroom_grove") || b.bossUp("willowmere") {
 		t.Fatalf("hearing nothing: spore_hollow %v, shroom_grove %v, willowmere %v; want the two maps with a boss up, Willowmere (its bosses are its areas') none", b.bossUp("spore_hollow"), b.bossUp("shroom_grove"), b.bossUp("willowmere"))

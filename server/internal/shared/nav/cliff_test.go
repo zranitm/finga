@@ -12,7 +12,7 @@ import (
 
 // No player walks or jumps up a cliff plateau's face (large-regions.md section 3): it's a barrier, though a steep face is walked up slantwise. Only a road onto the plateau reaches its top, and it does.
 func TestNoPlayerClimbsACliff(t *testing.T) {
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	p := shipped(t).params
 	walled, roaded := 0, 0
 	for id, plan := range everyPlan(t) {

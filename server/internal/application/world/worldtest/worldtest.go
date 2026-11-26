@@ -185,13 +185,13 @@ func (o *Observer) Ticks() int {
 // edited is what LoadDataWith loaded, by its edited files' names and texts, so tests making the same edits load them once.
 var edited sync.Map
 
-// LoadData is the game data the server ships, shared by every test: it is read-only, as LoadDataWith's is.
+// LoadData is gamedatatest.Shipped, shared by every test: it is read-only, as LoadDataWith's is.
 func LoadData(t testing.TB) *gamedata.Data {
 	t.Helper()
 	return gamedatatest.Shipped(t)
 }
 
-// LoadDataWith is the game data the server ships, each file named in edits changed by its function first, a new one from empty, or left out where it's nil; tests making the same edits share it.
+// LoadDataWith is the game data Shipped gives, each file named in edits changed by its function first, a new one from empty, or left out where it's nil; tests making the same edits share it.
 func LoadDataWith(t testing.TB, edits map[string]func(string) string) *gamedata.Data {
 	t.Helper()
 	src := gamedatatest.Dir()
@@ -202,11 +202,15 @@ func LoadDataWith(t testing.TB, edits map[string]func(string) string) *gamedata.
 			key.WriteString(name + "\x01")
 			continue
 		}
-		raw, err := os.ReadFile(filepath.Join(src, name))
-		if err != nil && !errors.Is(err, fs.ErrNotExist) {
-			t.Fatal(err)
+		raw, standIn := gamedatatest.StandIns[name]
+		if !standIn {
+			b, err := os.ReadFile(filepath.Join(src, name))
+			if err != nil && !errors.Is(err, fs.ErrNotExist) {
+				t.Fatal(err)
+			}
+			raw = string(b)
 		}
-		texts[name] = edits[name](string(raw))
+		texts[name] = edits[name](raw)
 		key.WriteString(name + "\x00" + texts[name] + "\x00")
 	}
 	if d, ok := edited.Load(key.String()); ok {
@@ -215,6 +219,11 @@ func LoadDataWith(t testing.TB, edits map[string]func(string) string) *gamedata.
 	dst := t.TempDir()
 	if err := os.CopyFS(dst, os.DirFS(src)); err != nil {
 		t.Fatal(err)
+	}
+	for name, text := range gamedatatest.StandIns {
+		if err := os.WriteFile(filepath.Join(dst, name), []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
 	for name, edit := range edits {
 		if edit == nil {

@@ -95,7 +95,7 @@ func walkOffline(m *gamedata.Map, mv sim.Params, from, to nav.Point, within floa
 
 // C12: with a field boss up, a bot hunts its map clear of where its blows could reach the boss; a beaten one, not yet back, keeps it from nothing.
 func TestABotKeepsClearOfAFieldBoss(t *testing.T) {
-	data := gamedatatest.Shipped(t)
+	data := gamedatatest.Full(t)
 	grove, _ := data.Map("shroom_grove")
 	b := &bot{data: data, mapID: "shroom_grove", rng: rand.New(rand.NewPCG(1, 2))}
 	at, r := point(grove.Boss.At), grove.Boss.Radius
