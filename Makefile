@@ -18,7 +18,7 @@ NPM       ?= npm --prefix web
 # The build's version, which logs and spans carry: the nearest tag and the commits since, or the commit alone.
 VERSION   ?= $(shell git describe --tags --always --dirty --abbrev=12 2>/dev/null || echo dev)
 
-.PHONY: up config prod-check down run test test-go test-web rules-go cover cover-go cover-web lint lint-go lint-web fma-check breaking gen region-preview smoke edge bots testers recipes-check
+.PHONY: up config prod-check down run test test-go test-web rules-go cover cover-go cover-go-cover cover-go-race cover-web lint lint-go lint-web fma-check breaking gen region-preview smoke edge bots testers recipes-check
 
 # OBS=1 also runs the observability stack and sends it the game's traces: Grafana at http://localhost:3000.
 OBSERVED = $(if $(OBS),FINGA_TRACING_OTLP_ENDPOINT=alloy:4317)
@@ -77,14 +77,19 @@ cover: cover-go cover-web   ## coverage for both halves; each fails below its 80
 RACE_ONLY_TESTS := TestBalance|TestFieldBosses|TestBakeHashes|TestEveryMobReachesAPlayerAnywhereInItsLeash|TestEveryShippedMapCanBeCrossed|TestNoSpawnSeesAnArrivalOrAnNPC|TestNoSolidLeavesAGapByTheTerrainOnlyAPlayerFits|TestEveryFordIsCrossedBothWays|TestARiverIsCrossedOnlyAtItsFordsAndCauseways|TestNoRegionHasAOneWayPocket|TestNoPlayerClimbsACliff|TestEveryShippedRegionCanBeCrossed|TestNoPlayerReachesARegionsRingOrDeepWater|TestNoMoveGetsOntoARegionsRing|TestABotWalksToEveryPortalNPCAndHuntOnItsMaps|TestABotKeepsOffWillowmeresBossesAndComesOutAtItsGates|TestTheShippedRegionsRunOnTheRealData|TestAPileChasingAMovingPlayerAttacksOnceItCan
 RACE_ONLY_PKGS := ./internal/model/world/ ./internal/shared/regiongen/ ./internal/shared/nav/ ./internal/application/world/mobs/ ./cmd/bot/ ./test/
 
-# cover-go also writes server/go-test-times.tsv: when each package and test ran, slowest first.
-cover-go:
+# cover-go is both halves of the Go coverage run; CI runs each as a job of its own, so the race-only tests run beside the rest.
+cover-go: cover-go-cover cover-go-race
+
+# cover-go-cover also writes server/go-test-times.tsv: when each package and test ran, slowest first.
+cover-go-cover:
 	cd $(SERVER) && $(GO) build -o bin/ ./cmd/testtimes && $(PGTEST) ./bin/testtimes -o go-test-times.tsv $(GO) test -json -race -parallel $(GO_PARALLEL) -coverpkg=./config/...,./internal/...,./pkg/...,./cmd/migrate/app/... -coverprofile=coverage.out -skip '^($(RACE_ONLY_TESTS))$$' $(GO_PKGS)
-	cd $(SERVER) && $(PGTEST) $(GO) test -race -run '^($(RACE_ONLY_TESTS))$$' $(RACE_ONLY_PKGS)
 	@cd $(SERVER) && grep -v '_string.go' coverage.out > coverage.tmp && mv coverage.tmp coverage.out
 	@cd $(SERVER) && $(GO) tool cover -func=coverage.out | tail -1
 	@total=$$(cd $(SERVER) && $(GO) tool cover -func=coverage.out | tail -1 | awk '{print $$3}' | tr -d '%'); \
 	awk -v t="$$total" -v m="$(COVER_MIN)" 'BEGIN { if (t+0 < m+0) { printf "coverage %.1f%% is below the %d%% floor\n", t, m; exit 1 } printf "coverage %.1f%% meets the %d%% floor\n", t, m }'
+
+cover-go-race:
+	cd $(SERVER) && $(PGTEST) $(GO) test -race -run '^($(RACE_ONLY_TESTS))$$' $(RACE_ONLY_PKGS)
 
 cover-web:
 	$(NPM) run coverage

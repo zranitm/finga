@@ -451,15 +451,15 @@ func TestCrashDuringTakes(t *testing.T) {
 		s.Place(t, id, "willowmere", gamedata.Point{X: e2etest.Spots(t).SlimeField.X, Z: e2etest.Spots(t).SlimeField.Z + 1.5*float64(k-1)}, 144, 0)
 		hunters = append(hunters, e2etest.NewLooter(s.Join(t, token, id)))
 	}
-	var wg sync.WaitGroup
+	var wg, farm sync.WaitGroup
 	took, swapped := make([]int, len(hunters)), make([]int, len(hunters))
 	killed := make(chan struct{})
 	before := make([]map[string]int, len(hunters))
 	for k, h := range hunters {
 		before[k] = s.InventoryTotals(t, h.ID)
 		swap := s.Swapper(t, h.ID)
-		wg.Go(func() { took[k] = h.Farm(20 * time.Second) })
-		wg.Go(func() { swapped[k] = swap(killed) }) // on for a second past the kill
+		farm.Go(func() { took[k] = h.Farm(20 * time.Second) }) // 20 s of the world's ticks
+		wg.Go(func() { swapped[k] = swap(killed) })            // on for a second past the kill
 	}
 	gained := func() int { // drops taken since the hunt began; the weapons only swap in and out
 		n := 0
@@ -472,14 +472,25 @@ func TestCrashDuringTakes(t *testing.T) {
 		}
 		return n
 	}
-	// Hard-kill the game once the hunters are taking in their stride, more takes on the way; the swaps go on through the item module beside it.
-	for deadline := time.Now().Add(15 * time.Second); gained() < 3; time.Sleep(100 * time.Millisecond) {
-		if time.Now().After(deadline) {
-			t.Fatalf("%d drops taken in 15 s, want 3 before the kill", gained())
+	farmed := make(chan struct{}) // the hunters' 20 s of ticks are over
+	go func() { farm.Wait(); close(farmed) }()
+	// Hard-kill the game once the hunters are taking in their stride, more takes on the way; the swaps go on through the item module beside it. The wait is bounded by the hunters' own ticks, not the clock.
+	for gained() < 3 {
+		select {
+		case <-farmed:
+			close(killed)
+			wg.Wait()
+			var seen []string
+			for k, h := range hunters {
+				seen = append(seen, fmt.Sprintf("%s: %d inventory changes, %d pouches seen, %d loot messages, %d refused, %d mobs in view, at (%.1f, %.1f)", names[k][1], took[k], len(h.Seen), len(h.Loots), len(h.Failures), len(h.Mobs), h.X, h.Z))
+			}
+			t.Fatalf("%d drops taken in the hunters' 20 s of ticks, want 3 before the kill:\n%s", gained(), strings.Join(seen, "\n"))
+		case <-time.After(100 * time.Millisecond):
 		}
 	}
 	game.kill()
 	close(killed)
+	farm.Wait()
 	wg.Wait()
 	t.Logf("inventory changes before the kill: %v; swaps: %v", took, swapped)
 	s.CheckInvariants(t)
