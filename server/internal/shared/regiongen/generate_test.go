@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -291,8 +292,8 @@ func TestACausewayStaysDryUnderItsMean(t *testing.T) {
 
 // No sample under a road is a barrier, in the test plans or the shipped regions: a causeway is dry, and a ford a road wades is shallow.
 func TestNoRoadIsABarrier(t *testing.T) {
-	for name, p := range everyPlan(t) {
-		r := build(t, p)
+	for name, e := range everyRegion(t) {
+		p, r := e.plan, e.region
 		nx, nz := samples(p.Size[0], p.Cell), samples(p.Size[1], p.Cell)
 		for _, f := range p.Features {
 			if f.Road == nil {
@@ -328,10 +329,45 @@ func everyPlan(t *testing.T) map[string]Plan {
 	return plans
 }
 
+// built is a plan of everyPlan and its region.
+type built struct {
+	plan   Plan
+	region *Region
+}
+
+var builtEvery struct {
+	once sync.Once
+	all  map[string]built
+	err  error
+}
+
+// everyRegion is everyPlan's plans, each generated once however many tests read them; the tests must not change them.
+func everyRegion(t *testing.T) map[string]built {
+	t.Helper()
+	plans := everyPlan(t)
+	kit, bodies := shippedKit(t), body(t)
+	builtEvery.once.Do(func() {
+		all := map[string]built{}
+		for name, p := range plans {
+			r, err := Generate(p, kit, bodies)
+			if err != nil {
+				builtEvery.err = fmt.Errorf("%s: %w", name, err)
+				return
+			}
+			all[name] = built{p, r}
+		}
+		builtEvery.all = all
+	})
+	if builtEvery.err != nil {
+		t.Fatal(builtEvery.err)
+	}
+	return builtEvery.all
+}
+
 // Every ford of the test plans and the shipped regions holds water over its middle, fordDepth deep, wet and not deep, whatever crosses it.
 func TestEveryFordHoldsShallowWater(t *testing.T) {
-	for name, p := range everyPlan(t) {
-		r := build(t, p)
+	for name, e := range everyRegion(t) {
+		p, r := e.plan, e.region
 		tr := r.Geometry.Terrain
 		nx := samples(p.Size[0], p.Cell)
 		rivers := 0
