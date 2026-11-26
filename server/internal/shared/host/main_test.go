@@ -1,25 +1,27 @@
 package host_test
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	"finga/internal/shared/host"
 	"finga/pkg/observability/logger"
+	"finga/pkg/observability/tracing"
 )
 
 // mallConfig is a made-up server's configuration: the shared sections, then a section per module, each run as its own process.
 type mallConfig struct {
-	ShutdownGrace time.Duration `mapstructure:"shutdown_grace" validate:"gt=0"`
-	Log           logger.Config `mapstructure:"log"`
-	Shop          shopSection   `mapstructure:"shop"`
-	Edge          edgeSection   `mapstructure:"edge"`
+	ShutdownGrace time.Duration  `mapstructure:"shutdown_grace" validate:"gt=0"`
+	Log           logger.Config  `mapstructure:"log"`
+	Tracing       tracing.Config `mapstructure:"tracing"`
+	Shop          shopSection    `mapstructure:"shop"`
+	Edge          edgeSection    `mapstructure:"edge"`
 }
 
 type shopSection struct {
@@ -32,7 +34,7 @@ type edgeSection struct {
 }
 
 func (c mallConfig) Host(process string) (host.Settings, error) {
-	s := host.Settings{ShutdownGrace: c.ShutdownGrace, Log: c.Log}
+	s := host.Settings{ShutdownGrace: c.ShutdownGrace, Log: c.Log, Tracing: c.Tracing}
 	switch process {
 	case "shop":
 		s.Ops = c.Shop.Ops.Addr
@@ -92,7 +94,7 @@ func TestStart(t *testing.T) {
 				t.Setenv(k, v)
 			}
 			closed := false
-			var out bytes.Buffer
+			var out lockedBuffer // an earlier test's exporter may still write its error to the process's one handler, which is this host's logger now
 			ctx, cancel := context.WithCancel(context.Background())
 			done := make(chan int, 1)
 			go func() { done <- host.Start(ctx, &out, &out, tt.process, tt.build(&closed)) }()
@@ -112,6 +114,55 @@ func TestStart(t *testing.T) {
 			}
 		})
 	}
+}
+
+// However a start fails, the tracer provider's batch processor, which Start makes with the host, is shut down: no exporter goroutine is left running.
+func TestAFailedStartLeavesNoExporterRunning(t *testing.T) {
+	testdata, err := filepath.Abs("testdata")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(testdata)
+	t.Setenv("FINGA_TRACING_OTLP_ENDPOINT", "127.0.0.1:1") // nothing listens
+	for _, c := range []struct {
+		name  string
+		env   map[string]string
+		build host.Build[mallConfig]
+		code  int
+	}{
+		{"a failed build", nil, func(context.Context, *host.Host, mallConfig) error { return errors.New("no database") }, 1},
+		{"a bad log level", map[string]string{"FINGA_LOG_LEVEL": "loud"}, func(context.Context, *host.Host, mallConfig) error { return nil }, 1},
+		{"a build that works, then the context ends", nil, func(context.Context, *host.Host, mallConfig) error { return nil }, 0},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			for k, v := range c.env {
+				t.Setenv(k, v)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			if c.code == 0 {
+				cancel()
+			}
+			defer cancel()
+			var out lockedBuffer
+			before := exporters() // a test before may have left one
+			if code := host.Start(ctx, &out, &out, "shop", c.build); code != c.code {
+				t.Fatalf("code %d, want %d, output %s", code, c.code, out.String())
+			}
+			deadline := time.Now().Add(5 * time.Second)
+			for exporters() > before {
+				if time.Now().After(deadline) {
+					t.Fatalf("%d batch processors running, %d before Start, after it returned %d", exporters(), before, c.code)
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+		})
+	}
+}
+
+// exporters is how many tracer providers' batch processors run: their goroutines.
+func exporters() int {
+	buf := make([]byte, 1<<20)
+	return strings.Count(string(buf[:runtime.Stack(buf, true)]), "(*batchSpanProcessor).processQueue") + strings.Count(string(buf[:runtime.Stack(buf, true)]), "NewBatchSpanProcessor.func")
 }
 
 // wantStock builds when it got the shop's stock and the process's settings, and marks the host closed.
