@@ -79,7 +79,7 @@ RACE_ONLY_PKGS := ./internal/model/world/ ./internal/shared/regiongen/ ./interna
 
 # cover-go also writes server/go-test-times.tsv: when each package and test ran, slowest first.
 cover-go:
-	cd $(SERVER) && $(GO) build -o bin/ ./cmd/testtimes && $(PGTEST) ./bin/testtimes -o go-test-times.tsv $(GO) test -json -race -timeout 30m -parallel $(GO_PARALLEL) -coverpkg=./config/...,./internal/...,./pkg/...,./cmd/migrate/app/... -coverprofile=coverage.out -skip '^($(RACE_ONLY_TESTS))$$' $(GO_PKGS)
+	cd $(SERVER) && $(GO) build -o bin/ ./cmd/testtimes && $(PGTEST) ./bin/testtimes -o go-test-times.tsv $(GO) test -json -race -parallel $(GO_PARALLEL) -coverpkg=./config/...,./internal/...,./pkg/...,./cmd/migrate/app/... -coverprofile=coverage.out -skip '^($(RACE_ONLY_TESTS))$$' $(GO_PKGS)
 	cd $(SERVER) && $(GO) test -race -run '^($(RACE_ONLY_TESTS))$$' $(RACE_ONLY_PKGS)
 	@cd $(SERVER) && grep -v '_string.go' coverage.out > coverage.tmp && mv coverage.tmp coverage.out
 	@cd $(SERVER) && $(GO) tool cover -func=coverage.out | tail -1
