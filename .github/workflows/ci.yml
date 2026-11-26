@@ -69,8 +69,8 @@ jobs:
           restore-keys: |
             go-race-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-
             go-race-${{ runner.os }}-${{ runner.arch }}-
-      # Every test once, with the race detector, the crash test included: the game is killed mid-pickup and restarts.
-      - run: make cover-go
+      # Every test once but the race-only ones, with the race detector and coverage, the crash test included: the game is killed mid-pickup and restarts.
+      - run: make cover-go-cover
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -82,6 +82,30 @@ jobs:
         with:
           path: ~/.cache/go-build
           key: go-race-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-${{ github.sha }}
+
+  # The tests cover-go skips (RACE_ONLY_TESTS in the Makefile), run under -race alone beside go: they cover nothing the rest don't, and under coverage they were most of its time.
+  go-race-only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      # Its own -race build cache, as go's: it builds only these packages, so the two don't share a key.
+      - uses: actions/cache/restore@v6
+        with:
+          path: ~/.cache/go-build
+          key: go-race-only-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-race-only-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-
+            go-race-only-${{ runner.os }}-${{ runner.arch }}-
+      - run: make cover-go-race
+      - uses: actions/cache/save@v6
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        with:
+          path: ~/.cache/go-build
+          key: go-race-only-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-${{ github.sha }}
 
   # On arm64: the 3D movement vectors replayed by Go and TypeScript, the 3D maps' geometry and walk grids and the region bakes hashed, as checked on amd64, and no fused multiply-add where those numbers are made.
   sim-arm64:
