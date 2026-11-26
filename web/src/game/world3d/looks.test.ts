@@ -6,9 +6,18 @@ import { npcs } from '@/gamedata/npcs';
 import { outfits } from '@/gamedata/outfits';
 
 import { classLook, drawnAs, mobLook, npcLook, playerLook } from './looks';
+import { MODELS } from './model-looks';
 import { PIECE_LOOKS } from './outfit-looks';
 
 describe('looks', () => {
+  it('mark every model of the pack’s Flying group as a flyer, drawn at its cylinder’s middle', () => {
+    const flying = Object.entries(MODELS).filter(([, m]) => m.file.startsWith('quaternius/Flying_'));
+    expect(flying.length).toBeGreaterThan(10);
+    for (const [key, m] of flying) {
+      expect([key, m.flies]).toEqual([key, true]);
+    }
+  });
+
   it('give every class, mob and NPC in the data a look', () => {
     for (const c of classes) {
       expect(classLook(c.id).file).toMatch(/\.glb$/);
