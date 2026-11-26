@@ -21,7 +21,7 @@ const cellSize = 6.0
 // Region step 1a through the whole stack: on a map cut by cells, a player comes into another's frames whole as they cross into their block and goes out of them, as unseen, as they leave it, and a swing three cells off is heard only from inside it.
 func TestPlayersOnAMapCutByCellsComeAndGoAtTheBlocksEdge(t *testing.T) {
 	t.Parallel()
-	s := newStackOver(t, e2etest.GameData(t, smallCells))
+	s := newStackOver(t, e2etest.GameData(t, append(stillSlimes(), smallCells)...)) // still slimes, so none wanders into the players' block
 	// cellEdge is the line between two of Willowmere's 6 m columns, 30 m east of the slimes' camp and 20 m south of it in Sunmeadow's empty ground: Ayla's block, round the column 20 m west of it, ends at it.
 	camp := e2etest.Spots(t).Slimes.At
 	cellEdge, z := math.Ceil((camp.X+30)/cellSize)*cellSize, camp.Z-20
