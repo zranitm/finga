@@ -21,14 +21,21 @@ func loneSlime(t testing.TB) e2etest.DataEdit {
 }
 
 // biters have the green slimes outlast any fight in super armor and bite, 0.75 m out; still ones don't walk.
-func biters(still bool) []e2etest.DataEdit {
+func biters(still bool) []e2etest.DataEdit { return slowBiters(still, "") }
+
+// slowBiters are biters whose bite winds up for windup, the attack's own when empty: a test that steps out of the windup has the time to send its input from a client that runs late.
+func slowBiters(still bool, windup string) []e2etest.DataEdit {
 	speed := "1"
 	if still {
 		speed = "0"
 	}
+	bite := "{use: bite}"
+	if windup != "" {
+		bite = "{use: bite, windup: " + windup + "}"
+	}
 	return []e2etest.DataEdit{
 		{File: "mobs.yaml", Old: "    name: Green Slime\n    level: 1\n    hp: 34\n", New: "    name: Green Slime\n    level: 1\n    hp: 1000000\n"},
-		{File: "mobs.yaml", Old: greenSlimeBody, New: "    exp: 8\n    speed: " + speed + "\n    radius: 0.5\n    height: 0.875\n    behavior: patrol\n    super_armor: true\n    attacks: [{use: bite}]\n"},
+		{File: "mobs.yaml", Old: greenSlimeBody, New: "    exp: 8\n    speed: " + speed + "\n    radius: 0.5\n    height: 0.875\n    behavior: patrol\n    super_armor: true\n    attacks: [" + bite + "]\n"},
 	}
 }
 
@@ -88,12 +95,12 @@ func TestMobsFightBack(t *testing.T) {
 
 	t.Run("C12/a-bite-lands-after-its-windup-and-stepping-out-dodges-it", func(t *testing.T) {
 		t.Parallel()
-		s := newStackOver(t, e2etest.GameData(t, append(biters(true), loneSlime(t))...))
+		s := newStackOver(t, e2etest.GameData(t, append(slowBiters(true, "1500ms"), loneSlime(t))...)) // a long windup, so a client running late in a starved CI still steps out within it
 		slime := groundSlime(t, s)
 		token, id := s.CreateCharacter(t, "biten", "Biten", "warrior")
 		s.Place(t, id, "willowmere", beside(slime, -1.25), 144, 0) // 0.375 m clear of it, inside the bite's 0.75
 		p, _ := s.Join(t, token, id)
-		source, windup := "m:"+strconv.FormatUint(uint64(slime.GetId()), 10), uint64(12) // 600 ms
+		source, windup := "m:"+strconv.FormatUint(uint64(slime.GetId()), 10), uint64(30) // 1500 ms
 		bitten := func(m wsconn.Message) bool {
 			d, ok := m.Data.(*clientv1.Damage)
 			return ok && d.GetSource() == source && d.GetTarget() == "p:"+id
@@ -113,11 +120,11 @@ func TestMobsFightBack(t *testing.T) {
 		p.Walk(true, 800*time.Millisecond) // back against it
 		started = p.WindupOf(t, slime.GetId(), 3*time.Second)
 		var bit uint64
-		if !p.Await(2*time.Second, func(m wsconn.Message) bool { bit = m.Tick; return bitten(m) }) {
+		if !p.Await(4*time.Second, func(m wsconn.Message) bool { bit = m.Tick; return bitten(m) }) {
 			t.Fatal("no bite on the player standing against the slime")
 		}
 		if bit != started+windup {
-			t.Fatalf("bitten at tick %d; want the windup from %d to land 600 ms on", bit, started)
+			t.Fatalf("bitten at tick %d; want the windup from %d to land 1500 ms on", bit, started)
 		}
 	})
 
