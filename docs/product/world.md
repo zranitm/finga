@@ -28,13 +28,13 @@
 
 | Region | Levels | Character |
 | --- | --- | --- |
-| **Green region** | 1–12 | Meadows, woods, a mushroom glade, a lake and the northern cliffs; the starting town in the south. Below it: a cave under the cliffs, lit by torches, and a shrine sunk under the lake |
+| **Green region** (Willowmere) | 1–12 | Meadows, woods, a mushroom glade, a lake and the northern cliffs; the starting town in the south and a small town in the middle. Below it: a cave under the cliffs, lit by torches, and a shrine sunk under the lake |
 | **Desert** | 12–22 | Dunes, canyons, an oasis town and sunken ruins |
 | **Snow mountains** | 22–30 | Frozen trails, an icefall and a glacier, with the Fallen Keep at the top as the endgame: a challenge for characters at the level cap |
 
 - **Areas:** about five a region, each a few levels wide, each with its field boss.
-- **Mobs:** today's 24 types, given the levels of the areas they live in, until new ones are made.
-- **Region names and their layouts** are designed one region at a time, from the generator's previews.
+- **Mobs:** each type has one level, so a region's areas take the types whose levels fit them. Where none fit, new ones are made: the green region adds twelve for levels 5 to 14, a normal mob, an elite and a boss for each of four areas.
+- **Region names and their layouts** are designed one region at a time, from the generator's previews. The green region's: [The green region](../tech/green-region.md).
 - **Underground and underwater** (B13): the green region has two to start. The cave takes today's Cave's mobs, its Vampire Bat and the Thief's trainer. The sunken shrine has new sea mobs. Inside, players walk and fight as on land. The other regions get theirs, or none, when they're designed.
 
 ## Until the regions are built
@@ -42,7 +42,7 @@
 The regions replace today's 14 small maps one region at a time (B10):
 
 1. The green region replaces Town, Forest and Cave.
-2. Until the desert and snow regions are built, a gate at the green region's edge leads to today's Crossroads, and from there to the mushroom woods, the desert maps, the snow maps and the keep, as now.
+2. Until the desert and snow regions are built, a gate at the green region's north edge leads to the mushroom woods, where the Cave leads today. They lead on to the Crossroads, and from there to the desert maps, the snow maps and the keep, as now.
 3. Each later region retires the maps whose levels it covers.
 
 Today's maps:
