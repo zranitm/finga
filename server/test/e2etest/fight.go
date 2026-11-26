@@ -14,17 +14,15 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// Spots on the shipped maps the rows stand at, in metres; each is open ground at height 0 unless it says otherwise.
+// Spots on the shipped regions the rows stand at, in metres, on open ground; Willowmere's Sunmeadow holds the slimes' circle at (650, 250), 8 m round, and the town's trainer and guide stand in Willowbrook.
 var (
-	SlimeField     = gamedata.Point{X: 13.5, Z: 12} // the forest's west, at the edge of the slimes' circle, which sees it
-	AmongSlimes    = gamedata.Point{X: 20, Z: 12}   // the middle of the slimes' circle, where they're on a player at once
-	OutOfSight     = gamedata.Point{X: 1, Z: 6}     // the forest's south-west corner, farther than any mob of the forest sees
-	ClearOfSlimes  = gamedata.Point{X: 2, Z: 30}    // the forest's north-west, out of the slimes' sight, even of those that chase a player there till they let them go
-	TownPortal     = gamedata.Point{X: 46, Z: 16}   // the town's to_forest
-	ForestFromTown = gamedata.Point{X: 2, Z: 20}    // the forest's way back to the town
-	ForestToCave   = gamedata.Point{X: 70, Z: 20}
-	CaveFromForest = gamedata.Point{X: 2, Z: 16}
-	ByTheTrainer   = gamedata.Point{X: 36.5, Z: 13} // in talking reach of the town's Warrior Trainer, at 36, 14
+	SlimeField    = gamedata.Point{X: 641.5, Z: 250} // the circle's west edge, which its slimes see
+	AmongSlimes   = gamedata.Point{X: 650, Z: 250}   // the middle of the slimes' circle, where they're on a player at once
+	OutOfSight    = gamedata.Point{X: 625, Z: 250}   // west of the circle, farther than any mob sees
+	ClearOfSlimes = gamedata.Point{X: 610, Z: 250}   // farther west, out of the slimes' sight, even of those that chase a player there till they let them go
+	ByTheTrainer  = gamedata.Point{X: 550.5, Z: 124} // in talking reach of the Warrior Trainer, at (550, 125)
+	CaveGate      = gamedata.Point{X: 450, Z: 780}   // Willowmere's gate to Greyfang Cave
+	CaveMouth     = gamedata.Point{X: 192, Z: 32}    // the cave's gate back, where a hop lands
 )
 
 // Place moves a character straight in the database, as a checkpoint would have left it; the join stands it on the ground at (x, z).

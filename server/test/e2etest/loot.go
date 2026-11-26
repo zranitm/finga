@@ -461,11 +461,11 @@ func LootRules(chance float64, pouchLife string) DataEdit {
 	return DataEdit{File: "loot.yaml", New: fmt.Sprintf("pouch: {normal: %v, elite: %v}\nreach: 2\npouch_life: %s\nbox_life: 2m\npouches_max: 30\n", chance, chance, pouchLife)}
 }
 
-// QuickSlimes has the forest's ground slimes die to one hit and come back a second later, so a hunt takes a shot or two.
+// QuickSlimes has Sunmeadow's slimes in the circle at (650, 250) die to one hit and come back a second later, so a hunt takes a shot or two.
 func QuickSlimes() []DataEdit {
 	return []DataEdit{
 		{"mobs.yaml", "    name: Green Slime\n    level: 1\n    hp: 34\n", "    name: Green Slime\n    level: 1\n    hp: 1\n"},
-		{"maps/forest.yaml", "respawn: 24s}", "respawn: 1s}"}, // the slimes' circle
+		{"regions/willowmere.yaml", "at: [650, 250], radius: 8, mob: green_slime, max: 5, respawn: 24s}", "at: [650, 250], radius: 8, mob: green_slime, max: 5, respawn: 1s}"}, // the slimes' circle
 	}
 }
 

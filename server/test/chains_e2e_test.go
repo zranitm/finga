@@ -63,7 +63,7 @@ func TestAFollowUpGoesFromItsRootsKeyAfterTheRoot(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	s.Place(t, id, "forest", e2etest.OutOfSight, 134, 0)
+	s.Place(t, id, "willowmere", e2etest.OutOfSight, 134, 0)
 	l := e2etest.NewLooter(s.Join(t, token, id))
 	l.Await(300*time.Millisecond, nil)
 	use := func(req, skill string) *clientv1.Response {
@@ -86,7 +86,7 @@ func TestAFollowUpGoesFromItsRootsKeyAfterTheRoot(t *testing.T) {
 	}
 }
 
-// stunnableSlime is the forest's one slime in the slimes' circle, standing still and outlasting any fight with no super armor, so a stun takes; a hit lands but for one in a million.
+// stunnableSlime is the one slime in the slimes' circle, standing still and outlasting any fight with no super armor, so a stun takes; a hit lands but for one in a million.
 // Charge's hit comes at 0.9, so its dash is over by then on any runner whose inputs lag the world's ticks.
 func stunnableSlime() []e2etest.DataEdit {
 	return []e2etest.DataEdit{
@@ -105,7 +105,7 @@ func TestAWarriorsStrikeKeyChargesThenSlams(t *testing.T) {
 	s := newStackOver(t, e2etest.GameData(t, stunnableSlime()...))
 	slime := groundSlime(t, s)
 	token, id := chainer(t, s, "Charger", "warrior", "strike", "charge", "ground_slam")
-	s.Place(t, id, "forest", beside(slime, -6), 500, 0)
+	s.Place(t, id, "willowmere", beside(slime, -6), 500, 0)
 	l := e2etest.NewLooter(s.Join(t, token, id))
 	l.Await(300*time.Millisecond, nil)
 	lock, east := slime.GetId(), float32(math.Pi/2)
@@ -149,7 +149,7 @@ func TestABowmansDisengageKeyShootsAfterADodge(t *testing.T) {
 	s := newStackOver(t, e2etest.GameData(t, append(biters(true), loneSlime(), longDisengage)...))
 	slime := groundSlime(t, s)
 	token, id := chainer(t, s, "Counter", "bowman", "disengage", "power_shot")
-	s.Place(t, id, "forest", beside(slime, -1), 300, 0) // in its bite's reach
+	s.Place(t, id, "willowmere", beside(slime, -1), 300, 0) // in its bite's reach
 	l := e2etest.NewLooter(s.Join(t, token, id))
 	l.Await(300*time.Millisecond, nil)
 	if r := chained(t, l, "early", "power_shot", "disengage", 0, 0, nil); r.GetOk() || r.GetCode() != 330034 {

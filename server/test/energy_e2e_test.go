@@ -19,7 +19,7 @@ func TestEnergyIsEarnedSpentAndKept(t *testing.T) {
 	if _, err := s.DB.Exec(context.Background(), `INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at) VALUES ($1, 'strike', 1, now(), now())`, id); err != nil {
 		t.Fatal(err)
 	}
-	s.Place(t, id, "forest", beside(slime, -1.25), 135, 0) // in reach of a 1.875 m swing, its body clear of the slime's
+	s.Place(t, id, "willowmere", beside(slime, -1.25), 135, 0) // in reach of a 1.875 m swing, its body clear of the slime's
 	p := s.Connect(t, id)
 	if w, _ := p.Hello(token); w.GetCharacter().GetEnergy() != 0 {
 		t.Fatalf("a new character joins with %d energy, want none", w.GetCharacter().GetEnergy())
@@ -142,7 +142,7 @@ func TestASkillWaitingForItsAttacksGainCutsIt(t *testing.T) {
 	if _, err := s.DB.Exec(context.Background(), `INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at) VALUES ($1, 'strike', 1, now(), now())`, id); err != nil {
 		t.Fatal(err)
 	}
-	s.Place(t, id, "forest", beside(slime, -1.25), 135, 0) // in reach of a 1.875 m swing, its body clear of the slime's
+	s.Place(t, id, "willowmere", beside(slime, -1.25), 135, 0) // in reach of a 1.875 m swing, its body clear of the slime's
 	p, _ := s.Join(t, token, id)
 	p.Drain(300 * time.Millisecond) // past the join's Delta telling no energy
 

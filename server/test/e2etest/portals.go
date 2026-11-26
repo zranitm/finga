@@ -7,10 +7,11 @@ import (
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/shared/gamedata"
+	"finga/internal/shared/sim"
 	"finga/pkg/wsconn"
 )
 
-// Hop stands in the portal at at and presses until MapChange takes it to wantMap at want, for up to 30 s of the world's ticks; a press is repeated only after an input sent behind it came back without one.
+// Hop stands in the portal or gate at at and presses until MapChange takes it to wantMap at want, for up to 30 s of the world's ticks; a press is repeated only after an input sent behind it came back without one.
 func (l *Looter) Hop(t *testing.T, at gamedata.Point, wantMap string, want gamedata.Point) *clientv1.Snapshot {
 	t.Helper()
 	var mc *clientv1.MapChange
@@ -46,8 +47,17 @@ func (l *Looter) Hop(t *testing.T, at gamedata.Point, wantMap string, want gamed
 			return l.ack >= after // applied after the press, with no MapChange: the press missed
 		}, nil, nil)
 	}
-	if mc.GetMapId() != wantMap || mc.X != want.X || mc.Y != 0 || mc.Z != want.Z { // every portal the rows take stands on open ground at 0
-		t.Fatalf("map change %+v, want %s at (%v, 0, %v)", mc, wantMap, want.X, want.Z)
+	data, err := l.stack.gameData()
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, ok := data.Map(wantMap)
+	if !ok {
+		t.Fatalf("no map %q to hop to", wantMap)
+	}
+	ground := sim.Ground(want.X, want.Z, max(0, target.Geometry.Terrain.Height(want.X, want.Z))+data.Movement().Step, target.Geometry) // every gate the rows take stands on open ground
+	if mc.GetMapId() != wantMap || mc.X != want.X || mc.Y != ground || mc.Z != want.Z {
+		t.Fatalf("map change %+v, want %s at (%v, %v, %v)", mc, wantMap, want.X, ground, want.Z)
 	}
 	var snap *clientv1.Snapshot
 	if !l.Pump(5*time.Second, func(m wsconn.Message) bool {

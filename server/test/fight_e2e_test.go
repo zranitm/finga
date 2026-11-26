@@ -14,6 +14,7 @@ import (
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/shared/gamedata"
+	"finga/internal/shared/gamedata/load"
 	"finga/pkg/wsconn"
 	"finga/test/e2etest"
 )
@@ -29,10 +30,12 @@ func TestFightAndGrow(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.CreateCharacter(t, "fiona", "Fiona", "bowman")
-		s.Place(t, id, "forest", e2etest.SlimeField, 134, 0)
+		// Where the blocks of interest cells hold both the slimes' circle and the south mushrooms' at (700, 110): the snapshot holds the mobs of those cells alone.
+		inView := gamedata.Point{X: 672, Z: 140}
+		s.Place(t, id, "willowmere", inView, 134, 0)
 		p, snap := s.Join(t, token, id)
 		if len(snap.Mobs) < 3 {
-			t.Fatalf("forest snapshot has %d mobs", len(snap.Mobs))
+			t.Fatalf("Sunmeadow snapshot has %d mobs", len(snap.Mobs))
 		}
 		types := map[string]bool{}
 		for _, m := range snap.Mobs {
@@ -66,7 +69,7 @@ func TestFightAndGrow(t *testing.T) {
 			t.Fatal("no mob moved within 3 s")
 		}
 		token2, id2 := s.CreateCharacter(t, "greg", "Greg", "warrior")
-		s.Place(t, id2, "forest", gamedata.Point{X: e2etest.SlimeField.X + 0.625, Z: e2etest.SlimeField.Z}, 144, 0)
+		s.Place(t, id2, "willowmere", gamedata.Point{X: inView.X + 0.625, Z: inView.Z}, 144, 0)
 		_, snap2 := s.Join(t, token2, id2)
 		if len(snap2.Mobs) != len(snap.Mobs) {
 			t.Fatalf("second player sees %d mobs, first saw %d", len(snap2.Mobs), len(snap.Mobs))
@@ -86,10 +89,10 @@ func TestFightAndGrow(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.CreateCharacter(t, "hana", "Hana", "bowman")
-		s.Place(t, id, "forest", e2etest.SlimeField, 134, 0)
+		s.Place(t, id, "willowmere", e2etest.SlimeField, 134, 0)
 		p := e2etest.NewLooter(s.Join(t, token, id))
 		token2, id2 := s.CreateCharacter(t, "ivan", "Ivan", "warrior")
-		s.Place(t, id2, "forest", gamedata.Point{X: e2etest.SlimeField.X - 0.625, Z: e2etest.SlimeField.Z}, 144, 0)
+		s.Place(t, id2, "willowmere", gamedata.Point{X: e2etest.SlimeField.X - 0.625, Z: e2etest.SlimeField.Z}, 144, 0)
 		watcher, _ := s.Join(t, token2, id2)
 		p.Await(300*time.Millisecond, nil)
 		var hit *clientv1.Damage
@@ -126,39 +129,32 @@ func TestFightAndGrow(t *testing.T) {
 		}
 	})
 
-	t.Run("C3/at-zero-hp-the-character-dies-and-respawns-in-town", func(t *testing.T) {
+	t.Run("C3/at-zero-hp-the-character-dies-and-gets-up-beside-the-nearest-waypoint", func(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
+		data, err := load.Dir(s.Data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, stone, _ := data.Waypoint("sunmeadow_east") // the nearest to the slimes' circle: 133 m off, where Sunmeadow's other stone is 153 m
 		token, id := s.CreateCharacter(t, "joan", "Joan", "warrior")
-		s.Place(t, id, "forest", e2etest.AmongSlimes, 1, 10) // one hit from death; level 1 with 10 EXP
+		s.Place(t, id, "willowmere", e2etest.AmongSlimes, 1, 10) // one hit from death; level 1 with 10 EXP
 		p, _ := s.Hello(t, token, id)
 		p.DieAmongSlimes(t)
 		r := p.Expect("Respawned").Data.(*clientv1.Respawned)
-		if r.GetCharacterId() != id || r.GetMapId() != "town" || r.GetHp() != 72 {
-			t.Fatalf("respawned %+v", r)
+		if r.GetCharacterId() != id || r.GetMapId() != "willowmere" || r.GetHp() != 72 || r.GetX() != stone.Arrive.X || r.GetZ() != stone.Arrive.Z {
+			t.Fatalf("respawned %+v; want 72 HP in Willowmere beside the stone at %+v", r, stone.Arrive)
 		}
-		if mc := p.Expect("MapChange").Data.(*clientv1.MapChange); mc.GetMapId() != "town" {
-			t.Fatalf("map change %+v", mc)
-		}
-		snap := p.Expect("Snapshot").Data.(*clientv1.Snapshot)
-		if len(snap.Mobs) != 0 {
-			t.Fatal("the town has mobs")
-		}
-		// The death penalty took 5% of level 1's 20 EXP (10 → 9), saved with the town position.
+		// The death penalty took 5% of level 1's 20 EXP (10 → 9); a get-up on the same map isn't checkpointed at once, so a restart's flush saves it with the stone's position.
+		s.Restart()
 		var exp int64
 		var mapID string
-		dl := time.Now().Add(5 * time.Second)
-		for time.Now().Before(dl) {
-			if err := s.DB.QueryRow(context.Background(), `SELECT exp, map_id FROM characters WHERE id = $1`, id).Scan(&exp, &mapID); err != nil {
-				t.Fatal(err)
-			}
-			if exp == 9 && mapID == "town" {
-				break
-			}
-			time.Sleep(100 * time.Millisecond)
+		var x, z float64
+		if err := s.DB.QueryRow(context.Background(), `SELECT exp, map_id, pos_x, pos_z FROM characters WHERE id = $1`, id).Scan(&exp, &mapID, &x, &z); err != nil {
+			t.Fatal(err)
 		}
-		if exp != 9 || mapID != "town" {
-			t.Fatalf("saved exp %d on map %s, want 9 on town", exp, mapID)
+		if exp != 9 || mapID != "willowmere" || x != stone.Arrive.X || z != stone.Arrive.Z {
+			t.Fatalf("saved exp %d on map %s at (%v, %v), want 9 on willowmere at %+v", exp, mapID, x, z, stone.Arrive)
 		}
 	})
 
@@ -166,7 +162,7 @@ func TestFightAndGrow(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.CreateCharacter(t, "kim", "Kim", "bowman")
-		s.Place(t, id, "forest", e2etest.SlimeField, 134, 18) // two EXP short of level 2
+		s.Place(t, id, "willowmere", e2etest.SlimeField, 134, 18) // two EXP short of level 2
 		p := e2etest.NewLooter(s.Join(t, token, id))
 		p.Await(300*time.Millisecond, nil)
 		var lu *clientv1.LevelUp
@@ -264,7 +260,7 @@ func TestFightAndGrow(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.CreateCharacter(t, "nell", "Nell", "warrior")
-		s.Place(t, id, "cave", gamedata.Point{X: 57.5, Z: 16.5}, 400, 0) // east of the bats with no solid between, and out of the boars' sight
+		s.Place(t, id, "greyfang_cave", gamedata.Point{X: 229, Z: 198}, 400, 0) // 2 m east of the far bats' circle in the flat gallery, with no solid between, and out of the boars' sight
 		// 100 INT: magic defense 3 + 0.5 × 107 + 0.5 × 7 = 60, physical defense 5 + 7 = 12.
 		if _, err := s.DB.Exec(context.Background(), `UPDATE characters SET level = 21, int_points = 100 WHERE id = $1`, id); err != nil {
 			t.Fatal(err)
@@ -280,9 +276,9 @@ func TestFightAndGrow(t *testing.T) {
 			if !isDamage || d.Target != "p:"+id || d.Miss {
 				continue
 			}
-			// Attack 22 · 100 / 160 = 13.75, ±10%: 12 to 15; against the physical 12 it would be 18 to 22.
-			if !strings.HasPrefix(d.Source, "m:") || d.Amount < 12 || d.Amount > 15 {
-				t.Fatalf("damage %+v; want a bat's spit of 12 to 15, meeting magic defense", d)
+			// Attack 21 · 100 / 160 = 13.125, ±10%: 12 to 14; against the physical 12 it would be 17 to 21.
+			if !strings.HasPrefix(d.Source, "m:") || d.Amount < 12 || d.Amount > 14 {
+				t.Fatalf("damage %+v; want a bat's spit of 12 to 14, meeting magic defense", d)
 			}
 			return
 		}
@@ -362,13 +358,13 @@ func TestFightAndGrow(t *testing.T) {
 			t.Fatalf("listed skill bar %v; want %v", got, bar)
 		}
 
-		s.Place(t, id, "forest", e2etest.SlimeField, 135, 0)
+		s.Place(t, id, "willowmere", e2etest.SlimeField, 135, 0)
 		if _, err := s.DB.Exec(context.Background(), `UPDATE characters SET energy = 10 WHERE id = $1`, id); err != nil { // five Throws
 			t.Fatal(err)
 		}
 		p, _ := s.Hello(t, token, id)
 		token2, id2 := s.CreateCharacter(t, "omar", "Omar", "beginner")
-		s.Place(t, id2, "forest", gamedata.Point{X: e2etest.SlimeField.X - 0.625, Z: e2etest.SlimeField.Z}, 135, 0)
+		s.Place(t, id2, "willowmere", gamedata.Point{X: e2etest.SlimeField.X - 0.625, Z: e2etest.SlimeField.Z}, 135, 0)
 		watcher, _ := s.Join(t, token2, id2)
 		p.Await(300*time.Millisecond, nil)
 

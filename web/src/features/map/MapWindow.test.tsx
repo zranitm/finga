@@ -249,9 +249,9 @@ describe('MapWindow', () => {
     return { labels, boss: labels.find((l) => l.kind === 'boss')!, crown: (sz - spot.z) * scale };
   };
 
-  it('puts a beaten boss’s label under its crown when that has more room than tags keep: the grove’s', () => {
+  it('puts a beaten boss’s label under its crown when that has more room than tags keep: the frost trail’s', () => {
     const room = 6; // the boss label's, past the tags' 2 px
-    const { labels, boss, crown } = bossLabels('shroom_grove');
+    const { labels, boss, crown } = bossLabels('frost_trail');
     const near = labels.filter(
       (l) =>
         l !== boss &&

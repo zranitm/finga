@@ -82,7 +82,7 @@ describe('looks', () => {
     scene = new Scene(engine);
     servePublic();
     now = 1000;
-    map = await loadMap('forest');
+    map = await loadMap('shroom_grove');
     palette = new Palette(scene);
     fx = new Fx(
       scene,
@@ -341,7 +341,7 @@ describe('looks', () => {
     });
 
     it('fills over its own area: halfway through the windup the fill’s rings are the area’s and the points halfway between them, height and all', () => {
-      fx.play('mob.hop', mobAt({ reach: 0.375, to: { x: 60.5, y: 0, z: 2.5 } })); // landing on a slope
+      fx.play('mob.hop', mobAt({ reach: 0.375, to: { x: 52, y: 0, z: 18 } })); // landing on a slope
       to(WINDUP.start + 300);
       const [zone, fill] = named('patch').map((m) => [
         ...m.getVerticesData(VertexBuffer.PositionKind)!,
@@ -576,7 +576,7 @@ describe('moves', () => {
     scene = new Scene(engine);
     servePublic();
     now = 1000;
-    map = await loadMap('forest');
+    map = await loadMap('shroom_grove');
     palette = new Palette(scene);
     fx = new Fx(
       scene,

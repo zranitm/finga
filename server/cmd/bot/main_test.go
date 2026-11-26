@@ -113,7 +113,7 @@ func TestTheBotHandsInWhatIsReadyAndTakesWhatIsOpen(t *testing.T) {
 			}
 		})
 	}
-	if got := townNPCs(data, data.StartTown()); len(got) != 4 || got[0].ID != "town_guide" || got[1].ID != "magician_trainer" || got[2].ID != "warrior_trainer" || got[3].ID != "bowman_trainer" {
+	if got := townNPCs(data, data.StartTown()); len(got) != 4 || got[0].ID != "town_guide" || got[1].ID != "warrior_trainer" || got[2].ID != "magician_trainer" || got[3].ID != "bowman_trainer" {
 		t.Fatalf("a town visit talks to %v; want each next the nearest, from where players appear", got)
 	}
 }
@@ -148,13 +148,13 @@ func TestABotTakesItsPouchesInReachAndLeavesOnesRefused(t *testing.T) {
 
 // A party invite reaches only a character on the inviter's map, so the leading bot invites a bot there, not one elsewhere.
 func TestABotInvitesABotOnItsOwnMap(t *testing.T) {
-	lead, away, near, partied := &bot{id: "a", mapID: "forest"}, &bot{id: "b"}, &bot{id: "c"}, &bot{id: "d"}
-	away.onMap.Store(new("cave"))
-	near.onMap.Store(new("forest"))
-	partied.onMap.Store(new("forest"))
+	lead, away, near, partied := &bot{id: "a", mapID: "willowmere"}, &bot{id: "b"}, &bot{id: "c"}, &bot{id: "d"}
+	away.onMap.Store(new("greyfang_cave"))
+	near.onMap.Store(new("willowmere"))
+	partied.onMap.Store(new("willowmere"))
 	partied.inParty.Store(true)
 	if got := lead.invitee([]*bot{lead, partied, away, near}); got != near {
-		t.Fatalf("invites %+v; want the bot in the forest with no party", got)
+		t.Fatalf("invites %+v; want the bot in Willowmere with no party", got)
 	}
 	if got := lead.invitee([]*bot{lead, partied, away}); got != nil {
 		t.Fatalf("invites %+v; want none, the only free bot being in the cave", got)

@@ -17,7 +17,7 @@ func TestASlowTakeNeverHoldsThePlayerStill(t *testing.T) {
 	t.Parallel()
 	s := newStackOver(t, e2etest.GameData(t, append(e2etest.QuickSlimes(), everyKill)...))
 	token, id := s.CreateCharacter(t, "nell", "Nell", "bowman")
-	s.Place(t, id, "forest", e2etest.SlimeField, 134, 0)
+	s.Place(t, id, "willowmere", e2etest.SlimeField, 134, 0)
 	p, snap := s.Join(t, token, id)
 	l := e2etest.NewLooter(p, snap)
 	ctx := context.Background()

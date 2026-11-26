@@ -39,19 +39,19 @@ func class(t *testing.T, data *gamedata.Data, id string) gamedata.Class {
 
 func TestTheBotsWalkTheTownAndTheMapsUpToAPromotionsLevel(t *testing.T) {
 	_, w := testWorld(t)
-	if got := slices.Sorted(maps.Keys(w.maps)); !slices.Equal(got, []string{"cave", "forest", "town"}) {
+	if got := slices.Sorted(maps.Keys(w.maps)); !slices.Equal(got, []string{"greyfang_cave", "sunken_shrine", "willowmere"}) {
 		t.Fatalf("the bots' maps are %v", got)
 	}
 	for _, c := range []struct{ from, to, portal string }{
-		{"town", "cave", "to_forest"},
-		{"cave", "town", "from_forest"},
-		{"forest", "cave", "to_cave"},
+		{"willowmere", "greyfang_cave", "cave_mouth"},
+		{"greyfang_cave", "willowmere", "mouth"},
+		{"sunken_shrine", "greyfang_cave", "shore"},
 	} {
 		if p, ok := w.portalTo(c.from, c.to); !ok || p.Name != c.portal {
 			t.Errorf("from %s to %s takes %q, want %q", c.from, c.to, p.Name, c.portal)
 		}
 	}
-	if _, ok := w.portalTo("shroom_grove", "town"); ok {
+	if _, ok := w.portalTo("shroom_grove", "willowmere"); ok {
 		t.Error("a way from a map the bots don't walk")
 	}
 }
@@ -59,8 +59,8 @@ func TestTheBotsWalkTheTownAndTheMapsUpToAPromotionsLevel(t *testing.T) {
 func TestAMobIsHuntedAtItsWidestSpawnAndALevelRoundItsMapsPrey(t *testing.T) {
 	data, w := testWorld(t)
 	slimes := w.spots("green_slime")
-	if len(slimes) != 2 || slimes[0].mapID != "forest" || slimes[0].radius < slimes[1].radius {
-		t.Errorf("slimes are hunted at %+v, want the forest's widest circle first", slimes)
+	if len(slimes) != 4 || slimes[0].mapID != "willowmere" || slimes[0].radius < slimes[3].radius {
+		t.Errorf("slimes are hunted at %+v, want Willowmere's camps, the widest circle first", slimes)
 	}
 	if got := w.spots("vampire_bat"); len(got) != 0 {
 		t.Errorf("a field boss is hunted at %+v", got)
@@ -68,13 +68,21 @@ func TestAMobIsHuntedAtItsWidestSpawnAndALevelRoundItsMapsPrey(t *testing.T) {
 	for _, c := range []struct {
 		level int
 		mapID string
-	}{{1, "forest"}, {4, "forest"}, {5, "forest"}, {10, "forest"}, {11, "cave"}, {20, "cave"}} {
+	}{{1, "willowmere"}, {4, "willowmere"}, {5, "willowmere"}, {10, "sunken_shrine"}, {11, "greyfang_cave"}, {12, "willowmere"}, {20, "greyfang_cave"}} {
 		s, ok := w.levelSpot(c.level, 0)
 		if !ok || s.mapID != c.mapID {
 			t.Errorf("level %d hunts on %q, want %s", c.level, s.mapID, c.mapID)
 			continue
 		}
 		m, _ := data.Map(c.mapID)
+		if m.Kind == gamedata.Region { // a region's bot hunts one camp of its prey
+			if !slices.ContainsFunc(m.Spawns, func(sp gamedata.Spawn) bool {
+				return slices.Contains(w.levelPrey(c.level), sp.Mob) && point(sp.At) == s.at && sp.Radius == s.radius
+			}) {
+				t.Errorf("level %d's spot %+v is no camp of its prey", c.level, s)
+			}
+			continue
+		}
 		for _, sp := range m.Spawns {
 			if !slices.Contains(w.levelPrey(c.level), sp.Mob) {
 				continue
@@ -102,16 +110,16 @@ func TestABotWorksItsTrialThenPromotes(t *testing.T) {
 		want   string // the goal's why
 		where  string // its map
 	}{
-		{"under the trial's level", warrior, plan{class: "beginner", level: 3, holding: holding(0)}, "for warriors_trial's level", "forest"},
-		{"at its level", warrior, plan{class: "beginner", level: 10, holding: holding(0)}, "to take warriors_trial", "town"},
-		{"boars to kill", warrior, plan{class: "beginner", level: 10, quests: map[string]*clientv1.QuestState{"warriors_trial": active(5)}, holding: holding(0)}, "wild_boar for warriors_trial", "cave"},
-		{"the boars killed", warrior, plan{class: "beginner", level: 10, quests: map[string]*clientv1.QuestState{"warriors_trial": active(20)}, holding: holding(0)}, "to hand in warriors_trial", "town"},
-		{"every condition met", warrior, plan{class: "beginner", level: 10, own: ready, invested: map[string]int32{"strike": 10}, quests: map[string]*clientv1.QuestState{"warriors_trial": done}, holding: holding(0)}, "to promote", "town"},
-		{"a skill point short", warrior, plan{class: "beginner", level: 10, own: ready, invested: map[string]int32{"strike": 9}, quests: map[string]*clientv1.QuestState{"warriors_trial": done}, holding: holding(0)}, "for the promotion", "forest"},
-		{"promoted", warrior, plan{class: "warrior", level: 12, holding: holding(0)}, "as a warrior", "cave"},
-		{"wings to collect", thief, plan{class: "beginner", level: 10, quests: map[string]*clientv1.QuestState{"thiefs_trial": active(0)}, holding: holding(3)}, "cave_bat for thiefs_trial", "cave"},
-		{"the gel held, the guide not met", magician, plan{class: "beginner", level: 10, quests: map[string]*clientv1.QuestState{"magicians_trial": active(0, 0)}, holding: holding(15)}, "for magicians_trial", "town"},
-		{"the gel short", magician, plan{class: "beginner", level: 10, quests: map[string]*clientv1.QuestState{"magicians_trial": active(0, 1)}, holding: holding(14)}, "green_slime for magicians_trial", "forest"},
+		{"under the trial's level", warrior, plan{class: "beginner", level: 3, holding: holding(0)}, "for warriors_trial's level", "willowmere"},
+		{"at its level", warrior, plan{class: "beginner", level: 10, holding: holding(0)}, "to take warriors_trial", "willowmere"},
+		{"boars to kill", warrior, plan{class: "beginner", level: 10, quests: map[string]*clientv1.QuestState{"warriors_trial": active(5)}, holding: holding(0)}, "wild_boar for warriors_trial", "greyfang_cave"},
+		{"the boars killed", warrior, plan{class: "beginner", level: 10, quests: map[string]*clientv1.QuestState{"warriors_trial": active(20)}, holding: holding(0)}, "to hand in warriors_trial", "willowmere"},
+		{"every condition met", warrior, plan{class: "beginner", level: 10, own: ready, invested: map[string]int32{"strike": 10}, quests: map[string]*clientv1.QuestState{"warriors_trial": done}, holding: holding(0)}, "to promote", "willowmere"},
+		{"a skill point short", warrior, plan{class: "beginner", level: 10, own: ready, invested: map[string]int32{"strike": 9}, quests: map[string]*clientv1.QuestState{"warriors_trial": done}, holding: holding(0)}, "for the promotion", "sunken_shrine"},
+		{"promoted", warrior, plan{class: "warrior", level: 12, holding: holding(0)}, "as a warrior", "willowmere"},
+		{"wings to collect", thief, plan{class: "beginner", level: 10, quests: map[string]*clientv1.QuestState{"thiefs_trial": active(0)}, holding: holding(3)}, "cave_bat for thiefs_trial", "greyfang_cave"},
+		{"the gel held, the guide not met", magician, plan{class: "beginner", level: 10, quests: map[string]*clientv1.QuestState{"magicians_trial": active(0, 0)}, holding: holding(15)}, "for magicians_trial", "willowmere"},
+		{"the gel short", magician, plan{class: "beginner", level: 10, quests: map[string]*clientv1.QuestState{"magicians_trial": active(0, 1)}, holding: holding(14)}, "green_slime for magicians_trial", "willowmere"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			g := w.next(c.future, c.p)
@@ -200,7 +208,7 @@ func TestTheTabFullCodesAreTheGatewaysOwn(t *testing.T) {
 
 func TestABotGoesAfterTheNearestPreyOnItsSpot(t *testing.T) {
 	_, w := testWorld(t)
-	s := spot{mapID: "forest", at: nav.Point{X: 20, Z: 20}, radius: 8}
+	s := spot{mapID: "willowmere", at: nav.Point{X: 20, Z: 20}, radius: 8}
 	mob := func(id uint32, kind string, x, z float64) *clientv1.MobView {
 		return &clientv1.MobView{Id: id, Type: kind, X: x, Z: z, Hp: 10}
 	}
@@ -290,25 +298,25 @@ func TestABotFightsTheMobInItsWay(t *testing.T) {
 // C12: a map's boss stands for a bot until it hears it beaten there, from the fall or a Snapshot, and again once it's back or the bot sees it appear; a map without one has none.
 func TestABotKeepsOffAMapWhileItsBossIsUp(t *testing.T) {
 	data := gamedatatest.Shipped(t)
-	b := &bot{data: data, mapID: "forest"}
-	if !b.bossUp("cave") || !b.bossUp("forest") || b.bossUp("town") {
-		t.Fatalf("hearing nothing: cave %v, forest %v, town %v; want the bosses up, the town none", b.bossUp("cave"), b.bossUp("forest"), b.bossUp("town"))
+	b := &bot{data: data, mapID: "shroom_grove"}
+	if !b.bossUp("spore_hollow") || !b.bossUp("shroom_grove") || b.bossUp("willowmere") {
+		t.Fatalf("hearing nothing: spore_hollow %v, shroom_grove %v, willowmere %v; want the two maps with a boss up, Willowmere (its bosses are its areas') none", b.bossUp("spore_hollow"), b.bossUp("shroom_grove"), b.bossUp("willowmere"))
 	}
-	b.observe(wsconn.Message{Data: &clientv1.FieldBoss{MobId: 7, Type: "king_slime"}})
-	b.observe(wsconn.Message{Data: &clientv1.FieldBossGone{MobId: 7, Type: "king_slime", BackInMs: 60_000}})
-	if b.bossUp("forest") || !b.bossUp("cave") || b.boss != 0 {
-		t.Fatalf("after the forest's boss fell: forest %v, cave %v, its mob %d", b.bossUp("forest"), b.bossUp("cave"), b.boss)
+	b.observe(wsconn.Message{Data: &clientv1.FieldBoss{MobId: 7, Type: "spore_mother"}})
+	b.observe(wsconn.Message{Data: &clientv1.FieldBossGone{MobId: 7, Type: "spore_mother", BackInMs: 60_000}})
+	if b.bossUp("shroom_grove") || !b.bossUp("spore_hollow") || b.boss != 0 {
+		t.Fatalf("after shroom_grove's boss fell: shroom_grove %v, spore_hollow %v, its mob %d", b.bossUp("shroom_grove"), b.bossUp("spore_hollow"), b.boss)
 	}
-	b.observe(wsconn.Message{Data: &clientv1.FieldBoss{MobId: 8, Type: "king_slime"}})
-	if !b.bossUp("forest") || b.boss != 8 {
-		t.Fatalf("a boss seen back: up %v, its mob %d", b.bossUp("forest"), b.boss)
+	b.observe(wsconn.Message{Data: &clientv1.FieldBoss{MobId: 8, Type: "spore_mother"}})
+	if !b.bossUp("shroom_grove") || b.boss != 8 {
+		t.Fatalf("a boss seen back: up %v, its mob %d", b.bossUp("shroom_grove"), b.boss)
 	}
-	b.observe(wsconn.Message{Data: &clientv1.Snapshot{FieldBossGone: &clientv1.FieldBossGone{MobId: 8, Type: "king_slime", BackInMs: 60_000}}})
-	if b.bossUp("forest") {
+	b.observe(wsconn.Message{Data: &clientv1.Snapshot{FieldBossGone: &clientv1.FieldBossGone{MobId: 8, Type: "spore_mother", BackInMs: 60_000}}})
+	if b.bossUp("shroom_grove") {
 		t.Fatal("a Snapshot of the boss down left it up")
 	}
-	b.observe(wsconn.Message{Data: &clientv1.FieldBossGone{MobId: 8, Type: "king_slime"}})
-	if !b.bossUp("forest") {
+	b.observe(wsconn.Message{Data: &clientv1.FieldBossGone{MobId: 8, Type: "spore_mother"}})
+	if !b.bossUp("shroom_grove") {
 		t.Fatal("a boss whose time back has come is still down")
 	}
 }

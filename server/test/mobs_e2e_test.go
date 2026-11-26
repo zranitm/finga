@@ -12,12 +12,15 @@ import (
 	"finga/test/e2etest"
 )
 
-// loneSlime keeps one slime in the forest's slimes' circle, shrunk to a spot of open level ground, so a test knows which mob comes and has room round it.
+// loneSlimeAt is the middle of Sunmeadow's slimes' circle, where loneSlime keeps its one slime.
+var loneSlimeAt = gamedata.Point{X: 650, Z: 250}
+
+// loneSlime keeps one slime in Sunmeadow's slimes' circle, shrunk to its middle, a spot of open level ground, so a test knows which mob comes and has room round it.
 func loneSlime() e2etest.DataEdit {
-	return e2etest.DataEdit{File: "maps/forest.yaml", Old: "{name: slimes, at: [20, 12], radius: 6, mob: green_slime, max: 5,", New: "{name: slimes, at: [20, 24], radius: 0.5, mob: green_slime, max: 1,"}
+	return e2etest.DataEdit{File: "regions/willowmere.yaml", Old: "name: slimes, at: [650, 250], radius: 8, mob: green_slime, max: 5,", New: "name: slimes, at: [650, 250], radius: 0.5, mob: green_slime, max: 1,"}
 }
 
-// biters have the forest's green slimes outlast any fight in super armor and bite, 0.75 m out; still ones don't walk.
+// biters have the green slimes outlast any fight in super armor and bite, 0.75 m out; still ones don't walk.
 func biters(still bool) []e2etest.DataEdit {
 	speed := "1"
 	if still {
@@ -32,18 +35,18 @@ func biters(still bool) []e2etest.DataEdit {
 // greenSlimeBody is mobs.yaml's green slime from its EXP to its attacks, which the rows rewrite.
 const greenSlimeBody = "    exp: 8\n    speed: 1\n    radius: 0.5\n    height: 0.875\n    behavior: patrol\n    attacks: [{use: hop}]\n"
 
-// groundSlime is the forest's one slime in the slimes' circle as a scout sees it from where no mob sees it; the mesa's slimes stand east of x 40.
+// groundSlime is the one slime in the slimes' circle as a scout sees it from where no mob sees it; the slimes by the road, far east, are in its view too.
 func groundSlime(t *testing.T, s *e2etest.Stack) *clientv1.MobView {
 	t.Helper()
 	token, id := s.CreateCharacter(t, "scout", "Scout", "beginner")
-	s.Place(t, id, "forest", e2etest.OutOfSight, 135, 0)
+	s.Place(t, id, "willowmere", e2etest.OutOfSight, 135, 0)
 	_, snap := s.Join(t, token, id)
 	for _, m := range snap.GetMobs() {
-		if m.GetType() == "green_slime" && m.GetX() < 40 {
+		if m.GetType() == "green_slime" && math.Hypot(m.GetX()-loneSlimeAt.X, m.GetZ()-loneSlimeAt.Z) < 2 {
 			return m
 		}
 	}
-	t.Fatal("no green slime in the forest's slimes' circle")
+	t.Fatal("no green slime in the slimes' circle")
 	return nil
 }
 
@@ -61,7 +64,7 @@ func TestMobsFightBack(t *testing.T) {
 		s := newStackOver(t, e2etest.GameData(t, append(stillSlimes(), loneSlime())...))
 		slime := groundSlime(t, s)
 		token, id := s.CreateCharacter(t, "wall", "Wall", "warrior")
-		s.Place(t, id, "forest", beside(slime, -3.125), 144, 0)
+		s.Place(t, id, "willowmere", beside(slime, -3.125), 144, 0)
 		p, _ := s.Join(t, token, id)
 		side := slime.GetX() - 0.5 - 0.375 // the slime's west edge, less the player's radius
 		p.Send(wsconn.Message{Seq: p.NextSeq(), Data: &clientv1.Input{Right: true}})
@@ -87,7 +90,7 @@ func TestMobsFightBack(t *testing.T) {
 		s := newStackOver(t, e2etest.GameData(t, append(biters(true), loneSlime())...))
 		slime := groundSlime(t, s)
 		token, id := s.CreateCharacter(t, "biten", "Biten", "warrior")
-		s.Place(t, id, "forest", beside(slime, -1.25), 144, 0) // 0.375 m clear of it, inside the bite's 0.75
+		s.Place(t, id, "willowmere", beside(slime, -1.25), 144, 0) // 0.375 m clear of it, inside the bite's 0.75
 		p, _ := s.Join(t, token, id)
 		source, windup := "m:"+strconv.FormatUint(uint64(slime.GetId()), 10), uint64(12) // 600 ms
 		bitten := func(m wsconn.Message) bool {
@@ -124,14 +127,14 @@ func TestMobsFightBack(t *testing.T) {
 		d := 1.0 // the way the attacker stands from the slime and walks off: east, the open side of its spot
 		nearToken, nearID := s.CreateCharacter(t, "near", "Near", "warrior")
 		nearAt := beside(slime, -d*0.9375)
-		s.Place(t, nearID, "forest", nearAt, 144, 0)
+		s.Place(t, nearID, "willowmere", nearAt, 144, 0)
 		near, snap := s.Join(t, nearToken, nearID)
 		at := settled(t, near, snap, slime.GetId()) // the slime has come to the near player and holds there, biting
 		if d*(nearAt.X-at.X) > 0 {
 			d = -d // it patrolled past the near player's spot before they joined: the hitter stands on its other side, so the near player isn't in its way
 		}
 		token, id := s.CreateCharacter(t, "hitter", "Hitter", "warrior")
-		s.Place(t, id, "forest", gamedata.Point{X: at.X + d*1.5625, Z: at.Z}, 144, 0)
+		s.Place(t, id, "willowmere", gamedata.Point{X: at.X + d*1.5625, Z: at.Z}, 144, 0)
 		p := e2etest.NewLooter(s.Join(t, token, id))
 		var blow uint64
 		if !p.AttackUntil(5*time.Second, func(m wsconn.Message) bool {

@@ -74,6 +74,6 @@ export const sampleCharacter = {
   exp: 0,
   stats: { str: 12, dex: 5, int: 4, agi: 5, vit: 10 },
   hp: 204,
-  map_id: 'town',
+  map_id: 'willowmere',
   skill_bar: ['', '', '', '', '', ''],
 };
