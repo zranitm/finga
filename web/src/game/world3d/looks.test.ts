@@ -11,7 +11,9 @@ import { PIECE_LOOKS } from './outfit-looks';
 
 describe('looks', () => {
   it('mark every model of the pack’s Flying group as a flyer, drawn at its cylinder’s middle', () => {
-    const flying = Object.entries(MODELS).filter(([, m]) => m.file.startsWith('quaternius/Flying_'));
+    const flying = Object.entries(MODELS).filter(([, m]) =>
+      m.file.startsWith('quaternius/Flying_'),
+    );
     expect(flying.length).toBeGreaterThan(10);
     for (const [key, m] of flying) {
       expect([key, m.flies]).toEqual([key, true]);
