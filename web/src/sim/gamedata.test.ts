@@ -436,7 +436,7 @@ describe('generated gamedata', () => {
     const joined = new Set(
       maps.flatMap((m) => m.portals.map((p) => [m.id, p.to].sort().join(' '))),
     );
-    const charted = new Set(maps.filter((m) => m.place !== null).map((m) => m.id));
+    const charted = new Set<string>(maps.filter((m) => m.place !== null).map((m) => m.id));
     const lines = [...joined].filter((l) => l.split(' ').every((id) => charted.has(id)));
     expect(mapLinks.map((l) => l.join(' '))).toEqual(lines.sort());
     expect(mapLinks.every(([a, b]) => a < b)).toBe(true);
