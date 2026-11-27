@@ -1,6 +1,6 @@
 import { create } from '@bufbuild/protobuf';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { chainsOf } from '@/progression/chains';
 import { colorOf, skillById } from '@/progression/skills';
@@ -27,6 +27,13 @@ const names = () =>
     .map((li) => li.getAttribute('aria-label'));
 
 describe('FrameIcons', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('shows nothing with no statuses', () => {
     const { container } = render(<FrameIcons statuses={[]} />);
     expect(container).toBeEmptyDOMElement();
