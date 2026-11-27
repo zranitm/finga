@@ -59,13 +59,11 @@ type wireSink struct {
 }
 
 func (k wireSink) Send(e model.Event) bool {
-	switch e := e.(type) {
-	case model.Snapshot:
-		k.w.snaps[k.id] = e
-	case model.Respawned:
-		if e.MapID != "wire" { // the map hands the dead off to a town's, as a region does: they are no longer on this map
-			k.w.away = append(k.w.away, k.id)
-		}
+	if snap, ok := e.(model.Snapshot); ok {
+		k.w.snaps[k.id] = snap
+	}
+	if r, ok := e.(model.Respawned); ok && r.MapID != "wire" { // the map hands the dead off to a town's, as a region does: they are no longer on this map
+		k.w.away = append(k.w.away, k.id)
 	}
 	return true
 }
