@@ -20,7 +20,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 
-	adapter "finga/internal/adapter/account"
 	"finga/internal/application/account"
 	"finga/internal/application/character"
 	"finga/internal/application/item"
@@ -69,7 +68,7 @@ type restHarness struct {
 	handler    http.Handler
 }
 
-// newRestHarness wires the lobby over the modules as the gateway's build does, with fakes for the modules, and a REST limit these tests never reach.
+// newRestHarness mounts the REST routes over fakes for the modules, and a REST limit these tests never reach.
 func newRestHarness(origins ...string) *restHarness {
 	return newLimitedHarness(ratelimit.NewBuckets(1e6, 1e6), origins...)
 }
@@ -86,9 +85,9 @@ func newLimitedHarness(limit ratelimit.Limiter, origins ...string) *restHarness 
 	e := transport.NewEngine()
 	log := slog.New(slog.NewJSONHandler(h.logs, nil))
 	mountREST(transport.RESTOptions{
-		Lobby:  account.NewLobby(account.LobbyDeps{Accounts: adapter.NewAccounts(h.accounts), Characters: adapter.NewCharacters(h.characters), Sessions: adapter.NewGuard(h.accounts), Wardrobes: adapter.NewItems(h.items), Arena: adapter.NewArena(h.arena)}),
-		Logger: log, CORSOrigins: origins, Panics: panics.NewRecorder(log, nil), Traces: restTraceProvider, Limit: limit,
-	})(e)
+		Sessions: h.accounts,
+		Logger:   log, CORSOrigins: origins, Panics: panics.NewRecorder(log, nil), Traces: restTraceProvider, Limit: limit,
+	}, restModules{Accounts: h.accounts, Characters: h.characters, Wardrobes: h.items, Arena: h.arena})(e)
 	h.handler = e
 	return h
 }

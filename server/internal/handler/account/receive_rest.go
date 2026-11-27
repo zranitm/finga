@@ -1,23 +1,34 @@
 package account
 
 import (
-	application "finga/internal/application/account"
+	"context"
 	"net/http"
 
+	"finga/internal/application/account"
 	"finga/internal/handler/transport"
-	model "finga/internal/model/account"
+	"finga/internal/shared/kernel"
 
 	"github.com/gin-gonic/gin"
 )
 
+// Accounts is the account module as its REST routes call it.
+type Accounts interface {
+	Register(ctx context.Context, c account.Credentials) (account.Account, error)
+	Login(ctx context.Context, c account.Credentials) (string, error)
+	Revoke(ctx context.Context, id kernel.SessionID) error
+	RevokeAll(ctx context.Context, id kernel.AccountID) error
+	Settings(ctx context.Context, id kernel.AccountID) (account.Settings, error)
+	UpdateSettings(ctx context.Context, id kernel.AccountID, s account.Settings) error
+}
+
 // rest serves accounts, login sessions and settings over REST: client to server.
 type rest struct {
-	lobby *application.Lobby
+	accounts Accounts
 }
 
 // RESTRoutes adds the module's REST routes to the API.
-func RESTRoutes(lobby *application.Lobby) func(transport.REST) {
-	h := &rest{lobby: lobby}
+func RESTRoutes(accounts Accounts) func(transport.REST) {
+	h := &rest{accounts: accounts}
 	return func(r transport.REST) {
 		r.Public.POST("/accounts", h.register)
 		r.Public.POST("/sessions", h.login)
@@ -33,7 +44,7 @@ func (h *rest) register(c *gin.Context) {
 	if transport.Decode(c, &req) != nil || transport.Missing(c, req.Username, req.Password) {
 		return
 	}
-	acc, err := h.lobby.Register(c.Request.Context(), req.Username, req.Password)
+	acc, err := h.accounts.Register(c.Request.Context(), account.Credentials{Username: req.Username, Password: req.Password})
 	if err != nil {
 		transport.WriteError(c, err)
 		return
@@ -46,7 +57,7 @@ func (h *rest) login(c *gin.Context) {
 	if transport.Decode(c, &req) != nil || transport.Missing(c, req.Username, req.Password) {
 		return
 	}
-	token, err := h.lobby.Login(c.Request.Context(), req.Username, req.Password)
+	token, err := h.accounts.Login(c.Request.Context(), account.Credentials{Username: req.Username, Password: req.Password})
 	if err != nil {
 		transport.WriteError(c, err)
 		return
@@ -55,7 +66,7 @@ func (h *rest) login(c *gin.Context) {
 }
 
 func (h *rest) logout(c *gin.Context) {
-	if err := h.lobby.Logout(c.Request.Context(), transport.PrincipalOf(c)); err != nil {
+	if err := h.accounts.Revoke(c.Request.Context(), transport.PrincipalOf(c).SessionID); err != nil {
 		transport.WriteError(c, err)
 		return
 	}
@@ -63,7 +74,7 @@ func (h *rest) logout(c *gin.Context) {
 }
 
 func (h *rest) logoutEverywhere(c *gin.Context) {
-	if err := h.lobby.LogoutEverywhere(c.Request.Context(), transport.PrincipalOf(c)); err != nil {
+	if err := h.accounts.RevokeAll(c.Request.Context(), transport.PrincipalOf(c).AccountID); err != nil {
 		transport.WriteError(c, err)
 		return
 	}
@@ -71,7 +82,7 @@ func (h *rest) logoutEverywhere(c *gin.Context) {
 }
 
 func (h *rest) settings(c *gin.Context) {
-	s, err := h.lobby.Settings(c.Request.Context(), transport.PrincipalOf(c))
+	s, err := h.accounts.Settings(c.Request.Context(), transport.PrincipalOf(c).AccountID)
 	if err != nil {
 		transport.WriteError(c, err)
 		return
@@ -84,8 +95,8 @@ func (h *rest) updateSettings(c *gin.Context) {
 	if transport.Decode(c, &req) != nil {
 		return
 	}
-	s := model.Settings{AutoAssignPoints: req.AutoAssignPoints, ChatPinned: req.ChatPinned, HideMinimap: req.HideMinimap, Zoom: req.Zoom, Walk: req.Walk, Keys: req.Keys}
-	if err := h.lobby.UpdateSettings(c.Request.Context(), transport.PrincipalOf(c), s); err != nil {
+	s := settingsOf(req)
+	if err := h.accounts.UpdateSettings(c.Request.Context(), transport.PrincipalOf(c).AccountID, s); err != nil {
 		transport.WriteError(c, err)
 		return
 	}

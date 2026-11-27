@@ -1,7 +1,7 @@
 package character
 
 import (
-	model "finga/internal/model/account"
+	"finga/internal/application/character"
 )
 
 // CreateCharacterRequest is POST /api/characters; every new character is a Beginner, so it names no class.
@@ -47,16 +47,16 @@ type CharactersResponse struct {
 	Characters []CharacterResponse `json:"characters"`
 }
 
-func toCharacter(c model.Character) CharacterResponse {
-	s := c.Stats
+func toCharacter(c character.Character) CharacterResponse {
+	s := c.OwnStats
 	return CharacterResponse{
-		ID: c.ID.String(), Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp,
+		ID: c.ID.String(), Name: c.Name, Class: c.Class.String(), Level: c.Level, Exp: c.Exp,
 		Stats: StatsResponse{STR: s.STR, DEX: s.DEX, INT: s.INT, AGI: s.AGI, VIT: s.VIT},
 		HP:    c.HP, MapID: c.MapID, SkillBar: c.SkillBar,
 	}
 }
 
-func toCharacters(cs []model.Character) CharactersResponse {
+func toCharacters(cs []character.Character) CharactersResponse {
 	out := CharactersResponse{Characters: make([]CharacterResponse, 0, len(cs))}
 	for _, c := range cs {
 		out.Characters = append(out.Characters, toCharacter(c))

@@ -57,7 +57,7 @@ func TestRoutesMatchOpenAPI(t *testing.T) {
 	}
 	e := transport.NewEngine()
 	log := slog.New(slog.DiscardHandler)
-	mountREST(transport.RESTOptions{Logger: log, Panics: panics.NewRecorder(log, nil)})(e)
+	mountREST(transport.RESTOptions{Logger: log, Panics: panics.NewRecorder(log, nil)}, restModules{})(e)
 	var inCode []string
 	for _, r := range e.Routes() {
 		if strings.HasPrefix(r.Path, "/api/") {

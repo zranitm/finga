@@ -160,24 +160,6 @@ func TestAnAddKeepsItsPiece(t *testing.T) {
 	}
 }
 
-// A wardrobe reaches the REST API with every field of every piece.
-func TestAWardrobeKeepsItsFields(t *testing.T) {
-	m := &itemModule{}
-	items := NewItems(m)
-	account := kernel.NewAccountID()
-	got := copytest.Diff(copytest.Match{}, func(pieces []item.Piece) []model.Piece {
-		m.pieces = pieces
-		out, _ := items.Pieces(t.Context(), account)
-		if m.req != account {
-			t.Errorf("asked for %v's wardrobe, not %v's", m.req, account)
-		}
-		return out
-	})
-	if len(got) > 0 {
-		t.Error(got)
-	}
-}
-
 // An inventory reaches the use cases with every field of every item, its roll too: those in a tab as items, the worn ones by their equip slot.
 func TestAnInventoryKeepsItsFields(t *testing.T) {
 	m := &itemModule{}

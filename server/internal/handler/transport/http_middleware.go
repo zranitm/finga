@@ -1,7 +1,7 @@
 package transport
 
 import (
-	application "finga/internal/application/account"
+	"finga/internal/application/account"
 	"finga/internal/shared/failure"
 	"log/slog"
 	"net/http"
@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	model "finga/internal/model/account"
 	"finga/pkg/panics"
 	"finga/pkg/ratelimit"
 
@@ -38,9 +37,9 @@ const (
 )
 
 // PrincipalOf is the account and login session the request's bearer token resolved to.
-func PrincipalOf(c *gin.Context) model.Principal {
+func PrincipalOf(c *gin.Context) account.Principal {
 	v, _ := c.Get(principalKey)
-	p, _ := v.(model.Principal)
+	p, _ := v.(account.Principal)
 	return p
 }
 
@@ -60,7 +59,7 @@ func HTTPEntryPoint(span string) bool {
 }
 
 // requireAuth resolves the bearer token; any bad token is 401 unauthenticated.
-func requireAuth(lobby *application.Lobby) gin.HandlerFunc {
+func requireAuth(sessions Sessions) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		scheme, token, ok := strings.Cut(c.GetHeader("Authorization"), " ")
 		token = strings.TrimSpace(token)
@@ -70,7 +69,7 @@ func requireAuth(lobby *application.Lobby) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		p, err := lobby.Authenticate(c.Request.Context(), token)
+		p, err := sessions.Validate(c.Request.Context(), token)
 		if err != nil {
 			if failure.PublicOf(err) == failure.Unauthenticated {
 				c.Header("WWW-Authenticate", "Bearer")

@@ -301,3 +301,7 @@ func presence(p model.Presence) world.Presence {
 func ref(t model.Target) world.EntityRef {
 	return world.EntityRef{Player: t.Character, Mob: t.Mob}
 }
+
+func stats(s gamedata.Stats) model.Stats {
+	return model.Stats{STR: s.STR, DEX: s.DEX, INT: s.INT, AGI: s.AGI, VIT: s.VIT}
+}

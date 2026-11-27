@@ -3,7 +3,7 @@ package account
 import (
 	"time"
 
-	model "finga/internal/model/account"
+	"finga/internal/application/account"
 )
 
 // RegisterRequest is POST /api/accounts.
@@ -50,14 +50,18 @@ type SettingsResponse struct {
 	Keys             map[string]string `json:"keys"` // never null: {} for the defaults
 }
 
-func toAccount(a model.Summary) AccountResponse {
-	return AccountResponse{ID: a.ID.String(), Username: a.Username, CreatedAt: a.CreatedAt}
+func toAccount(a account.Account) AccountResponse {
+	return AccountResponse{ID: a.ID.String(), Username: a.Username, CreatedAt: a.CreatedAt.UTC()}
 }
 
-func toSettings(s model.Settings) SettingsResponse {
+func toSettings(s account.Settings) SettingsResponse {
 	keys := s.Keys
 	if keys == nil {
 		keys = map[string]string{}
 	}
 	return SettingsResponse{AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap, Zoom: s.Zoom, Walk: s.Walk, Keys: keys}
+}
+
+func settingsOf(r SettingsRequest) account.Settings {
+	return account.Settings{AutoAssignPoints: r.AutoAssignPoints, ChatPinned: r.ChatPinned, HideMinimap: r.HideMinimap, Zoom: r.Zoom, Walk: r.Walk, Keys: r.Keys}
 }

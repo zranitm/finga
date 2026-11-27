@@ -1,7 +1,7 @@
 package pvp
 
 import (
-	model "finga/internal/model/account"
+	"finga/internal/application/pvp"
 )
 
 // ArenaBuildRequest is a character's arena build: eight keys, "" for an empty one, and the trait chosen for skills on it.
@@ -53,7 +53,7 @@ type LeaderboardRowResponse struct {
 	Draws       int    `json:"draws"`
 }
 
-func toArenaBuild(b model.ArenaBuild) ArenaBuildResponse {
+func toArenaBuild(b pvp.Build) ArenaBuildResponse {
 	out := ArenaBuildResponse{SkillBar: b.Bar, Traits: b.Traits}
 	if out.Traits == nil {
 		out.Traits = map[string]string{}
@@ -61,7 +61,7 @@ func toArenaBuild(b model.ArenaBuild) ArenaBuildResponse {
 	return out
 }
 
-func toPvpProfile(p model.PvpProfile) PvpProfileResponse {
+func toPvpProfile(p pvp.Profile) PvpProfileResponse {
 	out := PvpProfileResponse{Standings: make([]PvpStandingResponse, 0, len(p.Standings)), Build: toArenaBuild(p.Build)}
 	for _, s := range p.Standings {
 		out.Standings = append(out.Standings, PvpStandingResponse{Mode: s.Mode, Shown: s.Shown, Rank: s.Rank, PlacementLeft: s.PlacementLeft, Wins: s.Wins, Losses: s.Losses, Draws: s.Draws, Place: s.Place})
@@ -69,10 +69,10 @@ func toPvpProfile(p model.PvpProfile) PvpProfileResponse {
 	return out
 }
 
-func toLeaderboard(mode string, rows []model.PvpRow) LeaderboardResponse {
+func toLeaderboard(mode string, rows []pvp.Row) LeaderboardResponse {
 	out := LeaderboardResponse{Mode: mode, Rows: make([]LeaderboardRowResponse, 0, len(rows))}
 	for _, r := range rows {
-		out.Rows = append(out.Rows, LeaderboardRowResponse{Place: r.Place, CharacterID: r.Character.String(), Name: r.Name, Class: r.Class, Shown: r.Shown, Rank: r.Rank, Wins: r.Wins, Losses: r.Losses, Draws: r.Draws})
+		out.Rows = append(out.Rows, LeaderboardRowResponse{Place: r.Place, CharacterID: r.Character.String(), Name: r.Name, Class: string(r.Class), Shown: r.Shown, Rank: r.Rank, Wins: r.Wins, Losses: r.Losses, Draws: r.Draws})
 	}
 	return out
 }

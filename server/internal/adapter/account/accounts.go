@@ -25,42 +25,7 @@ type OwnModule interface {
 	Subscribe(gateway string) *hub.Sub[account.Event]
 }
 
-// Accounts is the application's Accounts over the account module.
-type Accounts struct{ a OwnModule }
-
-// NewAccounts adapts the account module.
-func NewAccounts(a OwnModule) Accounts { return Accounts{a: a} }
-
-// Register signs up.
-func (a Accounts) Register(ctx context.Context, username, password string) (model.Summary, error) {
-	acc, err := a.a.Register(ctx, account.Credentials{Username: username, Password: password})
-	if err != nil {
-		return model.Summary{}, wrap(err)
-	}
-	return model.Summary{ID: acc.ID, Username: acc.Username, CreatedAt: acc.CreatedAt.UTC()}, nil
-}
-
-// Login opens a session.
-func (a Accounts) Login(ctx context.Context, username, password string) (string, error) {
-	token, err := a.a.Login(ctx, account.Credentials{Username: username, Password: password})
-	return token, wrap(err)
-}
-
-// Settings are the account's settings.
-func (a Accounts) Settings(ctx context.Context, id kernel.AccountID) (model.Settings, error) {
-	s, err := a.a.Settings(ctx, id)
-	if err != nil {
-		return model.Settings{}, wrap(err)
-	}
-	return model.Settings{AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap, Zoom: s.Zoom, Walk: s.Walk, Keys: s.Keys}, nil
-}
-
-// UpdateSettings replaces the account's settings.
-func (a Accounts) UpdateSettings(ctx context.Context, id kernel.AccountID, s model.Settings) error {
-	return wrap(a.a.UpdateSettings(ctx, id, account.Settings{AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap, Zoom: s.Zoom, Walk: s.Walk, Keys: s.Keys}))
-}
-
-// Guard is the lobby's, the send flow's and the push flow's session ports over the account module.
+// Guard is the send flow's and the push flow's session ports over the account module.
 type Guard struct{ a OwnModule }
 
 // NewGuard adapts the account module.

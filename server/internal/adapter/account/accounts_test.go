@@ -57,92 +57,26 @@ func (m *accountModule) UpdateSettings(_ context.Context, id kernel.AccountID, s
 
 func (m *accountModule) Subscribe(string) *hub.Sub[account.Event] { return nil }
 
-// credentials are a sign-up's or a login's arguments.
-type credentials struct{ Username, Password string }
-
-// Each account call reaches the module with every field, and its answer reaches the lobby with every field the lobby takes.
-func TestEachAccountCallKeepsItsFields(t *testing.T) {
+// A validated token reaches the module, and its principal reaches the guard with every field.
+func TestEachGuardCallKeepsItsFields(t *testing.T) {
 	m := &accountModule{}
-	a, g := NewAccounts(m), NewGuard(m)
+	g := NewGuard(m)
 	ctx := t.Context()
-	for name, diff := range map[string]func() []string{
-		"Register's credentials": func() []string {
-			return copytest.Diff(copytest.Match{}, func(c credentials) account.Credentials {
-				_, _ = a.Register(ctx, c.Username, c.Password)
-				return m.creds
-			})
-		},
-		"Register's account": func() []string {
-			match := copytest.Match{Skip: map[string]string{"Settings": "a new account's settings are the defaults, which the lobby reads with Settings"}}
-			return copytest.Diff(match, func(acc account.Account) model.Summary {
-				m.acc = acc
-				out, _ := a.Register(ctx, "", "")
-				return out
-			})
-		},
-		"Login": func() []string {
-			type login struct {
-				Creds credentials
-				Token string
-			}
-			type sent struct {
-				Creds account.Credentials
-				Token string
-			}
-			return copytest.Diff(copytest.Match{}, func(l login) sent {
-				m.token = l.Token
-				token, _ := a.Login(ctx, l.Creds.Username, l.Creds.Password)
-				return sent{m.creds, token}
-			})
-		},
-		"Settings": func() []string {
-			type read struct {
-				ID       kernel.AccountID
-				Settings account.Settings
-			}
-			type got struct {
-				ID       kernel.AccountID
-				Settings model.Settings
-			}
-			return copytest.Diff(copytest.Match{}, func(r read) got {
-				m.settings = r.Settings
-				out, _ := a.Settings(ctx, r.ID)
-				return got{m.id, out}
-			})
-		},
-		"UpdateSettings": func() []string {
-			type update struct {
-				ID       kernel.AccountID
-				Settings model.Settings
-			}
-			type sent struct {
-				ID       kernel.AccountID
-				Settings account.Settings
-			}
-			return copytest.Diff(copytest.Match{}, func(u update) sent {
-				_ = a.UpdateSettings(ctx, u.ID, u.Settings)
-				return sent{m.id, m.settings}
-			})
-		},
-		"Validate": func() []string {
-			type validate struct {
-				Token     string
-				Principal account.Principal
-			}
-			type got struct {
-				Token     string
-				Principal model.Principal
-			}
-			return copytest.Diff(copytest.Match{}, func(v validate) got {
-				m.principal = v.Principal
-				out, _ := g.Validate(ctx, v.Token)
-				return got{m.token, out}
-			})
-		},
-	} {
-		if got := diff(); len(got) > 0 {
-			t.Errorf("%s: %v", name, got)
-		}
+	type validate struct {
+		Token     string
+		Principal account.Principal
+	}
+	type got struct {
+		Token     string
+		Principal model.Principal
+	}
+	diff := copytest.Diff(copytest.Match{}, func(v validate) got {
+		m.principal = v.Principal
+		out, _ := g.Validate(ctx, v.Token)
+		return got{m.token, out}
+	})
+	if len(diff) > 0 {
+		t.Errorf("Validate: %v", diff)
 	}
 }
 
