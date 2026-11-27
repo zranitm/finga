@@ -20,7 +20,13 @@ import (
 
 // Encoders registers the encoders of the world's events, which the world's stream brings, and the Welcome's quests.
 func Encoders(e *transport.Encoders) error {
-	e.WelcomeSection(func(w model.Welcome, out *clientv1.Welcome) { out.Quests = questStates(w.Quests) })
+	e.WelcomeSection(func(w model.Welcome, out *clientv1.Welcome) {
+		v, ok := w.Joined.(world.View)
+		if !ok {
+			return
+		}
+		out.Character, out.SkillTimers, out.Quests = characterView(v), timersLeft(v.Timers, w.ServerTime), questLog(v.Quests)
+	})
 	frames := newFrames()
 	return errors.Join(
 		transport.Encode(e, func(p world.AreaEntered) any { return areaEntered(p) }),
@@ -271,22 +277,6 @@ var conditionKinds = map[world.ConditionKind]clientv1.PromotionConditionKind{
 	world.ConditionQuest: clientv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_QUEST,
 }
 
-// questStates is a Welcome's quest log.
-func questStates(qs []model.QuestState) []*clientv1.QuestState {
-	if len(qs) == 0 {
-		return nil
-	}
-	out := make([]*clientv1.QuestState, 0, len(qs))
-	for _, q := range qs {
-		out = append(out, questState(q))
-	}
-	return out
-}
-
-func questState(q model.QuestState) *clientv1.QuestState {
-	return &clientv1.QuestState{QuestId: q.Quest, Status: welcomeQuestStatuses[q.Status], Progress: progress(q.Progress), TimesFinished: int32(q.TimesFinished)} //nolint:gosec // it came in as int32
-}
-
 // questProto is one quest of the log after a change; a quest that left it has no status.
 func questProto(id string, q world.Quest) *clientv1.QuestState {
 	return &clientv1.QuestState{QuestId: id, Status: questStatuses[q.Status], Progress: progress(q.Progress), TimesFinished: int32(q.TimesFinished)} //nolint:gosec // it came in as int32
@@ -310,11 +300,6 @@ var offerStates = map[world.OfferState]clientv1.QuestOfferState{
 var questStatuses = map[world.QuestStatus]clientv1.QuestStatus{
 	world.QuestActive:   clientv1.QuestStatus_QUEST_STATUS_ACTIVE,
 	world.QuestFinished: clientv1.QuestStatus_QUEST_STATUS_FINISHED,
-}
-
-var welcomeQuestStatuses = map[model.QuestStatus]clientv1.QuestStatus{
-	model.QuestActive:   clientv1.QuestStatus_QUEST_STATUS_ACTIVE,
-	model.QuestFinished: clientv1.QuestStatus_QUEST_STATUS_FINISHED,
 }
 
 var questChanges = map[world.QuestChange]clientv1.QuestChange{
@@ -622,4 +607,24 @@ func partDelta(p world.Part) *clientv1.Delta {
 		Players: playerViews(p.Players), Steps: playerSteps(p.Steps), Mobs: mobViews(p.Mobs), MobSteps: mobSteps(p.MobSteps),
 		RemovedPlayers: ids(p.Removed), RemovedMobs: instanceIDs(p.RemovedMobs), Boss: mobView(p.Boss),
 	}
+}
+
+// characterView is the player's own character as it joins; its energy comes now, each frame carrying it after.
+func characterView(v world.View) *clientv1.CharacterView {
+	return &clientv1.CharacterView{
+		Id: v.ID.String(), Name: v.Name, Class: v.Class.String(), Level: int32(v.Level), Exp: v.Exp, Stats: stats(v.Stats), //nolint:gosec // a level is small
+		Hp: int32(v.HP), MaxHp: int32(v.MaxHP), Energy: uint32(v.Energy), Sheet: sheet(v.Sheet), //nolint:gosec // HP fits, and energy is 0 to the data's max
+	}
+}
+
+// questLog is the log by quest ID, nil when empty.
+func questLog(log map[string]world.Quest) []*clientv1.QuestState {
+	if len(log) == 0 {
+		return nil
+	}
+	out := make([]*clientv1.QuestState, 0, len(log))
+	for _, id := range slices.Sorted(maps.Keys(log)) {
+		out = append(out, questProto(id, log[id]))
+	}
+	return out
 }

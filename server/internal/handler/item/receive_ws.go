@@ -99,7 +99,7 @@ func (h *ws) addToWardrobe(c *transport.Context, in *clientv1.AddToWardrobe) (an
 	if err != nil {
 		return nil, err
 	}
-	c.Session.Session().Deliver(model.Delivery{Event: model.PiecesAdded{Pieces: []model.AddedPiece{{ID: res.Piece, Cause: item.PieceFromItem}}}})
+	c.Session.Session().Deliver(model.Delivery{Event: piecesAdded{Piece: res.Piece}})
 	return changed(res, nil)
 }
 
@@ -108,19 +108,5 @@ func changed(res item.Result, err error) (any, error) {
 	if err != nil || len(res.Changed) == 0 {
 		return nil, err
 	}
-	return InventoryChanged(changedOf(res)), nil
-}
-
-// changedOf is the slots a command changed, each item with its roll.
-func changedOf(res item.Result) model.InventoryChanged {
-	out := model.InventoryChanged{Revision: res.Revision, Slots: make([]model.InventorySlot, 0, len(res.Changed))}
-	for _, s := range res.Changed {
-		slot := model.InventorySlot{Tab: string(s.Tab), Slot: s.Slot}
-		if s.Item != nil {
-			it := s.Item
-			slot.Item = &model.ItemView{ID: it.ID.String(), Template: it.TemplateID, Tab: string(it.Tab), Slot: it.Slot, Quantity: it.Quantity, Stats: it.Stats}
-		}
-		out.Slots = append(out.Slots, slot)
-	}
-	return out
+	return inventoryChanged(res), nil
 }

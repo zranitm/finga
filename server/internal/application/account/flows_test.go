@@ -61,8 +61,8 @@ func (flowPvp) Answer(context.Context, kernel.CharacterID, string, bool) error {
 
 func (flowPvp) Offline(context.Context, kernel.CharacterID) error { return nil }
 
-func (flowPvp) Missed(context.Context, kernel.CharacterID) (model.Missed, error) {
-	return model.Missed{}, nil
+func (flowPvp) Missed(context.Context, kernel.CharacterID) (model.MissedMatches, error) {
+	return model.MissedMatches{}, nil
 }
 
 func (flowPvp) Told(context.Context, kernel.CharacterID, []kernel.MatchID) error { return nil }
@@ -74,24 +74,8 @@ func (flowPvp) FollowDeliveries(ctx context.Context, _ string, _ func(model.PvpD
 // idle is every module these tests do not exercise: it answers nothing went wrong, and its streams wait for their end.
 type idle struct{}
 
-func (idle) Inventory(context.Context, kernel.CharacterID) (model.Inventory, error) {
-	return model.Inventory{}, nil
-}
-
-func (idle) Move(context.Context, model.Actor, model.ItemMove) (model.InventoryChanged, error) {
-	return model.InventoryChanged{}, nil
-}
-
-func (idle) Discard(context.Context, model.Actor, model.ItemDiscard) (model.InventoryChanged, error) {
-	return model.InventoryChanged{}, nil
-}
-
-func (idle) DiscardMany(context.Context, model.Actor, model.ItemDiscardMany) (model.InventoryChanged, error) {
-	return model.InventoryChanged{}, nil
-}
-
-func (idle) AddToWardrobe(context.Context, model.Actor, model.WardrobeAdd) (model.WardrobeAdded, error) {
-	return model.WardrobeAdded{}, nil
+func (idle) Inventory(context.Context, kernel.CharacterID) (any, error) {
+	return nil, nil
 }
 
 func (idle) Chat(_ context.Context, _ model.Player, channel model.ChatChannel, text string) (model.ChatLine, error) {
@@ -134,7 +118,7 @@ func TestHello(t *testing.T) {
 			t.Fatal(err)
 		}
 		welcome := c.welcomed()
-		if welcome == nil || welcome.Token != "rotated" || welcome.Character.ID != ayla.String() || welcome.MapID != "town" ||
+		if welcome == nil || welcome.Token != "rotated" || welcome.Player.ID != ayla || welcome.MapID != "town" ||
 			welcome.ServerTime.Before(before) || welcome.ServerTime.After(time.Now()) {
 			t.Fatalf("welcome %+v", welcome)
 		}
@@ -430,7 +414,7 @@ func (w *flowWorld) Join(_ context.Context, _, conn string, _ kernel.AccountID, 
 		d.Starts = i == 0
 		deliver(model.WorldDelivery{Connection: conn, Delivery: d})
 	}
-	return model.Joined{Character: model.CharacterView{ID: c.String(), Name: "Ayla", Level: 1}, MapID: "town", TickRateHz: hz}, nil
+	return model.Joined{Player: model.Player{ID: c, Name: "Ayla", Level: 1}, MapID: "town", TickRateHz: hz}, nil
 }
 
 // runAt has the flowWorld run at hz from now on, as after a restart with another rate.
@@ -564,10 +548,10 @@ func TestARejoinWelcomesThePlayerAgainWithNoToken(t *testing.T) {
 	if err := g.Hello(t.Context(), s, token, ayla); err != nil {
 		t.Fatal(err)
 	}
-	if welcome := o.welcomed(); welcome == nil || welcome.Token != "rotated" || welcome.InventoryRevision != 0 {
+	if welcome := o.welcomed(); welcome == nil || welcome.Token != "rotated" || welcome.Inventory != nil {
 		t.Fatalf("login's welcome %+v", welcome)
 	}
-	items.hold(model.Inventory{Revision: 9, Items: []model.ItemView{{ID: "p-1", Template: "red_potion", Tab: "use", Quantity: 3}}})
+	items.hold("the inventory read at the rejoin")
 	o.forget()
 	w.reconnect()
 	deadline := time.Now().Add(5 * time.Second)
@@ -575,7 +559,7 @@ func TestARejoinWelcomesThePlayerAgainWithNoToken(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	welcome := o.welcomed()
-	if welcome == nil || welcome.Token != "" || welcome.InventoryRevision != 9 || len(welcome.Inventory) != 1 || welcome.Character.ID != ayla.String() || welcome.MapID != "town" {
+	if welcome == nil || welcome.Token != "" || welcome.Inventory != "the inventory read at the rejoin" || welcome.Player.ID != ayla || welcome.MapID != "town" {
 		t.Fatalf("rejoin's welcome %+v; want no token and the inventory read at the rejoin", welcome)
 	}
 }
@@ -583,17 +567,17 @@ func TestARejoinWelcomesThePlayerAgainWithNoToken(t *testing.T) {
 // inventories answers the inventory it holds, or fails once told to.
 type inventories struct {
 	mu  sync.Mutex
-	inv model.Inventory
+	inv any
 	err error
 }
 
-func (i *inventories) Inventory(context.Context, kernel.CharacterID) (model.Inventory, error) {
+func (i *inventories) Inventory(context.Context, kernel.CharacterID) (any, error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	return i.inv, i.err
 }
 
-func (i *inventories) hold(inv model.Inventory) {
+func (i *inventories) hold(inv any) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	i.inv = inv

@@ -3,7 +3,6 @@ package transport_test
 import (
 	application "finga/internal/application/account"
 	haccount "finga/internal/handler/account"
-	hcharacter "finga/internal/handler/character"
 	hitem "finga/internal/handler/item"
 	hpvp "finga/internal/handler/pvp"
 	hsocial "finga/internal/handler/social"
@@ -14,7 +13,7 @@ import (
 // allEncoders are the push encoders of every module's handler, as the wiring registers them.
 func allEncoders() *transport.Encoders {
 	enc := transport.NewEncoders()
-	for _, register := range []func(*transport.Encoders) error{haccount.Encoders, hcharacter.Encoders, hitem.Encoders, hpvp.Encoders, hsocial.Encoders, hworld.Encoders} {
+	for _, register := range []func(*transport.Encoders) error{haccount.Encoders, hitem.Encoders, hpvp.Encoders, hsocial.Encoders, hworld.Encoders} {
 		if err := register(enc); err != nil {
 			panic(err) // a test's wiring, which no case of a test can recover
 		}

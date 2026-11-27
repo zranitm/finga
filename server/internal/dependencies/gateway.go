@@ -92,7 +92,7 @@ func buildGateway(ctx context.Context, h *host.Host, cfg config.Gateway, public 
 		Traces:   h.Traces,
 	}, application.StreamsOptions{SessionCheckInterval: cfg.Sessions.CheckInterval})
 	encoders := transport.NewEncoders()
-	if err := errors.Join(handleraccount.Encoders(encoders), handlercharacter.Encoders(encoders), handleritem.Encoders(encoders), handlerpvp.Encoders(encoders), handlersocial.Encoders(encoders), handlerworld.Encoders(encoders)); err != nil {
+	if err := errors.Join(handleraccount.Encoders(encoders), handleritem.Encoders(encoders), handlerpvp.Encoders(encoders), handlersocial.Encoders(encoders), handlerworld.Encoders(encoders)); err != nil {
 		return fmt.Errorf("push encoders: %w", err)
 	}
 	ws, err := transport.NewServer(sendFlow, transport.ServerOptions{

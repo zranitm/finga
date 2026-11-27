@@ -2,11 +2,11 @@ package transport
 
 import (
 	clientv1 "finga/api/gen/client/v1"
-	model "finga/internal/model/account"
+	"finga/internal/shared/progression"
 )
 
 // ItemStats is an item's roll as the client reads it; an inventory's items and a pouch's both show one.
-func ItemStats(s *model.ItemStats) *clientv1.ItemStats {
+func ItemStats(s *progression.ItemStats) *clientv1.ItemStats {
 	if s == nil {
 		return nil
 	}

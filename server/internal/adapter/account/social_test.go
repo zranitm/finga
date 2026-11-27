@@ -75,7 +75,7 @@ func TestABrokenSocialStreamFollowedAgainKeepsItsParties(t *testing.T) {
 			}
 		}
 		var mu sync.Mutex
-		subscribed, invites, parties := 0, []string{}, map[kernel.CharacterID]*model.PartyView{}
+		subscribed, invites, parties := 0, []string{}, map[kernel.CharacterID]*social.Party{}
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		go s.FollowDeliveries(ctx, "gw", func(e model.SocialEvent) {
@@ -86,10 +86,10 @@ func TestABrokenSocialStreamFollowedAgainKeepsItsParties(t *testing.T) {
 				go register() // as the push flow does, off the stream's goroutine
 			}
 			d, _ := e.(model.SocialDelivery)
-			if p, ok := d.Delivery.Event.(model.PartyInvited); ok {
-				invites = append(invites, p.InviteID)
+			if p, ok := d.Delivery.Event.(social.Invited); ok {
+				invites = append(invites, p.Invite.String())
 			}
-			if p, ok := d.Delivery.Event.(model.PartyState); ok {
+			if p, ok := d.Delivery.Event.(social.PartyState); ok {
 				parties[d.Character] = p.Party
 			}
 		})
@@ -229,45 +229,19 @@ func TestAChatLineKeepsItsFields(t *testing.T) {
 	}
 }
 
-// socialEventOf is the event a delivery becomes.
-func socialEventOf[D social.Delivery](t *testing.T) func(D) model.SocialEvent {
-	return func(d D) model.SocialEvent {
-		e, ok := socialEvent(d)
-		if !ok {
-			t.Fatalf("%T: no event", d)
+// Each social delivery reaches the player it names as the module sent it; one the flows have no name for is no event.
+func TestEachSocialDeliveryIsHandedOnAsTheModuleSentIt(t *testing.T) {
+	to := kernel.NewCharacterID()
+	for _, in := range []social.Delivery{
+		social.PartyState{To: to, Party: &social.Party{Leader: to}},
+		social.PartyState{To: to},
+		social.Invited{To: to, From: kernel.NewCharacterID(), FromName: "Robin"},
+		social.ChatLine{To: to, Sender: kernel.NewCharacterID(), SenderName: "Robin", Text: "psst"},
+	} {
+		ev, ok := socialEvent(in)
+		d, is := ev.(model.SocialDelivery)
+		if !ok || !is || d.Character != to || d.Delivery.Tick != 0 || d.Delivery.Starts || d.Delivery.MapID != "" || !reflect.DeepEqual(d.Delivery.Event, in) {
+			t.Errorf("%T became %+v", in, ev)
 		}
-		return e
-	}
-}
-
-// Each social delivery reaches the gateway with every field, to the player it names.
-func TestEachSocialDeliveryKeepsItsFields(t *testing.T) {
-	tick := map[string]string{"Delivery.Tick": "social pushes carry no map tick", "Delivery.Starts": "no social push starts a join's ticks", "Delivery.MapID": "no social push changes the map"}
-	party := copytest.Match{
-		Renames:  map[string]string{"To": "Character", "Party": "Delivery.Event.Party", "Party.Members.ID": "Delivery.Event.Party.Members.CharacterID"},
-		Computed: tick,
-	}
-	if got := copytest.Diff(party, socialEventOf[social.PartyState](t)); len(got) > 0 {
-		t.Errorf("PartyState: %v", got)
-	}
-	invited := copytest.Match{
-		Renames:  map[string]string{"To": "Character", "Invite": "Delivery.Event.InviteID", "From": "Delivery.Event.From", "FromName": "Delivery.Event.FromName"},
-		Computed: tick,
-	}
-	if got := copytest.Diff(invited, socialEventOf[social.Invited](t)); len(got) > 0 {
-		t.Errorf("Invited: %v", got)
-	}
-	line := copytest.Match{
-		Renames:  map[string]string{"To": "Character", "Sender": "Delivery.Event.Sender", "SenderName": "Delivery.Event.SenderName", "Text": "Delivery.Event.Text"},
-		Computed: map[string]string{"Delivery.Tick": tick["Delivery.Tick"], "Delivery.Starts": tick["Delivery.Starts"], "Delivery.MapID": tick["Delivery.MapID"], "Delivery.Event.Channel": "a party line, checked below"},
-	}
-	if got := copytest.Diff(line, socialEventOf[social.ChatLine](t)); len(got) > 0 {
-		t.Errorf("ChatLine: %v", got)
-	}
-	if e, _ := socialEvent(social.ChatLine{}); e.(model.SocialDelivery).Delivery.Event.(model.ChatMessage).Channel != model.ChatParty {
-		t.Errorf("a party line became %+v", e)
-	}
-	if e, _ := socialEvent(social.PartyState{}); e.(model.SocialDelivery).Delivery.Event.(model.PartyState).Party != nil {
-		t.Errorf("no party became %+v", e)
 	}
 }

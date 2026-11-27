@@ -52,7 +52,7 @@ func (g *Commands) Hello(ctx context.Context, s *Connection, token string, charI
 	}
 
 	// The newest connection wins.
-	for _, older := range join.Finish(model.PlayerOf(charID, welcome.Character), welcome) {
+	for _, older := range join.Finish(welcome.Player, welcome) {
 		older.End(model.EndLoggedInElsewhere)
 	}
 	g.sessions.Register(s)

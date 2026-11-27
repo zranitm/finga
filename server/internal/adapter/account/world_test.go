@@ -88,14 +88,6 @@ type atWorld[Args any] struct {
 	Args Args
 }
 
-// joinedRenames are a world.View's fields under the Joined's names.
-var joinedRenames = map[string]string{
-	"ID": "Character.ID", "Name": "Character.Name", "Class": "Character.Class", "Level": "Character.Level", "Exp": "Character.Exp",
-	"Stats": "Character.Stats", "HP": "Character.HP", "MaxHP": "Character.MaxHP", "Energy": "Character.Energy",
-	"Sheet": "Character.Sheet", "Sheet.Skills.Points": "Character.Sheet.Skills.Invested",
-	"Quests.key": "Quests.Quest", "Quests.value": "Quests",
-}
-
 // A join reaches the module with every argument, and the view it answers reaches the use cases with every field.
 func TestAJoinKeepsItsFields(t *testing.T) {
 	w := &worldModule{}
@@ -113,36 +105,26 @@ func TestAJoinKeepsItsFields(t *testing.T) {
 	if len(asked) > 0 {
 		t.Errorf("asked: %v", asked)
 	}
+	const view = "the world's own view, handed on whole for the world's handler: checked below"
 	match := copytest.Match{
-		Renames: joinedRenames,
-		Skip: map[string]string{
-			"Timers":                     "time left at now: TestAWelcomeCarriesTheSkillTimersTheWorldJoinedWith (ws) pins timersLeft",
-			"Sheet.Points.FreeResetUsed": "the sheet says whether the reset is left: TestTheSheetSaysWhetherTheFreeResetIsLeft",
-		},
-		Computed: map[string]string{"Character.Sheet.Points.FreeResetLeft": "FreeResetUsed negated: TestTheSheetSaysWhetherTheFreeResetIsLeft"},
-		Enums: map[reflect.Type]any{
-			reflect.TypeFor[world.QuestStatus](): world.QuestFinished,
-			reflect.TypeFor[model.QuestStatus](): model.QuestFinished,
-		},
+		Renames: map[string]string{"ID": "Player.ID", "Name": "Player.Name", "Class": "Player.Class", "Level": "Player.Level", "HP": "Player.HP", "MaxHP": "Player.MaxHP"},
+		Skip:    map[string]string{"Exp": view, "Stats": view, "Energy": view, "Sheet": view, "Quests": view, "Timers": view},
 	}
+	var handedOn any
 	answered := copytest.Diff(match, func(v world.View) model.Joined {
 		w.view = v
 		out, err := a.Join(t.Context(), "", "", kernel.AccountID{}, kernel.CharacterID{})
 		if err != nil {
 			t.Fatal(err)
 		}
+		handedOn = out.View
+		if !reflect.DeepEqual(handedOn, v) {
+			t.Errorf("the view went on as %+v, want %+v", handedOn, v)
+		}
+		out.View = nil // checked above, so its fields are no copy's to find
 		return out
 	})
 	if len(answered) > 0 {
 		t.Errorf("answered: %v", answered)
-	}
-}
-
-// The sheet says the free reset is left until it is used.
-func TestTheSheetSaysWhetherTheFreeResetIsLeft(t *testing.T) {
-	for used, left := range map[bool]bool{false: true, true: false} {
-		if got := statSheet(world.Sheet{Points: world.Points{FreeResetUsed: used}}).Points.FreeResetLeft; got != left {
-			t.Errorf("used %v: left %v", used, got)
-		}
 	}
 }

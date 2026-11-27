@@ -3,12 +3,14 @@ package transport_test
 import (
 	"fmt"
 	"log/slog"
+	"slices"
 	"testing"
 	"time"
 
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
+	"finga/internal/application/item"
 	"finga/internal/application/world"
 	"finga/internal/handler/transport"
 	model "finga/internal/model/account"
@@ -279,5 +281,49 @@ func TestEachWorldEventReachesTheClientAsItsMessage(t *testing.T) {
 				t.Fatalf("sent %s at tick %d: %v, want %s: %v", m.Type, m.Tick, m.Data, name, tt.want)
 			}
 		})
+	}
+}
+
+func TestWelcomeCarriesTheCharacterItsItemsAtTheirRevisionItsQuestsAndItsSkillTimers(t *testing.T) {
+	s := &socket{}
+	at := time.UnixMilli(1_700_000_000_000)
+	p1 := id(1)
+	itemID1, _ := kernel.ParseItemID("00000000-0000-7000-8000-0000000000a1")
+	itemID2, _ := kernel.ParseItemID("00000000-0000-7000-8000-0000000000a2")
+	bowRoll := &progression.ItemStats{
+		STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, Accuracy: 11, Evasion: 12,
+		CritRate: 13, CritDamage: 14, Penetration: 15, HPRegen: 16, CooldownSpeed: 17, MoveSpeed: 18,
+	}
+	view := world.View{
+		ID: p1, Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: gamedata.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 50, MaxHP: 105, Energy: 6, Sheet: worldSheet,
+		Quests: map[string]world.Quest{"a": {Status: world.QuestFinished, TimesFinished: 2}},
+		Timers: world.SkillTimers{Buffs: map[string]world.BuffTimer{"focus": {Until: at.Add(1500 * time.Millisecond), Points: 4, Trait: "expose"}}},
+	}
+	inv := item.Inventory{Revision: 8, Items: []item.Item{
+		{ID: itemID1, TemplateID: "slime_gel", Tab: "etc", Slot: 2, Quantity: 3},
+		{ID: itemID2, TemplateID: "short_bow", Quantity: 1, EquipSlot: "weapon", Stats: bowRoll},
+	}}
+	transport.NewOutbox(s, s, slog.New(slog.DiscardHandler), allEncoders()).Welcome(model.Welcome{
+		Token: "t-2", MapID: "town", ServerTime: at, Waypoints: []string{"town", "west"}, Joined: view, Inventory: inv,
+	})
+	want := &clientv1.Welcome{
+		Token:             "t-2",
+		Character:         &clientv1.CharacterView{Id: p1.String(), Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: &clientv1.Stats{Str: 5, Dex: 12, Int: 4, Agi: 10, Vit: 5}, Hp: 50, MaxHp: 105, Energy: 6, Sheet: wireWorldSheet()},
+		Inventory:         []*clientv1.ItemView{{ItemId: itemID1.String(), Template: "slime_gel", Tab: "etc", Slot: 2, Quantity: 3}},
+		Equipment:         []*clientv1.EquipSlot{{EquipSlot: "weapon", Item: &clientv1.ItemView{ItemId: itemID2.String(), Template: "short_bow", Quantity: 1, Stats: wireBow.Stats}}},
+		InventoryRevision: 8,
+		MapId:             "town",
+		ServerTime:        at.UnixMilli(),
+		Quests:            []*clientv1.QuestState{{QuestId: "a", Status: clientv1.QuestStatus_QUEST_STATUS_FINISHED, TimesFinished: 2}},
+		SkillTimers:       []*clientv1.SkillTimer{{Skill: "focus", Kind: clientv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF, LeftMs: 1500, Points: 4, Trait: "expose"}},
+		Waypoints:         []string{"town", "west"},
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.sent) != 1 || s.sent[0].Type != "Welcome" || !proto.Equal(s.sent[0].Data.(proto.Message), want) {
+		t.Fatalf("sent %+v, want %v", s.sent, want)
+	}
+	if !slices.Equal(s.welcomes, []string{fmt.Sprintf("login %d", proto.Size(want))}) {
+		t.Fatalf("welcomes measured %v", s.welcomes)
 	}
 }

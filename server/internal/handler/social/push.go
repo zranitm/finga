@@ -4,39 +4,42 @@ import (
 	"errors"
 
 	clientv1 "finga/api/gen/client/v1"
+	"finga/internal/application/social"
 	"finga/internal/handler/transport"
-	model "finga/internal/model/account"
 )
 
 // Encoders registers the encoders of the pushes the module owns.
 func Encoders(e *transport.Encoders) error {
 	return errors.Join(
-		transport.Encode(e, func(p model.ChatMessage) any {
-			return &clientv1.ChatMessage{Channel: chatChannels[p.Channel], Sender: p.Sender, SenderName: p.SenderName, Text: p.Text}
-		}),
-		transport.Encode(e, func(p model.PartyInvited) any {
-			return &clientv1.PartyInvited{InviteId: p.InviteID, From: p.From, FromName: p.FromName}
-		}),
-		transport.Encode(e, func(p model.PartyState) any {
-			return &clientv1.PartyState{Party: partyView(p.Party)}
-		}),
+		transport.Encode(e, func(p social.ChatLine) any { return chatLine(p) }),
+		transport.Encode(e, func(p social.Invited) any { return invited(p) }),
+		transport.Encode(e, func(p social.PartyState) any { return partyState(p) }),
 	)
 }
 
-func partyView(p *model.PartyView) *clientv1.PartyView {
+// chatLine is a party's line: the social module delivers those, and the world a map's.
+func chatLine(p social.ChatLine) *clientv1.ChatMessage {
+	return &clientv1.ChatMessage{Channel: clientv1.ChatChannel_CHAT_CHANNEL_PARTY, Sender: p.Sender.String(), SenderName: p.SenderName, Text: p.Text}
+}
+
+func invited(p social.Invited) *clientv1.PartyInvited {
+	return &clientv1.PartyInvited{InviteId: p.Invite.String(), From: p.From.String(), FromName: p.FromName}
+}
+
+// partyState is the player's party, none when they have none.
+func partyState(p social.PartyState) *clientv1.PartyState {
+	return &clientv1.PartyState{Party: partyView(p.Party)}
+}
+
+func partyView(p *social.Party) *clientv1.PartyView {
 	if p == nil {
 		return nil
 	}
-	v := &clientv1.PartyView{Leader: p.Leader, Members: make([]*clientv1.PartyMember, 0, len(p.Members))}
+	v := &clientv1.PartyView{Leader: p.Leader.String(), Members: make([]*clientv1.PartyMember, 0, len(p.Members))}
 	for _, m := range p.Members {
 		v.Members = append(v.Members, &clientv1.PartyMember{
-			CharacterId: m.CharacterID, Name: m.Name, Class: m.Class, Level: int32(m.Level), Hp: int32(m.HP), MaxHp: int32(m.MaxHP), MapId: m.MapID, Channel: uint32(m.Channel), Online: m.Online,
+			CharacterId: m.ID.String(), Name: m.Name, Class: m.Class.String(), Level: int32(m.Level), Hp: int32(m.HP), MaxHp: int32(m.MaxHP), MapId: m.MapID, Channel: uint32(m.Channel), Online: m.Online, //nolint:gosec // small
 		})
 	}
 	return v
-}
-
-var chatChannels = map[model.ChatChannel]clientv1.ChatChannel{
-	model.ChatMap:   clientv1.ChatChannel_CHAT_CHANNEL_MAP,
-	model.ChatParty: clientv1.ChatChannel_CHAT_CHANNEL_PARTY,
 }

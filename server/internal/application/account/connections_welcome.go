@@ -11,7 +11,7 @@ import (
 
 // ConnectionsItems reads a character's inventory for its Welcome.
 type ConnectionsItems interface {
-	Inventory(ctx context.Context, character kernel.CharacterID) (model.Inventory, error)
+	Inventory(ctx context.Context, character kernel.CharacterID) (any, error)
 }
 
 // welcomeSection fills its part of a Welcome; a later part of the screen, such as skills, is one more.
@@ -28,10 +28,10 @@ func (r *Connections) Welcome(ctx context.Context, character kernel.CharacterID,
 	return w, nil
 }
 
-// joinedSection is what the world's join found: the character, its map and tick rate, its quests, its skills' timers and the waypoints found.
+// joinedSection is what the world's join found: the player, its map and tick rate, the waypoints found, and the world's own view of the character, which its handler reads.
 func joinedSection(_ context.Context, _ kernel.CharacterID, joined model.Joined, w *model.Welcome) error {
-	w.Character, w.MapID, w.TickRateHz, w.Quests, w.Timers, w.ServerTime = joined.Character, joined.MapID, joined.TickRateHz, joined.Quests, joined.Timers, time.Now()
-	w.Waypoints = joined.Waypoints
+	w.Player, w.MapID, w.TickRateHz, w.ServerTime = joined.Player, joined.MapID, joined.TickRateHz, time.Now()
+	w.Waypoints, w.Joined = joined.Waypoints, joined.View
 	return nil
 }
 
@@ -49,12 +49,8 @@ func (r *Connections) missedSection(ctx context.Context, character kernel.Charac
 		r.deps.Logger.WarnContext(ctx, "the matches missed while away wait for the next Welcome", "character", character, "err", err)
 		return nil
 	}
-	w.Missed = m
-	told := make([]kernel.MatchID, 0, len(m.Matches)+len(m.Older))
-	for _, x := range m.Matches {
-		told = append(told, x.Match)
-	}
-	told = append(told, m.Older...)
+	w.Missed = m.Details
+	told := m.Told
 	if len(told) == 0 {
 		return nil
 	}
@@ -77,6 +73,6 @@ func (r *Connections) inventorySection(ctx context.Context, character kernel.Cha
 	if err != nil {
 		return fmt.Errorf("inventory: %w", err)
 	}
-	w.Inventory, w.Equipment, w.InventoryRevision = inv.Items, inv.Equipment, inv.Revision
+	w.Inventory = inv
 	return nil
 }
