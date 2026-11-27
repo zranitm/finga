@@ -256,6 +256,11 @@ Changing looks in combat is `IN_COMBAT` (330037), the code a trait change in com
     - **Why 1.08:** in close-up stills, 1.05 and 1.06 still showed its tip, and 1.07 a glint. Both are rigid to the head, so it holds in every pose.
     - **A test** checks every fit names a body a class is drawn as, so a misnamed file can't leave a piece unfitted.
   - **The Horned Hat is the Bear Hood:** it's KayKit's `Barbarian_Hat`, a bear's head. Only the name changed; its id stays `horned_hat`, so saved wardrobes keep it.
+- **As built (step 5, the Skeletons pack):**
+  - **The rig:** all four bodies have the Adventurers' 41 joints, same names, order and parents, and a test holds their inverse bind matrices to six decimals, as for every parts file.
+  - **A skeleton comes with its own head:** its body piece includes its skull (`Head`, or the Mage's `Skull`), jaw and eyes, and is marked `ownHead` in the look table. Like the Rogue's hooded head, it's one thing on the head chosen by the look table: each class model's `own.head` names its own head's meshes, `dress()` hides them for an `ownHead` piece, and a hooded head is not swapped under it. A hat sits on the skull. It's dressed after `stand()`, so the size never changes; without the piece the head shows again.
+  - **The files:** a pack's file that holds pieces and that no look draws whole, as its bodies, is written by `npm run models` as its parts file alone. The four weapons are packed into one glb, `Skeleton_Weapons.glb`, with no skin: the rig's joints and the four on `handslot.r`, hung as the Adventurers' weapon of their kind. The rig test reads a file like that by its joints.
+  - **Open for the preview sheet:** the pieces' `fit` on each head, and the eyes, which the pack draws in an unlit yellow `Glow` material and the toon material draws as a plain one.
 
 ## 7. Client: the wardrobe and the character window
 
