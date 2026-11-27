@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	application "finga/internal/application/item/service"
+	application "finga/internal/application/item"
 	model "finga/internal/model/item"
 	"finga/internal/shared/gamedata"
 	"finga/pkg/uuidv7"
@@ -18,7 +18,7 @@ func (h *harness) drop(key, template string, qty int) application.AddInput {
 	return application.AddInput{Key: key, TemplateID: template, Quantity: qty, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}, Stats: h.roll(template)}
 }
 
-func (h *harness) addMany(t *testing.T, drops ...application.AddInput) application.Batch {
+func (h *harness) addMany(t *testing.T, drops ...application.AddInput) application.DropBatch {
 	t.Helper()
 	b, err := h.svc.AddMany(context.Background(), h.actor, drops)
 	if err != nil {
@@ -44,7 +44,7 @@ func (h *harness) quantity(t *testing.T, template string) int {
 	return n
 }
 
-func granted(t *testing.T, b application.Batch, which ...int) {
+func granted(t *testing.T, b application.DropBatch, which ...int) {
 	t.Helper()
 	for _, i := range which {
 		if out := b.Outcomes[i]; out.Err != nil || out.Replayed {

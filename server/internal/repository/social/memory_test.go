@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	application "finga/internal/application/social/service"
+	application "finga/internal/application/social"
 	model "finga/internal/model/social"
 	repository "finga/internal/repository/social"
 	"finga/internal/shared/kernel"

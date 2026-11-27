@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"pgregory.net/rapid"
 
-	application "finga/internal/application/item/service"
+	application "finga/internal/application/item"
 	model "finga/internal/model/item"
 	"finga/internal/repository/item/itemtest"
 	"finga/internal/shared/gamedata"
@@ -94,7 +94,7 @@ func TestCheckSixCatchesWhatCheckFiveCannot(t *testing.T) {
 	t.Run("a quest reward recorded as the player's own", func(t *testing.T) {
 		h := newHarness(t)
 		h.add(t, "c1", "slime_gel", 10)
-		if _, err := h.svc.HandIn(ctx, h.actor, application.HandInInput{Quest: "q", Completion: 1, Take: []model.Grant{{Item: "slime_gel", Quantity: 4}}, Give: []application.Give{{TemplateID: "red_potion", Quantity: 3}}}); err != nil {
+		if _, err := h.svc.HandIn(ctx, h.actor, application.HandInInput{Quest: "q", Completion: 1, Take: []model.Grant{{Item: "slime_gel", Quantity: 4}}, Give: []application.RewardLine{{TemplateID: "red_potion", Quantity: 3}}}); err != nil {
 			t.Fatal(err)
 		}
 		checkInvariants(t, h.pool, h.data)
@@ -231,7 +231,7 @@ func TestInventoryProperties(t *testing.T) {
 	data := gamedatatest.Shipped(t)
 	pool := cluster.DB(t)
 	store := NewPostgres(pool, nil)
-	svc := application.NewService(application.Deps{Store: store, Content: data, Logger: slog.New(slog.DiscardHandler)})
+	svc := application.NewService(application.ServiceDeps{Store: store, Content: data, Logger: slog.New(slog.DiscardHandler)})
 	templates := []string{"red_potion", "white_potion", "slime_gel", "wooden_sword", "short_bow", "leather_cap", "leather_vest", "piece.knight_plate", "piece.greatsword"}
 	var equipSlots []string
 	for _, s := range data.EquipSlots() {
@@ -368,7 +368,7 @@ func TestInventoryProperties(t *testing.T) {
 					}
 					for range rapid.IntRange(0, 2).Draw(rt, "gives") {
 						d := drop("")
-						in.Give = append(in.Give, application.Give{TemplateID: d.TemplateID, Quantity: d.Quantity, Stats: d.Stats})
+						in.Give = append(in.Give, application.RewardLine{TemplateID: d.TemplateID, Quantity: d.Quantity, Stats: d.Stats})
 					}
 					handedIn = append(handedIn, in)
 				}

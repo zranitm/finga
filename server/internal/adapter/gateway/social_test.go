@@ -13,6 +13,7 @@ import (
 
 	"finga/internal/application/social"
 	model "finga/internal/model/gateway"
+	repository "finga/internal/repository/social"
 	"finga/internal/shared/gamedata/gamedatatest"
 	"finga/internal/shared/host"
 	"finga/internal/shared/kernel"
@@ -52,7 +53,7 @@ func newSocial(t *testing.T) *social.Module {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := social.New(t.Context(), social.Deps{Module: m, Data: data}) // its retention never runs on a host never run
+	s, err := social.New(social.Deps{Module: m, Data: data, Store: repository.NewMemory()}) // its retention never runs on a host never run
 	if err != nil {
 		t.Fatal(err)
 	}

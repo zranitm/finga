@@ -13,7 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
-	application "finga/internal/application/item/service"
+	application "finga/internal/application/item"
 	model "finga/internal/model/item"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
@@ -22,7 +22,7 @@ import (
 )
 
 // handIn hands quest in for the completion-th time, taking take and giving give, each equipment reward with its top roll.
-func (h *harness) handIn(quest string, completion int, take []model.Grant, give ...application.Give) (application.Result, error) {
+func (h *harness) handIn(quest string, completion int, take []model.Grant, give ...application.RewardLine) (application.Changes, error) {
 	for k := range give {
 		if give[k].Stats == nil {
 			give[k].Stats = h.roll(give[k].TemplateID)
@@ -53,7 +53,7 @@ func TestHandIn(t *testing.T) {
 		h.add(t, "g1", "slime_gel", 98)
 		h.add(t, "g2", "slime_gel", 10) // fills slot 0 to 100, opens slot 1 with 8
 		before := h.revision(t)
-		res, err := h.handIn("sticky_samples", 1, gel(5), application.Give{TemplateID: "red_potion", Quantity: 10}, application.Give{TemplateID: "leather_cap", Quantity: 1})
+		res, err := h.handIn("sticky_samples", 1, gel(5), application.RewardLine{TemplateID: "red_potion", Quantity: 10}, application.RewardLine{TemplateID: "leather_cap", Quantity: 1})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -95,7 +95,7 @@ func TestHandIn(t *testing.T) {
 	t.Run("each item's history names the quest, under the hand-in's ID", func(t *testing.T) {
 		h := newHarness(t)
 		h.add(t, "g1", "slime_gel", 5)
-		if _, err := h.handIn("sticky_samples", 1, gel(5), application.Give{TemplateID: "red_potion", Quantity: 3}); err != nil {
+		if _, err := h.handIn("sticky_samples", 1, gel(5), application.RewardLine{TemplateID: "red_potion", Quantity: 3}); err != nil {
 			t.Fatal(err)
 		}
 		id := h.handInID(t, "sticky_samples", 1)
@@ -114,7 +114,7 @@ func TestHandIn(t *testing.T) {
 		h := newHarness(t)
 		h.add(t, "g1", "slime_gel", 4)
 		before, inv := h.revision(t), h.inventory(t)
-		_, err := h.handIn("sticky_samples", 1, gel(5), application.Give{TemplateID: "red_potion", Quantity: 1})
+		_, err := h.handIn("sticky_samples", 1, gel(5), application.RewardLine{TemplateID: "red_potion", Quantity: 1})
 		if !errors.Is(err, model.ErrNotEnoughItems) {
 			t.Fatalf("err = %v", err)
 		}
@@ -126,7 +126,7 @@ func TestHandIn(t *testing.T) {
 		}
 		// With the items, the same completion goes through.
 		h.add(t, "g2", "slime_gel", 1)
-		if _, err := h.handIn("sticky_samples", 1, gel(5), application.Give{TemplateID: "red_potion", Quantity: 1}); err != nil || h.quantity(t, "slime_gel") != 0 {
+		if _, err := h.handIn("sticky_samples", 1, gel(5), application.RewardLine{TemplateID: "red_potion", Quantity: 1}); err != nil || h.quantity(t, "slime_gel") != 0 {
 			t.Fatalf("err = %v, gel left %d", err, h.quantity(t, "slime_gel"))
 		}
 	})
@@ -157,7 +157,7 @@ func TestHandIn(t *testing.T) {
 		}
 		h.add(t, "g1", "slime_gel", 5)
 		before, inv := h.revision(t), h.inventory(t)
-		_, err := h.handIn("sticky_samples", 1, gel(5), application.Give{TemplateID: "red_potion", Quantity: 1})
+		_, err := h.handIn("sticky_samples", 1, gel(5), application.RewardLine{TemplateID: "red_potion", Quantity: 1})
 		if !errors.Is(err, model.ErrUseTabFull) {
 			t.Fatalf("err = %v", err)
 		}
@@ -165,7 +165,7 @@ func TestHandIn(t *testing.T) {
 			t.Fatal("something changed")
 		}
 		// A full stack handed in frees its slot for the reward.
-		res, err := h.handIn("q", 1, []model.Grant{{Item: "white_potion", Quantity: 100}}, application.Give{TemplateID: "red_potion", Quantity: 60})
+		res, err := h.handIn("q", 1, []model.Grant{{Item: "white_potion", Quantity: 100}}, application.RewardLine{TemplateID: "red_potion", Quantity: 60})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -178,9 +178,9 @@ func TestHandIn(t *testing.T) {
 	t.Run("the same completion again replays the stored reply, whatever its rolls and lines, with no idempotency key to prune", func(t *testing.T) {
 		var logs bytes.Buffer
 		h := newHarness(t)
-		h.svc = application.NewService(application.Deps{Store: h.store, Content: h.data, Logger: slog.New(slog.NewTextHandler(&logs, nil))})
+		h.svc = application.NewService(application.ServiceDeps{Store: h.store, Content: h.data, Logger: slog.New(slog.NewTextHandler(&logs, nil))})
 		h.add(t, "g1", "slime_gel", 10)
-		first, err := h.handIn("sticky_samples", 1, gel(5), application.Give{TemplateID: "leather_cap", Quantity: 1})
+		first, err := h.handIn("sticky_samples", 1, gel(5), application.RewardLine{TemplateID: "leather_cap", Quantity: 1})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -189,7 +189,7 @@ func TestHandIn(t *testing.T) {
 		}
 		tmpl, _ := h.data.Item("leather_cap")
 		low := progression.Lowest(tmpl.Rolls)
-		again, err := h.handIn("sticky_samples", 1, gel(5), application.Give{TemplateID: "leather_cap", Quantity: 1, Stats: &low})
+		again, err := h.handIn("sticky_samples", 1, gel(5), application.RewardLine{TemplateID: "leather_cap", Quantity: 1, Stats: &low})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -209,11 +209,11 @@ func TestHandIn(t *testing.T) {
 		h := newHarness(t)
 		h.add(t, "g1", "slime_gel", 10)
 		const n = 6
-		results, errs := make([]application.Result, n), make([]error, n)
+		results, errs := make([]application.Changes, n), make([]error, n)
 		var wg sync.WaitGroup
 		for k := range n {
 			wg.Go(func() {
-				results[k], errs[k] = h.handIn("sticky_samples", 1, gel(5), application.Give{TemplateID: "red_potion", Quantity: 10})
+				results[k], errs[k] = h.handIn("sticky_samples", 1, gel(5), application.RewardLine{TemplateID: "red_potion", Quantity: 10})
 			})
 		}
 		wg.Wait()
@@ -253,10 +253,10 @@ func TestHandIn(t *testing.T) {
 			{"too many lines", application.HandInInput{Quest: "q", Completion: 1, Take: lines}, model.ErrBadBatch},
 			{"an unknown item to take", application.HandInInput{Quest: "q", Completion: 1, Take: []model.Grant{{Item: "dragon_scale", Quantity: 1}}}, model.ErrUnknownItem},
 			{"nothing of an item to take", application.HandInInput{Quest: "q", Completion: 1, Take: gel(0)}, model.ErrBadQuantity},
-			{"an unknown reward", application.HandInInput{Quest: "q", Completion: 1, Give: []application.Give{{TemplateID: "elixir", Quantity: 1}}}, model.ErrUnknownItem},
-			{"two pieces of equipment on one line", application.HandInInput{Quest: "q", Completion: 1, Give: []application.Give{{TemplateID: "leather_cap", Quantity: 2, Stats: top}}}, model.ErrBadQuantity},
-			{"equipment without a roll", application.HandInInput{Quest: "q", Completion: 1, Give: []application.Give{{TemplateID: "leather_cap", Quantity: 1}}}, model.ErrBadRoll},
-			{"a potion with a roll", application.HandInInput{Quest: "q", Completion: 1, Give: []application.Give{{TemplateID: "red_potion", Quantity: 1, Stats: top}}}, model.ErrBadRoll},
+			{"an unknown reward", application.HandInInput{Quest: "q", Completion: 1, Give: []application.RewardLine{{TemplateID: "elixir", Quantity: 1}}}, model.ErrUnknownItem},
+			{"two pieces of equipment on one line", application.HandInInput{Quest: "q", Completion: 1, Give: []application.RewardLine{{TemplateID: "leather_cap", Quantity: 2, Stats: top}}}, model.ErrBadQuantity},
+			{"equipment without a roll", application.HandInInput{Quest: "q", Completion: 1, Give: []application.RewardLine{{TemplateID: "leather_cap", Quantity: 1}}}, model.ErrBadRoll},
+			{"a potion with a roll", application.HandInInput{Quest: "q", Completion: 1, Give: []application.RewardLine{{TemplateID: "red_potion", Quantity: 1, Stats: top}}}, model.ErrBadRoll},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
@@ -276,7 +276,7 @@ func TestHandedIn(t *testing.T) {
 	ctx := context.Background()
 	h := newHarness(t)
 	h.add(t, "g1", "slime_gel", 10)
-	first, err := h.handIn("sticky_samples", 1, gel(5), application.Give{TemplateID: "red_potion", Quantity: 10})
+	first, err := h.handIn("sticky_samples", 1, gel(5), application.RewardLine{TemplateID: "red_potion", Quantity: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -286,7 +286,7 @@ func TestHandedIn(t *testing.T) {
 	}
 
 	t.Run("lists only the completions handed in, each with its reply", func(t *testing.T) {
-		got, err := h.svc.HandedIn(ctx, h.actor.Character, []application.Completion{{Quest: "sticky_samples", Completion: 2}, {Quest: "sticky_samples", Completion: 3}, {Quest: "slime_cleanup", Completion: 1}, {Quest: "sticky_samples", Completion: 1}})
+		got, err := h.svc.HandedIn(ctx, h.actor.Character, []application.QuestCompletion{{Quest: "sticky_samples", Completion: 2}, {Quest: "sticky_samples", Completion: 3}, {Quest: "slime_cleanup", Completion: 1}, {Quest: "sticky_samples", Completion: 1}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -299,7 +299,7 @@ func TestHandedIn(t *testing.T) {
 	})
 
 	t.Run("another character's are not its", func(t *testing.T) {
-		got, err := h.svc.HandedIn(ctx, kernel.NewCharacterID(), []application.Completion{{Quest: "sticky_samples", Completion: 1}})
+		got, err := h.svc.HandedIn(ctx, kernel.NewCharacterID(), []application.QuestCompletion{{Quest: "sticky_samples", Completion: 1}})
 		if err != nil || len(got) != 0 {
 			t.Fatalf("handed in %+v, %v", got, err)
 		}
@@ -309,7 +309,7 @@ func TestHandedIn(t *testing.T) {
 		if got, err := h.svc.HandedIn(ctx, h.actor.Character, nil); err != nil || got != nil {
 			t.Fatalf("handed in %+v, %v", got, err)
 		}
-		if _, err := h.svc.HandedIn(ctx, h.actor.Character, make([]application.Completion, application.MaxHandedIn+1)); !errors.Is(err, model.ErrBadBatch) {
+		if _, err := h.svc.HandedIn(ctx, h.actor.Character, make([]application.QuestCompletion, application.MaxHandedIn+1)); !errors.Is(err, model.ErrBadBatch) {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -320,7 +320,7 @@ func TestAHandInGrantsItsPieces(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	h := newHarness(t)
-	trial := func(a model.Actor, completion int, take []model.Grant, pieces ...string) (application.Result, error) {
+	trial := func(a model.Actor, completion int, take []model.Grant, pieces ...string) (application.Changes, error) {
 		return h.svc.HandIn(ctx, a, application.HandInInput{Quest: "warriors_trial", Completion: completion, Take: take, Pieces: pieces})
 	}
 	t.Run("the piece's entry, for the quest, with no item", func(t *testing.T) {

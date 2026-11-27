@@ -1,12 +1,10 @@
 package social
 
 import (
-	"sync"
-
-	application "finga/internal/application/social/service"
 	model "finga/internal/model/social"
 	"finga/internal/shared/kernel"
 	"finga/pkg/hub"
+	"sync"
 )
 
 // Queue sizes for a slow gateway or world before its subscription is closed.
@@ -94,7 +92,7 @@ type notifier struct {
 // presence is where a character is online: the gateway and the connection.
 type presence struct{ gateway, conn string }
 
-var _ application.Notifier = (*notifier)(nil)
+var _ Notifier = (*notifier)(nil)
 
 func newNotifier() *notifier {
 	return &notifier{

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
+	application "finga/internal/application/account"
 	"finga/internal/application/account/password"
-	application "finga/internal/application/account/service"
 	model "finga/internal/model/account"
 )
 
@@ -18,7 +18,7 @@ import (
 func newPGService(t *testing.T) (*application.Service, *Postgres) {
 	t.Helper()
 	store := NewPostgres(cluster.DB(t), nil)
-	svc, err := application.NewService(application.Deps{Store: store, Notifier: &notices{}, Hasher: password.NewHasher(cheapHash, 4, time.Second)})
+	svc, err := application.NewService(application.ServiceDeps{Store: store, Notifier: &notices{}, Hasher: password.NewHasher(cheapHash, 4, time.Second)})
 	if err != nil {
 		t.Fatal(err)
 	}

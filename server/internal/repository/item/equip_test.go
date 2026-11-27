@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	application "finga/internal/application/item/service"
+	application "finga/internal/application/item"
 	model "finga/internal/model/item"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
@@ -25,11 +25,11 @@ func (h *harness) added(t *testing.T, template string) model.Item {
 }
 
 // equip has the harness's warrior wear id at level.
-func (h *harness) equip(key string, id kernel.ItemID, slot string, level int) (application.Result, error) {
+func (h *harness) equip(key string, id kernel.ItemID, slot string, level int) (application.Changes, error) {
 	return h.svc.Equip(context.Background(), h.actor, application.EquipInput{Key: key, ItemID: id, EquipSlot: slot, Level: level, Class: kernel.Class("warrior")})
 }
 
-func (h *harness) unequip(key, slot string, to *int) (application.Result, error) {
+func (h *harness) unequip(key, slot string, to *int) (application.Changes, error) {
 	return h.svc.Unequip(context.Background(), h.actor, application.UnequipInput{Key: key, EquipSlot: slot, ToSlot: to})
 }
 
@@ -55,7 +55,7 @@ func heldIn(it model.Item, tab gamedata.Tab, slot int) model.Item {
 	return it
 }
 
-func wantResult(t *testing.T, got application.Result, changed []model.Slot, equipment []model.WornSlot, wearing []model.Item) {
+func wantResult(t *testing.T, got application.Changes, changed []model.Slot, equipment []model.WornSlot, wearing []model.Item) {
 	t.Helper()
 	if !reflect.DeepEqual(got.Changed, changed) || !reflect.DeepEqual(got.Equipment, equipment) || !reflect.DeepEqual(got.Worn, wearing) || got.Revision == 0 {
 		t.Fatalf("result\n changed %+v\n equipment %+v\n worn %+v\n revision %d\nwant\n changed %+v\n equipment %+v\n worn %+v", got.Changed, got.Equipment, got.Worn, got.Revision, changed, equipment, wearing)
@@ -138,7 +138,7 @@ func TestEquip(t *testing.T) {
 		})
 	})
 	t.Run("an item's stat requirements, against the character's own stats", func(t *testing.T) {
-		svc := application.NewService(application.Deps{Store: h.store, Content: requiring{h.data, "leather_vest", gamedata.Stats{STR: 20, VIT: 15}}, Logger: slog.New(slog.DiscardHandler)})
+		svc := application.NewService(application.ServiceDeps{Store: h.store, Content: requiring{h.data, "leather_vest", gamedata.Stats{STR: 20, VIT: 15}}, Logger: slog.New(slog.DiscardHandler)})
 		vest := h.added(t, "leather_vest")
 		equip := func(own gamedata.Stats) error {
 			_, err := svc.Equip(ctx, h.actor, application.EquipInput{Key: uuidv7.NewString(), ItemID: vest.ID, Level: 5, Class: kernel.Class("warrior"), Stats: own})

@@ -8,6 +8,7 @@ import (
 	"finga/internal/application/pvp"
 	"finga/internal/application/social"
 	"finga/internal/application/world"
+	repository "finga/internal/repository/pvp"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/host"
 )
@@ -18,5 +19,9 @@ func buildPvp(ctx context.Context, h *host.Host, data *gamedata.Data, maps *worl
 	if err != nil {
 		return nil, err
 	}
-	return pvp.New(ctx, pvp.Deps{Module: m, Data: data, World: maps, Social: parties, Character: characters, Items: items})
+	pool, dbMetrics, err := m.Database(ctx) // fails fast on an unreachable database
+	if err != nil {
+		return nil, err
+	}
+	return pvp.New(pvp.Deps{Module: m, Data: data, World: maps, Social: parties, Character: characters, Items: items, Store: repository.NewPostgres(pool, dbMetrics)})
 }

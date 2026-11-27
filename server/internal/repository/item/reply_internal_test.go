@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	application "finga/internal/application/item/service"
+	application "finga/internal/application/item"
 	model "finga/internal/model/item"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
@@ -14,7 +14,7 @@ import (
 // A reply as the item module's first build stored it; a retry replays rows like it for as long as keys live.
 const storedReply = `{"changed":[{"tab":"use","slot":3,"item":{"ID":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9a0b","TemplateID":"red_potion","Owner":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9012","Tab":"use","Slot":3,"Quantity":5}},{"tab":"etc","slot":0}]}`
 
-func storedResult(t *testing.T) application.Result {
+func storedResult(t *testing.T) application.Changes {
 	t.Helper()
 	id, err := kernel.ParseItemID("0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9a0b")
 	if err != nil {
@@ -24,7 +24,7 @@ func storedResult(t *testing.T) application.Result {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return application.Result{Changed: []model.Slot{
+	return application.Changes{Changed: []model.Slot{
 		{Tab: gamedata.Use, Slot: 3, Item: &model.Item{ID: id, TemplateID: "red_potion", Owner: owner, Tab: gamedata.Use, Slot: 3, Quantity: 5}},
 		{Tab: gamedata.Etc, Slot: 0},
 	}}
@@ -58,7 +58,7 @@ func TestAReplyIsStoredInTheSameFormat(t *testing.T) {
 
 func TestAnEmptyReply(t *testing.T) {
 	t.Parallel()
-	got, err := encodeReply(application.Result{})
+	got, err := encodeReply(application.Changes{})
 	if err != nil || string(got) != `{"changed":null}` {
 		t.Fatalf("encoded %s, %v", got, err)
 	}
@@ -121,7 +121,7 @@ func TestAReplyKeepsAnItemsRoll(t *testing.T) {
 	sword := *res.Changed[0].Item
 	sword.TemplateID, sword.Tab, sword.Slot, sword.Quantity = "iron_sword", gamedata.Equip, 2, 1
 	sword.Stats = &progression.ItemStats{PhysicalAttack: 17, CritRate: 5}
-	res = application.Result{Changed: []model.Slot{{Tab: gamedata.Equip, Slot: 2, Item: &sword}}, Revision: 3}
+	res = application.Changes{Changed: []model.Slot{{Tab: gamedata.Equip, Slot: 2, Item: &sword}}, Revision: 3}
 	raw, err := encodeReply(res)
 	if err != nil {
 		t.Fatal(err)
@@ -150,7 +150,7 @@ func TestAReplyKeepsWhatIsWorn(t *testing.T) {
 	sword := *storedResult(t).Changed[0].Item
 	sword.TemplateID, sword.Tab, sword.Slot, sword.Quantity, sword.EquipSlot = "iron_sword", "", 0, 1, "weapon"
 	sword.Stats = &progression.ItemStats{PhysicalAttack: 17}
-	res := application.Result{
+	res := application.Changes{
 		Changed:   []model.Slot{{Tab: gamedata.Equip, Slot: 2}},
 		Equipment: []model.WornSlot{{Slot: "weapon", Item: &sword}},
 		Worn:      []model.Item{sword},
@@ -167,7 +167,7 @@ func TestAReplyKeepsWhatIsWorn(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(got, res) {
 		t.Fatalf("decoded %+v, %v; want %+v", got, err, res)
 	}
-	unequipped := application.Result{Changed: res.Changed, Equipment: []model.WornSlot{{Slot: "weapon"}}, Revision: 5}
+	unequipped := application.Changes{Changed: res.Changed, Equipment: []model.WornSlot{{Slot: "weapon"}}, Revision: 5}
 	raw, err = encodeReply(unequipped)
 	if err != nil {
 		t.Fatal(err)

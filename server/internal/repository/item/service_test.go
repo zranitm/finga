@@ -14,7 +14,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	application "finga/internal/application/item/service"
+	application "finga/internal/application/item"
 	model "finga/internal/model/item"
 	"finga/internal/repository/item/itemtest"
 	"finga/internal/shared/gamedata"
@@ -41,10 +41,10 @@ func newHarness(t *testing.T) *harness {
 	data := gamedatatest.Shipped(t)
 	pool := cluster.DB(t)
 	store := NewPostgres(pool, nil)
-	return &harness{pool: pool, store: store, svc: application.NewService(application.Deps{Store: store, Content: data, Logger: slog.New(slog.DiscardHandler)}), data: data, actor: model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}}
+	return &harness{pool: pool, store: store, svc: application.NewService(application.ServiceDeps{Store: store, Content: data, Logger: slog.New(slog.DiscardHandler)}), data: data, actor: model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}}
 }
 
-func (h *harness) add(t *testing.T, key, template string, qty int) application.Result {
+func (h *harness) add(t *testing.T, key, template string, qty int) application.Changes {
 	t.Helper()
 	res, err := h.svc.Add(context.Background(), h.actor, application.AddInput{Key: key, TemplateID: template, Quantity: qty, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}, Stats: h.roll(template)})
 	if err != nil {
@@ -194,7 +194,7 @@ func TestEveryStatOfARollIsStoredReadBackAndReplayedInItsOwnField(t *testing.T) 
 	t.Parallel()
 	ctx := context.Background()
 	h := newHarness(t)
-	h.svc = application.NewService(application.Deps{Store: h.store, Content: rollingEverything{h.data, "iron_sword"}, Logger: slog.New(slog.DiscardHandler)})
+	h.svc = application.NewService(application.ServiceDeps{Store: h.store, Content: rollingEverything{h.data, "iron_sword"}, Logger: slog.New(slog.DiscardHandler)})
 	whole := application.AddInput{Key: "r-whole", TemplateID: "iron_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}, Stats: &progression.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, Accuracy: 11, Evasion: 12, CritRate: 13, CritDamage: 14, Penetration: 15, HPRegen: 16, CooldownSpeed: 17, MoveSpeed: 18}}
 	for _, try := range []string{"the add", "its replay"} {
 		res, err := h.svc.Add(ctx, h.actor, whole)
@@ -269,7 +269,7 @@ func TestRolls(t *testing.T) {
 			t.Fatal("a read wrote the roll")
 		}
 		var logs bytes.Buffer
-		svc := application.NewService(application.Deps{Store: h.store, Content: h.data, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+		svc := application.NewService(application.ServiceDeps{Store: h.store, Content: h.data, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
 		res, err := svc.Move(ctx, h.actor, application.MoveInput{Key: "r4", ItemID: sword.ID, Tab: gamedata.Equip, Slot: 3})
 		if err != nil {
 			t.Fatal(err)
@@ -327,7 +327,7 @@ func TestMove(t *testing.T) {
 	h.add(t, "a2", "white_potion", 10)
 	inv := h.inventory(t)
 	red, white := inv[0], inv[1]
-	move := func(key string, id kernel.ItemID, slot int) (application.Result, error) {
+	move := func(key string, id kernel.ItemID, slot int) (application.Changes, error) {
 		return h.svc.Move(ctx, h.actor, application.MoveInput{Key: key, ItemID: id, Tab: gamedata.Use, Slot: slot})
 	}
 
@@ -550,7 +550,7 @@ func TestDiscardMany(t *testing.T) {
 	})
 	key := uuidv7.NewString()
 	in := application.DiscardManyInput{Key: key, ItemIDs: []kernel.ItemID{sword.ID, potion.ID, hat.ID}}
-	var first application.Result
+	var first application.Changes
 	t.Run("whole items and a whole stack go together, each with its own event", func(t *testing.T) {
 		var err error
 		first, err = h.svc.DiscardMany(ctx, h.actor, in)
@@ -684,7 +684,7 @@ func TestGrantStarter(t *testing.T) {
 		t.Fatalf("invariants: %v %v", mismatches, err)
 	}
 
-	unchanged := func(t *testing.T, again application.Result, err error) {
+	unchanged := func(t *testing.T, again application.Changes, err error) {
 		t.Helper()
 		if err != nil {
 			t.Fatal(err)
@@ -754,7 +754,7 @@ func TestOutboxRowsExistExactlyWhenTheChangeCommits(t *testing.T) {
 		t.Fatal("no ItemLooted row after a committed add")
 	}
 	// A transaction that fails after the add succeeds leaves no row.
-	svc := application.NewService(application.Deps{Store: rollingBack{h.store}, Content: h.data, Logger: slog.New(slog.DiscardHandler)})
+	svc := application.NewService(application.ServiceDeps{Store: rollingBack{h.store}, Content: h.data, Logger: slog.New(slog.DiscardHandler)})
 	_, err := svc.Add(ctx, h.actor, application.AddInput{Key: "o2", TemplateID: "slime_gel", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}})
 	if err == nil {
 		t.Fatal("no error")
@@ -790,7 +790,7 @@ func TestAnInventoryLockedPastTheTimeoutIsUnavailable(t *testing.T) {
 		})
 	}()
 	<-locked
-	_, err = application.NewService(application.Deps{Store: store, Content: h.data, Logger: slog.New(slog.DiscardHandler)}).Add(ctx, h.actor, application.AddInput{Key: "late", TemplateID: "red_potion", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop}})
+	_, err = application.NewService(application.ServiceDeps{Store: store, Content: h.data, Logger: slog.New(slog.DiscardHandler)}).Add(ctx, h.actor, application.AddInput{Key: "late", TemplateID: "red_potion", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop}})
 	close(release)
 	if !errors.Is(err, transient.ErrUnavailable) {
 		t.Fatalf("err = %v, want transient.ErrUnavailable", err)

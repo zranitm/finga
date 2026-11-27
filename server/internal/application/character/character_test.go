@@ -10,16 +10,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel/trace/noop"
-
-	application "finga/internal/application/character/service"
 	model "finga/internal/model/character"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"
 	"finga/pkg/panics"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 var (
@@ -41,7 +40,7 @@ type fakeService struct {
 	err        error
 }
 
-func (f *fakeService) Create(_ context.Context, account kernel.AccountID, in application.CreateInput) (model.Character, error) {
+func (f *fakeService) Create(_ context.Context, account kernel.AccountID, in CreateInput) (model.Character, error) {
 	f.in = []any{account, in}
 	return ayla, f.err
 }
@@ -125,7 +124,7 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 	t.Run("Create", func(t *testing.T) {
 		f := &fakeService{}
 		c, err := newModule(t, f).Create(ctx, owner, "Ayla")
-		if err != nil || !reflect.DeepEqual(c, wantAyla) || !reflect.DeepEqual(f.in, []any{owner, application.CreateInput{Name: "Ayla"}}) {
+		if err != nil || !reflect.DeepEqual(c, wantAyla) || !reflect.DeepEqual(f.in, []any{owner, CreateInput{Name: "Ayla"}}) {
 			t.Fatalf("got %+v from %+v, err %v", c, f.in, err)
 		}
 	})

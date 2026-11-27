@@ -5,6 +5,7 @@ import (
 
 	"finga/config"
 	"finga/internal/application/account"
+	repository "finga/internal/repository/account"
 	"finga/internal/shared/host"
 )
 
@@ -14,5 +15,9 @@ func buildAccount(ctx context.Context, h *host.Host, cfg config.Config) (*accoun
 	if err != nil {
 		return nil, err
 	}
-	return account.New(ctx, account.Deps{Module: m, Config: cfg.Account})
+	pool, dbMetrics, err := m.Database(ctx) // fails fast on an unreachable database
+	if err != nil {
+		return nil, err
+	}
+	return account.New(account.Deps{Module: m, Config: cfg.Account, Store: repository.NewPostgres(pool, dbMetrics)})
 }

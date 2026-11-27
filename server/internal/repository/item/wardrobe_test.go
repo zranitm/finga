@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	application "finga/internal/application/item/service"
+	application "finga/internal/application/item"
 	model "finga/internal/model/item"
 	"finga/internal/repository/item/itemtest"
 	"finga/internal/shared/kernel"
@@ -16,7 +16,7 @@ import (
 )
 
 // collect has the harness's actor add an item's piece to its wardrobe under key.
-func (h *harness) collect(key string, id kernel.ItemID) (application.Result, error) {
+func (h *harness) collect(key string, id kernel.ItemID) (application.Changes, error) {
 	return h.svc.AddToWardrobe(context.Background(), h.actor, application.WardrobeInput{Key: key, ItemID: id})
 }
 
@@ -192,7 +192,7 @@ func TestAFailedAddLeavesTheItemAndNoEntry(t *testing.T) {
 	h := newHarness(t)
 	h.add(t, "a1", "piece.knight_plate", 1)
 	plate := h.inventory(t)[0]
-	svc := application.NewService(application.Deps{Store: failing{h.store}, Content: h.data, Logger: slog.New(slog.DiscardHandler)})
+	svc := application.NewService(application.ServiceDeps{Store: failing{h.store}, Content: h.data, Logger: slog.New(slog.DiscardHandler)})
 	if _, err := svc.AddToWardrobe(ctx, h.actor, application.WardrobeInput{Key: "w1", ItemID: plate.ID}); !errors.Is(err, errCommit) {
 		t.Fatalf("the add: %v, want the failure", err)
 	}
@@ -213,7 +213,7 @@ func TestALookWearsCollectedPiecesOfTheirSlotAndKind(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	set := func(key string, look model.Look, class kernel.Class) (application.Result, error) {
+	set := func(key string, look model.Look, class kernel.Class) (application.Changes, error) {
 		return h.svc.SetLook(ctx, h.actor, application.LookInput{Key: key, Look: look, Class: class})
 	}
 	res, err := set("l1", model.Look{Outfit: "knight_plate", Weapon: "greatsword", Headwear: "knight_helm", HideHeadwear: true}, "warrior")
@@ -274,7 +274,7 @@ func TestTheStoreKeepsEveryPick(t *testing.T) {
 func TestATrainersGiftClearsAWeaponLookTheNewClassCantHold(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	gift := func(h *harness, svc *application.Service, key string, to kernel.Class) (application.Result, error) {
+	gift := func(h *harness, svc *application.Service, key string, to kernel.Class) (application.Changes, error) {
 		return svc.Add(ctx, h.actor, application.AddInput{Key: key, TemplateID: "wooden_sword", Quantity: 1, Cause: model.Cause{Type: model.CausePromotion, ID: uuidv7.New()}, Stats: h.roll("wooden_sword"), Promotes: to})
 	}
 	wearing := func(t *testing.T) *harness {
@@ -307,7 +307,7 @@ func TestATrainersGiftClearsAWeaponLookTheNewClassCantHold(t *testing.T) {
 	})
 	t.Run("a gift that fails keeps the look", func(t *testing.T) {
 		h := wearing(t)
-		svc := application.NewService(application.Deps{Store: failing{h.store}, Content: h.data, Logger: slog.New(slog.DiscardHandler)})
+		svc := application.NewService(application.ServiceDeps{Store: failing{h.store}, Content: h.data, Logger: slog.New(slog.DiscardHandler)})
 		if _, err := gift(h, svc, "g1", "magician"); !errors.Is(err, errCommit) {
 			t.Fatalf("the gift: %v, want the failure", err)
 		}

@@ -1,11 +1,9 @@
 package account
 
 import (
-	"testing"
-
-	application "finga/internal/application/account/service"
 	model "finga/internal/model/account"
 	"finga/pkg/copytest"
+	"testing"
 )
 
 // Each conversion between the facade's types and the model's keeps every field.
@@ -17,13 +15,13 @@ func TestEveryConversionKeepsEveryField(t *testing.T) {
 		"settingsOf":     copytest.Diff(copytest.Match{}, settingsOf),
 		"Settings.model": copytest.Diff(copytest.Match{}, Settings.model),
 		"Principal":      copytest.Diff(copytest.Match{}, func(p model.Principal) Principal { return Principal(p) }),
-		"Register": copytest.Diff(copytest.Match{}, func(c Credentials) application.RegisterInput {
+		"Register": copytest.Diff(copytest.Match{}, func(c Credentials) RegisterInput {
 			_, _ = m.Register(t.Context(), c)
-			return f.in.(application.RegisterInput)
+			return f.in.(RegisterInput)
 		}),
-		"Login": copytest.Diff(copytest.Match{}, func(c Credentials) application.LoginInput {
+		"Login": copytest.Diff(copytest.Match{}, func(c Credentials) LoginInput {
 			_, _ = m.Login(t.Context(), c)
-			return f.in.(application.LoginInput)
+			return f.in.(LoginInput)
 		}),
 	} {
 		if len(got) > 0 {

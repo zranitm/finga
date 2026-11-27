@@ -5,6 +5,7 @@ import (
 
 	"finga/config"
 	"finga/internal/application/item"
+	repository "finga/internal/repository/item"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/host"
 )
@@ -15,5 +16,9 @@ func buildItem(ctx context.Context, h *host.Host, cfg config.Config, data *gamed
 	if err != nil {
 		return nil, err
 	}
-	return item.New(ctx, item.Deps{Module: m, Config: cfg.Item, Data: data})
+	pool, dbMetrics, err := m.Database(ctx) // fails fast on an unreachable database
+	if err != nil {
+		return nil, err
+	}
+	return item.New(item.Deps{Module: m, Config: cfg.Item, Data: data, Pool: pool, Store: repository.NewPostgres(pool, dbMetrics)})
 }

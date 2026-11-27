@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	application "finga/internal/application/item/service"
+	application "finga/internal/application/item"
 	model "finga/internal/model/item"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
@@ -77,7 +77,7 @@ type replyStats struct {
 	MoveSpeed       int `json:"MoveSpeed,omitempty"`
 }
 
-func encodeReply(res application.Result) ([]byte, error) {
+func encodeReply(res application.Changes) ([]byte, error) {
 	r := reply{Revision: res.Revision, Piece: res.Piece, Pieces: res.Pieces}
 	if l := res.Look; l != nil {
 		r.Look = &replyLook{Outfit: l.Outfit, Headwear: l.Headwear, Face: l.Face, Weapon: l.Weapon, Wings: l.Wings, HideHeadwear: l.HideHeadwear, Revision: l.Revision}
@@ -112,15 +112,15 @@ func encodeItem(it *model.Item) *replyItem {
 	return out
 }
 
-func decodeReply(raw []byte) (application.Result, error) {
+func decodeReply(raw []byte) (application.Changes, error) {
 	if len(raw) == 0 {
-		return application.Result{}, nil
+		return application.Changes{}, nil
 	}
 	var r reply
 	if err := json.Unmarshal(raw, &r); err != nil {
-		return application.Result{}, fmt.Errorf("item: stored reply: %w", err)
+		return application.Changes{}, fmt.Errorf("item: stored reply: %w", err)
 	}
-	res := application.Result{Revision: r.Revision, Piece: r.Piece, Pieces: r.Pieces}
+	res := application.Changes{Revision: r.Revision, Piece: r.Piece, Pieces: r.Pieces}
 	if l := r.Look; l != nil {
 		res.Look = &model.Look{Outfit: l.Outfit, Headwear: l.Headwear, Face: l.Face, Weapon: l.Weapon, Wings: l.Wings, HideHeadwear: l.HideHeadwear, Revision: l.Revision}
 	}
@@ -130,21 +130,21 @@ func decodeReply(raw []byte) (application.Result, error) {
 	for _, rs := range r.Changed {
 		it, err := decodeItem(rs.Item)
 		if err != nil {
-			return application.Result{}, err
+			return application.Changes{}, err
 		}
 		res.Changed = append(res.Changed, model.Slot{Tab: gamedata.Tab(rs.Tab), Slot: rs.Slot, Item: it})
 	}
 	for _, rs := range r.Equipment {
 		it, err := decodeItem(rs.Item)
 		if err != nil {
-			return application.Result{}, err
+			return application.Changes{}, err
 		}
 		res.Equipment = append(res.Equipment, model.WornSlot{Slot: rs.Slot, Item: it})
 	}
 	for _, ri := range r.Worn {
 		it, err := decodeItem(&ri)
 		if err != nil {
-			return application.Result{}, err
+			return application.Changes{}, err
 		}
 		res.Worn = append(res.Worn, *it)
 	}

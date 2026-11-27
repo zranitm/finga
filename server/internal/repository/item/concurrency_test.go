@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	application "finga/internal/application/item/service"
+	application "finga/internal/application/item"
 	model "finga/internal/model/item"
 	"finga/internal/repository/item/itemtest"
 	"finga/pkg/uuidv7"
@@ -35,7 +35,7 @@ func TestConcurrentAddsFindTheirOwnSlots(t *testing.T) {
 			}
 			const n = 8
 			errs := make([]error, n+1)
-			var starter application.Result
+			var starter application.Changes
 			var wg sync.WaitGroup
 			for i := range n {
 				wg.Go(func() {

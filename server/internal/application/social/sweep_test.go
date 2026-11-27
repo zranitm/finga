@@ -2,18 +2,15 @@ package social
 
 import (
 	"context"
+	model "finga/internal/model/social"
+	"finga/internal/shared/kernel"
+	"finga/pkg/hub"
+	"finga/pkg/panics"
 	"log/slog"
 	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
-
-	application "finga/internal/application/social/service"
-	model "finga/internal/model/social"
-	repository "finga/internal/repository/social"
-	"finga/internal/shared/kernel"
-	"finga/pkg/hub"
-	"finga/pkg/panics"
 )
 
 // faulty runs fault inside the module before each Online and Offline the party service takes, to hold or panic there.
@@ -36,8 +33,8 @@ func (f faulty) Offline(ctx context.Context, id kernel.CharacterID, conn string)
 func newLive(t *testing.T, fault func(call string, id kernel.CharacterID), rec *panics.Recorder) *Module {
 	t.Helper()
 	notes := newNotifier()
-	ps := application.NewPartyService(application.PartyDeps{Store: repository.NewMemory(), Notifier: notes})
-	return build(t, faulty{parties: ps, fault: fault}, application.NewChatService(application.ChatDeps{Parties: ps, LineMax: 120}), notes, rec)
+	ps := NewPartyService(PartyDeps{Store: memory(), Notifier: notes})
+	return build(t, faulty{parties: ps, fault: fault}, NewChatService(ChatDeps{Parties: ps, LineMax: 120}), notes, rec)
 }
 
 func discarding() *panics.Recorder { return panics.NewRecorder(slog.New(slog.DiscardHandler), nil) }

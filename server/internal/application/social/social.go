@@ -7,9 +7,7 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	"finga/config"
-	application "finga/internal/application/social/service"
 	model "finga/internal/model/social"
-	repository "finga/internal/repository/social"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/host"
@@ -54,16 +52,17 @@ type Deps struct {
 	Module *host.Module // its logs, panics, tasks and metrics
 	Config config.Social
 	Data   *gamedata.Data // how long a chat line may be
+	Store  PartyStore     // the parties' storage, which the wiring builds
 }
 
 // New builds the module and adds its member retention task; parties live in memory, so a restart forgets them.
-func New(_ context.Context, d Deps) (*Module, error) {
+func New(d Deps) (*Module, error) {
 	retentionMetrics, err := retentionprom.New(d.Module.Registry(), "social")
 	if err != nil {
 		return nil, err
 	}
 	notes := newNotifier()
-	ps := application.NewPartyService(application.PartyDeps{Store: repository.NewMemory(), Notifier: notes})
+	ps := NewPartyService(PartyDeps{Store: d.Store, Notifier: notes})
 	c := d.Config.Members
 	gone := retention.Policy{Keep: c.Keep, Every: c.PruneEvery, Batch: c.PruneBatch, Gap: c.PruneGap}
 	d.Module.Task("member retention", func(ctx context.Context) error {
@@ -76,7 +75,7 @@ func New(_ context.Context, d Deps) (*Module, error) {
 	return &Module{
 		calls:       calls,
 		parties:     ps,
-		chat:        application.NewChatService(application.ChatDeps{Parties: ps, LineMax: d.Data.ChatLineMax()}),
+		chat:        NewChatService(ChatDeps{Parties: ps, LineMax: d.Data.ChatLineMax()}),
 		notes:       notes,
 		panics:      d.Module.Panics,
 		registering: semaphore.NewWeighted(1),

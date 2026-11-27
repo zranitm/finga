@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	application "finga/internal/application/character/service"
+	application "finga/internal/application/character"
 	"finga/internal/migration"
 	model "finga/internal/model/character"
 	"finga/internal/shared/gamedata"

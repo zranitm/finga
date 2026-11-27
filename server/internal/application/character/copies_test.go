@@ -2,12 +2,10 @@ package character
 
 import (
 	"context"
-	"testing"
-
-	application "finga/internal/application/character/service"
 	model "finga/internal/model/character"
 	"finga/internal/shared/kernel"
 	"finga/pkg/copytest"
+	"testing"
 )
 
 // stored is a character and its rows as the module holds them.
@@ -25,7 +23,7 @@ type filledService struct {
 	rows stored
 }
 
-func (f *filledService) Create(_ context.Context, account kernel.AccountID, in application.CreateInput) (model.Character, error) {
+func (f *filledService) Create(_ context.Context, account kernel.AccountID, in CreateInput) (model.Character, error) {
 	f.in = []any{account, in}
 	return f.rows.Character, nil
 }
@@ -76,14 +74,14 @@ func TestEveryConversionKeepsEveryField(t *testing.T) {
 			}
 			type sent struct {
 				Account kernel.AccountID
-				In      application.CreateInput
+				In      CreateInput
 			}
 			return copytest.Diff(copytest.Match{Renames: map[string]string{"Name": "In.Name"}}, func(a asked) sent {
 				if _, err := m.Create(ctx, a.Account, a.Name); err != nil {
 					t.Fatal(err)
 				}
 				in := f.in.([]any)
-				return sent{in[0].(kernel.AccountID), in[1].(application.CreateInput)}
+				return sent{in[0].(kernel.AccountID), in[1].(CreateInput)}
 			})
 		},
 		"Create's character": func() []string {

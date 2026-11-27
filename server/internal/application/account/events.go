@@ -2,8 +2,6 @@ package account
 
 import (
 	"context"
-
-	application "finga/internal/application/account/service"
 	"finga/internal/shared/kernel"
 	"finga/pkg/hub"
 )
@@ -43,9 +41,9 @@ const (
 )
 
 var revokeReasons = map[string]RevokeReason{
-	application.ReasonTokenReuse: RevokeTokenReuse,
-	application.ReasonLogout:     RevokeLogout,
-	application.ReasonNewLogin:   RevokeNewLogin,
+	ReasonTokenReuse: RevokeTokenReuse,
+	ReasonLogout:     RevokeLogout,
+	ReasonNewLogin:   RevokeNewLogin,
 }
 
 // Subscribe opens a gateway's sessions stream from now on; a newer one under the same ID closes it, as a full queue does.
@@ -54,7 +52,7 @@ func (m *Module) Subscribe(gateway string) *hub.Sub[Event] { return m.sessions.S
 // notifier tells every gateway of ended sessions; it never blocks.
 type notifier struct{ sessions *hub.Hub[Event] }
 
-var _ application.Notifier = notifier{}
+var _ Notifier = notifier{}
 
 // SessionRevoked tells every gateway one session ended.
 func (n notifier) SessionRevoked(_ context.Context, id kernel.SessionID, reason string) {

@@ -6,9 +6,7 @@ import (
 
 	"finga/config"
 	"finga/internal/application/account/password"
-	application "finga/internal/application/account/service"
 	model "finga/internal/model/account"
-	repository "finga/internal/repository/account"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/host"
 	"finga/internal/shared/kernel"
@@ -26,8 +24,8 @@ type Module struct {
 
 // service is the module's application, as the facade calls it.
 type service interface {
-	Register(ctx context.Context, in application.RegisterInput) (model.Account, error)
-	Login(ctx context.Context, in application.LoginInput) (string, error)
+	Register(ctx context.Context, in RegisterInput) (model.Account, error)
+	Login(ctx context.Context, in LoginInput) (string, error)
 	Validate(ctx context.Context, token string) (model.Principal, error)
 	Rotate(ctx context.Context, sessionID kernel.SessionID) (string, error)
 	Check(ctx context.Context, sessionID kernel.SessionID) error
@@ -39,24 +37,21 @@ type service interface {
 
 // Deps are what the module is built from.
 type Deps struct {
-	Module *host.Module // its logs, panics, tasks, metrics and the process's database
+	Module *host.Module // its logs, panics, tasks and metrics
 	Config config.Account
+	Store  Store // its persistence, which the wiring builds on the process's database
 }
 
-// New builds the module and adds its session retention task; it fails fast on an unreachable database.
-func New(ctx context.Context, d Deps) (*Module, error) {
-	pool, dbMetrics, err := d.Module.Database(ctx)
-	if err != nil {
-		return nil, err
-	}
+// New builds the module and adds its session retention task.
+func New(d Deps) (*Module, error) {
 	retentionMetrics, err := retentionprom.New(d.Module.Registry(), "account")
 	if err != nil {
 		return nil, err
 	}
 	pw := d.Config.Password
 	sessions := hub.New[Event](sessionsQueue)
-	svc, err := application.NewService(application.Deps{
-		Store:    repository.NewPostgres(pool, dbMetrics),
+	svc, err := NewService(ServiceDeps{
+		Store:    d.Store,
 		Notifier: notifier{sessions: sessions},
 		Hasher:   password.NewHasher(password.Params{Time: pw.Time, Memory: pw.MemoryKiB, Threads: pw.Threads, SaltLen: password.Default.SaltLen, KeyLen: password.Default.KeyLen}, pw.Concurrent, pw.Wait),
 	})
@@ -79,7 +74,7 @@ func New(ctx context.Context, d Deps) (*Module, error) {
 func (m *Module) Register(ctx context.Context, c Credentials) (_ Account, err error) {
 	ctx, call := m.calls.Start(ctx, "Register")
 	defer call.End(&err)
-	a, err := m.svc.Register(ctx, application.RegisterInput{Username: c.Username, Password: c.Password})
+	a, err := m.svc.Register(ctx, RegisterInput(c))
 	return accountOf(a), err
 }
 
@@ -87,7 +82,7 @@ func (m *Module) Register(ctx context.Context, c Credentials) (_ Account, err er
 func (m *Module) Login(ctx context.Context, c Credentials) (_ string, err error) {
 	ctx, call := m.calls.Start(ctx, "Login")
 	defer call.End(&err)
-	return m.svc.Login(ctx, application.LoginInput{Username: c.Username, Password: c.Password})
+	return m.svc.Login(ctx, LoginInput(c))
 }
 
 // Validate resolves a token to its session.

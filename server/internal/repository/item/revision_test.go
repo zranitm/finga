@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	application "finga/internal/application/item/service"
+	application "finga/internal/application/item"
 	model "finga/internal/model/item"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
@@ -84,7 +84,7 @@ func TestRacingChangesTakeRevisionsInTheirOrder(t *testing.T) {
 	gel := h.add(t, uuidv7.NewString(), "slime_gel", 50).Changed[0].Item.ID
 	h.add(t, uuidv7.NewString(), "red_potion", 1)
 	const n = 8
-	results := make([]application.Result, 2*n)
+	results := make([]application.Changes, 2*n)
 	errs := make([]error, 2*n)
 	var wg sync.WaitGroup
 	for i := range n {
@@ -106,7 +106,7 @@ func TestRacingChangesTakeRevisionsInTheirOrder(t *testing.T) {
 		}
 		taken[r.Revision] = true
 	}
-	byRevision := func(a, b application.Result) int { return cmp.Compare(a.Revision, b.Revision) }
+	byRevision := func(a, b application.Changes) int { return cmp.Compare(a.Revision, b.Revision) }
 	adds, discards := slices.SortedFunc(slices.Values(results[:n]), byRevision), slices.SortedFunc(slices.Values(results[n:]), byRevision)
 	for k := range n {
 		if q := adds[k].Changed[0].Item.Quantity; q != 2+k {

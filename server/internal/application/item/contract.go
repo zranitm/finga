@@ -4,13 +4,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
-	application "finga/internal/application/item/service"
 	model "finga/internal/model/item"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"
+
+	"github.com/google/uuid"
 )
 
 // Actor is who a command acts for: the account, and the character whose inventory it changes.
@@ -242,22 +241,22 @@ var causeTypes = map[CauseType]model.CauseType{
 }
 
 // input checks the request's key and cause, in the order its handler does, so a request malformed both ways names the same fault.
-func (r AddRequest) input(keyFirst bool) (application.AddInput, error) {
+func (r AddRequest) input(keyFirst bool) (AddInput, error) {
 	t, ok := causeTypes[r.Cause.Type]
 	err := checkKey(r.Key)
 	switch {
 	case err != nil && (keyFirst || ok):
-		return application.AddInput{}, err
+		return AddInput{}, err
 	case !ok:
-		return application.AddInput{}, model.ErrBadCause
+		return AddInput{}, model.ErrBadCause
 	}
-	return application.AddInput{Key: r.Key, TemplateID: r.TemplateID, Quantity: r.Quantity, Cause: model.Cause{Type: t, ID: r.Cause.ID}, Stats: r.Stats, Promotes: r.Promotes}, nil
+	return AddInput{Key: r.Key, TemplateID: r.TemplateID, Quantity: r.Quantity, Cause: model.Cause{Type: t, ID: r.Cause.ID}, Stats: r.Stats, Promotes: r.Promotes}, nil
 }
 
-func (r HandInRequest) input() application.HandInInput {
-	in := application.HandInInput{Quest: r.Quest, Completion: r.Completion, Take: r.Take, Pieces: r.Pieces}
+func (r HandInRequest) input() HandInInput {
+	in := HandInInput{Quest: r.Quest, Completion: r.Completion, Take: r.Take, Pieces: r.Pieces}
 	for _, g := range r.Give {
-		in.Give = append(in.Give, application.Give(g))
+		in.Give = append(in.Give, RewardLine(g))
 	}
 	return in
 }
@@ -290,7 +289,7 @@ func slotsOf(slots []model.Slot) []Slot {
 	return out
 }
 
-func resultOf(res application.Result) Result {
+func resultOf(res Changes) Result {
 	out := Result{Changed: slotsOf(res.Changed), Worn: itemsOf(res.Worn), Revision: res.Revision, Piece: res.Piece, Pieces: res.Pieces}
 	if res.Look != nil {
 		look := Look(*res.Look)

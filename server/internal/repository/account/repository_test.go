@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	application "finga/internal/application/account/service"
+	application "finga/internal/application/account"
 	"finga/internal/migration"
 	model "finga/internal/model/account"
 	"finga/internal/shared/kernel"

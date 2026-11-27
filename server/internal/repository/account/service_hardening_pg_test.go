@@ -10,8 +10,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	application "finga/internal/application/account"
 	"finga/internal/application/account/password"
-	application "finga/internal/application/account/service"
 	model "finga/internal/model/account"
 	"finga/internal/shared/kernel"
 )
@@ -52,7 +52,7 @@ func underSynctest(t *testing.T, f func(t *testing.T, svc *application.Service, 
 		t.Cleanup(pool.Close)
 		store := NewPostgres(pool, nil)
 		hooks := &notices{}
-		svc, err := application.NewService(application.Deps{Store: store, Notifier: hooks, Hasher: password.NewHasher(cheapHash, 4, time.Second)})
+		svc, err := application.NewService(application.ServiceDeps{Store: store, Notifier: hooks, Hasher: password.NewHasher(cheapHash, 4, time.Second)})
 		if err != nil {
 			t.Fatal(err)
 		}

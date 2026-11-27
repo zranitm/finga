@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	application "finga/internal/application/character/service"
+	application "finga/internal/application/character"
 	model "finga/internal/model/character"
 	"finga/internal/shared/gamedata/gamedatatest"
 	"finga/internal/shared/kernel"
@@ -19,7 +19,7 @@ func TestConcurrentCreatesKeepTheCharacterCap(t *testing.T) {
 	ctx := context.Background()
 	data := gamedatatest.Shipped(t)
 	store := NewPostgres(cluster.DB(t), nil)
-	svc := application.NewService(application.Deps{Store: store, Content: data, Starter: granted{}, Logger: slog.New(slog.DiscardHandler)})
+	svc := application.NewService(application.ServiceDeps{Store: store, Content: data, Starter: granted{}, Logger: slog.New(slog.DiscardHandler)})
 	account := kernel.NewAccountID()
 	const n = 6
 	errs := make([]error, n)
