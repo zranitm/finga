@@ -1741,6 +1741,7 @@ export class World {
 
   /** The yaw an action aims along: to the lock, in or out of its reach, else the player's heading, as a heal, aiming at no one, always does; and the lock's ref for the world to hit first, "" for none. */
   private aimFor(heals: boolean): { readonly yaw: number; readonly target: string } {
+    this.lock.endRun(); // an attack or a skill going out ends the run of Tabs
     const s = this.predictor?.state;
     if (!s) {
       return { yaw: 0, target: '' };
@@ -1992,7 +1993,7 @@ export class World {
     return at ? { at, drawn: false } : null;
   }
 
-  /** Tab: locks the next mob or enemy farther than the locked one, on a map with combat while the player may act. */
+  /** Tab: locks the nearest mob or enemy not yet locked in this run of Tabs, on a map with combat while the player may act. */
   private nextTarget(): void {
     const s = this.predictor?.state;
     if (s && !this.inTown() && this.free()) {
