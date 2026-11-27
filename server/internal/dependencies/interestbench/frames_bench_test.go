@@ -4,6 +4,7 @@ package interestbench
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/rand/v2"
 	"slices"
 	"strings"
@@ -30,23 +31,17 @@ const (
 	camps      = 100    // of four mobs each
 )
 
-// shapes are the blocks of cells compared: one as big as the map, a square 7 by 7, and the shipped 7 by 5.
+// shapes are the blocks of cells compared: a square 7 by 7, and the shipped 7 by 5 (a bigger one holds a shipped region whole, which the loader refuses).
 var shapes = []struct {
 	name                string
 	behind, ahead, side int
-}{{"whole map", 32, 32, 32}, {"7x7", 3, 3, 3}, {"7x5", 1, 3, 3}}
+}{{"7x7", 3, 3, 3}, {"7x5", 1, 3, 3}}
 
 // A tick of 150 players walking a 1 km region among 400 mobs: what the world spends cutting and sending it, and what each client's Delta costs the gateway, in bytes and allocations.
 func BenchmarkACrowdedRegionsFrames(b *testing.B) {
 	m := region(b)
 	for _, sh := range shapes {
-		data := worldtest.LoadDataWith(b, worldtest.WithoutRegions(b, map[string]func(string) string{"world.yaml": func(s string) string {
-			return strings.NewReplacer(
-				"  behind: 1\n", fmt.Sprintf("  behind: %d\n", sh.behind),
-				"  ahead: 3\n", fmt.Sprintf("  ahead: %d\n", sh.ahead),
-				"  side: 3\n", fmt.Sprintf("  side: %d\n", sh.side),
-			).Replace(s)
-		}}))
+		data := interestData(b, sh.behind, sh.ahead, sh.side)
 		s := newScene(b, m, data, crowd)
 		s.run(200) // the crowd spreads and the camps wake
 		b.Run(sh.name+"/tick", func(b *testing.B) {
@@ -106,6 +101,8 @@ func region(b *testing.B) *gamedata.Map {
 
 // scene is a map stepped by hand, its players each holding a key they change now and then, as walkers do.
 type scene struct {
+	home *gamedata.Point                   // when set, a player past 45 m of it presses toward it
+	at   map[kernel.CharacterID][2]float64 // where each last was, as the latest frame had them
 	inst *instance.Instance
 	out  *stream
 	ids  []kernel.CharacterID
@@ -116,10 +113,18 @@ type scene struct {
 }
 
 func newScene(b *testing.B, m *gamedata.Map, data *gamedata.Data, players int) *scene {
-	s := &scene{inst: worldtest.NewInstance(m, data, nil, worldtest.Options{}), out: &stream{}, r: rand.New(rand.NewPCG(2, 9))}
+	return newSceneAt(b, m, data, players, func(r *rand.Rand) (float64, float64) {
+		return 20 + r.Float64()*(regionSize-40), 20 + r.Float64()*(regionSize-40)
+	})
+}
+
+// newSceneAt is a scene whose players start where place puts each.
+func newSceneAt(b *testing.B, m *gamedata.Map, data *gamedata.Data, players int, place func(*rand.Rand) (float64, float64)) *scene {
+	s := &scene{inst: worldtest.NewInstance(m, data, nil, worldtest.Options{}), out: &stream{}, r: rand.New(rand.NewPCG(2, 9)), at: map[kernel.CharacterID][2]float64{}}
 	var joined sync.WaitGroup
 	for k := range players {
-		p := worldtest.NewPlayer(fmt.Sprintf("P%03d", k), 20+s.r.Float64()*(regionSize-40), 20+s.r.Float64()*(regionSize-40))
+		x, z := place(s.r)
+		p := worldtest.NewPlayer(fmt.Sprintf("P%03d", k), x, z)
 		p.Level, p.HP = 60, 50000 // walks among mobs all through the run
 		s.ids, s.keys = append(s.ids, p.ID), append(s.keys, sim.Input{})
 		joined.Go(func() {
@@ -154,9 +159,22 @@ func (s *scene) step() {
 		if s.r.IntN(60) == 0 {
 			s.keys[k] = sim.Input{Left: s.r.IntN(3) == 0, Right: s.r.IntN(3) == 0, Up: s.r.IntN(2) == 0, Down: s.r.IntN(3) == 0}
 		}
-		_ = s.inst.Input(id, s.seq, s.keys[k], 0)
+		key := s.keys[k]
+		if a, ok := s.at[id]; ok && s.home != nil {
+			if dx, dz := s.home.X-a[0], s.home.Z-a[1]; math.Hypot(dx, dz) > 45 {
+				key = sim.Input{Right: dx > 0, Left: dx < 0, Up: dz > 0, Down: dz < 0}
+			}
+		}
+		_ = s.inst.Input(id, s.seq, key, 0)
 	}
 	s.inst.Step(s.tick, worldtest.TickInterval)
+	if s.home != nil && s.out.frame != nil {
+		for _, p := range s.out.frame.Parts {
+			for _, v := range p.Players {
+				s.at[v.ID] = [2]float64{v.State.X, v.State.Z}
+			}
+		}
+	}
 }
 
 // stream is one gateway's: it keeps the latest frame and who it went to.
@@ -227,4 +245,92 @@ func unseen(u *model.Unseen) *gwmodel.Unseen {
 		out.Players = append(out.Players, id.String())
 	}
 	return out
+}
+
+// interestData is the data with the interest block cut as asked, over the stand-ins for the shipped regions, none of which a 7 by 7 block holds whole.
+func interestData(b testing.TB, behind, ahead, side int) *gamedata.Data {
+	return worldtest.LoadDataWith(b, map[string]func(string) string{"world.yaml": func(s string) string {
+		return strings.NewReplacer(
+			"  behind: 1\n", fmt.Sprintf("  behind: %d\n", behind),
+			"  ahead: 3\n", fmt.Sprintf("  ahead: %d\n", ahead),
+			"  side: 3\n", fmt.Sprintf("  side: %d\n", side),
+		).Replace(s)
+	}})
+}
+
+// A tick of 150 players clumped within about 60 m among Sunmeadow-like camps, as the soak's bots were in Sunmeadow: each client's Delta in bytes, split by what's in it, and how many bodies it holds, at 1 and 3 times the mobs a camp holds.
+func BenchmarkACrowdInACamp(b *testing.B) {
+	for _, perCamp := range []int{5, 15} {
+		b.Run(fmt.Sprintf("%d mobs a camp", perCamp), func(b *testing.B) {
+			data := interestData(b, 1, 3, 3)
+			s := newClumpedScene(b, data, crowd, perCamp)
+			s.run(200) // the crowd moves about and the camps wake
+			s.step()
+			frame, to := s.out.frame, s.out.to
+			codec := protocol.ServerCodec(wsconn.Binary)
+			conn := &discard{}
+			size := func(f *gwmodel.Frame, r model.Recipient) int {
+				o := push.NewOutbox(conn, conn, push.NewFrames())
+				o.Deliver(gwmodel.Delivery{Tick: frame.Tick, Push: gwmodel.Delta{Frame: f, Parts: r.Parts, AckSeq: r.AckSeq, Unseen: unseen(r.Unseen)}})
+				wire, err := codec.Encode(conn.last)
+				if err != nil {
+					b.Fatal(err)
+				}
+				return len(wire)
+			}
+			whole := gatewayFrame(frame)
+			players, mobs := &gwmodel.Frame{}, &gwmodel.Frame{}
+			for _, p := range whole.Parts {
+				players.Parts = append(players.Parts, gwmodel.Part{Players: p.Players, RemovedPlayers: p.RemovedPlayers})
+				mobs.Parts = append(mobs.Parts, gwmodel.Part{Mobs: p.Mobs, RemovedMobs: p.RemovedMobs})
+			}
+			for b.Loop() {
+			}
+			var total, onlyPlayers, onlyMobs, empty, seenPlayers, seenMobs int
+			for _, r := range to {
+				total += size(whole, r)
+				onlyPlayers += size(players, r)
+				onlyMobs += size(mobs, r)
+				empty += size(&gwmodel.Frame{Parts: make([]gwmodel.Part, len(whole.Parts))}, r)
+				for _, k := range r.Parts {
+					seenPlayers += len(whole.Parts[k].Players)
+					seenMobs += len(whole.Parts[k].Mobs)
+				}
+			}
+			n := float64(len(to))
+			b.ReportMetric(float64(total)/n, "B/client")
+			b.ReportMetric(float64(onlyPlayers-empty)/n, "B/players")
+			b.ReportMetric(float64(onlyMobs-empty)/n, "B/mobs")
+			b.ReportMetric(float64(empty)/n, "B/other")
+			b.ReportMetric(float64(seenPlayers)/n, "players/client")
+			b.ReportMetric(float64(seenMobs)/n, "mobs/client")
+			b.ReportMetric(float64(total)/n*20/1000, "kB/s@20Hz")
+			far := 0.0
+			for _, a := range s.at {
+				far = max(far, math.Hypot(a[0]-s.home.X, a[1]-s.home.Z))
+			}
+			b.ReportMetric(far, "m/farthest")
+		})
+	}
+}
+
+// newClumpedScene is a scene of players kept within about 60 m of the middle of a map, among six camps of perCamp mobs within 70 m of it.
+func newClumpedScene(b *testing.B, data *gamedata.Data, players, perCamp int) *scene {
+	const size = 256.0
+	centre := gamedata.Point{X: size / 2, Z: size / 2}
+	r := rand.New(rand.NewPCG(7, 3))
+	kinds := []string{"green_slime", "orange_mushroom", "green_slime", "green_slime", "orange_mushroom", "green_slime"}
+	spawns := make([]gamedata.Spawn, len(kinds))
+	for k, kind := range kinds {
+		at := gamedata.Point{X: centre.X + (r.Float64()*2-1)*70, Z: centre.Z + (r.Float64()*2-1)*70}
+		spawns[k] = gamedata.Spawn{Mob: kind, Max: perCamp, Respawn: 24 * time.Second, Radius: 8, At: at}
+	}
+	m := worldtest.Gridded(b, &gamedata.Map{
+		ID: "camp", Kind: gamedata.Hunting, Town: "willowmere", Geometry: worldtest.Flat(size), Spawns: spawns, PlayerSpawn: centre,
+	})
+	s := newSceneAt(b, m, data, players, func(r *rand.Rand) (float64, float64) {
+		return centre.X + (r.Float64()*2-1)*30, centre.Z + (r.Float64()*2-1)*30
+	})
+	s.home = &centre
+	return s
 }

@@ -245,19 +245,6 @@ func LoadDataWith(t testing.TB, edits map[string]func(string) string) *gamedata.
 	return shared.(*gamedata.Data)
 }
 
-// WithoutRegions is edits leaving out every region the data ships too, for an interest block one would fit in, which the loader refuses.
-func WithoutRegions(t testing.TB, edits map[string]func(string) string) map[string]func(string) string {
-	t.Helper()
-	plans, err := filepath.Glob(filepath.Join(gamedatatest.Dir(), "regions", "*.yaml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, p := range plans {
-		edits[filepath.Join("regions", filepath.Base(p))] = nil
-	}
-	return edits
-}
-
 // Town is the small shipped town tests run in, Crossroads, rather than the start region.
 func Town(data *gamedata.Data) *gamedata.Map {
 	m, ok := data.Map("crossroads")
