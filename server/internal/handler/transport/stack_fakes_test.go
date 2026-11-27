@@ -121,7 +121,7 @@ func (s *stream[T]) cut(t testing.TB) {
 
 // fakeAccount is the account module: the tokens it knows, the sessions it ended, and its stream of session ends.
 type fakeAccount struct {
-	adapter.OwnModule // the lobby's calls, which no connection makes
+	adapter.OwnModule // the REST routes' calls, which no connection makes
 	ends              *stream[account.Event]
 	mu                sync.Mutex
 	tokens            map[string]account.Principal
