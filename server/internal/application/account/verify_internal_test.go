@@ -25,7 +25,7 @@ func (noAccounts) SessionRevoked(context.Context, kernel.SessionID, string) {}
 func (noAccounts) AccountRevoked(context.Context, kernel.AccountID, string) {}
 
 func TestUnknownUsernameVerifiesADummyHash(t *testing.T) {
-	svc, err := NewService(ServiceDeps{Store: noAccounts{}, Notifier: noAccounts{}, Hasher: password.NewHasher(password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32}, 4, time.Second)})
+	svc, err := newCases(casesDeps{Store: noAccounts{}, Notifier: noAccounts{}, Hasher: password.NewHasher(password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32}, 4, time.Second)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestUnknownUsernameVerifiesADummyHash(t *testing.T) {
 
 func TestAHasherThatCannotHashFailsTheBuild(t *testing.T) {
 	stuck := password.NewHasher(password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32}, 0, time.Millisecond) // no slot ever frees
-	if _, err := NewService(ServiceDeps{Store: noAccounts{}, Notifier: noAccounts{}, Hasher: stuck}); !errors.Is(err, password.ErrBusy) {
-		t.Fatalf("NewService with a hasher that cannot hash: %v", err)
+	if _, err := newCases(casesDeps{Store: noAccounts{}, Notifier: noAccounts{}, Hasher: stuck}); !errors.Is(err, password.ErrBusy) {
+		t.Fatalf("newCases with a hasher that cannot hash: %v", err)
 	}
 }

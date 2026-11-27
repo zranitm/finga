@@ -62,7 +62,7 @@ type board struct {
 }
 
 // SetBuild saves the arena build of one of the account's characters, checked against their class, and hands it to their match if they're in one, for its next round; a match that can't take it now gets it at their next.
-func (s *Service) SetBuild(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, bar []string, traits map[string]string) error {
+func (s *cases) SetBuild(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, bar []string, traits map[string]string) error {
 	ch, err := s.owned(ctx, account, id)
 	if err != nil {
 		return err
@@ -85,7 +85,7 @@ func (s *Service) SetBuild(ctx context.Context, account kernel.AccountID, id ker
 }
 
 // Profile is one of the account's characters' standing in each rated mode, and their arena build: the one they saved, or their world bar's copy.
-func (s *Service) Profile(ctx context.Context, account kernel.AccountID, id kernel.CharacterID) (Profile, error) {
+func (s *cases) Profile(ctx context.Context, account kernel.AccountID, id kernel.CharacterID) (Profile, error) {
 	ch, err := s.owned(ctx, account, id)
 	if err != nil {
 		return Profile{}, err
@@ -127,7 +127,7 @@ func (s *Service) Profile(ctx context.Context, account kernel.AccountID, id kern
 }
 
 // owned is one of the account's characters; another's is ErrNoCharacter, as none is.
-func (s *Service) owned(ctx context.Context, account kernel.AccountID, id kernel.CharacterID) (model.Character, error) {
+func (s *cases) owned(ctx context.Context, account kernel.AccountID, id kernel.CharacterID) (model.Character, error) {
 	ch, err := s.d.Characters.Character(ctx, id)
 	if err == nil && ch.Account != account {
 		return model.Character{}, model.ErrNoCharacter
@@ -136,14 +136,14 @@ func (s *Service) owned(ctx context.Context, account kernel.AccountID, id kernel
 }
 
 // copied is the build of a character who saved none: their world bar's copy, as their class can use it; an unknown class has no skill, so its copy is empty.
-func (s *Service) copied(ch model.Character) model.Build {
+func (s *cases) copied(ch model.Character) model.Build {
 	class, _ := s.d.Data.Class(ch.Class)
 	bar, traits := gamedata.PvpCopy(class, s.d.Data.Skill, ch.Bar, ch.Traits)
 	return model.Build{Bar: bar, Traits: traits}
 }
 
 // Leaderboard is a rated mode's top placed characters, highest first, a tie sharing its place; one read serves everyone for boardFor.
-func (s *Service) Leaderboard(ctx context.Context, modeID string) ([]Row, error) {
+func (s *cases) Leaderboard(ctx context.Context, modeID string) ([]Row, error) {
 	mode, ok := s.d.Data.PvpMode(modeID)
 	if !ok || !mode.Rated {
 		return nil, model.ErrUnknownMode // an unrated mode has no board
@@ -172,7 +172,7 @@ func (s *Service) Leaderboard(ctx context.Context, modeID string) ([]Row, error)
 }
 
 // readBoard reads mode's board from the store, with the characters' names.
-func (s *Service) readBoard(ctx context.Context, mode gamedata.PvpMode) ([]Row, error) {
+func (s *cases) readBoard(ctx context.Context, mode gamedata.PvpMode) ([]Row, error) {
 	ranked, err := s.d.Store.Board(ctx, mode.ID, boardLength)
 	if err != nil {
 		return nil, err
@@ -198,7 +198,7 @@ func (s *Service) readBoard(ctx context.Context, mode gamedata.PvpMode) ([]Row, 
 }
 
 // detached is ctx's values, ended after d or as the module stops, but not by ctx.
-func (s *Service) detached(ctx context.Context, d time.Duration) (context.Context, context.CancelFunc) {
+func (s *cases) detached(ctx context.Context, d time.Duration) (context.Context, context.CancelFunc) {
 	s.mu.Lock()
 	lifeCtx := s.lifeCtx
 	s.mu.Unlock()
@@ -208,7 +208,7 @@ func (s *Service) detached(ctx context.Context, d time.Duration) (context.Contex
 }
 
 // sendBuilds hands an opened match each player's build, the saved one or their world bar's copy, read once the match knows its players, so a save from then on reaches it too. Each player's is read at once and on its own, apart from ctx, the one who accepted last, and one that can't be within buildsFor, or as the module stops, leaves its player fighting with no bar but their client's, on their world traits.
-func (s *Service) sendBuilds(ctx context.Context, spec model.Spec) {
+func (s *cases) sendBuilds(ctx context.Context, spec model.Spec) {
 	for _, side := range spec.Sides {
 		for _, p := range side {
 			if p.Bot != nil {
@@ -230,7 +230,7 @@ func (s *Service) sendBuilds(ctx context.Context, spec model.Spec) {
 }
 
 // buildOf is the character's build: the one they saved, or their world bar's copy.
-func (s *Service) buildOf(ctx context.Context, id kernel.CharacterID) (model.Build, error) {
+func (s *cases) buildOf(ctx context.Context, id kernel.CharacterID) (model.Build, error) {
 	b, saved, err := s.d.Store.Build(ctx, id)
 	if err != nil || saved {
 		return b, err

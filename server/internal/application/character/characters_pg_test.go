@@ -1,4 +1,4 @@
-package character
+package character_test
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 
 	application "finga/internal/application/character"
 	model "finga/internal/model/character"
+	repository "finga/internal/repository/character"
+	"finga/internal/repository/dbtest"
 	"finga/internal/shared/gamedata/gamedatatest"
 	"finga/internal/shared/kernel"
 )
@@ -18,8 +20,8 @@ import (
 func TestConcurrentCreatesKeepTheCharacterCap(t *testing.T) {
 	ctx := context.Background()
 	data := gamedatatest.Shipped(t)
-	store := NewPostgres(cluster.DB(t), nil)
-	svc := application.NewService(application.ServiceDeps{Store: store, Content: data, Starter: granted{}, Logger: slog.New(slog.DiscardHandler)})
+	store := repository.NewPostgres(dbtest.DB(t), nil)
+	svc := application.NewCases(application.CasesDeps{Store: store, Content: data, Starter: granted{}, Logger: slog.New(slog.DiscardHandler)})
 	account := kernel.NewAccountID()
 	const n = 6
 	errs := make([]error, n)

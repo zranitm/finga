@@ -3,7 +3,6 @@ package character
 import (
 	"context"
 	"errors"
-	"os"
 	"reflect"
 	"slices"
 	"testing"
@@ -13,27 +12,14 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	application "finga/internal/application/character"
-	"finga/internal/migration"
 	model "finga/internal/model/character"
+	"finga/internal/repository/dbtest"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
-	"finga/pkg/pgtest"
 	"finga/pkg/transient"
 )
 
-var cluster *pgtest.Cluster
-
-func TestMain(m *testing.M) {
-	ctx := context.Background()
-	var err error
-	cluster, err = pgtest.Start(ctx, pgtest.Migrations(migration.FS, migration.Table)) // the whole sequence, as the server runs on it
-	if err != nil {
-		panic(err)
-	}
-	code := m.Run()
-	_ = cluster.Close(ctx)
-	os.Exit(code)
-}
+func TestMain(m *testing.M) { dbtest.Main(m) }
 
 func sample(account kernel.AccountID, name string) model.Character {
 	return model.Character{
@@ -60,7 +46,7 @@ func insert(t *testing.T, store *Postgres, c model.Character) model.Character {
 
 func TestRepository(t *testing.T) {
 	ctx := context.Background()
-	pool := cluster.DB(t)
+	pool := dbtest.DB(t)
 	store := NewPostgres(pool, nil)
 	alice, bob := kernel.NewAccountID(), kernel.NewAccountID()
 	ayla := sample(alice, "Ayla")

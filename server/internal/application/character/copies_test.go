@@ -17,42 +17,42 @@ type stored struct {
 	Waypoints []model.Waypoint
 }
 
-// filledService answers with a filled character and its rows; the own stats and maximums stay the fake's.
-type filledService struct {
-	fakeService
+// filledCases answers with a filled character and its rows; the own stats and maximums stay the fake's.
+type filledCases struct {
+	fakeCases
 	rows stored
 }
 
-func (f *filledService) Create(_ context.Context, account kernel.AccountID, in CreateInput) (model.Character, error) {
+func (f *filledCases) Create(_ context.Context, account kernel.AccountID, in CreateInput) (model.Character, error) {
 	f.in = []any{account, in}
 	return f.rows.Character, nil
 }
 
-func (f *filledService) List(context.Context, kernel.AccountID) ([]model.Character, error) {
+func (f *filledCases) List(context.Context, kernel.AccountID) ([]model.Character, error) {
 	return []model.Character{f.rows.Character}, nil
 }
 
-func (f *filledService) Load(context.Context, kernel.CharacterID, kernel.AccountID) (model.Character, error) {
+func (f *filledCases) Load(context.Context, kernel.CharacterID, kernel.AccountID) (model.Character, error) {
 	return f.rows.Character, nil
 }
 
-func (f *filledService) Quests(context.Context, kernel.CharacterID) ([]model.Quest, error) {
+func (f *filledCases) Quests(context.Context, kernel.CharacterID) ([]model.Quest, error) {
 	return f.rows.Quests, nil
 }
 
-func (f *filledService) Skills(context.Context, kernel.CharacterID) ([]model.SkillPoints, error) {
+func (f *filledCases) Skills(context.Context, kernel.CharacterID) ([]model.SkillPoints, error) {
 	return f.rows.Skills, nil
 }
 
-func (f *filledService) Timers(context.Context, kernel.CharacterID) ([]model.SkillTimer, error) {
+func (f *filledCases) Timers(context.Context, kernel.CharacterID) ([]model.SkillTimer, error) {
 	return f.rows.Timers, nil
 }
 
-func (f *filledService) Waypoints(context.Context, kernel.CharacterID) ([]model.Waypoint, error) {
+func (f *filledCases) Waypoints(context.Context, kernel.CharacterID) ([]model.Waypoint, error) {
 	return f.rows.Waypoints, nil
 }
 
-// worked out are the character's fields the service derives rather than stores, below prefix.
+// worked out are the character's fields the use cases derives rather than stores, below prefix.
 func workedOut(prefix string) map[string]string {
 	out := map[string]string{prefix + "MaxHP": "derived from the class, level and stats by the service"}
 	for _, stat := range []string{"STR", "DEX", "INT", "AGI", "VIT"} {
@@ -64,7 +64,7 @@ func workedOut(prefix string) map[string]string {
 // Each conversion between the facade and the module carries every field, so one added on both sides and missed in between shows.
 func TestEveryConversionKeepsEveryField(t *testing.T) {
 	ctx := t.Context()
-	f := &filledService{}
+	f := &filledCases{}
 	m := newModule(t, f)
 	for name, diff := range map[string]func() []string{
 		"Create's request": func() []string {

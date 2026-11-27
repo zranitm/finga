@@ -73,7 +73,7 @@ func (in HandInInput) fingerprint(c kernel.CharacterID) []byte {
 
 // HandIn takes what a quest asks for, smallest stacks first and never worn items, then gives its rewards as Add places them and its pieces as GrantPieces does; any part failing changes nothing.
 // Each completion is handed in once: a repeat, however late and whatever its lines, changes nothing and gets the stored reply.
-func (s *Service) HandIn(ctx context.Context, actor model.Actor, in HandInInput) (Changes, error) {
+func (s *cases) HandIn(ctx context.Context, actor model.Actor, in HandInInput) (Changes, error) {
 	if in.Quest == "" || in.Completion < 1 {
 		return Changes{}, model.ErrBadCause
 	}
@@ -127,7 +127,7 @@ func (s *Service) HandIn(ctx context.Context, actor model.Actor, in HandInInput)
 }
 
 // HandedIn is which of the completions asked about the owner handed in, each with its stored reply.
-func (s *Service) HandedIn(ctx context.Context, owner kernel.CharacterID, asked []QuestCompletion) ([]HandIn, error) {
+func (s *cases) HandedIn(ctx context.Context, owner kernel.CharacterID, asked []QuestCompletion) ([]HandIn, error) {
 	if len(asked) > MaxHandedIn {
 		return nil, model.ErrBadBatch
 	}
@@ -138,7 +138,7 @@ func (s *Service) HandedIn(ctx context.Context, owner kernel.CharacterID, asked 
 }
 
 // handIn takes first, so the slots it empties can hold the rewards; the pieces go to the actor's account.
-func (s *Service) handIn(ctx context.Context, uow UnitOfWork, actor model.Actor, in HandInInput, gives []gamedata.Item, cause model.Cause) (Changes, error) {
+func (s *cases) handIn(ctx context.Context, uow UnitOfWork, actor model.Actor, in HandInInput, gives []gamedata.Item, cause model.Cause) (Changes, error) {
 	owner := actor.Character
 	inv, err := s.lockInventory(ctx, uow, owner)
 	if err != nil {

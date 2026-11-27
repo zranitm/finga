@@ -1,4 +1,3 @@
-// Package service holds the social module's party and chat rules.
 package social
 
 import (
@@ -11,8 +10,8 @@ import (
 	"finga/internal/shared/kernel"
 )
 
-// PartyService runs the party rules over a PartyStore.
-type PartyService struct {
+// partyCases runs the party rules over a PartyStore.
+type partyCases struct {
 	store PartyStore
 
 	notifier Notifier
@@ -21,19 +20,19 @@ type PartyService struct {
 	mu sync.Mutex
 }
 
-// PartyDeps are what the party service is built over.
-type PartyDeps struct {
+// partyCasesDeps are what the party use cases is built over.
+type partyCasesDeps struct {
 	Store    PartyStore
 	Notifier Notifier // hears every change members must know of
 }
 
-// NewPartyService makes the service over deps.
-func NewPartyService(deps PartyDeps) *PartyService {
-	return &PartyService{store: deps.Store, notifier: deps.Notifier}
+// newPartyCases makes the use cases over deps.
+func newPartyCases(deps partyCasesDeps) *partyCases {
+	return &partyCases{store: deps.Store, notifier: deps.Notifier}
 }
 
 // Online records a character as connected, routes their deliveries there and tells them their party; one from an older join than theirs is an ended tab's late registration and changes nothing, deliveries included. The world owns the map, channel, class, level and HP: the login's own values stand only where the world hasn't reported since the member last went offline, through another connection.
-func (s *PartyService) Online(ctx context.Context, m model.Member) error {
+func (s *partyCases) Online(ctx context.Context, m model.Member) error {
 	m.Online = true
 	return s.update(ctx, func(tx PartyTx, n *notes) error {
 		if old, ok := tx.Member(m.ID); ok {
@@ -55,7 +54,7 @@ func (s *PartyService) Online(ctx context.Context, m model.Member) error {
 }
 
 // Offline marks a character disconnected, party kept, when conn is still the connection they are online through.
-func (s *PartyService) Offline(ctx context.Context, id kernel.CharacterID, conn string) error {
+func (s *partyCases) Offline(ctx context.Context, id kernel.CharacterID, conn string) error {
 	return s.update(ctx, func(tx PartyTx, n *notes) error {
 		m, ok := tx.Member(id)
 		if !ok || m.Connection != conn {
@@ -70,7 +69,7 @@ func (s *PartyService) Offline(ctx context.Context, id kernel.CharacterID, conn 
 }
 
 // PruneMembers forgets at most limit members offline since before before and in no party, and reports how many.
-func (s *PartyService) PruneMembers(ctx context.Context, before time.Time, limit int) (int64, error) {
+func (s *partyCases) PruneMembers(ctx context.Context, before time.Time, limit int) (int64, error) {
 	var n int64
 	err := s.update(ctx, func(tx PartyTx, _ *notes) error {
 		n = 0
@@ -96,7 +95,7 @@ func (s *PartyService) PruneMembers(ctx context.Context, before time.Time, limit
 const reportKept = time.Minute
 
 // Update records a change the world saw: the map, level or HP of a member, kept for their login when social does not know them yet.
-func (s *PartyService) Update(ctx context.Context, id kernel.CharacterID, mapID string, channel int, class kernel.Class, level, hp, maxHP int) error {
+func (s *partyCases) Update(ctx context.Context, id kernel.CharacterID, mapID string, channel int, class kernel.Class, level, hp, maxHP int) error {
 	return s.update(ctx, func(tx PartyTx, n *notes) error {
 		now := time.Now()
 		m, ok := tx.Member(id)
@@ -113,7 +112,7 @@ func (s *PartyService) Update(ctx context.Context, id kernel.CharacterID, mapID 
 }
 
 // Invite asks a character on the inviter's map to join; a partyless inviter leads once it is accepted.
-func (s *PartyService) Invite(ctx context.Context, from, to kernel.CharacterID) (model.Invite, error) {
+func (s *partyCases) Invite(ctx context.Context, from, to kernel.CharacterID) (model.Invite, error) {
 	var inv model.Invite
 	err := s.update(ctx, func(tx PartyTx, n *notes) error {
 		s.expire(tx)
@@ -154,7 +153,7 @@ func (s *PartyService) Invite(ctx context.Context, from, to kernel.CharacterID) 
 }
 
 // Respond accepts or declines an invite addressed to who. The invite is spent even if joining is refused.
-func (s *PartyService) Respond(ctx context.Context, who kernel.CharacterID, inviteID model.InviteID, accept bool) error {
+func (s *partyCases) Respond(ctx context.Context, who kernel.CharacterID, inviteID model.InviteID, accept bool) error {
 	var refused error
 	err := s.update(ctx, func(tx PartyTx, n *notes) error {
 		s.expire(tx)
@@ -174,7 +173,7 @@ func (s *PartyService) Respond(ctx context.Context, who kernel.CharacterID, invi
 	return refused
 }
 
-func (s *PartyService) join(tx PartyTx, n *notes, inv model.Invite) error {
+func (s *partyCases) join(tx PartyTx, n *notes, inv model.Invite) error {
 	if _, ok := tx.PartyOf(inv.To); ok {
 		return model.ErrInParty
 	}
@@ -203,7 +202,7 @@ func (s *PartyService) join(tx PartyTx, n *notes, inv model.Invite) error {
 }
 
 // Leave removes who from their party; the longest-standing member replaces a leaving leader.
-func (s *PartyService) Leave(ctx context.Context, who kernel.CharacterID) error {
+func (s *partyCases) Leave(ctx context.Context, who kernel.CharacterID) error {
 	return s.update(ctx, func(tx PartyTx, n *notes) error {
 		p, ok := tx.PartyOf(who)
 		if !ok {
@@ -215,7 +214,7 @@ func (s *PartyService) Leave(ctx context.Context, who kernel.CharacterID) error 
 }
 
 // Kick removes a member; only the leader may, and not themselves.
-func (s *PartyService) Kick(ctx context.Context, leader, target kernel.CharacterID) error {
+func (s *partyCases) Kick(ctx context.Context, leader, target kernel.CharacterID) error {
 	return s.update(ctx, func(tx PartyTx, n *notes) error {
 		p, err := ledBy(tx, leader, target)
 		if err != nil {
@@ -227,7 +226,7 @@ func (s *PartyService) Kick(ctx context.Context, leader, target kernel.Character
 }
 
 // Promote hands leadership to another member.
-func (s *PartyService) Promote(ctx context.Context, leader, target kernel.CharacterID) error {
+func (s *partyCases) Promote(ctx context.Context, leader, target kernel.CharacterID) error {
 	return s.update(ctx, func(tx PartyTx, n *notes) error {
 		p, err := ledBy(tx, leader, target)
 		if err != nil {
@@ -241,7 +240,7 @@ func (s *PartyService) Promote(ctx context.Context, leader, target kernel.Charac
 }
 
 // Of is the party of a character, or false.
-func (s *PartyService) Of(ctx context.Context, id kernel.CharacterID) (model.Party, bool, error) {
+func (s *partyCases) Of(ctx context.Context, id kernel.CharacterID) (model.Party, bool, error) {
 	var p model.Party
 	var ok bool
 	err := s.store.InTx(ctx, func(tx PartyTx) error {
@@ -252,7 +251,7 @@ func (s *PartyService) Of(ctx context.Context, id kernel.CharacterID) (model.Par
 }
 
 // Memberships visits every party's ID and member IDs; nothing changes until it returns, and visit must not block.
-func (s *PartyService) Memberships(ctx context.Context, visit func(party model.PartyID, members []kernel.CharacterID)) error {
+func (s *partyCases) Memberships(ctx context.Context, visit func(party model.PartyID, members []kernel.CharacterID)) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var parties []model.Party
@@ -269,7 +268,7 @@ func (s *PartyService) Memberships(ctx context.Context, visit func(party model.P
 }
 
 // Members lists the IDs of a character's party, nil without one.
-func (s *PartyService) Members(ctx context.Context, id kernel.CharacterID) ([]kernel.CharacterID, error) {
+func (s *partyCases) Members(ctx context.Context, id kernel.CharacterID) ([]kernel.CharacterID, error) {
 	p, ok, err := s.Of(ctx, id)
 	if err != nil || !ok {
 		return nil, err
@@ -278,7 +277,7 @@ func (s *PartyService) Members(ctx context.Context, id kernel.CharacterID) ([]ke
 }
 
 // update runs fn as one transaction, then tells the notifier what fn queued.
-func (s *PartyService) update(ctx context.Context, fn func(tx PartyTx, n *notes) error) error {
+func (s *partyCases) update(ctx context.Context, fn func(tx PartyTx, n *notes) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var n notes
@@ -294,7 +293,7 @@ func (s *PartyService) update(ctx context.Context, fn func(tx PartyTx, n *notes)
 	return nil
 }
 
-func (s *PartyService) expire(tx PartyTx) {
+func (s *partyCases) expire(tx PartyTx) {
 	now := time.Now()
 	for _, inv := range tx.Invites() {
 		if !inv.Expires.After(now) {

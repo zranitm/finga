@@ -1,4 +1,4 @@
-package account
+package account_test
 
 import (
 	"context"
@@ -8,27 +8,32 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	application "finga/internal/application/account"
 	"finga/internal/application/account/password"
 	model "finga/internal/model/account"
+	repository "finga/internal/repository/account"
+	"finga/internal/repository/dbtest"
 )
 
 // The partial unique index is the backstop for one active session.
 
-func newPGService(t *testing.T) (*application.Service, *Postgres) {
+func newPGCases(t *testing.T) (*application.Cases, *pgxpool.Pool) {
 	t.Helper()
-	store := NewPostgres(cluster.DB(t), nil)
-	svc, err := application.NewService(application.ServiceDeps{Store: store, Notifier: &notices{}, Hasher: password.NewHasher(cheapHash, 4, time.Second)})
+	pool := dbtest.DB(t)
+	store := repository.NewPostgres(pool, nil)
+	svc, err := application.NewCases(application.CasesDeps{Store: store, Notifier: &notices{}, Hasher: password.NewHasher(cheapHash, 4, time.Second)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return svc, store
+	return svc, pool
 }
 
 func TestLoggingInTwiceStopsTheFirstSession(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	svc, _ := newPGService(t)
+	svc, _ := newPGCases(t)
 	if _, err := svc.Register(ctx, application.RegisterInput{Username: "alice", Password: "correct horse"}); err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +59,7 @@ func TestLoggingInTwiceStopsTheFirstSession(t *testing.T) {
 func TestConcurrentLoginsLeaveExactlyOneActiveSession(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	svc, store := newPGService(t)
+	svc, pool := newPGCases(t)
 	acc, err := svc.Register(ctx, application.RegisterInput{Username: "alice", Password: "correct horse"})
 	if err != nil {
 		t.Fatal(err)
@@ -75,7 +80,7 @@ func TestConcurrentLoginsLeaveExactlyOneActiveSession(t *testing.T) {
 		}
 	}
 	var active int
-	if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM sessions WHERE account_id = $1 AND revoked_at IS NULL`, acc.ID).Scan(&active); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM sessions WHERE account_id = $1 AND revoked_at IS NULL`, acc.ID).Scan(&active); err != nil {
 		t.Fatal(err)
 	}
 	if active != 1 {
@@ -96,7 +101,7 @@ func TestConcurrentLoginsLeaveExactlyOneActiveSession(t *testing.T) {
 func TestTheRetiredTokenWorksOnceUnderARace(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	svc, store := newPGService(t)
+	svc, pool := newPGCases(t)
 	acc, err := svc.Register(ctx, application.RegisterInput{Username: "alice", Password: "correct horse"})
 	if err != nil {
 		t.Fatal(err)
@@ -127,7 +132,7 @@ func TestTheRetiredTokenWorksOnceUnderARace(t *testing.T) {
 		t.Fatalf("the retired token validated %d times, want once", got)
 	}
 	var revoked bool
-	if err := store.pool.QueryRow(ctx, `SELECT revoked_at IS NOT NULL FROM sessions WHERE id = $1`, p.SessionID).Scan(&revoked); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT revoked_at IS NOT NULL FROM sessions WHERE id = $1`, p.SessionID).Scan(&revoked); err != nil {
 		t.Fatal(err)
 	}
 	if !revoked {

@@ -3,7 +3,6 @@ package item
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
@@ -11,27 +10,14 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	application "finga/internal/application/item"
-	"finga/internal/migration"
 	model "finga/internal/model/item"
+	"finga/internal/repository/dbtest"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
-	"finga/pkg/pgtest"
 	"finga/pkg/transient"
 )
 
-var cluster *pgtest.Cluster
-
-func TestMain(m *testing.M) {
-	ctx := context.Background()
-	var err error
-	cluster, err = pgtest.Start(ctx, pgtest.Migrations(migration.FS, migration.Table)) // the whole sequence, as the server runs on it
-	if err != nil {
-		panic(err)
-	}
-	code := m.Run()
-	_ = cluster.Close(ctx)
-	os.Exit(code)
-}
+func TestMain(m *testing.M) { dbtest.Main(m) }
 
 var t0 = time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
 
@@ -46,7 +32,7 @@ func insertItem(t *testing.T, store *Postgres, it model.Item) {
 func TestRepository(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	store := NewPostgres(cluster.DB(t), nil)
+	store := NewPostgres(dbtest.DB(t), nil)
 	alice, bob := kernel.NewCharacterID(), kernel.NewCharacterID()
 	sword := model.Item{ID: kernel.NewItemID(), TemplateID: "wooden_sword", Owner: alice, Tab: gamedata.Equip, Slot: 0, Quantity: 1}
 	potions := model.Item{ID: kernel.NewItemID(), TemplateID: "red_potion", Owner: alice, Tab: gamedata.Use, Slot: 3, Quantity: 40}

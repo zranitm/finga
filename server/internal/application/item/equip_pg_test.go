@@ -1,4 +1,4 @@
-package item
+package item_test
 
 import (
 	"context"
@@ -138,7 +138,7 @@ func TestEquip(t *testing.T) {
 		})
 	})
 	t.Run("an item's stat requirements, against the character's own stats", func(t *testing.T) {
-		svc := application.NewService(application.ServiceDeps{Store: h.store, Content: requiring{h.data, "leather_vest", gamedata.Stats{STR: 20, VIT: 15}}, Logger: slog.New(slog.DiscardHandler)})
+		svc := application.NewCases(application.CasesDeps{Store: h.store, Content: requiring{h.data, "leather_vest", gamedata.Stats{STR: 20, VIT: 15}}, Logger: slog.New(slog.DiscardHandler)})
 		vest := h.added(t, "leather_vest")
 		equip := func(own gamedata.Stats) error {
 			_, err := svc.Equip(ctx, h.actor, application.EquipInput{Key: uuidv7.NewString(), ItemID: vest.ID, Level: 5, Class: kernel.Class("warrior"), Stats: own})

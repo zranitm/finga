@@ -17,11 +17,11 @@ import (
 // Module is the character module; every call to it goes through these methods.
 type Module struct {
 	calls *facade.Calls
-	svc   service
+	svc   useCases
 }
 
-// service is the module's application, as the facade calls it.
-type service interface {
+// useCases is the module's use cases, as the facade calls them.
+type useCases interface {
 	Create(ctx context.Context, account kernel.AccountID, in CreateInput) (model.Character, error)
 	List(ctx context.Context, account kernel.AccountID) ([]model.Character, error)
 	Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error)
@@ -57,7 +57,7 @@ func New(d Deps) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	svc := NewService(ServiceDeps{Store: d.Store, Content: d.Data, Starter: adapter.NewStarter(d.Item), Logger: d.Module.Logger})
+	svc := newCases(casesDeps{Store: d.Store, Content: d.Data, Starter: adapter.NewStarter(d.Item), Logger: d.Module.Logger})
 	return &Module{calls: calls, svc: svc}, nil
 }
 

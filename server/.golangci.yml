@@ -35,7 +35,7 @@ linters:
               desc: pkg never imports the game's configuration
         # Test support, the *test packages: only tests import it, and cmd/pgtest, the tool that runs a test run's Postgres; e2etest builds on the others.
         test-support:
-          files: ["$all", "!$test", "!**/cmd/pgtest/**", "!**/server/test/e2etest/**"]
+          files: ["$all", "!$test", "!**/cmd/pgtest/**", "!**/server/test/e2etest/**", "!**/internal/repository/dbtest/**"]
           deny:
             - pkg: finga/pkg/pgtest
               desc: test support; only tests import it
@@ -143,8 +143,9 @@ linters:
             - pkg: finga/internal/application/world/world$
               desc: the World runs the maps; a map knows only its Mover
         # Only a module's repository layer and sqlc's output talk to the database.
+        # The tests that run a module's use cases on Postgres (a file ending _pg_test.go in its root) build its repository, which a use case never imports.
         modules-no-sql:
-          files: ["**/internal/application/*/*/**", "**/internal/application/gateway/*.go", "**/internal/application/{account,character,item,pvp,social}/*.go", "!**/internal/application/account/account.go", "!**/internal/application/character/character.go", "!**/internal/application/item/item.go", "!**/internal/application/pvp/pvp.go", "!**/internal/application/social/social.go", "**/internal/model/**", "**/internal/handler/**", "**/internal/metrics/**", "**/internal/adapter/**", "!$test"]
+          files: ["**/internal/application/*/*/**", "**/internal/application/gateway/*.go", "**/internal/application/{account,character,item,pvp,social}/*.go", "!**/internal/application/account/account.go", "!**/internal/application/character/character.go", "!**/internal/application/item/item.go", "!**/internal/application/pvp/pvp.go", "!**/internal/application/social/social.go", "**/internal/model/**", "**/internal/handler/**", "**/internal/metrics/**", "**/internal/adapter/**", "!$test", "!**/internal/application/*/*_pg_test.go"]
           deny:
             - pkg: github.com/jackc/pgx
               desc: only the repository layer talks to the database
@@ -162,7 +163,7 @@ linters:
               desc: model knows no transport
         # A module's use cases: account, character, item, pvp and social keep theirs in the root beside the facade, whose Module and New are the file named for the module; world's are its subpackages; the gateway's sit at its root, as it has no facade.
         layer-application:
-          files: ["**/internal/application/*/*/**", "**/internal/application/gateway/*.go", "**/internal/application/{account,character,item,pvp,social}/*.go", "!**/internal/application/account/account.go", "!**/internal/application/character/character.go", "!**/internal/application/item/item.go", "!**/internal/application/pvp/pvp.go", "!**/internal/application/social/social.go", "!**/internal/application/social/main_test.go"]
+          files: ["**/internal/application/*/*/**", "**/internal/application/gateway/*.go", "**/internal/application/{account,character,item,pvp,social}/*.go", "!**/internal/application/account/account.go", "!**/internal/application/character/character.go", "!**/internal/application/item/item.go", "!**/internal/application/pvp/pvp.go", "!**/internal/application/social/social.go", "!**/internal/application/social/main_test.go", "!**/internal/application/*/*_pg_test.go"]
           deny:
             - pkg: finga/internal/repository
               desc: application declares its Store; the repository implements it, and the wiring connects them
@@ -479,7 +480,7 @@ linters:
             - pkg: finga/internal/handler/admin
               desc: only the wiring serves the admin API
         migration:
-          files: ["$all", "!**/internal/migration/**", "!**/cmd/migrate/**", "!**/internal/repository/*/*_test.go", "!**/server/test/**"]
+          files: ["$all", "!**/internal/migration/**", "!**/cmd/migrate/**", "!**/internal/repository/*/*_test.go", "!**/internal/repository/dbtest/**", "!**/server/test/**"]
           deny:
             - pkg: finga/internal/migration
               desc: only cmd/migrate applies the migrations, and the tests that need a migrated database

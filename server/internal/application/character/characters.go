@@ -1,4 +1,3 @@
-// Package service is the character module's use cases: creation, loading and saves.
 package character
 
 import (
@@ -20,8 +19,8 @@ type CreateInput struct {
 	Name string
 }
 
-// ServiceDeps are what the service is built over.
-type ServiceDeps struct {
+// casesDeps are what the use cases is built over.
+type casesDeps struct {
 	Store   Store
 	Content Content
 	Starter StarterItems // grants a new character its starter items after it commits
@@ -43,21 +42,21 @@ const (
 
 var nameRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*$`)
 
-// Service is the character module's use cases.
-type Service struct {
+// cases is the character module's use cases.
+type cases struct {
 	store   Store
 	content Content
 	starter StarterItems
 	log     *slog.Logger
 }
 
-// NewService wires the service over deps.
-func NewService(deps ServiceDeps) *Service {
-	return &Service{store: deps.Store, content: deps.Content, starter: deps.Starter, log: deps.Logger}
+// newCases wires the use cases over deps.
+func newCases(deps casesDeps) *cases {
+	return &cases{store: deps.Store, content: deps.Content, starter: deps.Starter, log: deps.Logger}
 }
 
 // Create makes a level 1 character with starter items; a failed grant still succeeds, as a retry would meet name_taken.
-func (s *Service) Create(ctx context.Context, account kernel.AccountID, in CreateInput) (model.Character, error) {
+func (s *cases) Create(ctx context.Context, account kernel.AccountID, in CreateInput) (model.Character, error) {
 	if len(in.Name) < nameMin || len(in.Name) > nameMax || !nameRe.MatchString(in.Name) {
 		return model.Character{}, model.ErrBadName
 	}
@@ -89,7 +88,7 @@ func (s *Service) Create(ctx context.Context, account kernel.AccountID, in Creat
 }
 
 // grantStarter retries until starterTimeout; keyed by character ID, a retry never grants twice.
-func (s *Service) grantStarter(ctx context.Context, c model.Character) {
+func (s *cases) grantStarter(ctx context.Context, c model.Character) {
 	ctx, cancel := context.WithTimeout(ctx, starterTimeout)
 	defer cancel()
 	var last error
@@ -113,42 +112,42 @@ func (s *Service) grantStarter(ctx context.Context, c model.Character) {
 }
 
 // List is the account's characters, oldest first.
-func (s *Service) List(ctx context.Context, account kernel.AccountID) ([]model.Character, error) {
+func (s *cases) List(ctx context.Context, account kernel.AccountID) ([]model.Character, error) {
 	return s.store.List(ctx, account)
 }
 
 // Load is one character, only if it belongs to the account.
-func (s *Service) Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error) {
+func (s *cases) Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error) {
 	return s.store.Load(ctx, id, account)
 }
 
 // Find is the characters with ids, of any account, for another module to read: pvp's board and arena builds.
-func (s *Service) Find(ctx context.Context, ids []kernel.CharacterID) ([]model.Character, error) {
+func (s *cases) Find(ctx context.Context, ids []kernel.CharacterID) ([]model.Character, error) {
 	return s.store.Find(ctx, ids)
 }
 
 // Quests is a loaded character's quests; the world reads them at join, while it is the only writer.
-func (s *Service) Quests(ctx context.Context, id kernel.CharacterID) ([]model.Quest, error) {
+func (s *cases) Quests(ctx context.Context, id kernel.CharacterID) ([]model.Quest, error) {
 	return s.store.Quests(ctx, id)
 }
 
 // Skills is a loaded character's skills with points; the world reads them at join, while it is the only writer.
-func (s *Service) Skills(ctx context.Context, id kernel.CharacterID) ([]model.SkillPoints, error) {
+func (s *cases) Skills(ctx context.Context, id kernel.CharacterID) ([]model.SkillPoints, error) {
 	return s.store.Skills(ctx, id)
 }
 
 // Timers is a loaded character's skill timers; the world reads them at join, while it is the only writer.
-func (s *Service) Timers(ctx context.Context, id kernel.CharacterID) ([]model.SkillTimer, error) {
+func (s *cases) Timers(ctx context.Context, id kernel.CharacterID) ([]model.SkillTimer, error) {
 	return s.store.Timers(ctx, id)
 }
 
 // Waypoints is a loaded character's found waypoints; the world reads them at join, while it is the only writer.
-func (s *Service) Waypoints(ctx context.Context, id kernel.CharacterID) ([]model.Waypoint, error) {
+func (s *cases) Waypoints(ctx context.Context, id kernel.CharacterID) ([]model.Waypoint, error) {
 	return s.store.Waypoints(ctx, id)
 }
 
 // SaveCheckpoint persists position, HP, energy, the whole progression, every quest, every skill, every skill timer and every waypoint found, in one transaction.
-func (s *Service) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
+func (s *cases) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	if _, ok := s.content.Class(cp.Class); !ok {
 		return model.ErrClassUnavailable
 	}
@@ -193,7 +192,7 @@ func (s *Service) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
 }
 
 // SaveLevelUp persists a level-up right away.
-func (s *Service) SaveLevelUp(ctx context.Context, lu model.LevelUp) error {
+func (s *cases) SaveLevelUp(ctx context.Context, lu model.LevelUp) error {
 	if !lu.Fits() {
 		return model.ErrBadCheckpoint
 	}
@@ -203,7 +202,7 @@ func (s *Service) SaveLevelUp(ctx context.Context, lu model.LevelUp) error {
 }
 
 // SetSkillBar stores which skill sits on each key; each is empty or an active skill in the game data, whether or not the character has learned it, as the world refuses those it hasn't, and none a follow-up of the character's class, which rides on its root's key as the client keeps it.
-func (s *Service) SetSkillBar(ctx context.Context, id kernel.CharacterID, account kernel.AccountID, bar []string) error {
+func (s *cases) SetSkillBar(ctx context.Context, id kernel.CharacterID, account kernel.AccountID, bar []string) error {
 	if len(bar) != model.SkillBarKeys {
 		return model.ErrBadSkillBar
 	}
@@ -228,12 +227,12 @@ func (s *Service) SetSkillBar(ctx context.Context, id kernel.CharacterID, accoun
 }
 
 // Own is a character's own stats: the starting stats everyone shares, plus the points they spent.
-func (s *Service) Own(c model.Character) gamedata.Stats {
+func (s *cases) Own(c model.Character) gamedata.Stats {
 	return progression.AddStats(s.content.StartClass().BaseStats, c.Points)
 }
 
 // Derived computes a character's derived stats with no equipment; a class the game data doesn't have is ErrClassUnavailable.
-func (s *Service) Derived(c model.Character) (progression.Derived, error) {
+func (s *cases) Derived(c model.Character) (progression.Derived, error) {
 	if _, ok := s.content.Class(c.Class); !ok {
 		return progression.Derived{}, model.ErrClassUnavailable
 	}

@@ -18,12 +18,12 @@ import (
 // Module is the account module; every call to it goes through these methods.
 type Module struct {
 	calls    *facade.Calls
-	svc      service
+	svc      useCases
 	sessions *hub.Hub[Event]
 }
 
-// service is the module's application, as the facade calls it.
-type service interface {
+// useCases is the module's use cases, as the facade calls them.
+type useCases interface {
 	Register(ctx context.Context, in RegisterInput) (model.Account, error)
 	Login(ctx context.Context, in LoginInput) (string, error)
 	Validate(ctx context.Context, token string) (model.Principal, error)
@@ -50,7 +50,7 @@ func New(d Deps) (*Module, error) {
 	}
 	pw := d.Config.Password
 	sessions := hub.New[Event](sessionsQueue)
-	svc, err := NewService(ServiceDeps{
+	svc, err := newCases(casesDeps{
 		Store:    d.Store,
 		Notifier: notifier{sessions: sessions},
 		Hasher:   password.NewHasher(password.Params{Time: pw.Time, Memory: pw.MemoryKiB, Threads: pw.Threads, SaltLen: password.Default.SaltLen, KeyLen: password.Default.KeyLen}, pw.Concurrent, pw.Wait),

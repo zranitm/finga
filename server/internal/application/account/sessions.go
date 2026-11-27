@@ -1,4 +1,3 @@
-// Package service is the account module's use cases: sign up, log in, sessions and settings.
 package account
 
 import (
@@ -31,8 +30,8 @@ type LoginInput struct {
 	Password string
 }
 
-// ServiceDeps are what the service is built over.
-type ServiceDeps struct {
+// casesDeps are what the use cases is built over.
+type casesDeps struct {
 	Store    Store
 	Notifier Notifier         // hears of every ended session
 	Hasher   *password.Hasher // the Argon2id cost and how many hashes run at once, from the config
@@ -68,8 +67,8 @@ const (
 
 var usernameRe = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
 
-// Service is the account module's use cases. It implements pkg/auth.
-type Service struct {
+// cases is the account module's use cases. It implements pkg/auth.
+type cases struct {
 	store    Store
 	notifier Notifier
 	hasher   *password.Hasher
@@ -77,13 +76,13 @@ type Service struct {
 	byUser   ratelimit.Limiter // per-IP limits belong to the edge (nginx)
 }
 
-// NewService wires the service over deps; it fails when the hasher cannot make the dummy hash.
-func NewService(deps ServiceDeps) (*Service, error) {
+// newCases wires the use cases over deps; it fails when the hasher cannot make the dummy hash.
+func newCases(deps casesDeps) (*cases, error) {
 	dummy, err := deps.Hasher.Hash(context.Background(), dummySecret)
 	if err != nil {
 		return nil, fmt.Errorf("account: dummy hash: %w", err)
 	}
-	return &Service{
+	return &cases{
 		store:    deps.Store,
 		notifier: deps.Notifier,
 		hasher:   deps.Hasher,
@@ -93,7 +92,7 @@ func NewService(deps ServiceDeps) (*Service, error) {
 }
 
 // Register creates an account; the repository only ever sees the password hash.
-func (s *Service) Register(ctx context.Context, in RegisterInput) (model.Account, error) {
+func (s *cases) Register(ctx context.Context, in RegisterInput) (model.Account, error) {
 	if len(in.Username) < usernameMin || len(in.Username) > usernameMax || !usernameRe.MatchString(in.Username) {
 		return model.Account{}, model.ErrBadUsername
 	}
@@ -118,7 +117,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (model.Account
 }
 
 // Login throttles per username, verifies the credentials and issues a session token.
-func (s *Service) Login(ctx context.Context, in LoginInput) (string, error) {
+func (s *cases) Login(ctx context.Context, in LoginInput) (string, error) {
 	if !s.byUser.Allow(strings.ToLower(in.Username)) {
 		return "", model.ErrRateLimited
 	}
@@ -130,7 +129,7 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (string, error) {
 }
 
 // Verify returns the account the credentials name: an unknown username checks a dummy hash, and a match at another cost is rehashed.
-func (s *Service) Verify(ctx context.Context, username, pw string) (kernel.AccountID, error) {
+func (s *cases) Verify(ctx context.Context, username, pw string) (kernel.AccountID, error) {
 	creds, err := s.store.FindByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, model.ErrNotFound) {
@@ -160,7 +159,7 @@ func (s *Service) Verify(ctx context.Context, username, pw string) (kernel.Accou
 }
 
 // rehash stores the verified password at the configured cost; with no hash slot free, the next login does.
-func (s *Service) rehash(ctx context.Context, creds model.Credentials, pw string) error {
+func (s *cases) rehash(ctx context.Context, creds model.Credentials, pw string) error {
 	hash, err := s.hasher.Hash(ctx, pw)
 	if errors.Is(err, password.ErrBusy) {
 		return nil
@@ -174,7 +173,7 @@ func (s *Service) rehash(ctx context.Context, creds model.Credentials, pw string
 }
 
 // Issue starts a session and returns its token, replacing older sessions under the account lock; a unique-index race retries once.
-func (s *Service) Issue(ctx context.Context, accountID kernel.AccountID) (string, error) {
+func (s *cases) Issue(ctx context.Context, accountID kernel.AccountID) (string, error) {
 	token, hash, err := newToken()
 	if err != nil {
 		return "", err
@@ -203,7 +202,7 @@ func (s *Service) Issue(ctx context.Context, accountID kernel.AccountID) (string
 }
 
 // Validate resolves a token to its session and slides the expiry; the rotated-out token passes once in the grace period.
-func (s *Service) Validate(ctx context.Context, token string) (model.Principal, error) {
+func (s *cases) Validate(ctx context.Context, token string) (model.Principal, error) {
 	hash := sha256.Sum256([]byte(token))
 	session, err := s.store.FindActiveSession(ctx, hash[:])
 	if err != nil {
@@ -228,7 +227,7 @@ func (s *Service) Validate(ctx context.Context, token string) (model.Principal, 
 }
 
 // consumePrevious lets the old token through once in the grace, under the row lock; any other use revokes the session.
-func (s *Service) consumePrevious(ctx context.Context, id kernel.SessionID, hash []byte, now time.Time) error {
+func (s *cases) consumePrevious(ctx context.Context, id kernel.SessionID, hash []byte, now time.Time) error {
 	reuse := false
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
 		cur, err := uow.Sessions().Lock(ctx, id)
@@ -257,7 +256,7 @@ func (s *Service) consumePrevious(ctx context.Context, id kernel.SessionID, hash
 }
 
 // Rotate issues a session's next token; the old one stays valid once within the grace period.
-func (s *Service) Rotate(ctx context.Context, sessionID kernel.SessionID) (string, error) {
+func (s *cases) Rotate(ctx context.Context, sessionID kernel.SessionID) (string, error) {
 	token, hash, err := newToken()
 	if err != nil {
 		return "", err
@@ -276,7 +275,7 @@ func (s *Service) Rotate(ctx context.Context, sessionID kernel.SessionID) (strin
 }
 
 // Check reports whether the session is active and not expired.
-func (s *Service) Check(ctx context.Context, sessionID kernel.SessionID) error {
+func (s *cases) Check(ctx context.Context, sessionID kernel.SessionID) error {
 	session, err := s.store.FindSession(ctx, sessionID)
 	if err != nil {
 		if errors.Is(err, model.ErrNotFound) {
@@ -291,12 +290,12 @@ func (s *Service) Check(ctx context.Context, sessionID kernel.SessionID) error {
 }
 
 // Revoke logs out of one session.
-func (s *Service) Revoke(ctx context.Context, sessionID kernel.SessionID) error {
+func (s *cases) Revoke(ctx context.Context, sessionID kernel.SessionID) error {
 	return s.revoke(ctx, sessionID, time.Now(), ReasonLogout)
 }
 
 // RevokeAll logs out everywhere.
-func (s *Service) RevokeAll(ctx context.Context, accountID kernel.AccountID) error {
+func (s *cases) RevokeAll(ctx context.Context, accountID kernel.AccountID) error {
 	now := time.Now()
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Sessions().RevokeAll(ctx, accountID, now)
@@ -308,7 +307,7 @@ func (s *Service) RevokeAll(ctx context.Context, accountID kernel.AccountID) err
 	return nil
 }
 
-func (s *Service) revoke(ctx context.Context, id kernel.SessionID, now time.Time, reason string) error {
+func (s *cases) revoke(ctx context.Context, id kernel.SessionID, now time.Time, reason string) error {
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Sessions().Revoke(ctx, id, now)
 	})
@@ -320,7 +319,7 @@ func (s *Service) revoke(ctx context.Context, id kernel.SessionID, now time.Time
 }
 
 // PruneSessions deletes at most limit sessions that ended, revoked or expired, before before; it reports how many.
-func (s *Service) PruneSessions(ctx context.Context, before time.Time, limit int) (int64, error) {
+func (s *cases) PruneSessions(ctx context.Context, before time.Time, limit int) (int64, error) {
 	var n int64
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
 		var err error
@@ -331,7 +330,7 @@ func (s *Service) PruneSessions(ctx context.Context, before time.Time, limit int
 }
 
 // expiry is the idle period from now, capped at the lifetime from creation.
-func (s *Service) expiry(createdAt, now time.Time) time.Time {
+func (s *cases) expiry(createdAt, now time.Time) time.Time {
 	until := now.Add(idleTTL)
 	if limit := createdAt.Add(maxLifetime); until.After(limit) {
 		until = limit
@@ -340,7 +339,7 @@ func (s *Service) expiry(createdAt, now time.Time) time.Time {
 }
 
 // extend slides the expiry, at most once every ExtendEvery.
-func (s *Service) extend(ctx context.Context, session model.Session, now time.Time) error {
+func (s *cases) extend(ctx context.Context, session model.Session, now time.Time) error {
 	lastExtended := session.ExpiresAt.Add(-idleTTL)
 	if now.Sub(lastExtended) < extendEvery {
 		return nil
@@ -355,12 +354,12 @@ func (s *Service) extend(ctx context.Context, session model.Session, now time.Ti
 }
 
 // Settings reads an account's settings.
-func (s *Service) Settings(ctx context.Context, id kernel.AccountID) (model.Settings, error) {
+func (s *cases) Settings(ctx context.Context, id kernel.AccountID) (model.Settings, error) {
 	return s.store.Settings(ctx, id)
 }
 
 // UpdateSettings saves an account's settings, if their key bindings are well formed.
-func (s *Service) UpdateSettings(ctx context.Context, id kernel.AccountID, st model.Settings) error {
+func (s *cases) UpdateSettings(ctx context.Context, id kernel.AccountID, st model.Settings) error {
 	if err := st.Check(); err != nil {
 		return err
 	}

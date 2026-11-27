@@ -24,11 +24,11 @@ import (
 // Module is the item module; every call to it goes through these methods.
 type Module struct {
 	calls *facade.Calls
-	svc   service
+	svc   useCases
 }
 
-// service is the module's application, as the facade calls it.
-type service interface {
+// useCases is the module's use cases, as the facade calls them.
+type useCases interface {
 	Inventory(ctx context.Context, owner kernel.CharacterID) (model.Inventory, error)
 	Add(ctx context.Context, actor model.Actor, in AddInput) (Changes, error)
 	AddMany(ctx context.Context, actor model.Actor, drops []AddInput) (DropBatch, error)
@@ -103,7 +103,7 @@ func New(d Deps) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	svc := NewService(ServiceDeps{Store: d.Store, Content: d.Data, Logger: log})
+	svc := newCases(casesDeps{Store: d.Store, Content: d.Data, Logger: log})
 	return &Module{calls: calls, svc: svc}, nil
 }
 

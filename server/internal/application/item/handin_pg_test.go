@@ -1,4 +1,4 @@
-package item
+package item_test
 
 import (
 	"bytes"
@@ -178,7 +178,7 @@ func TestHandIn(t *testing.T) {
 	t.Run("the same completion again replays the stored reply, whatever its rolls and lines, with no idempotency key to prune", func(t *testing.T) {
 		var logs bytes.Buffer
 		h := newHarness(t)
-		h.svc = application.NewService(application.ServiceDeps{Store: h.store, Content: h.data, Logger: slog.New(slog.NewTextHandler(&logs, nil))})
+		h.svc = application.NewCases(application.CasesDeps{Store: h.store, Content: h.data, Logger: slog.New(slog.NewTextHandler(&logs, nil))})
 		h.add(t, "g1", "slime_gel", 10)
 		first, err := h.handIn("sticky_samples", 1, gel(5), application.RewardLine{TemplateID: "leather_cap", Quantity: 1})
 		if err != nil {

@@ -21,8 +21,8 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 )
 
-// fakeService records what the facade passed in and answers with what each test sets.
-type fakeService struct {
+// fakeCases records what the facade passed in and answers with what each test sets.
+type fakeCases struct {
 	actor     model.Actor
 	owner     kernel.CharacterID
 	in        any
@@ -40,109 +40,109 @@ type fakeService struct {
 	calls     int
 }
 
-func (f *fakeService) AddToWardrobe(_ context.Context, actor model.Actor, in WardrobeInput) (Changes, error) {
+func (f *fakeCases) AddToWardrobe(_ context.Context, actor model.Actor, in WardrobeInput) (Changes, error) {
 	f.calls++
 	f.actor, f.in = actor, in
 	return f.result, f.err
 }
 
-func (f *fakeService) SetLook(_ context.Context, actor model.Actor, in LookInput) (Changes, error) {
+func (f *fakeCases) SetLook(_ context.Context, actor model.Actor, in LookInput) (Changes, error) {
 	f.calls++
 	f.actor, f.in = actor, in
 	return f.result, f.err
 }
 
-func (f *fakeService) GrantPieces(_ context.Context, account kernel.AccountID, grants []model.PieceGrant) ([]model.PieceGrant, error) {
+func (f *fakeCases) GrantPieces(_ context.Context, account kernel.AccountID, grants []model.PieceGrant) ([]model.PieceGrant, error) {
 	f.calls++
 	f.account, f.in = account, grants
 	return f.granted, f.err
 }
 
-func (f *fakeService) Pieces(_ context.Context, account kernel.AccountID) ([]model.Piece, error) {
+func (f *fakeCases) Pieces(_ context.Context, account kernel.AccountID) ([]model.Piece, error) {
 	f.calls++
 	f.account = account
 	return f.pieces, f.err
 }
 
-func (f *fakeService) Look(_ context.Context, character kernel.CharacterID) (model.Look, error) {
+func (f *fakeCases) Look(_ context.Context, character kernel.CharacterID) (model.Look, error) {
 	f.calls++
 	f.owner = character
 	return f.look, f.err
 }
 
-func (f *fakeService) Inventory(_ context.Context, owner kernel.CharacterID) (model.Inventory, error) {
+func (f *fakeCases) Inventory(_ context.Context, owner kernel.CharacterID) (model.Inventory, error) {
 	f.calls++
 	f.owner = owner
 	return f.inventory, f.err
 }
 
-func (f *fakeService) Add(_ context.Context, actor model.Actor, in AddInput) (Changes, error) {
+func (f *fakeCases) Add(_ context.Context, actor model.Actor, in AddInput) (Changes, error) {
 	f.calls++
 	f.actor, f.in = actor, in
 	return f.result, f.err
 }
 
-func (f *fakeService) AddMany(_ context.Context, actor model.Actor, drops []AddInput) (DropBatch, error) {
+func (f *fakeCases) AddMany(_ context.Context, actor model.Actor, drops []AddInput) (DropBatch, error) {
 	f.calls++
 	f.actor, f.drops = actor, drops
 	return f.batch, f.err
 }
 
-func (f *fakeService) Move(_ context.Context, actor model.Actor, in MoveInput) (Changes, error) {
+func (f *fakeCases) Move(_ context.Context, actor model.Actor, in MoveInput) (Changes, error) {
 	f.calls++
 	f.actor, f.in = actor, in
 	return f.result, f.err
 }
 
-func (f *fakeService) Discard(_ context.Context, actor model.Actor, in DiscardInput) (Changes, error) {
+func (f *fakeCases) Discard(_ context.Context, actor model.Actor, in DiscardInput) (Changes, error) {
 	f.calls++
 	f.actor, f.in = actor, in
 	return f.result, f.err
 }
 
-func (f *fakeService) DiscardMany(_ context.Context, actor model.Actor, in DiscardManyInput) (Changes, error) {
+func (f *fakeCases) DiscardMany(_ context.Context, actor model.Actor, in DiscardManyInput) (Changes, error) {
 	f.calls++
 	f.actor, f.in = actor, in
 	return f.result, f.err
 }
 
-func (f *fakeService) Use(_ context.Context, actor model.Actor, in UseInput) (Changes, bool, error) {
+func (f *fakeCases) Use(_ context.Context, actor model.Actor, in UseInput) (Changes, bool, error) {
 	f.calls++
 	f.actor, f.in = actor, in
 	return f.result, true, f.err
 }
 
-func (f *fakeService) GrantStarter(_ context.Context, actor model.Actor) (Changes, error) {
+func (f *fakeCases) GrantStarter(_ context.Context, actor model.Actor) (Changes, error) {
 	f.calls++
 	f.actor = actor
 	return f.result, f.err
 }
 
-func (f *fakeService) Equip(_ context.Context, actor model.Actor, in EquipInput) (Changes, error) {
+func (f *fakeCases) Equip(_ context.Context, actor model.Actor, in EquipInput) (Changes, error) {
 	f.calls++
 	f.actor, f.in = actor, in
 	return f.result, f.err
 }
 
-func (f *fakeService) Unequip(_ context.Context, actor model.Actor, in UnequipInput) (Changes, error) {
+func (f *fakeCases) Unequip(_ context.Context, actor model.Actor, in UnequipInput) (Changes, error) {
 	f.calls++
 	f.actor, f.in = actor, in
 	return f.result, f.err
 }
 
-func (f *fakeService) HandIn(_ context.Context, actor model.Actor, in HandInInput) (Changes, error) {
+func (f *fakeCases) HandIn(_ context.Context, actor model.Actor, in HandInInput) (Changes, error) {
 	f.calls++
 	f.actor, f.in = actor, in
 	return f.result, f.err
 }
 
-func (f *fakeService) HandedIn(_ context.Context, owner kernel.CharacterID, asked []QuestCompletion) ([]HandIn, error) {
+func (f *fakeCases) HandedIn(_ context.Context, owner kernel.CharacterID, asked []QuestCompletion) ([]HandIn, error) {
 	f.calls++
 	f.owner, f.asked = owner, asked
 	return f.handedIn, f.err
 }
 
-func newModule(t *testing.T, svc service) *Module {
+func newModule(t *testing.T, svc useCases) *Module {
 	t.Helper()
 	calls, err := facade.New(facade.Options{Module: "item", Traces: noop.NewTracerProvider(), Registry: prometheus.NewRegistry(), Panics: panics.NewRecorder(slog.New(slog.DiscardHandler), nil), Errors: errorTable})
 	if err != nil {
@@ -186,7 +186,7 @@ func equalAt(a, b *Item) bool { return a == nil && b == nil || a != nil && b != 
 
 func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 	ctx := t.Context()
-	f := &fakeService{result: changed}
+	f := &fakeCases{result: changed}
 	m := newModule(t, f)
 	gift := uuidv7.New()
 	t.Run("Inventory", func(t *testing.T) {
@@ -309,7 +309,7 @@ func TestCheckKey(t *testing.T) {
 
 // A bad key or cause is refused at the facade, before the module runs.
 func TestAMalformedRequestNeverReachesTheModule(t *testing.T) {
-	f := &fakeService{}
+	f := &fakeCases{}
 	m := newModule(t, f)
 	ctx := t.Context()
 	for _, tt := range []struct {
@@ -350,7 +350,7 @@ func TestAddManyAnswersEachDrop(t *testing.T) {
 		return AddRequest{Key: key, TemplateID: "slime_gel", Quantity: 1, Cause: Cause{Type: CauseDrop}}
 	}
 	key2, key3 := "k-"+uuidv7.NewString(), "k-"+uuidv7.NewString()
-	f := &fakeService{batch: DropBatch{
+	f := &fakeCases{batch: DropBatch{
 		Outcomes: []DropOutcome{{}, {Replayed: true, Result: changed}, {Err: fmt.Errorf("add: %w", model.ErrEtcTabFull)}},
 		Changed:  changed.Changed,
 		Revision: 12,
@@ -384,14 +384,14 @@ func TestAddManyAnswersEachDrop(t *testing.T) {
 func TestEveryModelErrorReachesCallersAsItsKernelError(t *testing.T) {
 	for _, row := range errorTable {
 		t.Run(row.Model.Error(), func(t *testing.T) {
-			m := newModule(t, &fakeService{err: fmt.Errorf("move: %w", row.Model)})
+			m := newModule(t, &fakeCases{err: fmt.Errorf("move: %w", row.Model)})
 			_, err := m.Move(t.Context(), actor, MoveRequest{Key: key, ItemID: sword.ID})
 			if !errors.Is(err, row.Kernel) || !errors.Is(err, row.Model) {
 				t.Fatalf("got %v, want %v wrapping %v", err, row.Kernel, row.Model)
 			}
 		})
 	}
-	m := newModule(t, &fakeService{err: model.ErrItemWorn})
+	m := newModule(t, &fakeCases{err: model.ErrItemWorn})
 	if _, err := m.Discard(t.Context(), actor, DiscardRequest{Key: key, ItemID: worn.ID, Quantity: 1}); !errors.Is(err, kernel.ErrItemWorn) {
 		t.Fatalf("a worn item: got %v", err)
 	}

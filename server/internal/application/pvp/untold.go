@@ -27,7 +27,7 @@ type MissedMatch struct {
 }
 
 // Missed is the matches the character was away from at their end and hasn't been told of, for their Welcome: the newest missedShown, and the rest to count. They stay untold till Told.
-func (s *Service) Missed(ctx context.Context, id kernel.CharacterID) (Missed, error) {
+func (s *cases) Missed(ctx context.Context, id kernel.CharacterID) (Missed, error) {
 	untold, err := s.d.Store.Untold(ctx, id)
 	if err != nil {
 		return Missed{}, err
@@ -45,6 +45,6 @@ func (s *Service) Missed(ctx context.Context, id kernel.CharacterID) (Missed, er
 }
 
 // Told marks the character told of matches' outcomes, as a gateway handed them on, live or in a Welcome.
-func (s *Service) Told(ctx context.Context, id kernel.CharacterID, matches []kernel.MatchID) error {
+func (s *cases) Told(ctx context.Context, id kernel.CharacterID, matches []kernel.MatchID) error {
 	return s.d.Store.MarkTold(ctx, id, matches)
 }

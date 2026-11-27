@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-// faulty runs fault inside the module before each Online and Offline the party service takes, to hold or panic there.
+// faulty runs fault inside the module before each Online and Offline the party use cases takes, to hold or panic there.
 type faulty struct {
 	parties
 	fault func(call string, id kernel.CharacterID)
@@ -29,12 +29,12 @@ func (f faulty) Offline(ctx context.Context, id kernel.CharacterID, conn string)
 	return f.parties.Offline(ctx, id, conn)
 }
 
-// newLive is the module over the real party and chat services, with fault run inside them and rec recording its panics.
+// newLive is the module over the real party and chat use casess, with fault run inside them and rec recording its panics.
 func newLive(t *testing.T, fault func(call string, id kernel.CharacterID), rec *panics.Recorder) *Module {
 	t.Helper()
 	notes := newNotifier()
-	ps := NewPartyService(PartyDeps{Store: memory(), Notifier: notes})
-	return build(t, faulty{parties: ps, fault: fault}, NewChatService(ChatDeps{Parties: ps, LineMax: 120}), notes, rec)
+	ps := newPartyCases(partyCasesDeps{Store: memory(), Notifier: notes})
+	return build(t, faulty{parties: ps, fault: fault}, newChatCases(chatCasesDeps{Parties: ps, LineMax: 120}), notes, rec)
 }
 
 func discarding() *panics.Recorder { return panics.NewRecorder(slog.New(slog.DiscardHandler), nil) }

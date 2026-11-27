@@ -39,17 +39,17 @@ func (in LookInput) fingerprint(c kernel.CharacterID) []byte {
 }
 
 // Pieces lists the account's wardrobe, oldest first.
-func (s *Service) Pieces(ctx context.Context, account kernel.AccountID) ([]model.Piece, error) {
+func (s *cases) Pieces(ctx context.Context, account kernel.AccountID) ([]model.Piece, error) {
 	return s.store.Pieces(ctx, account)
 }
 
 // Look is the character's look, the zero Look when it never set one.
-func (s *Service) Look(ctx context.Context, character kernel.CharacterID) (model.Look, error) {
+func (s *cases) Look(ctx context.Context, character kernel.CharacterID) (model.Look, error) {
 	return s.store.Look(ctx, character)
 }
 
 // AddToWardrobe takes one of an item that holds a piece and puts the piece in the account's wardrobe, in one transaction; a piece the wardrobe has changes nothing.
-func (s *Service) AddToWardrobe(ctx context.Context, actor model.Actor, in WardrobeInput) (Changes, error) {
+func (s *cases) AddToWardrobe(ctx context.Context, actor model.Actor, in WardrobeInput) (Changes, error) {
 	var res Changes
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
 		var err error
@@ -62,7 +62,7 @@ func (s *Service) AddToWardrobe(ctx context.Context, actor model.Actor, in Wardr
 	return res, err
 }
 
-func (s *Service) addToWardrobe(ctx context.Context, uow UnitOfWork, actor model.Actor, id kernel.ItemID) (Changes, error) {
+func (s *cases) addToWardrobe(ctx context.Context, uow UnitOfWork, actor model.Actor, id kernel.ItemID) (Changes, error) {
 	owner := actor.Character
 	it, err := uow.Items().LockOwned(ctx, id, owner)
 	if err != nil {
@@ -101,7 +101,7 @@ func (s *Service) addToWardrobe(ctx context.Context, uow UnitOfWork, actor model
 }
 
 // GrantPieces puts each grant's piece in the account's wardrobe, in one transaction, giving back the grants whose piece was new; a piece the wardrobe has stays as it was. Each grant must name a source its piece has.
-func (s *Service) GrantPieces(ctx context.Context, account kernel.AccountID, grants []model.PieceGrant) ([]model.PieceGrant, error) {
+func (s *cases) GrantPieces(ctx context.Context, account kernel.AccountID, grants []model.PieceGrant) ([]model.PieceGrant, error) {
 	for _, g := range grants {
 		if !s.grantable(g) {
 			return nil, fmt.Errorf("item: piece %q has no %s source %q", g.Piece, g.Cause, g.Ref)
@@ -125,7 +125,7 @@ func (s *Service) GrantPieces(ctx context.Context, account kernel.AccountID, gra
 }
 
 // grantable is whether g names a source its piece has: the rank, the quest or the feat that gives it.
-func (s *Service) grantable(g model.PieceGrant) bool {
+func (s *cases) grantable(g model.PieceGrant) bool {
 	p, ok := s.content.Piece(g.Piece)
 	return ok && g.Ref != "" && slices.ContainsFunc(p.From, func(src gamedata.PieceSource) bool {
 		switch g.Cause {
@@ -141,7 +141,7 @@ func (s *Service) grantable(g model.PieceGrant) bool {
 }
 
 // SetLook wears in's picks: each a piece of its slot the account has collected, a weapon look of the class's kind, or "" for the class's own.
-func (s *Service) SetLook(ctx context.Context, actor model.Actor, in LookInput) (Changes, error) {
+func (s *cases) SetLook(ctx context.Context, actor model.Actor, in LookInput) (Changes, error) {
 	picks, err := s.picks(in.Look, in.Class)
 	if err != nil {
 		return Changes{}, err
@@ -166,7 +166,7 @@ func (s *Service) SetLook(ctx context.Context, actor model.Actor, in LookInput) 
 }
 
 // picks are look's pieces, each checked against the catalogue: known, of its slot, and a weapon look of class's kind.
-func (s *Service) picks(look model.Look, class kernel.Class) ([]string, error) {
+func (s *cases) picks(look model.Look, class kernel.Class) ([]string, error) {
 	c, ok := s.content.Class(class)
 	if !ok {
 		return nil, model.ErrWrongClass
@@ -194,7 +194,7 @@ func (s *Service) picks(look model.Look, class kernel.Class) ([]string, error) {
 }
 
 // fitLook clears a weapon look the class promoted to can't hold, in the gift's transaction, and returns the look as it stands.
-func (s *Service) fitLook(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, promotes kernel.Class) (*model.Look, error) {
+func (s *cases) fitLook(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, promotes kernel.Class) (*model.Look, error) {
 	c, ok := s.content.Class(promotes)
 	if !ok {
 		return nil, model.ErrWrongClass

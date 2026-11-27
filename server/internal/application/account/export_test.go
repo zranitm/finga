@@ -12,3 +12,11 @@ func Streams() (*Module, Notifier) {
 	sessions := hub.New[Event](sessionsQueue)
 	return &Module{sessions: sessions}, notifier{sessions: sessions}
 }
+
+// Cases, CasesDeps and NewCases give the external tests the use cases, which the module does not export.
+type (
+	Cases     = cases
+	CasesDeps = casesDeps
+)
+
+var NewCases = newCases

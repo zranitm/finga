@@ -14,26 +14,26 @@ type Parties interface {
 	Members(ctx context.Context, id kernel.CharacterID) ([]kernel.CharacterID, error)
 }
 
-// ChatService cleans, limits and routes.
-type ChatService struct {
+// chatCases cleans, limits and routes.
+type chatCases struct {
 	parties Parties
 	lineMax int
 	limiter *ratelimit.Buckets
 }
 
-// ChatDeps are what the chat service is built over.
-type ChatDeps struct {
+// chatCasesDeps are what the chat use cases is built over.
+type chatCasesDeps struct {
 	Parties Parties
 	LineMax int // characters a line holds, after cleaning
 }
 
-// NewChatService makes the service over deps.
-func NewChatService(deps ChatDeps) *ChatService {
-	return &ChatService{parties: deps.Parties, lineMax: deps.LineMax, limiter: ratelimit.NewBuckets(model.LineRatePerSecond, model.LineBurst)}
+// newChatCases makes the use cases over deps.
+func newChatCases(deps chatCasesDeps) *chatCases {
+	return &chatCases{parties: deps.Parties, lineMax: deps.LineMax, limiter: ratelimit.NewBuckets(model.LineRatePerSecond, model.LineBurst)}
 }
 
 // Send cleans and rate-limits a line; map lines have nil recipients, party lines the whole party.
-func (s *ChatService) Send(ctx context.Context, from model.Sender, channel model.Channel, text string) (model.Message, []kernel.CharacterID, error) {
+func (s *chatCases) Send(ctx context.Context, from model.Sender, channel model.Channel, text string) (model.Message, []kernel.CharacterID, error) {
 	if channel != model.ChannelMap && channel != model.ChannelParty {
 		return model.Message{}, nil, model.ErrChannel
 	}

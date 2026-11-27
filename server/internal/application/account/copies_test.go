@@ -8,7 +8,7 @@ import (
 
 // Each conversion between the facade's types and the model's keeps every field.
 func TestEveryConversionKeepsEveryField(t *testing.T) {
-	f := &fakeService{}
+	f := &fakeCases{}
 	m := newModule(t, f)
 	for name, got := range map[string][]string{
 		"accountOf":      copytest.Diff(copytest.Match{}, accountOf),

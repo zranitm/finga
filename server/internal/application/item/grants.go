@@ -1,4 +1,3 @@
-// Package service is the item module's use cases; each change is one idempotent transaction.
 package item
 
 import (
@@ -149,27 +148,27 @@ const (
 	scopeLook        = "item.look"
 )
 
-// Service is the item module's use cases.
-type Service struct {
+// cases is the item module's use cases.
+type cases struct {
 	store   Store
 	content Content
 	log     *slog.Logger
 }
 
-// ServiceDeps are what the service is built over.
-type ServiceDeps struct {
+// casesDeps are what the use cases is built over.
+type casesDeps struct {
 	Store   Store
 	Content Content
 	Logger  *slog.Logger
 }
 
-// NewService wires the service over deps.
-func NewService(deps ServiceDeps) *Service {
-	return &Service{store: deps.Store, content: deps.Content, log: deps.Logger}
+// newCases wires the use cases over deps.
+func newCases(deps casesDeps) *cases {
+	return &cases{store: deps.Store, content: deps.Content, log: deps.Logger}
 }
 
 // Inventory lists the character's items, at the revision they show; equipment with no roll reads as its lowest until the owner's next change writes it.
-func (s *Service) Inventory(ctx context.Context, owner kernel.CharacterID) (model.Inventory, error) {
+func (s *cases) Inventory(ctx context.Context, owner kernel.CharacterID) (model.Inventory, error) {
 	inv, err := s.store.Inventory(ctx, owner)
 	if err != nil {
 		return model.Inventory{}, err
@@ -179,7 +178,7 @@ func (s *Service) Inventory(ctx context.Context, owner kernel.CharacterID) (mode
 }
 
 // lockInventory locks the owner's inventory, writing the lowest roll for equipment that has none.
-func (s *Service) lockInventory(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID) ([]model.Item, error) {
+func (s *cases) lockInventory(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID) ([]model.Item, error) {
 	inv, err := uow.Items().LockInventory(ctx, owner)
 	if err != nil {
 		return nil, err
@@ -195,7 +194,7 @@ func (s *Service) lockInventory(ctx context.Context, uow UnitOfWork, owner kerne
 
 // unrolled gives equipment with no roll its template's lowest, the rule migration 00008 used for older gear, and returns those items.
 // Only a build from before rolls writes such an item, as when an old and a new binary run against one database.
-func (s *Service) unrolled(inv []model.Item) []model.Item {
+func (s *cases) unrolled(inv []model.Item) []model.Item {
 	var out []model.Item
 	for i := range inv {
 		tmpl, ok := s.content.Item(inv[i].TemplateID)
@@ -210,7 +209,7 @@ func (s *Service) unrolled(inv []model.Item) []model.Item {
 }
 
 // Add fills stacks with room, then the first free slot; a full inventory writes nothing.
-func (s *Service) Add(ctx context.Context, actor model.Actor, in AddInput) (Changes, error) {
+func (s *cases) Add(ctx context.Context, actor model.Actor, in AddInput) (Changes, error) {
 	tmpl, err := s.addable(in)
 	if err != nil {
 		return Changes{}, err
@@ -231,7 +230,7 @@ func (s *Service) Add(ctx context.Context, actor model.Actor, in AddInput) (Chan
 }
 
 // addable is the template in adds, unless a rule refuses the add before it runs.
-func (s *Service) addable(in AddInput) (gamedata.Item, error) {
+func (s *cases) addable(in AddInput) (gamedata.Item, error) {
 	tmpl, ok := s.content.Item(in.TemplateID)
 	if !ok {
 		return gamedata.Item{}, model.ErrUnknownItem
@@ -266,7 +265,7 @@ type DropBatch struct {
 var dropRules = []error{model.ErrUnknownItem, model.ErrBadQuantity, model.ErrBadRoll, model.ErrEquipTabFull, model.ErrUseTabFull, model.ErrEtcTabFull, model.ErrKeyReused}
 
 // AddMany adds each drop as Add would, all for one owner in one transaction: a drop a rule refuses rolls back to its savepoint and stores no reply, and the others carry on.
-func (s *Service) AddMany(ctx context.Context, actor model.Actor, drops []AddInput) (DropBatch, error) {
+func (s *cases) AddMany(ctx context.Context, actor model.Actor, drops []AddInput) (DropBatch, error) {
 	if len(drops) == 0 || len(drops) > MaxBatch {
 		return DropBatch{}, model.ErrBadBatch
 	}
@@ -307,7 +306,7 @@ type batchOutcome struct {
 }
 
 // addOne is one drop of a batch under its own savepoint; the first grant that changes something takes the batch's revision, which every later one shares.
-func (s *Service) addOne(ctx context.Context, uow UnitOfWork, actor model.Actor, in AddInput, revision *uint64) (batchOutcome, error) {
+func (s *cases) addOne(ctx context.Context, uow UnitOfWork, actor model.Actor, in AddInput, revision *uint64) (batchOutcome, error) {
 	tmpl, err := s.addable(in)
 	if err != nil {
 		return batchOutcome{outcome: DropOutcome{Err: err}}, nil
@@ -359,7 +358,7 @@ func takesRoll(tmpl gamedata.Item, stats *progression.ItemStats) bool {
 }
 
 // add puts quantity of tmpl in the inventory; stats is equipment's roll, nil for anything else.
-func (s *Service) add(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, tmpl gamedata.Item, quantity int, stats *progression.ItemStats, cause model.Cause) (Changes, error) {
+func (s *cases) add(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, tmpl gamedata.Item, quantity int, stats *progression.ItemStats, cause model.Cause) (Changes, error) {
 	inv, err := s.lockInventory(ctx, uow, owner)
 	if err != nil {
 		return Changes{}, err
@@ -417,7 +416,7 @@ func (s *Service) add(ctx context.Context, uow UnitOfWork, owner kernel.Characte
 }
 
 // Move puts an item in a slot of its tab, merging into a matching stack; there is no swap.
-func (s *Service) Move(ctx context.Context, actor model.Actor, in MoveInput) (Changes, error) {
+func (s *cases) Move(ctx context.Context, actor model.Actor, in MoveInput) (Changes, error) {
 	if in.Slot < 0 || in.Slot >= model.SlotsPerTab {
 		return Changes{}, model.ErrBadSlot
 	}
@@ -433,7 +432,7 @@ func (s *Service) Move(ctx context.Context, actor model.Actor, in MoveInput) (Ch
 	return res, err
 }
 
-func (s *Service) move(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, in MoveInput) (Changes, error) {
+func (s *cases) move(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, in MoveInput) (Changes, error) {
 	inv, err := s.lockInventory(ctx, uow, owner)
 	if err != nil {
 		return Changes{}, err
@@ -500,7 +499,7 @@ func (s *Service) move(ctx context.Context, uow UnitOfWork, owner kernel.Charact
 }
 
 // Discard destroys a whole item or part of a stack.
-func (s *Service) Discard(ctx context.Context, actor model.Actor, in DiscardInput) (Changes, error) {
+func (s *cases) Discard(ctx context.Context, actor model.Actor, in DiscardInput) (Changes, error) {
 	if in.Quantity < 1 {
 		return Changes{}, model.ErrBadQuantity
 	}
@@ -516,7 +515,7 @@ func (s *Service) Discard(ctx context.Context, actor model.Actor, in DiscardInpu
 	return res, err
 }
 
-func (s *Service) discard(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, in DiscardInput) (Changes, error) {
+func (s *cases) discard(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, in DiscardInput) (Changes, error) {
 	it, err := uow.Items().LockOwned(ctx, in.ItemID, owner)
 	if err != nil {
 		return Changes{}, err // someone else's item is ErrNotFound too
@@ -532,7 +531,7 @@ func (s *Service) discard(ctx context.Context, uow UnitOfWork, owner kernel.Char
 }
 
 // DiscardMany destroys whole items or stacks in one transaction, all of them or none: a missing, someone else's or worn one refuses the lot. It takes one to a tab's slots, each once.
-func (s *Service) DiscardMany(ctx context.Context, actor model.Actor, in DiscardManyInput) (Changes, error) {
+func (s *cases) DiscardMany(ctx context.Context, actor model.Actor, in DiscardManyInput) (Changes, error) {
 	if len(in.ItemIDs) == 0 || len(in.ItemIDs) > model.SlotsPerTab {
 		return Changes{}, model.ErrBadBatch
 	}
@@ -554,7 +553,7 @@ func (s *Service) DiscardMany(ctx context.Context, actor model.Actor, in Discard
 	return res, err
 }
 
-func (s *Service) discardMany(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, ids []kernel.ItemID) (Changes, error) {
+func (s *cases) discardMany(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, ids []kernel.ItemID) (Changes, error) {
 	items := make([]model.Item, 0, len(ids))
 	for _, id := range ids {
 		it, err := uow.Items().LockOwned(ctx, id, owner)
@@ -598,7 +597,7 @@ func discardLocked(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID
 
 // Use takes one of a usable item from its stack, once per key; what it does, such as the HP a potion restores, the caller applies.
 // replayed is true when an earlier call under the key took it, so the caller applies nothing again.
-func (s *Service) Use(ctx context.Context, actor model.Actor, in UseInput) (res Changes, replayed bool, err error) {
+func (s *cases) Use(ctx context.Context, actor model.Actor, in UseInput) (res Changes, replayed bool, err error) {
 	if t, ok := s.content.Item(in.Template); !ok || !t.Usable() {
 		return Changes{}, false, model.ErrNotUsable
 	}
@@ -615,7 +614,7 @@ func (s *Service) Use(ctx context.Context, actor model.Actor, in UseInput) (res 
 	return res, replayed, err
 }
 
-func (s *Service) use(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, in UseInput) (Changes, error) {
+func (s *cases) use(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, in UseInput) (Changes, error) {
 	it, err := uow.Items().LockOwned(ctx, in.ItemID, owner)
 	if err != nil {
 		return Changes{}, err // someone else's item is ErrNotFound too
@@ -644,7 +643,7 @@ func (s *Service) use(ctx context.Context, uow UnitOfWork, owner kernel.Characte
 }
 
 // Equip wears an inventory item; a worn item in that slot swaps into the inventory slot the new one left, so a swap works with a full tab.
-func (s *Service) Equip(ctx context.Context, actor model.Actor, in EquipInput) (Changes, error) {
+func (s *cases) Equip(ctx context.Context, actor model.Actor, in EquipInput) (Changes, error) {
 	if in.EquipSlot != "" {
 		if _, ok := s.content.EquipSlot(in.EquipSlot); !ok {
 			return Changes{}, model.ErrWrongEquipSlot
@@ -662,7 +661,7 @@ func (s *Service) Equip(ctx context.Context, actor model.Actor, in EquipInput) (
 	return res, err
 }
 
-func (s *Service) equip(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, in EquipInput) (Changes, error) {
+func (s *cases) equip(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, in EquipInput) (Changes, error) {
 	inv, err := s.lockInventory(ctx, uow, owner)
 	if err != nil {
 		return Changes{}, err
@@ -733,7 +732,7 @@ func (s *Service) equip(ctx context.Context, uow UnitOfWork, owner kernel.Charac
 }
 
 // Unequip puts a worn item in the Equip tab, in the slot asked for or the first free one.
-func (s *Service) Unequip(ctx context.Context, actor model.Actor, in UnequipInput) (Changes, error) {
+func (s *cases) Unequip(ctx context.Context, actor model.Actor, in UnequipInput) (Changes, error) {
 	if _, ok := s.content.EquipSlot(in.EquipSlot); !ok {
 		return Changes{}, model.ErrWrongEquipSlot
 	}
@@ -752,7 +751,7 @@ func (s *Service) Unequip(ctx context.Context, actor model.Actor, in UnequipInpu
 	return res, err
 }
 
-func (s *Service) unequip(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, in UnequipInput) (Changes, error) {
+func (s *cases) unequip(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, in UnequipInput) (Changes, error) {
 	inv, err := s.lockInventory(ctx, uow, owner)
 	if err != nil {
 		return Changes{}, err
@@ -830,7 +829,7 @@ func wornOf(inv []model.Item) []model.Item {
 }
 
 // GrantStarter gives a new character the start class's starter items once, recorded in starter_grants; later calls change nothing. Equipment is worn, unless its slot is taken.
-func (s *Service) GrantStarter(ctx context.Context, actor model.Actor) (Changes, error) {
+func (s *cases) GrantStarter(ctx context.Context, actor model.Actor) (Changes, error) {
 	c := s.content.StartClass()
 	tmpls := make([]gamedata.Item, 0, len(c.StarterItems))
 	for _, g := range c.StarterItems {
@@ -878,7 +877,7 @@ func (s *Service) GrantStarter(ctx context.Context, actor model.Actor) (Changes,
 }
 
 // wear puts a new equipment item straight into the first empty equip slot of its kind; nil, writing nothing, when every one is taken.
-func (s *Service) wear(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, tmpl gamedata.Item, stats *progression.ItemStats, cause model.Cause) (*model.WornSlot, error) {
+func (s *cases) wear(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, tmpl gamedata.Item, stats *progression.ItemStats, cause model.Cause) (*model.WornSlot, error) {
 	inv, err := s.lockInventory(ctx, uow, owner)
 	if err != nil {
 		return nil, err

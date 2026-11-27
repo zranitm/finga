@@ -62,7 +62,7 @@ func New(d Deps) (*Module, error) {
 		return nil, err
 	}
 	notes := newNotifier()
-	ps := NewPartyService(PartyDeps{Store: d.Store, Notifier: notes})
+	ps := newPartyCases(partyCasesDeps{Store: d.Store, Notifier: notes})
 	c := d.Config.Members
 	gone := retention.Policy{Keep: c.Keep, Every: c.PruneEvery, Batch: c.PruneBatch, Gap: c.PruneGap}
 	d.Module.Task("member retention", func(ctx context.Context) error {
@@ -75,7 +75,7 @@ func New(d Deps) (*Module, error) {
 	return &Module{
 		calls:       calls,
 		parties:     ps,
-		chat:        NewChatService(ChatDeps{Parties: ps, LineMax: d.Data.ChatLineMax()}),
+		chat:        newChatCases(chatCasesDeps{Parties: ps, LineMax: d.Data.ChatLineMax()}),
 		notes:       notes,
 		panics:      d.Module.Panics,
 		registering: semaphore.NewWeighted(1),

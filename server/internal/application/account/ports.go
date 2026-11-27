@@ -8,7 +8,7 @@ import (
 	"finga/internal/shared/kernel"
 )
 
-// Store is the service's persistence: plain reads on the pool, InTx for anything that writes.
+// Store is the use cases' persistence: plain reads on the pool, InTx for anything that writes.
 type Store interface {
 	InTx(ctx context.Context, fn func(uow UnitOfWork) error) error
 	FindByUsername(ctx context.Context, username string) (model.Credentials, error)

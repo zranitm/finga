@@ -1,4 +1,4 @@
-package account
+package account_test
 
 import (
 	"context"
@@ -13,6 +13,8 @@ import (
 	application "finga/internal/application/account"
 	"finga/internal/application/account/password"
 	model "finga/internal/model/account"
+	repository "finga/internal/repository/account"
+	"finga/internal/repository/dbtest"
 	"finga/internal/shared/kernel"
 )
 
@@ -38,21 +40,19 @@ func (h *notices) AccountRevoked(_ context.Context, id kernel.AccountID, reason 
 	h.accountReasons = append(h.accountReasons, reason)
 }
 
-var cheapHash = password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32}
-
 // underSynctest runs f on fake time against a fresh database, opening the pool inside the bubble as synctest requires.
-func underSynctest(t *testing.T, f func(t *testing.T, svc *application.Service, store *Postgres, hooks *notices)) {
+func underSynctest(t *testing.T, f func(t *testing.T, svc *application.Cases, store *repository.Postgres, hooks *notices)) {
 	t.Helper()
-	url := cluster.URL(t)
+	url := dbtest.URL(t)
 	synctest.Test(t, func(t *testing.T) {
 		pool, err := pgxpool.New(context.Background(), url)
 		if err != nil {
 			t.Fatal(err)
 		}
 		t.Cleanup(pool.Close)
-		store := NewPostgres(pool, nil)
+		store := repository.NewPostgres(pool, nil)
 		hooks := &notices{}
-		svc, err := application.NewService(application.ServiceDeps{Store: store, Notifier: hooks, Hasher: password.NewHasher(cheapHash, 4, time.Second)})
+		svc, err := application.NewCases(application.CasesDeps{Store: store, Notifier: hooks, Hasher: password.NewHasher(cheapHash, 4, time.Second)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -60,7 +60,7 @@ func underSynctest(t *testing.T, f func(t *testing.T, svc *application.Service, 
 	})
 }
 
-func loginAs(t *testing.T, svc *application.Service, username string) (token string, accountID kernel.AccountID) {
+func loginAs(t *testing.T, svc *application.Cases, username string) (token string, accountID kernel.AccountID) {
 	t.Helper()
 	ctx := context.Background()
 	acc, err := svc.Register(ctx, application.RegisterInput{Username: username, Password: "correct horse"})
@@ -79,7 +79,7 @@ func TestRotationGraceAndReuse(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("the retired token works once inside the grace; a second use is reuse and ends the session", func(t *testing.T) {
-		underSynctest(t, func(t *testing.T, svc *application.Service, _ *Postgres, hooks *notices) {
+		underSynctest(t, func(t *testing.T, svc *application.Cases, _ *repository.Postgres, hooks *notices) {
 			token, _ := loginAs(t, svc, "alice")
 			p, err := svc.Validate(ctx, token)
 			if err != nil {
@@ -115,7 +115,7 @@ func TestRotationGraceAndReuse(t *testing.T) {
 	})
 
 	t.Run("the retired token used after the grace is reuse too", func(t *testing.T) {
-		underSynctest(t, func(t *testing.T, svc *application.Service, _ *Postgres, hooks *notices) {
+		underSynctest(t, func(t *testing.T, svc *application.Cases, _ *repository.Postgres, hooks *notices) {
 			token, _ := loginAs(t, svc, "bob")
 			p, err := svc.Validate(ctx, token)
 			if err != nil {
@@ -139,7 +139,7 @@ func TestRotationGraceAndReuse(t *testing.T) {
 	})
 
 	t.Run("a second rotation retires the current token, not the one before", func(t *testing.T) {
-		underSynctest(t, func(t *testing.T, svc *application.Service, _ *Postgres, _ *notices) {
+		underSynctest(t, func(t *testing.T, svc *application.Cases, _ *repository.Postgres, _ *notices) {
 			token, _ := loginAs(t, svc, "carol")
 			p, _ := svc.Validate(ctx, token)
 			second, _ := svc.Rotate(ctx, p.SessionID)
@@ -159,7 +159,7 @@ func TestRotationGraceAndReuse(t *testing.T) {
 
 func TestSlidingExpiry(t *testing.T) {
 	t.Parallel()
-	underSynctest(t, func(t *testing.T, svc *application.Service, store *Postgres, _ *notices) {
+	underSynctest(t, func(t *testing.T, svc *application.Cases, store *repository.Postgres, _ *notices) {
 		ctx := context.Background()
 		start := time.Now()
 		at := func(d time.Duration) { time.Sleep(time.Until(start.Add(d))) }
@@ -226,7 +226,7 @@ func TestSlidingExpiry(t *testing.T) {
 
 func TestLogOutEverywhere(t *testing.T) {
 	t.Parallel()
-	underSynctest(t, func(t *testing.T, svc *application.Service, _ *Postgres, hooks *notices) {
+	underSynctest(t, func(t *testing.T, svc *application.Cases, _ *repository.Postgres, hooks *notices) {
 		ctx := context.Background()
 		token, accountID := loginAs(t, svc, "alice")
 		p, err := svc.Validate(ctx, token)

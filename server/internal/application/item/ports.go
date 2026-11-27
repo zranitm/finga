@@ -9,7 +9,7 @@ import (
 	"finga/internal/shared/progression"
 )
 
-// Store is what the service sees of persistence.
+// Store is what the use cases sees of persistence.
 type Store interface {
 	InTx(ctx context.Context, fn func(uow UnitOfWork) error) error
 	Inventory(ctx context.Context, owner kernel.CharacterID) (model.Inventory, error)

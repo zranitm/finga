@@ -350,7 +350,7 @@ func (*social) FollowParties(context.Context, func(_, _ []kernel.CharacterID), f
 }
 
 type fixture struct {
-	svc    *pvp.Service
+	svc    *pvp.Cases
 	world  *world
 	store  *store
 	chars  *characters
@@ -376,7 +376,7 @@ func seededWith(t *testing.T, seed uint64, data *gamedata.Data) fixture {
 	t.Helper()
 	f := fixture{world: &world{cant: map[kernel.CharacterID]error{}, builds: map[kernel.CharacterID][]model.Build{}}, store: newStore(), chars: &characters{of: map[kernel.CharacterID]model.Character{}, as: map[kernel.CharacterID]model.Named{}}, items: &items{has: map[kernel.AccountID]map[string]bool{}}, notes: &notes{got: map[kernel.CharacterID][]pvp.Delivery{}}, social: &social{}, data: data}
 	log := slog.New(slog.DiscardHandler)
-	f.svc = pvp.NewService(pvp.ServiceDeps{Data: data, World: f.world, Social: f.social, Characters: f.chars, Store: f.store, Items: f.items, Notifier: f.notes, Logger: log, Panics: panics.NewRecorder(log, nil), Rand: rand.New(rand.NewPCG(seed, 2))}) //nolint:gosec // a test's bots
+	f.svc = pvp.NewCases(pvp.CasesDeps{Data: data, World: f.world, Social: f.social, Characters: f.chars, Store: f.store, Items: f.items, Notifier: f.notes, Logger: log, Panics: panics.NewRecorder(log, nil), Rand: rand.New(rand.NewPCG(seed, 2))}) //nolint:gosec // a test's bots
 	return f
 }
 

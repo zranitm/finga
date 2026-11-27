@@ -1,4 +1,4 @@
-package item
+package item_test
 
 import (
 	"context"
@@ -14,6 +14,8 @@ import (
 
 	application "finga/internal/application/item"
 	model "finga/internal/model/item"
+	"finga/internal/repository/dbtest"
+	repository "finga/internal/repository/item"
 	"finga/internal/repository/item/itemtest"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/gamedata/gamedatatest"
@@ -229,9 +231,9 @@ func TestARollOutsideTodaysRangesStillHolds(t *testing.T) {
 func TestInventoryProperties(t *testing.T) {
 	t.Parallel()
 	data := gamedatatest.Shipped(t)
-	pool := cluster.DB(t)
-	store := NewPostgres(pool, nil)
-	svc := application.NewService(application.ServiceDeps{Store: store, Content: data, Logger: slog.New(slog.DiscardHandler)})
+	pool := dbtest.DB(t)
+	store := repository.NewPostgres(pool, nil)
+	svc := application.NewCases(application.CasesDeps{Store: store, Content: data, Logger: slog.New(slog.DiscardHandler)})
 	templates := []string{"red_potion", "white_potion", "slime_gel", "wooden_sword", "short_bow", "leather_cap", "leather_vest", "piece.knight_plate", "piece.greatsword"}
 	var equipSlots []string
 	for _, s := range data.EquipSlots() {

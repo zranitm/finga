@@ -78,7 +78,7 @@ func (r *recorder) reset() {
 type fixture struct {
 	ctx   context.Context
 	store *fakeStore
-	svc   *application.PartyService
+	svc   *application.PartyCases
 	rec   *recorder
 	ids   map[string]kernel.CharacterID
 	name  map[kernel.CharacterID]string
@@ -87,7 +87,7 @@ type fixture struct {
 func newFixture(t *testing.T, names ...string) *fixture {
 	t.Helper()
 	f := &fixture{ctx: t.Context(), store: newFakeStore(), rec: &recorder{}, ids: map[string]kernel.CharacterID{}, name: map[kernel.CharacterID]string{}}
-	f.svc = application.NewPartyService(application.PartyDeps{Store: f.store, Notifier: f.rec})
+	f.svc = application.NewPartyCases(application.PartyCasesDeps{Store: f.store, Notifier: f.rec})
 	for k, n := range names {
 		id := kernel.NewCharacterID()
 		f.ids[n] = id

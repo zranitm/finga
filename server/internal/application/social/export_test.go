@@ -8,3 +8,16 @@ var memory func() PartyStore
 
 // SetMemory gives the internal tests the repository's party store.
 func SetMemory(f func() PartyStore) { memory = f }
+
+// The party and chat use cases, which the module does not export, for the external tests.
+type (
+	PartyCases     = partyCases
+	PartyCasesDeps = partyCasesDeps
+	ChatCases      = chatCases
+	ChatCasesDeps  = chatCasesDeps
+)
+
+var (
+	NewPartyCases = newPartyCases
+	NewChatCases  = newChatCases
+)

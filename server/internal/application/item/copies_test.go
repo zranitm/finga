@@ -43,7 +43,7 @@ type (
 // Each conversion between the facade and the module carries every field, so one added on both sides and missed in between shows.
 func TestEveryConversionKeepsEveryField(t *testing.T) {
 	ctx := t.Context()
-	f := &fakeService{}
+	f := &fakeCases{}
 	m := newModule(t, f)
 	results := map[string]func() (Result, error){
 		"Add":           func() (Result, error) { return m.Add(ctx, actor, AddRequest{Key: key, Cause: Cause{Type: CauseDrop}}) },

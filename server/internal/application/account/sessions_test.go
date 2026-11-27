@@ -31,21 +31,21 @@ type unheard struct{}
 func (unheard) SessionRevoked(context.Context, kernel.SessionID, string) {}
 func (unheard) AccountRevoked(context.Context, kernel.AccountID, string) {}
 
-func newService(t *testing.T, store application.Store) *application.Service {
+func newCases(t *testing.T, store application.Store) *application.Cases {
 	t.Helper()
-	return build(t, application.ServiceDeps{Store: store, Notifier: unheard{}, Hasher: password.NewHasher(cheapHash, 4, time.Second)})
+	return build(t, application.CasesDeps{Store: store, Notifier: unheard{}, Hasher: password.NewHasher(cheapHash, 4, time.Second)})
 }
 
-func build(t *testing.T, deps application.ServiceDeps) *application.Service {
+func build(t *testing.T, deps application.CasesDeps) *application.Cases {
 	t.Helper()
-	svc, err := application.NewService(deps)
+	svc, err := application.NewCases(deps)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return svc
 }
 
-func register(t *testing.T, svc *application.Service, username, pw string) model.Account {
+func register(t *testing.T, svc *application.Cases, username, pw string) model.Account {
 	t.Helper()
 	acc, err := svc.Register(context.Background(), application.RegisterInput{Username: username, Password: pw})
 	if err != nil {
@@ -58,10 +58,10 @@ func TestRegister(t *testing.T) {
 	ctx := context.Background()
 	t.Run("valid", func(t *testing.T) {
 		store := newFakeStore()
-		svc := newService(t, store)
+		svc := newCases(t, store)
 		acc := register(t, svc, "Alice_01", "correct horse")
 		stored := store.accounts[acc.ID]
-		// created_at is the store's, not a clock the service reads.
+		// created_at is the store's, not a clock the use cases reads.
 		if acc.Username != "Alice_01" || acc.ID.IsZero() || acc.CreatedAt.IsZero() || !acc.CreatedAt.Equal(stored.Account.CreatedAt) || !reflect.DeepEqual(acc.Settings, model.Settings{}) {
 			t.Fatalf("account = %+v", acc)
 		}
@@ -93,7 +93,7 @@ func TestRegister(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				store := newFakeStore()
-				svc := newService(t, store)
+				svc := newCases(t, store)
 				_, err := svc.Register(ctx, application.RegisterInput{Username: tt.username, Password: tt.password})
 				if !errors.Is(err, tt.want) {
 					t.Fatalf("err = %v, want %v", err, tt.want)
@@ -106,13 +106,13 @@ func TestRegister(t *testing.T) {
 	})
 
 	t.Run("boundary lengths are accepted", func(t *testing.T) {
-		svc := newService(t, newFakeStore())
+		svc := newCases(t, newFakeStore())
 		register(t, svc, "abc", "12345678")
 		register(t, svc, strings.Repeat("Z", 16), strings.Repeat("p", 128))
 	})
 
 	t.Run("a duplicate becomes conflict", func(t *testing.T) {
-		svc := newService(t, newFakeStore())
+		svc := newCases(t, newFakeStore())
 		register(t, svc, "alice", "correct horse")
 		_, err := svc.Register(ctx, application.RegisterInput{Username: "ALICE", Password: "correct horse"})
 		if !errors.Is(err, model.ErrUsernameTaken) {
@@ -123,7 +123,7 @@ func TestRegister(t *testing.T) {
 
 func TestVerify(t *testing.T) {
 	ctx := context.Background()
-	svc := newService(t, newFakeStore())
+	svc := newCases(t, newFakeStore())
 	acc := register(t, svc, "alice", "correct horse")
 	tests := []struct {
 		name     string
@@ -156,11 +156,11 @@ func TestVerify(t *testing.T) {
 func TestALoginUpgradesAHashMadeAtAnotherCost(t *testing.T) {
 	ctx := context.Background()
 	store := newFakeStore()
-	acc := register(t, newService(t, store), "alice", "correct horse")
+	acc := register(t, newCases(t, store), "alice", "correct horse")
 	old := store.accounts[acc.ID].PasswordHash
 	raised := cheapHash
 	raised.Time = 2
-	svc := build(t, application.ServiceDeps{Store: store, Notifier: unheard{}, Hasher: password.NewHasher(raised, 4, time.Second)})
+	svc := build(t, application.CasesDeps{Store: store, Notifier: unheard{}, Hasher: password.NewHasher(raised, 4, time.Second)})
 
 	if _, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "wrong horse"}); !errors.Is(err, model.ErrUnauthenticated) {
 		t.Fatalf("err = %v", err)
@@ -189,7 +189,7 @@ func TestALoginUpgradesAHashMadeAtAnotherCost(t *testing.T) {
 func TestLoginIssuesATokenAndStoresOnlyItsHash(t *testing.T) {
 	ctx := context.Background()
 	store := newFakeStore()
-	svc := newService(t, store)
+	svc := newCases(t, store)
 	acc := register(t, svc, "alice", "correct horse")
 	before := time.Now()
 	token, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse"})
@@ -238,7 +238,7 @@ func TestLoginIssuesATokenAndStoresOnlyItsHash(t *testing.T) {
 
 func TestValidateFailsTheSameWayForEveryBadToken(t *testing.T) {
 	ctx := context.Background()
-	login := func(t *testing.T, svc *application.Service) string {
+	login := func(t *testing.T, svc *application.Cases) string {
 		t.Helper()
 		register(t, svc, "alice", "correct horse")
 		token, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse"})
@@ -249,16 +249,16 @@ func TestValidateFailsTheSameWayForEveryBadToken(t *testing.T) {
 	}
 	tests := []struct {
 		name  string
-		token func(t *testing.T, svc *application.Service) string
+		token func(t *testing.T, svc *application.Cases) string
 	}{
-		{"unknown token", func(*testing.T, *application.Service) string { return "not-a-token" }},
-		{"empty token", func(*testing.T, *application.Service) string { return "" }},
-		{"expired token", func(t *testing.T, svc *application.Service) string {
+		{"unknown token", func(*testing.T, *application.Cases) string { return "not-a-token" }},
+		{"empty token", func(*testing.T, *application.Cases) string { return "" }},
+		{"expired token", func(t *testing.T, svc *application.Cases) string {
 			tok := login(t, svc)
 			time.Sleep(idleTTL) // exactly the lifetime: no longer valid
 			return tok
 		}},
-		{"revoked token", func(t *testing.T, svc *application.Service) string {
+		{"revoked token", func(t *testing.T, svc *application.Cases) string {
 			tok := login(t, svc)
 			p, err := svc.Validate(ctx, tok)
 			if err != nil {
@@ -273,7 +273,7 @@ func TestValidateFailsTheSameWayForEveryBadToken(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				svc := newService(t, newFakeStore())
+				svc := newCases(t, newFakeStore())
 				_, err := svc.Validate(ctx, tt.token(t, svc))
 				if !errors.Is(err, model.ErrUnauthenticated) {
 					t.Fatalf("err = %v, want ErrUnauthenticated", err)
@@ -283,7 +283,7 @@ func TestValidateFailsTheSameWayForEveryBadToken(t *testing.T) {
 	}
 	t.Run("a token just before expiry still validates", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			svc := newService(t, newFakeStore())
+			svc := newCases(t, newFakeStore())
 			tok := login(t, svc)
 			time.Sleep(idleTTL - time.Second)
 			if _, err := svc.Validate(ctx, tok); err != nil {
@@ -297,7 +297,7 @@ func TestLoginThrottling(t *testing.T) {
 	ctx := context.Background()
 	t.Run("too many attempts for one username give rate_limited, which resets after the window", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			svc := newService(t, newFakeStore())
+			svc := newCases(t, newFakeStore())
 			register(t, svc, "alice", "correct horse")
 			for i := range 5 {
 				if _, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "wrong"}); !errors.Is(err, model.ErrUnauthenticated) {
@@ -315,7 +315,7 @@ func TestLoginThrottling(t *testing.T) {
 		})
 	})
 	t.Run("one username's throttle leaves the others alone: per-IP limits are the edge's (nginx)", func(t *testing.T) {
-		svc := newService(t, newFakeStore())
+		svc := newCases(t, newFakeStore())
 		register(t, svc, "alice", "correct horse")
 		for i := range 5 {
 			_, _ = svc.Login(ctx, application.LoginInput{Username: fmt.Sprintf("user%d", i), Password: "wrong"})
@@ -325,7 +325,7 @@ func TestLoginThrottling(t *testing.T) {
 		}
 	})
 	t.Run("Verify itself is not throttled: the handler's job", func(t *testing.T) {
-		svc := newService(t, newFakeStore())
+		svc := newCases(t, newFakeStore())
 		register(t, svc, "alice", "correct horse")
 		for range 10 {
 			if _, err := svc.Verify(ctx, "alice", "correct horse"); err != nil {
@@ -337,7 +337,7 @@ func TestLoginThrottling(t *testing.T) {
 
 func TestSettings(t *testing.T) {
 	ctx := context.Background()
-	svc := newService(t, newFakeStore())
+	svc := newCases(t, newFakeStore())
 	acc := register(t, svc, "alice", "correct horse")
 	// Any action the client names: the server checks the shape, and a left Shift on its own is a key.
 	want := model.Settings{AutoAssignPoints: true, HideMinimap: true, Zoom: 0.375, Walk: true, Keys: map[string]string{"attack": "KeyV", "skill1": "ShiftLeft", "someLaterAction": "Digit9"}}
@@ -393,16 +393,16 @@ func TestSettings(t *testing.T) {
 	}
 }
 
-func TestServiceSurfacesItsFailures(t *testing.T) {
+func TestUseCasesSurfaceTheirFailures(t *testing.T) {
 	t.Run("Issue for an unknown account fails", func(t *testing.T) {
-		svc := newService(t, newFakeStore())
+		svc := newCases(t, newFakeStore())
 		if _, err := svc.Issue(context.Background(), kernel.NewAccountID()); !errors.Is(err, model.ErrNotFound) {
 			t.Fatalf("err = %v", err)
 		}
 	})
 	t.Run("a store failure surfaces", func(t *testing.T) {
 		store := newFakeStore()
-		svc := newService(t, store)
+		svc := newCases(t, store)
 		store.failInTx = errors.New("db down")
 		if _, err := svc.Register(context.Background(), application.RegisterInput{Username: "alice", Password: "correct horse"}); err == nil || !strings.Contains(err.Error(), "db down") {
 			t.Fatalf("err = %v", err)
@@ -412,7 +412,7 @@ func TestServiceSurfacesItsFailures(t *testing.T) {
 
 // A burst of sign-ups past the hash slots answers busy once the wait runs out, instead of taking 64 MiB a hash.
 func TestSignUpsPastTheHashSlotsAreBusy(t *testing.T) {
-	svc := build(t, application.ServiceDeps{Store: newFakeStore(), Notifier: unheard{}, Hasher: password.NewHasher(password.Default, 1, time.Millisecond)})
+	svc := build(t, application.CasesDeps{Store: newFakeStore(), Notifier: unheard{}, Hasher: password.NewHasher(password.Default, 1, time.Millisecond)})
 	var wg sync.WaitGroup
 	var ok, busy atomic.Int32
 	for k := range 16 {

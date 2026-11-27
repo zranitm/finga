@@ -19,7 +19,7 @@ const pushQueue = 4096
 // Module is the pvp module; every call to it goes through these methods.
 type Module struct {
 	calls  *facade.Calls
-	svc    *Service
+	svc    *cases
 	pushes *hub.Hub[Push]
 }
 
@@ -38,7 +38,7 @@ type Deps struct {
 func New(d Deps) (*Module, error) {
 	pushes := hub.New[Push](pushQueue)
 	world, social := adapter.NewWorld(d.World), adapter.NewSocial(d.Social, d.Module.Panics)
-	svc := NewService(ServiceDeps{
+	svc := newCases(casesDeps{
 		Data: d.Data, World: world, Social: social, Characters: adapter.NewCharacters(d.Character), Store: d.Store, Items: adapter.NewItems(d.Items), Notifier: notifier{pushes}, Logger: d.Module.Logger, Panics: d.Module.Panics,
 		Rand: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())), //nolint:gosec // bots' classes and names, not a secret
 	})

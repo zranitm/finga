@@ -1,4 +1,4 @@
-package item
+package item_test
 
 import (
 	"context"
@@ -192,7 +192,7 @@ func TestAFailedAddLeavesTheItemAndNoEntry(t *testing.T) {
 	h := newHarness(t)
 	h.add(t, "a1", "piece.knight_plate", 1)
 	plate := h.inventory(t)[0]
-	svc := application.NewService(application.ServiceDeps{Store: failing{h.store}, Content: h.data, Logger: slog.New(slog.DiscardHandler)})
+	svc := application.NewCases(application.CasesDeps{Store: failing{h.store}, Content: h.data, Logger: slog.New(slog.DiscardHandler)})
 	if _, err := svc.AddToWardrobe(ctx, h.actor, application.WardrobeInput{Key: "w1", ItemID: plate.ID}); !errors.Is(err, errCommit) {
 		t.Fatalf("the add: %v, want the failure", err)
 	}
@@ -274,7 +274,7 @@ func TestTheStoreKeepsEveryPick(t *testing.T) {
 func TestATrainersGiftClearsAWeaponLookTheNewClassCantHold(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	gift := func(h *harness, svc *application.Service, key string, to kernel.Class) (application.Changes, error) {
+	gift := func(h *harness, svc *application.Cases, key string, to kernel.Class) (application.Changes, error) {
 		return svc.Add(ctx, h.actor, application.AddInput{Key: key, TemplateID: "wooden_sword", Quantity: 1, Cause: model.Cause{Type: model.CausePromotion, ID: uuidv7.New()}, Stats: h.roll("wooden_sword"), Promotes: to})
 	}
 	wearing := func(t *testing.T) *harness {
@@ -307,7 +307,7 @@ func TestATrainersGiftClearsAWeaponLookTheNewClassCantHold(t *testing.T) {
 	})
 	t.Run("a gift that fails keeps the look", func(t *testing.T) {
 		h := wearing(t)
-		svc := application.NewService(application.ServiceDeps{Store: failing{h.store}, Content: h.data, Logger: slog.New(slog.DiscardHandler)})
+		svc := application.NewCases(application.CasesDeps{Store: failing{h.store}, Content: h.data, Logger: slog.New(slog.DiscardHandler)})
 		if _, err := gift(h, svc, "g1", "magician"); !errors.Is(err, errCommit) {
 			t.Fatalf("the gift: %v, want the failure", err)
 		}
