@@ -56,34 +56,55 @@ describe('the outfit pieces as the client draws them', () => {
   });
 
   it('gives every class file and parts file one rig, joint for joint, bind for bind, so a part swaps onto any of them', async () => {
-    const candidates = [
+    // the wings' file is made for the game: no skin and no rig, only a node at each half's root; every other file must have the rig
+    const made = new Set(
+      Object.values(PIECE_LOOKS)
+        .filter((p) => p.slot === 'wings')
+        .map((p) => partsFile(p.file)),
+    );
+    const files = [
       ...new Set(Object.values(MODELS).flatMap((m) => (m.own ? [m.file] : []))),
       ...new Set(Object.values(PIECE_LOOKS).map((p) => partsFile(p.file))),
-    ];
-    const docs = await Promise.all(candidates.map((f) => read(OUT, f)));
-    // a file with no skin is rigid, hung on a joint: only the wings' made file may be one, so no rigged file slips past this check by its slot
-    const rigid = candidates.filter((_, i) => docs[i]!.getRoot().listSkins().length === 0);
-    expect(rigid).toEqual([
-      ...new Set(
-        Object.values(PIECE_LOOKS)
-          .filter((p) => p.slot === 'wings')
-          .map((p) => partsFile(p.file)),
-      ),
-    ]);
-    const files = candidates.filter((f) => !rigid.includes(f));
+    ].filter((f) => !made.has(f));
     expect(files.length).toBeGreaterThan(5);
-    const [first, ...rest] = files.map((f) => rigOf(docs[candidates.indexOf(f)]!));
+    const docs = await Promise.all(files.map(async (f) => ({ f, doc: await read(OUT, f) })));
+    const skinned = docs.filter((d) => d.doc.getRoot().listSkins().length > 0);
+    const [first, ...rest] = skinned.map((d) => rigOf(d.doc));
     expect(first).toHaveLength(41);
     for (const [i, rig] of rest.entries()) {
       expect(
         rig.map((j) => [j.name, j.parent]),
-        files[i + 1],
+        skinned[i + 1]!.f,
       ).toEqual(first!.map((j) => [j.name, j.parent]));
       rig.forEach((j, k) =>
         j.bind.forEach((v, n) =>
-          expect(v, `${files[i + 1]} ${j.name}`).toBeCloseTo(first![k]!.bind[n]!, 6),
+          expect(v, `${skinned[i + 1]!.f} ${j.name}`).toBeCloseTo(first![k]!.bind[n]!, 6),
         ),
       );
+    }
+    // A file of rigid pieces alone, the Skeletons' weapons, has no skin: its joints are the rig's, each under the parent the rig gives it, and its meshes hang on them.
+    const parentOf = new Map(first!.map((j) => [j.name, j.parent]));
+    const rigid = docs.filter((d) => d.doc.getRoot().listSkins().length === 0);
+    expect(rigid.length).toBeGreaterThan(0);
+    for (const { f, doc } of rigid) {
+      for (const n of doc.getRoot().listNodes()) {
+        const parent = n.getParentNode()?.getName();
+        if (n.getMesh()) {
+          expect(parentOf.has(parent ?? ''), `${f} ${n.getName()} hangs on ${parent}`).toBe(true);
+        } else if (parentOf.get(n.getName())) {
+          expect(parent, `${f} ${n.getName()}`).toBe(parentOf.get(n.getName())); // the rig's root hangs on the scene's Rig node
+        }
+      }
+    }
+    // the made file is what it says: no skin, no joint of the rig, each half's node a mesh at the scene's root
+    for (const f of made) {
+      const doc = await read(OUT, f);
+      expect(doc.getRoot().listSkins(), f).toHaveLength(0);
+      for (const n of doc.getRoot().listNodes()) {
+        expect(parentOf.has(n.getName()), `${f} ${n.getName()}`).toBe(false);
+        expect(n.getMesh(), `${f} ${n.getName()}`).not.toBeNull();
+        expect(n.getParentNode(), `${f} ${n.getName()}`).toBeNull();
+      }
     }
   });
 

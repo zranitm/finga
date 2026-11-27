@@ -154,6 +154,8 @@ async function atlasOf(doc: Document, file: string): Promise<Raw> {
 const sources = glbs(srcDir);
 const byFile = played();
 const byParts = worn();
+// A file that holds pieces and that no look draws whole, a pack's skeleton bodies, is written as its parts file alone.
+const partsOnly = new Set([...byParts.keys()].filter((f) => !byFile.has(f)));
 const unknown = [
   ...byFile.keys(),
   ...Object.keys(DROPPED),
@@ -164,17 +166,8 @@ if (unknown.length > 0) {
   throw new Error(`models: no ${[...new Set(unknown)].join(', ')} in models-src`);
 }
 const parts = [...byParts.keys()].map(partsFile);
-// A file made for the game, which no class wears the rig of: only its parts file is served, and only wings and face pieces come from one.
-const rigged = new Set(Object.values(MODELS).flatMap((m) => (m.own ? [m.file] : [])));
-const made = new Set([...byParts.keys()].filter((f) => !rigged.has(f)));
-for (const piece of Object.values(PIECE_LOOKS).filter((p) => made.has(p.file))) {
-  if (piece.slot !== 'wings' && piece.slot !== 'face') {
-    throw new Error(`models: ${piece.file} has a ${piece.slot} piece but no class wears its rig`);
-  }
-}
-for (const stale of glbs(outDir).filter(
-  (f) => (!sources.includes(f) || made.has(f)) && !parts.includes(f),
-)) {
+const whole = sources.filter((f) => !partsOnly.has(f));
+for (const stale of glbs(outDir).filter((f) => !whole.includes(f) && !parts.includes(f))) {
   rmSync(join(outDir, stale));
 }
 const colourways = Object.keys(COLOURWAYS).map(colourwayFile);
@@ -187,16 +180,20 @@ if (existsSync(colourwayDir)) {
   }
 }
 
-// A worn piece is bound by swapping its rig for the wearer's, so the files it moves between keep the packs' own vertex positions: quantizing them would fold each file's own grid into its rig. A made file keeps them too, since its hinges' places are read from its nodes.
+// A worn piece is bound by swapping its rig for the wearer's, so the files it moves between keep the packs' own vertex positions: quantizing them would fold each file's own grid into its rig.
+const rigged = new Set([
+  ...Object.values(MODELS).flatMap((m) => (m.own ? [m.file] : [])),
+  ...partsOnly,
+]);
 const quantizing = (file: string) =>
   quantize({
     quantizationVolume: 'scene', // one grid for the scene keeps each skin whole
-    ...((rigged.has(file) || made.has(file)) && { pattern: /^(?!POSITION$)/ }),
+    ...(rigged.has(file) && { pattern: /^(?!POSITION$)/ }),
   });
 
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const kb = (n: number) => `${(n / 1024).toFixed(1)} KB`;
-for (const file of sources.filter((f) => !made.has(f))) {
+for (const file of whole) {
   const doc = await io.read(join(srcDir, file));
   doc.setLogger(new Logger(Logger.Verbosity.WARN));
   const clips = byFile.get(file) ?? new Set<string>();
@@ -211,6 +208,9 @@ for (const file of sources.filter((f) => !made.has(f))) {
   await write(doc, file, statSync(join(srcDir, file)).size);
 }
 for (const [file, meshes] of byParts) {
+  if (!rigged.has(file)) {
+    throw new Error(`models: ${file} has pieces but no class wears its rig`);
+  }
   const doc = await io.read(join(srcDir, file));
   doc.setLogger(new Logger(Logger.Verbosity.WARN));
   stripToParts(doc, file, meshes);

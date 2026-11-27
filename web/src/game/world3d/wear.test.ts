@@ -291,6 +291,40 @@ describe('an outfit piece worn', () => {
     for (const x of [own, helmed, bare, robed]) x.dispose();
   });
 
+  it.each(classes.map((c) => c.id))(
+    'a skeleton body on the %s hides its head and nothing else more than any outfit does, shows it again without it, takes a hat on the skull and no hood swap, at the size it stands in its own',
+    async (cls) => {
+      const plain = await make(classLook(cls));
+      const heads = classLook(cls).own!.head;
+      const shown = (b: Body) =>
+        [...nodesOf(b)]
+          .filter(
+            ([n, node]) =>
+              'skeleton' in node && !n.endsWith(' worn') && !n.endsWith(' ink') && node.isEnabled(),
+          )
+          .map(([n]) => n)
+          .sort();
+      const plate = await make(wearing(cls, 'knight_body')); // an outfit of no head of its own
+      const bones = await make(wearing(cls, 'skeleton_warrior'));
+      expect(heads.length).toBeGreaterThan(0);
+      expect(shown(bones)).toEqual(shown(plate).filter((n) => !heads.includes(n)));
+      expect(shown(plate).filter((n) => heads.includes(n))).toEqual(heads);
+      expect(shown(plain).filter((n) => heads.includes(n))).toEqual(heads); // none worn: its head
+      for (const name of classLook(cls, { looks: ['skeleton_warrior'], bareHead: false }).wear![0]!
+        .meshes) {
+        expect(mesh(bones, `${name} worn`)?.isEnabled(), name).toBe(true);
+      }
+      const hatted = await make(wearing(cls, 'skeleton_warrior', 'skeleton_helmet'));
+      const helm = mesh(hatted, 'Skeleton_Warrior_Helmet worn')!;
+      expect([helm.isEnabled(), helm.parent?.name]).toEqual([true, 'head']);
+      expect(mesh(hatted, 'Rogue_Head worn')).toBeUndefined(); // a hooded head is not swapped under a skull
+      for (const x of [bones, hatted]) {
+        expect(x.root.scaling.x).toBeCloseTo(plain.root.scaling.x, 9);
+      }
+      for (const x of [plain, plate, bones, hatted]) x.dispose();
+    },
+  );
+
   it('copies the look into the afterimage: the worn parts drawn, the class’s own they replace left out', async () => {
     const b = await make(wearing('warrior', 'mage_body', 'two_handed_axe'));
     const still = b.afterimage(new StandardMaterial('after', scene));
