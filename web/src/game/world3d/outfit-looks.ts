@@ -139,6 +139,8 @@ export const PIECE_LOOKS: Readonly<Record<string, PieceLook>> = {
   mage_hat: { slot: 'headwear', file: MAGE, meshes: ['Mage_Hat'] },
   two_handed_sword: { slot: 'weapon', file: KNIGHT, meshes: ['2H_Sword'] },
   two_handed_axe: { slot: 'weapon', file: BARBARIAN, meshes: ['2H_Axe'] },
+  one_handed_axe: { slot: 'weapon', file: BARBARIAN, meshes: ['1H_Axe'] },
+  tavern_mug: { slot: 'weapon', file: BARBARIAN, meshes: ['Mug'] },
   wand: { slot: 'weapon', file: MAGE, meshes: ['1H_Wand'] },
   crossbow_1h: { slot: 'weapon', file: ROGUE, meshes: ['1H_Crossbow'] },
   // Stand-ins for the trials' pieces till the catalogue is designed: each class's own weapon in bronze.
