@@ -232,19 +232,19 @@ describe('wiring', () => {
     expect(toasts.getState().toasts).toHaveLength(1);
   });
 
-  it('a Welcome’s waypoints are those found, in place of any before; a WaypointFound adds one, its stone’s to flare, and says so by its name where the player stands; leaving forgets them', async () => {
+  it('a Welcome’s waypoints are those found, in place of any before; a WaypointFound adds one, its stone’s to flare, and says so by its name, even on a map not yet shown; leaving forgets them', async () => {
     const { ws } = await connectedSocket();
     expect(waypoints.getState().found).toEqual(new Set());
-    mapView
+    mapView // still the last map's waypoints, as when a new map's first tick finds a stone
       .getState()
       .showMap('test_region', [256, 256], NO_GROUND, [
         { id: 'west', name: 'West Field', x: 60, z: 85, y: 0, main: false },
       ]);
-    ws.push('waypointFound', { waypoint: 'west' });
-    expect(waypoints.getState().found).toEqual(new Set(['west']));
-    expect(waypoints.getState().last).toBe('west');
+    ws.push('waypointFound', { waypoint: 'sunken_shrine' });
+    expect(waypoints.getState().found).toEqual(new Set(['sunken_shrine']));
+    expect(waypoints.getState().last).toBe('sunken_shrine');
     expect(toasts.getState().toasts).toMatchObject([
-      { text: 'Waypoint found: West Field', kind: 'info' },
+      { text: 'Waypoint found: Sunken Shrine', kind: 'info' },
     ]);
     ws.push('welcome', { ...welcome, waypoints: ['town', 'north'] });
     expect(waypoints.getState().found).toEqual(new Set(['town', 'north']));
