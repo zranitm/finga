@@ -43,11 +43,12 @@ export interface Hood {
   readonly bare: string;
 }
 
-/** A class model's own meshes for the outfit slots (outfits.md section 6): its body below the head and its cape, its headwear, its weapon. */
+/** A class model's own meshes for the outfit slots (outfits.md section 6): its body below the head and its cape, its headwear, its weapon, and its head, which only a piece with a head of its own takes the place of. */
 export interface Own {
   readonly outfit: readonly string[];
   readonly headwear: readonly string[];
   readonly weapon: readonly string[];
+  readonly head: readonly string[];
 }
 
 const ownBody = (who: string) => [
@@ -141,7 +142,12 @@ export const MODELS: Readonly<Record<string, Model>> = {
     exposure: 1,
     spine: 'spine',
     weapon: '1H_Axe',
-    own: { outfit: ownBody('Barbarian'), headwear: ['Barbarian_Hat'], weapon: ['1H_Axe'] },
+    own: {
+      outfit: ownBody('Barbarian'),
+      headwear: ['Barbarian_Hat'],
+      weapon: ['1H_Axe'],
+      head: ['Barbarian_Head'],
+    },
     clips: { ...KAYKIT, attack: SLICE, skill: CHOP, block: GUARD },
   },
   // The town guide: the Barbarian with hat and cape, so it doesn't pass for a Beginner.
@@ -159,7 +165,12 @@ export const MODELS: Readonly<Record<string, Model>> = {
     spine: 'spine',
     weapon: '1H_Sword',
     tinted: 'Knight_Cape',
-    own: { outfit: ownBody('Knight'), headwear: ['Knight_Helmet'], weapon: ['1H_Sword'] },
+    own: {
+      outfit: ownBody('Knight'),
+      headwear: ['Knight_Helmet'],
+      weapon: ['1H_Sword'],
+      head: ['Knight_Head'],
+    },
     clips: { ...KAYKIT, attack: SLICE, skill: CHOP, block: GUARD },
   },
   rogue: {
@@ -169,7 +180,7 @@ export const MODELS: Readonly<Record<string, Model>> = {
     spine: 'spine',
     weapon: 'Knife',
     tinted: 'Rogue_Cape',
-    own: { outfit: ownBody('Rogue'), headwear: [], weapon: ['Knife'] },
+    own: { outfit: ownBody('Rogue'), headwear: [], weapon: ['Knife'], head: ['Rogue_Head'] },
     clips: { ...KAYKIT, attack: STAB, skill: CHOP, block: GUARD },
   },
   rogue_hooded: {
@@ -178,7 +189,12 @@ export const MODELS: Readonly<Record<string, Model>> = {
     exposure: 1,
     spine: 'spine',
     tinted: 'Rogue_Cape',
-    own: { outfit: ownBody('Rogue'), headwear: [], weapon: ['2H_Crossbow'] }, // a bare head keeps the hood, which is its head
+    own: {
+      outfit: ownBody('Rogue'),
+      headwear: [],
+      weapon: ['2H_Crossbow'],
+      head: ['Rogue_Head_Hooded'],
+    }, // a bare head keeps the hood, which is its head
     hood: { head: 'Rogue_Head_Hooded', file: 'kaykit/Rogue.glb', bare: 'Rogue_Head' },
     clips: { ...KAYKIT, attack: SHOOT, skill: SHOOT, block: GUARD },
   },
@@ -188,7 +204,12 @@ export const MODELS: Readonly<Record<string, Model>> = {
     exposure: 1,
     spine: 'spine',
     tinted: 'Mage_Cape',
-    own: { outfit: ownBody('Mage'), headwear: ['Mage_Hat'], weapon: ['2H_Staff'] },
+    own: {
+      outfit: ownBody('Mage'),
+      headwear: ['Mage_Hat'],
+      weapon: ['2H_Staff'],
+      head: ['Mage_Head'],
+    },
     clips: { ...KAYKIT, attack: CAST, skill: RAISE, block: GUARD },
   },
   green_blob: {

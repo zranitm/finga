@@ -14,6 +14,7 @@ export interface PieceLook {
   readonly file: string; // the source file whose parts file holds its meshes
   readonly meshes: readonly string[]; // skinned ones bound to the wearer's rig, rigid ones on the joint they hang from in the file; wings' two halves, each modelled spread flat across the back from its root, where its hinge goes
   readonly colourway?: string; // a COLOURWAYS key, whose atlas its meshes are drawn in
+  readonly ownHead?: boolean; // a body that comes with its own head, which takes the place of the wearer's, and under which a hooded head is not swapped
   readonly glow?: boolean; // prestige wings', drawn in the lit band only, with a rim
   readonly fit?: Readonly<Record<string, Fit>>; // by the wearer's model file, where it sits wrong on that body
 }
@@ -53,6 +54,17 @@ const BARBARIAN = 'kaykit/Barbarian.glb';
 const MAGE = 'kaykit/Mage.glb';
 const ROGUE = 'kaykit/Rogue.glb';
 const ROGUE_HOODED = 'kaykit/Rogue_Hooded.glb';
+const SKELETON_WARRIOR = 'kaykit/Skeleton_Warrior.glb';
+const SKELETON_MAGE = 'kaykit/Skeleton_Mage.glb';
+const SKELETON_ROGUE = 'kaykit/Skeleton_Rogue.glb';
+const SKELETON_MINION = 'kaykit/Skeleton_Minion.glb';
+const SKELETON_WEAPONS = 'kaykit/Skeleton_Weapons.glb'; // the four weapons on a right-hand slot, as the Adventurers' hang
+
+/** A skeleton body: its limbs, its body and its cloak or cape where it has one, and its own head, eyes and jaw, which take the place of the wearer's. */
+const bones = (who: string, ...rest: string[]) =>
+  ['ArmLeft', 'ArmRight', 'Body', 'LegLeft', 'LegRight', 'Eyes', 'Jaw', ...rest].map(
+    (m) => `Skeleton_${who}_${m}`,
+  );
 
 /** The Knight's Helm over a Rogue's head, wide enough that the earring sits inside its cheek guard. */
 const OVER_EARRING: Fit = { offset: [0, 0, 0], scale: 1.08 };
@@ -131,6 +143,42 @@ export const PIECE_LOOKS: Readonly<Record<string, PieceLook>> = {
     colourway: 'rogue_bronze',
   },
   staff_bronze: { slot: 'weapon', file: MAGE, meshes: ['2H_Staff'], colourway: 'mage_bronze' },
+  // The Skeletons pack (Kay Lousberg, CC0), vetted for the Adventurers' 41 joints (outfits.md section 8).
+  skeleton_warrior: {
+    slot: 'outfit',
+    file: SKELETON_WARRIOR,
+    meshes: bones('Warrior', 'Cloak', 'Head'),
+    ownHead: true,
+  },
+  skeleton_mage: {
+    slot: 'outfit',
+    file: SKELETON_MAGE,
+    meshes: bones('Mage', 'Skull'),
+    ownHead: true,
+  },
+  skeleton_rogue: {
+    slot: 'outfit',
+    file: SKELETON_ROGUE,
+    meshes: bones('Rogue', 'Cape', 'Head'),
+    ownHead: true,
+  },
+  skeleton_minion: {
+    slot: 'outfit',
+    file: SKELETON_MINION,
+    meshes: bones('Minion', 'Cloak', 'Head'),
+    ownHead: true,
+  },
+  skeleton_helmet: {
+    slot: 'headwear',
+    file: SKELETON_WARRIOR,
+    meshes: ['Skeleton_Warrior_Helmet'],
+  },
+  skeleton_hat: { slot: 'headwear', file: SKELETON_MAGE, meshes: ['Skeleton_Mage_Hat'] },
+  skeleton_hood: { slot: 'headwear', file: SKELETON_ROGUE, meshes: ['Skeleton_Rogue_Hood'] },
+  skeleton_blade: { slot: 'weapon', file: SKELETON_WEAPONS, meshes: ['Skeleton_Blade'] },
+  skeleton_axe: { slot: 'weapon', file: SKELETON_WEAPONS, meshes: ['Skeleton_Axe'] },
+  skeleton_crossbow: { slot: 'weapon', file: SKELETON_WEAPONS, meshes: ['Skeleton_Crossbow'] },
+  skeleton_staff: { slot: 'weapon', file: SKELETON_WEAPONS, meshes: ['Skeleton_Staff'] },
 };
 
 export const COLOURWAYS: Readonly<Record<string, Colourway>> = {

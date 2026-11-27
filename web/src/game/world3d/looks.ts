@@ -118,7 +118,7 @@ export function classLook(cls: string, wearing?: Wearing): ModelLook {
     return { ...look, wear: wear.filter((p) => p.slot !== 'headwear'), bareHead: true };
   }
   const hood = look.hood;
-  return hood && wear.some((p) => p.slot === 'headwear')
+  return hood && wear.some((p) => p.slot === 'headwear') && !wear.some((p) => p.ownHead)
     ? { ...look, wear: [...wear, bareHead(hood)] }
     : { ...look, wear };
 }

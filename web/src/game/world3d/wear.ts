@@ -67,6 +67,7 @@ export function dress(
       w.piece.slot === 'face' || w.piece.slot === 'wings' ? [] : own[w.piece.slot],
     ),
     ...(look.bareHead ? own.headwear : []),
+    ...(worn.some((w) => w.piece.ownHead) ? own.head : []), // a skeleton's own skull
     ...(look.hood && worn.some((w) => w.piece.slot === 'headwear') ? [look.hood.head] : []), // its bare head is worn in its place
   ];
   for (const name of hidden) {
