@@ -579,6 +579,37 @@ describe('MapWindow', () => {
     ).toEqual(['Robin']);
   });
 
+  it('a region’s party names say each member’s channel, in the chart’s node and a picked map’s list; a land map’s say none', async () => {
+    onMap('shroom_grove', 30, 10);
+    party.getState().applyPartyState(
+      create(PartyStateSchema, {
+        party: create(PartyViewSchema, {
+          leader: 'c-bo',
+          members: [
+            { characterId: 'c-bo', name: 'Bo', mapId: 'willowmere', channel: 2, online: true },
+            { characterId: 'c-jade', name: 'Jade', mapId: 'willowmere', channel: 1, online: false },
+            { characterId: 'c-kai', name: 'Kai', mapId: 'crossroads', online: true },
+          ],
+        }),
+      }),
+    );
+    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
+    await user.click(screen.getByRole('tab', { name: 'World' }));
+    const chart = screen.getByRole('group', { name: 'World' });
+    const node = (id: string) => chart.querySelector(`.map-node[data-map="${id}"]`)!;
+    expect([
+      texts(node('willowmere'), '.map-node-party'),
+      texts(node('crossroads'), '.map-node-party'),
+    ]).toEqual([['Bo · Ch. 2'], ['Kai']]);
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Willowmere' }), { key: 'Enter' });
+    const names = await screen.findByRole('list', { name: 'Party in Willowmere' });
+    expect(
+      within(names)
+        .getAllByRole('listitem')
+        .map((li) => li.textContent),
+    ).toEqual(['Bo · Ch. 2']);
+  });
+
   it('a picked map whose layout won’t load says so', async () => {
     onMap('crossroads', 20, 10);
     render(

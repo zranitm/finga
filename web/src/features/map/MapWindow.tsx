@@ -13,7 +13,7 @@ import { clashes, stackTags, TAG_GAP } from '@/lib/tags';
 import type { TagBox } from '@/lib/tags';
 import type { GameSocket } from '@/net/socket';
 import { mobById } from '@/progression/mobs';
-import { mobName } from '@/progression/names';
+import { mobName, withChannel } from '@/progression/names';
 import { levelsOf, placesBelow } from '@/progression/places';
 import type { ChannelList } from '@/protocol/messages';
 import { character } from '@/state/character';
@@ -603,7 +603,7 @@ interface WorldProps {
   readonly onClose: () => void;
 }
 
-/** A map picked on the chart: a header with Back, Teleport here off the player's own map, and its party members, over its layout, which the scene's map draws from what it has and another from layoutOf. */
+/** A map picked on the chart: a header with Back, Teleport here off the player's own map, and its party members, each with their channel in a region, over its layout, which the scene's map draws from what it has and another from layoutOf. */
 function Picked({
   map,
   socket,
@@ -658,7 +658,7 @@ function Picked({
       {here.length > 0 && (
         <ul className="map-picked-party" aria-label={`Party in ${map.name}`}>
           {here.map((p) => (
-            <li key={p.characterId}>{p.name}</li>
+            <li key={p.characterId}>{withChannel(p.name, p.channel)}</li>
           ))}
         </ul>
       )}
@@ -785,7 +785,7 @@ function World(props: WorldProps) {
                   y={y + (town ? 6.6 : 8.8) + 2.2 * i}
                   textAnchor="middle"
                 >
-                  {p.name}
+                  {withChannel(p.name, p.channel)}
                 </text>
               ))}
             </g>
