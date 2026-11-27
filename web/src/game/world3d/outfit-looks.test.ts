@@ -56,16 +56,23 @@ describe('the outfit pieces as the client draws them', () => {
   });
 
   it('gives every class file and parts file one rig, joint for joint, bind for bind, so a part swaps onto any of them', async () => {
-    const files = [
+    const candidates = [
       ...new Set(Object.values(MODELS).flatMap((m) => (m.own ? [m.file] : []))),
+      ...new Set(Object.values(PIECE_LOOKS).map((p) => partsFile(p.file))),
+    ];
+    const docs = await Promise.all(candidates.map((f) => read(OUT, f)));
+    // a file with no skin is rigid, hung on a joint: only the wings' made file may be one, so no rigged file slips past this check by its slot
+    const rigid = candidates.filter((_, i) => docs[i]!.getRoot().listSkins().length === 0);
+    expect(rigid).toEqual([
       ...new Set(
         Object.values(PIECE_LOOKS)
-          .filter((p) => p.slot !== 'wings' && p.slot !== 'face') // made for the game, rigid, hung on a joint
+          .filter((p) => p.slot === 'wings')
           .map((p) => partsFile(p.file)),
       ),
-    ];
+    ]);
+    const files = candidates.filter((f) => !rigid.includes(f));
     expect(files.length).toBeGreaterThan(5);
-    const [first, ...rest] = await Promise.all(files.map(async (f) => rigOf(await read(OUT, f))));
+    const [first, ...rest] = files.map((f) => rigOf(docs[candidates.indexOf(f)]!));
     expect(first).toHaveLength(41);
     for (const [i, rig] of rest.entries()) {
       expect(
