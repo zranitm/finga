@@ -123,14 +123,28 @@ func (i *Instance) stepMobs(views []model.MobView, removed []uint64) (full []mod
 	return full, steps
 }
 
-// told keeps a view sent whole as the baseline of the steps after it: a snapshot or a cell's full part shows a body as it stands, which a tick no one watched may have changed from the last frame's.
+// toldPlayer is a view handed out whole to one player: a snapshot or a cell's full part shows a body as it stands, which a tick no one framed it in, or a view the clock ends something in, may have changed from what every other watcher holds. The baseline is theirs too, so a view that differs from it is dropped: the body's next frame goes whole to all, and no watcher misses what the join was shown.
 func (i *Instance) toldPlayer(v model.PlayerView) {
-	if p, ok := i.players[v.ID]; ok {
-		p.sent = sentPlayerOf(v)
+	if p, ok := i.players[v.ID]; ok && p.sent != nil && !sameSent(p.sent, sentPlayerOf(v)) {
+		p.sent = nil
 	}
 }
 
-func (i *Instance) toldMob(v model.MobView) { i.mobSent[v.ID] = sentMobOf(v) }
+func (i *Instance) toldMob(v model.MobView) {
+	if old, ok := i.mobSent[v.ID]; ok && !sameMobSent(old, sentMobOf(v)) {
+		delete(i.mobSent, v.ID)
+	}
+}
+
+// sameSent is whether two views of a player are the same in every field a step or a whole view carries, as the wire has them.
+func sameSent(a, b *sentPlayer) bool {
+	return sameButMotion(a.view, b.view) && a.x == b.x && a.y == b.y && a.z == b.z && a.vx == b.vx && a.vy == b.vy && a.vz == b.vz && a.hx == b.hx && a.hz == b.hz &&
+		a.view.HP == b.view.HP && a.view.Aim == b.view.Aim && a.view.State.OnGround == b.view.State.OnGround && a.view.State.Sprint == b.view.State.Sprint && a.view.State.Held == b.view.State.Held
+}
+
+func sameMobSent(a, b sentMob) bool {
+	return sameMobButMotion(a.view, b.view) && a.x == b.x && a.y == b.y && a.z == b.z && a.yaw == b.yaw && a.view.HP == b.view.HP && a.view.Pose == b.view.Pose
+}
 
 // ownViews are the changed players' views as they are, kept before the cut files them in parts: each player is sent their own whole.
 func ownViews(views []model.PlayerView) map[kernel.CharacterID]model.PlayerView {
