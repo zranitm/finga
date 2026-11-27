@@ -398,6 +398,8 @@ biomes:
     | 15 (48 in view) | 14,496 | 1,860 | 12,212 | 1,376 | 2,316 | 467 | 37.2 kB/s |
 
   - **Against the budget:** the line is now **40 kB/s with a 150-player crowd in view** (105 others in a client's block, the bench's), where it was met at 259 to 290 kB/s before. The bench is steady state: every player walks, none fights, and a fight's statuses and hits add whole views and events. The soak decides whether the busiest second stays under; if it doesn't, the next lever is distance tiers (a body past the near cells at a lower rate), a PR of its own, and a cap on the players shown is a product call.
+  - **The busiest second is judged after the join:** a join sends the Welcome and a snapshot of everyone in view, whole, about 120 bytes a player: 17.9 kB at 145 players with 20 mobs, 19.7 kB with 60 (the bench, one joiner into the clumped crowd). With a second of ordinary frames on top, a bot's first second is far over a steady one. The soak's first run (150 bots, 3× camps, protocol 3) had a mean of 22.8 kB/s a bot and every bot's busiest second at 52 to 59, which fits that and nothing else about a fight. The bot now reports the busiest second after the first 5 s of its connection, when it fell, and the join's own beside it; the budget's second is the first. Spreading the snapshot over a few ticks was left out: the join is not what a player feels, and it would add protocol for a one-off.
+  - **A mob leaves a map only by a kill** (a blow or a poison), which every frame's removed list carries; the baseline of a mob killed while the map is empty has no frame to go with, so an empty map clears its baselines.
 
 ### Spatial indexes
 
@@ -923,7 +925,7 @@ Built with step 1, which says who watches a cell.
     - Otherwise it walks, finding waypoints on the way. The road graph waits for a region whose trips need it, as the test region's 256 m don't.
   - **`REGION`:** the bots teleport into the region's main town and only hunt there: no quests, town visits or promotion. A map that isn't a region with a main town is refused.
   - **Sign-ups** run no more password hashes at once than the gateway does (`account.password.concurrent`, 4, a test holds the two equal), and each call refused 429 or 503 is tried again after 0.5 s, doubling to 16 s. Started together, 150 bots would find the slots taken, and a refused bot gave up, so the soak would run short.
-  - **The report** says how many bots played of those asked for, and names any that never got in. It adds each bot's downstream kB/s, and its busiest whole second's, against the 40 kB/s budget, over the bots that played. It also counts the refusals coded `UNAVAILABLE`, which a full inbox answers with. Ticks were already keyed by map and channel.
+  - **The report** says how many bots played of those asked for, and names any that never got in. It adds each bot's downstream kB/s, and its busiest whole second's after the first 5 s of its connection (when it fell, and the join's own beside it), against the 40 kB/s budget, over the bots that played. It lists the refusals by request and code. It also counts the refusals coded `UNAVAILABLE`, which a full inbox answers with. Ticks were already keyed by map and channel.
   - **The budget run** waits for a region near section 5's size, about 1 km with 400 mobs. The test region has about 25.
 
 ## 12. Rollout and the old maps

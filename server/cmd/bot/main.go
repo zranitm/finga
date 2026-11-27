@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"math/rand/v2"
 	"net/http"
@@ -99,7 +100,7 @@ func run(url, metrics, dataDir, region string, n, hashes int, duration time.Dura
 	}
 	fmt.Printf("proof session: %d of %d bots played, for %s against %s\n\n", played, n, session.Round(time.Second), url)
 	var total stats
-	var average, busiest []float64 // of the bots that played
+	var average, busiest, joins []float64 // of the bots that played
 	for _, b := range bots {
 		s := b.snapshot()
 		total.add(s)
@@ -107,16 +108,24 @@ func run(url, metrics, dataDir, region string, n, hashes int, duration time.Dura
 			fmt.Printf("%-14s never played: it didn't sign up or get in\n", b.name)
 			continue
 		}
-		sent, peak := b.down.read()
-		average, busiest = append(average, float64(sent)/1000/session.Seconds()), append(busiest, float64(peak)/1000)
-		fmt.Printf("%-14s kills %3d  items taken %3d  deaths %2d  hops %3d  chat %3d  spends %2d  skills %4d  quests taken %2d  handed in %2d  messages %7d  refused %3d  busy %d  reconnects %d  login failures %d  stalls %d  down %.1f kB/s, busiest second %.1f\n",
-			b.name, s.kills, s.items, s.deaths, s.hops, s.chats, s.spends, s.skills, s.accepted, s.handedIn, s.messages, s.refused, s.busy, s.reconnects, s.loginFailures, s.stalls, average[len(average)-1], busiest[len(busiest)-1])
+		r := b.down.read()
+		average, busiest = append(average, float64(r.total)/1000/session.Seconds()), append(busiest, float64(r.peak)/1000)
+		joins = append(joins, float64(r.join)/1000)
+		fmt.Printf("%-14s kills %3d  items taken %3d  deaths %2d  hops %3d  chat %3d  spends %2d  skills %4d  quests taken %2d  handed in %2d  messages %7d  refused %3d  busy %d  reconnects %d  login failures %d  stalls %d  down %.1f kB/s, busiest second after the join %.1f (at +%s), in the join's %.1f\n",
+			b.name, s.kills, s.items, s.deaths, s.hops, s.chats, s.spends, s.skills, s.accepted, s.handedIn, s.messages, s.refused, s.busy, s.reconnects, s.loginFailures, s.stalls, average[len(average)-1], busiest[len(busiest)-1], r.peakAt.Round(time.Second), joins[len(joins)-1])
 	}
 	fmt.Printf("%-14s kills %3d  items taken %3d  deaths %2d  hops %3d  chat %3d  spends %2d  skills %4d  quests taken %2d  handed in %2d  messages %7d  refused %3d  busy %d  reconnects %d  login failures %d  stalls %d\n",
 		"total", total.kills, total.items, total.deaths, total.hops, total.chats, total.spends, total.skills, total.accepted, total.handedIn, total.messages, total.refused, total.busy, total.reconnects, total.loginFailures, total.stalls)
 	if len(average) > 0 {
 		slices.Sort(average)
-		fmt.Printf("downstream per bot: %.1f kB/s at the median, its busiest second %.1f kB/s at most, against the budget's 40\n\n", average[len(average)/2], slices.Max(busiest))
+		fmt.Printf("downstream per bot: %.1f kB/s at the median, its busiest second after the join %.1f kB/s at most (the join's own %.1f at most), against the budget's 40\n", average[len(average)/2], slices.Max(busiest), slices.Max(joins))
+	}
+	if len(total.refusals) > 0 {
+		fmt.Printf("refused:")
+		for _, k := range slices.Sorted(maps.Keys(total.refusals)) {
+			fmt.Printf("  %s x%d", k, total.refusals[k])
+		}
+		fmt.Println()
 	}
 	promoted := 0
 	for _, b := range bots {
@@ -134,10 +143,19 @@ func run(url, metrics, dataDir, region string, n, hashes int, duration time.Dura
 
 type stats struct {
 	messages, kills, items, deaths, hops, chats, spends, skills, accepted, handedIn, refused, busy, reconnects, loginFailures, promotes, stalls, entries int
+	refusals                                                                                                                                             map[string]int // what each refusal was: the request and the answer's code
 	// where the bot stands at the end, and when it promoted; 0 if it didn't
 	class      string
 	level      int
 	promotedAt time.Duration
+}
+
+func (s *stats) refuse(what string) {
+	if s.refusals == nil {
+		s.refusals = map[string]int{}
+	}
+	s.refusals[what]++
+	s.refused++
 }
 
 func (s *stats) add(o stats) {
@@ -152,6 +170,12 @@ func (s *stats) add(o stats) {
 	s.accepted += o.accepted
 	s.handedIn += o.handedIn
 	s.refused += o.refused
+	for k, n := range o.refusals {
+		if s.refusals == nil {
+			s.refusals = map[string]int{}
+		}
+		s.refusals[k] += n
+	}
 	s.busy += o.busy
 	s.reconnects += o.reconnects
 	s.loginFailures += o.loginFailures
@@ -232,13 +256,19 @@ type bot struct {
 	down          meter // what it is sent
 }
 
-// meter counts the bytes a bot is sent, and its busiest whole second's.
+// joinWindow is how long after a bot's first byte its seconds count as the join's: the Welcome and the snapshot of everyone in view arrive in it.
+const joinWindow = 5 * time.Second
+
+// meter counts the bytes a bot is sent, and its busiest whole second's inside the join window and after it.
 type meter struct {
 	mu     sync.Mutex
 	total  int
+	first  time.Time // the second of the first byte
 	second time.Time // the second being counted
 	now    int       // its bytes so far
-	peak   int
+	join   int       // the busiest second ended inside joinWindow
+	peak   int       // the busiest second ended after it
+	peakAt time.Duration
 }
 
 func (m *meter) add(n int, at time.Time) {
@@ -246,17 +276,29 @@ func (m *meter) add(n int, at time.Time) {
 	defer m.mu.Unlock()
 	m.total += n
 	if s := at.Truncate(time.Second); !s.Equal(m.second) {
-		m.peak = max(m.peak, m.now)
+		if since := m.second.Sub(m.first); since < joinWindow {
+			m.join = max(m.join, m.now)
+		} else if m.now > m.peak {
+			m.peak, m.peakAt = m.now, since
+		}
+		if m.first.IsZero() {
+			m.first = s
+		}
 		m.second, m.now = s, 0
 	}
 	m.now += n
 }
 
-// read is the bytes sent all told, and in the busiest second that has ended.
-func (m *meter) read() (total, peak int) {
+// reading is what a meter has counted: all told, and the busiest second that has ended in the join window and after it, with when that one fell since the first byte.
+type reading struct {
+	total, join, peak int
+	peakAt            time.Duration
+}
+
+func (m *meter) read() reading {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.total, m.peak
+	return reading{m.total, m.join, m.peak, m.peakAt}
 }
 
 // kills finds a bot's kills. A blow that empties a mob's HP removes it, so no later blow lands on it: the last landed blow on a mob removed in a tick is its kill, known once the next tick starts.
@@ -318,7 +360,9 @@ func newBot(url, name, charName string, index int) *bot {
 func (b *bot) snapshot() stats {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return b.st
+	st := b.st
+	st.refusals = maps.Clone(st.refusals)
+	return st
 }
 
 func (b *bot) count(f func(*stats)) {
@@ -835,13 +879,13 @@ func (b *bot) observe(m wsconn.Message) {
 			for _, a := range d.GetPicks() {
 				if a.GetCode() != 0 {
 					b.leftPouches[a.GetPick().GetPouch()] = true
-					b.count(func(s *stats) { s.refused++ })
+					b.count(func(s *stats) { s.refuse(fmt.Sprintf("%s pick %d", takeReq, a.GetCode())) })
 				}
 			}
 		}
 		if !d.GetOk() {
 			b.count(func(s *stats) {
-				s.refused++
+				s.refuse(fmt.Sprintf("%s %d", m.ReqID, d.GetCode()))
 				if d.GetCode() == busyCode {
 					s.busy++
 				}

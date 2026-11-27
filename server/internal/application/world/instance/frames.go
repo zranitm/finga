@@ -11,6 +11,7 @@ import (
 func (i *Instance) broadcast(changed []kernel.CharacterID) {
 	if len(i.order) == 0 {
 		i.arena.Unwatched() // an empty map builds no frame, as nobody would get it; a player who joins gets a snapshot
+		clear(i.mobSent)    // nobody holds a view to step from, and a mob killed now is in no removed list a frame would carry
 		i.interest.rest()
 		return
 	}
