@@ -2,17 +2,6 @@ package account
 
 import "finga/internal/shared/kernel"
 
-// Joined is a player the world has joined, and on which map.
-type Joined struct {
-	Character  CharacterView
-	MapID      string
-	TickRateHz int    // the world's ticks per second
-	JoinSeq    uint64 // rises with each join, so the character's later login has the higher one
-	Quests     []QuestState
-	Timers     []SkillTimer // the cooldowns and buffs still running, which a fresh join keeps
-	Waypoints  []string     // the ids of those found
-}
-
 // WorldEvent is what the world's delivery stream brings.
 //
 //sumtype:decl
@@ -78,6 +67,15 @@ type SessionsRevoked struct {
 
 func (SessionRevoked) sessionEnd()  {}
 func (SessionsRevoked) sessionEnd() {}
+
+// ChatChannel is where a chat line goes; the zero value is no channel, which the social module refuses.
+type ChatChannel int
+
+// The chat channels.
+const (
+	ChatMap ChatChannel = iota + 1
+	ChatParty
+)
 
 // ChatLine is a chat line the social module accepted and cleaned.
 type ChatLine struct {

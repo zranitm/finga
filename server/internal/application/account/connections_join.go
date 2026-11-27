@@ -208,7 +208,7 @@ func (r *Connections) rejoin(ctx context.Context, s *Connection) {
 		return
 	}
 	r.mu.Lock()
-	s.id.Store(&identity{account: who.account, sessionID: who.sessionID, character: model.PlayerOf(who.character.ID, welcome.Character)})
+	s.id.Store(&identity{account: who.account, sessionID: who.sessionID, character: welcome.Player})
 	r.mu.Unlock()
 	s.joinSeq.Store(joined.JoinSeq)
 	s.out.release(joined.MapID, func() { s.outbox.Welcome(welcome) })

@@ -47,7 +47,7 @@ type ConnectionsSocial interface {
 type ConnectionsPvp interface {
 	Offline(ctx context.Context, character kernel.CharacterID) error
 	// Missed is the matches that ended while the player was away and they haven't been told of.
-	Missed(ctx context.Context, character kernel.CharacterID) (model.Missed, error)
+	Missed(ctx context.Context, character kernel.CharacterID) (model.MissedMatches, error)
 	// Told marks the player told of matches, their outcomes handed to them.
 	Told(ctx context.Context, character kernel.CharacterID, matches []kernel.MatchID) error
 }

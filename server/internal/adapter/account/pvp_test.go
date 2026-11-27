@@ -6,38 +6,33 @@ import (
 	"time"
 
 	"finga/internal/application/pvp"
-	model "finga/internal/model/account"
 	"finga/internal/shared/kernel"
 )
 
-func TestEachPvpDeliveryKeepsItsValues(t *testing.T) {
-	ann, bo := kernel.NewCharacterID(), kernel.NewCharacterID()
-	tests := []struct {
-		in   pvp.Delivery
-		want any
-	}{
-		{pvp.Queued{Mode: "team", Since: 2 * time.Second, Members: []kernel.CharacterID{ann, bo}}, model.PvpQueued{Mode: "team", Since: 2 * time.Second, Members: []string{ann.String(), bo.String()}}},
-		{pvp.Queued{Mode: "duel", Since: 20 * time.Second, Members: []kernel.CharacterID{ann}, WaitingRoom: true}, model.PvpQueued{Mode: "duel", Since: 20 * time.Second, Members: []string{ann.String()}, WaitingRoom: true}},
-		{pvp.Unqueued{Reason: pvp.UnqueueDeclined, By: []kernel.CharacterID{bo}}, model.PvpUnqueued{Reason: model.PvpUnqueueDeclined, By: []string{bo.String()}}},
-		{pvp.Offered{Offer: "of-1", Mode: "team", Bots: 2, Until: 10 * time.Second}, model.PvpOffer{Offer: "of-1", Mode: "team", Bots: 2, Until: 10 * time.Second}},
-		{pvp.OfferGone{Offer: "of-1", Reason: pvp.GoneLapsed, Requeued: true}, model.PvpOfferCancelled{Offer: "of-1", Reason: model.PvpGoneLapsed, Requeued: true}},
-		{
-			pvp.Ended{Mode: "team", Outcome: pvp.Loss, Wins: [2]int{2, 1}, Rating: &pvp.RatingChange{Before: 1000, After: 968, RankBefore: "bronze", RankAfter: "iron", PlacementLeft: 4}, Left: true},
-			model.MatchEnded{Mode: "team", Result: model.MatchLoss, Wins: [2]int{2, 1}, Rating: &model.PvpRatingChange{Before: 1000, After: 968, RankBefore: "bronze", RankAfter: "iron", PlacementLeft: 4}, Left: true},
-		},
-		{pvp.Ended{Mode: "battle", Outcome: pvp.Win, Battle: true, Score: [2]int{1000, 640}}, model.MatchEnded{Mode: "battle", Result: model.MatchWin, Battle: true, Score: [2]int{1000, 640}}},
-		{
-			pvp.PiecesAdded{Pieces: []pvp.RankPiece{{Piece: "helm_silver", Rank: "silver"}, {Piece: "helm_gold", Rank: "gold"}}},
-			model.PiecesAdded{Pieces: []model.AddedPiece{{ID: "helm_silver", Cause: "rank"}, {ID: "helm_gold", Cause: "rank"}}},
-		},
-		{
-			pvp.PiecesAdded{Feats: []pvp.FeatPiece{{Piece: "victors_horns", Feat: "first_pvp_win"}}},
-			model.PiecesAdded{Pieces: []model.AddedPiece{{ID: "victors_horns", Cause: "feat"}}},
-		},
-	}
-	for _, tt := range tests {
-		if got, ok := pvpPush(tt.in); !ok || !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("%T became %+v, want %+v", tt.in, got, tt.want)
+// Each pvp push reaches its player as the module sent it, and a match that ended while the player was away is the one marked told once it is handed on.
+func TestEachPvpDeliveryIsHandedOnAsTheModuleSentIt(t *testing.T) {
+	ann, match := kernel.NewCharacterID(), kernel.NewMatchID()
+	for _, in := range []pvp.Delivery{
+		pvp.Queued{Mode: "team", Since: 2 * time.Second, Members: []kernel.CharacterID{ann}},
+		pvp.Unqueued{Reason: pvp.UnqueueDeclined, By: []kernel.CharacterID{ann}},
+		pvp.Offered{Offer: "of-1", Mode: "team", Bots: 2, Until: 10 * time.Second},
+		pvp.OfferGone{Offer: "of-1", Reason: pvp.GoneLapsed, Requeued: true},
+		pvp.Ended{Mode: "team", Outcome: pvp.Loss, Wins: [2]int{2, 1}, Left: true},
+		pvp.PiecesAdded{Feats: []pvp.FeatPiece{{Piece: "victors_horns"}}},
+	} {
+		got := pvpDelivery(pvp.Push{To: ann, Delivery: in})
+		if got.Character != ann || got.Untold != (kernel.MatchID{}) || got.Delivery.Tick != 0 || got.Delivery.Starts || got.Delivery.MapID != "" {
+			t.Errorf("%T became %+v", in, got)
+			continue
 		}
+		if !reflect.DeepEqual(got.Delivery.Event, in) {
+			t.Errorf("%T became %+v", in, got.Delivery.Event)
+		}
+	}
+	if got := pvpDelivery(pvp.Push{To: ann, Delivery: pvp.Ended{Match: match, Away: true}}); got.Untold != match {
+		t.Errorf("an away player's match %v went out untold as %v", match, got.Untold)
+	}
+	if got := pvpDelivery(pvp.Push{To: ann, Delivery: pvp.Ended{Match: match}}); got.Untold != (kernel.MatchID{}) {
+		t.Errorf("a match the player was in is marked told too: %v", got.Untold)
 	}
 }

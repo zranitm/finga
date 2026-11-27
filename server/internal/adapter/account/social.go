@@ -77,32 +77,18 @@ func (s Social) FollowDeliveries(ctx context.Context, gateway string, deliver fu
 	}})
 }
 
-// socialEvent is one delivery as the gateway routes it, to its player.
+// socialEvent is one delivery as the connection flows route it: to the player it names, as the module sent it.
 func socialEvent(d social.Delivery) (model.SocialEvent, bool) {
 	var to kernel.CharacterID
-	var p any
 	switch d := d.(type) {
 	case social.PartyState:
-		to, p = d.To, model.PartyState{Party: partyView(d.Party)}
+		to = d.To
 	case social.Invited:
-		to, p = d.To, model.PartyInvited{InviteID: d.Invite.String(), From: d.From.String(), FromName: d.FromName}
+		to = d.To
 	case social.ChatLine:
-		to, p = d.To, model.ChatMessage{Channel: model.ChatParty, Sender: d.Sender.String(), SenderName: d.SenderName, Text: d.Text}
+		to = d.To
 	default:
 		return nil, false
 	}
-	return model.SocialDelivery{Character: to, Delivery: model.Delivery{Event: p}}, true
-}
-
-func partyView(p *social.Party) *model.PartyView {
-	if p == nil {
-		return nil
-	}
-	v := &model.PartyView{Leader: p.Leader.String(), Members: make([]model.PartyMember, 0, len(p.Members))}
-	for _, m := range p.Members {
-		v.Members = append(v.Members, model.PartyMember{
-			CharacterID: m.ID.String(), Name: m.Name, Class: m.Class.String(), Level: m.Level, HP: m.HP, MaxHP: m.MaxHP, MapID: m.MapID, Channel: m.Channel, Online: m.Online,
-		})
-	}
-	return v
+	return model.SocialDelivery{Character: to, Delivery: model.Delivery{Event: d}}, true
 }

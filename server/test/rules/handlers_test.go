@@ -49,23 +49,25 @@ func handlerDirs(t *testing.T) []string {
 	return dirs
 }
 
-// A push without an encoder is dropped, and a second encoder for one is refused at startup; either would be found in a game, so this finds it first. A push is a type of the model marked push(), or an event of the world's facade, but the frame and the detach, which the adapter turns into one delivery per recipient and a re-join.
+// A push without an encoder is dropped, and a second encoder for one is refused at startup; either would be found in a game, so this finds it first. A push is an event of a module's facade (the world's events, the social and pvp deliveries), the item handler's own piece event, but the frame and the detach, which the adapter turns into one delivery per recipient and a re-join.
 func TestEveryPushHasExactlyOneEncoder(t *testing.T) {
-	pushes := map[string]int{"world.Framed": 0}
-	for _, f := range goFiles(t, "../../internal/model/account") {
-		for _, d := range f.Decls {
-			if fn, ok := d.(*ast.FuncDecl); ok && fn.Recv != nil && fn.Name.Name == "push" && len(fn.Recv.List) == 1 {
-				if id, ok := fn.Recv.List[0].Type.(*ast.Ident); ok {
-					pushes["model."+id.Name] = 0
-				}
-			}
-		}
-	}
+	pushes := map[string]int{"world.Framed": 0, "piecesAdded": 0}
 	for _, f := range goFiles(t, "../../internal/application/world") {
 		for _, d := range f.Decls {
 			if fn, ok := d.(*ast.FuncDecl); ok && fn.Recv != nil && fn.Name.Name == "worldEvent" && len(fn.Recv.List) == 1 {
 				if id, ok := fn.Recv.List[0].Type.(*ast.Ident); ok && id.Name != "Frame" && id.Name != "Detached" {
 					pushes["world."+id.Name] = 0
+				}
+			}
+		}
+	}
+	for pkg, marker := range map[string]string{"social": "delivery", "pvp": "delivery"} {
+		for _, f := range goFiles(t, "../../internal/application/"+pkg) {
+			for _, d := range f.Decls {
+				if fn, ok := d.(*ast.FuncDecl); ok && fn.Recv != nil && fn.Name.Name == marker && len(fn.Recv.List) == 1 {
+					if id, ok := fn.Recv.List[0].Type.(*ast.Ident); ok {
+						pushes[pkg+"."+id.Name] = 0
+					}
 				}
 			}
 		}
@@ -90,6 +92,13 @@ func TestEveryPushHasExactlyOneEncoder(t *testing.T) {
 			lit, ok := call.Args[1].(*ast.FuncLit)
 			if !ok || len(lit.Type.Params.List) != 1 {
 				return true
+			}
+			if id, ok := lit.Type.Params.List[0].Type.(*ast.Ident); ok { // a handler's own event
+				if _, known := pushes[id.Name]; known {
+					pushes[id.Name]++
+				} else {
+					extra[id.Name]++
+				}
 			}
 			if t, ok := lit.Type.Params.List[0].Type.(*ast.SelectorExpr); ok {
 				if pkg, ok := t.X.(*ast.Ident); ok {

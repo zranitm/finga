@@ -20,8 +20,8 @@ import (
 
 type world struct{}
 
-func (world) Join(context.Context, string, string, kernel.AccountID, kernel.CharacterID) (model.Joined, error) {
-	return model.Joined{MapID: "town"}, nil
+func (world) Join(_ context.Context, _, _ string, _ kernel.AccountID, c kernel.CharacterID) (model.Joined, error) {
+	return model.Joined{Player: model.Player{ID: c}, MapID: "town"}, nil
 }
 
 func (world) Leave(context.Context, model.Presence) error { return nil }
@@ -48,15 +48,15 @@ func filled(d account.ConnectionsDeps) account.ConnectionsDeps {
 type noPvp struct{}
 
 func (noPvp) Offline(context.Context, kernel.CharacterID) error { return nil }
-func (noPvp) Missed(context.Context, kernel.CharacterID) (model.Missed, error) {
-	return model.Missed{}, nil
+func (noPvp) Missed(context.Context, kernel.CharacterID) (model.MissedMatches, error) {
+	return model.MissedMatches{}, nil
 }
 func (noPvp) Told(context.Context, kernel.CharacterID, []kernel.MatchID) error { return nil }
 
 type items struct{}
 
-func (items) Inventory(context.Context, kernel.CharacterID) (model.Inventory, error) {
-	return model.Inventory{}, nil
+func (items) Inventory(context.Context, kernel.CharacterID) (any, error) {
+	return nil, nil
 }
 
 type observer struct{}
@@ -110,7 +110,7 @@ type recordingWorld struct {
 	running, most int
 }
 
-func (w *recordingWorld) Join(ctx context.Context, _, conn string, _ kernel.AccountID, _ kernel.CharacterID) (model.Joined, error) {
+func (w *recordingWorld) Join(ctx context.Context, _, conn string, _ kernel.AccountID, c kernel.CharacterID) (model.Joined, error) {
 	w.mu.Lock()
 	gate := w.held[conn]
 	w.running++
@@ -130,7 +130,7 @@ func (w *recordingWorld) Join(ctx context.Context, _, conn string, _ kernel.Acco
 			return model.Joined{}, ctx.Err()
 		}
 	}
-	return model.Joined{MapID: "town"}, nil
+	return model.Joined{Player: model.Player{ID: c}, MapID: "town"}, nil
 }
 
 func (*recordingWorld) Leave(context.Context, model.Presence) error { return nil }
@@ -217,8 +217,8 @@ func TestATabThatLostItsCharacterIsNotRegisteredAgain(t *testing.T) {
 // seqWorld gives each join the next sequence, as the world does.
 type seqWorld struct{ joins atomic.Uint64 }
 
-func (w *seqWorld) Join(context.Context, string, string, kernel.AccountID, kernel.CharacterID) (model.Joined, error) {
-	return model.Joined{MapID: "town", JoinSeq: w.joins.Add(1)}, nil
+func (w *seqWorld) Join(_ context.Context, _, _ string, _ kernel.AccountID, c kernel.CharacterID) (model.Joined, error) {
+	return model.Joined{Player: model.Player{ID: c}, MapID: "town", JoinSeq: w.joins.Add(1)}, nil
 }
 
 func (*seqWorld) Leave(context.Context, model.Presence) error { return nil }
