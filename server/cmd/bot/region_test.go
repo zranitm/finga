@@ -167,18 +167,21 @@ func TestARegionsBotKeepsClearOfItsAreaBosses(t *testing.T) {
 	}
 }
 
-// A meter keeps what a bot is sent, and its busiest whole second's.
-func TestAMeterKeepsTheBusiestWholeSecond(t *testing.T) {
+// A meter keeps what a bot is sent, and its busiest whole second's inside the join window and after it, with when the latter fell.
+func TestAMeterKeepsTheBusiestWholeSecondInTheJoinAndAfter(t *testing.T) {
 	var m meter
 	t0 := time.Date(2026, 11, 25, 12, 0, 0, 0, time.UTC)
 	m.add(100, t0)
 	m.add(50, t0.Add(500*time.Millisecond))
-	m.add(400, t0.Add(1200*time.Millisecond))
-	if total, peak := m.read(); total != 550 || peak != 150 {
-		t.Fatalf("read %d, %d; want 550 all told, 150 the busiest second ended", total, peak)
-	}
+	m.add(4000, t0.Add(1200*time.Millisecond))
 	m.add(10, t0.Add(2100*time.Millisecond))
-	if total, peak := m.read(); total != 560 || peak != 400 {
-		t.Fatalf("read %d, %d; want 560, and 400 once its second ended", total, peak)
+	if r := m.read(); r != (reading{total: 4160, join: 4000}) {
+		t.Fatalf("read %+v; want 4160 all told, 4000 the join's busiest second ended, none after it", r)
+	}
+	m.add(300, t0.Add(7200*time.Millisecond))
+	m.add(20, t0.Add(8100*time.Millisecond))
+	m.add(5, t0.Add(9100*time.Millisecond))
+	if r := m.read(); r != (reading{total: 4485, join: 4000, peak: 300, peakAt: 7 * time.Second}) {
+		t.Fatalf("read %+v; want 300 after the join, at 7 s, the join's 4000 left out of it", r)
 	}
 }

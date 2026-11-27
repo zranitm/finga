@@ -138,8 +138,8 @@ func TestABotTakesItsPouchesInReachAndLeavesOnesRefused(t *testing.T) {
 	b.observe(wsconn.Message{ReqID: takeReq, Data: &clientv1.Response{Ok: true, Picks: []*clientv1.PickAnswer{{Pick: &clientv1.LootPick{Pouch: 1, Item: 1}}, {Pick: &clientv1.LootPick{Pouch: 2, Item: 1}, Code: 220007}}}})
 	b.observe(wsconn.Message{Data: &clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_TAKEN, OwnerId: "c-bot", Items: []*clientv1.LootItem{{Template: "slime_gel", Quantity: 1}, {Template: "red_potion", Quantity: 1}}}})
 	b.observe(wsconn.Message{Data: &clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_TAKEN, OwnerId: "c-mate", Items: []*clientv1.LootItem{{Template: "slime_gel", Quantity: 1}}}})
-	if b.taking || !b.leftPouches[2] || b.leftPouches[1] || b.snapshot().items != 2 || b.snapshot().refused != 1 {
-		t.Fatalf("taking %v, left %v, %d items, %d refused; want the answer heard, the pouch with no room left, its own two items counted", b.taking, b.leftPouches, b.snapshot().items, b.snapshot().refused)
+	if b.taking || !b.leftPouches[2] || b.leftPouches[1] || b.snapshot().items != 2 || b.snapshot().refused != 1 || b.snapshot().refusals["TakeLoot pick 220007"] != 1 {
+		t.Fatalf("taking %v, left %v, %d items, refused %v; want the answer heard, the pouch with no room left, its own two items counted, the refusal named by its code", b.taking, b.leftPouches, b.snapshot().items, b.snapshot().refusals)
 	}
 	if got := b.takeInReach(); !proto.Equal(got, &clientv1.TakeLoot{Picks: []*clientv1.LootPick{{Pouch: 1, Item: 1}, {Pouch: 1, Item: 2}}}) {
 		t.Fatalf("took %v, want only the pouch not left", got)
