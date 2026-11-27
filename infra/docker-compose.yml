@@ -85,7 +85,7 @@ services:
       args:
         VERSION: ${VERSION:-dev}
     environment:
-      FINGA_GATEWAY: http://finga:8080
+      FINGA_SERVER: http://finga:8080
       FINGA_ADMIN: http://finga:9200
 
   # The client on nginx, passing /api and /ws to the game so the browser sees one origin.

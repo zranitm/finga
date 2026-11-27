@@ -176,8 +176,8 @@ skills:
 
 ## 6. Using skills
 
-- **`UseSkill{skill}`** is sent on a skill-bar key and goes through the gateway to the world, with its own rate limit (5 a second, a burst of 6). **It's a request with a Response,** answered once the tick resolves it.
-  - **Why a Response, not `SkillRefused`:** the approved design had a `SkillRefused{skill, reason}` message with its own reasons. A Response reuses the refusal path every other command has: area 33's codes, the gateway's error map and the client's words. A skill's cooldown is seconds long, so a reply per use costs little.
+- **`UseSkill{skill}`** is sent on a skill-bar key and goes through the server to the world, with its own rate limit (5 a second, a burst of 6). **It's a request with a Response,** answered once the tick resolves it.
+  - **Why a Response, not `SkillRefused`:** the approved design had a `SkillRefused{skill, reason}` message with its own reasons. A Response reuses the refusal path every other command has: area 33's codes, the server's error map and the client's words. A skill's cooldown is seconds long, so a reply per use costs little.
 - **One action at a time,** on the timeline [Animation cancel](animation-cancel.md) describes. A basic attack and a skill are each an action with its own length.
   - A skill goes once the current action lets it: from a basic attack's cancel point, or at a skill's end. It has the same 150 ms slack as cooldowns, but its action, its cooldown, its hit and its `SkillUsed` count from that point, not from the early use.
   - Used before then, it waits and goes then, so it isn't refused.
@@ -221,7 +221,7 @@ skills:
   - own stats, the stat system's points plus starting stats, without gear;
   - points in the named skills;
   - finished quests, from the quest log.
-- **`Promote{npc_id, class}`** goes through the gateway with a Response.
+- **`Promote{npc_id, class}`** goes through the server with a Response.
   1. **Checks, on the tick:** the character must be alive, the NPC in reach, and the class the one it offers. Every condition must be met. Otherwise the request is refused with `NPC_OUT_OF_REACH`, `NOT_YOUR_NEXT_CLASS` or `PROMOTION_CONDITIONS_UNMET`. One promotion goes at a time; a second while one is in flight is refused as unavailable.
   2. **The trainer's weapon first.** A worker asks the item module to add the class's `promotion.weapon`, with cause `promotion`, as hand-ins do, retrying while it's unavailable.
      - **Its key is derived from the character and the class** (`uuidv7.Derived`), and each roll is the middle of its range. So a retry, or promoting again after a lost answer, gives the weapon once, while the item module keeps the key (`idempotency_keys.keep`, 24 h). A promotion tried again after that gives a second weapon.
@@ -263,7 +263,7 @@ skills:
   - `POST /api/characters` without `class`;
   - `PUT /api/characters/{id}/skill-bar` with `{slots}`, six skill IDs (eight since Key bindings), answered with the bar as saved;
   - the character list shows the class, Beginner included, and the skill bar.
-- **Gateway routes:**
+- **Server routes:**
   - `UseSkill` beside `Attack`, with its own limit, and a Response;
   - `SpendSkillPoints` and `Promote` with a Response.
 
@@ -364,7 +364,7 @@ After [NPCs and task quests](./npcs-and-quests.md) is merged, on its own branch 
 3. **World, skill points:** level-up points, `SpendSkillPoints`, stages, and passives in the sheet.
 4. **World, using skills:** shapes, damage, heal, buff, passives and buffs in `DeriveStats` and its client copy, cooldowns, and `SkillUsed`.
 5. **World, promotion:** conditions in the trainer's dialog, `Promote`, and the class in views and in the party.
-6. **Gateway and protocol:** routes, messages, error codes, REST, and contracts.
+6. **Server and protocol:** routes, messages, error codes, REST, and contracts.
 7. **Client:** creation, the skill window, the skill bar, skill effects, promotion in the NPC dialog, and auto-assign hidden for Beginners.
 8. **Content and balance:**
    - Beginner skills and the Wooden Club;

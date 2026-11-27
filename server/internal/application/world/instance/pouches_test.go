@@ -192,7 +192,7 @@ type taken struct {
 	err     error
 }
 
-// take asks for picks as the player, on a goroutine as a gateway's call is; answer reads it once it came.
+// take asks for picks as the player, on a goroutine as a node's call is; answer reads it once it came.
 func take(inst *instance.Instance, id kernel.CharacterID, picks ...model.Pick) <-chan taken {
 	out := make(chan taken, 1)
 	go func() {
@@ -538,7 +538,7 @@ func TestAHungItemServiceDelaysTheTake(t *testing.T) {
 	})
 }
 
-// A take whose grant starts late, the queues and ticks before it having taken most of the gateway's 5 s, answers each pick unavailable half a second before the command's deadline, never with the deadline, which the gateway would answer as a fault for the whole take; its items stay taken, and come once the module answers.
+// A take whose grant starts late, the queues and ticks before it having taken most of the server's 5 s, answers each pick unavailable half a second before the command's deadline, never with the deadline, which the server would answer as a fault for the whole take; its items stay taken, and come once the module answers.
 func TestALateTakeAnswersEachPickUnavailableBeforeItsDeadline(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)

@@ -103,7 +103,7 @@ classes:                   # base values per class; per_level grows them
 ### In the world
 
 - **Level-up:** `AwardExp` loses its allocation plan. Each level adds `points_per_level` to unspent, and the world checkpoints at once, as it does on a level-up today. `LevelUp` carries the sheet with the unspent count.
-- **`SpendPoints{expected_unspent, points}`** comes from the client through the gateway with a Response, like `Equip`. On the tick:
+- **`SpendPoints{expected_unspent, points}`** comes from the client through the server with a Response, like `Equip`. On the tick:
   1. **Refusals:**
      - `POINTS_CHANGED` when `expected_unspent` isn't the character's unspent count now;
      - `NOT_ENOUGH_POINTS` when the points add up to more than that;
@@ -206,7 +206,7 @@ classes:                   # base values per class; per_level grows them
 
 ### Internal contracts
 
-- **`world.v1`:** `SpendPoints` and `ResetPoints`, unary; the sheet fields; `ItemStats` renamed and grown like `item.v1`'s, since the gateway reads both through one interface.
+- **`world.v1`:** `SpendPoints` and `ResetPoints`, unary; the sheet fields; `ItemStats` renamed and grown like `item.v1`'s, since the server reads both through one interface.
 - **`character.v1`:** in `Load` and `SaveCheckpoint`, `stats` is renamed `points` (same number and type, now the points spent), and `unspent_points` and `free_reset_used` are added. Since the meaning changes, the commit is marked `!` with a `BREAKING-CHANGE:` footer.
 - **`item.v1`:** `Equip` gains the character's own `stats`, and `ItemStats` is renamed and grows as in the client protocol.
 - **Game data and Go and TypeScript code** use the correct names throughout (`physical_attack`, `physical_defense`), since none of them is a contract.
@@ -296,7 +296,7 @@ On a branch with one PR, as before. Each step is one commit, green on `make test
    - level-ups giving points, with the server-side split removed;
    - inactive gear.
 5. **Speed:** attack length ticks, and move speed in the sim with its vectors.
-6. **Gateway and protocol:** messages, routes, error codes, the REST setting, and contracts.
+6. **Server and protocol:** messages, routes, error codes, the REST setting, and contracts.
 7. **Client:** the 16-stat sheet, spending with a preview, reset, auto-assign and its setting, the HUD badge, requirements and inactive gear, the attack's pace, and move speed in prediction.
 8. **Content and balance:** starting stats, splits, item requirements and new rollable stats, mob damage types and defenses, retuning, a `make bots` run, and the production database reset in the runbook.
 

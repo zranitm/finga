@@ -413,7 +413,7 @@ func TestHandingInAQuest(t *testing.T) {
 			}
 		})
 	})
-	t.Run("an item module down past the tries leaves the quest as it was, and answers within the gateway's 5 s", func(t *testing.T) {
+	t.Run("an item module down past the tries leaves the quest as it was, and answers within the server's 5 s", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			var logs bytes.Buffer
 			f := &fakeHandIns{answer: model.HandedIn{Items: answer}, down: 1000}
@@ -432,7 +432,7 @@ func TestHandingInAQuest(t *testing.T) {
 			}
 		})
 	})
-	t.Run("a hung item module is given up within the gateway's 5 s too", func(t *testing.T) {
+	t.Run("a hung item module is given up within the server's 5 s too", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			f := &fakeHandIns{answer: model.HandedIn{Items: answer}, gate: make(chan struct{})}
 			q := newQuestTown(t, 1, ready(0), f)

@@ -182,19 +182,19 @@ func (s *stack) character(name string) model.Character {
 	return ch
 }
 
-// gatewayStream is a gateway's subscription as the test reads it, until the stack's deadline.
-type gatewayStream struct {
+// nodeStream is a node's subscription as the test reads it, until the stack's deadline.
+type nodeStream struct {
 	sub *hub.Sub[world.Delivery]
 	ctx context.Context
 }
 
-func (s *stack) gateway(id string) gatewayStream {
-	return gatewayStream{sub: s.world.Subscribe(id), ctx: s.ctx}
+func (s *stack) node(id string) nodeStream {
+	return nodeStream{sub: s.world.Subscribe(id), ctx: s.ctx}
 }
 
-func (s *stack) join(t *testing.T, gateway, conn string, ch model.Character) world.View {
+func (s *stack) join(t *testing.T, node, conn string, ch model.Character) world.View {
 	t.Helper()
-	v, err := s.world.Join(s.ctx, gateway, s.account, world.Presence{Character: ch.ID, Conn: conn})
+	v, err := s.world.Join(s.ctx, node, s.account, world.Presence{Character: ch.ID, Conn: conn})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +241,7 @@ func recipientIn(f world.Frame, id kernel.CharacterID) *world.Recipient {
 	return nil
 }
 
-func until(t *testing.T, gw gatewayStream, what string, match func(world.Delivery) bool) world.Delivery {
+func until(t *testing.T, gw nodeStream, what string, match func(world.Delivery) bool) world.Delivery {
 	t.Helper()
 	for {
 		select {
@@ -258,7 +258,7 @@ func until(t *testing.T, gw gatewayStream, what string, match func(world.Deliver
 }
 
 // next is the stream's next event of type E.
-func next[E world.Event](t *testing.T, gw gatewayStream, what string) E {
+func next[E world.Event](t *testing.T, gw nodeStream, what string) E {
 	t.Helper()
 	return until(t, gw, what, func(d world.Delivery) bool {
 		_, ok := d.Event.(E)
@@ -275,9 +275,9 @@ func playerIn(ps []world.PlayerView, id kernel.CharacterID) (world.PlayerView, b
 	return world.PlayerView{}, false
 }
 
-func TestJoinSendsTheSnapshotThenFramesOnTheGatewaysStream(t *testing.T) {
+func TestJoinSendsTheSnapshotThenFramesOnTheServersStream(t *testing.T) {
 	s := newStack(t)
-	gw := s.gateway("gw-1")
+	gw := s.node("gw-1")
 	ayla := s.character("Ayla")
 	view := s.join(t, "gw-1", "conn-1", ayla)
 	if view.ID != ayla.ID || view.Name != "Ayla" || view.MapID != "willowmere" || view.MaxHP != 144 || view.Stats.STR != 7 {
@@ -317,7 +317,7 @@ func TestJoinSendsTheSnapshotThenFramesOnTheGatewaysStream(t *testing.T) {
 // The join's answer carries when each cooldown and buff the character joined with ends, for the client to show the time left.
 func TestJoinAnswersWithTheSkillTimersLeft(t *testing.T) {
 	s := newStack(t)
-	s.gateway("gw-1")
+	s.node("gw-1")
 	now := time.Now()
 	town := s.data.StartTown()
 	ch := model.Character{
@@ -338,7 +338,7 @@ func TestJoinAnswersWithTheSkillTimersLeft(t *testing.T) {
 
 func TestACommandCountsOnlyFromTheConnectionThatJoined(t *testing.T) {
 	s := newStack(t)
-	gw := s.gateway("gw-1")
+	gw := s.node("gw-1")
 	ayla := s.character("Ayla")
 	s.join(t, "gw-1", "conn-1", ayla)
 	next[world.Snapshot](t, gw, "the snapshot")
@@ -368,7 +368,7 @@ func TestACommandCountsOnlyFromTheConnectionThatJoined(t *testing.T) {
 
 func TestLeaveRemovesOnlyThroughTheConnectionThatJoined(t *testing.T) {
 	s := newStack(t)
-	gw := s.gateway("gw-1")
+	gw := s.node("gw-1")
 	ayla, bo := s.character("Ayla"), s.character("Bo")
 	s.join(t, "gw-1", "conn-a", ayla)
 	s.join(t, "gw-1", "conn-b", bo)
@@ -395,13 +395,13 @@ func TestLeaveRemovesOnlyThroughTheConnectionThatJoined(t *testing.T) {
 func TestJoinFailures(t *testing.T) {
 	s := newStack(t)
 	ayla := s.character("Ayla")
-	t.Run("no stream for the gateway", func(t *testing.T) {
+	t.Run("no stream for the server", func(t *testing.T) {
 		_, err := s.world.Join(s.ctx, "gw-none", s.account, world.Presence{Character: ayla.ID, Conn: "c"})
 		if !errors.Is(err, kernel.ErrNotSubscribed) {
 			t.Fatalf("err = %v", err)
 		}
 	})
-	s.gateway("gw-1")
+	s.node("gw-1")
 	t.Run("someone else's character fails as the character module said", func(t *testing.T) {
 		_, err := s.world.Join(s.ctx, "gw-1", kernel.NewAccountID(), world.Presence{Character: ayla.ID, Conn: "c"})
 		if !errors.Is(err, kernel.ErrCharacterNotFound) {
@@ -419,13 +419,13 @@ func TestJoinFailures(t *testing.T) {
 	})
 }
 
-func TestAFullQueueEndsTheGatewaysStream(t *testing.T) {
+func TestAFullQueueEndsTheServersStream(t *testing.T) {
 	s := newStack(t)
-	gw := s.gateway("gw-1")
+	gw := s.node("gw-1")
 	ayla := s.character("Ayla")
 	s.join(t, "gw-1", "conn-1", ayla)
 	sink := <-s.sinks
-	// The gateway reads nothing, so the sink eventually refuses and drops the player.
+	// The server reads nothing, so the sink eventually refuses and drops the player.
 	refused := false
 	for range 2_000_000 {
 		if !sink.Send(model.Chat{Sender: ayla.ID, SenderName: "Ayla", Text: "spam"}) {
@@ -445,16 +445,16 @@ func TestAFullQueueEndsTheGatewaysStream(t *testing.T) {
 		t.Fatal("a sink on an ended stream still accepts")
 	}
 	t.Run("a new subscription takes joins again", func(t *testing.T) {
-		gw := s.gateway("gw-1")
+		gw := s.node("gw-1")
 		s.join(t, "gw-1", "conn-2", ayla)
 		next[world.Snapshot](t, gw, "the snapshot")
 	})
 }
 
-// Detached reaches the gateway on the connection's stream, so it joins the player again.
+// Detached reaches the server on the connection's stream, so it joins the player again.
 func TestDetachedCrossesToTheConnection(t *testing.T) {
 	s := newStack(t)
-	gw := s.gateway("gw-1")
+	gw := s.node("gw-1")
 	ayla := s.character("Ayla")
 	s.join(t, "gw-1", "conn-1", ayla)
 	sink := <-s.sinks
@@ -471,7 +471,7 @@ func TestDetachedCrossesToTheConnection(t *testing.T) {
 
 func TestEquipAnswersOnceTheStatsApply(t *testing.T) {
 	s := newStack(t)
-	stream := s.gateway("gw-1")
+	stream := s.node("gw-1")
 	ayla := s.character("Ayla")
 	view := s.join(t, "gw-1", "c1", ayla)
 	if view.Sheet.Derived.MaxHP != view.MaxHP || view.Sheet.Primary.STR != 7 {
@@ -498,7 +498,7 @@ func TestEquipAnswersOnceTheStatsApply(t *testing.T) {
 // Points are spent and reset over the real world, each refusal with its kernel error; a retried Apply finds the count changed.
 func TestSpendAndResetPointsAnswerOnceTheStatsApply(t *testing.T) {
 	s := newStack(t)
-	stream := s.gateway("gw-1")
+	stream := s.node("gw-1")
 	town := s.data.StartTown()
 	ayla := model.Character{
 		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 3, Points: model.Points{Unspent: 10},
@@ -545,7 +545,7 @@ func TestSpendAndResetPointsAnswerOnceTheStatsApply(t *testing.T) {
 
 func TestSpendSkillPointsAnswersOnceTheSheetApplies(t *testing.T) {
 	s := newStack(t)
-	stream := s.gateway("gw-1")
+	stream := s.node("gw-1")
 	town := s.data.StartTown()
 	ayla := model.Character{
 		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("beginner"), Level: 3, Skills: model.Skills{Unspent: 10},
@@ -584,7 +584,7 @@ func TestSpendSkillPointsAnswersOnceTheSheetApplies(t *testing.T) {
 // UseSkill answers once the tick resolves it, with SkillUsed on the stream, or with the refusal's kernel error.
 func TestUseSkillAnswersOnceTheTickResolvesIt(t *testing.T) {
 	s := newStack(t)
-	stream := s.gateway("gw-1")
+	stream := s.node("gw-1")
 	var hunting *gamedata.Map
 	for _, m := range s.data.Maps() {
 		if m.Kind == gamedata.Hunting && hunting == nil {
@@ -638,7 +638,7 @@ func TestUseSkillAnswersOnceTheTickResolvesIt(t *testing.T) {
 // A trainer's dialog carries its promotion, and Promote answers each refusal with its kernel error.
 func TestPromoteAnswersWithItsRefusals(t *testing.T) {
 	s := newStack(t)
-	stream := s.gateway("gw-1")
+	stream := s.node("gw-1")
 	town := s.data.StartTown()
 	ayla := model.Character{
 		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("beginner"), Level: 3,
@@ -672,7 +672,7 @@ func TestPromoteAnswersWithItsRefusals(t *testing.T) {
 
 func TestAnEquipRefusalKeepsTheItemModulesReason(t *testing.T) {
 	s := newStackWearing(t, wears{err: fmt.Errorf("%w: the cap asks a higher level", kernel.ErrLevelTooLow)})
-	s.gateway("gw-1")
+	s.node("gw-1")
 	ayla := s.character("Ayla")
 	s.join(t, "gw-1", "c1", ayla)
 	err := s.world.Equip(s.ctx, world.Presence{Character: ayla.ID, Conn: "c1"}, "k-1", kernel.NewItemID(), "")
@@ -684,7 +684,7 @@ func TestAnEquipRefusalKeepsTheItemModulesReason(t *testing.T) {
 // A potion answers once its HP applies; refusals keep their kernel errors, the world's and the item module's.
 func TestUseItemAnswersOnceTheHPApplies(t *testing.T) {
 	s := newStack(t)
-	stream := s.gateway("gw-1")
+	stream := s.node("gw-1")
 	ayla := s.character("Ayla")
 	ayla.HP = 50
 	s.chars.add(ayla)
@@ -711,7 +711,7 @@ func TestUseItemAnswersOnceTheHPApplies(t *testing.T) {
 
 func TestAUseRefusalKeepsTheItemModulesReason(t *testing.T) {
 	s := newStackWearing(t, wears{err: fmt.Errorf("%w: the stack holds another template", kernel.ErrNotUsable)})
-	s.gateway("gw-1")
+	s.node("gw-1")
 	ayla := s.character("Ayla")
 	ayla.HP = 50
 	s.chars.add(ayla)
@@ -725,7 +725,7 @@ func TestAUseRefusalKeepsTheItemModulesReason(t *testing.T) {
 // Talk answers once the dialog is on the stream, computed from the quest log the join loaded.
 func TestTalkSendsTheDialogComputedFromTheLoadedLog(t *testing.T) {
 	s := newStack(t)
-	stream := s.gateway("gw-1")
+	stream := s.node("gw-1")
 	ayla := model.Character{
 		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MapID: "willowmere", X: s.npc("town_guide").X + 1, Z: s.npc("town_guide").Z,
 		Quests: model.Quests{"slime_cleanup": {Status: model.QuestFinished, TimesFinished: 1}},
@@ -754,7 +754,7 @@ func TestTalkSendsTheDialogComputedFromTheLoadedLog(t *testing.T) {
 // The join answers with the quest log; the quest calls answer once applied, each change on the stream, and keep the item module's reason for a refused hand-in.
 func TestQuestsOverTheWorld(t *testing.T) {
 	s := newStack(t)
-	stream := s.gateway("gw-1")
+	stream := s.node("gw-1")
 	ayla := model.Character{
 		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MapID: "willowmere", X: s.npc("town_guide").X + 1, Z: s.npc("town_guide").Z,
 		Quests: model.Quests{"slime_cleanup": {Status: model.QuestFinished, TimesFinished: 1}},
@@ -788,7 +788,7 @@ func TestQuestsOverTheWorld(t *testing.T) {
 
 func TestARefusedHandInKeepsTheItemModulesReason(t *testing.T) {
 	s := newStackWearing(t, wears{err: fmt.Errorf("%w: no gel in the Etc tab", kernel.ErrNotEnoughItems)})
-	s.gateway("gw-1")
+	s.node("gw-1")
 	ayla := model.Character{
 		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MapID: "willowmere", X: s.npc("town_guide").X + 1, Z: s.npc("town_guide").Z,
 		Quests: model.Quests{"sticky_samples": {Status: model.QuestActive, Progress: []int{0}}},

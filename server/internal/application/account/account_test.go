@@ -151,8 +151,8 @@ func TestEveryModelErrorReachesCallersAsItsKernelError(t *testing.T) {
 	}
 }
 
-// Every subscribed gateway hears each ended session the module tells of, with why, in order.
-func TestASubscribedGatewayHearsOfEachEndedSession(t *testing.T) {
+// Every subscribed node hears each ended session the module tells of, with why, in order.
+func TestASubscribedNodeHearsOfEachEndedSession(t *testing.T) {
 	m := newModule(t, &fakeCases{})
 	n := notifier{sessions: m.sessions}
 	a, b := m.Subscribe("gw-a"), m.Subscribe("gw-b")
@@ -177,6 +177,6 @@ func TestASubscribedGatewayHearsOfEachEndedSession(t *testing.T) {
 	select {
 	case <-a.Done():
 	default:
-		t.Fatal("subscribing again under the same gateway left the older subscription open")
+		t.Fatal("subscribing again under the same node left the older subscription open")
 	}
 }

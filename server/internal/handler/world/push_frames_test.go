@@ -9,7 +9,7 @@ import (
 	"finga/internal/application/world"
 )
 
-// A frame's encodings go once the frame does, and only its own: a gateway keeps those of the frames still being sent.
+// A frame's encodings go once the frame does, and only its own: a node keeps those of the frames still being sent.
 func TestAFramesEncodingsGoWithIt(t *testing.T) {
 	f := newFrames()
 	frame := func() *world.Frame { return &world.Frame{Parts: []world.Part{{RemovedMobs: []uint64{1}}}} }

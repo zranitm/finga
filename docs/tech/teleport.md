@@ -22,7 +22,7 @@
 | `server/data/world.yaml` | Chart places | Also `teleport: {channel: 3s}` |
 | `client.proto` | — | `Teleport { map_id }` in `ClientMessage`'s `oneof`, a request answered by `Response`; `TeleportCancelled { reason }` in `ServerMessage`'s. Additive |
 | World instance | — | A player's teleport channel: start, cancel, complete (section 3) |
-| Gateway | — | Maps the two messages, as it maps `UseSkill` |
+| Server | — | Maps the two messages, as it maps `UseSkill` |
 | Client | — | Teleport here (`map-views.md` section 12), a channel bar, a glow, a cancel notice |
 
 ## 3. The world
@@ -117,7 +117,7 @@ A running channel ends, and the player gets `TeleportCancelled` with its reason,
 One PR, each step one commit, green on `make test`, `make lint`, `make cover`, and `make breaking`:
 
 1. **Data and world:** `teleport.channel`, the channel in the instance, its refusals, cancels, and hand-off.
-2. **Protocol and gateway:** `Teleport`, `TeleportCancelled`, and the error codes.
+2. **Protocol and server:** `Teleport`, `TeleportCancelled`, and the error codes.
 3. **Client:** Teleport here, the bar, the glow, and the notices. The layout view of `map-views.md` section 12 comes first or in the same PR.
 
 ## 8. Decisions
@@ -144,7 +144,7 @@ The user's choices are in section 1. These calls were made in planning and logge
   - A gap in the player's inputs holds them still for 250 ms, then steps their last held keys on each tick. If those keys include movement or jump, the first such step cancels as MOVED too, so a client that stops sending inputs can't walk through its channel.
   - A portal, a leave or a rejoin drops the player's state, and the channel with it.
 - **The refusals** are the public codes 330026 to 330029. TELEPORT_UNKNOWN_MAP is a 404, and the other three are 409.
-- **The gateway** gives Teleport a rate limit of its own, 2 a second, apart from the portals' 2.
+- **The server** gives Teleport a rate limit of its own, 2 a second, apart from the portals' 2.
 - **The channel's length** reaches the client as `limits.teleport_channel_ms`, generated from `world.yaml`, so the bar and the server read one number.
 - **The bar hides locally where the server will cancel:**
   - at a movement or jump key's press, since the next input carries it;

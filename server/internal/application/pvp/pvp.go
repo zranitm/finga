@@ -13,7 +13,7 @@ import (
 	"finga/pkg/hub"
 )
 
-// pushQueue bounds a gateway's stream of pvp pushes.
+// pushQueue bounds a node's stream of pvp pushes.
 const pushQueue = 4096
 
 // Module is the pvp module; every call to it goes through these methods.
@@ -112,19 +112,19 @@ func (m *Module) Missed(ctx context.Context, id kernel.CharacterID) (_ Missed, e
 	return m.svc.Missed(ctx, id)
 }
 
-// Told marks the character told of matches' outcomes, which a gateway handed them.
+// Told marks the character told of matches' outcomes, which a node handed them.
 func (m *Module) Told(ctx context.Context, id kernel.CharacterID, matches []kernel.MatchID) (err error) {
 	ctx, call := m.calls.Start(ctx, "Told")
 	defer call.End(&err)
 	return m.svc.Told(ctx, id, matches)
 }
 
-// Subscribe opens a gateway's pushes from now on: every player's, which the gateway hands to those it has.
-func (m *Module) Subscribe(gateway string) *hub.Sub[Push] {
-	return m.pushes.Subscribe(gateway)
+// Subscribe opens a node's pushes from now on: every player's, which the server hands to those it has.
+func (m *Module) Subscribe(node string) *hub.Sub[Push] {
+	return m.pushes.Subscribe(node)
 }
 
-// notifier sends each push to every gateway; it never blocks.
+// notifier sends each push to every node; it never blocks.
 type notifier struct{ pushes *hub.Hub[Push] }
 
 // Push sends d for to.

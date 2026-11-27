@@ -70,7 +70,7 @@ func BenchmarkAMapsFrameToThePlayers(b *testing.B) {
 			o := outbox(b)
 			b.ReportAllocs()
 			for b.Loop() {
-				frame, parts := busyFrame(n), []int{0} // one list for all, as the gateway's adapter shares one
+				frame, parts := busyFrame(n), []int{0} // one list for all, as the server's adapter shares one
 				for i := range n {
 					o.Deliver(model.Delivery{Tick: 9, Event: world.Framed{Frame: frame, Recipient: world.Recipient{Parts: parts, AckSeq: uint32(i)}}}) //nolint:gosec // a benchmark's index
 				}
@@ -79,7 +79,7 @@ func BenchmarkAMapsFrameToThePlayers(b *testing.B) {
 	}
 }
 
-// Two maps' frames going out at once through one gateway, their players' messages interleaved as the maps' streams are: each frame's parts are still encoded once.
+// Two maps' frames going out at once through one node, their players' messages interleaved as the maps' streams are: each frame's parts are still encoded once.
 func BenchmarkTwoMapsFramesToTheirPlayers(b *testing.B) {
 	for _, n := range []int{10, 50} {
 		b.Run(fmt.Sprintf("players=%d", n), func(b *testing.B) {

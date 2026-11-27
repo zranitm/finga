@@ -18,7 +18,7 @@ import (
 
 // Ports fail with a failure.ServiceError.
 
-// Outbox is how the gateway reaches one player; the handler picks the wire format. No method blocks.
+// Outbox is how the server reaches one player; the handler picks the wire format. No method blocks.
 type Outbox interface {
 	Welcome(w model.Welcome)
 	Deliver(d model.Delivery)
@@ -29,7 +29,7 @@ type Outbox interface {
 // ConnectionsWorld is the world module as joins use it.
 type ConnectionsWorld interface {
 	// Join fails with failure.ErrUnavailable or failure.ErrNotSubscribed while the world cannot take it yet.
-	Join(ctx context.Context, gateway, conn string, account kernel.AccountID, character kernel.CharacterID) (model.Joined, error)
+	Join(ctx context.Context, node, conn string, account kernel.AccountID, character kernel.CharacterID) (model.Joined, error)
 	// Leave removes the player, if it joined through the presence's connection.
 	Leave(ctx context.Context, p model.Presence) error
 	// Drop is the presence's connection lost, not logged out: a match holds the player's place a while; elsewhere it's a Leave.
@@ -38,7 +38,7 @@ type ConnectionsWorld interface {
 
 // ConnectionsSocial is the social module as joins use it: who is online, and on which map.
 type ConnectionsSocial interface {
-	Online(ctx context.Context, gateway, conn string, joinSeq uint64, p model.Player, mapID string) error
+	Online(ctx context.Context, node, conn string, joinSeq uint64, p model.Player, mapID string) error
 	// Offline is ignored when the character is online through another connection than conn.
 	Offline(ctx context.Context, character kernel.CharacterID, conn string) error
 }
@@ -71,11 +71,11 @@ type ConnectionsDeps struct {
 
 // ConnectionsOptions tune the registry.
 type ConnectionsOptions struct {
-	Gateway     string        // this gateway's ID, on every join, registration and stream
+	Node        string        // this node's ID, on every join, registration and stream
 	JoinTimeout time.Duration // a rejoin's whole join, retries included
 }
 
-// Connections is the gateway's sessions, found by connection, account, character and login session.
+// Connections is the server's sessions, found by connection, account, character and login session.
 type Connections struct {
 	deps   ConnectionsDeps
 	opts   ConnectionsOptions
@@ -112,8 +112,8 @@ func NewConnections(deps ConnectionsDeps, opts ConnectionsOptions) *Connections 
 	}
 }
 
-// Gateway is this gateway's ID.
-func (r *Connections) Gateway() string { return r.opts.Gateway }
+// Node is this node's ID.
+func (r *Connections) Node() string { return r.opts.Node }
 
 // Open starts the session of the connection named connID; once draining, it ends at once with server_restart.
 func (r *Connections) Open(connID string, o Outbox) *Connection {
@@ -132,7 +132,7 @@ func (r *Connections) Open(connID string, o Outbox) *Connection {
 
 // Close ends the session of a connection that closed: it stops its rejoin, takes its player off the map, then offline; online reports whether it was.
 func (r *Connections) Close(s *Connection) (online bool) {
-	ctx, span := r.tracer.Start(context.Background(), "gateway.close", trace.WithNewRoot())
+	ctx, span := r.tracer.Start(context.Background(), "account.close", trace.WithNewRoot())
 	defer span.End()
 	defer func() {
 		r.mu.Lock()
@@ -262,7 +262,7 @@ func (r *Connections) Pending() (sessions, jobs int) {
 	return r.unclosed, r.jobs
 }
 
-const connectionsTracer = "finga/internal/application/gateway/session"
+const connectionsTracer = "finga/internal/application/account/connections"
 
 // job runs fn on its own goroutine under a root span named name, counted in Pending until it returns.
 func (r *Connections) job(ctx context.Context, name string, fn func(ctx context.Context), attrs ...any) {

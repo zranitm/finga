@@ -15,26 +15,26 @@ import (
 
 // Each Follow call resubscribes after a break until ctx ends.
 
-// StreamsWorld is the world module's stream of deliveries for this gateway's players.
+// StreamsWorld is the world module's stream of deliveries for this node's players.
 type StreamsWorld interface {
-	FollowDeliveries(ctx context.Context, gateway string, deliver func(model.WorldEvent))
+	FollowDeliveries(ctx context.Context, node string, deliver func(model.WorldEvent))
 }
 
 // StreamsSocial is the social module's stream of party and chat deliveries.
 type StreamsSocial interface {
-	FollowDeliveries(ctx context.Context, gateway string, deliver func(model.SocialEvent))
+	FollowDeliveries(ctx context.Context, node string, deliver func(model.SocialEvent))
 }
 
 // StreamsPvp is the pvp module's stream of queue, offer and outcome pushes.
 type StreamsPvp interface {
-	FollowDeliveries(ctx context.Context, gateway string, deliver func(model.PvpDelivery))
+	FollowDeliveries(ctx context.Context, node string, deliver func(model.PvpDelivery))
 	// Told marks the player told of matches, their outcomes handed to them.
 	Told(ctx context.Context, character kernel.CharacterID, matches []kernel.MatchID) error
 }
 
 // StreamsAccount is the account module's stream of ended login sessions.
 type StreamsAccount interface {
-	FollowSessionEnds(ctx context.Context, gateway string, deliver func(model.SessionEnd))
+	FollowSessionEnds(ctx context.Context, node string, deliver func(model.SessionEnd))
 }
 
 // StreamsSessions checks that a login session still holds; the minute check asks it.
@@ -75,7 +75,7 @@ func NewStreams(deps StreamsDeps, opts StreamsOptions) *Streams {
 	return &Streams{deps: deps, opts: opts, tracer: deps.Traces.Tracer(streamsTracer), sessions: deps.Registry, reregister: make(chan struct{}, 1), told: make(chan model.PvpDelivery, toldQueue)}
 }
 
-const streamsTracer = "finga/internal/application/gateway/push"
+const streamsTracer = "finga/internal/application/account/streams"
 
 // Run follows the modules' streams and periodically checks the sessions, until ctx is done or one of them panics.
 func (g *Streams) Run(ctx context.Context) error {
@@ -87,7 +87,7 @@ func (g *Streams) Run(ctx context.Context) error {
 			return nil
 		})
 	}
-	id := g.sessions.Gateway()
+	id := g.sessions.Node()
 	start(func(ctx context.Context) { g.deps.World.FollowDeliveries(ctx, id, g.worldDelivered) })
 	start(func(ctx context.Context) { g.deps.Social.FollowDeliveries(ctx, id, g.socialDelivered) })
 	start(func(ctx context.Context) { g.deps.Pvp.FollowDeliveries(ctx, id, g.pvpDelivered) })

@@ -32,7 +32,7 @@ func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 		v, err = w.join(ctx, account, id, conn, sink)
 	}
 	if err != nil && took {
-		older.sink.Send(model.Detached{}) // the gateway joins the older connection again, on a map or mid-transfer
+		older.sink.Send(model.Detached{}) // the server joins the older connection again, on a map or mid-transfer
 	}
 	return v, err
 }
@@ -53,7 +53,7 @@ func (w *World) rejoinMatch(ctx context.Context, account kernel.AccountID, id ke
 	})
 	switch {
 	case errors.Is(err, instance.ErrSinkClosed):
-		return model.View{}, model.ErrBusy // held again through conn, as the presence says; the gateway joins on its next stream
+		return model.View{}, model.ErrBusy // held again through conn, as the presence says; the server joins on its next stream
 	case errors.Is(err, model.ErrStopped):
 		w.presences.forget(id, at.gen) // the match stopped since the read and holds nobody, so the plain join lands them where they came from
 		return model.View{}, model.ErrNotInMatch
@@ -128,7 +128,7 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	default:
 		w.presences.forget(id, at.gen)
 		if errors.Is(err, instance.ErrSinkClosed) {
-			err = model.ErrBusy // the gateway's stream is gone; it joins again on the next one
+			err = model.ErrBusy // the server's stream is gone; it joins again on the next one
 		}
 		return model.View{}, err
 	}

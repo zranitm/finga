@@ -24,7 +24,7 @@ func run() int {
 		fmt.Fprintln(os.Stderr, "testers: invalid configuration:", err)
 		return 1
 	}
-	for _, u := range []string{cfg.Gateway, cfg.Admin} {
+	for _, u := range []string{cfg.Server, cfg.Admin} {
 		if !cfg.Remote && !local(u) {
 			fmt.Fprintf(os.Stderr, "testers: %s isn't a local stack; set remote: true (FINGA_REMOTE=true) to seed it anyway\n", u)
 			return 1
@@ -39,10 +39,10 @@ func run() int {
 	defer stop()
 
 	client := &http.Client{Timeout: 30 * time.Second}
-	s := seeder{data: data, gw: gateway{url: cfg.Gateway, http: client}, admin: adminapi.Client{URL: cfg.Admin, HTTP: client}, password: cfg.Password}
+	s := seeder{data: data, gw: server{url: cfg.Server, http: client}, admin: adminapi.Client{URL: cfg.Admin, HTTP: client}, password: cfg.Password}
 
 	failed := 0
-	fmt.Printf("Test accounts on %s, each with the password %q:\n", cfg.Gateway, cfg.Password)
+	fmt.Printf("Test accounts on %s, each with the password %q:\n", cfg.Server, cfg.Password)
 	for _, t := range testers {
 		did, err := s.keep(ctx, t)
 		if err != nil {

@@ -113,7 +113,7 @@ When `UseSkill` names a skill that isn't the root, the world checks it, with sla
 - **A follow-up from its own key is refused** with `SKILL_CHAIN_NOT_READY`, so a client can't skip a condition by putting a follow-up on a key. A skill may sit on its own key when it roots one of its class's chains or is in none of them. An empty `chain_root` counts as the skill's own key.
 - **`controlled`** reads the lock's statuses. Statuses keep the tick each one last ended, set wherever a status ends (its time, a shatter, a waking), for the slack. A death clears them.
 - **`SKILL_CHAIN_NOT_READY`** is 330034, a 409.
-- **The world takes one `SkillUse`** (the skill, `Root`, the aim, the lock and the way) from the gateway down to the instance.
+- **The world takes one `SkillUse`** (the skill, `Root`, the aim, the lock and the way) from the server down to the instance.
 - **The generator** writes each class's `chains`, with `after_ms`, `controlled`, `far` and `dodged_ms`, each null when absent.
 
 ## 5. The skill bar and window

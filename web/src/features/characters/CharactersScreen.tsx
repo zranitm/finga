@@ -34,7 +34,7 @@ export function CharactersScreen({
   const [characters, setCharacters] = useState<Character[] | null>(null);
   const [name, setName] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
-  // The list failed to load, as while the gateway restarts; Try again loads it once more.
+  // The list failed to load, as while the server restarts; Try again loads it once more.
   const [loadProblem, setLoadProblem] = useState<string | null>(null);
   const [loads, setLoads] = useState(0);
   const [busy, setBusy] = useState(false);

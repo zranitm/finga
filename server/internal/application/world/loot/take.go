@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	callFor    = 3500 * time.Millisecond // a grant call, its retry included: inside the 5 s the gateway gives a take, so each pick is answered
+	callFor    = 3500 * time.Millisecond // a grant call, its retry included: inside the 5 s the server gives a take, so each pick is answered
 	reachSlack = 0.5                     // metres past reach a take may come from, for the client's lead
 	retryEvery = 2 * time.Second         // items whose call got no answer are asked again this often
 )

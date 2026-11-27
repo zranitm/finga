@@ -22,7 +22,7 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// local reports whether a gateway URL is on this machine: a loopback address, or a single-label name, as a Compose service on the stack's own network is.
+// local reports whether a server URL is on this machine: a loopback address, or a single-label name, as a Compose service on the stack's own network is.
 func local(raw string) bool {
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -35,13 +35,13 @@ func local(raw string) bool {
 	return host == "localhost" || (host != "" && !strings.Contains(host, "."))
 }
 
-// gateway is the player's way in: REST for accounts and characters, the WebSocket for play.
-type gateway struct {
+// server is the player's way in: REST for accounts and characters, the WebSocket for play.
+type server struct {
 	url  string
 	http *http.Client
 }
 
-// statusError is a REST call the gateway answered with an error status.
+// statusError is a REST call the server answered with an error status.
 type statusError struct {
 	status int
 	body   string
@@ -49,7 +49,7 @@ type statusError struct {
 
 func (e statusError) Error() string { return fmt.Sprintf("status %d: %s", e.status, e.body) }
 
-func (g gateway) call(ctx context.Context, method, path, token string, body, out any) error {
+func (g server) call(ctx context.Context, method, path, token string, body, out any) error {
 	var buf bytes.Buffer
 	if body != nil {
 		if err := json.NewEncoder(&buf).Encode(body); err != nil {
@@ -83,7 +83,7 @@ func (g gateway) call(ctx context.Context, method, path, token string, body, out
 }
 
 // signUp makes the account, or finds it taken: true when this call made it.
-func (g gateway) signUp(ctx context.Context, username, password string) (bool, error) {
+func (g server) signUp(ctx context.Context, username, password string) (bool, error) {
 	err := g.call(ctx, http.MethodPost, "/api/accounts", "", map[string]string{"username": username, "password": password}, nil)
 	var se statusError
 	if errors.As(err, &se) && se.status == http.StatusConflict {
@@ -93,7 +93,7 @@ func (g gateway) signUp(ctx context.Context, username, password string) (bool, e
 }
 
 // login is a session token, waiting out the login throttle a few times.
-func (g gateway) login(ctx context.Context, username, password string) (string, error) {
+func (g server) login(ctx context.Context, username, password string) (string, error) {
 	for wait := 5 * time.Second; ; wait *= 2 {
 		var out struct {
 			Token string `json:"token"`
@@ -119,7 +119,7 @@ type listed struct {
 }
 
 // character is the account's character of that name, made if it has none.
-func (g gateway) character(ctx context.Context, token, name string) (listed, error) {
+func (g server) character(ctx context.Context, token, name string) (listed, error) {
 	var list struct {
 		Characters []listed `json:"characters"`
 	}
@@ -137,7 +137,7 @@ func (g gateway) character(ctx context.Context, token, name string) (listed, err
 }
 
 // setSkillBar puts a skill on each key, as the skill window does.
-func (g gateway) setSkillBar(ctx context.Context, token, id string, bar []string) error {
+func (g server) setSkillBar(ctx context.Context, token, id string, bar []string) error {
 	return g.call(ctx, http.MethodPut, "/api/characters/"+id+"/skill-bar", token, map[string][]string{"slots": bar}, nil)
 }
 
@@ -151,7 +151,7 @@ type session struct {
 }
 
 // join enters the world with the character, as a client does, and returns once the Welcome came.
-func (g gateway) join(ctx context.Context, token, characterID string) (*session, *clientv1.Welcome, error) {
+func (g server) join(ctx context.Context, token, characterID string) (*session, *clientv1.Welcome, error) {
 	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(g.url, "http")+"/ws", &websocket.DialOptions{Subprotocols: []string{protocol.SubprotocolProto}})
 	if err != nil {
 		return nil, nil, err
@@ -215,7 +215,7 @@ func (s *session) await(ctx context.Context, match func(wsconn.Message) bool) (w
 	}
 }
 
-// rateLimited is the gateway's RATE_LIMITED, as testdata/errors/codes.json lists it: a command over its group's rate, refused before it went anywhere.
+// rateLimited is the server's RATE_LIMITED, as testdata/errors/codes.json lists it: a command over its group's rate, refused before it went anywhere.
 const rateLimited = 100007
 
 // hpFull is the world's HP_FULL, as testdata/errors/codes.json lists it: a potion refused because HP is already full.
@@ -229,7 +229,7 @@ type refused struct {
 
 func (e refused) Error() string { return fmt.Sprintf("%s refused with code %d", e.command, e.code) }
 
-// do sends a command and waits for its Response, sending it again after a pause while the gateway says to slow down, as a client would: an error when it is refused, naming the code.
+// do sends a command and waits for its Response, sending it again after a pause while the server says to slow down, as a client would: an error when it is refused, naming the code.
 func (s *session) do(ctx context.Context, d proto.Message) error {
 	for wait := 250 * time.Millisecond; ; wait *= 2 {
 		code, err := s.try(ctx, d)

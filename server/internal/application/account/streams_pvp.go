@@ -14,7 +14,7 @@ const (
 	streamsToldTimeout = 5 * time.Second // one mark's call
 )
 
-// pvpDelivered hands a pvp push to its player, if they're on this gateway; an outcome they were away for is then marked told, off the stream.
+// pvpDelivered hands a pvp push to its player, if they're on this node; an outcome they were away for is then marked told, off the stream.
 func (g *Streams) pvpDelivered(ev model.PvpDelivery) {
 	s := g.sessions.ByCharacter(ev.Character)
 	if s == nil {

@@ -222,7 +222,7 @@ describe('CharactersScreen', () => {
     expect(onSettings).toHaveBeenCalledTimes(1);
   });
 
-  it('a list that failed to load, as while the gateway restarts, loads again on Try again', async () => {
+  it('a list that failed to load, as while the server restarts, loads again on Try again', async () => {
     let up = false;
     const { ff } = setup(() => (up ? list([sampleCharacter]) : { status: 502 }));
     expect(await screen.findByRole('alert')).toHaveTextContent(

@@ -175,13 +175,13 @@ func TestAFullTabGivesUpItsLastItemNoQuestCollects(t *testing.T) {
 	}
 }
 
-// codeEntry is one of the gateway's codes, as testdata/errors/codes.json lists them.
+// codeEntry is one of the server's codes, as testdata/errors/codes.json lists them.
 type codeEntry struct {
 	Code int32  `json:"code"`
 	Name string `json:"name"`
 }
 
-func gatewayCodes(t *testing.T) []codeEntry {
+func serverCodes(t *testing.T) []codeEntry {
 	t.Helper()
 	raw, err := os.ReadFile("../../testdata/errors/codes.json")
 	if err != nil {
@@ -194,15 +194,15 @@ func gatewayCodes(t *testing.T) []codeEntry {
 	return codes
 }
 
-func TestTheTabFullCodesAreTheGatewaysOwn(t *testing.T) {
-	codes := gatewayCodes(t)
+func TestTheTabFullCodesAreTheServersOwn(t *testing.T) {
+	codes := serverCodes(t)
 	for code, tab := range tabFull {
 		if want := strings.ToUpper(tab) + "_TAB_FULL"; !slices.Contains(codes, codeEntry{code, want}) {
-			t.Errorf("code %d is not the gateway's %s", code, want)
+			t.Errorf("code %d is not the server's %s", code, want)
 		}
 	}
 	if !slices.Contains(codes, codeEntry{busyCode, "UNAVAILABLE"}) {
-		t.Errorf("code %d is not the gateway's UNAVAILABLE", busyCode)
+		t.Errorf("code %d is not the server's UNAVAILABLE", busyCode)
 	}
 }
 

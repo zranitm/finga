@@ -323,7 +323,7 @@ func (l *Looter) Farm(d time.Duration) int {
 				_ = l.Input(&clientv1.Input{})
 				walking = false
 			}
-			if time.Now().Before(l.nextTake) { // the gateway's limit on takes runs on the wall clock
+			if time.Now().Before(l.nextTake) { // the server's limit on takes runs on the wall clock
 				return nil
 			}
 			l.nextTake = time.Now().Add(500 * time.Millisecond)

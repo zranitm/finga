@@ -1,4 +1,4 @@
-// Package world is the world module's facade: the maps, the players on them and each gateway's stream; its types and kernel errors are the module's contract.
+// Package world is the world module's facade: the maps, the players on them and each node's stream; its types and kernel errors are the module's contract.
 package world
 
 import (
@@ -214,11 +214,11 @@ func newRoll() model.Roll {
 	return rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())) //nolint:gosec // game randomness
 }
 
-// Join joins the character to its map through the gateway's stream, which must be open; the Snapshot follows on it.
-func (m *Module) Join(ctx context.Context, gateway string, account kernel.AccountID, p Presence) (_ View, err error) {
+// Join joins the character to its map through the server's stream, which must be open; the Snapshot follows on it.
+func (m *Module) Join(ctx context.Context, node string, account kernel.AccountID, p Presence) (_ View, err error) {
 	ctx, call := m.calls.Start(ctx, "Join")
 	defer call.End(&err)
-	sub, ok := m.deliver.Get(gateway)
+	sub, ok := m.deliver.Get(node)
 	if !ok {
 		return View{}, kernel.ErrNotSubscribed
 	}

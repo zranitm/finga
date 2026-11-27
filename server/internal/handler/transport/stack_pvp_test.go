@@ -26,7 +26,7 @@ func TestPvpCommandsAndPushes(t *testing.T) {
 		select {
 		case <-fp.pushes.subscribed:
 		case <-time.After(5 * time.Second):
-			t.Fatal("the gateway never subscribed to the pvp module")
+			t.Fatal("the server never subscribed to the pvp module")
 		}
 		ayla := h.dial(t)
 		ayla.hello(tokenAlice, aylaID)
@@ -67,7 +67,7 @@ func TestPvpCommandsAndPushes(t *testing.T) {
 		if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(failure.PvpAlreadyQueued.Code) {
 			t.Fatalf("queued twice: %+v", r)
 		}
-		for _, id := range []kernel.CharacterID{aylaID, robinID} { // Robin isn't on this gateway: dropped
+		for _, id := range []kernel.CharacterID{aylaID, robinID} { // Robin isn't on this node: dropped
 			fp.pushes.send(pvp.Push{To: id, Delivery: pvp.Offered{Offer: "o-2", Mode: "duel", Bots: 1, Until: 10 * time.Second}})
 		}
 		if o := ayla.expect("PvpOffer").Data.(*clientv1.PvpOffer); o.GetOffer() != "o-2" || o.GetBots() != 1 || o.GetUntilMs() != 10000 {
@@ -81,7 +81,7 @@ func TestPvpCommandsAndPushes(t *testing.T) {
 	})
 }
 
-// The matches that ended while the player was away reach their Welcome, which marks every one it lists or counts told once it's written; an outcome they were away for, handed to them live, is marked told, and neither one for a player on another gateway nor one they saw end is.
+// The matches that ended while the player was away reach their Welcome, which marks every one it lists or counts told once it's written; an outcome they were away for, handed to them live, is marked told, and neither one for a player on another node nor one they saw end is.
 func TestMatchesMissedWhileAwayReachTheWelcome(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		fp := newFakePvp()
@@ -92,7 +92,7 @@ func TestMatchesMissedWhileAwayReachTheWelcome(t *testing.T) {
 		select {
 		case <-fp.pushes.subscribed:
 		case <-time.After(5 * time.Second):
-			t.Fatal("the gateway never subscribed to the pvp module")
+			t.Fatal("the server never subscribed to the pvp module")
 		}
 		ayla := h.dial(t)
 		ayla.hello(tokenAlice, aylaID)

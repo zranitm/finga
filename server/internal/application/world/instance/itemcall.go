@@ -12,7 +12,7 @@ import (
 	"finga/pkg/transient"
 )
 
-// callFor is all an item-module call made for a player's command may take, every try included: inside the 5 s the gateway and the client give a command, with room for the queues and ticks either side, so the command hears why.
+// callFor is all an item-module call made for a player's command may take, every try included: inside the 5 s the server and the client give a command, with room for the queues and ticks either side, so the command hears why.
 const callFor = 3500 * time.Millisecond
 
 // answerRoom is how long before a command's deadline its wait for an item call gives up as unavailable: callFor counts from when a worker took the call, after the queues and ticks before it, which a slow box can stretch past the rest of the 5 s.
@@ -55,7 +55,7 @@ func retried[T any](ctx context.Context, log *slog.Logger, what string, who []an
 	return out, tries, err
 }
 
-// itemCall runs call inside callFor; one the item module doesn't answer in time is unavailable, which the gateway answers as such, not as its own deadline, a fault.
+// itemCall runs call inside callFor; one the item module doesn't answer in time is unavailable, which the server answers as such, not as its own deadline, a fault.
 func itemCall[T any](ctx context.Context, what string, call func(context.Context) (T, error)) (T, error) {
 	return transient.Within(ctx, callFor, "the item module, asked for "+what, call)
 }

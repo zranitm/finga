@@ -13,7 +13,7 @@ import (
 // Transfer marks the player in transit from the calling instance and lands them on another, a map's, a region channel's or a match's, on its own goroutine, so the calling tick never waits nor takes the character's lock.
 func (w *World) Transfer(from *instance.Instance, p model.Player, sink instance.Sink, dest instance.Dest) {
 	target, landed, err := w.destination(p.ID, dest)
-	if err != nil { // a match that closed meanwhile, or the World stopping: the gateway joins them again, where they came from
+	if err != nil { // a match that closed meanwhile, or the World stopping: the server joins them again, where they came from
 		w.deps.Logger.Error("transfer to no open instance", "character_id", p.ID, "to", dest.ID, "err", err)
 		w.presences.forgetThrough(p.ID, p.Connection)
 		sink.Send(model.Detached{})
@@ -50,7 +50,7 @@ func (w *World) Dropped(from *instance.Instance, id kernel.CharacterID, conn str
 // errReplaced is a landing whose presence was taken off or replaced while it waited for the character's lock.
 var errReplaced = errors.New("world: the presence moved on")
 
-// land joins a handed-off player to the map at names; one that can't land in transferTimeout detaches, so the gateway joins it again.
+// land joins a handed-off player to the map at names; one that can't land in transferTimeout detaches, so the server joins it again.
 func (w *World) land(p model.Player, sink instance.Sink, at presence) {
 	ctx, cancel := context.WithTimeout(w.jobsCtx, transferTimeout)
 	defer cancel()
@@ -58,10 +58,10 @@ func (w *World) land(p model.Player, sink instance.Sink, at presence) {
 	switch {
 	case err == nil, errors.Is(err, errReplaced):
 	case w.jobsCtx.Err() != nil, errors.Is(err, model.ErrStopped) && !at.inst.Ended():
-		// Shutting down, maps stopping one by one: the player was saved on target, and the gateway joins them again after the restart.
+		// Shutting down, maps stopping one by one: the player was saved on target, and the server joins them again after the restart.
 	default:
 		if w.presences.forget(p.ID, at.gen) {
-			w.deps.Logger.ErrorContext(ctx, "transfer failed; the gateway joins the player again", "character_id", p.ID, "map_id", at.inst.MapID(), "err", err)
+			w.deps.Logger.ErrorContext(ctx, "transfer failed; the server joins the player again", "character_id", p.ID, "map_id", at.inst.MapID(), "err", err)
 			sink.Send(model.Detached{})
 		}
 	}

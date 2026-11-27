@@ -7,7 +7,7 @@ import (
 	"finga/internal/shared/kernel"
 )
 
-// ItemModule is the item module as the gateway calls it.
+// ItemModule is the item module as the server calls it.
 type ItemModule interface {
 	Inventory(ctx context.Context, owner kernel.CharacterID) (item.Inventory, error)
 }

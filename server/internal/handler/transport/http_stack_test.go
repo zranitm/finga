@@ -46,11 +46,11 @@ var (
 	errInternal = errors.New("pq: connection reset") // a facade passes an error its table lacks as it is
 )
 
-// restTraceProvider samples as the gateway does, and restSpans records every span it samples.
+// restTraceProvider samples as the server does, and restSpans records every span it samples.
 var restTraceProvider, restSpans = restTraces()
 
 func restTraces() (*tracing.Provider, *tracetest.SpanRecorder) {
-	tp, err := tracing.New(context.Background(), tracing.Config{}, tracing.Options{Service: "gateway", Root: transport.HTTPEntryPoint})
+	tp, err := tracing.New(context.Background(), tracing.Config{}, tracing.Options{Service: "server", Root: transport.HTTPEntryPoint})
 	if err != nil {
 		panic(err)
 	}
@@ -533,7 +533,7 @@ func TestUnknownRoutes(t *testing.T) {
 		{"GET", "/api/nope", http.StatusNotFound},
 		{"GET", "/api/accounts", http.StatusMethodNotAllowed},
 		{"PATCH", "/api/settings", http.StatusMethodNotAllowed},
-		{"POST", "/api/accounts/", http.StatusNotFound}, // Gin would redirect a trailing slash; the gateway does not
+		{"POST", "/api/accounts/", http.StatusNotFound}, // Gin would redirect a trailing slash; the server does not
 	}
 	for _, tt := range tests {
 		t.Run(tt.method+" "+tt.path, func(t *testing.T) {

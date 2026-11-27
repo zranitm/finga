@@ -18,8 +18,8 @@ func TestPublicOf(t *testing.T) {
 	}{
 		{"nil is the zero value", nil, failure.Public{}},
 		{"a module's failure is what its adapter named", fmt.Errorf("invite: %w", refused), refused.Public},
-		{"a malformed ID from the gateway's own parsing", fmt.Errorf("item: %w", kernel.ErrBadID), failure.BadID},
-		{"an unknown class from the gateway's own parsing", kernel.ErrUnknownClass, failure.UnknownClass},
+		{"a malformed ID from the server's own parsing", fmt.Errorf("item: %w", kernel.ErrBadID), failure.BadID},
+		{"an unknown class from the server's own parsing", kernel.ErrUnknownClass, failure.UnknownClass},
 		{"a Hello whose token or character is not the account's", fmt.Errorf("hello: %w", failure.ErrHelloRejected), failure.Unauthenticated},
 		{"anything else is internal", errors.New("dial tcp: connection refused"), failure.Internal},
 	}

@@ -9,7 +9,7 @@ flowchart LR
   player([Browser]) -->|HTTPS, WSS| cf[Cloudflare<br/>proxy, TLS]
   cf -->|443, Origin CA cert<br/>Cloudflare IPs only| nginx
   subgraph ec2 [EC2 t4g.medium, ap-southeast-1]
-    nginx[web: nginx] --> finga[finga: gateway, account,<br/>character, item, world, social]
+    nginx[web: nginx] --> finga[finga: account, character,<br/>item, world, social]
     finga --> pg[(Postgres)]
     obs[Alloy, Mimir, Loki,<br/>Tempo, Grafana]
   end

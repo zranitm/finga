@@ -1,4 +1,4 @@
-// Package interestbench measures a crowded region's frames end to end: the world cutting each tick by interest cell, and each client's Delta as the gateway encodes it (large-regions.md section 5).
+// Package interestbench measures a crowded region's frames end to end: the world cutting each tick by interest cell, and each client's Delta as the server encodes it (large-regions.md section 5).
 package interestbench
 
 import (
@@ -40,7 +40,7 @@ var shapes = []struct {
 	behind, ahead, side int
 }{{"7x7", 3, 3, 3}, {"7x5", 1, 3, 3}}
 
-// A tick of 150 players walking a 1 km region among 400 mobs: what the world spends cutting and sending it, and what each client's Delta costs the gateway, in bytes and allocations.
+// A tick of 150 players walking a 1 km region among 400 mobs: what the world spends cutting and sending it, and what each client's Delta costs the server, in bytes and allocations.
 func BenchmarkACrowdedRegionsFrames(b *testing.B) {
 	m := region(b)
 	for _, sh := range shapes {
@@ -180,7 +180,7 @@ func (s *scene) step() {
 	}
 }
 
-// stream is one gateway's: it keeps the latest frame and who it went to.
+// stream is one node's: it keeps the latest frame and who it went to.
 type stream struct {
 	frame *model.Frame
 	to    []model.Recipient

@@ -11,12 +11,12 @@ import (
 	"finga/pkg/panics"
 )
 
-// PvpModule is the pvp module as the gateway calls it.
+// PvpModule is the pvp module as the server calls it.
 type PvpModule interface {
 	Offline(ctx context.Context, who kernel.CharacterID) error
 	Missed(ctx context.Context, id kernel.CharacterID) (pvp.Missed, error)
 	Told(ctx context.Context, id kernel.CharacterID, matches []kernel.MatchID) error
-	Subscribe(gateway string) *hub.Sub[pvp.Push]
+	Subscribe(node string) *hub.Sub[pvp.Push]
 }
 
 // Pvp is the application's pvp module.
@@ -55,8 +55,8 @@ func (p Pvp) Told(ctx context.Context, who kernel.CharacterID, matches []kernel.
 }
 
 // FollowDeliveries follows the module's pushes until ctx ends; a break loses only pushes, as the queue lives on.
-func (p Pvp) FollowDeliveries(ctx context.Context, gateway string, deliver func(model.PvpDelivery)) {
-	hub.Follow(ctx, func() *hub.Sub[pvp.Push] { return p.p.Subscribe(gateway) }, func(context.Context) error { return nil }, func(d pvp.Push) {
+func (p Pvp) FollowDeliveries(ctx context.Context, node string, deliver func(model.PvpDelivery)) {
+	hub.Follow(ctx, func() *hub.Sub[pvp.Push] { return p.p.Subscribe(node) }, func(context.Context) error { return nil }, func(d pvp.Push) {
 		deliver(pvpDelivery(d))
 	}, hub.FollowOptions{Panics: p.panics, OnBreak: func(err error) {
 		p.log.WarnContext(ctx, "pvp stream broke; subscribing again", "err", err)

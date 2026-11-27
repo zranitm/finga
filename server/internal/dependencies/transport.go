@@ -25,8 +25,8 @@ import (
 // The players' listener's name, as the logs show it.
 const httpListener = "http"
 
-// gatewayModules are the modules the gateway calls, in the same process.
-type gatewayModules struct {
+// transportModules are the modules the transport serves, in the same process.
+type transportModules struct {
 	Account interface {
 		adapter.OwnModule
 		handleraccount.Accounts
@@ -53,9 +53,10 @@ type gatewayModules struct {
 	Arena handlerpvp.Arena
 }
 
-// buildGateway adds the gateway module to h from cfg, serving players at public and calling mods.
-func buildGateway(ctx context.Context, h *host.Host, cfg config.Gateway, public host.HTTPSection, mods gatewayModules) error {
-	m, err := h.Module("gateway")
+// buildTransport adds the players' side to h, the REST routes and the WebSocket at public, and the account's connection flows behind them, over mods.
+func buildTransport(ctx context.Context, h *host.Host, cfg config.Config, mods transportModules) error {
+	public := cfg.HTTP
+	m, err := h.Module("transport")
 	if err != nil {
 		return err
 	}
@@ -71,7 +72,7 @@ func buildGateway(ctx context.Context, h *host.Host, cfg config.Gateway, public 
 	}
 	guard, world, social, items := adapter.NewGuard(mods.Account), adapter.NewWorld(mods.World, log, rec), adapter.NewSocial(mods.Social, log, rec), adapter.NewItems(mods.Item)
 	matches := adapter.NewPvp(mods.Pvp, log, rec)
-	sessions := application.NewConnections(application.ConnectionsDeps{World: world, Social: social, Pvp: matches, Items: items, Logger: log, Panics: rec, Traces: h.Traces, Observer: online}, application.ConnectionsOptions{Gateway: uuidv7.NewString(), JoinTimeout: cfg.Sessions.JoinTimeout})
+	sessions := application.NewConnections(application.ConnectionsDeps{World: world, Social: social, Pvp: matches, Items: items, Logger: log, Panics: rec, Traces: h.Traces, Observer: online}, application.ConnectionsOptions{Node: uuidv7.NewString(), JoinTimeout: cfg.Account.Connections.JoinTimeout})
 	sendFlow := application.NewCommands(application.CommandsDeps{
 		Sessions: guard,
 		Registry: sessions,
@@ -79,7 +80,7 @@ func buildGateway(ctx context.Context, h *host.Host, cfg config.Gateway, public 
 		Social:   social,
 		Logger:   log,
 		Observer: online,
-	}, application.CommandsOptions{JoinTimeout: cfg.Sessions.JoinTimeout})
+	}, application.CommandsOptions{JoinTimeout: cfg.Account.Connections.JoinTimeout})
 	pushFlow := application.NewStreams(application.StreamsDeps{
 		Sessions: guard,
 		Registry: sessions,
@@ -90,7 +91,7 @@ func buildGateway(ctx context.Context, h *host.Host, cfg config.Gateway, public 
 		Logger:   log,
 		Panics:   rec,
 		Traces:   h.Traces,
-	}, application.StreamsOptions{SessionCheckInterval: cfg.Sessions.CheckInterval})
+	}, application.StreamsOptions{SessionCheckInterval: cfg.Account.Connections.CheckInterval})
 	encoders := transport.NewEncoders()
 	if err := errors.Join(handleraccount.Encoders(encoders), handleritem.Encoders(encoders), handlerpvp.Encoders(encoders), handlersocial.Encoders(encoders), handlerworld.Encoders(encoders)); err != nil {
 		return fmt.Errorf("push encoders: %w", err)

@@ -105,7 +105,7 @@ func (s *Stack) Connect(t *testing.T, id string) *Player {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	// A same-page browser Origin, so the gateway's origin check runs as it does for players.
+	// A same-page browser Origin, so the server's origin check runs as it does for players.
 	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(s.URL, "http")+"/ws",
 		&websocket.DialOptions{HTTPHeader: http.Header{"Origin": {s.URL}}, Subprotocols: []string{protocol.SubprotocolProto}})
 	if err != nil {

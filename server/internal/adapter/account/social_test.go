@@ -22,18 +22,18 @@ import (
 	"finga/pkg/panics"
 )
 
-// leaving counts the social module's GatewayLeft calls.
+// leaving counts the social module's NodeLeft calls.
 type leaving struct {
 	*social.Module
 	mu   sync.Mutex
 	left []string
 }
 
-func (l *leaving) GatewayLeft(gateway string) {
+func (l *leaving) NodeLeft(node string) {
 	l.mu.Lock()
-	l.left = append(l.left, gateway)
+	l.left = append(l.left, node)
 	l.mu.Unlock()
-	l.Module.GatewayLeft(gateway)
+	l.Module.NodeLeft(node)
 }
 
 // newSocial is the social module on a host never run, over the game data.
@@ -60,7 +60,7 @@ func newSocial(t *testing.T) *social.Module {
 	return s
 }
 
-// A stream that breaks is followed again at once, and the gateway registers its players again: the module's sweep of the gone gateway finds it back, and every party stays.
+// A stream that breaks is followed again at once, and the server registers its players again: the module's sweep of the gone node finds it back, and every party stays.
 func TestABrokenSocialStreamFollowedAgainKeepsItsParties(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		mod := &leaving{Module: newSocial(t)}
@@ -107,17 +107,17 @@ func TestABrokenSocialStreamFollowedAgainKeepsItsParties(t *testing.T) {
 		}
 		synctest.Wait()
 
-		mod.Subscribe("gw") // a newer subscription under the gateway's ID closes the stream, as a full queue does
+		mod.Subscribe("gw") // a newer subscription under the server's ID closes the stream, as a full queue does
 		synctest.Wait()
 		time.Sleep(time.Second) // past the follower's longest backoff
 		synctest.Wait()
-		time.Sleep(time.Minute) // past the module's grace, when its sweep of the gateway looks
+		time.Sleep(time.Minute) // past the module's grace, when its sweep of the server looks
 		synctest.Wait()
 
 		mu.Lock()
 		defer mu.Unlock()
 		if subscribed != 2 || len(mod.left) != 1 || mod.left[0] != "gw" {
-			t.Fatalf("subscribed %d times, the gateway left %v; want a second subscription after one GatewayLeft", subscribed, mod.left)
+			t.Fatalf("subscribed %d times, the server left %v; want a second subscription after one NodeLeft", subscribed, mod.left)
 		}
 		for _, id := range []kernel.CharacterID{ann.ID, bo.ID} {
 			p := parties[id]
@@ -154,24 +154,24 @@ func (m *socialModule) Chat(_ context.Context, l social.Line) (social.Message, e
 
 func (m *socialModule) Subscribe(string) *hub.Sub[social.Delivery] { return nil }
 
-func (m *socialModule) GatewayLeft(string) {}
+func (m *socialModule) NodeLeft(string) {}
 
 // A player online reaches the social module with every field it registers.
 func TestOnlineKeepsItsFields(t *testing.T) {
 	m := &socialModule{}
 	s := NewSocial(m, slog.New(slog.DiscardHandler), nil)
 	type online struct {
-		Gateway, Conn string
-		JoinSeq       uint64
-		Player        model.Player
-		MapID         string
+		Node, Conn string
+		JoinSeq    uint64
+		Player     model.Player
+		MapID      string
 	}
 	match := copytest.Match{
 		Renames:  map[string]string{"Conn": "Connection", "Player": "Member", "MapID": "Member.MapID"},
 		Computed: map[string]string{"Member.Channel": "the world's report of the member names it, and social keeps a report over an older login's values"},
 	}
 	got := copytest.Diff(match, func(o online) social.Presence {
-		if err := s.Online(t.Context(), o.Gateway, o.Conn, o.JoinSeq, o.Player, o.MapID); err != nil {
+		if err := s.Online(t.Context(), o.Node, o.Conn, o.JoinSeq, o.Player, o.MapID); err != nil {
 			t.Fatal(err)
 		}
 		return m.presence

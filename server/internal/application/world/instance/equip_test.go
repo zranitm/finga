@@ -380,7 +380,7 @@ func TestAnEquipInFlightHoldsThePlayerOnItsMap(t *testing.T) {
 	})
 }
 
-// The gateway joins a character again through the same connection after a broken stream; an answer to the earlier join's call must not end one of the new join's.
+// The server joins a character again through the same connection after a broken stream; an answer to the earlier join's call must not end one of the new join's.
 func TestAnAnswerToAnEarlierJoinLeavesTheNewJoinsCallsCounted(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)

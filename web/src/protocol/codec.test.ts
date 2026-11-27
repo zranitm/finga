@@ -83,8 +83,8 @@ describe('golden messages', () => {
   });
 });
 
-// The gateway encodes a tick's Delta once and appends each player's ack after it: protobuf reads that as one message.
-describe('a Delta the gateway spliced', () => {
+// The server encodes a tick's Delta once and appends each player's ack after it: protobuf reads that as one message.
+describe('a Delta the server spliced', () => {
   it('decodes as one Delta with the shared fields and the ack', () => {
     const shared = toBinary(
       DeltaSchema,

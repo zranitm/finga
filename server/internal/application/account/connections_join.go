@@ -142,7 +142,7 @@ func (r *Connections) Rejoin(s *Connection) {
 	if !s.rejoin.CompareAndSwap(false, true) {
 		return
 	}
-	r.job(s.ctx, "gateway.rejoin", func(ctx context.Context) {
+	r.job(s.ctx, "account.rejoin", func(ctx context.Context) {
 		select {
 		case <-time.After(rand.N(rejoinSpread)):
 		case <-ctx.Done():
@@ -227,7 +227,7 @@ func (r *Connections) rejoin(ctx context.Context, s *Connection) {
 func (r *Connections) join(ctx context.Context, conn string, account kernel.AccountID, character kernel.CharacterID) (model.Joined, error) {
 	var last error
 	joined, err := backoff.Retry(ctx, func() (model.Joined, error) {
-		joined, err := r.deps.World.Join(ctx, r.opts.Gateway, conn, account, character)
+		joined, err := r.deps.World.Join(ctx, r.opts.Node, conn, account, character)
 		last = err
 		if err != nil && !waitable(err) {
 			return joined, backoff.Permanent(err)
@@ -264,8 +264,8 @@ func (r *Connections) LeaveGhost(p model.Presence) {
 	if known || waiting {
 		return
 	}
-	r.job(context.Background(), "gateway.leave_ghost", func(ctx context.Context) {
-		r.leave(ctx, p, true) // no logout came through a connection the gateway doesn't know
+	r.job(context.Background(), "account.leave_ghost", func(ctx context.Context) {
+		r.leave(ctx, p, true) // no logout came through a connection the server doesn't know
 		r.mu.Lock()
 		r.ghosts[p.Connection] = time.Now().Add(ghostQuiet)
 		r.mu.Unlock()
@@ -314,7 +314,7 @@ func (r *Connections) leave(ctx context.Context, p model.Presence, drop bool) {
 // Register registers a player who just logged in with the social module in the background, so a slow one holds up none of their commands; it retries while the session lives, as their party comes only from it.
 func (r *Connections) Register(s *Connection) {
 	r.deps.Observer.RegistrationsWaiting(1)
-	r.job(s.ctx, "gateway.register", func(ctx context.Context) {
+	r.job(s.ctx, "account.register", func(ctx context.Context) {
 		defer r.deps.Observer.RegistrationsWaiting(-1)
 		failed := false
 		_, err := backoff.Retry(ctx, func() (struct{}, error) {
@@ -355,7 +355,7 @@ func (r *Connections) online(ctx context.Context, s *Connection) error {
 	if closed || !current {
 		return nil // its close's Offline has the last word, or a newer login took the character
 	}
-	return r.deps.Social.Online(ctx, r.opts.Gateway, s.connID, s.joinSeq.Load(), s.Player(), s.mapID())
+	return r.deps.Social.Online(ctx, r.opts.Node, s.connID, s.joinSeq.Load(), s.Player(), s.mapID())
 }
 
 // unqueue takes a player who left out of the pvp queue; a failure only logs, as the offer they'd miss lapses.

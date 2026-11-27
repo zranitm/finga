@@ -86,7 +86,7 @@ func (h *ws) chatSend(c *transport.Context, in *clientv1.ChatSend) (any, error) 
 	return nil, h.chat.Chat(c.Ctx, c.Session.Session(), channelsFromClient[in.GetChannel()], in.GetText())
 }
 
-// channelsFromClient maps the client's channels to the gateway's; any other is no channel, which the social module refuses.
+// channelsFromClient maps the client's channels to the server's; any other is no channel, which the social module refuses.
 var channelsFromClient = map[clientv1.ChatChannel]model.ChatChannel{
 	clientv1.ChatChannel_CHAT_CHANNEL_MAP:   model.ChatMap,
 	clientv1.ChatChannel_CHAT_CHANNEL_PARTY: model.ChatParty,

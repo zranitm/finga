@@ -7,13 +7,13 @@ import (
 	"sync"
 )
 
-// Queue sizes for a slow gateway or world before its subscription is closed.
+// Queue sizes for a slow node or world before its subscription is closed.
 const (
 	deliveriesQueue  = 4096
 	membershipsQueue = 4096
 )
 
-// Delivery is what a gateway hears: a PartyState, an Invited or a ChatLine for one of its players.
+// Delivery is what a node hears: a PartyState, an Invited or a ChatLine for one of its players.
 //
 //sumtype:decl
 type Delivery interface{ delivery() }
@@ -70,9 +70,9 @@ type Membership struct {
 
 func (Membership) membershipEvent() {}
 
-// Subscribe opens a gateway's deliveries from now on; a newer one under the same ID closes it, as a full queue does.
-func (m *Module) Subscribe(gateway string) *hub.Sub[Delivery] {
-	return m.notes.deliveries.Subscribe(gateway)
+// Subscribe opens a node's deliveries from now on; a newer one under the same ID closes it, as a full queue does.
+func (m *Module) Subscribe(node string) *hub.Sub[Delivery] {
+	return m.notes.deliveries.Subscribe(node)
 }
 
 // SubscribeMemberships opens a world's membership changes from now on, to follow a snapshot from Memberships taken after it.
@@ -80,7 +80,7 @@ func (m *Module) SubscribeMemberships(world string) *hub.Sub[MembershipEvent] {
 	return m.notes.memberships.Subscribe(world)
 }
 
-// notifier hands the party module's notes to the subscribed gateways and worlds, each player's to the gateway they are online through; it never blocks.
+// notifier hands the party module's notes to the subscribed nodes and worlds, each player's to the server they are online through; it never blocks.
 type notifier struct {
 	deliveries  *hub.Hub[Delivery]
 	memberships *hub.Hub[MembershipEvent]
@@ -89,8 +89,8 @@ type notifier struct {
 	presence map[kernel.CharacterID]presence
 }
 
-// presence is where a character is online: the gateway and the connection.
-type presence struct{ gateway, conn string }
+// presence is where a character is online: the server and the connection.
+type presence struct{ node, conn string }
 
 var _ Notifier = (*notifier)(nil)
 
@@ -126,11 +126,11 @@ func (n *notifier) Invited(to kernel.CharacterID, inv model.Invite) {
 	n.send(to, Invited{To: to, Invite: inv.ID, From: inv.From, FromName: inv.FromName})
 }
 
-// Reachable routes the character's deliveries to the gateway; it runs under the party lock, which decided the member is online there.
-func (n *notifier) Reachable(id kernel.CharacterID, gateway, conn string) {
+// Reachable routes the character's deliveries to the server; it runs under the party lock, which decided the member is online there.
+func (n *notifier) Reachable(id kernel.CharacterID, node, conn string) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.presence[id] = presence{gateway, conn}
+	n.presence[id] = presence{node, conn}
 }
 
 // Unreachable forgets where the character is, if still through conn.
@@ -142,26 +142,26 @@ func (n *notifier) Unreachable(id kernel.CharacterID, conn string) {
 	}
 }
 
-// through is each character online through the gateway, with its connection.
-func (n *notifier) through(gateway string) map[kernel.CharacterID]string {
+// through is each character online through the server, with its connection.
+func (n *notifier) through(node string) map[kernel.CharacterID]string {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	out := map[kernel.CharacterID]string{}
 	for id, p := range n.presence {
-		if p.gateway == gateway {
+		if p.node == node {
 			out[id] = p.conn
 		}
 	}
 	return out
 }
 
-// subscribed is whether the gateway has a subscription open.
-func (n *notifier) subscribed(gateway string) bool {
-	_, ok := n.deliveries.Get(gateway)
+// subscribed is whether the server has a subscription open.
+func (n *notifier) subscribed(node string) bool {
+	_, ok := n.deliveries.Get(node)
 	return ok
 }
 
-// send delivers d to the character's gateway, if they are online there and it has a subscription.
+// send delivers d to the character's node, if they are online there and it has a subscription.
 func (n *notifier) send(to kernel.CharacterID, d Delivery) {
 	n.mu.Lock()
 	p, ok := n.presence[to]
@@ -169,7 +169,7 @@ func (n *notifier) send(to kernel.CharacterID, d Delivery) {
 	if !ok {
 		return
 	}
-	if sub, ok := n.deliveries.Get(p.gateway); ok {
+	if sub, ok := n.deliveries.Get(p.node); ok {
 		sub.Send(d)
 	}
 }

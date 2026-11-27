@@ -89,7 +89,7 @@ func TestATransferRetriesWhileTheMapIsBusy(t *testing.T) {
 	})
 }
 
-// A transfer that cannot land detaches the connection, so the gateway joins the player again.
+// A transfer that cannot land detaches the connection, so the server joins the player again.
 func TestAFailedTransferDetachesTheConnection(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := runningWorld(t)
@@ -221,7 +221,7 @@ func TestAFailedLoginElsewhereMidPortalDetachesTheOlderConnection(t *testing.T) 
 	})
 }
 
-// Two joins of one character through two connections at once, with no gateway to order them, leave the registry and the map naming the same connection.
+// Two joins of one character through two connections at once, with no node to order them, leave the registry and the map naming the same connection.
 func TestTwoJoinsAtOnceLeaveTheRegistryAndTheMapAgreeing(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := runningWorld(t)

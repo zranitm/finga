@@ -97,7 +97,7 @@ The character stays at today's 56 px, so every shape is drawn to be read at that
 ## 5. Others' attacks
 
 - **World:** when a basic attack starts in `resolveAttacks`, the instance adds `model.AttackUsed{Tick, Attacker, Facing, Length}` before the `Damage` its hit makes that tick, as `SkillUsed` comes before its own. `Length` is the attack's length in ticks, its class's.
-- **Delivery:** the sink maps it to a `DeliverResponse` event, and the gateway to a new `AttackUsed` server message. Both follow `SkillUsed`'s path.
+- **Delivery:** the sink maps it to a `DeliverResponse` event, and the server to a new `AttackUsed` server message. Both follow `SkillUsed`'s path.
 - **Client:**
   - `onAttackUsed` draws the pose on the attacker's sprite, with the class's hit and cancel shares over `length_ticks`. It adds a slash arc for melee, or a shot from the sprite in its facing for ranged.
   - It replaces that player's pose and shape still showing, as a new `SkillUsed` does.
@@ -136,7 +136,7 @@ The slow is tied to the input stream, not to the server's tick, so the client pr
 
 - **Seqs reach the world:**
   - The client stamps `UseSkill` with the input seq in `ClientMessage.seq`, as it already stamps `Attack`.
-  - The gateway passes both stamps on, in new `seq` fields on `UseSkillRequest` and `AttackRequest`.
+  - The server passes both stamps on, in new `seq` fields on `UseSkillRequest` and `AttackRequest`.
   - **The world bounds a press's seq** to between `lastSeq` and the newest input received plus 2.
     - A forged seq far in the future would otherwise let a modified client skip the slow in the server's own sim. Bounded, it gains at most 2 inputs.
     - A stale seq casts from the next input, and a resend after a rejoin starts over.
@@ -206,7 +206,7 @@ The harness (`balance_test.go`, `rotation_test.go`) ran on `main` with this sect
 - **The world module's contract:**
   - `Attack` and `UseSkill` take `seq`;
   - `AttackUsed` is one of its events;
-  - its `PlayerView` carries `Casting` in its state, which the gateway copies across.
+  - its `PlayerView` carries `Casting` in its state, which the server copies across.
 - **All additions,** so `buf breaking` (WIRE) passes. There are no new codes.
 
 ## 10. When things fail
@@ -258,7 +258,7 @@ Three PRs, each step one commit, green on `make test`, `make lint`, `make cover`
 
 2. **No cue:** `cue.ts` and its calls and tests go. This is also where the C11 docs land on `main`.
 3. **Data:** skill lengths and cooldowns, and the harness numbers in the PR.
-4. **Others' attacks:** `AttackUsed` from the world through the gateway to the client.
+4. **Others' attacks:** `AttackUsed` from the world through the server to the client.
 5. **Moving while using a skill:** the sim and its vectors, seqs on `Attack` and `UseSkill`, casting in the world, `PlayerView.casting`, and the client's prediction.
 
 **PR 3, getting free of a skill (section 7), merged as #65:**

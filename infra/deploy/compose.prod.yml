@@ -40,7 +40,7 @@ services:
   # make testers is for local stacks only: here it points at a game it refuses, so test accounts never reach production.
   testers:
     environment:
-      FINGA_GATEWAY: https://production.invalid
+      FINGA_SERVER: https://production.invalid
       FINGA_ADMIN: https://production.invalid
 
   # The observability stack from obs.prod.yml, under the obs profile: DEPLOY_STOP_FIRST stops only the services outside one.

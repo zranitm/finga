@@ -22,18 +22,18 @@ func drain[E any](sub *hub.Sub[E]) []E {
 	}
 }
 
-// Each of the party module's notes reaches the gateway its player is online through, and every world, as the facade's events.
+// Each of the party module's notes reaches the server its player is online through, and every world, as the facade's events.
 func TestTheModulesNotesReachTheirSubscribers(t *testing.T) {
 	m := newModule(t, &fakeParties{}, &fakeChat{})
 	n := m.notes
 	gwA, gwB := m.Subscribe("gw-a"), m.Subscribe("gw-b")
 	worlds := []*hub.Sub[MembershipEvent]{m.SubscribeMemberships("world-1"), m.SubscribeMemberships("world-2")}
-	cy := kernel.NewCharacterID() // online through no gateway
+	cy := kernel.NewCharacterID() // online through no node
 	n.Reachable(ann, "gw-a", "conn-ann")
 	n.Reachable(bo, "gw-b", "conn-bo")
 
 	p := &model.Party{ID: party, Leader: ann, Members: []model.Member{
-		{ID: ann, Name: "Ann", Class: "mage", Level: 3, HP: 90, MaxHP: 100, MapID: "forest", Online: true, Connection: "conn-ann", Gateway: "gw-a", JoinSeq: 4},
+		{ID: ann, Name: "Ann", Class: "mage", Level: 3, HP: 90, MaxHP: 100, MapID: "forest", Online: true, Connection: "conn-ann", Node: "gw-a", JoinSeq: 4},
 		{ID: bo, Name: "Bo", Class: "warrior", Level: 5, HP: 10, MaxHP: 120, MapID: "cave"},
 	}}
 	n.PartyChanged([]kernel.CharacterID{ann, bo, cy}, p)
@@ -41,7 +41,7 @@ func TestTheModulesNotesReachTheirSubscribers(t *testing.T) {
 	n.Unreachable(bo, "conn-old") // an older connection's, which keeps Bo's deliveries
 	n.PartyChanged([]kernel.CharacterID{bo}, nil)
 	n.Unreachable(bo, "conn-bo")
-	n.Alone(bo) // through no gateway now
+	n.Alone(bo) // through no node now
 
 	state := &Party{Leader: ann, Members: []PartyMember{
 		{ID: ann, Name: "Ann", Class: "mage", Level: 3, HP: 90, MaxHP: 100, MapID: "forest", Online: true},
@@ -69,11 +69,11 @@ func TestTheModulesNotesReachTheirSubscribers(t *testing.T) {
 	select {
 	case <-gwA.Done():
 	default:
-		t.Fatal("subscribing again under the same gateway left the older subscription open")
+		t.Fatal("subscribing again under the same node left the older subscription open")
 	}
 }
 
-// A party line reaches each member through their gateway; a map line, and a refused one, reach nobody.
+// A party line reaches each member through their node; a map line, and a refused one, reach nobody.
 func TestAPartyLineReachesEachMember(t *testing.T) {
 	c := &fakeChat{}
 	m := newModule(t, &fakeParties{}, c)

@@ -72,7 +72,7 @@ func (m *accountFailing) Validate(context.Context, string) (account.Principal, e
 	return account.Principal{}, m.err
 }
 
-// Each ended session reaches the gateway with what it acts on: the session, or the account and whether a login elsewhere ended it.
+// Each ended session reaches the server with what it acts on: the session, or the account and whether a login elsewhere ended it.
 func TestEachSessionEndKeepsItsFields(t *testing.T) {
 	end := func(e account.Event) model.SessionEnd {
 		out, ok := sessionEnd(e)

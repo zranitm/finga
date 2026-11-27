@@ -23,7 +23,7 @@ import (
 // seeder keeps the test accounts: the player's paths where there are some, the game's admin API where there are none.
 type seeder struct {
 	data     *gamedata.Data
-	gw       gateway
+	gw       server
 	admin    adminapi.Client
 	password string
 }

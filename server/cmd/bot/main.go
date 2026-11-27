@@ -39,14 +39,14 @@ import (
 )
 
 func main() {
-	url := flag.String("url", "http://localhost:8080", "the gateway")
+	url := flag.String("url", "http://localhost:8080", "the server")
 	n := flag.Int("bots", 4, "how many bots")
 	duration := flag.Duration("duration", 30*time.Minute, "how long they play")
 	prefix := flag.String("prefix", "bot", "account name prefix (letters and digits)")
 	metrics := flag.String("metrics", "http://localhost:9100", "the game's ops address, where the tick, grant batch and transaction metrics are")
 	dataDir := flag.String("data", "data", "the game data, for the classes' auto-assign splits")
 	region := flag.String("region", "", "a region the bots start in and only hunt in, for a soak; empty for the whole game")
-	hashes := flag.Int("hashes", gatewayHashes, "sign-ups and logins at once: the gateway's account.password.concurrent, past which a hash waits a second, then is refused")
+	hashes := flag.Int("hashes", serverHashes, "sign-ups and logins at once: the server's account.password.concurrent, past which a hash waits a second, then is refused")
 	flag.Parse()
 	if err := run(*url, *metrics, *dataDir, *region, *n, *hashes, *duration, *prefix); err != nil {
 		fmt.Fprintln(os.Stderr, "bot:", err)
@@ -54,8 +54,8 @@ func main() {
 	}
 }
 
-// gatewayHashes is config/config.yaml's account.password.concurrent, the password hashes the gateway runs at once.
-const gatewayHashes = 4
+// serverHashes is config/config.yaml's account.password.concurrent, the password hashes the server runs at once.
+const serverHashes = 4
 
 func run(url, metrics, dataDir, region string, n, hashes int, duration time.Duration, prefix string) error {
 	data, err := load.Dir(dataDir)
@@ -194,7 +194,7 @@ type bot struct {
 	data     *gamedata.Data
 	world    *world
 	start    time.Time     // the session's
-	hashing  chan struct{} // a slot for each password hash the gateway runs at once, which every bot shares
+	hashing  chan struct{} // a slot for each password hash the server runs at once, which every bot shares
 	codec    *wsconn.ProtoCodec
 	rng      *rand.Rand
 
@@ -444,7 +444,7 @@ func (b *bot) login(ctx context.Context) (string, error) {
 	return token, nil
 }
 
-// hashed runs call, which hashes a password at the gateway, once one of the bots' shared slots is free, so they never ask for more hashes at once than the gateway runs.
+// hashed runs call, which hashes a password at the server, once one of the bots' shared slots is free, so they never ask for more hashes at once than the server runs.
 func (b *bot) hashed(ctx context.Context, call func() error) error {
 	select {
 	case b.hashing <- struct{}{}:
@@ -478,7 +478,7 @@ func (b *bot) retried(ctx context.Context, call func() error) error {
 	}
 }
 
-// refused is a REST call the gateway answered with an error status.
+// refused is a REST call the server answered with an error status.
 type refused struct {
 	call   string
 	status int
@@ -650,7 +650,7 @@ const (
 	teleportReq = "Teleport"
 )
 
-// busyCode is the gateway's UNAVAILABLE, as testdata/errors/codes.json lists it, which a map whose inbox is full answers with: the soak checks none comes (large-regions.md section 5).
+// busyCode is the server's UNAVAILABLE, as testdata/errors/codes.json lists it, which a map whose inbox is full answers with: the soak checks none comes (large-regions.md section 5).
 const busyCode int32 = 100011
 
 // skillBackoff is how long a bot leaves its skill after the world refuses a use.
@@ -990,7 +990,7 @@ func (b *bot) holdsWhatItAsks(quest string) bool {
 	return true
 }
 
-// tabFull are the gateway's codes for a full inventory tab, as testdata/errors/codes.json lists them, by the tab.
+// tabFull are the server's codes for a full inventory tab, as testdata/errors/codes.json lists them, by the tab.
 var tabFull = map[int32]string{220005: "equip", 220006: "use", 220007: "etc"}
 
 // makeRoom answers a Promote refused for a full tab by discarding an item there, so the trainer's gift fits when the bot next asks; false for any other refusal.

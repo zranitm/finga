@@ -25,7 +25,7 @@ func busyFrame(n int) *model.Frame {
 	return &model.Frame{Tick: 9, Parts: []model.Part{*f}}
 }
 
-// One tick's frame for n players on one gateway, built by the map and handed to the gateway's stream as the facade's own types.
+// One tick's frame for n players on one node, built by the map and handed to the server's stream as the facade's own types.
 // The handler's BenchmarkAFrameOnTheWorldStream is the half after it.
 func BenchmarkAMapsFrameIntoTheFacade(b *testing.B) {
 	for _, n := range []int{10, 50, 200} {

@@ -22,7 +22,8 @@ type Config struct {
 	Tracing       tracing.Config   `mapstructure:"tracing"`
 	Database      dbx.Config       `mapstructure:"database"`
 	DataDir       string           `mapstructure:"data_dir" validate:"required"`
-	Gateway       Gateway          `mapstructure:"gateway"`
+	WS            WS               `mapstructure:"ws"`
+	REST          REST             `mapstructure:"rest"`
 	Account       Account          `mapstructure:"account"`
 	Item          Item             `mapstructure:"item"`
 	World         World            `mapstructure:"world"`

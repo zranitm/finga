@@ -257,7 +257,7 @@ A normal mob staggers when it's hit, as in Elsword. `super_armor` mobs (every el
   - `MobView.pose`, an enum: none, flinch, down, rising.
   - `attack` is the index into the mob type's attacks.
 - **The world module's contract:**
-  - `Input` takes the `view` the gateway passes through;
+  - `Input` takes the `view` the server passes through;
   - `MobAttacked` is one of its events.
 - **All additions,** so `buf breaking` (WIRE) passes. There are no new codes.
 
@@ -375,7 +375,7 @@ Four PRs, each step one commit, green on `make test`, `make lint`, `make cover`,
 
 **PR 1, mobs block players, merged as #71:**
 1. **Sim:** `Blockers` and the vectors.
-2. **World:** the box history, `view` on `Input` through the gateway, `simulate` passing blockers, and mobs stopping at players.
+2. **World:** the box history, `view` on `Input` through the server, `simulate` passing blockers, and mobs stopping at players.
 3. **Client:** `view`, `boxesAt`, and the predictor's blockers.
 4. **Bots and tests:** bots attacking what blocks them, and the walker.
 

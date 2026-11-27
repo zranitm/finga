@@ -72,7 +72,7 @@ func TestAJoinWearsWhatTheItemServiceSays(t *testing.T) {
 			}
 		})
 	})
-	t.Run("and fails while it can't say, for the gateway to retry", func(t *testing.T) {
+	t.Run("and fails while it can't say, for the server to retry", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			down := fmt.Errorf("%w: item module down", transient.ErrUnavailable)
 			w, stop := wearingWorld(t, ayla, worldtest.Options{Wardrobe: fakeWardrobe{err: down}})

@@ -121,8 +121,8 @@ smoke:         ## against a running stack (make up): a client signs up, enters t
 	cd $(SERVER) && FINGA_SMOKE_URL=$(SMOKE_URL) $(GO) test -count=1 -run TestSmoke ./test/
 
 # Uses up the address's login allowance at nginx for a minute: run it last.
-edge:          ## against a running stack (make up): nginx limits per client address, the gateway does not
-	cd $(SERVER) && FINGA_EDGE_URL=$(EDGE_URL) FINGA_GATEWAY_URL=$(SMOKE_URL) $(GO) test -count=1 -run TestEdge ./test/
+edge:          ## against a running stack (make up): nginx limits per client address, the server does not
+	cd $(SERVER) && FINGA_EDGE_URL=$(EDGE_URL) FINGA_SERVER_URL=$(SMOKE_URL) $(GO) test -count=1 -run TestEdge ./test/
 
 # A .PHONY target left with no recipe passes in silence: #291 dropped four that way, and CI ran none of them for 16 merges.
 recipes-check: ## every .PHONY target does something under make -n (CI runs it)

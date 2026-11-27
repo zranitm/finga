@@ -11,13 +11,13 @@ import (
 	"finga/pkg/panics"
 )
 
-// SocialModule is the social module as the gateway calls it.
+// SocialModule is the social module as the server calls it.
 type SocialModule interface {
 	Online(ctx context.Context, p social.Presence) error
 	Offline(ctx context.Context, id kernel.CharacterID, conn string) error
 	Chat(ctx context.Context, l social.Line) (social.Message, error)
-	Subscribe(gateway string) *hub.Sub[social.Delivery]
-	GatewayLeft(gateway string)
+	Subscribe(node string) *hub.Sub[social.Delivery]
+	NodeLeft(node string)
 }
 
 // Social is the application's Social over the social module.
@@ -32,10 +32,10 @@ func NewSocial(s SocialModule, log *slog.Logger, rec *panics.Recorder) Social {
 	return Social{s: s, log: log, panics: rec}
 }
 
-// Online registers a player connected to this gateway through conn, behind the world's join of sequence joinSeq.
-func (s Social) Online(ctx context.Context, gateway, conn string, joinSeq uint64, p model.Player, mapID string) error {
+// Online registers a player connected to this node through conn, behind the world's join of sequence joinSeq.
+func (s Social) Online(ctx context.Context, node, conn string, joinSeq uint64, p model.Player, mapID string) error {
 	member := social.Member{ID: p.ID, Name: p.Name, Class: kernel.Class(p.Class), Level: p.Level, HP: p.HP, MaxHP: p.MaxHP, MapID: mapID}
-	return wrap(s.s.Online(ctx, social.Presence{Member: member, Gateway: gateway, Connection: conn, JoinSeq: joinSeq}))
+	return wrap(s.s.Online(ctx, social.Presence{Member: member, Node: node, Connection: conn, JoinSeq: joinSeq}))
 }
 
 // Offline tells the module the player's connection conn closed.
@@ -43,7 +43,7 @@ func (s Social) Offline(ctx context.Context, character kernel.CharacterID, conn 
 	return wrap(s.s.Offline(ctx, character, conn))
 }
 
-// chatChannels maps the gateway's channels to the module's; it refuses anything else, as no channel.
+// chatChannels maps the server's channels to the module's; it refuses anything else, as no channel.
 var chatChannels = map[model.ChatChannel]social.Channel{
 	model.ChatMap:   social.ChannelMap,
 	model.ChatParty: social.ChannelParty,
@@ -62,9 +62,9 @@ func (s Social) Chat(ctx context.Context, sender model.Player, channel model.Cha
 	return line, nil
 }
 
-// FollowDeliveries follows this gateway's party and chat stream until ctx ends; after a break the module sweeps the gateway's players unless it subscribes again within its grace, which re-registers them.
-func (s Social) FollowDeliveries(ctx context.Context, gateway string, deliver func(model.SocialEvent)) {
-	hub.Follow(ctx, func() *hub.Sub[social.Delivery] { return s.s.Subscribe(gateway) }, func(context.Context) error {
+// FollowDeliveries follows this node's party and chat stream until ctx ends; after a break the module sweeps the server's players unless it subscribes again within its grace, which re-registers them.
+func (s Social) FollowDeliveries(ctx context.Context, node string, deliver func(model.SocialEvent)) {
+	hub.Follow(ctx, func() *hub.Sub[social.Delivery] { return s.s.Subscribe(node) }, func(context.Context) error {
 		deliver(model.SocialSubscribed{})
 		return nil
 	}, func(d social.Delivery) {
@@ -72,7 +72,7 @@ func (s Social) FollowDeliveries(ctx context.Context, gateway string, deliver fu
 			deliver(e)
 		}
 	}, hub.FollowOptions{Panics: s.panics, OnBreak: func(err error) {
-		s.s.GatewayLeft(gateway)
+		s.s.NodeLeft(node)
 		s.log.WarnContext(ctx, "social stream broke; subscribing again", "err", err)
 	}})
 }

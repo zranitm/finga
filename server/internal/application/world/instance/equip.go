@@ -41,7 +41,7 @@ func (i *Instance) ask(ctx context.Context, m message, done <-chan error) error 
 	}
 }
 
-// askItem is ask for a command whose outcome waits on an item call: it gives up answerRoom before the command's deadline as unavailable, so the command hears why while the gateway and the client still listen; the call settles on the tick whenever it answers.
+// askItem is ask for a command whose outcome waits on an item call: it gives up answerRoom before the command's deadline as unavailable, so the command hears why while the server and the client still listen; the call settles on the tick whenever it answers.
 func (i *Instance) askItem(ctx context.Context, m message, done <-chan error, what string) error {
 	ctx, cancel := answering(ctx, what)
 	defer cancel()

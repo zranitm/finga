@@ -16,7 +16,7 @@ import (
 	"finga/pkg/observability/metrics"
 )
 
-// eventKeepsItsFields checks that each fill of E reaches the gateway's stream as the facade's own event of that name, with every field, and the tick it happened at as the delivery's.
+// eventKeepsItsFields checks that each fill of E reaches the server's stream as the facade's own event of that name, with every field, and the tick it happened at as the delivery's.
 func eventKeepsItsFields[E model.Event](t *testing.T) {
 	name := reflect.TypeFor[E]().Name()
 	t.Run(name, func(t *testing.T) {
@@ -48,7 +48,7 @@ func eventKeepsItsFields[E model.Event](t *testing.T) {
 	})
 }
 
-// Each event a map sends reaches the gateway's stream as the facade's own event of that name, with every field and the tick it happened at.
+// Each event a map sends reaches the server's stream as the facade's own event of that name, with every field and the tick it happened at.
 func TestEveryModelEventKeepsItsFields(t *testing.T) {
 	for _, check := range []func(*testing.T){
 		eventKeepsItsFields[model.Snapshot], eventKeepsItsFields[model.FieldBoss], eventKeepsItsFields[model.FieldBossGone],
@@ -123,15 +123,15 @@ func TestAnEventSharesNothingTheMapChanges(t *testing.T) {
 	}
 }
 
-// Every player joined through a gateway shares its stream, and a frame goes on it once, with each recipient's own ack and no player of its own.
-func TestAFrameGoesToItsGatewayOnce(t *testing.T) {
+// Every player joined through a node shares its stream, and a frame goes on it once, with each recipient's own ack and no player of its own.
+func TestAFrameGoesToItsNodeOnce(t *testing.T) {
 	sub := hub.New[Delivery](8).Subscribe("gw")
 	a, b := sink{sub: sub, character: kernel.NewCharacterID(), conn: "c-a"}, sink{sub: sub, character: kernel.NewCharacterID(), conn: "c-b"}
 	if a.Stream() != b.Stream() {
-		t.Fatal("two players on one gateway have two streams")
+		t.Fatal("two players on one node have two streams")
 	}
 	if other := (sink{sub: hub.New[Delivery](8).Subscribe("gw-2")}); other.Stream() == a.Stream() {
-		t.Fatal("two gateways share a stream")
+		t.Fatal("two nodes share a stream")
 	}
 	energy := 6
 	to := []model.Recipient{{Character: a.character, Connection: "c-a", Parts: []int{0}, AckSeq: 8, Energy: &energy}, {Character: b.character, Connection: "c-b", Parts: []int{0}}}
@@ -169,7 +169,7 @@ func TestNoEventSendsNothing(t *testing.T) {
 	}
 }
 
-// A gateway whose stream is full refuses the frame, which drops its players.
+// A node whose stream is full refuses the frame, which drops its players.
 func TestAFullStreamRefusesTheFrame(t *testing.T) {
 	s := sink{sub: hub.New[Delivery](1).Subscribe("gw")}
 	if !s.Send(model.Detached{}) {
@@ -191,8 +191,8 @@ func (j *joins) Join(_ context.Context, _ kernel.AccountID, id kernel.CharacterI
 	return model.View{ID: id, Quests: model.Quests{"a": {Status: model.QuestActive, Progress: []int{1}}}}, nil
 }
 
-// A join goes through its gateway's stream, which must be open: its events then go on that stream, for its connection.
-func TestAJoinNeedsItsGatewaysStream(t *testing.T) {
+// A join goes through its node's stream, which must be open: its events then go on that stream, for its connection.
+func TestAJoinNeedsItsNodesStream(t *testing.T) {
 	h, err := host.New(host.Options{Name: "world", Logger: slog.New(slog.DiscardHandler), Registry: metrics.NewRegistry()})
 	if err != nil {
 		t.Fatal(err)
@@ -269,7 +269,7 @@ func TestATrainersDialogCarriesItsPromotion(t *testing.T) {
 	}
 }
 
-// Each loot kind, quest change, quest status and offer state reaches the gateway as the facade's value of the same name, which a cast keeps only while both lists stay in step.
+// Each loot kind, quest change, quest status and offer state reaches the server as the facade's value of the same name, which a cast keeps only while both lists stay in step.
 func TestEachEnumKeepsItsName(t *testing.T) {
 	for kind, want := range map[model.LootKind]LootKind{model.LootTaken: LootTaken, model.LootLeft: LootLeft} {
 		if got := deliveryOf(model.Loot{Kind: kind}).Event.(Loot).Kind; got != want {

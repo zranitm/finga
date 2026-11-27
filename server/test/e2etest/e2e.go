@@ -97,15 +97,16 @@ func NewStackBuilt(t *testing.T, data string, build host.Build[config.Config], e
 		ShutdownGrace: grace,
 		DataDir:       data,
 		Database:      dbx.Config{URL: Cluster.URL(t), MaxConns: 12},
-		Gateway: config.Gateway{
-			WS:       config.WS{HelloTimeout: 5 * time.Second, CommandQueue: 64},
-			Sessions: config.GatewaySessions{JoinTimeout: 5 * time.Second, CheckInterval: time.Minute},
-			REST:     config.GatewayREST{PerSecond: 2, Burst: 10}, // config.yaml's, which TestTheDefaultsLoad pins
+		WS:            config.WS{HelloTimeout: 5 * time.Second, CommandQueue: 64},
+		REST:          config.REST{PerSecond: 2, Burst: 10}, // config.yaml's, which TestTheDefaultsLoad pins
+		Account: config.Account{
+			Password:    cheapPasswords,
+			Sessions:    config.AccountSessions{Keep: 30 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000},
+			Connections: config.AccountConnections{JoinTimeout: 5 * time.Second, CheckInterval: time.Minute},
 		},
-		Account: config.Account{Password: cheapPasswords, Sessions: config.AccountSessions{Keep: 30 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}},
-		Item:    ItemConfig,
-		World:   config.World{TickRateHz: 20, CheckpointInterval: 30 * time.Second, FlushTimeout: 10 * time.Second, ItemCalls: config.ItemCalls{Workers: 2, BatchMax: 32}, Channels: config.Channels{Cap: 150, Idle: 5 * time.Minute}},
-		Social:  config.Social{Members: config.Members{Keep: time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}},
+		Item:   ItemConfig,
+		World:  config.World{TickRateHz: 20, CheckpointInterval: 30 * time.Second, FlushTimeout: 10 * time.Second, ItemCalls: config.ItemCalls{Workers: 2, BatchMax: 32}, Channels: config.Channels{Cap: 150, Idle: 5 * time.Minute}},
+		Social: config.Social{Members: config.Members{Keep: time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}},
 	}}
 	for _, edit := range edits {
 		edit(&s.Cfg)

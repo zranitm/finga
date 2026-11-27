@@ -387,7 +387,7 @@ func (n *notes) invited(to kernel.CharacterID, inv model.Invite) {
 }
 
 func (n *notes) reachable(m model.Member) {
-	*n = append(*n, func(to Notifier) { to.Reachable(m.ID, m.Gateway, m.Connection) })
+	*n = append(*n, func(to Notifier) { to.Reachable(m.ID, m.Node, m.Connection) })
 }
 
 func (n *notes) unreachable(id kernel.CharacterID, conn string) {

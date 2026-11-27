@@ -23,7 +23,7 @@ import (
 const principalKey = "finga.principal"
 
 // serverName is the server its spans name.
-const serverName = "gateway"
+const serverName = "server"
 
 const (
 	bearerScheme   = "bearer"

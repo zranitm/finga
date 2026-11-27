@@ -146,7 +146,7 @@ func TestARejoinStartsFromTheNewestState(t *testing.T) {
 		depart func(t *testing.T, w *world.World, id kernel.CharacterID, s *worldtest.Sink)
 	}{
 		{name: "a login elsewhere", conn: "c-2", depart: func(*testing.T, *world.World, kernel.CharacterID, *worldtest.Sink) {}},
-		{name: "the gateway's stream broke", conn: "c-1", depart: func(_ *testing.T, _ *world.World, _ kernel.CharacterID, s *worldtest.Sink) {
+		{name: "the server's stream broke", conn: "c-1", depart: func(_ *testing.T, _ *world.World, _ kernel.CharacterID, s *worldtest.Sink) {
 			s.Refuse()
 			time.Sleep(worldtest.TickInterval)
 		}},
@@ -264,7 +264,7 @@ func TestTwoJoinsAtOnceStartFromTheLiveState(t *testing.T) {
 	})
 }
 
-// A login elsewhere that fails after the take-off detaches the older connection, so the gateway joins it again.
+// A login elsewhere that fails after the take-off detaches the older connection, so the server joins it again.
 func TestAFailedLoginElsewhereDetachesTheOlderConnection(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		d := &db{chars: map[kernel.CharacterID]model.Character{}}
@@ -284,10 +284,10 @@ func TestAFailedLoginElsewhereDetachesTheOlderConnection(t *testing.T) {
 		}
 		s := &worldtest.Sink{}
 		if _, err := w.Join(context.Background(), ayla.Account, ayla.ID, "c-1", s); err != nil {
-			t.Fatalf("the gateway's rejoin of c-1: %v", err)
+			t.Fatalf("the server's rejoin of c-1: %v", err)
 		}
 		if at := joinedAt(t, s, ayla.ID); at.X != x {
-			t.Fatalf("the gateway's rejoin of c-1 at %+v; want x %v", at, x)
+			t.Fatalf("the server's rejoin of c-1 at %+v; want x %v", at, x)
 		}
 	})
 }
