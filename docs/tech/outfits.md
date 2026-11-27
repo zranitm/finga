@@ -301,6 +301,12 @@ Changing looks in combat is `IN_COMBAT` (330037), the code a trait change in com
   - Each half is low-poly, hinged at its root, and coloured from KayKit's atlas swatches. Pairs can have colourways.
   - No CC0 wings were found. The paid packs' royalty-free licences don't clearly allow sending the raw files to every browser, as a web game must.
   - Recorded in LICENSES.md as made for the game, CC0.
+  - **As built (step 5, part B):** five pairs, made in code, not in Blender, by `web/scripts/wings.ts` (`npm run wings`, which `npm run models` runs first), so anyone can rebuild them and a test holds the committed file to the script's bytes.
+    - **The pairs:** feathered (three layered rows of feathers, 2.0 m across), bat (three finger bones with a scalloped membrane, 2.2 m), butterfly (two lobes a side with a rim and spots, 1.8 m), dragon (bat-like with a thick leading bone and claws, 2.6 m) and crystal (nine faceted shards fanned from the root, 2.2 m). Each half is flat across the back but for its thickness (a crystal's shards are four-sided points), a few hundred triangles at most.
+    - **The file:** `models-src/wings/Wings.glb`, one atlas of flat swatches on KayKit's 8 × 4 grid (cell 0,0, the face's in KayKit's, is never drawn from) and ten meshes named `<Kind>_Wing_L` and `_R`, each on a node at its half's root, which is the hinge: (±0.04, 0.15, -0.12) in the chest's axes. `npm run models` writes only its parts file, `wings/parts/Wings.glb`, with the positions kept, so the hinge stays where the script put it.
+    - **The looks** (`outfit-looks.ts`, looks only, no outfits.yaml entry until the user picks): `wings_feather`, `wings_raven` (the feathered pair in the `wings_raven` colourway: its feather, tip and shade swatches), `wings_bat`, `wings_butterfly`, `wings_dragon` and `wings_crystal`, the last two `glow`. The flap angles stay data in `wear.ts`'s `FLAPS`, to be tuned on the preview sheet.
+    - **Looks only:** a test wears each pair on a warrior and a thief and checks the figure's size and its own meshes' bounds don't move; the server never sees a look, so no body size or reach changes.
+    - **Shared helpers:** shapes, flat swatch UVs and the one-primitive mesh builder are in `web/scripts/lib/mesh.ts`, which the face pieces use too.
 - **Weapon-look candidates,** kept or dropped in the preview:
   - one-handed: `1H_Axe`, `1H_Sword`, `2H_Sword`, `2H_Axe`, `Mug`, the skeleton blade and axe;
   - knife: `Knife` and its colourways;

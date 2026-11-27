@@ -77,7 +77,7 @@ describe('the wings made for the game', () => {
 
   it.each(KINDS)(
     'keep the %s pair low-poly, and flat across the back but for its thickness',
-    async (kind) => {
+    (kind) => {
       const tris = half(kind);
       expect(tris.length).toBeGreaterThan(10);
       expect(tris.length).toBeLessThan(300);
@@ -92,7 +92,7 @@ describe('the wings made for the game', () => {
     for (const node of doc.getRoot().listNodes()) {
       const uv = node.getMesh()!.listPrimitives()[0]!.getAttribute('TEXCOORD_0')!;
       for (let i = 0; i < uv.getCount(); i++) {
-        const [u, v] = uv.getElement(i, []) as [number, number];
+        const [u, v] = uv.getElement(i, [0, 0]);
         used.add(`${Math.floor(u * 8)},${Math.floor(v * 4)}`);
         expect((u * 8) % 1, 'at a swatch’s middle').toBeCloseTo(0.5, 5);
         expect((v * 4) % 1, 'at a swatch’s middle').toBeCloseTo(0.5, 5);
