@@ -38,6 +38,8 @@ type player struct {
 	arenaBar []string
 	sink     Sink
 	state    sim.State
+	number   uint32      // its number on the map, which a step names it by
+	sent     *sentPlayer // the baseline of its steps: the view last sent
 	held     sim.Input
 	view     uint32     // the held input's
 	pending  []inputMsg // unapplied inputs, by sequence number
@@ -124,6 +126,7 @@ func (i *Instance) add(j *joinMsg) {
 		state:  i.standing(j.player.X, j.player.Y, j.player.Z, j.player.Yaw),
 		joined: true,
 		slot:   i.nextSlot,
+		number: i.nextNumber(),
 		class:  class,
 
 		toldEnergy: -1,
@@ -354,9 +357,15 @@ func (p *player) aimAt(yaw float32) {
 	}
 }
 
+// nextNumber is a player's number on the map, never given twice on it, so a step can't name a player who left.
+func (i *Instance) nextNumber() uint32 {
+	i.numbers++
+	return i.numbers
+}
+
 func (i *Instance) view(p *player) model.PlayerView {
 	return model.PlayerView{
-		ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.derived.MaxHP, Dead: p.dead, Invulnerable: p.invulnUntil > i.tick,
+		ID: p.ID, Slot: p.number, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.derived.MaxHP, Dead: p.dead, Invulnerable: p.invulnUntil > i.tick,
 		Dodging: p.dodging(i.tick), Shield: p.shield(), State: p.state, Aim: p.aim,
 		Statuses: p.statuses.Shown(), Team: i.side(p.ID), Bot: p.bot != nil, Look: p.Look,
 	}

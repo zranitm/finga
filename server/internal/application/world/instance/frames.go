@@ -27,8 +27,11 @@ func (i *Instance) broadcast(changed []kernel.CharacterID) {
 		}
 	}
 	mobs, removedMobs := i.arena.Changes()
-	frame := i.cut(views, mobs, removedMobs)
-	refused := i.sendFrame(frame)
+	own := ownViews(views)
+	fullViews, steps := i.stepPlayers(views)
+	fullMobs, mobSteps := i.stepMobs(mobs, removedMobs)
+	frame := i.cut(fullViews, steps, fullMobs, mobSteps, removedMobs)
+	refused := i.sendFrame(frame, own)
 	heard := i.heard()
 	var dropped []kernel.CharacterID
 	for _, id := range i.order {
@@ -61,7 +64,7 @@ func (i *Instance) broadcast(changed []kernel.CharacterID) {
 }
 
 // sendFrame sends the frame once per stream the players are on, each player their block's parts; it returns the players whose stream refused it.
-func (i *Instance) sendFrame(frame *model.Frame) map[kernel.CharacterID]bool {
+func (i *Instance) sendFrame(frame *model.Frame, own map[kernel.CharacterID]model.PlayerView) map[kernel.CharacterID]bool {
 	type group struct {
 		stream Stream
 		to     []model.Recipient
@@ -72,6 +75,9 @@ func (i *Instance) sendFrame(frame *model.Frame) map[kernel.CharacterID]bool {
 		p := i.players[id]
 		parts, unseen := i.follow(frame, id, &all)
 		r := model.Recipient{Character: id, Connection: p.Connection, Parts: parts, AckSeq: p.lastSeq, Unseen: unseen, Pouches: i.ground.Changes(id)}
+		if v, ok := own[id]; ok {
+			r.Own = &v
+		}
 		if e := p.energyAsOfAck(); e != p.toldEnergy {
 			r.Energy, p.toldEnergy = &e, e
 		}

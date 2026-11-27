@@ -5,6 +5,7 @@ import "time"
 // PlayerView is a player as everyone on its map sees it.
 type PlayerView struct {
 	ID, Name, Class string
+	Slot            uint32 // its number on its map, by which its steps name it
 	Level           int
 	X, Y, Z         float64
 	VX, VY, VZ      float64
@@ -25,6 +26,25 @@ type PlayerView struct {
 	Team            int // its side in a match, 1 or 2; 0 outside one
 	Bot             bool
 	Look            Look
+}
+
+// PlayerStep is a player's change when only where it is and how it moves changed: whole centimetres from its last place and the fields that differ, in the units quant gives.
+type PlayerStep struct {
+	Slot               uint32
+	DX, DY, DZ         int32
+	VX, VY, VZ, HX, HZ *int32
+	OnGround           *bool
+	HP, Sprint, Held   *int32
+	Aim                *float32
+}
+
+// MobStep is a mob's change when only where it is, its yaw, its HP or its pose changed.
+type MobStep struct {
+	ID         uint64
+	DX, DY, DZ int32
+	Yaw        *int32
+	HP         *int32
+	Pose       *MobPose
 }
 
 // Look is a player's five picks, each a piece id, "" keeping the class's own, at the count of its changes.

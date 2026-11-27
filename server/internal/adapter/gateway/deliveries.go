@@ -21,7 +21,7 @@ func delivered(d world.Delivery, deliver func(model.WorldEvent)) {
 				e := uint32(*r.Energy) //nolint:gosec // energy is 0 to the data's max
 				energy = &e
 			}
-			delta := model.Delta{Frame: frame, Parts: r.Parts, AckSeq: r.AckSeq, Energy: energy, Unseen: unseenOf(r.Unseen), Pouches: pouchViews(r.Pouches.Changed), PouchesGone: r.Pouches.Gone}
+			delta := model.Delta{Frame: frame, Parts: r.Parts, AckSeq: r.AckSeq, Energy: energy, Unseen: unseenOf(r.Unseen), Own: ownView(r.Own), Pouches: pouchViews(r.Pouches.Changed), PouchesGone: r.Pouches.Gone}
 			deliver(model.WorldDelivery{Connection: r.Connection, Character: r.Character, Delivery: model.Delivery{Tick: d.Tick, Push: delta}})
 		}
 	case world.Detached:
@@ -283,7 +283,7 @@ func frameOf(f world.Frame) *model.Frame {
 	out := &model.Frame{Parts: make([]model.Part, len(f.Parts))}
 	for i, p := range f.Parts {
 		out.Parts[i] = model.Part{
-			Players: playerViews(p.Players), Mobs: mobViews(p.Mobs), RemovedPlayers: ids(p.Removed),
+			Players: playerViews(p.Players), Steps: playerSteps(p.Steps), Mobs: mobViews(p.Mobs), MobSteps: mobSteps(p.MobSteps), RemovedPlayers: ids(p.Removed),
 			RemovedMobs: p.RemovedMobs, Boss: mobView(p.Boss),
 		}
 	}
@@ -315,7 +315,7 @@ func playerViews(ps []world.PlayerView) []model.PlayerView {
 	out := make([]model.PlayerView, 0, len(ps))
 	for _, p := range ps {
 		out = append(out, model.PlayerView{
-			ID: p.ID.String(), Name: p.Name, Class: p.Class.String(), Level: p.Level,
+			ID: p.ID.String(), Slot: p.Slot, Name: p.Name, Class: p.Class.String(), Level: p.Level,
 			X: p.State.X, Y: p.State.Y, VX: p.State.VX, VY: p.State.VY,
 			OnGround: p.State.OnGround, HP: p.HP, MaxHP: p.MaxHP, Dead: p.Dead,
 			Invulnerable: p.Invulnerable, Z: p.State.Z, VZ: p.State.VZ, HX: p.State.HX, HZ: p.State.HZ, Aim: p.Aim,
@@ -331,6 +331,41 @@ func playerViews(ps []world.PlayerView) []model.PlayerView {
 			Team:     p.Team,
 			Bot:      p.Bot,
 		})
+	}
+	return out
+}
+
+// ownView is the recipient's own view whole, nil when it didn't change.
+func ownView(v *world.PlayerView) *model.PlayerView {
+	if v == nil {
+		return nil
+	}
+	out := playerViews([]world.PlayerView{*v})
+	return &out[0]
+}
+
+func playerSteps(ss []world.PlayerStep) []model.PlayerStep {
+	if len(ss) == 0 {
+		return nil
+	}
+	out := make([]model.PlayerStep, len(ss))
+	for i, s := range ss {
+		out[i] = model.PlayerStep{Slot: s.Slot, DX: s.DX, DY: s.DY, DZ: s.DZ, VX: s.VX, VY: s.VY, VZ: s.VZ, HX: s.HX, HZ: s.HZ, OnGround: s.OnGround, HP: s.HP, Sprint: s.Sprint, Held: s.Held, Aim: s.Aim}
+	}
+	return out
+}
+
+func mobSteps(ss []world.MobStep) []model.MobStep {
+	if len(ss) == 0 {
+		return nil
+	}
+	out := make([]model.MobStep, len(ss))
+	for i, s := range ss {
+		out[i] = model.MobStep{ID: s.ID, DX: s.DX, DY: s.DY, DZ: s.DZ, Yaw: s.Yaw, HP: s.HP}
+		if s.Pose != nil {
+			pose := mobPoses[*s.Pose]
+			out[i].Pose = &pose
+		}
 	}
 	return out
 }

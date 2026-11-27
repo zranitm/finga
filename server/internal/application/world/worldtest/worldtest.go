@@ -30,6 +30,7 @@ import (
 	"finga/internal/shared/gamedata/load"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/nav"
+	"finga/internal/shared/quant"
 	"finga/internal/shared/regiongen"
 	"finga/internal/shared/sim"
 	"finga/pkg/observability/tracing"
@@ -37,17 +38,21 @@ import (
 	"finga/pkg/runner"
 )
 
+// ViewGrain is the metre a position a client reads off a step is good to: the wire rounds it to the centimetre, so a test that measures a view of another body, a mob or a player, allows it.
+const ViewGrain = 0.01
+
 // TickInterval is the tick Options give a map by default.
 const TickInterval = 50 * time.Millisecond
 
 // Delta is a tick's frame as one player got it: their parts as one, as the client reads them, and what they stopped seeing.
 type Delta struct {
-	*model.Part
-	Tick    uint64
-	AckSeq  uint32
-	Energy  *int          // set when the player's energy changed, and in the first frame after a join
-	Unseen  model.Unseen  // what they stopped seeing
-	Pouches model.Pouches // the player's own that changed
+	*model.Part             // as the client reads it: steps turned back into views
+	Sent        *model.Part // as the map sent it, steps among them
+	Tick        uint64
+	AckSeq      uint32
+	Energy      *int          // set when the player's energy changed, and in the first frame after a join
+	Unseen      model.Unseen  // what they stopped seeing
+	Pouches     model.Pouches // the player's own that changed
 }
 
 // Sink records a player's events, and each frame as its Delta: the player has a stream of its own.
@@ -55,6 +60,9 @@ type Sink struct {
 	mu     sync.Mutex
 	events []any // model.Event, or Delta
 	full   bool  // sends are refused: a slow consumer
+	// What the client holds, to read each step against: every player's last view by slot and every mob's by id, taken as the frames and snapshot come.
+	players map[uint32]model.PlayerView
+	mobs    map[uint64]model.MobView
 }
 
 // Send records e.
@@ -66,11 +74,114 @@ func (s *Sink) Stream() instance.Stream { return s }
 // SendFrame records the frame as the player's Delta.
 func (s *Sink) SendFrame(f *model.Frame, to []model.Recipient) bool {
 	r := to[0]
-	d := Delta{Part: Joined(f, r.Parts), Tick: f.Tick, AckSeq: r.AckSeq, Energy: r.Energy, Pouches: r.Pouches}
+	s.mu.Lock()
+	sent := Joined(f, r.Parts)
+	part := s.read(sent, r.Own)
+	s.mu.Unlock()
+	d := Delta{Part: part, Sent: sent, Tick: f.Tick, AckSeq: r.AckSeq, Energy: r.Energy, Pouches: r.Pouches}
 	if r.Unseen != nil {
 		d.Unseen = *r.Unseen
 	}
 	return s.record(d)
+}
+
+// read is the part as the client reads it: the recipient's own view, whole, first; each step turned back into the view it says, against the last one the client held; its full views and mobs kept to read the next steps against. The step's rounding is the wire's: a position is the whole centimetre.
+func (s *Sink) read(p *model.Part, own *model.PlayerView) *model.Part {
+	if s.players == nil {
+		s.players, s.mobs = map[uint32]model.PlayerView{}, map[uint64]model.MobView{}
+	}
+	out := *p
+	out.Players = nil
+	if own != nil {
+		out.Players = append(out.Players, *own)
+	}
+	for _, v := range p.Players {
+		s.players[v.Slot] = v
+		out.Players = append(out.Players, v)
+	}
+	for _, st := range p.Steps {
+		if own != nil && st.Slot == own.Slot {
+			continue // the player's own is the whole view above, which they reconcile to
+		}
+		if v, ok := s.players[st.Slot]; ok {
+			v = steppedPlayer(v, st)
+			s.players[st.Slot] = v
+			out.Players = append(out.Players, v)
+		}
+	}
+	out.Steps = nil
+	out.Mobs = nil
+	for _, v := range p.Mobs {
+		s.mobs[v.ID] = v
+		out.Mobs = append(out.Mobs, v)
+	}
+	for _, st := range p.MobSteps {
+		if v, ok := s.mobs[st.ID]; ok {
+			v = steppedMob(v, st)
+			s.mobs[st.ID] = v
+			out.Mobs = append(out.Mobs, v)
+		}
+	}
+	out.MobSteps = nil
+	return &out
+}
+
+// Learn takes a snapshot's views as the client holds them, for the steps after it.
+func (s *Sink) learn(snap model.Snapshot) {
+	if s.players == nil {
+		s.players, s.mobs = map[uint32]model.PlayerView{}, map[uint64]model.MobView{}
+	}
+	for _, v := range snap.Players {
+		s.players[v.Slot] = v
+	}
+	for _, v := range snap.Mobs {
+		s.mobs[v.ID] = v
+	}
+}
+
+// steppedPlayer is v after st: its place moved by whole centimetres from where v's rounds to, the rest as st says.
+func steppedPlayer(v model.PlayerView, st model.PlayerStep) model.PlayerView {
+	s := &v.State
+	s.X, s.Y, s.Z = quant.Metres(quant.Position(s.X)+st.DX), quant.Metres(quant.Position(s.Y)+st.DY), quant.Metres(quant.Position(s.Z)+st.DZ)
+	for _, c := range []struct {
+		to   *float64
+		from *int32
+		unit func(int32) float64
+	}{{&s.VX, st.VX, quant.MetresPerSecond}, {&s.VY, st.VY, quant.MetresPerSecond}, {&s.VZ, st.VZ, quant.MetresPerSecond}, {&s.HX, st.HX, quant.Unit}, {&s.HZ, st.HZ, quant.Unit}} {
+		if c.from != nil {
+			*c.to = c.unit(*c.from)
+		}
+	}
+	if st.OnGround != nil {
+		s.OnGround = *st.OnGround
+	}
+	if st.HP != nil {
+		v.HP = int(*st.HP)
+	}
+	if st.Sprint != nil {
+		s.Sprint = int(*st.Sprint)
+	}
+	if st.Held != nil {
+		s.Held = int(*st.Held)
+	}
+	if st.Aim != nil {
+		v.Aim = *st.Aim
+	}
+	return v
+}
+
+func steppedMob(v model.MobView, st model.MobStep) model.MobView {
+	v.X, v.Y, v.Z = quant.Metres(quant.Position(v.X)+st.DX), quant.Metres(quant.Position(v.Y)+st.DY), quant.Metres(quant.Position(v.Z)+st.DZ)
+	if st.Yaw != nil {
+		v.Yaw = quant.Radians(*st.Yaw)
+	}
+	if st.HP != nil {
+		v.HP = int(*st.HP)
+	}
+	if st.Pose != nil {
+		v.Pose = *st.Pose
+	}
+	return v
 }
 
 // Joined is a frame's parts as one, each list theirs in turn, as protobuf merges them.
@@ -79,7 +190,9 @@ func Joined(f *model.Frame, parts []int) *model.Part {
 	for _, k := range parts {
 		p := f.Parts[k]
 		out.Players = append(out.Players, p.Players...)
+		out.Steps = append(out.Steps, p.Steps...)
 		out.Mobs = append(out.Mobs, p.Mobs...)
+		out.MobSteps = append(out.MobSteps, p.MobSteps...)
 		out.Removed = append(out.Removed, p.Removed...)
 		out.RemovedMobs = append(out.RemovedMobs, p.RemovedMobs...)
 		if p.Boss != nil {
@@ -94,6 +207,9 @@ func (s *Sink) record(e any) bool {
 	defer s.mu.Unlock()
 	if s.full {
 		return false
+	}
+	if snap, ok := e.(model.Snapshot); ok {
+		s.learn(snap)
 	}
 	s.events = append(s.events, e)
 	return true
@@ -125,7 +241,7 @@ func (s *Sink) Deltas() []Delta {
 func (s *Sink) Last() Delta {
 	ds := s.Deltas()
 	if len(ds) == 0 {
-		return Delta{Part: &model.Part{}}
+		return Delta{Part: &model.Part{}, Sent: &model.Part{}}
 	}
 	return ds[len(ds)-1]
 }

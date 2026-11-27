@@ -156,7 +156,7 @@ func playerViews(ps []model.PlayerView) []*clientv1.PlayerView {
 	out := make([]*clientv1.PlayerView, 0, len(ps))
 	for _, p := range ps {
 		out = append(out, &clientv1.PlayerView{
-			Id: p.ID, Name: p.Name, Class: p.Class, Level: int32(p.Level),
+			Id: p.ID, Slot: p.Slot, Name: p.Name, Class: p.Class, Level: int32(p.Level),
 			X: p.X, Y: p.Y, Vx: p.VX, Vy: p.VY,
 			OnGround: p.OnGround, Hp: int32(p.HP), MaxHp: int32(p.MaxHP), Dead: p.Dead,
 			Invulnerable: p.Invulnerable, Z: p.Z, Vz: p.VZ, Hx: p.HX, Hz: p.HZ, Aim: p.Aim,
@@ -167,6 +167,40 @@ func playerViews(ps []model.PlayerView) []*clientv1.PlayerView {
 			Walk:   p.Walk,
 			Look:   lookOf(p.Look),
 		})
+	}
+	return out
+}
+
+// ownView is the player's own view as a one-view list, nil when it didn't change.
+func ownView(p *model.PlayerView) []*clientv1.PlayerView {
+	if p == nil {
+		return nil
+	}
+	return playerViews([]model.PlayerView{*p})
+}
+
+func playerSteps(ss []model.PlayerStep) []*clientv1.PlayerStep {
+	if len(ss) == 0 {
+		return nil
+	}
+	out := make([]*clientv1.PlayerStep, len(ss))
+	for i, s := range ss {
+		out[i] = &clientv1.PlayerStep{Slot: s.Slot, Dx: s.DX, Dy: s.DY, Dz: s.DZ, Vx: s.VX, Vy: s.VY, Vz: s.VZ, Hx: s.HX, Hz: s.HZ, OnGround: s.OnGround, Hp: s.HP, Sprint: s.Sprint, Held: s.Held, Aim: s.Aim}
+	}
+	return out
+}
+
+func mobSteps(ss []model.MobStep) []*clientv1.MobStep {
+	if len(ss) == 0 {
+		return nil
+	}
+	out := make([]*clientv1.MobStep, len(ss))
+	for i, s := range ss {
+		out[i] = &clientv1.MobStep{Id: uint32(s.ID), Dx: s.DX, Dy: s.DY, Dz: s.DZ, Yaw: s.Yaw, Hp: s.HP} //nolint:gosec // mob IDs are small
+		if s.Pose != nil {
+			pose := mobPoses[*s.Pose]
+			out[i].Pose = &pose
+		}
 	}
 	return out
 }

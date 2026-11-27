@@ -11,6 +11,7 @@ import (
 	"finga/internal/application/world/worldtest"
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
+	"finga/internal/shared/quant"
 	"finga/internal/shared/sim"
 )
 
@@ -53,12 +54,12 @@ func TestAFarCampSleepsFullAndWakesAsAPlayerComes(t *testing.T) {
 		tick(30 * second)
 		sr := join(t, inst, worldtest.NewPlayer("Robin", 130, 150)) // 30 m from each camp: out of their sight
 		snap := eventsOf[model.Snapshot](sr)[0]
-		if m := mobIn(t, snap, 2); m.X != asleep.X || m.Z != asleep.Z {
+		if m := mobIn(t, snap, 2); quant.Position(m.X) != quant.Position(asleep.X) || quant.Position(m.Z) != quant.Position(asleep.Z) { // the mob as a client holds it, to the centimetre
 			t.Fatalf("the second camp's mob at (%.2f, %.2f) after 30 s nobody watched it; want where it fell asleep, (%.2f, %.2f)", m.X, m.Z, asleep.X, asleep.Z)
 		}
 		mobIn(t, snap, 3) // the first camp's next, come while it slept
 		for k := 0; ; k++ {
-			if m := sightOf(t, sr).mobs[2]; m.X != asleep.X || m.Z != asleep.Z {
+			if m := sightOf(t, sr).mobs[2]; quant.Position(m.X) != quant.Position(asleep.X) || quant.Position(m.Z) != quant.Position(asleep.Z) { // the mob as a client holds it, to the centimetre
 				break
 			}
 			if k == 10*second {

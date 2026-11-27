@@ -94,6 +94,8 @@ type Instance struct {
 	order    []kernel.CharacterID // join order, so iteration is deterministic
 	ticksPer uint64               // ticks between a player's checkpoints
 	nextSlot uint64               // the sweep tick, mod ticksPer, the next player to join gets
+	numbers  uint32               // the last number a player was given on this map, for the steps that name them
+	mobSent  map[uint64]sentMob   // each mob's baseline for its steps: the view last sent, and its place and yaw in whole units
 
 	bosses []*bossSlot // the map's field bosses, up or beaten
 	// stones is, by interest cell, the waypoints whose finding circle reaches into it; nil on a map without any.
@@ -219,6 +221,7 @@ func New(d Deps, t Tuning) *Instance {
 		stopped:  make(chan struct{}),
 		arena:    mobs.NewArena(mobs.Deps{Map: d.Map, Data: d.Data, Roll: roll}, mobs.Tuning{TickInterval: t.TickInterval}),
 		players:  map[kernel.CharacterID]*player{},
+		mobSent:  map[uint64]sentMob{},
 		ticksPer: max(uint64(t.CheckpointInterval/t.TickInterval), 1),
 		roll:     roll,
 		interest: newInterest(d.Data.Interest(), d.Map.Geometry.SizeX, d.Map.Geometry.SizeZ),

@@ -189,11 +189,11 @@ func (n *interest) changesIn(f *model.Frame, c int) *model.Part {
 }
 
 // cut files the tick's changes in the cells they happened in, a part each, a body leaving the map in the cell the last frame left it in, and each field boss that changed in a part of its own, which those who hear of it are sent.
-func (i *Instance) cut(players []model.PlayerView, mobs []model.MobView, removedMobs []uint64) *model.Frame {
+func (i *Instance) cut(players []model.PlayerView, steps []model.PlayerStep, mobs []model.MobView, mobSteps []model.MobStep, removedMobs []uint64) *model.Frame {
 	n := i.interest
 	removed := n.departed(i)
 	if n.whole {
-		return &model.Frame{Tick: i.tick, Parts: []model.Part{{Players: players, Mobs: mobs, Removed: removed, RemovedMobs: removedMobs}}}
+		return &model.Frame{Tick: i.tick, Parts: []model.Part{{Players: players, Steps: steps, Mobs: mobs, MobSteps: mobSteps, Removed: removed, RemovedMobs: removedMobs}}}
 	}
 	n.begin()
 	f := &model.Frame{Tick: i.tick}
@@ -218,12 +218,16 @@ func (i *Instance) cut(players []model.PlayerView, mobs []model.MobView, removed
 		}
 	}
 	file(n, f, players, func(v model.PlayerView) (body, float64, float64) { return playerOf(v.ID), v.State.X, v.State.Z }, func(p *model.Part) *[]model.PlayerView { return &p.Players })
+	file(n, f, steps, func(s model.PlayerStep) (body, float64, float64) { return playerOf(s.ID), s.X, s.Z }, func(p *model.Part) *[]model.PlayerStep { return &p.Steps })
 	file(n, f, mobs, func(v model.MobView) (body, float64, float64) { return mobOf(v.ID), v.X, v.Z }, func(p *model.Part) *[]model.MobView { return &p.Mobs })
+	file(n, f, mobSteps, func(s model.MobStep) (body, float64, float64) { return mobOf(s.ID), s.X, s.Z }, func(p *model.Part) *[]model.MobStep { return &p.MobSteps })
 	n.boss = n.boss[:0]
 	for _, s := range i.bosses {
-		k := slices.IndexFunc(mobs, func(v model.MobView) bool { return s.up != nil && v.ID == s.up.id })
-		if k >= 0 {
-			k, f.Parts = len(f.Parts), append(f.Parts, model.Part{Boss: &mobs[k]})
+		k := -1
+		if s.up != nil && (slices.ContainsFunc(mobs, func(v model.MobView) bool { return v.ID == s.up.id }) || slices.ContainsFunc(mobSteps, func(m model.MobStep) bool { return m.ID == s.up.id })) {
+			if v, up := i.arena.View(s.up.id); up { // the bar is drawn from the whole view, whichever way the mob's change went out
+				k, f.Parts = len(f.Parts), append(f.Parts, model.Part{Boss: &v})
+			}
 		}
 		n.boss = append(n.boss, k)
 	}
@@ -279,9 +283,12 @@ func (i *Instance) fullIn(f *model.Frame, c int) int {
 	for _, b := range n.cells[c] {
 		switch b.kind {
 		case playerBody:
-			part.Players = append(part.Players, i.view(i.players[b.player]))
+			v := i.view(i.players[b.player])
+			i.toldPlayer(v)
+			part.Players = append(part.Players, v)
 		case mobBody:
 			v, _ := i.arena.View(b.id)
+			i.toldMob(v)
 			part.Mobs = append(part.Mobs, v)
 		}
 	}
@@ -376,12 +383,19 @@ func (i *Instance) watchFrom(p *player, snap *model.Snapshot) {
 		n.watches[p.ID] = &watch{}
 		for _, id := range i.order {
 			o := i.players[id]
-			snap.Players = append(snap.Players, i.view(o))
+			v := i.view(o)
+			if id != p.ID { // the joiner's own view isn't one the others hold: their first frame of it goes whole
+				i.toldPlayer(v)
+			}
+			snap.Players = append(snap.Players, v)
 			if o.joined && id != p.ID {
 				n.early[id] = struct{}{}
 			}
 		}
 		snap.Mobs = i.arena.Views()
+		for _, v := range snap.Mobs {
+			i.toldMob(v)
+		}
 		return
 	}
 	if len(n.watches) == 0 {
@@ -392,7 +406,11 @@ func (i *Instance) watchFrom(p *player, snap *model.Snapshot) {
 	n.watches[p.ID] = w
 	for _, id := range i.order {
 		if c, on := n.where[playerOf(id)]; id == p.ID || on && n.sees(center, c) { // one who joined this tick is filed, and comes, with the next frame
-			snap.Players = append(snap.Players, i.view(i.players[id]))
+			v := i.view(i.players[id])
+			if id != p.ID {
+				i.toldPlayer(v)
+			}
+			snap.Players = append(snap.Players, v)
 			w.seen[playerOf(id)] = struct{}{}
 		}
 	}
@@ -400,6 +418,7 @@ func (i *Instance) watchFrom(p *player, snap *model.Snapshot) {
 		for _, b := range n.cells[c] {
 			if b.kind == mobBody {
 				v, _ := i.arena.View(b.id)
+				i.toldMob(v)
 				snap.Mobs = append(snap.Mobs, v)
 				w.seen[b] = struct{}{}
 			}

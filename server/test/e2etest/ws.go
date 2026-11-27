@@ -115,6 +115,7 @@ func (s *Stack) Connect(t *testing.T, id string) *Player {
 	p := &Player{t: t, ID: id, Conn: conn, codec: protocol.ClientCodec(wsconn.Binary), msgs: make(chan wsconn.Message, 1024), done: make(chan struct{}), stack: s}
 	go func() {
 		defer close(p.done)
+		view := protocol.NewExpander(id)
 		for {
 			_, data, err := conn.Read(context.Background())
 			if err != nil {
@@ -123,6 +124,12 @@ func (s *Stack) Connect(t *testing.T, id string) *Player {
 			m, err := p.codec.Decode(data)
 			if err != nil {
 				return
+			}
+			switch d := m.Data.(type) {
+			case *clientv1.Snapshot:
+				view.Snapshot(d)
+			case *clientv1.Delta:
+				view.Delta(d)
 			}
 			p.msgs <- m
 		}

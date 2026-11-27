@@ -51,7 +51,9 @@ type Frame struct {
 // Part is what changed in one of a map's cells in a tick, or, for the map's own part, its field boss as it changed.
 type Part struct {
 	Players     []PlayerView
+	Steps       []PlayerStep
 	Mobs        []MobView
+	MobSteps    []MobStep
 	Removed     []kernel.CharacterID
 	RemovedMobs []uint64
 	Boss        *MobView // the map's part: the field boss as it changed, for every player's bar
@@ -64,7 +66,8 @@ type Recipient struct {
 	Parts      []int
 	AckSeq     uint32
 	Energy     *int
-	Unseen     *Unseen // nil when nothing went out of their sight
+	Unseen     *Unseen     // nil when nothing went out of their sight
+	Own        *PlayerView // their own view, whole, when it changed
 	Pouches    Pouches
 }
 
@@ -388,6 +391,7 @@ func (QuestChanged) worldEvent()      {}
 // PlayerView is a player as everyone on the map sees it.
 type PlayerView struct {
 	ID           kernel.CharacterID
+	Slot         uint32 // its number on its map, by which its steps name it
 	Name         string
 	Class        kernel.Class
 	Level        int
@@ -403,6 +407,25 @@ type PlayerView struct {
 	Team         int // its side in a match, 1 or 2; 0 outside one
 	Bot          bool
 	Look         Look
+}
+
+// PlayerStep is a player's change when only where it is and how it moves changed: whole centimetres from its last place and the fields that differ (model.PlayerStep).
+type PlayerStep struct {
+	Slot               uint32
+	DX, DY, DZ         int32
+	VX, VY, VZ, HX, HZ *int32
+	OnGround           *bool
+	HP, Sprint, Held   *int32
+	Aim                *float32
+}
+
+// MobStep is a mob's change when only where it is, its yaw, its HP or its pose changed (model.MobStep).
+type MobStep struct {
+	ID         uint64
+	DX, DY, DZ int32
+	Yaw        *int32
+	HP         *int32
+	Pose       *MobPose
 }
 
 // Look is a player's five picks, each a piece id, "" keeping the class's own, at the count of its changes.
@@ -607,7 +630,7 @@ func frameOf(f *model.Frame, to []model.Recipient) Frame {
 	out := Frame{Parts: make([]Part, len(f.Parts)), Recipients: make([]Recipient, len(to))}
 	for i, p := range f.Parts {
 		out.Parts[i] = Part{
-			Players: playerViews(p.Players), Mobs: mobViews(p.Mobs),
+			Players: playerViews(p.Players), Steps: playerSteps(p.Steps), Mobs: mobViews(p.Mobs), MobSteps: mobSteps(p.MobSteps),
 			Removed: slices.Clone(p.Removed), RemovedMobs: slices.Clone(p.RemovedMobs),
 			Boss: mobView(p.Boss),
 		}
@@ -623,6 +646,10 @@ func frameOf(f *model.Frame, to []model.Recipient) Frame {
 		out.Recipients[i] = Recipient{
 			Character: r.Character, Connection: r.Connection, Parts: parts[start:len(parts):len(parts)], AckSeq: r.AckSeq, Energy: r.Energy,
 			Pouches: Pouches{Changed: pouchViews(r.Pouches.Changed), Gone: slices.Clone(r.Pouches.Gone)},
+		}
+		if r.Own != nil {
+			own := playerViews([]model.PlayerView{*r.Own})
+			out.Recipients[i].Own = &own[0]
 		}
 		if u := r.Unseen; u != nil {
 			out.Recipients[i].Unseen = &Unseen{Players: slices.Clone(u.Players), Mobs: slices.Clone(u.Mobs)}
@@ -735,9 +762,35 @@ func playerViews(ps []model.PlayerView) []PlayerView {
 	out := make([]PlayerView, len(ps))
 	for i, p := range ps {
 		out[i] = PlayerView{
-			ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.MaxHP, Dead: p.Dead,
+			ID: p.ID, Slot: p.Slot, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.MaxHP, Dead: p.Dead,
 			Invulnerable: p.Invulnerable, Dodging: p.Dodging, Shield: p.Shield, State: p.State, Aim: p.Aim,
 			Statuses: statusViews(p.Statuses), Team: p.Team, Bot: p.Bot, Look: Look(p.Look),
+		}
+	}
+	return out
+}
+
+func playerSteps(ss []model.PlayerStep) []PlayerStep {
+	if len(ss) == 0 {
+		return nil
+	}
+	out := make([]PlayerStep, len(ss))
+	for i, s := range ss {
+		out[i] = PlayerStep{Slot: s.Slot, DX: s.DX, DY: s.DY, DZ: s.DZ, VX: s.VX, VY: s.VY, VZ: s.VZ, HX: s.HX, HZ: s.HZ, OnGround: s.OnGround, HP: s.HP, Sprint: s.Sprint, Held: s.Held, Aim: s.Aim}
+	}
+	return out
+}
+
+func mobSteps(ss []model.MobStep) []MobStep {
+	if len(ss) == 0 {
+		return nil
+	}
+	out := make([]MobStep, len(ss))
+	for i, s := range ss {
+		out[i] = MobStep{ID: s.ID, DX: s.DX, DY: s.DY, DZ: s.DZ, Yaw: s.Yaw, HP: s.HP}
+		if s.Pose != nil {
+			pose := MobPose(*s.Pose)
+			out[i].Pose = &pose
 		}
 	}
 	return out

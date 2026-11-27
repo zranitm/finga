@@ -636,6 +636,39 @@ message PlayerView {
   bool walk = 32;
   // Its look, in every view: the client draws what this says, as it does the class.
   Look look = 33;
+  // Its number on the map it stands on, which the PlayerSteps that follow this view name it by, instead of its id: set in every full view.
+  uint32 slot = 34;
+}
+
+// PlayerStep is a player's change when only where it is and how it moves changed since the last view or step of it that the client took: a full view comes when anything else did. Positions are whole centimetres, velocities millimetres a second and the heading's parts thousandths, so the client reads the view back from the last one it holds; its own, which it reconciles to exactly, is sent whole.
+message PlayerStep {
+  uint32 slot = 1;
+  // The centimetres its position moved by.
+  sint32 dx = 2;
+  sint32 dy = 3;
+  sint32 dz = 4;
+  // What differs from the last view, each absent when it doesn't: velocity in mm/s, the heading's parts in thousandths, and the rest as in a view.
+  optional sint32 vx = 5;
+  optional sint32 vy = 6;
+  optional sint32 vz = 7;
+  optional sint32 hx = 8;
+  optional sint32 hz = 9;
+  optional bool on_ground = 10;
+  optional int32 hp = 11;
+  optional int32 sprint = 12;
+  optional int32 held = 13;
+  optional float aim = 14;
+}
+
+// MobStep is a mob's change when only where it is, which way it faces, its HP or its pose changed since its last view or step the client took: a full view comes when anything else did. Positions move by whole centimetres and the yaw is in thousandths of a radian.
+message MobStep {
+  uint32 id = 1;
+  sint32 dx = 2;
+  sint32 dy = 3;
+  sint32 dz = 4;
+  optional sint32 yaw = 5;
+  optional int32 hp = 6;
+  optional MobPose pose = 7;
 }
 
 // Look is a player's picks from the wardrobe, each a piece id in outfits.yaml; empty keeps the class's own, and for wings is none.
@@ -807,6 +840,9 @@ message Delta {
   Unseen unseen = 12;
   // The field boss as it changed this tick, to every player on the map wherever it stands, for its bar; it's drawn only from mobs.
   MobView boss = 13;
+  // The players and mobs whose change is only a step, which the client reads back against the last view of each it took.
+  repeated PlayerStep steps = 14;
+  repeated MobStep mob_steps = 15;
 }
 
 // Unseen are entities the player no longer sees, though still on the map: the client drops them, with no death.

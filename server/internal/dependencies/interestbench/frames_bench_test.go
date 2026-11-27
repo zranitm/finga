@@ -61,7 +61,7 @@ func BenchmarkACrowdedRegionsFrames(b *testing.B) {
 				o, parts := push.NewOutbox(conn, conn, push.NewFrames()), gatewayFrame(frame)
 				bytes = 0
 				for _, r := range to {
-					o.Deliver(gwmodel.Delivery{Tick: frame.Tick, Push: gwmodel.Delta{Frame: parts, Parts: r.Parts, AckSeq: r.AckSeq, Unseen: unseen(r.Unseen)}})
+					o.Deliver(gwmodel.Delivery{Tick: frame.Tick, Push: gwmodel.Delta{Frame: parts, Parts: r.Parts, AckSeq: r.AckSeq, Unseen: unseen(r.Unseen), Own: own(r)}})
 					wire, err := codec.Encode(conn.last)
 					if err != nil {
 						b.Fatal(err)
@@ -202,18 +202,43 @@ func (d *discard) Close(int, string)           {}
 func (d *discard) MessageOut(string)           {}
 func (d *discard) WelcomeSent(string, int)     {}
 
+// playerView is v as the gateway's model has it, each field the scene sets as the world's facade and adapter copy them.
+func playerView(v model.PlayerView) gwmodel.PlayerView {
+	st := v.State
+	return gwmodel.PlayerView{
+		ID: v.ID.String(), Slot: v.Slot, Name: v.Name, Class: v.Class.String(), Level: v.Level, HP: v.HP, MaxHP: v.MaxHP, Dead: v.Dead, Invulnerable: v.Invulnerable,
+		X: st.X, Y: st.Y, Z: st.Z, VX: st.VX, VY: st.VY, VZ: st.VZ, HX: st.HX, HZ: st.HZ, OnGround: st.OnGround, Aim: v.Aim, Held: st.Held, Sprint: st.Sprint, Walk: st.Walk,
+		Statuses: statuses(v.Statuses),
+	}
+}
+
+// own is a recipient's own view as the gateway's model has it, nil when it didn't change.
+func own(r model.Recipient) *gwmodel.PlayerView {
+	if r.Own == nil {
+		return nil
+	}
+	v := playerView(*r.Own)
+	return &v
+}
+
 // gatewayFrame is f as the gateway's model has it, each view's fields the scene sets as the world's facade and adapter copy them.
 func gatewayFrame(f *model.Frame) *gwmodel.Frame {
 	out := &gwmodel.Frame{Parts: make([]gwmodel.Part, len(f.Parts))}
 	for i, p := range f.Parts {
 		g := &out.Parts[i]
 		for _, v := range p.Players {
-			st := v.State
-			g.Players = append(g.Players, gwmodel.PlayerView{
-				ID: v.ID.String(), Name: v.Name, Class: v.Class.String(), Level: v.Level, HP: v.HP, MaxHP: v.MaxHP, Dead: v.Dead, Invulnerable: v.Invulnerable,
-				X: st.X, Y: st.Y, Z: st.Z, VX: st.VX, VY: st.VY, VZ: st.VZ, HX: st.HX, HZ: st.HZ, OnGround: st.OnGround, Aim: v.Aim, Held: st.Held, Sprint: st.Sprint, Walk: st.Walk,
-				Statuses: statuses(v.Statuses),
-			})
+			g.Players = append(g.Players, playerView(v))
+		}
+		for _, v := range p.Steps {
+			g.Steps = append(g.Steps, gwmodel.PlayerStep{Slot: v.Slot, DX: v.DX, DY: v.DY, DZ: v.DZ, VX: v.VX, VY: v.VY, VZ: v.VZ, HX: v.HX, HZ: v.HZ, OnGround: v.OnGround, HP: v.HP, Sprint: v.Sprint, Held: v.Held, Aim: v.Aim})
+		}
+		for _, v := range p.MobSteps {
+			st := gwmodel.MobStep{ID: v.ID, DX: v.DX, DY: v.DY, DZ: v.DZ, Yaw: v.Yaw, HP: v.HP}
+			if v.Pose != nil {
+				pose := poses[*v.Pose]
+				st.Pose = &pose
+			}
+			g.MobSteps = append(g.MobSteps, st)
 		}
 		for _, v := range p.Mobs {
 			g.Mobs = append(g.Mobs, gwmodel.MobView{ID: v.ID, Type: v.Type, X: v.X, Y: v.Y, Z: v.Z, Yaw: v.Yaw, HP: v.HP, MaxHP: v.MaxHP, Pose: poses[v.Pose], Statuses: statuses(v.Statuses)})
@@ -269,9 +294,13 @@ func BenchmarkACrowdInACamp(b *testing.B) {
 			frame, to := s.out.frame, s.out.to
 			codec := protocol.ServerCodec(wsconn.Binary)
 			conn := &discard{}
-			size := func(f *gwmodel.Frame, r model.Recipient) int {
+			size := func(f *gwmodel.Frame, r model.Recipient, withOwn bool) int {
 				o := push.NewOutbox(conn, conn, push.NewFrames())
-				o.Deliver(gwmodel.Delivery{Tick: frame.Tick, Push: gwmodel.Delta{Frame: f, Parts: r.Parts, AckSeq: r.AckSeq, Unseen: unseen(r.Unseen)}})
+				d := gwmodel.Delta{Frame: f, Parts: r.Parts, AckSeq: r.AckSeq, Unseen: unseen(r.Unseen)}
+				if withOwn {
+					d.Own = own(r)
+				}
+				o.Deliver(gwmodel.Delivery{Tick: frame.Tick, Push: d})
 				wire, err := codec.Encode(conn.last)
 				if err != nil {
 					b.Fatal(err)
@@ -281,20 +310,20 @@ func BenchmarkACrowdInACamp(b *testing.B) {
 			whole := gatewayFrame(frame)
 			players, mobs := &gwmodel.Frame{}, &gwmodel.Frame{}
 			for _, p := range whole.Parts {
-				players.Parts = append(players.Parts, gwmodel.Part{Players: p.Players, RemovedPlayers: p.RemovedPlayers})
-				mobs.Parts = append(mobs.Parts, gwmodel.Part{Mobs: p.Mobs, RemovedMobs: p.RemovedMobs})
+				players.Parts = append(players.Parts, gwmodel.Part{Players: p.Players, Steps: p.Steps, RemovedPlayers: p.RemovedPlayers})
+				mobs.Parts = append(mobs.Parts, gwmodel.Part{Mobs: p.Mobs, MobSteps: p.MobSteps, RemovedMobs: p.RemovedMobs})
 			}
 			for b.Loop() {
 			}
 			var total, onlyPlayers, onlyMobs, empty, seenPlayers, seenMobs int
 			for _, r := range to {
-				total += size(whole, r)
-				onlyPlayers += size(players, r)
-				onlyMobs += size(mobs, r)
-				empty += size(&gwmodel.Frame{Parts: make([]gwmodel.Part, len(whole.Parts))}, r)
+				total += size(whole, r, true)
+				onlyPlayers += size(players, r, true)
+				onlyMobs += size(mobs, r, false)
+				empty += size(&gwmodel.Frame{Parts: make([]gwmodel.Part, len(whole.Parts))}, r, false)
 				for _, k := range r.Parts {
-					seenPlayers += len(whole.Parts[k].Players)
-					seenMobs += len(whole.Parts[k].Mobs)
+					seenPlayers += len(whole.Parts[k].Players) + len(whole.Parts[k].Steps)
+					seenMobs += len(whole.Parts[k].Mobs) + len(whole.Parts[k].MobSteps)
 				}
 			}
 			n := float64(len(to))

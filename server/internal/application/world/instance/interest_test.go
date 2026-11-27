@@ -16,6 +16,7 @@ import (
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
+	"finga/internal/shared/quant"
 	"finga/internal/shared/sim"
 )
 
@@ -587,12 +588,12 @@ func compare(t *testing.T, name string, held, sent sight) {
 		t.Fatalf("%s holds %d players and mobs %v; a join there is sent %d and %v", name, len(held.players), ids(held.mobs), len(sent.players), ids(sent.mobs))
 	}
 	for id, p := range sent.players {
-		if h, ok := held.players[id]; !ok || h.State.X != p.State.X || h.State.Z != p.State.Z {
+		if h, ok := held.players[id]; !ok || quant.Position(h.State.X) != quant.Position(p.State.X) || quant.Position(h.State.Z) != quant.Position(p.State.Z) { // each as the wire has it: to the centimetre
 			t.Fatalf("%s holds player %s as %v (%v), a join is sent %+v", name, p.Name, h.State, ok, p.State)
 		}
 	}
 	for id, m := range sent.mobs {
-		if h, ok := held.mobs[id]; !ok || h.X != m.X || h.Z != m.Z || h.HP != m.HP {
+		if h, ok := held.mobs[id]; !ok || quant.Position(h.X) != quant.Position(m.X) || quant.Position(h.Z) != quant.Position(m.Z) || h.HP != m.HP {
 			t.Fatalf("%s holds mob %d as %+v (%v), a join is sent %+v", name, id, h, ok, m)
 		}
 	}

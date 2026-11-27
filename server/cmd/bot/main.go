@@ -161,6 +161,7 @@ func (s *stats) add(o stats) {
 }
 
 type bot struct {
+	view     *protocol.Expander // the frames' steps back into whole views
 	url      string
 	name     string
 	charName string // 3 to 12 letters and digits
@@ -694,6 +695,15 @@ func (b *bot) killed(n int) {
 
 func (b *bot) observe(m wsconn.Message) {
 	b.count(func(s *stats) { s.messages++ })
+	if b.view == nil {
+		b.view = protocol.NewExpander(b.id)
+	}
+	switch d := m.Data.(type) {
+	case *clientv1.Snapshot:
+		b.view.Snapshot(d)
+	case *clientv1.Delta:
+		b.view.Delta(d)
+	}
 	switch d := m.Data.(type) {
 	case *clientv1.Welcome:
 		b.token = d.GetToken()

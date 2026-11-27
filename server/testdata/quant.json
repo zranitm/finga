@@ -1,0 +1,120 @@
+{
+ "position": [
+  {
+   "metres": 0,
+   "cm": 0
+  },
+  {
+   "metres": 0.005,
+   "cm": 1
+  },
+  {
+   "metres": 0.125,
+   "cm": 13
+  },
+  {
+   "metres": -0.125,
+   "cm": -12
+  },
+  {
+   "metres": 1.005,
+   "cm": 100
+  },
+  {
+   "metres": -1.005,
+   "cm": -100
+  },
+  {
+   "metres": 12.345,
+   "cm": 1235
+  },
+  {
+   "metres": -12.345,
+   "cm": -1234
+  },
+  {
+   "metres": 256.1043844125913,
+   "cm": 25610
+  },
+  {
+   "metres": -0.004999,
+   "cm": 0
+  },
+  {
+   "metres": 0.5,
+   "cm": 50
+  },
+  {
+   "metres": 1023.995,
+   "cm": 102400
+  },
+  {
+   "metres": 289.43610229060766,
+   "cm": 28944
+  }
+ ],
+ "speed": [
+  {
+   "metresPerSecond": 0,
+   "mm": 0
+  },
+  {
+   "metresPerSecond": 5.0,
+   "mm": 5000
+  },
+  {
+   "metresPerSecond": 5.713422791987305,
+   "mm": 5713
+  },
+  {
+   "metresPerSecond": -8.08,
+   "mm": -8080
+  },
+  {
+   "metresPerSecond": -9.375,
+   "mm": -9375
+  },
+  {
+   "metresPerSecond": 0.0005,
+   "mm": 1
+  },
+  {
+   "metresPerSecond": -0.0005,
+   "mm": 0
+  },
+  {
+   "metresPerSecond": 12.0125,
+   "mm": 12013
+  }
+ ],
+ "yaw": [
+  {
+   "radians": 0,
+   "milli": 0
+  },
+  {
+   "radians": 3.14159274,
+   "milli": 3142
+  },
+  {
+   "radians": -3.14159274,
+   "milli": -3142
+  },
+  {
+   "radians": -1.813059,
+   "milli": -1813
+  },
+  {
+   "radians": 0.0005,
+   "milli": 1
+  },
+  {
+   "radians": -0.0005,
+   "milli": -1
+  },
+  {
+   "radians": 1.5707964,
+   "milli": 1571
+  }
+ ]
+}

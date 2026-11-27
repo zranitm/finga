@@ -51,7 +51,7 @@ func (f *Frames) shared(frame *model.Frame, parts []int) []*wsconn.Shared {
 		if e.parts[k] == nil {
 			p := frame.Parts[k]
 			e.parts[k] = wsconn.NewShared(&clientv1.Delta{
-				Players: playerViews(p.Players), Mobs: mobViews(p.Mobs),
+				Players: playerViews(p.Players), Steps: playerSteps(p.Steps), Mobs: mobViews(p.Mobs), MobSteps: mobSteps(p.MobSteps),
 				RemovedPlayers: p.RemovedPlayers, RemovedMobs: instanceIDs(p.RemovedMobs), Boss: mobView(p.Boss),
 			})
 		}

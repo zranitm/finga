@@ -201,7 +201,9 @@ type View struct {
 
 // PlayerView is a player as everyone on the map sees it.
 type PlayerView struct {
-	ID    kernel.CharacterID
+	ID kernel.CharacterID
+	// Slot is its number on its map, by which the steps that follow a full view of it name it: it keeps it from its join to its leaving.
+	Slot  uint32
 	Name  string
 	Class kernel.Class
 	Level int
@@ -220,6 +222,29 @@ type PlayerView struct {
 	Team     int          // its side in a match, 1 or 2; 0 outside one
 	Bot      bool
 	Look     Look // its picks; the revision stays in the world
+}
+
+// PlayerStep is a player's change when only where it is and how it moves changed since the view or step of it that the frame before had: whole centimetres from its last place, and the fields that differ. X and Z, in metres, file it in a cell.
+type PlayerStep struct {
+	ID         kernel.CharacterID // which player, for filing it: the wire names it by its slot
+	Slot       uint32
+	X, Z       float64
+	DX, DY, DZ int32
+	// What differs from the last, velocity in mm/s and the heading's parts in thousandths; nil when it doesn't.
+	VX, VY, VZ, HX, HZ *int32
+	OnGround           *bool
+	HP, Sprint, Held   *int32
+	Aim                *float32
+}
+
+// MobStep is a mob's change when only where it is, its yaw, its HP or its pose changed: whole centimetres from its last place, and the fields that differ. X and Z, in metres, file it in a cell.
+type MobStep struct {
+	ID         uint64
+	X, Z       float64
+	DX, DY, DZ int32
+	Yaw        *int32 // thousandths of a radian
+	HP         *int32
+	Pose       *MobPose
 }
 
 // MobView is a mob as everyone on the map sees it.
@@ -285,7 +310,9 @@ type Frame struct {
 // Part is what changed in one of a map's cells in a tick, or, for the map's own part, its field boss as it changed.
 type Part struct {
 	Players     []PlayerView
+	Steps       []PlayerStep
 	Mobs        []MobView
+	MobSteps    []MobStep
 	Removed     []kernel.CharacterID
 	RemovedMobs []uint64
 	Boss        *MobView // the map's part: the field boss as it changed, for every player's bar
@@ -298,7 +325,8 @@ type Recipient struct {
 	Parts      []int
 	AckSeq     uint32
 	Energy     *int
-	Unseen     *Unseen // nil when nothing went out of their sight
+	Unseen     *Unseen     // nil when nothing went out of their sight
+	Own        *PlayerView // their own view, whole, when it changed: the client reconciles to it exactly, which a step's rounding wouldn't give
 	Pouches    Pouches
 }
 
