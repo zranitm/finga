@@ -370,7 +370,7 @@ linters:
               desc: an end-to-end test drives the game through its API and the wiring
         # Only a module's in-process adapters, internal/adapter/<module>, call another module, and the wiring connects them; a gateway handler's test fakes the modules behind the production adapters.
         account-facades:
-          files: ["**/internal/application/account/**", "**/internal/model/account/**", "**/internal/repository/account/**", "**/internal/handler/account/**", "**/internal/metrics/account/**"]
+          files: ["**/internal/application/account/**", "**/internal/model/account/**", "**/internal/repository/account/**", "**/internal/handler/account/**", "**/internal/metrics/account/**", "!**/internal/handler/*/receive_admin*.go"]
           deny:
             - pkg: finga/internal/application/character
               desc: only the module's adapters call another module's facade
@@ -381,7 +381,7 @@ linters:
             - pkg: finga/internal/application/world
               desc: only the module's adapters call another module's facade
         character-facades:
-          files: ["**/internal/application/character/**", "**/internal/model/character/**", "**/internal/repository/character/**", "**/internal/handler/character/**", "**/internal/metrics/character/**"]
+          files: ["**/internal/application/character/**", "**/internal/model/character/**", "**/internal/repository/character/**", "**/internal/handler/character/**", "**/internal/metrics/character/**", "!**/internal/handler/*/receive_admin*.go"]
           deny:
             - pkg: finga/internal/application/account
               desc: only the module's adapters call another module's facade
@@ -391,8 +391,9 @@ linters:
               desc: only the module's adapters call another module's facade
             - pkg: finga/internal/application/world
               desc: only the module's adapters call another module's facade
+        # A module's admin routes (receive_admin*.go) call the facades of the modules they write through, as the admin API's handler did; they sit in the lowest module whose graph covers them.
         gateway-facades:
-          files: ["**/internal/application/gateway/**", "**/internal/model/gateway/**", "**/internal/repository/gateway/**", "**/internal/handler/{account,character,item,pvp,social,world,transport}/**", "**/internal/metrics/gateway/**", "!**/internal/handler/*/*_test.go"]
+          files: ["**/internal/application/gateway/**", "**/internal/model/gateway/**", "**/internal/repository/gateway/**", "**/internal/handler/{account,character,item,pvp,social,world,transport}/**", "**/internal/metrics/gateway/**", "!**/internal/handler/*/*_test.go", "!**/internal/handler/*/receive_admin*.go"]
           deny:
             - pkg: finga/internal/application/account
               desc: only the module's adapters call another module's facade
@@ -405,7 +406,7 @@ linters:
             - pkg: finga/internal/application/world
               desc: only the module's adapters call another module's facade
         item-facades:
-          files: ["**/internal/application/item/**", "**/internal/model/item/**", "**/internal/repository/item/**", "**/internal/handler/item/**", "**/internal/metrics/item/**"]
+          files: ["**/internal/application/item/**", "**/internal/model/item/**", "**/internal/repository/item/**", "**/internal/handler/item/**", "**/internal/metrics/item/**", "!**/internal/handler/*/receive_admin*.go"]
           deny:
             - pkg: finga/internal/application/account
               desc: only the module's adapters call another module's facade
@@ -416,7 +417,7 @@ linters:
             - pkg: finga/internal/application/world
               desc: only the module's adapters call another module's facade
         social-facades:
-          files: ["**/internal/application/social/**", "**/internal/model/social/**", "**/internal/repository/social/**", "**/internal/handler/social/**", "**/internal/metrics/social/**"]
+          files: ["**/internal/application/social/**", "**/internal/model/social/**", "**/internal/repository/social/**", "**/internal/handler/social/**", "**/internal/metrics/social/**", "!**/internal/handler/*/receive_admin*.go"]
           deny:
             - pkg: finga/internal/application/account
               desc: only the module's adapters call another module's facade
@@ -427,7 +428,7 @@ linters:
             - pkg: finga/internal/application/world
               desc: only the module's adapters call another module's facade
         world-facades:
-          files: ["**/internal/application/world/**", "**/internal/model/world/**", "**/internal/repository/world/**", "**/internal/handler/world/**", "**/internal/metrics/world/**"]
+          files: ["**/internal/application/world/**", "**/internal/model/world/**", "**/internal/repository/world/**", "**/internal/handler/world/**", "**/internal/metrics/world/**", "!**/internal/handler/*/receive_admin*.go"]
           deny:
             - pkg: finga/internal/application/account
               desc: only the module's adapters call another module's facade
@@ -467,17 +468,12 @@ linters:
           deny:
             - pkg: finga/config
               desc: support packages never import the game's configuration; the host's tests load it
-        # The wiring, the admin API's handler and the migrations sit at the top: only what runs them imports them.
+        # The wiring and the migrations sit at the top: only what runs them imports them.
         wiring:
           files: ["$all", "!**/cmd/**", "!**/internal/dependencies/**", "!**/server/test/**"]
           deny:
             - pkg: finga/internal/dependencies
               desc: only a binary and the end-to-end tests import the wiring
-        admin-handler:
-          files: ["$all", "!**/internal/dependencies/**", "!**/internal/handler/admin/**", "!**/server/test/**"]
-          deny:
-            - pkg: finga/internal/handler/admin
-              desc: only the wiring serves the admin API
         migration:
           files: ["$all", "!**/internal/migration/**", "!**/cmd/migrate/**", "!**/internal/repository/*/*_test.go", "!**/internal/repository/dbtest/**", "!**/server/test/**"]
           deny:
