@@ -7,6 +7,7 @@ import (
 
 	"finga/internal/application/account"
 	model "finga/internal/model/account"
+	"finga/internal/shared/failure"
 	"finga/internal/shared/kernel"
 	"finga/pkg/copytest"
 	"finga/pkg/hub"
@@ -78,6 +79,25 @@ func TestEachGuardCallKeepsItsFields(t *testing.T) {
 	if len(diff) > 0 {
 		t.Errorf("Validate: %v", diff)
 	}
+}
+
+// A refused token reaches the guard as the failure a client sees, of the kind the use cases act on.
+func TestAGuardNamesAFailedValidate(t *testing.T) {
+	m := &accountFailing{err: kernel.ErrUnauthenticated}
+	_, err := NewGuard(m).Validate(t.Context(), "tok")
+	if p := failure.PublicOf(err); p != failure.Unauthenticated {
+		t.Fatalf("validate failed as %v, want %v", p, failure.Unauthenticated)
+	}
+}
+
+// accountFailing is an account module whose Validate fails.
+type accountFailing struct {
+	accountModule
+	err error
+}
+
+func (m *accountFailing) Validate(context.Context, string) (account.Principal, error) {
+	return account.Principal{}, m.err
 }
 
 // Each ended session reaches the gateway with what it acts on: the session, or the account and whether a login elsewhere ended it.

@@ -40,11 +40,6 @@ func (g Guard) Validate(ctx context.Context, token string) (model.Principal, err
 	return model.Principal{AccountID: p.AccountID, SessionID: p.SessionID}, nil
 }
 
-// Revoke ends one session.
-func (g Guard) Revoke(ctx context.Context, id kernel.SessionID) error {
-	return wrap(g.a.Revoke(ctx, id))
-}
-
 // Rotate issues a session's next token.
 func (g Guard) Rotate(ctx context.Context, id kernel.SessionID) (string, error) {
 	token, err := g.a.Rotate(ctx, id)
@@ -53,11 +48,6 @@ func (g Guard) Rotate(ctx context.Context, id kernel.SessionID) (string, error) 
 
 // Check reports whether a session is still active.
 func (g Guard) Check(ctx context.Context, id kernel.SessionID) error { return wrap(g.a.Check(ctx, id)) }
-
-// RevokeAll ends every session of an account.
-func (g Guard) RevokeAll(ctx context.Context, id kernel.AccountID) error {
-	return wrap(g.a.RevokeAll(ctx, id))
-}
 
 // SessionEnds is the application's SessionEnds over the account module.
 type SessionEnds struct {
