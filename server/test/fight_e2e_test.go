@@ -158,7 +158,14 @@ func TestFightAndGrow(t *testing.T) {
 		if r.GetCharacterId() != id || r.GetMapId() != "willowmere" || r.GetHp() != 72 || r.GetX() != up.X || r.GetZ() != up.Z {
 			t.Fatalf("respawned %+v; want 72 HP in Willowmere beside the stone at %+v", r, up)
 		}
-		_ = p.Input(&clientv1.Input{}) // the chase's last walk input holds until changed, so the player takes a step or two from the stone before this stop lands
+		// The chase's last walk input holds until changed, so the player walks on from the stone until the stop lands; the saved position is where the frame acking the stop has them.
+		if err := p.Input(&clientv1.Input{}); err != nil {
+			t.Fatal(err)
+		}
+		stop := p.Seq
+		if !p.Await(10*time.Second, func(wsconn.Message) bool { return p.Acked() >= stop }) {
+			t.Fatalf("no frame acked the stop input %d; the last acked %d", stop, p.Acked())
+		}
 		// The death penalty took 5% of level 1's 20 EXP (10 → 9); a get-up on the same map isn't checkpointed at once, so a restart's flush saves it beside the stone's position.
 		s.Restart()
 		var exp int64
@@ -167,8 +174,8 @@ func TestFightAndGrow(t *testing.T) {
 		if err := s.DB.QueryRow(context.Background(), `SELECT exp, map_id, pos_x, pos_z FROM characters WHERE id = $1`, id).Scan(&exp, &mapID, &x, &z); err != nil {
 			t.Fatal(err)
 		}
-		if exp != 9 || mapID != "willowmere" || math.Hypot(x-up.X, z-up.Z) > 0.6 { // under two ticks' walk at the pace of 5 m/s over 20 ticks a second
-			t.Fatalf("saved exp %d on map %s at (%v, %v), want 9 on willowmere at %+v", exp, mapID, x, z, up)
+		if exp != 9 || mapID != "willowmere" || math.Hypot(x-p.X, z-p.Z) > 1e-4 { // a stopped player stays where that frame has them, the save's float rounding aside
+			t.Fatalf("saved exp %d on map %s at (%v, %v), want 9 on willowmere at (%v, %v), where the stop's frame had the player", exp, mapID, x, z, p.X, p.Z)
 		}
 	})
 
