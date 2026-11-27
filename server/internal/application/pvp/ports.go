@@ -67,5 +67,5 @@ type Items interface {
 
 // Notifier pushes to a player; it never blocks.
 type Notifier interface {
-	Push(to kernel.CharacterID, d CoreDelivery)
+	Push(to kernel.CharacterID, d Delivery)
 }

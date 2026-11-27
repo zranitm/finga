@@ -292,23 +292,23 @@ func (s *store) MarkTold(_ context.Context, id kernel.CharacterID, matches []ker
 // notes records what each player is told.
 type notes struct {
 	mu  sync.Mutex
-	got map[kernel.CharacterID][]pvp.CoreDelivery
+	got map[kernel.CharacterID][]pvp.Delivery
 }
 
-func (n *notes) Push(to kernel.CharacterID, d pvp.CoreDelivery) {
+func (n *notes) Push(to kernel.CharacterID, d pvp.Delivery) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.got[to] = append(n.got[to], d)
 }
 
-func (n *notes) of(id kernel.CharacterID) []pvp.CoreDelivery {
+func (n *notes) of(id kernel.CharacterID) []pvp.Delivery {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	return slices.Clone(n.got[id])
 }
 
 // last is the latest delivery of type T to id.
-func last[T pvp.CoreDelivery](n *notes, id kernel.CharacterID) (T, bool) {
+func last[T pvp.Delivery](n *notes, id kernel.CharacterID) (T, bool) {
 	var zero T
 	for _, d := range slices.Backward(n.of(id)) {
 		if d, ok := d.(T); ok {
@@ -374,7 +374,7 @@ func seeded(t *testing.T, seed uint64) fixture {
 // seededWith is a fixture over data whose bots are drawn from seed.
 func seededWith(t *testing.T, seed uint64, data *gamedata.Data) fixture {
 	t.Helper()
-	f := fixture{world: &world{cant: map[kernel.CharacterID]error{}, builds: map[kernel.CharacterID][]model.Build{}}, store: newStore(), chars: &characters{of: map[kernel.CharacterID]model.Character{}, as: map[kernel.CharacterID]model.Named{}}, items: &items{has: map[kernel.AccountID]map[string]bool{}}, notes: &notes{got: map[kernel.CharacterID][]pvp.CoreDelivery{}}, social: &social{}, data: data}
+	f := fixture{world: &world{cant: map[kernel.CharacterID]error{}, builds: map[kernel.CharacterID][]model.Build{}}, store: newStore(), chars: &characters{of: map[kernel.CharacterID]model.Character{}, as: map[kernel.CharacterID]model.Named{}}, items: &items{has: map[kernel.AccountID]map[string]bool{}}, notes: &notes{got: map[kernel.CharacterID][]pvp.Delivery{}}, social: &social{}, data: data}
 	log := slog.New(slog.DiscardHandler)
 	f.svc = pvp.NewService(pvp.ServiceDeps{Data: data, World: f.world, Social: f.social, Characters: f.chars, Store: f.store, Items: f.items, Notifier: f.notes, Logger: log, Panics: panics.NewRecorder(log, nil), Rand: rand.New(rand.NewPCG(seed, 2))}) //nolint:gosec // a test's bots
 	return f
@@ -405,12 +405,12 @@ func TestTwoPlayersNearInRatingMeet(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if q, ok := last[pvp.CoreQueued](f.notes, ayla); !ok || q.Mode != "duel" {
+		if q, ok := last[pvp.Queued](f.notes, ayla); !ok || q.Mode != "duel" {
 			t.Fatalf("Ayla heard %+v, want queued for duel", f.notes.of(ayla))
 		}
 		wait(time.Second)
-		offer, ok := last[pvp.CoreOffered](f.notes, ayla)
-		if other, _ := last[pvp.CoreOffered](f.notes, robin); !ok || offer.Bots != 0 || offer.Offer != other.Offer || offer.Until != f.data.Pvp().Queue.Offer {
+		offer, ok := last[pvp.Offered](f.notes, ayla)
+		if other, _ := last[pvp.Offered](f.notes, robin); !ok || offer.Bots != 0 || offer.Offer != other.Offer || offer.Until != f.data.Pvp().Queue.Offer {
 			t.Fatalf("offers %+v and %+v, want one for both, no bots", offer, other)
 		}
 		for _, id := range []kernel.CharacterID{ayla, robin} {
@@ -445,11 +445,11 @@ func TestAWindowWidensUntilTheyMeet(t *testing.T) {
 			}
 		}
 		wait(2 * time.Second)
-		if _, ok := last[pvp.CoreOffered](f.notes, ayla); ok {
+		if _, ok := last[pvp.Offered](f.notes, ayla); ok {
 			t.Fatal("paired before their windows reached each other")
 		}
 		wait(time.Second)
-		if o, ok := last[pvp.CoreOffered](f.notes, ayla); !ok || o.Bots != 0 {
+		if o, ok := last[pvp.Offered](f.notes, ayla); !ok || o.Bots != 0 {
 			t.Fatalf("after 3 s: %+v, want an offer against Robin", f.notes.of(ayla))
 		}
 	})
@@ -466,11 +466,11 @@ func TestAPlayerAloneMeetsABot(t *testing.T) {
 		}
 		bots := f.data.Pvp().Queue.BotsAfter
 		wait(bots - time.Second)
-		if _, ok := last[pvp.CoreOffered](f.notes, ayla); ok {
+		if _, ok := last[pvp.Offered](f.notes, ayla); ok {
 			t.Fatal("offered bots before bots_after")
 		}
 		wait(time.Second)
-		offer, ok := last[pvp.CoreOffered](f.notes, ayla)
+		offer, ok := last[pvp.Offered](f.notes, ayla)
 		if !ok || offer.Bots != 1 {
 			t.Fatalf("Ayla heard %+v, want an offer with a bot", f.notes.of(ayla))
 		}
@@ -498,24 +498,24 @@ func TestADeclineSendsOneOutAndTheOtherBack(t *testing.T) {
 			}
 		}
 		wait(time.Second)
-		offer, _ := last[pvp.CoreOffered](f.notes, ayla)
+		offer, _ := last[pvp.Offered](f.notes, ayla)
 		if err := f.svc.Answer(ctx, robin, offer.Offer, false); err != nil {
 			t.Fatal(err)
 		}
-		if g, _ := last[pvp.CoreOfferGone](f.notes, robin); g.Requeued {
+		if g, _ := last[pvp.OfferGone](f.notes, robin); g.Requeued {
 			t.Fatal("the decliner is back in the queue")
 		}
-		if u, ok := last[pvp.CoreUnqueued](f.notes, robin); !ok || u.Reason != pvp.UnqueueDeclined {
+		if u, ok := last[pvp.Unqueued](f.notes, robin); !ok || u.Reason != pvp.UnqueueDeclined {
 			t.Fatalf("Robin heard %+v, want unqueued for declining", f.notes.of(robin))
 		}
-		if g, ok := last[pvp.CoreOfferGone](f.notes, ayla); !ok || !g.Requeued || g.Reason != pvp.GoneDeclined {
+		if g, ok := last[pvp.OfferGone](f.notes, ayla); !ok || !g.Requeued || g.Reason != pvp.GoneDeclined {
 			t.Fatalf("Ayla heard %+v, want back in the queue", f.notes.of(ayla))
 		}
 		if err := f.svc.Answer(ctx, ayla, offer.Offer, true); !errors.Is(err, model.ErrOfferGone) {
 			t.Fatalf("accepting a declined offer: %v, want ErrOfferGone", err)
 		}
 		wait(f.data.Pvp().Queue.BotsAfter - time.Second) // bots_after since she joined, a second less since she went back
-		if o, _ := last[pvp.CoreOffered](f.notes, ayla); o.Bots != 1 {
+		if o, _ := last[pvp.Offered](f.notes, ayla); o.Bots != 1 {
 			t.Fatal("the wait didn't count from when Ayla first joined")
 		}
 	})
@@ -534,15 +534,15 @@ func TestAnOfferLapses(t *testing.T) {
 			}
 		}
 		wait(time.Second)
-		offer, _ := last[pvp.CoreOffered](f.notes, ayla)
+		offer, _ := last[pvp.Offered](f.notes, ayla)
 		if err := f.svc.Answer(ctx, ayla, offer.Offer, true); err != nil {
 			t.Fatal(err)
 		}
 		wait(f.data.Pvp().Queue.Offer)
-		if u, ok := last[pvp.CoreUnqueued](f.notes, robin); !ok || u.Reason != pvp.UnqueueLapsed {
+		if u, ok := last[pvp.Unqueued](f.notes, robin); !ok || u.Reason != pvp.UnqueueLapsed {
 			t.Fatalf("Robin heard %+v, want out for letting it lapse", f.notes.of(robin))
 		}
-		if g, ok := last[pvp.CoreOfferGone](f.notes, ayla); !ok || !g.Requeued || g.Reason != pvp.GoneLapsed {
+		if g, ok := last[pvp.OfferGone](f.notes, ayla); !ok || !g.Requeued || g.Reason != pvp.GoneLapsed {
 			t.Fatalf("Ayla heard %+v, want back in the queue", f.notes.of(ayla))
 		}
 		if len(f.world.opened) != 0 {
@@ -577,7 +577,7 @@ func TestQueueRefusals(t *testing.T) {
 		if err := f.svc.Leave(ctx, ayla); err != nil {
 			t.Fatal(err)
 		}
-		if u, ok := last[pvp.CoreUnqueued](f.notes, ayla); !ok || u.Reason != pvp.UnqueueLeft {
+		if u, ok := last[pvp.Unqueued](f.notes, ayla); !ok || u.Reason != pvp.UnqueueLeft {
 			t.Fatalf("Ayla heard %+v, want unqueued for leaving", f.notes.of(ayla))
 		}
 	})
@@ -593,7 +593,7 @@ func TestAnOutcomeRatesItsPlayersOnce(t *testing.T) {
 			Sides: [2][]model.Outcome{{{Character: ayla}}, {{Tier: "novice"}}},
 		}
 		f.svc.Record(context.Background(), r)
-		e, ok := last[pvp.CoreEnded](f.notes, ayla)
+		e, ok := last[pvp.Ended](f.notes, ayla)
 		if !ok || e.Outcome != pvp.Win || e.Wins != [2]int{2, 1} || e.Rating == nil {
 			t.Fatalf("Ayla heard %+v, want her win with its rating", f.notes.of(ayla))
 		}
@@ -609,7 +609,7 @@ func TestAnOutcomeRatesItsPlayersOnce(t *testing.T) {
 			t.Fatalf("fighters %+v, want the bot at its tier, unchanged", rows)
 		}
 		f.svc.Record(context.Background(), r)
-		again, _ := last[pvp.CoreEnded](f.notes, ayla)
+		again, _ := last[pvp.Ended](f.notes, ayla)
 		if f.store.ratings[ayla] != rt || again.Rating == nil || *again.Rating != *e.Rating {
 			t.Fatalf("a repeat moved the rating to %+v, or told %+v; want it kept and told as before, %+v", f.store.ratings[ayla], again.Rating, *e.Rating)
 		}
@@ -639,7 +639,7 @@ func TestABattleCountsTheRecordAndMovesNoRating(t *testing.T) {
 			if a.Matches != k+1 || a.Wins != k+1 || b.Losses != k+1 || a.Placed || b.Placed {
 				t.Fatalf("after %d battles Ayla %+v, Bram %+v; want the record counted, never placed", k+1, a, b)
 			}
-			e, ok := last[pvp.CoreEnded](f.notes, ayla)
+			e, ok := last[pvp.Ended](f.notes, ayla)
 			if !ok || e.Outcome != pvp.Win || !e.Battle || e.Score != r.Score || e.Rating != nil {
 				t.Fatalf("Ayla heard %+v; want her win with the score and no rating", e)
 			}
@@ -654,9 +654,9 @@ func TestALostCommitStillTellsTheRating(t *testing.T) {
 		f.store.lost = 1
 		ayla := kernel.NewCharacterID()
 		f.svc.Record(context.Background(), model.Result{Match: kernel.NewMatchID(), Mode: "duel", Winner: 2, Sides: [2][]model.Outcome{{{Character: ayla}}, {{Tier: "novice"}}}})
-		var ended []pvp.CoreEnded
+		var ended []pvp.Ended
 		for _, d := range f.notes.of(ayla) {
-			if e, ok := d.(pvp.CoreEnded); ok {
+			if e, ok := d.(pvp.Ended); ok {
 				ended = append(ended, e)
 			}
 		}
@@ -691,10 +691,10 @@ func TestASlowStoreHoldsUpNoOtherOutcome(t *testing.T) {
 			})
 		}()
 		synctest.Wait()
-		if _, ok := last[pvp.CoreEnded](f.notes, robin); !ok {
+		if _, ok := last[pvp.Ended](f.notes, robin); !ok {
 			t.Fatal("Robin's outcome waited for Ayla's store")
 		}
-		if _, ok := last[pvp.CoreEnded](f.notes, ayla); ok {
+		if _, ok := last[pvp.Ended](f.notes, ayla); ok {
 			t.Fatal("Ayla heard before her match was stored")
 		}
 		cancel()
@@ -708,7 +708,7 @@ func TestASlowStoreHoldsUpNoOtherOutcome(t *testing.T) {
 		if err := <-done; err != nil {
 			t.Fatal(err)
 		}
-		if e, ok := last[pvp.CoreEnded](f.notes, ayla); !ok || e.Rating == nil {
+		if e, ok := last[pvp.Ended](f.notes, ayla); !ok || e.Rating == nil {
 			t.Fatalf("Ayla heard %+v, want her rated win", f.notes.of(ayla))
 		}
 	})
@@ -726,7 +726,7 @@ func TestABotIsNamedUnlikeItsOpponent(t *testing.T) {
 				t.Fatal(err)
 			}
 			wait(f.data.Pvp().Queue.BotsAfter)
-			offer, ok := last[pvp.CoreOffered](f.notes, id)
+			offer, ok := last[pvp.Offered](f.notes, id)
 			if !ok {
 				t.Fatalf("%s got no offer", name)
 			}
@@ -751,7 +751,7 @@ func TestNoQueueingWhileAMatchOpens(t *testing.T) {
 			t.Fatal(err)
 		}
 		wait(f.data.Pvp().Queue.BotsAfter)
-		offer, _ := last[pvp.CoreOffered](f.notes, ayla)
+		offer, _ := last[pvp.Offered](f.notes, ayla)
 		f.world.mu.Lock()
 		f.world.hold = make(chan struct{})
 		f.world.mu.Unlock()
@@ -786,7 +786,7 @@ func TestTheMatcherNeverOpensAMatchOfBotsAlone(t *testing.T) {
 			return id
 		}
 		answer := func(id kernel.CharacterID, accept bool) {
-			offer, ok := last[pvp.CoreOffered](f.notes, id)
+			offer, ok := last[pvp.Offered](f.notes, id)
 			if !ok {
 				t.Fatalf("no offer for %v: %+v", id, f.notes.of(id))
 			}
@@ -804,7 +804,7 @@ func TestTheMatcherNeverOpensAMatchOfBotsAlone(t *testing.T) {
 		answer(robin, false)
 		cleo := queue("Cleo")
 		wait(q.BotsAfter + q.Offer + time.Second)
-		if _, ok := last[pvp.CoreOffered](f.notes, cleo); !ok {
+		if _, ok := last[pvp.Offered](f.notes, cleo); !ok {
 			t.Fatal("Cleo had no bot to let lapse")
 		}
 		dan := queue("Dan")

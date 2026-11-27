@@ -26,17 +26,17 @@ func TestMatchesEndedWhileAwayAreToldOnce(t *testing.T) {
 			f.svc.Record(ctx, model.Result{Match: id, Mode: "duel", Started: start, Ended: start.Add(time.Duration(k) * time.Minute), Winner: 1 + k%2,
 				Sides: [2][]model.Outcome{{{Character: ayla, Away: true, Left: k == 6}}, {{Character: kai}}}})
 		}
-		if e, ok := last[pvp.CoreEnded](f.notes, ayla); !ok || !e.Away || e.Match != matches[6] {
+		if e, ok := last[pvp.Ended](f.notes, ayla); !ok || !e.Away || e.Match != matches[6] {
 			t.Fatalf("Ayla was pushed %+v; want the last match, saying she was away", e)
 		}
-		if e, ok := last[pvp.CoreEnded](f.notes, kai); !ok || e.Away || e.Match != matches[6] {
+		if e, ok := last[pvp.Ended](f.notes, kai); !ok || e.Away || e.Match != matches[6] {
 			t.Fatalf("Kai was pushed %+v; want the last match, not away", e)
 		}
 		got, err := f.svc.Missed(ctx, ayla)
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := []pvp.CoreMissedMatch{
+		want := []pvp.MissedMatch{
 			{Mode: "duel", Outcome: pvp.Loss, Left: true, Ended: start.Add(6 * time.Minute)},
 			{Mode: "duel", Outcome: pvp.Loss, Ended: start.Add(5 * time.Minute)},
 			{Mode: "duel", Outcome: pvp.Win, Ended: start.Add(4 * time.Minute)},

@@ -80,11 +80,11 @@ func TestABattleDealsWithBotsAfterBotsAfter(t *testing.T) {
 		ann := player("Ann", "warrior")
 		f.queueAt(t, "battle", map[kernel.CharacterID]float64{ann.ID: 25}, ann)
 		wait(f.data.Pvp().Queue.BotsAfter - time.Second)
-		if _, ok := last[pvp.CoreOffered](f.notes, ann.ID); ok {
+		if _, ok := last[pvp.Offered](f.notes, ann.ID); ok {
 			t.Fatal("offered a battle before bots_after with one player waiting")
 		}
 		wait(time.Second)
-		if o, ok := last[pvp.CoreOffered](f.notes, ann.ID); !ok || o.Mode != "battle" || o.Bots != 29 {
+		if o, ok := last[pvp.Offered](f.notes, ann.ID); !ok || o.Mode != "battle" || o.Bots != 29 {
 			t.Fatalf("Ann's offer %+v, %v; want the battle with 29 bots", o, ok)
 		}
 		opened := f.open(t, ann)
@@ -128,10 +128,10 @@ func TestAPartyTheDealCantFitGetsTheNextDeal(t *testing.T) {
 		f.queueAt(t, "battle", mu, leaders...)
 		wait(time.Second)
 		left := parties[8]
-		if o, ok := last[pvp.CoreOffered](f.notes, parties[0][0].ID); !ok || o.Bots != 3 {
+		if o, ok := last[pvp.Offered](f.notes, parties[0][0].ID); !ok || o.Bots != 3 {
 			t.Fatalf("the first party's offer %+v, %v; want 27 players and 3 bots", o, ok)
 		}
-		if _, ok := last[pvp.CoreOffered](f.notes, left[0].ID); ok {
+		if _, ok := last[pvp.Offered](f.notes, left[0].ID); ok {
 			t.Fatal("the last 3 was offered; want it waiting for the next deal")
 		}
 		opened := f.open(t, slices.Concat(parties[:8]...)...)
@@ -139,7 +139,7 @@ func TestAPartyTheDealCantFitGetsTheNextDeal(t *testing.T) {
 			t.Fatalf("opened %+v; want one battle of 30 places", opened)
 		}
 		wait(f.data.Pvp().Queue.BotsAfter)
-		if o, ok := last[pvp.CoreOffered](f.notes, left[0].ID); !ok || o.Mode != "battle" || o.Bots != 27 {
+		if o, ok := last[pvp.Offered](f.notes, left[0].ID); !ok || o.Mode != "battle" || o.Bots != 27 {
 			t.Fatalf("the last 3's offer %+v, %v; want the next battle, with 27 bots", o, ok)
 		}
 	})
@@ -190,7 +190,7 @@ func TestElevenWarriorsOnASideGetOtherClassesBeside(t *testing.T) {
 func (f fixture) waits(id kernel.CharacterID) []bool {
 	var out []bool
 	for _, d := range f.notes.of(id) {
-		if q, ok := d.(pvp.CoreQueued); ok && q.Since > 0 {
+		if q, ok := d.(pvp.Queued); ok && q.Since > 0 {
 			out = append(out, q.WaitingRoom)
 		}
 	}
@@ -206,14 +206,14 @@ func TestA1v1PastTheBotCapWaitsForRoom(t *testing.T) {
 		ann := player("Ann", "warrior")
 		f.queueAt(t, "duel", map[kernel.CharacterID]float64{ann.ID: 25}, ann)
 		wait(f.data.Pvp().Queue.BotsAfter + 3*time.Second)
-		if _, ok := last[pvp.CoreOffered](f.notes, ann.ID); ok || !slices.Equal(f.waits(ann.ID), []bool{true}) {
+		if _, ok := last[pvp.Offered](f.notes, ann.ID); ok || !slices.Equal(f.waits(ann.ID), []bool{true}) {
 			t.Fatalf("Ann told %v; want no offer, and told once that her match waits for room", f.notes.of(ann.ID))
 		}
 		f.world.end(1)
 		wait(time.Second)
 		got := f.notes.of(ann.ID)
-		q, waited := got[len(got)-2].(pvp.CoreQueued)
-		o, offered := got[len(got)-1].(pvp.CoreOffered)
+		q, waited := got[len(got)-2].(pvp.Queued)
+		o, offered := got[len(got)-1].(pvp.Offered)
 		if !waited || q.WaitingRoom || q.Mode != "duel" || q.Since < f.data.Pvp().Queue.BotsAfter || !offered || o.Bots != 1 {
 			t.Fatalf("Ann told %+v; want the wait over, with her time in the queue, then her offer against a bot", got)
 		}
@@ -229,7 +229,7 @@ func TestPlayersAloneNeverWaitForRoom(t *testing.T) {
 		ann, bo := player("Ann", "warrior"), player("Bo", "warrior")
 		f.queueAt(t, "duel", map[kernel.CharacterID]float64{ann.ID: 25, bo.ID: 25}, ann, bo)
 		wait(time.Second)
-		if o, ok := last[pvp.CoreOffered](f.notes, ann.ID); !ok || o.Bots != 0 || len(f.waits(ann.ID)) != 0 {
+		if o, ok := last[pvp.Offered](f.notes, ann.ID); !ok || o.Bots != 0 || len(f.waits(ann.ID)) != 0 {
 			t.Fatalf("Ann told %+v; want her offer against Bo at once, never a wait", f.notes.of(ann.ID))
 		}
 	})
@@ -247,11 +247,11 @@ func TestOffersAndOpeningsTakeRoom(t *testing.T) {
 		wait(time.Second)
 		f.queueAt(t, "duel", nil, bo)
 		wait(f.data.Pvp().Queue.BotsAfter)
-		offer, ok := last[pvp.CoreOffered](f.notes, ann.ID)
+		offer, ok := last[pvp.Offered](f.notes, ann.ID)
 		if !ok {
 			t.Fatal("Ann wasn't offered her bot")
 		}
-		if _, ok := last[pvp.CoreOffered](f.notes, bo.ID); ok || !slices.Equal(f.waits(bo.ID), []bool{true}) {
+		if _, ok := last[pvp.Offered](f.notes, bo.ID); ok || !slices.Equal(f.waits(bo.ID), []bool{true}) {
 			t.Fatal("Bo was offered a bot while Ann's offer held the last room")
 		}
 		f.world.mu.Lock()
@@ -260,7 +260,7 @@ func TestOffersAndOpeningsTakeRoom(t *testing.T) {
 		accepted := make(chan error, 1)
 		go func() { accepted <- f.svc.Answer(ctx, ann.ID, offer.Offer, true) }()
 		wait(3 * time.Second)
-		if _, ok := last[pvp.CoreOffered](f.notes, bo.ID); ok {
+		if _, ok := last[pvp.Offered](f.notes, bo.ID); ok {
 			t.Fatal("Bo was offered a bot while Ann's match opened with the last room")
 		}
 		close(f.world.hold)
@@ -268,12 +268,12 @@ func TestOffersAndOpeningsTakeRoom(t *testing.T) {
 			t.Fatal(err)
 		}
 		wait(time.Second)
-		if _, ok := last[pvp.CoreOffered](f.notes, bo.ID); ok {
+		if _, ok := last[pvp.Offered](f.notes, bo.ID); ok {
 			t.Fatal("Bo was offered a bot while Ann's match ran with the last room")
 		}
 		f.world.end(1)
 		wait(time.Second)
-		if o, ok := last[pvp.CoreOffered](f.notes, bo.ID); !ok || o.Bots != 1 || !slices.Equal(f.waits(bo.ID), []bool{true, false}) {
+		if o, ok := last[pvp.Offered](f.notes, bo.ID); !ok || o.Bots != 1 || !slices.Equal(f.waits(bo.ID), []bool{true, false}) {
 			t.Fatalf("Bo told %+v; want his wait over once Ann's match ended, then his offer", f.notes.of(bo.ID))
 		}
 	})
@@ -294,11 +294,11 @@ func TestABattleDealsTheOldestThirty(t *testing.T) {
 		wait(500 * time.Millisecond)
 		f.queueAt(t, "battle", nil, ps[30])
 		wait(time.Second)
-		if _, ok := last[pvp.CoreOffered](f.notes, ps[30].ID); ok {
+		if _, ok := last[pvp.Offered](f.notes, ps[30].ID); ok {
 			t.Fatal("the newest, 31st, was dealt in; want the oldest thirty")
 		}
 		for _, p := range ps[:30] {
-			if o, ok := last[pvp.CoreOffered](f.notes, p.ID); !ok || o.Bots != 0 {
+			if o, ok := last[pvp.Offered](f.notes, p.ID); !ok || o.Bots != 0 {
 				t.Fatalf("%s's offer %+v, %v; want each of the oldest thirty in a battle of players alone", p.Name, o, ok)
 			}
 		}
@@ -314,8 +314,8 @@ func TestOneStepsOffersShareTheRoom(t *testing.T) {
 		ann, bo := player("Ann", "warrior"), player("Bo", "warrior")
 		f.queueAt(t, "duel", map[kernel.CharacterID]float64{ann.ID: 10, bo.ID: 40}, ann, bo) // too far apart ever to meet
 		wait(f.data.Pvp().Queue.BotsAfter)
-		_, annOffered := last[pvp.CoreOffered](f.notes, ann.ID)
-		_, boOffered := last[pvp.CoreOffered](f.notes, bo.ID)
+		_, annOffered := last[pvp.Offered](f.notes, ann.ID)
+		_, boOffered := last[pvp.Offered](f.notes, bo.ID)
 		waiting := bo
 		if boOffered {
 			waiting = ann

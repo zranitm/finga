@@ -7,99 +7,99 @@ import (
 	"finga/internal/shared/kernel"
 )
 
-// CoreDelivery is what the module tells a player.
+// Delivery is what the module tells a player.
 //
 //sumtype:decl
-type CoreDelivery interface{ delivery() }
+type Delivery interface{ delivery() }
 
-// CoreQueued says the player is in a mode's queue, having waited Since: on joining, and again each time WaitingRoom flips, as their match waits for the node to have room for its bots, then has it.
-type CoreQueued struct {
+// Queued says the player is in a mode's queue, having waited Since: on joining, and again each time WaitingRoom flips, as their match waits for the node to have room for its bots, then has it.
+type Queued struct {
 	Mode        string
 	Since       time.Duration
 	Members     []kernel.CharacterID
 	WaitingRoom bool
 }
 
-// CoreUnqueued says the player is out of the queue, and why: By is the members whose answer took the ticket out, the one who declined or those who let the offer lapse.
-type CoreUnqueued struct {
-	Reason CoreUnqueueReason
+// Unqueued says the player is out of the queue, and why: By is the members whose answer took the ticket out, the one who declined or those who let the offer lapse.
+type Unqueued struct {
+	Reason UnqueueReason
 	By     []kernel.CharacterID
 }
 
-// CoreUnqueueReason is why a player left the queue.
-type CoreUnqueueReason int
+// UnqueueReason is why a player left the queue.
+type UnqueueReason int
 
 // The reasons: they left, they declined an offer, they let it lapse, or their party changed.
 const (
-	CoreUnqueueLeft CoreUnqueueReason = iota
-	CoreUnqueueDeclined
-	CoreUnqueueLapsed
-	CoreUnqueuePartyChanged
+	UnqueueLeft UnqueueReason = iota
+	UnqueueDeclined
+	UnqueueLapsed
+	UnqueuePartyChanged
 )
 
-// CoreOffered is a match found: how many bots it has, and how long the offer stands.
-type CoreOffered struct {
+// Offered is a match found: how many bots it has, and how long the offer stands.
+type Offered struct {
 	Offer string
 	Mode  string
 	Bots  int
 	Until time.Duration
 }
 
-// CoreOfferGone says an offer fell through, and whether the player is back in the queue.
-type CoreOfferGone struct {
+// OfferGone says an offer fell through, and whether the player is back in the queue.
+type OfferGone struct {
 	Offer    string
-	Reason   CoreGoneReason
+	Reason   GoneReason
 	Requeued bool
 }
 
-// CoreGoneReason is why an offer fell through.
-type CoreGoneReason int
+// GoneReason is why an offer fell through.
+type GoneReason int
 
 // The reasons: someone declined, or it lapsed.
 const (
-	CoreGoneDeclined CoreGoneReason = iota
-	CoreGoneLapsed
+	GoneDeclined GoneReason = iota
+	GoneLapsed
 )
 
-// CoreEnded is a match's outcome for one of its players, with their rating's change in a rated mode.
-type CoreEnded struct {
+// Ended is a match's outcome for one of its players, with their rating's change in a rated mode.
+type Ended struct {
 	Mode    string
-	Outcome CoreOutcome
+	Outcome Outcome
 	Battle  bool   // fought for points: Score is its, and it has no rounds
 	Wins    [2]int // rounds won by each side
 	Score   [2]int
-	Rating  *CoreRatingChange // a rated mode's
-	Left    bool              // the player left before the outcome, so lost whatever their side did
+	Rating  *RatingChange // a rated mode's
+	Left    bool          // the player left before the outcome, so lost whatever their side did
 	Match   kernel.MatchID
 	Away    bool // the player wasn't in the match at its end: one who hands this on live marks them told, or their next Welcome tells them
 }
 
-// CoreOutcome is a match's end for a side.
-type CoreOutcome int
+// Outcome is a match's end for a side.
+type Outcome int
 
 // The outcomes.
 const (
-	CoreWin CoreOutcome = iota
-	CoreLoss
-	CoreDraw
+	Win Outcome = iota
+	Loss
+	Draw
 )
 
-// CoreRatingChange is a mode's shown rating and rank before and after a match, and the placement matches left.
-type CoreRatingChange struct {
+// RatingChange is a mode's shown rating and rank before and after a match, and the placement matches left.
+type RatingChange struct {
 	Before, After         int
 	RankBefore, RankAfter string
 	PlacementLeft         int
 }
 
-// CorePiecesAdded is the pieces a match's end gave the player's account, each new to it: ranks' or win feats'.
-type CorePiecesAdded struct {
+// PiecesAdded is the pieces a match's end gave the player's account, each new to it: ranks' or win feats'.
+type PiecesAdded struct {
 	Pieces []model.RankPiece
 	Feats  []model.FeatPiece
 }
 
-func (CoreQueued) delivery()      {}
-func (CoreUnqueued) delivery()    {}
-func (CoreOffered) delivery()     {}
-func (CoreOfferGone) delivery()   {}
-func (CoreEnded) delivery()       {}
-func (CorePiecesAdded) delivery() {}
+func (Queued) delivery()      {}
+func (Unqueued) delivery()    {}
+func (Offered) delivery()     {}
+func (OfferGone) delivery()   {}
+func (Ended) delivery()       {}
+func (PiecesAdded) delivery() {}

@@ -47,7 +47,7 @@ func TestALeaderQueuesTheirParty(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, p := range ps {
-		if q, ok := last[pvp.CoreQueued](f.notes, p.ID); !ok || q.Mode != "team" || !slices.Equal(q.Members, idsOf(ps)) {
+		if q, ok := last[pvp.Queued](f.notes, p.ID); !ok || q.Mode != "team" || !slices.Equal(q.Members, idsOf(ps)) {
 			t.Fatalf("%s heard %+v, want queued for team with the party", p.Name, f.notes.of(p.ID))
 		}
 	}
@@ -107,10 +107,10 @@ func TestAPartyTicketIsAllOrNothing(t *testing.T) {
 // A change to a queued party takes its whole ticket out, telling each member: while queued, and while offered, when the others in the offer go back; once its match opens, nothing is queued to take. One member going offline takes the ticket out too, and a change that leaves the members as they were changes nothing.
 func TestAPartyChangeTakesItsTicketOut(t *testing.T) {
 	ctx := context.Background()
-	left := func(t *testing.T, f fixture, ps []model.Player, reason pvp.CoreUnqueueReason) {
+	left := func(t *testing.T, f fixture, ps []model.Player, reason pvp.UnqueueReason) {
 		t.Helper()
 		for _, p := range ps {
-			if u, ok := last[pvp.CoreUnqueued](f.notes, p.ID); !ok || u.Reason != reason || f.queued(p.ID) {
+			if u, ok := last[pvp.Unqueued](f.notes, p.ID); !ok || u.Reason != reason || f.queued(p.ID) {
 				t.Fatalf("%s heard %+v; want out of the queue, %v", p.Name, f.notes.of(p.ID), reason)
 			}
 		}
@@ -122,7 +122,7 @@ func TestAPartyChangeTakesItsTicketOut(t *testing.T) {
 			t.Fatal(err)
 		}
 		f.svc.PartyChanged(idsOf(ps), idsOf(ps)) // an HP or map change: the same members
-		if _, ok := last[pvp.CoreUnqueued](f.notes, ps[0].ID); ok {
+		if _, ok := last[pvp.Unqueued](f.notes, ps[0].ID); ok {
 			t.Fatal("a change keeping the members took the ticket out")
 		}
 		f.svc.PartyChanged([]kernel.CharacterID{ps[1].ID}, nil) // Bo left
@@ -140,13 +140,13 @@ func TestAPartyChangeTakesItsTicketOut(t *testing.T) {
 				}
 			}
 			wait(f.data.Pvp().Queue.BotsAfter)
-			offer, ok := last[pvp.CoreOffered](f.notes, cy.ID)
-			if bo, _ := last[pvp.CoreOffered](f.notes, ps[1].ID); !ok || bo.Offer != offer.Offer || offer.Bots != 3 {
+			offer, ok := last[pvp.Offered](f.notes, cy.ID)
+			if bo, _ := last[pvp.Offered](f.notes, ps[1].ID); !ok || bo.Offer != offer.Offer || offer.Bots != 3 {
 				t.Fatalf("Cy heard %+v, Bo %+v; want one offer for the three with three bots", offer, bo)
 			}
 			f.svc.PartyChanged([]kernel.CharacterID{ps[0].ID, ps[1].ID, kernel.NewCharacterID()}, []kernel.CharacterID{ps[0].ID, ps[1].ID, kernel.NewCharacterID()})
 			left(t, f, ps, pvp.UnqueuePartyChanged)
-			if g, ok := last[pvp.CoreOfferGone](f.notes, cy.ID); !ok || !g.Requeued {
+			if g, ok := last[pvp.OfferGone](f.notes, cy.ID); !ok || !g.Requeued {
 				t.Fatalf("Cy heard %+v; want back in the queue", f.notes.of(cy.ID))
 			}
 		})
@@ -160,7 +160,7 @@ func TestAPartyChangeTakesItsTicketOut(t *testing.T) {
 				t.Fatal(err)
 			}
 			wait(f.data.Pvp().Queue.BotsAfter)
-			offer, _ := last[pvp.CoreOffered](f.notes, ps[0].ID)
+			offer, _ := last[pvp.Offered](f.notes, ps[0].ID)
 			for _, p := range ps {
 				if err := f.svc.Answer(ctx, p.ID, offer.Offer, true); err != nil {
 					t.Fatal(err)
@@ -269,7 +269,7 @@ func TestEveryMemberAccepts(t *testing.T) {
 			t.Fatal(err)
 		}
 		wait(f.data.Pvp().Queue.BotsAfter)
-		offer, _ := last[pvp.CoreOffered](f.notes, ps[0].ID)
+		offer, _ := last[pvp.Offered](f.notes, ps[0].ID)
 		if err := f.svc.Answer(ctx, ps[0].ID, offer.Offer, true); err != nil || len(f.world.opened) != 0 {
 			t.Fatalf("one of two accepting: %v, opened %+v; want it waiting for Bo", err, f.world.opened)
 		}
@@ -292,21 +292,21 @@ func TestAPartyOutOverOneMembersAnswerNamesThem(t *testing.T) {
 					t.Fatal(err)
 				}
 				wait(f.data.Pvp().Queue.BotsAfter)
-				offer, _ := last[pvp.CoreOffered](f.notes, ps[0].ID)
+				offer, _ := last[pvp.Offered](f.notes, ps[0].ID)
 				if err := f.svc.Answer(ctx, ps[0].ID, offer.Offer, true); err != nil {
 					t.Fatal(err)
 				}
-				want := pvp.CoreUnqueued{Reason: pvp.UnqueueLapsed, By: []kernel.CharacterID{ps[1].ID, ps[2].ID}}
+				want := pvp.Unqueued{Reason: pvp.UnqueueLapsed, By: []kernel.CharacterID{ps[1].ID, ps[2].ID}}
 				if declines {
 					if err := f.svc.Answer(ctx, ps[1].ID, offer.Offer, false); err != nil {
 						t.Fatal(err)
 					}
-					want = pvp.CoreUnqueued{Reason: pvp.UnqueueDeclined, By: []kernel.CharacterID{ps[1].ID}}
+					want = pvp.Unqueued{Reason: pvp.UnqueueDeclined, By: []kernel.CharacterID{ps[1].ID}}
 				} else {
 					wait(f.data.Pvp().Queue.Offer)
 				}
 				for _, p := range ps {
-					if u, ok := last[pvp.CoreUnqueued](f.notes, p.ID); !ok || u.Reason != want.Reason || !slices.Equal(u.By, want.By) {
+					if u, ok := last[pvp.Unqueued](f.notes, p.ID); !ok || u.Reason != want.Reason || !slices.Equal(u.By, want.By) {
 						t.Fatalf("%s heard %+v, want %+v", p.Name, f.notes.of(p.ID), want)
 					}
 				}
@@ -329,7 +329,7 @@ func sideOf(spec model.Spec, id kernel.CharacterID) int {
 func (f fixture) open(t *testing.T, ps ...model.Player) []model.Spec {
 	t.Helper()
 	for _, p := range ps {
-		if o, ok := last[pvp.CoreOffered](f.notes, p.ID); ok {
+		if o, ok := last[pvp.Offered](f.notes, p.ID); ok {
 			if err := f.svc.Answer(context.Background(), p.ID, o.Offer, true); err != nil && !errors.Is(err, model.ErrOfferGone) {
 				t.Fatal(err)
 			}
@@ -389,7 +389,7 @@ func TestPartiesAreNeverSplit(t *testing.T) {
 			}
 		}
 		wait(f.data.Pvp().Queue.BotsAfter - time.Second)
-		if _, ok := last[pvp.CoreOffered](f.notes, parties[0][0].ID); ok {
+		if _, ok := last[pvp.Offered](f.notes, parties[0][0].ID); ok {
 			t.Fatal("offered a match before bots_after: the parties were split")
 		}
 		wait(time.Second)
@@ -487,10 +487,10 @@ func TestALeaverLosesWhateverTheirSideDoes(t *testing.T) {
 	if a.Mu <= fresh || a.Wins != 1 || b.Mu >= fresh || b.Losses != 1 || c.Mu >= fresh || c.Losses != 1 {
 		t.Fatalf("Ann %+v, Bo %+v, Cy %+v; want Ann up with a win, Bo who left down with a loss, Cy down", a, b, c)
 	}
-	if e, ok := last[pvp.CoreEnded](f.notes, bo); !ok || e.Outcome != pvp.Loss || !e.Left || e.Mode != "team" {
+	if e, ok := last[pvp.Ended](f.notes, bo); !ok || e.Outcome != pvp.Loss || !e.Left || e.Mode != "team" {
 		t.Fatalf("Bo heard %+v; want a loss in team, told he left", f.notes.of(bo))
 	}
-	if e, _ := last[pvp.CoreEnded](f.notes, ann); e.Outcome != pvp.Win || e.Left || e.Mode != "team" {
+	if e, _ := last[pvp.Ended](f.notes, ann); e.Outcome != pvp.Win || e.Left || e.Mode != "team" {
 		t.Fatalf("Ann heard %+v; want a win in team, not told she left", f.notes.of(ann))
 	}
 

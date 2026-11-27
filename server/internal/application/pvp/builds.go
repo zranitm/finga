@@ -22,8 +22,8 @@ const (
 	buildsFor   = 5 * time.Second
 )
 
-// CoreStanding is a character in a mode: in a rated one their shown rating and its rank, the placement matches they have left, their record, and their place on the board once placed, 0 before; in an unrated one their record alone.
-type CoreStanding struct {
+// Standing is a character in a mode: in a rated one their shown rating and its rank, the placement matches they have left, their record, and their place on the board once placed, 0 before; in an unrated one their record alone.
+type Standing struct {
 	Mode                string
 	Shown               int
 	Rank                string
@@ -32,14 +32,14 @@ type CoreStanding struct {
 	Place               int
 }
 
-// CoreProfile is a character's standing in each mode, in pvp.yaml's order, and their arena build.
-type CoreProfile struct {
-	Standings []CoreStanding
+// Profile is a character's standing in each mode, in pvp.yaml's order, and their arena build.
+type Profile struct {
+	Standings []Standing
 	Build     model.Build
 }
 
-// CoreRow is a character on a mode's board: their place, shared by a tie, and their shown rating, rank and record.
-type CoreRow struct {
+// Row is a character on a mode's board: their place, shared by a tie, and their shown rating, rank and record.
+type Row struct {
 	Place               int
 	Character           kernel.CharacterID
 	Name                string
@@ -58,7 +58,7 @@ type boards struct {
 
 type board struct {
 	at   time.Time
-	rows []CoreRow
+	rows []Row
 }
 
 // SetBuild saves the arena build of one of the account's characters, checked against their class, and hands it to their match if they're in one, for its next round; a match that can't take it now gets it at their next.
@@ -85,31 +85,31 @@ func (s *Service) SetBuild(ctx context.Context, account kernel.AccountID, id ker
 }
 
 // Profile is one of the account's characters' standing in each rated mode, and their arena build: the one they saved, or their world bar's copy.
-func (s *Service) Profile(ctx context.Context, account kernel.AccountID, id kernel.CharacterID) (CoreProfile, error) {
+func (s *Service) Profile(ctx context.Context, account kernel.AccountID, id kernel.CharacterID) (Profile, error) {
 	ch, err := s.owned(ctx, account, id)
 	if err != nil {
-		return CoreProfile{}, err
+		return Profile{}, err
 	}
 	ratings, err := s.d.Store.Ratings(ctx, id)
 	if err != nil {
-		return CoreProfile{}, err
+		return Profile{}, err
 	}
-	var out CoreProfile
+	var out Profile
 	for _, mode := range s.rules.Modes {
 		rt, ok := ratings[mode.ID]
 		if !mode.Rated {
-			out.Standings = append(out.Standings, CoreStanding{Mode: mode.ID, Wins: rt.Wins, Losses: rt.Losses, Draws: rt.Draws})
+			out.Standings = append(out.Standings, Standing{Mode: mode.ID, Wins: rt.Wins, Losses: rt.Losses, Draws: rt.Draws})
 			continue
 		}
 		if !ok {
 			rt = s.fresh()
 		}
 		shown := s.shown(rt)
-		st := CoreStanding{Mode: mode.ID, Shown: shown, Rank: s.rankOf(shown), PlacementLeft: max(0, s.rules.Rating.Placement-rt.Matches), Wins: rt.Wins, Losses: rt.Losses, Draws: rt.Draws}
+		st := Standing{Mode: mode.ID, Shown: shown, Rank: s.rankOf(shown), PlacementLeft: max(0, s.rules.Rating.Placement-rt.Matches), Wins: rt.Wins, Losses: rt.Losses, Draws: rt.Draws}
 		if st.PlacementLeft == 0 {
 			above, err := s.d.Store.Above(ctx, mode.ID, shown)
 			if err != nil {
-				return CoreProfile{}, err
+				return Profile{}, err
 			}
 			st.Place = above + 1
 		}
@@ -117,7 +117,7 @@ func (s *Service) Profile(ctx context.Context, account kernel.AccountID, id kern
 	}
 	b, saved, err := s.d.Store.Build(ctx, id)
 	if err != nil {
-		return CoreProfile{}, err
+		return Profile{}, err
 	}
 	if !saved {
 		b = s.copied(ch)
@@ -143,7 +143,7 @@ func (s *Service) copied(ch model.Character) model.Build {
 }
 
 // Leaderboard is a rated mode's top placed characters, highest first, a tie sharing its place; one read serves everyone for boardFor.
-func (s *Service) Leaderboard(ctx context.Context, modeID string) ([]CoreRow, error) {
+func (s *Service) Leaderboard(ctx context.Context, modeID string) ([]Row, error) {
 	mode, ok := s.d.Data.PvpMode(modeID)
 	if !ok || !mode.Rated {
 		return nil, model.ErrUnknownMode // an unrated mode has no board
@@ -168,11 +168,11 @@ func (s *Service) Leaderboard(ctx context.Context, modeID string) ([]CoreRow, er
 	if err != nil {
 		return nil, err
 	}
-	return rows.([]CoreRow), nil
+	return rows.([]Row), nil
 }
 
 // readBoard reads mode's board from the store, with the characters' names.
-func (s *Service) readBoard(ctx context.Context, mode gamedata.PvpMode) ([]CoreRow, error) {
+func (s *Service) readBoard(ctx context.Context, mode gamedata.PvpMode) ([]Row, error) {
 	ranked, err := s.d.Store.Board(ctx, mode.ID, boardLength)
 	if err != nil {
 		return nil, err
@@ -185,14 +185,14 @@ func (s *Service) readBoard(ctx context.Context, mode gamedata.PvpMode) ([]CoreR
 	if err != nil {
 		return nil, err
 	}
-	rows := make([]CoreRow, 0, len(ranked))
+	rows := make([]Row, 0, len(ranked))
 	for k, r := range ranked {
 		place := k + 1
 		if k > 0 && r.Rating.Shown == rows[k-1].Shown {
 			place = rows[k-1].Place
 		}
 		n := names[r.Character]
-		rows = append(rows, CoreRow{Place: place, Character: r.Character, Name: n.Name, Class: n.Class, Shown: r.Rating.Shown, Rank: s.rankOf(r.Rating.Shown), Wins: r.Rating.Wins, Losses: r.Rating.Losses, Draws: r.Rating.Draws})
+		rows = append(rows, Row{Place: place, Character: r.Character, Name: n.Name, Class: n.Class, Shown: r.Rating.Shown, Rank: s.rankOf(r.Rating.Shown), Wins: r.Rating.Wins, Losses: r.Rating.Losses, Draws: r.Rating.Draws})
 	}
 	return rows, nil
 }

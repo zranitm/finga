@@ -24,7 +24,7 @@ func winsTold(f fixture, id kernel.CharacterID) ([]model.FeatPiece, int) {
 	var out []model.FeatPiece
 	pushes := 0
 	for _, d := range f.notes.of(id) {
-		if p, ok := d.(pvp.CorePiecesAdded); ok && len(p.Feats) > 0 {
+		if p, ok := d.(pvp.PiecesAdded); ok && len(p.Feats) > 0 {
 			out = append(out, p.Feats...)
 			pushes++
 		}
@@ -59,7 +59,7 @@ func TestAWinAsksForTheWinFeats(t *testing.T) {
 		if got, pushes := winsTold(f, ayla); !slices.Equal(got, firstWin) || pushes != 1 || !f.items.feats[account]["victors_horns"] {
 			t.Fatalf("the first win told of %+v in %d pushes", got, pushes)
 		}
-		if _, ok := f.notes.of(ayla)[len(f.notes.of(ayla))-2].(pvp.CoreEnded); !ok {
+		if _, ok := f.notes.of(ayla)[len(f.notes.of(ayla))-2].(pvp.Ended); !ok {
 			t.Fatalf("Ayla heard %+v, the outcome not before the piece", f.notes.of(ayla))
 		}
 		record(f, "duel", ayla, 2, false)
@@ -122,8 +122,8 @@ func tenWinsData(t *testing.T) *gamedata.Data {
 	if err != nil {
 		t.Fatal(err)
 	}
-	text := strings.Replace(string(raw), "\nfeats:\n", "\n  - {id: ten_win_cape, slot: outfit, name: Ten-CoreWin Cape, stars: 3, look: knight_body, from: [{feat: ten_wins}]}\nfeats:\n", 1)
-	if err := os.WriteFile(filepath.Join(dir, "outfits.yaml"), []byte(text+"  - {id: ten_wins, name: CoreWin ten PvP matches, when: {pvp_wins: 10}}\n"), 0o600); err != nil {
+	text := strings.Replace(string(raw), "\nfeats:\n", "\n  - {id: ten_win_cape, slot: outfit, name: Ten-Win Cape, stars: 3, look: knight_body, from: [{feat: ten_wins}]}\nfeats:\n", 1)
+	if err := os.WriteFile(filepath.Join(dir, "outfits.yaml"), []byte(text+"  - {id: ten_wins, name: Win ten PvP matches, when: {pvp_wins: 10}}\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	d, err := load.Dir(dir)

@@ -179,7 +179,7 @@ func (s *Service) Queue(ctx context.Context, p model.Player, modeID string) erro
 	for _, m := range members {
 		s.tickets[m.ID] = t
 	}
-	s.tell(t, CoreQueued{Mode: mode.ID, Members: t.ids()})
+	s.tell(t, Queued{Mode: mode.ID, Members: t.ids()})
 	return nil
 }
 
@@ -217,7 +217,7 @@ func asMember(k int, err error) error {
 }
 
 // tell pushes d to each of t's members. The caller holds mu.
-func (s *Service) tell(t *ticket, d CoreDelivery) {
+func (s *Service) tell(t *ticket, d Delivery) {
 	for _, m := range t.members {
 		s.d.Notifier.Push(m.ID, d)
 	}
@@ -264,7 +264,7 @@ func (s *Service) Leave(_ context.Context, who kernel.CharacterID) error {
 	if !ok {
 		return model.ErrNotQueued
 	}
-	s.out(t, CoreUnqueueLeft)
+	s.out(t, UnqueueLeft)
 	return nil
 }
 
@@ -273,7 +273,7 @@ func (s *Service) Offline(_ context.Context, who kernel.CharacterID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if t, ok := s.tickets[who]; ok {
-		s.out(t, CoreUnqueueLeft)
+		s.out(t, UnqueueLeft)
 	}
 }
 
@@ -291,7 +291,7 @@ func (s *Service) PartyChanged(characters, members []kernel.CharacterID) {
 			now = []kernel.CharacterID{id}
 		}
 		if !sameSet(now, t.ids()) {
-			s.out(t, CoreUnqueuePartyChanged)
+			s.out(t, UnqueuePartyChanged)
 		}
 	}
 }
@@ -312,7 +312,7 @@ func (s *Service) Resync(ctx context.Context) {
 			s.d.Logger.WarnContext(ctx, "a queued party couldn't be looked at again: its ticket goes out", "character_id", id, "err", err)
 			s.mu.Lock()
 			if t := s.tickets[id]; t != nil {
-				s.out(t, CoreUnqueuePartyChanged)
+				s.out(t, UnqueuePartyChanged)
 			}
 			s.mu.Unlock()
 			continue
@@ -354,12 +354,12 @@ func (s *Service) unique() []*ticket {
 }
 
 // out takes t out of the queue for reason; an offer it's in falls through, the others going back to the queue with their wait kept. The caller holds mu.
-func (s *Service) out(t *ticket, reason CoreUnqueueReason) {
+func (s *Service) out(t *ticket, reason UnqueueReason) {
 	if o := t.offer; o != nil {
-		s.fail(o, CoreGoneDeclined, func(o *ticket) bool { return o == t })
+		s.fail(o, GoneDeclined, func(o *ticket) bool { return o == t })
 	}
 	s.drop(t)
-	s.tell(t, CoreUnqueued{Reason: reason})
+	s.tell(t, Unqueued{Reason: reason})
 }
 
 // drop forgets t under each of its members. The caller holds mu.
@@ -370,13 +370,13 @@ func (s *Service) drop(t *ticket) {
 }
 
 // fail ends offer o for reason, telling each player: those leaving go out of the queue, and the rest back to it with their wait kept; it returns those leaving, for the caller to tell why. The caller holds mu.
-func (s *Service) fail(o *offer, reason CoreGoneReason, leaving func(*ticket) bool) []*ticket {
+func (s *Service) fail(o *offer, reason GoneReason, leaving func(*ticket) bool) []*ticket {
 	delete(s.offers, o.id)
 	var gone []*ticket
 	for _, t := range o.tickets() {
 		t.offer = nil
 		out := leaving(t)
-		s.tell(t, CoreOfferGone{Offer: o.id, Reason: reason, Requeued: !out})
+		s.tell(t, OfferGone{Offer: o.id, Reason: reason, Requeued: !out})
 		if out {
 			s.drop(t)
 			gone = append(gone, t)
@@ -391,8 +391,8 @@ func (s *Service) Answer(ctx context.Context, who kernel.CharacterID, offerID st
 	t, o, err := s.offerOf(who, offerID)
 	if err != nil || !accept {
 		if err == nil {
-			s.fail(o, CoreGoneDeclined, func(o *ticket) bool { return o == t })
-			s.tell(t, CoreUnqueued{Reason: CoreUnqueueDeclined, By: []kernel.CharacterID{who}})
+			s.fail(o, GoneDeclined, func(o *ticket) bool { return o == t })
+			s.tell(t, Unqueued{Reason: UnqueueDeclined, By: []kernel.CharacterID{who}})
 		}
 		s.mu.Unlock()
 		return err
@@ -454,8 +454,8 @@ func (s *Service) open(ctx context.Context, spec model.Spec, o *offer) {
 	}
 	s.d.Logger.ErrorContext(ctx, "the world didn't open a match", "match_id", spec.ID, "err", err)
 	for _, t := range o.tickets() {
-		s.tell(t, CoreOfferGone{Offer: o.id, Reason: CoreGoneLapsed})
-		s.tell(t, CoreUnqueued{Reason: CoreUnqueueLapsed})
+		s.tell(t, OfferGone{Offer: o.id, Reason: GoneLapsed})
+		s.tell(t, Unqueued{Reason: UnqueueLapsed})
 	}
 }
 
@@ -484,8 +484,8 @@ func (s *Service) step(now time.Time) {
 		if now.Before(o.until) {
 			continue
 		}
-		for _, t := range s.fail(o, CoreGoneLapsed, func(t *ticket) bool { return !o.accepted(t) }) {
-			s.tell(t, CoreUnqueued{Reason: CoreUnqueueLapsed, By: o.silent(t)})
+		for _, t := range s.fail(o, GoneLapsed, func(t *ticket) bool { return !o.accepted(t) }) {
+			s.tell(t, Unqueued{Reason: UnqueueLapsed, By: o.silent(t)})
 		}
 	}
 	s.room = s.rules.Bots.Most - s.d.World.Bots() - s.openingBots
@@ -669,7 +669,7 @@ func (s *Service) offer(mode gamedata.PvpMode, sides [2][]*ticket, now time.Time
 	for _, t := range o.tickets() {
 		if t.waiting != !room {
 			t.waiting = !room
-			s.tell(t, CoreQueued{Mode: mode.ID, Since: now.Sub(t.joined), Members: t.ids(), WaitingRoom: t.waiting})
+			s.tell(t, Queued{Mode: mode.ID, Since: now.Sub(t.joined), Members: t.ids(), WaitingRoom: t.waiting})
 		}
 	}
 	if !room {
@@ -679,7 +679,7 @@ func (s *Service) offer(mode gamedata.PvpMode, sides [2][]*ticket, now time.Time
 	s.offers[o.id] = o
 	for _, t := range o.tickets() {
 		t.offer = o
-		s.tell(t, CoreOffered{Offer: o.id, Mode: mode.ID, Bots: o.bots(), Until: s.rules.Queue.Offer})
+		s.tell(t, Offered{Offer: o.id, Mode: mode.ID, Bots: o.bots(), Until: s.rules.Queue.Offer})
 	}
 }
 
@@ -805,7 +805,7 @@ func (s *Service) Record(ctx context.Context, r model.Result) {
 	if err != nil {
 		s.d.Logger.ErrorContext(ctx, "a match's outcome wasn't stored; it goes unrated", "match_id", r.Match, "err", err)
 	}
-	changes := map[kernel.CharacterID]*CoreRatingChange{}
+	changes := map[kernel.CharacterID]*RatingChange{}
 	for _, f := range fighters {
 		if !f.Character.IsZero() && mode.Rated {
 			changes[f.Character] = s.change(f.Before, f.After)
@@ -814,7 +814,7 @@ func (s *Service) Record(ctx context.Context, r model.Result) {
 	for side, fs := range r.Sides {
 		for _, f := range fs {
 			if !f.Character.IsZero() {
-				s.d.Notifier.Push(f.Character, CoreEnded{Mode: r.Mode, Outcome: outcomeFor(f, r.Winner, side+1), Battle: mode.Battle(), Wins: r.Wins, Score: r.Score, Rating: changes[f.Character], Left: f.Left, Match: r.Match, Away: f.Away})
+				s.d.Notifier.Push(f.Character, Ended{Mode: r.Mode, Outcome: outcomeFor(f, r.Winner, side+1), Battle: mode.Battle(), Wins: r.Wins, Score: r.Score, Rating: changes[f.Character], Left: f.Left, Match: r.Match, Away: f.Away})
 			}
 		}
 	}
@@ -868,7 +868,7 @@ func (s *Service) grantWins(ctx context.Context, f model.Fighter) {
 		return
 	}
 	if len(added) > 0 {
-		s.d.Notifier.Push(f.Character, CorePiecesAdded{Feats: added})
+		s.d.Notifier.Push(f.Character, PiecesAdded{Feats: added})
 	}
 }
 
@@ -926,14 +926,14 @@ func (s *Service) grantRanks(ctx context.Context, f model.Fighter) {
 		return
 	}
 	if len(added) > 0 {
-		s.d.Notifier.Push(f.Character, CorePiecesAdded{Pieces: added})
+		s.d.Notifier.Push(f.Character, PiecesAdded{Pieces: added})
 	}
 }
 
 // outcomeFor is how the match went for f, on side: a loss for one who left, whatever their side's.
-func outcomeFor(f model.Outcome, winner, side int) CoreOutcome {
+func outcomeFor(f model.Outcome, winner, side int) Outcome {
 	if f.Left {
-		return CoreLoss
+		return Loss
 	}
 	return outcomeOf(winner, side)
 }
@@ -973,11 +973,11 @@ func (s *Service) rate(r model.Result, rated bool, before map[kernel.CharacterID
 				}
 				a := model.Rating{Mu: m.Mu, Sigma: m.Sigma, Matches: b.Matches + 1, Wins: b.Wins, Losses: b.Losses, Draws: b.Draws}
 				switch outcomeFor(f, r.Winner, k+1) {
-				case CoreWin:
+				case Win:
 					a.Wins++
-				case CoreLoss:
+				case Loss:
 					a.Losses++
-				case CoreDraw:
+				case Draw:
 					a.Draws++
 				}
 				a.Shown, a.Placed = s.shown(a), rated && a.Matches >= s.rules.Rating.Placement
@@ -1004,20 +1004,20 @@ func (s *Service) ratingIn(f model.Outcome, before map[kernel.CharacterID]model.
 	return rating.Rating{Mu: b.Mu, Sigma: b.Sigma}
 }
 
-func outcomeOf(winner, side int) CoreOutcome {
+func outcomeOf(winner, side int) Outcome {
 	switch winner {
 	case 0:
-		return CoreDraw
+		return Draw
 	case side:
-		return CoreWin
+		return Win
 	}
-	return CoreLoss
+	return Loss
 }
 
 // change is the shown rating and rank before and after, and the placement matches left.
-func (s *Service) change(before, after model.Rating) *CoreRatingChange {
+func (s *Service) change(before, after model.Rating) *RatingChange {
 	b, a := s.shown(before), s.shown(after)
-	return &CoreRatingChange{Before: b, After: a, RankBefore: s.rankOf(b), RankAfter: s.rankOf(a), PlacementLeft: max(0, s.rules.Rating.Placement-after.Matches)}
+	return &RatingChange{Before: b, After: a, RankBefore: s.rankOf(b), RankAfter: s.rankOf(a), PlacementLeft: max(0, s.rules.Rating.Placement-after.Matches)}
 }
 
 // shown is a rating as one number, by pvp.yaml's rule.

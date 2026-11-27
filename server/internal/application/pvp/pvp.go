@@ -128,6 +128,6 @@ func (m *Module) Subscribe(gateway string) *hub.Sub[Push] {
 type notifier struct{ pushes *hub.Hub[Push] }
 
 // Push sends d for to.
-func (n notifier) Push(to kernel.CharacterID, d CoreDelivery) {
+func (n notifier) Push(to kernel.CharacterID, d Delivery) {
 	n.pushes.Broadcast(Push{To: to, Delivery: d})
 }

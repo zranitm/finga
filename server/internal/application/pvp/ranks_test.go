@@ -101,7 +101,7 @@ func added(f fixture, ayla kernel.CharacterID) ([]model.RankPiece, int) {
 	var out []model.RankPiece
 	pushes := 0
 	for _, d := range f.notes.of(ayla) {
-		if p, ok := d.(pvp.CorePiecesAdded); ok && len(p.Pieces) > 0 {
+		if p, ok := d.(pvp.PiecesAdded); ok && len(p.Pieces) > 0 {
 			out = append(out, p.Pieces...)
 			pushes++
 		}
@@ -119,7 +119,7 @@ func TestARanksPieceComesOnceThroughAFallAndAClimb(t *testing.T) {
 		if got, _ := added(f, ayla); !slices.Equal(got, silverGold) {
 			t.Fatalf("reaching gold told of %+v, want %+v", got, silverGold)
 		}
-		if _, ok := f.notes.of(ayla)[0].(pvp.CoreEnded); !ok {
+		if _, ok := f.notes.of(ayla)[0].(pvp.Ended); !ok {
 			t.Fatalf("Ayla heard %+v, the outcome not first", f.notes.of(ayla))
 		}
 		duel(f, ayla, placedAt(1260), false) // down to silver

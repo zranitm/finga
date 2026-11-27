@@ -109,7 +109,7 @@ func TestAProfileGivesEachModeAndTheBuild(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fresh := []pvp.CoreStanding{
+	fresh := []pvp.Standing{
 		{Mode: "duel", Shown: 1000, Rank: "bronze", PlacementLeft: 5},
 		{Mode: "team", Shown: 1000, Rank: "bronze", PlacementLeft: 5},
 		{Mode: "battle"},
@@ -134,10 +134,10 @@ func TestAProfileGivesEachModeAndTheBuild(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := (pvp.CoreStanding{Mode: "duel", Shown: shown(tie), Rank: "platinum", Wins: 4, Losses: 1, Draws: 1, Place: 2}); p.Standings[0] != want || !same(p.Build, f.store.builds[ayla]) {
+	if want := (pvp.Standing{Mode: "duel", Shown: shown(tie), Rank: "platinum", Wins: 4, Losses: 1, Draws: 1, Place: 2}); p.Standings[0] != want || !same(p.Build, f.store.builds[ayla]) {
 		t.Fatalf("a placed fighter's duel %+v, build %+v; want %+v, second with the one tied, and the saved build", p.Standings[0], p.Build, want)
 	}
-	if want := (pvp.CoreStanding{Mode: "battle", Wins: 3, Losses: 2, Draws: 1}); p.Standings[2] != want {
+	if want := (pvp.Standing{Mode: "battle", Wins: 3, Losses: 2, Draws: 1}); p.Standings[2] != want {
 		t.Fatalf("the battle's standing %+v; want %+v, its own record alone", p.Standings[2], want)
 	}
 	if _, err := f.svc.Profile(ctx, kernel.NewAccountID(), ayla); !errors.Is(err, model.ErrNoCharacter) {
