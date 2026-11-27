@@ -15,8 +15,10 @@
   - When the lock ends, the nearest mob is locked again at once.
   - Walls and ledges don't hide a mob from the lock, as they don't hide players from mobs.
 - **Switching:**
-  - Tab, by default (B6), locks the next closest mob: the nearest one farther than the current lock.
-  - After the farthest, it wraps round to the nearest.
+  - Tab, by default (B6), locks the next closest mob: the nearest one other than the current lock.
+  - Each Tab after it goes one farther out: to the nearest mob not yet locked since that first Tab. It never goes back to one it has had, even as the pack moves and the distances change.
+  - Once every mob on screen has had a turn, the next Tab starts again from the nearest.
+  - Attacking, using a skill, or losing the lock starts the next Tab afresh, from the nearest mob other than the lock.
   - It counts the mobs on screen, in every direction.
 - **Attacks and skills go to the lock:**
   - A basic attack or skill aims at the locked mob, not the way the player faces.

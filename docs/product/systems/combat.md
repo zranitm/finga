@@ -3,7 +3,7 @@
 ## Basics
 
 - Real-time combat against mobs in a 3D world, seen from above, looking north at a fixed angle. Players fight each other only in PvP matches, by the rules of I1.
-- **Target lock** (C15): the nearest living mob on screen, in any direction, is locked, and stays locked until it dies, leaves the screen, or the player presses Tab for the next closest. Attacks and skills aim at the lock, not the way the player faces; with nothing locked, they go the way the player faces. A lock out of reach is still aimed at, and the swing misses. A gold ring and outline mark it. An attack or skill turns the player to the lock for its strike only. A target window at the top of the screen shows the locked mob's name, level, and HP.
+- **Target lock** (C15): the nearest living mob on screen, in any direction, is locked, and stays locked until it dies, leaves the screen, or the player presses Tab for the next closest, then one farther out with each press. Attacks and skills aim at the lock, not the way the player faces; with nothing locked, they go the way the player faces. A lock out of reach is still aimed at, and the swing misses. A gold ring and outline mark it. An attack or skill turns the player to the lock for its strike only. A target window at the top of the screen shows the locked mob's name, level, and HP.
 - A hit lands on what the attack's shape covers: an arc in front for melee, a lane for a shot, a circle around the player for an area skill (Classes and skills).
 - Attack style and range depend on class: a Beginner's short swing, close melee, fast short-range strikes, long-range shots, or ranged magic (Classes and skills).
 - **Every attack is physical or magic.**
