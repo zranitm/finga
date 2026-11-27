@@ -1,6 +1,6 @@
 # Target lock
 
-> **Status: approved · 2026-11-16; built in the target-lock PR; revised 2026-11-17 (section 12).** The high-level design for [C15. Target lock](../product/features/combat-and-progression/c15-target-lock.md) and Systems → Combat → Aiming. It replaces the auto-aim of [3D world](./3d-world.md) section 6. All of it is the client's: the world takes each action's `aim` as sent, as today. As built after the live pass, `Attack` and `UseSkill` also carry the lock's id, and the world hits that mob first when the action's shape reaches it (section 4).
+> **Status: approved · 2026-11-16; built in the target-lock PR; revised 2026-11-17 (section 12) and 2026-11-27 (section 15).** The high-level design for [C15. Target lock](../product/features/combat-and-progression/c15-target-lock.md) and Systems → Combat → Aiming. It replaces the auto-aim of [3D world](./3d-world.md) section 6. All of it is the client's: the world takes each action's `aim` as sent, as today. As built after the live pass, `Attack` and `UseSkill` also carry the lock's id, and the world hits that mob first when the action's shape reaches it (section 4).
 
 ## 1. What has to hold
 
@@ -45,7 +45,7 @@ Since section 12, "in range" below means on screen: a mob is picked only if it's
   - **drops** the lock if its mob is gone from the tracker, dead (hp at or below 0), or farther than `lock_range`;
   - **picks** the nearest living mob within `lock_range` if nothing is locked, with ties going to the lower id;
   - **otherwise keeps** the lock, so a mob that comes closer doesn't take it.
-- **Tab,** `next(x, z, mobs)`:
+- **Tab,** `next(x, z, mobs)`, as first built. Section 15 replaced the order below, since it bounced in a moving pack:
   - It orders the living mobs within `lock_range` by distance, then id.
   - It locks the first after the current lock in that order. After the last, it wraps round to the first.
   - With only the locked mob in range, the lock stays.
@@ -162,7 +162,7 @@ The user's points are in section 1. The calls below were made in planning and lo
 1. **The auto-lock is sticky:** the nearest mob is locked when nothing is, and kept until it dies, leaves range, or the player switches. Re-picking whenever a mob came closer would jump the lock about in a pack, sending attacks to mobs the player didn't choose.
 2. **Any direction, with no line of sight**, as mobs' sight works. The lock was first limited to 12 m across the ground. Since 2026-11-17 it's limited to the screen: the user said a lock should never be a mob "cant find it anywhere" (section 12).
 3. **A lock out of reach is still aimed at, and misses.**
-4. **Tab switches to the next farther mob, wrapping round,** including mobs behind.
+4. **Tab switches to the next farther mob, wrapping round,** including mobs behind. Since section 15, a run of Tabs never goes back to a mob it has had.
 5. **Basic attacks and skills face the lock for their strike only.** At first skills kept facing it for their second, since the user had asked only about the basic attack. The user then said "skills should free my face".
 6. **Arcs and areas still hit every mob they cover**, up to their `targets`, nearest first. As built after the live pass, arcs, shots and areas take the lock first when it's in the shape, then the nearest up to `most`.
 7. **Bosses get no priority:** distance alone, so Tab reaches them.
@@ -347,3 +347,66 @@ One small client PR.
   - **Longer values:** five 3-digit values need 246 px and wrap.
 - **Opaque panels:** the HUD's panels are opaque, so a damage number behind one doesn't read through. That covers the status frame, its tray, the party rows, the boss bar and the target window. The chat log stays see-through.
 - **The field boss's HP:** the boss bar and the window show the same max. The world sends each mob's max as its data's HP, which the window reads.
+
+## 15. Tab works outward
+
+Revised on 2026-11-27. The user: "tab should change target to the next closest target, then further every tab".
+
+### What went wrong
+
+- **Each Tab re-sorted the units by distance at the press,** and took the one after the lock (section 3).
+- **In a fight the pack moves,** so the order changes between presses. Once the second nearest steps in closer than the first, the next Tab goes back to the first. Tab bounced between the two nearest and never reached the ones farther out.
+- **The lock is sticky (section 10), so it needn't be the nearest any more** once the player has walked. Tab then went to the one after it, skipping the nearer ones.
+
+### The rule
+
+- **The first Tab** locks the nearest unit in view other than the current lock. With nothing locked, it locks the nearest, as before.
+- **Each Tab after it** locks the nearest unit in view that this run of presses hasn't locked yet. It works outward through the pack and never goes back to one it has had. The lock it started from counts as had.
+- **Distance is measured at each press,** as before. A mob that runs in close before the next press comes next, since it's the nearest not yet had.
+- **Once every unit in view has been had,** the next Tab starts a new run from the current lock, which takes it round to the nearest.
+- **A run ends** when:
+  - the player attacks or uses a skill;
+  - the lock is lost: its unit dies or leaves the screen, the player dies or respawns, or the map changes or the player rejoins.
+
+  The next Tab is then a first Tab again. So tabbing slowly, reading each target window, still works outward. After a fight with one mob, Tab goes to the nearest other one.
+- **Unchanged:**
+  - only units in view are picked, and a lone lock stays;
+  - a lock at the screen's edge moves to the nearest in view;
+  - Tab acts on a fresh press only;
+  - in a PvP match, enemy players count as mobs do.
+
+### The change
+
+| Part | Before | After |
+| --- | --- | --- |
+| `systems/lock.ts` | `next` takes the one after the lock in the press's order | `next` takes the nearest in view the run hasn't had. The lock keeps the run's ids, and empties them when the lock changes other than by Tab and at `clear`. A new call ends the run |
+| `world3d/world.ts` | — | Ends the run as an attack or a skill is sent |
+
+Client only: no protocol, server, data or bot change.
+
+### Testing
+
+- **`lock.ts`:**
+  - **The bounce:** two mobs swap places between presses, so the second nearest becomes the nearest. Tab still goes on to the third. Planted against the old `next`, this case must fail.
+  - **A sticky lock no longer the nearest:** the first Tab goes to the nearest.
+  - **Three in view:** Tab goes second, third, then round to the first, and on again.
+  - **A mob that runs in close mid-run** comes next.
+  - **After an attack or a skill ends the run,** Tab goes to the nearest other than the lock. A lost lock ends it too.
+  - **The cases already there still pass:** in view only, a lone lock, a lock at the edge, none in view, and enemy players.
+- **`world.ts`:** an attack and a skill each end the run.
+- **Live:** no heavy run for this. The lock's tests are pure, and the next combat scenario can tab through a moving pack.
+
+### Build
+
+One small client PR.
+
+### Decisions
+
+1. **The nearest not yet had, measured at each press.** The other option, an order fixed at the first press, goes stale as the pack moves: a mob that ran in close would wait till last.
+2. **The run ends on an attack, a skill or a lost lock, not on a timer.** A pause short enough for quick tabbing would restart a slow reader's run, and the bounce would come back for them. With no end at all, Tab after a long fight would skip the nearest mob for having had it minutes before.
+3. **The lock a run starts from counts as had,** so the first Tab always moves.
+
+### Alternatives considered
+
+- **The next farther than the last pick, measured at the press:** the last pick moves too, so in a pack it can still skip or repeat.
+- **Shift+Tab for the previous target:** still not asked for.
