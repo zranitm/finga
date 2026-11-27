@@ -154,6 +154,8 @@ async function atlasOf(doc: Document, file: string): Promise<Raw> {
 const sources = glbs(srcDir);
 const byFile = played();
 const byParts = worn();
+// A file that holds pieces and that no look draws whole, a pack's skeleton bodies, is written as its parts file alone.
+const partsOnly = new Set([...byParts.keys()].filter((f) => !byFile.has(f)));
 const unknown = [
   ...byFile.keys(),
   ...Object.keys(DROPPED),
@@ -164,7 +166,8 @@ if (unknown.length > 0) {
   throw new Error(`models: no ${[...new Set(unknown)].join(', ')} in models-src`);
 }
 const parts = [...byParts.keys()].map(partsFile);
-for (const stale of glbs(outDir).filter((f) => !sources.includes(f) && !parts.includes(f))) {
+const whole = sources.filter((f) => !partsOnly.has(f));
+for (const stale of glbs(outDir).filter((f) => !whole.includes(f) && !parts.includes(f))) {
   rmSync(join(outDir, stale));
 }
 const colourways = Object.keys(COLOURWAYS).map(colourwayFile);
@@ -178,7 +181,10 @@ if (existsSync(colourwayDir)) {
 }
 
 // A worn piece is bound by swapping its rig for the wearer's, so the files it moves between keep the packs' own vertex positions: quantizing them would fold each file's own grid into its rig.
-const rigged = new Set(Object.values(MODELS).flatMap((m) => (m.own ? [m.file] : [])));
+const rigged = new Set([
+  ...Object.values(MODELS).flatMap((m) => (m.own ? [m.file] : [])),
+  ...partsOnly,
+]);
 const quantizing = (file: string) =>
   quantize({
     quantizationVolume: 'scene', // one grid for the scene keeps each skin whole
@@ -187,7 +193,7 @@ const quantizing = (file: string) =>
 
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const kb = (n: number) => `${(n / 1024).toFixed(1)} KB`;
-for (const file of sources) {
+for (const file of whole) {
   const doc = await io.read(join(srcDir, file));
   doc.setLogger(new Logger(Logger.Verbosity.WARN));
   const clips = byFile.get(file) ?? new Set<string>();

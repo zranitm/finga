@@ -61,18 +61,34 @@ describe('the outfit pieces as the client draws them', () => {
       ...new Set(Object.values(PIECE_LOOKS).map((p) => partsFile(p.file))),
     ];
     expect(files.length).toBeGreaterThan(5);
-    const [first, ...rest] = await Promise.all(files.map(async (f) => rigOf(await read(OUT, f))));
+    const docs = await Promise.all(files.map(async (f) => ({ f, doc: await read(OUT, f) })));
+    const skinned = docs.filter((d) => d.doc.getRoot().listSkins().length > 0);
+    const [first, ...rest] = skinned.map((d) => rigOf(d.doc));
     expect(first).toHaveLength(41);
     for (const [i, rig] of rest.entries()) {
       expect(
         rig.map((j) => [j.name, j.parent]),
-        files[i + 1],
+        skinned[i + 1]!.f,
       ).toEqual(first!.map((j) => [j.name, j.parent]));
       rig.forEach((j, k) =>
         j.bind.forEach((v, n) =>
-          expect(v, `${files[i + 1]} ${j.name}`).toBeCloseTo(first![k]!.bind[n]!, 6),
+          expect(v, `${skinned[i + 1]!.f} ${j.name}`).toBeCloseTo(first![k]!.bind[n]!, 6),
         ),
       );
+    }
+    // A file of rigid pieces alone, the Skeletons' weapons, has no skin: its joints are the rig's, each under the parent the rig gives it, and its meshes hang on them.
+    const parentOf = new Map(first!.map((j) => [j.name, j.parent]));
+    const rigid = docs.filter((d) => d.doc.getRoot().listSkins().length === 0);
+    expect(rigid.length).toBeGreaterThan(0);
+    for (const { f, doc } of rigid) {
+      for (const n of doc.getRoot().listNodes()) {
+        const parent = n.getParentNode()?.getName();
+        if (n.getMesh()) {
+          expect(parentOf.has(parent ?? ''), `${f} ${n.getName()} hangs on ${parent}`).toBe(true);
+        } else if (parentOf.get(n.getName())) {
+          expect(parent, `${f} ${n.getName()}`).toBe(parentOf.get(n.getName())); // the rig's root hangs on the scene's Rig node
+        }
+      }
     }
   });
 
