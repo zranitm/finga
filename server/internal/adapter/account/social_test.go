@@ -94,11 +94,15 @@ func TestABrokenSocialStreamFollowedAgainKeepsItsParties(t *testing.T) {
 			}
 		})
 		synctest.Wait()
-		if err := s.Invite(ctx, ann.ID, bo.ID); err != nil {
+		if _, err := mod.Invite(ctx, ann.ID, bo.ID); err != nil {
 			t.Fatal(err)
 		}
 		synctest.Wait()
-		if err := s.Respond(ctx, bo.ID, invites[0], true); err != nil {
+		invite, err := social.ParseInviteID(invites[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := mod.Respond(ctx, bo.ID, invite, true); err != nil {
 			t.Fatal(err)
 		}
 		synctest.Wait()
@@ -142,24 +146,6 @@ func (m *socialModule) Online(_ context.Context, p social.Presence) error {
 }
 
 func (m *socialModule) Offline(context.Context, kernel.CharacterID, string) error { return nil }
-
-func (m *socialModule) Invite(context.Context, kernel.CharacterID, kernel.CharacterID) (social.InviteID, error) {
-	return social.InviteID{}, nil
-}
-
-func (m *socialModule) Respond(context.Context, kernel.CharacterID, social.InviteID, bool) error {
-	return nil
-}
-
-func (m *socialModule) LeaveParty(context.Context, kernel.CharacterID) error { return nil }
-
-func (m *socialModule) Kick(context.Context, kernel.CharacterID, kernel.CharacterID) error {
-	return nil
-}
-
-func (m *socialModule) Promote(context.Context, kernel.CharacterID, kernel.CharacterID) error {
-	return nil
-}
 
 func (m *socialModule) Chat(_ context.Context, l social.Line) (social.Message, error) {
 	m.line = l

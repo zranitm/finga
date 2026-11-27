@@ -1,4 +1,3 @@
-// Package push is the gateway's push flow: what the modules' streams and its timers start, routed to each session.
 package account
 
 import (

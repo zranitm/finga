@@ -1,4 +1,4 @@
-// Package gateway adapts the account, character, item, world and social modules, in the same process, to the gateway's ports, one file per module.
+// Package account adapts the account, item, world, social and pvp modules, in the same process, to the ports of the account's connection flows, one file per module.
 package account
 
 import (

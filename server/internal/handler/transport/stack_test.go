@@ -31,7 +31,11 @@ import (
 	"finga/internal/application/item"
 	"finga/internal/application/social"
 	"finga/internal/application/world"
+	hitem "finga/internal/handler/item"
+	hpvp "finga/internal/handler/pvp"
+	hsocial "finga/internal/handler/social"
 	"finga/internal/handler/transport"
+	hworld "finga/internal/handler/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"
@@ -75,14 +79,34 @@ type harness struct {
 	streams *account.Streams
 }
 
+// The modules as the adapters and the handlers call them, together.
+type (
+	worldModule interface {
+		adapter.WorldModule
+		hworld.World
+	}
+	itemModule interface {
+		adapter.ItemModule
+		hitem.Items
+	}
+	socialModule interface {
+		adapter.SocialModule
+		hsocial.Social
+	}
+	pvpModule interface {
+		adapter.PvpModule
+		hpvp.Queue
+	}
+)
+
 // deps are the modules the gateway calls, faked, and its settings.
 type deps struct {
 	ID                   string
 	Account              adapter.OwnModule
-	World                adapter.WorldModule
-	Items                adapter.ItemModule
-	Social               adapter.SocialModule
-	Pvp                  adapter.PvpModule
+	World                worldModule
+	Items                itemModule
+	Social               socialModule
+	Pvp                  pvpModule
 	Logger               *slog.Logger
 	Observer             observer
 	CORSOrigins          []string
@@ -102,10 +126,10 @@ func (d deps) build() (*account.Streams, http.Handler) {
 	items := adapter.NewItems(d.Items)
 	guard := adapter.NewGuard(d.Account)
 	sessions := account.NewConnections(account.ConnectionsDeps{World: worldPort, Social: socialPort, Pvp: pvpPort, Items: items, Logger: d.Logger, Panics: recorder, Traces: d.Traces, Observer: d.Observer}, account.ConnectionsOptions{Gateway: d.ID, JoinTimeout: d.JoinTimeout})
-	sends := account.CommandsDeps{Sessions: guard, Registry: sessions, World: worldPort, Items: items, Social: socialPort, Pvp: pvpPort, Logger: d.Logger, Observer: d.Observer}
+	sends := account.CommandsDeps{Sessions: guard, Registry: sessions, World: worldPort, Social: socialPort, Logger: d.Logger, Observer: d.Observer}
 	pushes := account.StreamsDeps{Sessions: guard, Registry: sessions, World: worldPort, Social: socialPort, Pvp: pvpPort, Account: adapter.NewSessionEnds(d.Account, d.Logger, nil), Logger: d.Logger, Panics: recorder, Traces: d.Traces}
 	sendGateway := account.NewCommands(sends, account.CommandsOptions{JoinTimeout: d.JoinTimeout})
-	return account.NewStreams(pushes, account.StreamsOptions{SessionCheckInterval: d.SessionCheckInterval}), newServer(sendGateway, transport.ServerOptions{
+	return account.NewStreams(pushes, account.StreamsOptions{SessionCheckInterval: d.SessionCheckInterval}), newServer(sendGateway, d, transport.ServerOptions{
 		Origins: d.CORSOrigins, HelloTimeout: d.HelloTimeout, CommandQueue: d.CommandQueue, Observer: d.Observer, Logger: d.Logger, Panics: recorder, Traces: d.Traces,
 	})
 }
@@ -283,7 +307,7 @@ func TestHelloHappyPath(t *testing.T) {
 			t.Fatalf("snapshot %+v (tick %d)", snap, s.Tick)
 		}
 		joined := h.world.joins()
-		if len(joined) != 1 || joined[0].p.Character != aylaID || joined[0].account != alice || joined[0].gateway != gatewayID || joined[0].p.Conn == "" {
+		if len(joined) != 1 || joined[0].p.Character != aylaID || joined[0].account != alice || joined[0].gateway != gatewayID || joined[0].p.Conn != connectionOf(h.world, aylaID) {
 			t.Fatalf("joined %+v", joined)
 		}
 		if welcome.GetCharacter().GetStats().GetStr() != 12 {
@@ -959,7 +983,7 @@ func TestEquipmentInWelcomeAndCommands(t *testing.T) {
 				t.Fatalf("response %+v", r)
 			}
 			equips, _ := h.world.equipCalls()
-			if len(equips) != 1 || equips[0].p.Character != aylaID || equips[0].p.Conn == "" ||
+			if len(equips) != 1 || equips[0].p.Character != aylaID || equips[0].p.Conn != connectionOf(h.world, aylaID) ||
 				equips[0].key != "k-1" || equips[0].item != leatherCap.ID || equips[0].equipSlot != "" {
 				t.Fatalf("equips %+v", equips)
 			}
@@ -1057,7 +1081,7 @@ func TestUseItemAnswersOnceTheWorldApplies(t *testing.T) {
 				t.Fatalf("response %+v", r)
 			}
 			uses := h.world.useCalls()
-			if len(uses) != 1 || uses[0].p.Character != aylaID || uses[0].p.Conn == "" ||
+			if len(uses) != 1 || uses[0].p.Character != aylaID || uses[0].p.Conn != connectionOf(h.world, aylaID) ||
 				uses[0].key != "k-1" || uses[0].item.String() != potion || uses[0].template != "red_potion" {
 				t.Fatalf("uses %+v", uses)
 			}
@@ -1150,7 +1174,7 @@ func TestAnUnansweredInventoryCommandIsUnavailable(t *testing.T) {
 }
 
 // panickingItems is an item module whose Discard panics on the connection's command goroutine, as a bug in the gateway's adapter would.
-type panickingItems struct{ adapter.ItemModule }
+type panickingItems struct{ itemModule }
 
 func (panickingItems) Discard(context.Context, item.Actor, item.DiscardRequest) (item.Result, error) {
 	panic("nil map in the gateway")
@@ -1199,7 +1223,7 @@ func TestAPanicInACommandAnswersInternalAndTheConnectionLivesOn(t *testing.T) {
 
 // panicsOnceJoining is a world module whose first Join panics on the Hello's goroutine, during its join.
 type panicsOnceJoining struct {
-	adapter.WorldModule
+	worldModule
 	done *atomic.Bool
 }
 
@@ -1207,12 +1231,12 @@ func (w panicsOnceJoining) Join(ctx context.Context, gateway string, acc kernel.
 	if w.done.CompareAndSwap(false, true) {
 		panic("nil map in the gateway")
 	}
-	return w.WorldModule.Join(ctx, gateway, acc, p)
+	return w.worldModule.Join(ctx, gateway, acc, p)
 }
 
 // panicsOnceListing is an item module whose first Inventory panics on the Hello's goroutine, after its world join.
 type panicsOnceListing struct {
-	adapter.ItemModule
+	itemModule
 	done *atomic.Bool
 }
 
@@ -1220,7 +1244,7 @@ func (i panicsOnceListing) Inventory(ctx context.Context, owner kernel.Character
 	if i.done.CompareAndSwap(false, true) {
 		panic("nil map in the gateway")
 	}
-	return i.ItemModule.Inventory(ctx, owner)
+	return i.itemModule.Inventory(ctx, owner)
 }
 
 // A Hello that panics closes its connection as internal and leaves its character free for the next Hello.
@@ -1317,7 +1341,7 @@ func TestAnAnsweredCommandKeepsItsTrace(t *testing.T) {
 }
 
 // failingPortals is a world whose EnterPortal fails in a way the gateway cannot name, and whose Attack finds it out of reach.
-type failingPortals struct{ adapter.WorldModule }
+type failingPortals struct{ worldModule }
 
 func (failingPortals) EnterPortal(context.Context, world.Presence) error {
 	return errors.New("world bug")
@@ -1811,7 +1835,7 @@ func TestChatRouting(t *testing.T) {
 		part(t, "a map line goes to the sender's map with the connection's identity", func() {
 			ayla.send(wsconn.Message{Data: &clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Text: "hello map"}})
 			says := waitFor(t, "the map line", h.world.sayList, 1)
-			if len(says) != 1 || says[0].p.Character != aylaID || says[0].p.Conn == "" || says[0].name != "Ayla" || says[0].text != "hello map" {
+			if len(says) != 1 || says[0].p.Character != aylaID || says[0].p.Conn != connectionOf(h.world, aylaID) || says[0].name != "Ayla" || says[0].text != "hello map" {
 				t.Fatalf("says %+v", says)
 			}
 		})
@@ -1929,10 +1953,17 @@ func TestPartyCommandsAndState(t *testing.T) {
 			}
 		})
 		part(t, "errors map to the Response code", func() {
-			time.Sleep(time.Second) // the five above spent the party budget's burst; two more refill in a second
-			ayla.send(wsconn.Message{ReqID: "p-x", Data: &clientv1.PartyInvite{CharacterId: "nope"}})
-			if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(failure.BadID.Code) {
-				t.Fatalf("malformed id: %+v", r)
+			time.Sleep(3 * time.Second) // the five above spent the party budget's burst; two more refill a second
+			for k, msg := range []any{
+				&clientv1.PartyInvite{CharacterId: "nope"},
+				&clientv1.PartyRespond{InviteId: "nope", Accept: true},
+				&clientv1.PartyKick{CharacterId: "nope"},
+				&clientv1.PartyPromote{CharacterId: "nope"},
+			} {
+				ayla.send(wsconn.Message{ReqID: "p-x" + string(rune('a'+k)), Data: msg})
+				if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(failure.BadID.Code) {
+					t.Fatalf("%T with a malformed id: %+v", msg, r)
+				}
 			}
 			fs.mu.Lock()
 			fs.err = refusal(kernel.ErrNotPartyLeader)
@@ -2564,7 +2595,7 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 				}
 			}
 			spends, resets := h.world.pointsCalls()
-			if len(spends) != 1 || spends[0].p.Character != aylaID || spends[0].p.Conn == "" ||
+			if len(spends) != 1 || spends[0].p.Character != aylaID || spends[0].p.Conn != connectionOf(h.world, aylaID) ||
 				spends[0].expected != 5 || spends[0].points.STR != 3 || spends[0].points.VIT != 2 {
 				t.Fatalf("spends %+v", spends)
 			}
@@ -2830,7 +2861,7 @@ func TestQuestCommandsAndEvents(t *testing.T) {
 				t.Fatalf("world calls %+v, want %+v", calls, wantCalls)
 			}
 			for i, call := range calls {
-				if call.p.Character != aylaID || call.p.Conn == "" {
+				if call.p.Character != aylaID || call.p.Conn != connectionOf(h.world, aylaID) {
 					t.Fatalf("call %d %+v isn't Ayla's through her connection", i, call)
 				}
 				call.p = world.Presence{}
@@ -3018,7 +3049,7 @@ func TestTheWardrobesCommands(t *testing.T) {
 				t.Fatalf("response %+v", r)
 			}
 			want := world.Look{Outfit: "knight_plate", Headwear: "knight_helm", Face: "round_glasses", Weapon: "greatsword", Wings: "bat_wings", HideHeadwear: true}
-			if got := h.world.lookCalls(); len(got) != 1 || got[0].key != "k-3" || got[0].look != want || got[0].p.Character != aylaID || got[0].p.Conn == "" {
+			if got := h.world.lookCalls(); len(got) != 1 || got[0].key != "k-3" || got[0].look != want || got[0].p.Character != aylaID || got[0].p.Conn != connectionOf(h.world, aylaID) {
 				t.Fatalf("looks %+v", got)
 			}
 		})

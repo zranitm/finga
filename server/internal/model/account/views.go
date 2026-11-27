@@ -1,6 +1,10 @@
 package account
 
-import "time"
+import (
+	"time"
+
+	"finga/internal/shared/progression"
+)
 
 // PlayerView is a player as everyone on its map sees it.
 type PlayerView struct {
@@ -198,13 +202,7 @@ type ItemView struct {
 }
 
 // ItemStats are what one equipment item gives: the five primary stats and the thirteen derived, rates, crit damage and penetration in tenths of a percent, regen in tenths of a point a second.
-type ItemStats struct {
-	STR, DEX, INT, AGI, VIT                                    int
-	PhysicalAttack, MagicAttack, PhysicalDefense, MagicDefense int
-	MaxHP, Accuracy, Evasion                                   int
-	CritRate, CritDamage, Penetration, HPRegen                 int
-	CooldownSpeed, MoveSpeed                                   int
-}
+type ItemStats = progression.ItemStats
 
 // EquipSlot is an equip slot and what it holds; Item is nil when it is empty.
 type EquipSlot struct {

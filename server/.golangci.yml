@@ -369,32 +369,32 @@ linters:
             - pkg: finga/internal/application/world
               desc: only the module's adapters call another module's facade
         # A module's admin routes (receive_admin*.go) call the facades of the modules they write through, as the admin API's handler did; they sit in the lowest module whose graph covers them.
-        # A handler calls its own module's facade and no other module's: the account's Commands, which the others' handlers still call, stand in for the rest.
+        # A handler calls its own module's facade and no other module's; chat, which takes two modules, is the account's flow.
         handlers-not-character:
           files: ["**/internal/handler/{account,item,pvp,social,world,transport}/**", "!**/internal/handler/*/*_test.go", "!**/internal/handler/*/receive_admin*.go"]
           deny:
             - pkg: finga/internal/application/character
-              desc: a handler calls its own module's facade; another module's is reached through the account's flows
+              desc: a handler calls its own module's facade; what takes two modules is the account's flow
         handlers-not-item:
           files: ["**/internal/handler/{account,character,pvp,social,world,transport}/**", "!**/internal/handler/*/*_test.go", "!**/internal/handler/*/receive_admin*.go"]
           deny:
             - pkg: finga/internal/application/item
-              desc: a handler calls its own module's facade; another module's is reached through the account's flows
+              desc: a handler calls its own module's facade; what takes two modules is the account's flow
         handlers-not-pvp:
           files: ["**/internal/handler/{account,character,item,social,world,transport}/**", "!**/internal/handler/*/*_test.go", "!**/internal/handler/*/receive_admin*.go"]
           deny:
             - pkg: finga/internal/application/pvp
-              desc: a handler calls its own module's facade; another module's is reached through the account's flows
+              desc: a handler calls its own module's facade; what takes two modules is the account's flow
         handlers-not-social:
           files: ["**/internal/handler/{account,character,item,pvp,world,transport}/**", "!**/internal/handler/*/*_test.go", "!**/internal/handler/*/receive_admin*.go"]
           deny:
             - pkg: finga/internal/application/social
-              desc: a handler calls its own module's facade; another module's is reached through the account's flows
+              desc: a handler calls its own module's facade; what takes two modules is the account's flow
         handlers-not-world:
           files: ["**/internal/handler/{account,character,item,pvp,social,transport}/**", "!**/internal/handler/*/*_test.go", "!**/internal/handler/*/receive_admin*.go"]
           deny:
             - pkg: finga/internal/application/world
-              desc: a handler calls its own module's facade; another module's is reached through the account's flows
+              desc: a handler calls its own module's facade; what takes two modules is the account's flow
         item-facades:
           files: ["**/internal/application/item/**", "**/internal/model/item/**", "**/internal/repository/item/**", "**/internal/metrics/item/**", "!**/internal/handler/*/receive_admin*.go"]
           deny:

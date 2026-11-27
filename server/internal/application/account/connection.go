@@ -1,4 +1,3 @@
-// Package session holds what the send and push flows share: each connection's Connection, the Connections and the joins.
 package account
 
 import (

@@ -27,14 +27,30 @@ const httpListener = "http"
 
 // gatewayModules are the modules the gateway calls, in the same process.
 type gatewayModules struct {
-	Account   adapter.OwnModule
+	Account interface {
+		adapter.OwnModule
+		handleraccount.Accounts
+		transport.Sessions
+	}
 	Character handlercharacter.Characters
-	Item      adapter.ItemModule
+	Item      interface {
+		adapter.ItemModule
+		handleritem.Items
+	}
 	Wardrobes handleritem.Wardrobes
-	World     adapter.WorldModule
-	Social    adapter.SocialModule
-	Pvp       adapter.PvpModule
-	Arena     handlerpvp.Arena
+	World     interface {
+		adapter.WorldModule
+		handlerworld.World
+	}
+	Social interface {
+		adapter.SocialModule
+		handlersocial.Social
+	}
+	Pvp interface {
+		adapter.PvpModule
+		handlerpvp.Queue
+	}
+	Arena handlerpvp.Arena
 }
 
 // buildGateway adds the gateway module to h from cfg, serving players at public and calling mods.
@@ -60,9 +76,7 @@ func buildGateway(ctx context.Context, h *host.Host, cfg config.Gateway, public 
 		Sessions: guard,
 		Registry: sessions,
 		World:    world,
-		Items:    items,
 		Social:   social,
-		Pvp:      matches,
 		Logger:   log,
 		Observer: online,
 	}, application.CommandsOptions{JoinTimeout: cfg.Sessions.JoinTimeout})
@@ -84,7 +98,7 @@ func buildGateway(ctx context.Context, h *host.Host, cfg config.Gateway, public 
 	ws, err := transport.NewServer(sendFlow, transport.ServerOptions{
 		Origins: public.CORSOrigins, HelloTimeout: cfg.WS.HelloTimeout, CommandQueue: cfg.WS.CommandQueue,
 		Observer: socket, Logger: log, Panics: rec, Traces: h.Traces,
-	}, encoders, handleraccount.WSRoutes(sendFlow), handleritem.WSRoutes(sendFlow), handlerpvp.WSRoutes(sendFlow), handlersocial.WSRoutes(sendFlow), handlerworld.WSRoutes(sendFlow))
+	}, encoders, handleraccount.WSRoutes(sendFlow), handleritem.WSRoutes(mods.Item), handlerpvp.WSRoutes(mods.Pvp), handlersocial.WSRoutes(mods.Social, sendFlow), handlerworld.WSRoutes(mods.World))
 	if err != nil {
 		return fmt.Errorf("websocket routes: %w", err)
 	}
