@@ -127,13 +127,21 @@ describe('an outfit piece worn', () => {
         for (const [key, piece] of set) {
           for (const name of piece.meshes) {
             const m = mesh(b, `${name} worn`);
+            if (name.endsWith('_Cape') && set.some(([, p]) => p.slot === 'wings')) {
+              expect(m, name).toBeUndefined(); // wings take the cape's place
+              continue;
+            }
             expect(m?.isEnabled(), name).toBe(true);
             if (m!.skeleton) {
               expect(m!.skeleton, name).toBe(own.skeleton);
               expect(m!.parent?.name).toBe('Rig');
             } else {
               expect(m!.parent?.name, name).toBe(
-                name.endsWith('_Cape') ? 'chest' : JOINT[piece.slot],
+                piece.slot === 'wings'
+                  ? `${name} hinge`
+                  : name.endsWith('_Cape')
+                    ? 'chest'
+                    : JOINT[piece.slot],
               );
             }
           }
@@ -386,6 +394,29 @@ describe('wings worn', () => {
     expect(mesh(b, 'Test_Wing_L worn')!.parent).toBe(left);
     b.dispose();
   });
+
+  it.each(Object.keys(PIECE_LOOKS).filter((k) => PIECE_LOOKS[k]!.slot === 'wings'))(
+    'make no change to a body’s size: %s stands the figure as its class does, and its own meshes lie where they did',
+    async (key) => {
+      for (const cls of ['warrior', 'thief']) {
+        const plain = await make(classLook(cls));
+        const own = [...plain.root.getChildMeshes(false)].find((m) => m.skeleton)!;
+        const before = boundsOnRig(own);
+        const winged = await make(wearing(cls, key));
+        expect(winged.root.scaling.asArray(), `${key} on ${cls}`).toEqual(
+          plain.root.scaling.asArray(),
+        );
+        const same = [...winged.root.getChildMeshes(false)].find(
+          (m) => m.skeleton && m.name === own.name,
+        )!;
+        boundsOnRig(same).forEach((v, i) =>
+          expect(v, `${key} ${own.name}`).toBeCloseTo(before[i]!, 6),
+        );
+        plain.dispose();
+        winged.dispose();
+      }
+    },
+  );
 
   it('hide the cape while worn, the class’s own and an outfit’s, and only then', async () => {
     const winged = await make({

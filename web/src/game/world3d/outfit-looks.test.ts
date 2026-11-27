@@ -58,7 +58,11 @@ describe('the outfit pieces as the client draws them', () => {
   it('gives every class file and parts file one rig, joint for joint, bind for bind, so a part swaps onto any of them', async () => {
     const files = [
       ...new Set(Object.values(MODELS).flatMap((m) => (m.own ? [m.file] : []))),
-      ...new Set(Object.values(PIECE_LOOKS).map((p) => partsFile(p.file))),
+      ...new Set(
+        Object.values(PIECE_LOOKS)
+          .filter((p) => p.slot !== 'wings' && p.slot !== 'face') // made for the game, rigid, hung on a joint
+          .map((p) => partsFile(p.file)),
+      ),
     ];
     expect(files.length).toBeGreaterThan(5);
     const [first, ...rest] = await Promise.all(files.map(async (f) => rigOf(await read(OUT, f))));
