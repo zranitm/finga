@@ -369,9 +369,6 @@ func (g *guard) Check(ctx context.Context, _ kernel.SessionID) error {
 	return err
 }
 
-func (*guard) Revoke(context.Context, kernel.SessionID) error    { return nil }
-func (*guard) RevokeAll(context.Context, kernel.AccountID) error { return nil }
-
 // flowWorld joins every character on the town, or fails with joinErr; a join delivers flood deliveries, Snapshot first.
 type flowWorld struct {
 	mu          sync.Mutex

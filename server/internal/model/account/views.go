@@ -274,3 +274,8 @@ const (
 	ChatMap ChatChannel = iota + 1
 	ChatParty
 )
+
+// Stats are a character's five primary stats.
+type Stats struct {
+	STR, DEX, INT, AGI, VIT int
+}

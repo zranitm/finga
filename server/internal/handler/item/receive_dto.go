@@ -3,7 +3,7 @@ package item
 import (
 	"time"
 
-	model "finga/internal/model/account"
+	"finga/internal/application/item"
 )
 
 // WardrobeResponse is the account's pieces, oldest first.
@@ -19,7 +19,7 @@ type PieceResponse struct {
 	AddedAt time.Time `json:"added_at"`
 }
 
-func toWardrobe(pieces []model.Piece) WardrobeResponse {
+func toWardrobe(pieces []item.Piece) WardrobeResponse {
 	out := WardrobeResponse{Pieces: make([]PieceResponse, 0, len(pieces))}
 	for _, p := range pieces {
 		r := PieceResponse{ID: p.ID, Cause: p.Cause, AddedAt: p.AddedAt}

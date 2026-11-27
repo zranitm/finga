@@ -1,11 +1,11 @@
 package pvp
 
 import (
-	application "finga/internal/application/account"
+	"context"
 	"net/http"
 
+	"finga/internal/application/pvp"
 	"finga/internal/handler/transport"
-	model "finga/internal/model/account"
 	"finga/internal/shared/kernel"
 
 	"github.com/gin-gonic/gin"
@@ -13,12 +13,19 @@ import (
 
 // rest serves a character's arena profile, build and the boards over REST: client to server.
 type rest struct {
-	lobby *application.Lobby
+	arena Arena
+}
+
+// Arena is the pvp module as its REST routes call it.
+type Arena interface {
+	Profile(ctx context.Context, account kernel.AccountID, id kernel.CharacterID) (pvp.Profile, error)
+	SetBuild(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, bar []string, traits map[string]string) error
+	Leaderboard(ctx context.Context, mode string) ([]pvp.Row, error)
 }
 
 // RESTRoutes adds the module's REST routes to the API.
-func RESTRoutes(lobby *application.Lobby) func(transport.REST) {
-	h := &rest{lobby: lobby}
+func RESTRoutes(arena Arena) func(transport.REST) {
+	h := &rest{arena: arena}
 	return func(r transport.REST) {
 		r.Authed.GET("/characters/:id/pvp", h.pvpProfile)
 		r.Authed.PUT("/characters/:id/pvp-build", h.setArenaBuild)
@@ -32,7 +39,7 @@ func (h *rest) pvpProfile(c *gin.Context) {
 		transport.WriteError(c, err)
 		return
 	}
-	p, err := h.lobby.PvpProfile(c.Request.Context(), transport.PrincipalOf(c), id)
+	p, err := h.arena.Profile(c.Request.Context(), transport.PrincipalOf(c).AccountID, id)
 	if err != nil {
 		transport.WriteError(c, err)
 		return
@@ -50,8 +57,8 @@ func (h *rest) setArenaBuild(c *gin.Context) {
 	if transport.Decode(c, &req) != nil {
 		return
 	}
-	b := model.ArenaBuild{Bar: req.SkillBar, Traits: req.Traits}
-	if err := h.lobby.SetArenaBuild(c.Request.Context(), transport.PrincipalOf(c), id, b); err != nil {
+	b := pvp.Build{Bar: req.SkillBar, Traits: req.Traits}
+	if err := h.arena.SetBuild(c.Request.Context(), transport.PrincipalOf(c).AccountID, id, b.Bar, b.Traits); err != nil {
 		transport.WriteError(c, err)
 		return
 	}
@@ -63,7 +70,7 @@ func (h *rest) leaderboard(c *gin.Context) {
 	if transport.Missing(c, mode) {
 		return
 	}
-	rows, err := h.lobby.Leaderboard(c.Request.Context(), mode)
+	rows, err := h.arena.Leaderboard(c.Request.Context(), mode)
 	if err != nil {
 		transport.WriteError(c, err)
 		return

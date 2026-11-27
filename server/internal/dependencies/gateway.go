@@ -28,12 +28,13 @@ const httpListener = "http"
 // gatewayModules are the modules the gateway calls, in the same process.
 type gatewayModules struct {
 	Account   adapter.OwnModule
-	Character adapter.CharacterModule
+	Character handlercharacter.Characters
 	Item      adapter.ItemModule
+	Wardrobes handleritem.Wardrobes
 	World     adapter.WorldModule
 	Social    adapter.SocialModule
 	Pvp       adapter.PvpModule
-	Arena     adapter.ArenaModule
+	Arena     handlerpvp.Arena
 }
 
 // buildGateway adds the gateway module to h from cfg, serving players at public and calling mods.
@@ -54,7 +55,6 @@ func buildGateway(ctx context.Context, h *host.Host, cfg config.Gateway, public 
 	}
 	guard, world, social, items := adapter.NewGuard(mods.Account), adapter.NewWorld(mods.World, log, rec), adapter.NewSocial(mods.Social, log, rec), adapter.NewItems(mods.Item)
 	matches := adapter.NewPvp(mods.Pvp, log, rec)
-	lobby := application.NewLobby(application.LobbyDeps{Accounts: adapter.NewAccounts(mods.Account), Characters: adapter.NewCharacters(mods.Character), Sessions: guard, Wardrobes: items, Arena: adapter.NewArena(mods.Arena)})
 	sessions := application.NewConnections(application.ConnectionsDeps{World: world, Social: social, Pvp: matches, Items: items, Logger: log, Panics: rec, Traces: h.Traces, Observer: online}, application.ConnectionsOptions{Gateway: uuidv7.NewString(), JoinTimeout: cfg.Sessions.JoinTimeout})
 	sendFlow := application.NewCommands(application.CommandsDeps{
 		Sessions: guard,
@@ -90,9 +90,9 @@ func buildGateway(ctx context.Context, h *host.Host, cfg config.Gateway, public 
 	}
 	h.Serve(httpListener, public.Addr, transport.NewRouter(transport.HTTPRoutes{
 		API: transport.MountREST(transport.RESTOptions{
-			Lobby: lobby, Logger: log, CORSOrigins: public.CORSOrigins, Panics: rec, Traces: h.Traces,
+			Sessions: mods.Account, Logger: log, CORSOrigins: public.CORSOrigins, Panics: rec, Traces: h.Traces,
 			Limit: ratelimit.NewBuckets(cfg.REST.PerSecond, cfg.REST.Burst),
-		}, handleraccount.RESTRoutes(lobby), handlercharacter.RESTRoutes(lobby), handleritem.RESTRoutes(lobby), handlerpvp.RESTRoutes(lobby)),
+		}, handleraccount.RESTRoutes(mods.Account), handlercharacter.RESTRoutes(mods.Character), handleritem.RESTRoutes(mods.Wardrobes), handlerpvp.RESTRoutes(mods.Arena)),
 		WS: ws,
 	}))
 	m.Task("streams", pushFlow.Run, host.Restartable)

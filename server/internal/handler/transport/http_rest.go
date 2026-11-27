@@ -2,9 +2,10 @@
 package transport
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
-	application "finga/internal/application/account"
+	"finga/internal/application/account"
 	"finga/internal/shared/failure"
 	"io"
 	"log/slog"
@@ -25,9 +26,14 @@ const (
 	bodyReadTimeout = 10 * time.Second // from the end of the headers, which the server's own timeout covers
 )
 
+// Sessions resolves a bearer token to its login session; unknown, expired and revoked tokens fail alike.
+type Sessions interface {
+	Validate(ctx context.Context, token string) (account.Principal, error)
+}
+
 // RESTOptions are the use cases and settings the REST surface is built from.
 type RESTOptions struct {
-	Lobby       *application.Lobby
+	Sessions    Sessions
 	Logger      *slog.Logger
 	CORSOrigins []string
 	// Panics records a panic in a request.
@@ -53,7 +59,7 @@ func MountREST(d RESTOptions, modules ...func(REST)) func(e *gin.Engine) {
 		}
 
 		rest := e.Group("/api", trace, requestLog(d.Logger, d.Panics), cors(d.CORSOrigins))
-		authed := rest.Group("", requireAuth(d.Lobby), limitAccount(d.Limit))
+		authed := rest.Group("", requireAuth(d.Sessions), limitAccount(d.Limit))
 		for _, add := range modules {
 			add(REST{Public: rest, Authed: authed})
 		}

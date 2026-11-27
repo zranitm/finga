@@ -25,42 +25,7 @@ type OwnModule interface {
 	Subscribe(gateway string) *hub.Sub[account.Event]
 }
 
-// Accounts is the application's Accounts over the account module.
-type Accounts struct{ a OwnModule }
-
-// NewAccounts adapts the account module.
-func NewAccounts(a OwnModule) Accounts { return Accounts{a: a} }
-
-// Register signs up.
-func (a Accounts) Register(ctx context.Context, username, password string) (model.Summary, error) {
-	acc, err := a.a.Register(ctx, account.Credentials{Username: username, Password: password})
-	if err != nil {
-		return model.Summary{}, wrap(err)
-	}
-	return model.Summary{ID: acc.ID, Username: acc.Username, CreatedAt: acc.CreatedAt.UTC()}, nil
-}
-
-// Login opens a session.
-func (a Accounts) Login(ctx context.Context, username, password string) (string, error) {
-	token, err := a.a.Login(ctx, account.Credentials{Username: username, Password: password})
-	return token, wrap(err)
-}
-
-// Settings are the account's settings.
-func (a Accounts) Settings(ctx context.Context, id kernel.AccountID) (model.Settings, error) {
-	s, err := a.a.Settings(ctx, id)
-	if err != nil {
-		return model.Settings{}, wrap(err)
-	}
-	return model.Settings{AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap, Zoom: s.Zoom, Walk: s.Walk, Keys: s.Keys}, nil
-}
-
-// UpdateSettings replaces the account's settings.
-func (a Accounts) UpdateSettings(ctx context.Context, id kernel.AccountID, s model.Settings) error {
-	return wrap(a.a.UpdateSettings(ctx, id, account.Settings{AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap, Zoom: s.Zoom, Walk: s.Walk, Keys: s.Keys}))
-}
-
-// Guard is the lobby's, the send flow's and the push flow's session ports over the account module.
+// Guard is the send flow's and the push flow's session ports over the account module.
 type Guard struct{ a OwnModule }
 
 // NewGuard adapts the account module.
@@ -75,11 +40,6 @@ func (g Guard) Validate(ctx context.Context, token string) (model.Principal, err
 	return model.Principal{AccountID: p.AccountID, SessionID: p.SessionID}, nil
 }
 
-// Revoke ends one session.
-func (g Guard) Revoke(ctx context.Context, id kernel.SessionID) error {
-	return wrap(g.a.Revoke(ctx, id))
-}
-
 // Rotate issues a session's next token.
 func (g Guard) Rotate(ctx context.Context, id kernel.SessionID) (string, error) {
 	token, err := g.a.Rotate(ctx, id)
@@ -88,11 +48,6 @@ func (g Guard) Rotate(ctx context.Context, id kernel.SessionID) (string, error) 
 
 // Check reports whether a session is still active.
 func (g Guard) Check(ctx context.Context, id kernel.SessionID) error { return wrap(g.a.Check(ctx, id)) }
-
-// RevokeAll ends every session of an account.
-func (g Guard) RevokeAll(ctx context.Context, id kernel.AccountID) error {
-	return wrap(g.a.RevokeAll(ctx, id))
-}
 
 // SessionEnds is the application's SessionEnds over the account module.
 type SessionEnds struct {

@@ -10,7 +10,15 @@ import (
 	"finga/internal/handler/transport"
 )
 
+// restModules are the modules the REST routes call.
+type restModules struct {
+	Accounts   haccount.Accounts
+	Characters hcharacter.Characters
+	Wardrobes  hitem.Wardrobes
+	Arena      hpvp.Arena
+}
+
 // mountREST serves the whole REST API, each module's routes on the transport, as the wiring does.
-func mountREST(d transport.RESTOptions) func(*gin.Engine) {
-	return transport.MountREST(d, haccount.RESTRoutes(d.Lobby), hcharacter.RESTRoutes(d.Lobby), hitem.RESTRoutes(d.Lobby), hpvp.RESTRoutes(d.Lobby))
+func mountREST(d transport.RESTOptions, m restModules) func(*gin.Engine) {
+	return transport.MountREST(d, haccount.RESTRoutes(m.Accounts), hcharacter.RESTRoutes(m.Characters), hitem.RESTRoutes(m.Wardrobes), hpvp.RESTRoutes(m.Arena))
 }
