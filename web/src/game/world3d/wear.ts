@@ -1,4 +1,4 @@
-// Dressing a body in its outfit pieces (outfits.md section 6): skinned parts bound to its rig, rigid ones on their joints, wings on hinges at the back of its chest that open and beat with its gait.
+// Dressing a body in its outfit pieces (outfits.md section 6): skinned parts bound to its rig, rigid ones on their joints, pieces made in code on their slot's joint: wings on hinges at the back of its chest that open and beat with its gait, face pieces on its head.
 import type { AssetContainer } from '@babylonjs/core/assetContainer';
 import type { Skeleton } from '@babylonjs/core/Bones/skeleton';
 import type { Texture } from '@babylonjs/core/Materials/Textures/texture';
@@ -35,6 +35,11 @@ export interface Hinge {
   readonly node: TransformNode;
   readonly side: 1 | -1;
 }
+
+/** The joint a piece made in code hangs on, by its slot: the pieces' meshes lie in that joint's axes at the root of their file. */
+const MOUNTS = { wings: 'chest', face: 'head' } as const;
+const mountOf = (slot: string): string | undefined =>
+  slot === 'wings' || slot === 'face' ? MOUNTS[slot] : undefined;
 
 const isCape = (name: string) => name.endsWith('_Cape');
 
@@ -96,12 +101,12 @@ export function dress(
       if (!source) {
         throw new Error(`${w.piece.file}'s parts have no ${name}`);
       }
-      const mesh =
-        w.piece.slot === 'wings'
-          ? hinged(source, at(nodes, 'chest', look), hinges)
-          : source.skeleton
-            ? bound(source, at(nodes, source.parent?.name, look), skeleton)
-            : hung(source, at(nodes, source.parent?.name, look), w.piece, look);
+      const mount = source.skeleton ? undefined : mountOf(w.piece.slot);
+      const mesh = mount
+        ? mounted(source, at(nodes, mount, look), w.piece, look, hinges)
+        : source.skeleton
+          ? bound(source, at(nodes, source.parent?.name, look), skeleton)
+          : hung(source, at(nodes, source.parent?.name, look), w.piece, look);
       parts.push({ mesh, atlas: w.atlas, glow: w.piece.glow === true });
       if (w.piece.slot === 'weapon') {
         weapon ??= mesh;
@@ -150,16 +155,30 @@ function hung(source: Mesh, joint: TransformNode, piece: PieceLook, look: ModelL
   return mesh;
 }
 
-/** A wing half on a hinge at chest, where the half's root lies in its file; the half spreads to the side its middle lies on. */
-function hinged(source: Mesh, chest: TransformNode, hinges: Hinge[]): Mesh {
-  const node = new TransformNode(`${source.name} hinge`, chest.getScene());
-  node.parent = chest;
+/** A piece made in code, on a node at its source's place on the slot's joint, moved and scaled by its fit to this body: a wing half's node is its hinge, which turns to the side its middle lies on; a face piece's holds still. */
+function mounted(
+  source: Mesh,
+  joint: TransformNode,
+  piece: PieceLook,
+  look: ModelLook,
+  hinges: Hinge[],
+): Mesh {
+  const wing = piece.slot === 'wings';
+  const node = new TransformNode(`${source.name} ${wing ? 'hinge' : 'mount'}`, joint.getScene());
+  node.parent = joint;
   node.position.copyFrom(source.position);
+  const fit = piece.fit?.[look.file];
+  if (fit) {
+    node.position.addInPlaceFromFloats(...fit.offset);
+    node.scaling.scaleInPlace(fit.scale);
+  }
   const mesh = source.clone(wornName(source.name), node, true);
   mesh.position.setAll(0);
   mesh.setEnabled(true);
-  const middle = source.getBoundingInfo().boundingBox.center.x;
-  hinges.push({ node, side: middle < 0 ? -1 : 1 });
+  if (wing) {
+    const middle = source.getBoundingInfo().boundingBox.center.x;
+    hinges.push({ node, side: middle < 0 ? -1 : 1 });
+  }
   return mesh;
 }
 

@@ -139,9 +139,11 @@ describe('an outfit piece worn', () => {
               expect(m!.parent?.name, name).toBe(
                 piece.slot === 'wings'
                   ? `${name} hinge`
-                  : name.endsWith('_Cape')
-                    ? 'chest'
-                    : JOINT[piece.slot],
+                  : piece.slot === 'face'
+                    ? `${name} mount`
+                    : name.endsWith('_Cape')
+                      ? 'chest'
+                      : JOINT[piece.slot],
               );
             }
           }
