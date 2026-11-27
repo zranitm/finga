@@ -1929,10 +1929,17 @@ func TestPartyCommandsAndState(t *testing.T) {
 			}
 		})
 		part(t, "errors map to the Response code", func() {
-			time.Sleep(time.Second) // the five above spent the party budget's burst; two more refill in a second
-			ayla.send(wsconn.Message{ReqID: "p-x", Data: &clientv1.PartyInvite{CharacterId: "nope"}})
-			if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(failure.BadID.Code) {
-				t.Fatalf("malformed id: %+v", r)
+			time.Sleep(3 * time.Second) // the five above spent the party budget's burst; two more refill a second
+			for k, msg := range []any{
+				&clientv1.PartyInvite{CharacterId: "nope"},
+				&clientv1.PartyRespond{InviteId: "nope", Accept: true},
+				&clientv1.PartyKick{CharacterId: "nope"},
+				&clientv1.PartyPromote{CharacterId: "nope"},
+			} {
+				ayla.send(wsconn.Message{ReqID: "p-x" + string(rune('a'+k)), Data: msg})
+				if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(failure.BadID.Code) {
+					t.Fatalf("%T with a malformed id: %+v", msg, r)
+				}
 			}
 			fs.mu.Lock()
 			fs.err = refusal(kernel.ErrNotPartyLeader)
