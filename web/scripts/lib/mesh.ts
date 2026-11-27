@@ -1,4 +1,4 @@
-// Shapes for the pieces we model in code (wings now, face pieces next): triangles in a KayKit-style atlas's swatches, built into one flat-shaded mesh a material.
+// Shapes for the pieces we model in code (the wings, the face pieces): triangles in a KayKit-style atlas's swatches, built into one flat-shaded mesh a material.
 import type { Buffer, Document, Mesh, Material } from '@gltf-transform/core';
 
 export type P = readonly [number, number];
@@ -63,6 +63,109 @@ export function bar(p: P, q: P, w: number, z: number, cell: string): Tri[] {
   const c: P = [q[0] - n[0], q[1] - n[1]];
   const d: P = [q[0] + n[0], q[1] + n[1]];
   return [flat(a, b, c, z, cell), flat(a, c, d, z, cell)];
+}
+
+const plus = (a: V, b: V): V => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+const scaled = (a: V, k: number): V => [a[0] * k, a[1] * k, a[2] * k];
+const unit = (a: V): V => scaled(a, 1 / (Math.hypot(...a) || 1));
+
+/** A quadrilateral a, b, c, d in order, as two triangles facing out. */
+export function quad(a: V, b: V, c: V, d: V, out: V, cell: string): Tri[] {
+  return [faced({ v: [a, b, c], cell, out }), faced({ v: [a, c, d], cell, out })];
+}
+
+/** A solid bar of square section w a side from p to q, its ends closed. */
+export function beam(p: V, q: V, w: number, cell: string): Tri[] {
+  const d = unit(sub(q, p));
+  const n1 = unit(cross(d, Math.abs(d[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0]));
+  const n2 = cross(d, n1);
+  const corner = (at: V, i: number): V =>
+    plus(at, plus(scaled(n1, (i & 1 ? 1 : -1) * (w / 2)), scaled(n2, (i & 2 ? 1 : -1) * (w / 2))));
+  const [p0, p1, p2, p3] = [0, 1, 3, 2].map((i) => corner(p, i)) as [V, V, V, V];
+  const [q0, q1, q2, q3] = [0, 1, 3, 2].map((i) => corner(q, i)) as [V, V, V, V];
+  return [
+    ...quad(p0, p1, p2, p3, scaled(d, -1), cell),
+    ...quad(q0, q1, q2, q3, d, cell),
+    ...quad(p0, p1, q1, q0, scaled(n2, -1), cell),
+    ...quad(p1, p2, q2, q1, n1, cell),
+    ...quad(p2, p3, q3, q2, n2, cell),
+    ...quad(p3, p0, q0, q3, scaled(n1, -1), cell),
+  ];
+}
+
+/** A beam along each leg of a polyline. */
+export function path(points: readonly V[], w: number, cell: string): Tri[] {
+  return points.slice(1).flatMap((q, i) => beam(points[i]!, q, w, cell));
+}
+
+/** A round frame facing +z: an n-sided ring from radius inner to outer about c, solid from z0 to z1. */
+export function ring(
+  c: P,
+  outer: number,
+  inner: number,
+  n: number,
+  z0: number,
+  z1: number,
+  cell: string,
+): Tri[] {
+  const at = (r: number, i: number, z: number): V => [
+    c[0] + r * Math.cos((2 * Math.PI * i) / n),
+    c[1] + r * Math.sin((2 * Math.PI * i) / n),
+    z,
+  ];
+  const tris: Tri[] = [];
+  for (let i = 0; i < n; i++) {
+    const mid = (2 * Math.PI * (i + 0.5)) / n;
+    const radial: V = [Math.cos(mid), Math.sin(mid), 0];
+    const [a, b] = [i, i + 1];
+    tris.push(
+      ...quad(at(outer, a, z0), at(outer, b, z0), at(outer, b, z1), at(outer, a, z1), radial, cell),
+      ...quad(
+        at(inner, a, z0),
+        at(inner, b, z0),
+        at(inner, b, z1),
+        at(inner, a, z1),
+        scaled(radial, -1),
+        cell,
+      ),
+      ...quad(
+        at(inner, a, z1),
+        at(inner, b, z1),
+        at(outer, b, z1),
+        at(outer, a, z1),
+        [0, 0, 1],
+        cell,
+      ),
+      ...quad(
+        at(inner, a, z0),
+        at(inner, b, z0),
+        at(outer, b, z0),
+        at(outer, a, z0),
+        [0, 0, -1],
+        cell,
+      ),
+    );
+  }
+  return tris;
+}
+
+/** A round plate facing +z: an n-sided disc of radius r about c at depth z. */
+export function disc(c: P, r: number, n: number, z: number, cell: string): Tri[] {
+  const pts: P[] = Array.from({ length: n }, (_, i) => [
+    c[0] + r * Math.cos((2 * Math.PI * i) / n),
+    c[1] + r * Math.sin((2 * Math.PI * i) / n),
+  ]);
+  return fan(pts, z, cell).map((t) => faced({ ...t, out: [0, 0, 1] }));
+}
+
+/** A sheet over a grid of points, rows[i][j], its front the side away from `middle`. */
+export function sheet(rows: readonly (readonly V[])[], middle: V, cell: string): Tri[] {
+  return rows.slice(1).flatMap((row, i) =>
+    row.slice(1).flatMap((_, j) => {
+      const [a, b, c, d] = [rows[i]![j]!, rows[i]![j + 1]!, row[j + 1]!, row[j]!];
+      return quad(a, b, c, d, sub(scaled(plus(plus(a, b), plus(c, d)), 0.25), middle), cell);
+    }),
+  );
 }
 
 /** The tris mirrored across the plane x = 0, each facing as it did. */

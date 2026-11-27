@@ -68,6 +68,10 @@ const bones = (who: string, ...rest: string[]) =>
 
 /** The wings, made for the game by `npm run wings`: each pair's two halves, named for their side. */
 const WINGS = 'wings/Wings.glb';
+/** The face pieces, made for the game by `npm run face`: each a mesh in the head joint's axes. */
+const FACE = 'face/Face.glb';
+/** The hooded head's brim stands forward of the bare faces, so a face piece sits a little further out on it. */
+const OVER_HOOD: Fit = { offset: [0, 0, 0.015], scale: 1 };
 const pair = (kind: string) => [`${kind}_Wing_L`, `${kind}_Wing_R`];
 
 /** The Knight's Helm over a Rogue's head, wide enough that the earring sits inside its cheek guard. */
@@ -135,6 +139,8 @@ export const PIECE_LOOKS: Readonly<Record<string, PieceLook>> = {
   mage_hat: { slot: 'headwear', file: MAGE, meshes: ['Mage_Hat'] },
   two_handed_sword: { slot: 'weapon', file: KNIGHT, meshes: ['2H_Sword'] },
   two_handed_axe: { slot: 'weapon', file: BARBARIAN, meshes: ['2H_Axe'] },
+  one_handed_axe: { slot: 'weapon', file: BARBARIAN, meshes: ['1H_Axe'] },
+  tavern_mug: { slot: 'weapon', file: BARBARIAN, meshes: ['Mug'] },
   wand: { slot: 'weapon', file: MAGE, meshes: ['1H_Wand'] },
   crossbow_1h: { slot: 'weapon', file: ROGUE, meshes: ['1H_Crossbow'] },
   // Stand-ins for the trials' pieces till the catalogue is designed: each class's own weapon in bronze.
@@ -225,6 +231,45 @@ export const PIECE_LOOKS: Readonly<Record<string, PieceLook>> = {
   skeleton_axe: { slot: 'weapon', file: SKELETON_WEAPONS, meshes: ['Skeleton_Axe'] },
   skeleton_crossbow: { slot: 'weapon', file: SKELETON_WEAPONS, meshes: ['Skeleton_Crossbow'] },
   skeleton_staff: { slot: 'weapon', file: SKELETON_WEAPONS, meshes: ['Skeleton_Staff'] },
+  // The catalogue's face pieces (outfits.md section 8): rigid on the head, in the colours the draft names.
+  round_glasses: {
+    slot: 'face',
+    file: FACE,
+    meshes: ['Round_Glasses'],
+    fit: { [ROGUE_HOODED]: OVER_HOOD },
+  },
+  eye_patch: {
+    slot: 'face',
+    file: FACE,
+    meshes: ['Eye_Patch'],
+    fit: { [ROGUE_HOODED]: OVER_HOOD },
+  },
+  cloth_mask: {
+    slot: 'face',
+    file: FACE,
+    meshes: ['Cloth_Mask'],
+    fit: { [ROGUE_HOODED]: OVER_HOOD },
+  },
+  red_mask: {
+    slot: 'face',
+    file: FACE,
+    meshes: ['Cloth_Mask'],
+    fit: { [ROGUE_HOODED]: OVER_HOOD },
+    colourway: 'red_mask',
+  },
+  diver_goggles: {
+    slot: 'face',
+    file: FACE,
+    meshes: ['Goggles'],
+    fit: { [ROGUE_HOODED]: OVER_HOOD },
+  },
+  frost_goggles: {
+    slot: 'face',
+    file: FACE,
+    meshes: ['Goggles'],
+    fit: { [ROGUE_HOODED]: OVER_HOOD },
+    colourway: 'frost_goggles',
+  },
   // The catalogue's candidate wings (outfits.md section 8), looks only till the user picks: their hinge angles are the flap table's, in wear.ts.
   wings_feather: { slot: 'wings', file: WINGS, meshes: pair('Feathered') },
   wings_raven: { slot: 'wings', file: WINGS, meshes: pair('Feathered'), colourway: 'wings_raven' },
@@ -252,6 +297,9 @@ export const COLOURWAYS: Readonly<Record<string, Colourway>> = {
   knight_veteran: { file: KNIGHT, swatches: { '3,0': 0x59626e, '7,0': 0x3a4049, '0,1': 0x2c5aa0 } },
   // The PvP win's stand-in: the Barbarian's hat in red fur with gold horns.
   barbarian_victor: { file: BARBARIAN, swatches: { '7,0': 0x8c2a24, '2,1': 0xd8a23e } },
+  // The Cloth Mask in red, and the Diver's Goggles in frost: a face piece's roles are its own swatches in the file.
+  red_mask: { file: FACE, swatches: { '4,0': 0x9e2a2b } },
+  frost_goggles: { file: FACE, swatches: { '5,0': 0xcfd8e3, '6,0': 0x8fb8d8, '7,0': 0x5c7a94 } },
   // The feathered wings in raven's colours: the feathers, their tips and the shade between.
   wings_raven: { file: WINGS, swatches: { '1,0': 0x2b2b33, '2,0': 0x5a4a7a, '3,0': 0x1c1c22 } },
   // The draft catalogue's colourways. Each file's roles: main is the swatch covering most of the piece, trim the detail beside it, accent the cloth or cape.

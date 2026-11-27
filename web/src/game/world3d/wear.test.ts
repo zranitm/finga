@@ -139,13 +139,22 @@ describe('an outfit piece worn', () => {
               expect(m!.parent?.name, name).toBe(
                 piece.slot === 'wings'
                   ? `${name} hinge`
-                  : name.endsWith('_Cape')
-                    ? 'chest'
-                    : JOINT[piece.slot],
+                  : piece.slot === 'face'
+                    ? `${name} mount`
+                    : name.endsWith('_Cape')
+                      ? 'chest'
+                      : JOINT[piece.slot],
               );
             }
           }
-          if (piece.slot !== 'face' && piece.slot !== 'wings') {
+          if (piece.slot === 'face' || piece.slot === 'wings') {
+            // a piece made in code hangs from its slot's joint: face on the head, wings at the chest
+            for (const name of piece.meshes) {
+              expect(mesh(b, `${name} worn`)!.parent?.parent?.name, `${key} ${name}`).toBe(
+                piece.slot === 'face' ? 'head' : 'chest',
+              );
+            }
+          } else {
             for (const name of look.own![piece.slot]) {
               expect(mesh(b, name)?.isEnabled(), `${key} ${name}`).toBe(false);
             }
