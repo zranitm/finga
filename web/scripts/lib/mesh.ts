@@ -168,6 +168,18 @@ export function sheet(rows: readonly (readonly V[])[], middle: V, cell: string):
   );
 }
 
+/** The tris with a back to each flat one: the same triangle wound the other way, facing the front, so it's lit right seen from either side with culling on; a solid one's is closed already. */
+export function twoSided(tris: readonly Tri[]): Tri[] {
+  return tris.flatMap((t) =>
+    t.out[0] === 0 && t.out[1] === 0 && t.out[2] === -1 // a flat one's, mirrored or not
+      ? [
+          t,
+          { v: [t.v[0], t.v[2], t.v[1]] as unknown as Tri['v'], cell: t.cell, out: [0, 0, 1] as V },
+        ]
+      : [t],
+  );
+}
+
 /** The tris mirrored across the plane x = 0, each facing as it did. */
 export function mirrored(tris: readonly Tri[]): Tri[] {
   const flip = (v: V): V => [-v[0], v[1], v[2]];
