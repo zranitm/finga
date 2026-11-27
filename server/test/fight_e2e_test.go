@@ -47,6 +47,7 @@ func TestFightAndGrow(t *testing.T) {
 		if !types["green_slime"] || !types["orange_mushroom"] {
 			t.Fatalf("mob types %v", types)
 		}
+		held := heldMobs(snap)
 		moved := false
 		game := p.Game(3 * time.Second)
 		for !moved {
@@ -54,10 +55,12 @@ func TestFightAndGrow(t *testing.T) {
 			if !ok {
 				break
 			}
-			if m.Type != "Delta" {
+			d, isDelta := m.Data.(*clientv1.Delta)
+			if !isDelta {
 				continue
 			}
-			for _, mv := range m.Data.(*clientv1.Delta).Mobs {
+			held.apply(d)
+			for _, mv := range d.Mobs {
 				for _, sm := range snap.Mobs {
 					if sm.GetId() == mv.GetId() && (sm.X != mv.X || sm.Z != mv.Z) {
 						moved = true
@@ -70,17 +73,26 @@ func TestFightAndGrow(t *testing.T) {
 		}
 		token2, id2 := s.CreateCharacter(t, "greg", "Greg", "warrior")
 		s.Place(t, id2, "willowmere", gamedata.Point{X: inView.X + 0.625, Z: inView.Z}, 144, 0)
-		_, snap2 := s.Join(t, token2, id2)
-		if len(snap2.Mobs) != len(snap.Mobs) {
-			t.Fatalf("second player sees %d mobs, first saw %d", len(snap2.Mobs), len(snap.Mobs))
-		}
-		for _, a := range snap.Mobs {
-			found := false
-			for _, b := range snap2.Mobs {
-				found = found || (a.GetId() == b.GetId() && a.Type == b.Type)
+		p2, snap2 := s.Join(t, token2, id2)
+		held2 := heldMobs(snap2)
+		// Each holds what its snapshot and the frames since say, to one tick: the mobs wander, so two snapshots of different ticks differ at the block's edge.
+		at := max(p.Tick(), p2.Joined) + 1
+		for who, h := range map[*e2etest.Player]*mobsHeld{p: held, p2: held2} {
+			if !who.Await(e2etest.Stalled, func(m wsconn.Message) bool {
+				if d, ok := m.Data.(*clientv1.Delta); ok && m.Tick <= at {
+					h.apply(d)
+				}
+				return m.Type == "Delta" && m.Tick >= at
+			}) {
+				t.Fatalf("%s: no frame reached tick %d", who.ID, at)
 			}
-			if !found {
-				t.Fatalf("mob %d is missing from the second snapshot", a.GetId())
+		}
+		if len(held2.types) != len(held.types) {
+			t.Fatalf("second player holds %d mobs at tick %d, first %d", len(held2.types), at, len(held.types))
+		}
+		for id, kind := range held.types {
+			if held2.types[id] != kind {
+				t.Fatalf("mob %d (%q) is %q for the second player at tick %d", id, kind, held2.types[id], at)
 			}
 		}
 	})
@@ -427,4 +439,27 @@ func TestFightAndGrow(t *testing.T) {
 			t.Fatal("the other player did not see the skill used")
 		}
 	})
+}
+
+// mobsHeld is the mobs a player holds, by id and type, from its snapshot and the frames after.
+type mobsHeld struct{ types map[uint32]string }
+
+func heldMobs(snap *clientv1.Snapshot) *mobsHeld {
+	h := &mobsHeld{types: map[uint32]string{}}
+	for _, m := range snap.Mobs {
+		h.types[m.GetId()] = m.GetType()
+	}
+	return h
+}
+
+func (h *mobsHeld) apply(d *clientv1.Delta) {
+	for _, m := range d.Mobs {
+		h.types[m.GetId()] = m.GetType()
+	}
+	for _, id := range d.RemovedMobs {
+		delete(h.types, id)
+	}
+	for _, id := range d.GetUnseen().GetMobs() {
+		delete(h.types, id)
+	}
 }
