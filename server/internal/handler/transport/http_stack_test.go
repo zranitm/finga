@@ -149,7 +149,7 @@ func TestRegister(t *testing.T) {
 		var got account.Credentials
 		h.accounts.register = func(_ context.Context, c account.Credentials) (account.Account, error) {
 			got = c
-			return account.Account{ID: accountID, Username: c.Username, CreatedAt: t0}, nil
+			return account.Account{ID: accountID, Username: c.Username, CreatedAt: t0.In(time.FixedZone("east", 7*3600))}, nil
 		}
 		rec := h.do("POST", "/api/accounts", `{"username":"alice","password":"correct horse"}`, nil)
 		if rec.Code != http.StatusCreated {
@@ -160,7 +160,7 @@ func TestRegister(t *testing.T) {
 		}
 		var body haccount.AccountResponse
 		decode(t, rec, &body)
-		if body.ID != accountID.String() || body.Username != "alice" || !body.CreatedAt.Equal(t0) {
+		if body.ID != accountID.String() || body.Username != "alice" || !body.CreatedAt.Equal(t0) || body.CreatedAt.Location() != time.UTC {
 			t.Fatalf("body %+v", body)
 		}
 		if strings.Contains(h.logs.String(), "correct horse") {
