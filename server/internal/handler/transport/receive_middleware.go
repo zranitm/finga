@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"finga/internal/shared/failure"
+	"finga/internal/shared/kernel"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -13,6 +14,7 @@ import (
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/pkg/panics"
+	"finga/pkg/transient"
 	"finga/pkg/wsconn"
 )
 
@@ -133,7 +135,7 @@ func (h *Receiver) RespondOnError(c *Context) {
 // Logged ends a command that answers nothing; its unexpected failures are logged sampled, as inputs come 20 a second.
 func (h *Receiver) Logged(c *Context) {
 	c.Next()
-	restarting := errors.Is(c.Err, failure.ErrUnavailable) || errors.Is(c.Err, failure.ErrNotSubscribed)
+	restarting := errors.Is(c.Err, transient.ErrUnavailable) || errors.Is(c.Err, kernel.ErrNotSubscribed)
 	if failure.IsInternal(failure.PublicOf(c.Err)) && !restarting && !closing(c) {
 		h.failures.Do(func() { h.logFailure(c) })
 	}

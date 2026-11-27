@@ -35,21 +35,6 @@ func NewPvp(p PvpModule, log *slog.Logger, rec *panics.Recorder) Pvp {
 	return Pvp{p: p, log: log, panics: rec}
 }
 
-// Queue puts the player in a mode's queue.
-func (p Pvp) Queue(ctx context.Context, who model.Player, mode string) error {
-	return wrap(p.p.Queue(ctx, pvp.Player{ID: who.ID, Name: who.Name, Class: kernel.Class(who.Class)}, mode))
-}
-
-// LeaveQueue takes the player out of the queue.
-func (p Pvp) LeaveQueue(ctx context.Context, who kernel.CharacterID) error {
-	return wrap(p.p.LeaveQueue(ctx, who))
-}
-
-// Answer accepts or declines an offer.
-func (p Pvp) Answer(ctx context.Context, who kernel.CharacterID, offer string, accept bool) error {
-	return wrap(p.p.Answer(ctx, who, offer, accept))
-}
-
 // Offline takes a player who left out of the queue.
 func (p Pvp) Offline(ctx context.Context, who kernel.CharacterID) error {
 	return wrap(p.p.Offline(ctx, who))

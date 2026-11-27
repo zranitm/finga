@@ -45,7 +45,7 @@ func newGatewayOver(w *flowWorld, g *guard, checkEvery time.Duration, items flow
 	log := slog.New(slog.DiscardHandler)
 	sessions := flows.NewConnections(flows.ConnectionsDeps{World: w, Social: idle{}, Pvp: flowPvp{}, Items: items, Logger: log, Panics: panics.NewRecorder(log, nil), Traces: noop.NewTracerProvider(), Observer: idle{}}, flows.ConnectionsOptions{Gateway: "gw-1", JoinTimeout: joinTimeout})
 	return gateway{
-		Commands: flows.NewCommands(flows.CommandsDeps{Sessions: g, Registry: sessions, World: w, Items: idle{}, Social: idle{}, Pvp: flowPvp{}, Logger: log, Observer: idle{}}, flows.CommandsOptions{JoinTimeout: joinTimeout}),
+		Commands: flows.NewCommands(flows.CommandsDeps{Sessions: g, Registry: sessions, World: w, Social: idle{}, Logger: log, Observer: idle{}}, flows.CommandsOptions{JoinTimeout: joinTimeout}),
 		pushes:   flows.NewStreams(flows.StreamsDeps{Sessions: g, Registry: sessions, World: w, Social: idle{}, Pvp: flowPvp{}, Account: idle{}, Logger: log, Panics: panics.NewRecorder(log, nil), Traces: noop.NewTracerProvider()}, flows.StreamsOptions{SessionCheckInterval: checkEvery}),
 	}
 }

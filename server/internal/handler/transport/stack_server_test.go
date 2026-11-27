@@ -23,8 +23,8 @@ func allEncoders() *transport.Encoders {
 }
 
 // newServer is the WebSocket server over every module's routes and encoders, as the wiring builds it.
-func newServer(gw *application.Commands, opts transport.ServerOptions) *transport.Server {
-	srv, err := transport.NewServer(gw, opts, allEncoders(), haccount.WSRoutes(gw), hitem.WSRoutes(gw), hpvp.WSRoutes(gw), hsocial.WSRoutes(gw), hworld.WSRoutes(gw))
+func newServer(gw *application.Commands, m deps, opts transport.ServerOptions) *transport.Server {
+	srv, err := transport.NewServer(gw, opts, allEncoders(), haccount.WSRoutes(gw), hitem.WSRoutes(m.Items), hpvp.WSRoutes(m.Pvp), hsocial.WSRoutes(m.Social, gw), hworld.WSRoutes(m.World))
 	if err != nil {
 		panic(err)
 	}

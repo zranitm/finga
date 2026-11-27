@@ -49,117 +49,6 @@ func (m *itemModule) DiscardMany(_ context.Context, a item.Actor, r item.Discard
 	return m.res, nil
 }
 
-// asked is what a use case hands an adapter, and sent what the adapter hands the module.
-type (
-	asked[In any] struct {
-		Actor model.Actor
-		In    In
-	}
-	sent[Req any] struct {
-		Actor item.Actor
-		Req   Req
-	}
-)
-
-// request is how an item request's fields reach the module: the key, and the item or items it names, from and to.
-func request(from, to string) copytest.Match {
-	return copytest.Match{Renames: map[string]string{"In": "Req", "In.IdempotencyKey": "Req.Key", "In." + from: "Req." + to}}
-}
-
-// Each item call reaches the module with every field of its request.
-func TestEachItemRequestKeepsItsFields(t *testing.T) {
-	m := &itemModule{}
-	items := NewItems(m)
-	for name, diff := range map[string]func() []string{
-		"Move": func() []string {
-			return copytest.Diff(request("Item", "ItemID"), func(a asked[model.ItemMove]) sent[item.MoveRequest] {
-				_, _ = items.Move(t.Context(), a.Actor, a.In)
-				return sent[item.MoveRequest]{m.actor, m.req.(item.MoveRequest)}
-			})
-		},
-		"Discard": func() []string {
-			return copytest.Diff(request("Item", "ItemID"), func(a asked[model.ItemDiscard]) sent[item.DiscardRequest] {
-				_, _ = items.Discard(t.Context(), a.Actor, a.In)
-				return sent[item.DiscardRequest]{m.actor, m.req.(item.DiscardRequest)}
-			})
-		},
-		"DiscardMany": func() []string {
-			return copytest.Diff(request("Items", "ItemIDs"), func(a asked[model.ItemDiscardMany]) sent[item.DiscardManyRequest] {
-				_, _ = items.DiscardMany(t.Context(), a.Actor, a.In)
-				return sent[item.DiscardManyRequest]{m.actor, m.req.(item.DiscardManyRequest)}
-			})
-		},
-		"AddToWardrobe": func() []string {
-			return copytest.Diff(request("Item", "ItemID"), func(a asked[model.WardrobeAdd]) sent[item.WardrobeRequest] {
-				_, _ = items.AddToWardrobe(t.Context(), a.Actor, a.In)
-				return sent[item.WardrobeRequest]{m.actor, m.req.(item.WardrobeRequest)}
-			})
-		},
-	} {
-		if got := diff(); len(got) > 0 {
-			t.Errorf("%s: %v", name, got)
-		}
-	}
-}
-
-// itemRenames are an item's fields under their view's names, below prefix.
-func itemRenames(from, to string) map[string]string {
-	return map[string]string{from: to, from + ".TemplateID": to + ".Template"}
-}
-
-// The slots a move or a discard changed reach the use cases with every field: each item with its roll.
-func TestEachItemResultKeepsItsFields(t *testing.T) {
-	m := &itemModule{}
-	items := NewItems(m)
-	match := copytest.Match{
-		Renames: itemRenames("Changed.Item", "Slots.Item"),
-		Skip: map[string]string{
-			"Changed.Item.EquipSlot": "an item in a tab is worn nowhere",
-			"Equipment":              "a move or a discard changes no worn item",
-			"Worn":                   "a move or a discard changes no worn item",
-			"Piece":                  "an add's piece comes beside its slots (TestAnAddKeepsItsPiece)",
-			"Pieces":                 "only a hand-in, which the world asks for, gives pieces",
-			"Look":                   "a move or a discard changes no look",
-		},
-	}
-	match.Renames["Changed"] = "Slots"
-	for name, call := range map[string]func() model.InventoryChanged{
-		"Move": func() model.InventoryChanged {
-			out, _ := items.Move(t.Context(), model.Actor{}, model.ItemMove{})
-			return out
-		},
-		"Discard": func() model.InventoryChanged {
-			out, _ := items.Discard(t.Context(), model.Actor{}, model.ItemDiscard{})
-			return out
-		},
-		"DiscardMany": func() model.InventoryChanged {
-			out, _ := items.DiscardMany(t.Context(), model.Actor{}, model.ItemDiscardMany{})
-			return out
-		},
-		"AddToWardrobe": func() model.InventoryChanged {
-			out, _ := items.AddToWardrobe(t.Context(), model.Actor{}, model.WardrobeAdd{})
-			return out.Changed
-		},
-	} {
-		got := copytest.Diff(match, func(res item.Result) model.InventoryChanged {
-			m.res = res
-			return call()
-		})
-		if len(got) > 0 {
-			t.Errorf("%s: %v", name, got)
-		}
-	}
-}
-
-// An add's piece reaches the use cases beside the slot it took from, its cause an item.
-func TestAnAddKeepsItsPiece(t *testing.T) {
-	m := &itemModule{res: item.Result{Piece: "knight_plate"}}
-	out, err := NewItems(m).AddToWardrobe(t.Context(), model.Actor{}, model.WardrobeAdd{})
-	if want := (model.AddedPiece{ID: "knight_plate", Cause: "item"}); err != nil || out.Piece != want {
-		t.Fatalf("got %+v, %v; want %+v", out.Piece, err, want)
-	}
-}
-
 // An inventory reaches the use cases with every field of every item, its roll too: those in a tab as items, the worn ones by their equip slot.
 func TestAnInventoryKeepsItsFields(t *testing.T) {
 	m := &itemModule{}
@@ -188,4 +77,9 @@ func TestAnInventoryKeepsItsFields(t *testing.T) {
 	if got := copytest.Diff(worn, inventory(true)); len(got) > 0 {
 		t.Errorf("worn: %v", got)
 	}
+}
+
+// itemRenames are an item's fields under their view's names, below prefix.
+func itemRenames(from, to string) map[string]string {
+	return map[string]string{from: to, from + ".TemplateID": to + ".Template"}
 }

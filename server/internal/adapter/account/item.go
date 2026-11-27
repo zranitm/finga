@@ -5,7 +5,6 @@ import (
 
 	"finga/internal/application/item"
 	model "finga/internal/model/account"
-	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"
 )
@@ -43,48 +42,6 @@ func (i Items) Inventory(ctx context.Context, character kernel.CharacterID) (mod
 	return inv, nil
 }
 
-// Move moves an item and returns the slots it changed.
-func (i Items) Move(ctx context.Context, a model.Actor, in model.ItemMove) (model.InventoryChanged, error) {
-	res, err := i.items.Move(ctx, actor(a), item.MoveRequest{Key: in.IdempotencyKey, ItemID: in.Item, Tab: gamedata.Tab(in.Tab), Slot: in.Slot})
-	if err != nil {
-		return model.InventoryChanged{}, wrap(err)
-	}
-	return changed(res), nil
-}
-
-// Discard discards an item, or part of a stack, and returns the slots it changed.
-func (i Items) Discard(ctx context.Context, a model.Actor, in model.ItemDiscard) (model.InventoryChanged, error) {
-	res, err := i.items.Discard(ctx, actor(a), item.DiscardRequest{Key: in.IdempotencyKey, ItemID: in.Item, Quantity: in.Quantity})
-	if err != nil {
-		return model.InventoryChanged{}, wrap(err)
-	}
-	return changed(res), nil
-}
-
-// DiscardMany discards whole items or stacks, all of them or none, and returns the slots it changed.
-func (i Items) DiscardMany(ctx context.Context, a model.Actor, in model.ItemDiscardMany) (model.InventoryChanged, error) {
-	res, err := i.items.DiscardMany(ctx, actor(a), item.DiscardManyRequest{Key: in.IdempotencyKey, ItemIDs: in.Items})
-	if err != nil {
-		return model.InventoryChanged{}, wrap(err)
-	}
-	return changed(res), nil
-}
-
-func actor(a model.Actor) item.Actor { return item.Actor{Account: a.Account, Character: a.Character} }
-
-func changed(res item.Result) model.InventoryChanged {
-	out := model.InventoryChanged{Revision: res.Revision, Slots: make([]model.InventorySlot, 0, len(res.Changed))}
-	for _, s := range res.Changed {
-		slot := model.InventorySlot{Tab: string(s.Tab), Slot: s.Slot}
-		if s.Item != nil {
-			view := itemView(*s.Item)
-			slot.Item = &view
-		}
-		out.Slots = append(out.Slots, slot)
-	}
-	return out
-}
-
 func itemView(it item.Item) model.ItemView {
 	return model.ItemView{ID: it.ID.String(), Template: it.TemplateID, Tab: string(it.Tab), Slot: it.Slot, Quantity: it.Quantity, Stats: rollOf(it.Stats)}
 }
@@ -101,13 +58,4 @@ func rollOf(s *progression.ItemStats) *model.ItemStats {
 		CritRate: s.CritRate, CritDamage: s.CritDamage, Penetration: s.Penetration, HPRegen: s.HPRegen,
 		CooldownSpeed: s.CooldownSpeed, MoveSpeed: s.MoveSpeed,
 	}
-}
-
-// AddToWardrobe adds the piece an item holds to the account's wardrobe and returns the slot it changed and the piece.
-func (i Items) AddToWardrobe(ctx context.Context, a model.Actor, in model.WardrobeAdd) (model.WardrobeAdded, error) {
-	res, err := i.items.AddToWardrobe(ctx, actor(a), item.WardrobeRequest{Key: in.IdempotencyKey, ItemID: in.Item})
-	if err != nil {
-		return model.WardrobeAdded{}, wrap(err)
-	}
-	return model.WardrobeAdded{Changed: changed(res), Piece: model.AddedPiece{ID: res.Piece, Cause: item.PieceFromItem}}, nil
 }

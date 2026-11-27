@@ -60,9 +60,7 @@ func buildGateway(ctx context.Context, h *host.Host, cfg config.Gateway, public 
 		Sessions: guard,
 		Registry: sessions,
 		World:    world,
-		Items:    items,
 		Social:   social,
-		Pvp:      matches,
 		Logger:   log,
 		Observer: online,
 	}, application.CommandsOptions{JoinTimeout: cfg.Sessions.JoinTimeout})
@@ -84,7 +82,7 @@ func buildGateway(ctx context.Context, h *host.Host, cfg config.Gateway, public 
 	ws, err := transport.NewServer(sendFlow, transport.ServerOptions{
 		Origins: public.CORSOrigins, HelloTimeout: cfg.WS.HelloTimeout, CommandQueue: cfg.WS.CommandQueue,
 		Observer: socket, Logger: log, Panics: rec, Traces: h.Traces,
-	}, encoders, handleraccount.WSRoutes(sendFlow), handleritem.WSRoutes(sendFlow), handlerpvp.WSRoutes(sendFlow), handlersocial.WSRoutes(sendFlow), handlerworld.WSRoutes(sendFlow))
+	}, encoders, handleraccount.WSRoutes(sendFlow), handleritem.WSRoutes(mods.Item), handlerpvp.WSRoutes(mods.Pvp), handlersocial.WSRoutes(mods.Social, sendFlow), handlerworld.WSRoutes(mods.World))
 	if err != nil {
 		return fmt.Errorf("websocket routes: %w", err)
 	}

@@ -102,10 +102,10 @@ func (d deps) build() (*account.Streams, http.Handler) {
 	items := adapter.NewItems(d.Items)
 	guard := adapter.NewGuard(d.Account)
 	sessions := account.NewConnections(account.ConnectionsDeps{World: worldPort, Social: socialPort, Pvp: pvpPort, Items: items, Logger: d.Logger, Panics: recorder, Traces: d.Traces, Observer: d.Observer}, account.ConnectionsOptions{Gateway: d.ID, JoinTimeout: d.JoinTimeout})
-	sends := account.CommandsDeps{Sessions: guard, Registry: sessions, World: worldPort, Items: items, Social: socialPort, Pvp: pvpPort, Logger: d.Logger, Observer: d.Observer}
+	sends := account.CommandsDeps{Sessions: guard, Registry: sessions, World: worldPort, Social: socialPort, Logger: d.Logger, Observer: d.Observer}
 	pushes := account.StreamsDeps{Sessions: guard, Registry: sessions, World: worldPort, Social: socialPort, Pvp: pvpPort, Account: adapter.NewSessionEnds(d.Account, d.Logger, nil), Logger: d.Logger, Panics: recorder, Traces: d.Traces}
 	sendGateway := account.NewCommands(sends, account.CommandsOptions{JoinTimeout: d.JoinTimeout})
-	return account.NewStreams(pushes, account.StreamsOptions{SessionCheckInterval: d.SessionCheckInterval}), newServer(sendGateway, transport.ServerOptions{
+	return account.NewStreams(pushes, account.StreamsOptions{SessionCheckInterval: d.SessionCheckInterval}), newServer(sendGateway, d, transport.ServerOptions{
 		Origins: d.CORSOrigins, HelloTimeout: d.HelloTimeout, CommandQueue: d.CommandQueue, Observer: d.Observer, Logger: d.Logger, Panics: recorder, Traces: d.Traces,
 	})
 }

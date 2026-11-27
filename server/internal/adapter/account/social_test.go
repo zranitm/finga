@@ -94,11 +94,15 @@ func TestABrokenSocialStreamFollowedAgainKeepsItsParties(t *testing.T) {
 			}
 		})
 		synctest.Wait()
-		if err := s.Invite(ctx, ann.ID, bo.ID); err != nil {
+		if _, err := mod.Invite(ctx, ann.ID, bo.ID); err != nil {
 			t.Fatal(err)
 		}
 		synctest.Wait()
-		if err := s.Respond(ctx, bo.ID, invites[0], true); err != nil {
+		invite, err := social.ParseInviteID(invites[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := mod.Respond(ctx, bo.ID, invite, true); err != nil {
 			t.Fatal(err)
 		}
 		synctest.Wait()

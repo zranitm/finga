@@ -67,36 +67,6 @@ func (s Social) Chat(ctx context.Context, sender model.Player, channel model.Cha
 	return line, nil
 }
 
-// Invite invites a character to the inviter's party.
-func (s Social) Invite(ctx context.Context, from, to kernel.CharacterID) error {
-	_, err := s.s.Invite(ctx, from, to)
-	return wrap(err)
-}
-
-// Respond accepts or declines an invite.
-func (s Social) Respond(ctx context.Context, who kernel.CharacterID, inviteID string, accept bool) error {
-	invite, err := social.ParseInviteID(inviteID)
-	if err != nil {
-		return wrap(err)
-	}
-	return wrap(s.s.Respond(ctx, who, invite, accept))
-}
-
-// Leave leaves the party.
-func (s Social) Leave(ctx context.Context, who kernel.CharacterID) error {
-	return wrap(s.s.LeaveParty(ctx, who))
-}
-
-// Kick removes a member; the leader's command.
-func (s Social) Kick(ctx context.Context, leader, target kernel.CharacterID) error {
-	return wrap(s.s.Kick(ctx, leader, target))
-}
-
-// Promote hands the lead to a member; the leader's command.
-func (s Social) Promote(ctx context.Context, leader, target kernel.CharacterID) error {
-	return wrap(s.s.Promote(ctx, leader, target))
-}
-
 // FollowDeliveries follows this gateway's party and chat stream until ctx ends; after a break the module sweeps the gateway's players unless it subscribes again within its grace, which re-registers them.
 func (s Social) FollowDeliveries(ctx context.Context, gateway string, deliver func(model.SocialEvent)) {
 	hub.Follow(ctx, func() *hub.Sub[social.Delivery] { return s.s.Subscribe(gateway) }, func(context.Context) error {
