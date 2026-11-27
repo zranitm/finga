@@ -1036,6 +1036,7 @@ Built with step 1, which says who watches a cell.
 8. **The green region:** its design first, then its build.
    - Designed in [The green region](./green-region.md), section 9 for its build: gentle banks (#442), the new mobs, then the region and its places with the old maps retired.
    - When regions join the world chart, its party names say each member's channel ("Bo · Ch. 2"), in a picked map's list and under its node. 4b-3b left these two lists alone, as no region was charted.
+     - **As built:** Willowmere is charted, and each member's name takes `withChannel`, as the Party window's does: "Bo · Ch. 2" in a region, and the bare name on a land map, whose channel is 0. It's in a picked map's list and under its node on the World chart, from the channel the party state already gives each member, so the client alone.
 9. **The desert,** then **the snow mountains.**
 
 Steps 1–3 change nothing on today's maps that a player sees, so they can land while PvP builds. Step 4 shares on-demand instances with PvP's step 1.
