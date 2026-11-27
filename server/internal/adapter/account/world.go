@@ -13,6 +13,7 @@ import (
 	model "finga/internal/model/account"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 	"finga/pkg/hub"
 	"finga/pkg/panics"
 )
@@ -121,4 +122,45 @@ func presence(p model.Presence) world.Presence {
 
 func stats(s gamedata.Stats) model.Stats {
 	return model.Stats{STR: s.STR, DEX: s.DEX, INT: s.INT, AGI: s.AGI, VIT: s.VIT}
+}
+
+// questState is one quest of a log, its counts the facade's own copy; a zero quest, one that left the log, has no status.
+func questState(id string, q world.Quest) model.QuestState {
+	return model.QuestState{Quest: id, Status: questStatuses[q.Status], Progress: q.Progress, TimesFinished: q.TimesFinished}
+}
+
+func statSheet(s world.Sheet) model.StatSheet {
+	return model.StatSheet{
+		Primary: stats(s.Primary), PrimaryWorn: stats(s.PrimaryWorn), Derived: derived(s.Derived), DerivedWorn: derived(s.DerivedWorn),
+		PrimarySkills: stats(s.PrimarySkills), DerivedSkills: derived(s.DerivedSkills), Skills: model.SkillPoints{Unspent: s.Skills.Unspent, Invested: s.Skills.Points, Traits: s.Skills.Traits},
+		Points:            model.Points{Unspent: s.Points.Unspent, Spent: stats(s.Points.Spent), FreeResetLeft: !s.Points.FreeResetUsed},
+		AttackLengthTicks: int(s.AttackLengthTicks), //nolint:gosec // an attack is a few ticks
+		Buffs:             buffViews(s.Buffs),
+	}
+}
+
+func buffViews(bs []world.BuffView) []model.BuffView {
+	out := make([]model.BuffView, 0, len(bs))
+	for _, b := range bs {
+		v := model.BuffView{Skill: b.Skill, Left: b.Left, Points: b.Points}
+		if !b.From.IsZero() {
+			v.From = b.From.String()
+		}
+		out = append(out, v)
+	}
+	return out
+}
+
+func derived(d progression.Derived) model.DerivedStats {
+	return model.DerivedStats{
+		PhysicalAttack: d.PhysicalAttack, MagicAttack: d.MagicAttack, PhysicalDefense: d.PhysicalDefense, MagicDefense: d.MagicDefense,
+		Accuracy: d.Accuracy, Evasion: d.Evasion, CritRate: d.CritRate, CritDamage: d.CritDamage, Penetration: d.Penetration,
+		HPRegen: d.HPRegen, CooldownSpeed: d.CooldownSpeed, MoveSpeed: d.MoveSpeed,
+		MaxHP: d.MaxHP,
+	}
+}
+
+var questStatuses = map[world.QuestStatus]model.QuestStatus{
+	world.QuestActive:   model.QuestActive,
+	world.QuestFinished: model.QuestFinished,
 }

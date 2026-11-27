@@ -60,9 +60,9 @@ func (o *Outbox) Welcome(w model.Welcome) {
 
 // Deliver sends a push as its message.
 func (o *Outbox) Deliver(d model.Delivery) {
-	body, ok := o.encoders.body(d.Push)
+	body, ok := o.encoders.body(d.Event)
 	if !ok {
-		name := reflect.TypeOf(d.Push).Name()
+		name := reflect.TypeOf(d.Event).Name()
 		o.obs.Unencoded(name)
 		o.log.Error("a push has no encoder", "conn", o.ws.ID(), "push", name)
 		return

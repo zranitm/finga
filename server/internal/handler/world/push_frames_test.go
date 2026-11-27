@@ -6,13 +6,13 @@ import (
 	"time"
 	"weak"
 
-	model "finga/internal/model/account"
+	"finga/internal/application/world"
 )
 
 // A frame's encodings go once the frame does, and only its own: a gateway keeps those of the frames still being sent.
 func TestAFramesEncodingsGoWithIt(t *testing.T) {
 	f := newFrames()
-	frame := func() *model.Frame { return &model.Frame{Parts: []model.Part{{RemovedMobs: []uint64{1}}}} }
+	frame := func() *world.Frame { return &world.Frame{Parts: []world.Part{{RemovedMobs: []uint64{1}}}} }
 	kept := frame()
 	first := f.shared(kept, []int{0})[0]
 	for range 3 {

@@ -1,7 +1,6 @@
 package character
 
 import (
-	"errors"
 	"maps"
 
 	clientv1 "finga/api/gen/client/v1"
@@ -14,28 +13,7 @@ func Encoders(e *transport.Encoders) error {
 	e.WelcomeSection(func(w model.Welcome, out *clientv1.Welcome) {
 		out.Character, out.SkillTimers = characterView(w.Character), skillTimers(w.Timers)
 	})
-	return errors.Join(
-		transport.Encode(e, func(p model.LevelUp) any {
-			return &clientv1.LevelUp{Character: characterView(p.Character)}
-		}),
-		transport.Encode(e, func(p model.Promoted) any {
-			return &clientv1.Promoted{Character: characterView(p.Character)}
-		}),
-		transport.Encode(e, func(p model.StatsChanged) any {
-			return statsChanged(p)
-		}),
-	)
-}
-
-func statsChanged(sc model.StatsChanged) *clientv1.StatsChanged {
-	out := &clientv1.StatsChanged{Hp: int32(sc.HP), MaxHp: int32(sc.MaxHP)}
-	if sc.Sheet != nil {
-		out.Sheet = statSheet(*sc.Sheet)
-	}
-	if sc.Retimed {
-		out.Timers = &clientv1.SkillTimers{Timers: skillTimers(sc.Timers)}
-	}
-	return out
+	return nil
 }
 
 func characterView(c model.CharacterView) *clientv1.CharacterView {

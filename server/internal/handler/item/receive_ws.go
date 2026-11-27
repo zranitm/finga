@@ -99,7 +99,7 @@ func (h *ws) addToWardrobe(c *transport.Context, in *clientv1.AddToWardrobe) (an
 	if err != nil {
 		return nil, err
 	}
-	c.Session.Session().Deliver(model.Delivery{Push: model.PiecesAdded{Pieces: []model.AddedPiece{{ID: res.Piece, Cause: item.PieceFromItem}}}})
+	c.Session.Session().Deliver(model.Delivery{Event: model.PiecesAdded{Pieces: []model.AddedPiece{{ID: res.Piece, Cause: item.PieceFromItem}}}})
 	return changed(res, nil)
 }
 
