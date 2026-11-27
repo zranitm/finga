@@ -14,7 +14,7 @@ func TestEachPvpDeliveryKeepsItsValues(t *testing.T) {
 	ann, bo := kernel.NewCharacterID(), kernel.NewCharacterID()
 	tests := []struct {
 		in   pvp.Delivery
-		want model.Push
+		want any
 	}{
 		{pvp.Queued{Mode: "team", Since: 2 * time.Second, Members: []kernel.CharacterID{ann, bo}}, model.PvpQueued{Mode: "team", Since: 2 * time.Second, Members: []string{ann.String(), bo.String()}}},
 		{pvp.Queued{Mode: "duel", Since: 20 * time.Second, Members: []kernel.CharacterID{ann}, WaitingRoom: true}, model.PvpQueued{Mode: "duel", Since: 20 * time.Second, Members: []string{ann.String()}, WaitingRoom: true}},

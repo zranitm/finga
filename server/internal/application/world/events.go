@@ -48,6 +48,12 @@ type Frame struct {
 	Recipients []Recipient
 }
 
+// Framed is a frame as one of its recipients is sent it: the frame, one value for every recipient so a gateway shares its encoding, and the recipient's own part of it.
+type Framed struct {
+	Frame     *Frame
+	Recipient Recipient
+}
+
 // Part is what changed in one of a map's cells in a tick, or, for the map's own part, its field boss as it changed.
 type Part struct {
 	Players     []PlayerView

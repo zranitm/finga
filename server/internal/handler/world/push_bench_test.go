@@ -5,10 +5,13 @@ import (
 	"log/slog"
 	"testing"
 
+	"finga/internal/application/world"
 	"finga/internal/handler/transport"
-	"finga/internal/handler/world"
+	handlerworld "finga/internal/handler/world"
 	model "finga/internal/model/account"
+	"finga/internal/shared/kernel"
 	"finga/internal/shared/protocol"
+	"finga/internal/shared/sim"
 	"finga/pkg/wsconn"
 )
 
@@ -39,25 +42,25 @@ func (silent) Unencoded(string)        {}
 // outbox is a player's outbox on the world's encoders.
 func outbox(b *testing.B) *transport.Outbox {
 	enc := transport.NewEncoders()
-	if err := world.Encoders(enc); err != nil {
+	if err := handlerworld.Encoders(enc); err != nil {
 		b.Fatal(err)
 	}
 	return transport.NewOutbox(&encodingConn{codec: protocol.ServerCodec(wsconn.Binary), b: b}, silent{}, slog.New(slog.DiscardHandler), enc)
 }
 
 // busyFrame is a tick on a map where every one of n players moved and ten mobs walked, all in one cell.
-func busyFrame(n int) *model.Frame {
-	f := &model.Part{}
+func busyFrame(n int) *world.Frame {
+	f := &world.Part{}
 	for i := range n {
-		f.Players = append(f.Players, model.PlayerView{
-			ID: fmt.Sprintf("0190a0f4-1c2d-7e3f-8a4b-%012d", i), Name: fmt.Sprintf("Player%03d", i), Class: "warrior", Level: 12,
-			HP: 180, MaxHP: 204, X: 3 + float64(i)/8, Z: 20, VX: 5, HZ: 1, OnGround: true,
+		f.Players = append(f.Players, world.PlayerView{
+			ID: kernel.NewCharacterID(), Name: fmt.Sprintf("Player%03d", i), Class: "warrior", Level: 12, HP: 180, MaxHP: 204,
+			State: sim.State{X: 3 + float64(i)/8, Z: 20, VX: 5, HZ: 1, OnGround: true},
 		})
 	}
 	for i := range 10 {
-		f.Mobs = append(f.Mobs, model.MobView{ID: uint64(i), Type: "green_slime", X: float64(i), Z: 25, Yaw: 1.5, HP: 30, MaxHP: 30})
+		f.Mobs = append(f.Mobs, world.MobView{ID: uint64(i), Type: "green_slime", X: float64(i), Z: 25, Yaw: 1.5, HP: 30, MaxHP: 30})
 	}
-	return &model.Frame{Parts: []model.Part{*f}}
+	return &world.Frame{Parts: []world.Part{*f}}
 }
 
 // One tick's frame going out to its n players: each message made on the stream's goroutine, encoded on its writer.
@@ -69,7 +72,7 @@ func BenchmarkAMapsFrameToThePlayers(b *testing.B) {
 			for b.Loop() {
 				frame, parts := busyFrame(n), []int{0} // one list for all, as the gateway's adapter shares one
 				for i := range n {
-					o.Deliver(model.Delivery{Tick: 9, Push: model.Delta{Frame: frame, Parts: parts, AckSeq: uint32(i)}}) //nolint:gosec // a benchmark's index
+					o.Deliver(model.Delivery{Tick: 9, Event: world.Framed{Frame: frame, Recipient: world.Recipient{Parts: parts, AckSeq: uint32(i)}}}) //nolint:gosec // a benchmark's index
 				}
 			}
 		})
@@ -83,9 +86,9 @@ func BenchmarkTwoMapsFramesToTheirPlayers(b *testing.B) {
 			o := outbox(b)
 			b.ReportAllocs()
 			for b.Loop() {
-				maps, parts := []*model.Frame{busyFrame(n), busyFrame(n)}, []int{0}
+				maps, parts := []*world.Frame{busyFrame(n), busyFrame(n)}, []int{0}
 				for i := range 2 * n {
-					o.Deliver(model.Delivery{Tick: 9, Push: model.Delta{Frame: maps[i%2], Parts: parts, AckSeq: uint32(i)}}) //nolint:gosec // a benchmark's index
+					o.Deliver(model.Delivery{Tick: 9, Event: world.Framed{Frame: maps[i%2], Recipient: world.Recipient{Parts: parts, AckSeq: uint32(i)}}}) //nolint:gosec // a benchmark's index
 				}
 			}
 		})

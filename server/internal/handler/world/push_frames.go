@@ -6,16 +6,15 @@ import (
 	"sync"
 	"weak"
 
-	clientv1 "finga/api/gen/client/v1"
-	model "finga/internal/model/account"
+	"finga/internal/application/world"
 	"finga/pkg/wsconn"
 )
 
 // Frames shares each frame part's encoding among the players sent it, each frame's for as long as it lives, as several maps' frames interleave on a gateway's outboxes.
 type Frames struct {
 	mu     sync.Mutex
-	frames map[weak.Pointer[model.Frame]]*encoding
-	frame  *model.Frame // the last one asked for, whose players come in a run
+	frames map[weak.Pointer[world.Frame]]*encoding
+	frame  *world.Frame // the last one asked for, whose players come in a run
 	last   *encoding
 }
 
@@ -27,9 +26,9 @@ type encoding struct {
 }
 
 // newFrames makes the cache a gateway's outboxes share.
-func newFrames() *Frames { return &Frames{frames: map[weak.Pointer[model.Frame]]*encoding{}} }
+func newFrames() *Frames { return &Frames{frames: map[weak.Pointer[world.Frame]]*encoding{}} }
 
-func (f *Frames) shared(frame *model.Frame, parts []int) []*wsconn.Shared {
+func (f *Frames) shared(frame *world.Frame, parts []int) []*wsconn.Shared {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if frame != f.frame {
@@ -50,10 +49,7 @@ func (f *Frames) shared(frame *model.Frame, parts []int) []*wsconn.Shared {
 	for i, k := range parts {
 		if e.parts[k] == nil {
 			p := frame.Parts[k]
-			e.parts[k] = wsconn.NewShared(&clientv1.Delta{
-				Players: playerViews(p.Players), Steps: playerSteps(p.Steps), Mobs: mobViews(p.Mobs), MobSteps: mobSteps(p.MobSteps),
-				RemovedPlayers: p.RemovedPlayers, RemovedMobs: instanceIDs(p.RemovedMobs), Boss: mobView(p.Boss),
-			})
+			e.parts[k] = wsconn.NewShared(partDelta(p))
 		}
 		out[i] = e.parts[k]
 	}
@@ -62,7 +58,7 @@ func (f *Frames) shared(frame *model.Frame, parts []int) []*wsconn.Shared {
 }
 
 // forget drops a collected frame's encodings.
-func (f *Frames) forget(key weak.Pointer[model.Frame]) {
+func (f *Frames) forget(key weak.Pointer[world.Frame]) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	delete(f.frames, key)

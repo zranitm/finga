@@ -14,9 +14,6 @@ func Encoders(e *transport.Encoders) error {
 		out.Inventory, out.Equipment, out.InventoryRevision = itemViews(w.Inventory), equipment(w.Equipment), w.InventoryRevision
 	})
 	return errors.Join(
-		transport.Encode(e, func(p model.InventoryChanged) any {
-			return InventoryChanged(p)
-		}),
 		transport.Encode(e, func(p model.PiecesAdded) any {
 			pieces := make([]*clientv1.AddedPiece, 0, len(p.Pieces))
 			for _, a := range p.Pieces {

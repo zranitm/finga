@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"finga/internal/application/world"
 	"finga/internal/application/world/instance"
 	"finga/internal/application/world/worldtest"
 	"finga/internal/handler/transport"
@@ -60,10 +61,10 @@ func BenchmarkACrowdedRegionsFrames(b *testing.B) {
 			bytes := 0
 			b.ReportAllocs()
 			for b.Loop() {
-				o, parts := newOutbox(conn), gatewayFrame(frame)
+				o, parts := newOutbox(conn), facadeFrame(frame)
 				bytes = 0
 				for _, r := range to {
-					o.Deliver(gwmodel.Delivery{Tick: frame.Tick, Push: gwmodel.Delta{Frame: parts, Parts: r.Parts, AckSeq: r.AckSeq, Unseen: unseen(r.Unseen), Own: own(r)}})
+					o.Deliver(gwmodel.Delivery{Tick: frame.Tick, Event: world.Framed{Frame: parts, Recipient: facadeRecipient(r)}})
 					wire, err := codec.Encode(conn.last)
 					if err != nil {
 						b.Fatal(err)
@@ -221,42 +222,21 @@ func newEncoders() *transport.Encoders {
 	return enc
 }
 
-// playerView is v as the gateway's model has it, every field as the world's facade and the adapter copy them.
-func playerView(v model.PlayerView) gwmodel.PlayerView {
-	st := v.State
-	return gwmodel.PlayerView{
-		ID: v.ID.String(), Slot: v.Slot, Name: v.Name, Class: v.Class.String(), Level: v.Level, HP: v.HP, MaxHP: v.MaxHP, Dead: v.Dead, Invulnerable: v.Invulnerable,
-		X: st.X, Y: st.Y, Z: st.Z, VX: st.VX, VY: st.VY, VZ: st.VZ, HX: st.HX, HZ: st.HZ, OnGround: st.OnGround, Aim: v.Aim, Held: st.Held, Sprint: st.Sprint, Walk: st.Walk,
-		Move:    gwmodel.PlayerMove{VX: st.Move.VX, VZ: st.Move.VZ, Left: st.Move.Left, Stop: st.Move.Stop, Through: st.Move.Through, ClearX: st.Move.ClearX, ClearZ: st.Move.ClearZ},
-		Dodging: v.Dodging, Shield: v.Shield, Slow: gwmodel.PlayerSlow{Left: st.Slow.Left, Factor: st.Slow.Factor},
-		Statuses: statuses(v.Statuses), Team: v.Team, Bot: v.Bot, Look: gwmodel.Look(v.Look),
-	}
-}
-
-// own is a recipient's own view as the gateway's model has it, nil when it didn't change.
-func own(r model.Recipient) *gwmodel.PlayerView {
-	if r.Own == nil {
-		return nil
-	}
-	v := playerView(*r.Own)
-	return &v
-}
-
-// gatewayFrame is f as the gateway's model has it, each view's fields the scene sets as the world's facade and adapter copy them.
-func gatewayFrame(f *model.Frame) *gwmodel.Frame {
-	out := &gwmodel.Frame{Parts: make([]gwmodel.Part, len(f.Parts))}
+// facadeFrame is f as the world's facade sends it, the views the scene sets copied as the facade copies them.
+func facadeFrame(f *model.Frame) *world.Frame {
+	out := &world.Frame{Parts: make([]world.Part, len(f.Parts))}
 	for i, p := range f.Parts {
 		g := &out.Parts[i]
 		for _, v := range p.Players {
 			g.Players = append(g.Players, playerView(v))
 		}
 		for _, v := range p.Steps {
-			g.Steps = append(g.Steps, gwmodel.PlayerStep{Slot: v.Slot, DX: v.DX, DY: v.DY, DZ: v.DZ, VX: v.VX, VY: v.VY, VZ: v.VZ, HX: v.HX, HZ: v.HZ, OnGround: v.OnGround, HP: v.HP, Sprint: v.Sprint, Held: v.Held, Aim: v.Aim})
+			g.Steps = append(g.Steps, world.PlayerStep{Slot: v.Slot, DX: v.DX, DY: v.DY, DZ: v.DZ, VX: v.VX, VY: v.VY, VZ: v.VZ, HX: v.HX, HZ: v.HZ, OnGround: v.OnGround, HP: v.HP, Sprint: v.Sprint, Held: v.Held, Aim: v.Aim})
 		}
 		for _, v := range p.MobSteps {
-			st := gwmodel.MobStep{ID: v.ID, DX: v.DX, DY: v.DY, DZ: v.DZ, Yaw: v.Yaw, HP: v.HP}
+			st := world.MobStep{ID: v.ID, DX: v.DX, DY: v.DY, DZ: v.DZ, Yaw: v.Yaw, HP: v.HP}
 			if v.Pose != nil {
-				pose := poses[*v.Pose]
+				pose := world.MobPose(*v.Pose)
 				st.Pose = &pose
 			}
 			g.MobSteps = append(g.MobSteps, st)
@@ -264,35 +244,39 @@ func gatewayFrame(f *model.Frame) *gwmodel.Frame {
 		for _, v := range p.Mobs {
 			g.Mobs = append(g.Mobs, mobViewOf(v))
 		}
-		for _, id := range p.Removed {
-			g.RemovedPlayers = append(g.RemovedPlayers, id.String())
-		}
-		g.RemovedMobs = p.RemovedMobs
+		g.Removed, g.RemovedMobs = p.Removed, p.RemovedMobs
 	}
 	return out
 }
 
-func mobViewOf(v model.MobView) gwmodel.MobView {
-	return gwmodel.MobView{ID: v.ID, Type: v.Type, X: v.X, Y: v.Y, Z: v.Z, Yaw: v.Yaw, HP: v.HP, MaxHP: v.MaxHP, Pose: poses[v.Pose], Statuses: statuses(v.Statuses)}
+// facadeRecipient is r as the world's facade sends it.
+func facadeRecipient(r model.Recipient) world.Recipient {
+	out := world.Recipient{Character: r.Character, Connection: r.Connection, Parts: r.Parts, AckSeq: r.AckSeq, Energy: r.Energy}
+	if r.Own != nil {
+		v := playerView(*r.Own)
+		out.Own = &v
+	}
+	if u := r.Unseen; u != nil {
+		out.Unseen = &world.Unseen{Players: u.Players, Mobs: u.Mobs}
+	}
+	return out
 }
 
-var poses = map[model.MobPose]gwmodel.MobPose{model.Standing: gwmodel.Standing, model.Flinching: gwmodel.Flinching, model.Down: gwmodel.Down, model.Rising: gwmodel.Rising}
+func playerView(v model.PlayerView) world.PlayerView {
+	return world.PlayerView{
+		ID: v.ID, Slot: v.Slot, Name: v.Name, Class: v.Class, Level: v.Level, HP: v.HP, MaxHP: v.MaxHP, Dead: v.Dead, Invulnerable: v.Invulnerable,
+		Dodging: v.Dodging, Shield: v.Shield, State: v.State, Aim: v.Aim, Statuses: statuses(v.Statuses), Team: v.Team, Bot: v.Bot, Look: world.Look(v.Look),
+	}
+}
 
-func statuses(ss []model.StatusView) []gwmodel.StatusView {
-	var out []gwmodel.StatusView
+func mobViewOf(v model.MobView) world.MobView {
+	return world.MobView{ID: v.ID, Type: v.Type, X: v.X, Y: v.Y, Z: v.Z, Yaw: v.Yaw, HP: v.HP, MaxHP: v.MaxHP, Pose: world.MobPose(v.Pose), Statuses: statuses(v.Statuses)}
+}
+
+func statuses(ss []model.StatusView) []world.StatusView {
+	var out []world.StatusView
 	for _, s := range ss {
-		out = append(out, gwmodel.StatusView{ID: s.ID, Ends: s.Ends})
-	}
-	return out
-}
-
-func unseen(u *model.Unseen) *gwmodel.Unseen {
-	if u == nil {
-		return nil
-	}
-	out := &gwmodel.Unseen{Mobs: u.Mobs}
-	for _, id := range u.Players {
-		out.Players = append(out.Players, id.String())
+		out = append(out, world.StatusView(s))
 	}
 	return out
 }
@@ -319,24 +303,24 @@ func BenchmarkACrowdInACamp(b *testing.B) {
 			frame, to := s.out.frame, s.out.to
 			codec := protocol.ServerCodec(wsconn.Binary)
 			conn := &discard{}
-			size := func(f *gwmodel.Frame, r model.Recipient, withOwn bool) int {
+			size := func(f *world.Frame, r model.Recipient, withOwn bool) int {
 				o := newOutbox(conn)
-				d := gwmodel.Delta{Frame: f, Parts: r.Parts, AckSeq: r.AckSeq, Unseen: unseen(r.Unseen)}
-				if withOwn {
-					d.Own = own(r)
+				fr := facadeRecipient(r)
+				if !withOwn {
+					fr.Own = nil
 				}
-				o.Deliver(gwmodel.Delivery{Tick: frame.Tick, Push: d})
+				o.Deliver(gwmodel.Delivery{Tick: frame.Tick, Event: world.Framed{Frame: f, Recipient: fr}})
 				wire, err := codec.Encode(conn.last)
 				if err != nil {
 					b.Fatal(err)
 				}
 				return len(wire)
 			}
-			whole := gatewayFrame(frame)
-			players, mobs := &gwmodel.Frame{}, &gwmodel.Frame{}
+			whole := facadeFrame(frame)
+			players, mobs := &world.Frame{}, &world.Frame{}
 			for _, p := range whole.Parts {
-				players.Parts = append(players.Parts, gwmodel.Part{Players: p.Players, Steps: p.Steps, RemovedPlayers: p.RemovedPlayers})
-				mobs.Parts = append(mobs.Parts, gwmodel.Part{Mobs: p.Mobs, MobSteps: p.MobSteps, RemovedMobs: p.RemovedMobs})
+				players.Parts = append(players.Parts, world.Part{Players: p.Players, Steps: p.Steps, Removed: p.Removed})
+				mobs.Parts = append(mobs.Parts, world.Part{Mobs: p.Mobs, MobSteps: p.MobSteps, RemovedMobs: p.RemovedMobs})
 			}
 			for b.Loop() {
 			}
@@ -345,7 +329,7 @@ func BenchmarkACrowdInACamp(b *testing.B) {
 				total += size(whole, r, true)
 				onlyPlayers += size(players, r, true)
 				onlyMobs += size(mobs, r, false)
-				empty += size(&gwmodel.Frame{Parts: make([]gwmodel.Part, len(whole.Parts))}, r, false)
+				empty += size(&world.Frame{Parts: make([]world.Part, len(whole.Parts))}, r, false)
 				for _, k := range r.Parts {
 					seenPlayers += len(whole.Parts[k].Players) + len(whole.Parts[k].Steps)
 					seenMobs += len(whole.Parts[k].Mobs) + len(whole.Parts[k].MobSteps)

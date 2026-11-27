@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
+	"finga/internal/application/world"
 	"finga/internal/application/world/instance"
 	"finga/internal/application/world/worldtest"
 	"finga/internal/handler/transport"
@@ -72,10 +73,10 @@ func (k wireSink) Send(e model.Event) bool {
 func (k wireSink) Stream() instance.Stream { return k.w }
 
 // push is a message as the outbox sends it and the client decodes it.
-func (w *wire) push(t testing.TB, enc *transport.Encoders, d gwmodel.Push, tick uint64) any {
+func (w *wire) push(t testing.TB, enc *transport.Encoders, d any, tick uint64) any {
 	t.Helper()
 	conn := &discard{}
-	transport.NewOutbox(conn, conn, slog.New(slog.DiscardHandler), enc).Deliver(gwmodel.Delivery{Tick: tick, Push: d})
+	transport.NewOutbox(conn, conn, slog.New(slog.DiscardHandler), enc).Deliver(gwmodel.Delivery{Tick: tick, Event: d})
 	b, err := protocol.ServerCodec(wsconn.Binary).Encode(conn.last)
 	if err != nil {
 		t.Fatal(err)
@@ -111,7 +112,7 @@ func (w *wire) step(t testing.TB) {
 	w.away = w.away[:0]
 	enc := newEncoders() // a tick's frame cache, shared by every client's outbox
 	for id, s := range w.snaps {
-		snap := gwmodel.Snapshot{}
+		snap := world.Snapshot{}
 		for _, v := range s.Players {
 			snap.Players = append(snap.Players, playerView(v))
 		}
@@ -134,13 +135,13 @@ func (w *wire) step(t testing.TB) {
 	if w.frame == nil { // a map with nobody on it builds no frame
 		return
 	}
-	parts := gatewayFrame(w.frame)
+	parts := facadeFrame(w.frame)
 	for _, r := range w.to {
 		c := w.clients[r.Character]
 		if c == nil {
 			continue
 		}
-		d := w.push(t, enc, gwmodel.Delta{Frame: parts, Parts: r.Parts, AckSeq: r.AckSeq, Unseen: unseen(r.Unseen), Own: own(r)}, w.frame.Tick).(*clientv1.Delta)
+		d := w.push(t, enc, world.Framed{Frame: parts, Recipient: facadeRecipient(r)}, w.frame.Tick).(*clientv1.Delta)
 		c.ex.Delta(d)
 		for _, v := range d.Players {
 			c.players[v.Id] = v

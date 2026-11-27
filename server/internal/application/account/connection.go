@@ -161,7 +161,7 @@ func (o *out) emit(h held) {
 		o.outbox.Deliver(d)
 		return
 	}
-	if _, ok := d.Push.(model.Snapshot); ok && o.rebase {
+	if d.Starts && o.rebase {
 		if d.Tick+o.offset <= o.lastTick {
 			o.offset = o.lastTick + 1 - d.Tick
 		}
@@ -169,8 +169,8 @@ func (o *out) emit(h held) {
 	}
 	d.Tick += o.offset
 	o.lastTick = max(o.lastTick, d.Tick)
-	if mc, ok := d.Push.(model.MapChange); ok {
-		o.mapID = mc.MapID
+	if d.MapID != "" {
+		o.mapID = d.MapID
 	}
 	o.outbox.Deliver(d)
 }

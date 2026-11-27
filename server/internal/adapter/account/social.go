@@ -80,7 +80,7 @@ func (s Social) FollowDeliveries(ctx context.Context, gateway string, deliver fu
 // socialEvent is one delivery as the gateway routes it, to its player.
 func socialEvent(d social.Delivery) (model.SocialEvent, bool) {
 	var to kernel.CharacterID
-	var p model.Push
+	var p any
 	switch d := d.(type) {
 	case social.PartyState:
 		to, p = d.To, model.PartyState{Party: partyView(d.Party)}
@@ -91,7 +91,7 @@ func socialEvent(d social.Delivery) (model.SocialEvent, bool) {
 	default:
 		return nil, false
 	}
-	return model.SocialDelivery{Character: to, Delivery: model.Delivery{Push: p}}, true
+	return model.SocialDelivery{Character: to, Delivery: model.Delivery{Event: p}}, true
 }
 
 func partyView(p *social.Party) *model.PartyView {

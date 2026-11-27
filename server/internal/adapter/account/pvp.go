@@ -59,7 +59,7 @@ func (p Pvp) Told(ctx context.Context, who kernel.CharacterID, matches []kernel.
 func (p Pvp) FollowDeliveries(ctx context.Context, gateway string, deliver func(model.PvpDelivery)) {
 	hub.Follow(ctx, func() *hub.Sub[pvp.Push] { return p.p.Subscribe(gateway) }, func(context.Context) error { return nil }, func(d pvp.Push) {
 		if push, ok := pvpPush(d.Delivery); ok {
-			out := model.PvpDelivery{Character: d.To, Delivery: model.Delivery{Push: push}}
+			out := model.PvpDelivery{Character: d.To, Delivery: model.Delivery{Event: push}}
 			if e, ok := d.Delivery.(pvp.Ended); ok && e.Away {
 				out.Untold = e.Match
 			}
@@ -71,7 +71,7 @@ func (p Pvp) FollowDeliveries(ctx context.Context, gateway string, deliver func(
 }
 
 // pvpPush is a pvp delivery as the gateway's push.
-func pvpPush(d pvp.Delivery) (model.Push, bool) {
+func pvpPush(d pvp.Delivery) (any, bool) {
 	switch d := d.(type) {
 	case pvp.Queued:
 		members := make([]string, 0, len(d.Members))
