@@ -32,6 +32,8 @@ type wire struct {
 	to      []model.Recipient
 	snaps   map[kernel.CharacterID]model.Snapshot
 	clients map[kernel.CharacterID]*client
+	order   []*client            // by join, so a seed runs the same every time
+	away    []kernel.CharacterID // handed off to another map: a respawn in a town elsewhere
 	r       *rand.Rand
 	tick    uint64
 	seq     uint32
@@ -57,8 +59,11 @@ type wireSink struct {
 }
 
 func (k wireSink) Send(e model.Event) bool {
-	if s, ok := e.(model.Snapshot); ok {
-		k.w.snaps[k.id] = s
+	if snap, ok := e.(model.Snapshot); ok {
+		k.w.snaps[k.id] = snap
+	}
+	if r, ok := e.(model.Respawned); ok && r.MapID != "wire" { // the map hands the dead off to a town's, as a region does: they are no longer on this map
+		k.w.away = append(k.w.away, k.id)
 	}
 	return true
 }
@@ -86,7 +91,8 @@ func (w *wire) step(t testing.TB) {
 	w.tick++
 	w.seq++
 	w.frame, w.to = nil, nil
-	for id, c := range w.clients {
+	for _, c := range w.order {
+		id := c.id
 		if w.r.IntN(60) == 0 {
 			c.key = sim.Input{Left: w.r.IntN(3) == 0, Right: w.r.IntN(3) == 0, Up: w.r.IntN(2) == 0, Down: w.r.IntN(3) == 0}
 		}
@@ -96,6 +102,12 @@ func (w *wire) step(t testing.TB) {
 		}
 	}
 	w.inst.Step(w.tick, worldtest.TickInterval)
+	for _, id := range w.away {
+		if c := w.clients[id]; c != nil {
+			w.leave(t, c)
+		}
+	}
+	w.away = w.away[:0]
 	frames := push.NewFrames()
 	for id, s := range w.snaps {
 		snap := gwmodel.Snapshot{}
@@ -115,6 +127,7 @@ func (w *wire) step(t testing.TB) {
 			c.mobs[v.Id] = v
 		}
 		w.clients[id] = c
+		w.order = append(w.order, c)
 		delete(w.snaps, id)
 	}
 	if w.frame == nil { // a map with nobody on it builds no frame
@@ -154,17 +167,13 @@ func (w *wire) join(t testing.TB, p model.Player) *client {
 	t.Helper()
 	done := make(chan error, 1)
 	go func() { done <- w.inst.Join(context.Background(), p, wireSink{w, p.ID}) }()
-	for {
+	for w.clients[p.ID] == nil { // the join's snapshot comes in a frame, whenever the goroutine is scheduled: stepping by it keeps a seed's run the same
 		w.step(t)
-		select {
-		case err := <-done:
-			if err != nil {
-				t.Fatal(err)
-			}
-			return w.clients[p.ID]
-		default:
-		}
 	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	return w.clients[p.ID]
 }
 
 func (w *wire) leave(t testing.TB, c *client) {
@@ -173,6 +182,7 @@ func (w *wire) leave(t testing.TB, c *client) {
 		t.Fatal(err)
 	}
 	delete(w.clients, c.id)
+	w.order = slices.DeleteFunc(w.order, func(o *client) bool { return o == c })
 }
 
 // onTheWire is a view with its place, speed, heading and yaw at the whole units the wire gives them, so a view read from steps and one sent whole compare.
@@ -193,7 +203,7 @@ func onTheWire(v proto.Message) proto.Message {
 
 // Players walk and fight a map while others join and leave beside them: every 25 ticks a player joins on a client's spot, and what that client holds of every body, read from the wire's frames through the Expander, is in every field what the join was sent, to the whole units the wire rounds to. A body handed out whole to one player must not leave another's baseline wrong.
 func TestEveryClientHoldsOnTheWireWhatAJoinIsSent(t *testing.T) {
-	for seed := range uint64(4) {
+	for seed := range uint64(6) {
 		t.Run(fmt.Sprintf("seed %d", seed), func(t *testing.T) {
 			data := interestData(t, 1, 3, 3)
 			r := rand.New(rand.NewPCG(seed, 17))
@@ -220,25 +230,21 @@ func TestEveryClientHoldsOnTheWireWhatAJoinIsSent(t *testing.T) {
 			checks := 0
 			for n := range 600 {
 				w.step(t)
+				for len(w.order) < 4 { // the dead are handed off, and others take their place
+					w.join(t, fresh())
+				}
 				if r.IntN(150) == 0 { // one leaves and another comes in its place
-					for _, c := range w.clients {
-						w.leave(t, c)
-						break
-					}
+					w.leave(t, w.order[r.IntN(len(w.order))])
 					w.join(t, fresh())
 				}
 				if n%25 != 24 {
 					continue
 				}
-				var c *client
-				for _, o := range w.clients {
-					c = o
-					break
-				}
+				c := w.order[r.IntN(len(w.order))]
 				at := c.players[c.id.String()]
 				obs := worldtest.NewPlayer("Observer", at.X, at.Z)
 				o := w.join(t, obs)
-				if cellOf(c.players[c.id.String()]) != cellOf(at) { // the client crossed a cell line while the join went in: its block is no longer the join's
+				if w.clients[c.id] != c || cellOf(c.players[c.id.String()]) != cellOf(at) { // the client was handed off, or crossed a cell line, while the join went in: its block is no longer the join's
 					if r.IntN(2) == 0 {
 						w.leave(t, o)
 					}
