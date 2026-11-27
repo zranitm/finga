@@ -148,6 +148,48 @@ export const PIECE_LOOKS: Readonly<Record<string, PieceLook>> = {
   },
   staff_bronze: { slot: 'weapon', file: MAGE, meshes: ['2H_Staff'], colourway: 'mage_bronze' },
   // The Skeletons pack (Kay Lousberg, CC0), vetted for the Adventurers' 41 joints (outfits.md section 8).
+  // The draft catalogue's colourways of the Adventurers' parts (outfits.md section 8), in the swatches of COLOURWAYS below.
+  knight_steel: { slot: 'outfit', file: KNIGHT, meshes: body('Knight'), colourway: 'knight_steel' },
+  barbarian_forest: {
+    slot: 'outfit',
+    file: BARBARIAN,
+    meshes: body('Barbarian'),
+    colourway: 'barbarian_forest',
+  },
+  barbarian_frost: {
+    slot: 'outfit',
+    file: BARBARIAN,
+    meshes: body('Barbarian'),
+    colourway: 'barbarian_frost',
+  },
+  rogue_shadow: { slot: 'outfit', file: ROGUE, meshes: body('Rogue'), colourway: 'rogue_shadow' },
+  rogue_dune: { slot: 'outfit', file: ROGUE, meshes: body('Rogue'), colourway: 'rogue_dune' },
+  rogue_ranger: {
+    slot: 'outfit',
+    file: ROGUE_HOODED,
+    meshes: [...body('Rogue'), 'Rogue_Head_Hooded'], // the hood is its head, as the Bowman's own is
+    colourway: 'rogue_ranger',
+    ownHead: true,
+  },
+  mage_night: { slot: 'outfit', file: MAGE, meshes: body('Mage'), colourway: 'mage_night' },
+  mage_ember: { slot: 'outfit', file: MAGE, meshes: body('Mage'), colourway: 'mage_ember' },
+  mage_tide: { slot: 'outfit', file: MAGE, meshes: body('Mage'), colourway: 'mage_tide' },
+  knight_helmet_black: {
+    slot: 'headwear',
+    file: KNIGHT,
+    meshes: ['Knight_Helmet'],
+    fit: { [ROGUE]: OVER_EARRING, [ROGUE_HOODED]: OVER_EARRING },
+    colourway: 'knight_black',
+  },
+  mage_hat_night: {
+    slot: 'headwear',
+    file: MAGE,
+    meshes: ['Mage_Hat'],
+    colourway: 'mage_night_hat',
+  },
+  knife_shadow: { slot: 'weapon', file: ROGUE, meshes: ['Knife'], colourway: 'knife_shadow' },
+  knife_gilded: { slot: 'weapon', file: ROGUE, meshes: ['Knife'], colourway: 'knife_gilded' },
+  staff_crystal: { slot: 'weapon', file: MAGE, meshes: ['2H_Staff'], colourway: 'staff_crystal' },
   skeleton_warrior: {
     slot: 'outfit',
     file: SKELETON_WARRIOR,
@@ -212,4 +254,33 @@ export const COLOURWAYS: Readonly<Record<string, Colourway>> = {
   barbarian_victor: { file: BARBARIAN, swatches: { '7,0': 0x8c2a24, '2,1': 0xd8a23e } },
   // The feathered wings in raven's colours: the feathers, their tips and the shade between.
   wings_raven: { file: WINGS, swatches: { '1,0': 0x2b2b33, '2,0': 0x5a4a7a, '3,0': 0x1c1c22 } },
+  // The draft catalogue's colourways. Each file's roles: main is the swatch covering most of the piece, trim the detail beside it, accent the cloth or cape.
+  // Knight: plate 3,0, the steel detail 7,0, cape and tabard 0,1; a helmet has the first two.
+  knight_steel: { file: KNIGHT, swatches: { '3,0': 0x7d8fa6, '7,0': 0xd9dee6, '0,1': 0x3c4a5e } },
+  knight_black: { file: KNIGHT, swatches: { '3,0': 0x2a2a30, '7,0': 0xb33a3a } },
+  // Barbarian: fur 7,0, leather 6,0, the blue cloth and cape 0,1.
+  barbarian_forest: {
+    file: BARBARIAN,
+    swatches: { '7,0': 0x4f6b33, '6,0': 0x8a6a3e, '0,1': 0x2e3b22 },
+  },
+  barbarian_frost: {
+    file: BARBARIAN,
+    swatches: { '7,0': 0xe8eef2, '6,0': 0x8fb8d8, '0,1': 0x5c7a94 },
+  },
+  // Rogue: leather 0,1, the strap leather 7,1, the cape and hood 1,1.
+  rogue_shadow: { file: ROGUE, swatches: { '0,1': 0x2b2b33, '7,1': 0x6b6b7a, '1,1': 0xb33a3a } },
+  rogue_dune: { file: ROGUE, swatches: { '0,1': 0xc9a46a, '7,1': 0x8a5a32, '1,1': 0xe8d6a8 } },
+  rogue_ranger: {
+    file: ROGUE_HOODED,
+    swatches: { '0,1': 0x3f6e4a, '7,1': 0xa07c4a, '1,1': 0x22392a },
+  },
+  // Mage: robe 0,1, the belt and steel 4,0, the dark sleeves 7,1; its hat is 1,1 with a band 5,0 and a point 3,0.
+  mage_night: { file: MAGE, swatches: { '0,1': 0x26315e, '4,0': 0xc9b458, '7,1': 0x141a36 } },
+  mage_ember: { file: MAGE, swatches: { '0,1': 0xb8452a, '4,0': 0xf0a040, '7,1': 0x4a1a10 } },
+  mage_tide: { file: MAGE, swatches: { '0,1': 0x2f8a9a, '4,0': 0xe0f0ec, '7,1': 0x1a4a55 } },
+  mage_night_hat: { file: MAGE, swatches: { '1,1': 0x26315e, '5,0': 0xc9b458, '3,0': 0x141a36 } },
+  // Weapons: a knife's blade 3,1 and 2,1 and its grip 6,1; the staff's wood 5,1 and gem 6,2.
+  knife_shadow: { file: ROGUE, swatches: { '3,1': 0x3a3a44, '2,1': 0x3a3a44, '6,1': 0xb33a3a } },
+  knife_gilded: { file: ROGUE, swatches: { '3,1': 0xe8c860, '2,1': 0xe8c860, '6,1': 0x5a2a6a } },
+  staff_crystal: { file: MAGE, swatches: { '5,1': 0xcfd8e3, '6,2': 0x7fd0e0 } },
 };
