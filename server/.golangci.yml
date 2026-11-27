@@ -112,9 +112,9 @@ linters:
           files: ["**/internal/application/**", "**/internal/model/**", "**/internal/repository/**", "**/internal/handler/**", "**/internal/metrics/**", "**/internal/adapter/**", "**/internal/migration/**", "!**/internal/handler/{account,character,item,pvp,social,world,transport}/**"]
           deny:
             - pkg: finga/api/gen/client
-              desc: only the handlers speaks the client protocol
+              desc: only the handlers speak the client protocol
             - pkg: finga/internal/shared/protocol
-              desc: only the handlers speaks the client protocol
+              desc: only the handlers speak the client protocol
         # The account's model and use cases know no socket and no HTTP; the handlers adapt both.
         account-no-socket:
           files: ["**/internal/model/account/**", "**/internal/application/account/**"]
