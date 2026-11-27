@@ -120,7 +120,7 @@ var reviewedGoroutines = map[string]int{
 	"finga/internal/application/gateway/push.(*Gateway).Run":           1, // errgroup: each pump captures its panic, and the task restarts
 	"finga/internal/application/gateway/push.(*Gateway).registerRound": 1, // errgroup: each player's call under the recorder
 	"finga/internal/application/gateway/push.(*Gateway).checkSessions": 1, // errgroup: each player's check under the recorder
-	"finga/internal/handler/gateway/ws/receive.(*Handler).Open":        1, // AfterFunc: the Hello deadline under the recorder
+	"finga/internal/handler/transport.(*Receiver).Open":                1, // AfterFunc: the Hello deadline under the recorder
 	"finga/internal/application/social.(*Module).GatewayLeft":          2, // AfterFunc: each sweep under the recorder
 	"finga/internal/application/pvp.(*cases).detached":                 1, // AfterFunc: cancel, which cannot panic
 	"finga/internal/application/world/itemcalls.(*Pool).Run":           1, // errgroup: each worker captures its panic, and the vital task fails

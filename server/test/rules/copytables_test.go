@@ -108,7 +108,7 @@ func TestEveryEventAndPushHasACopyRow(t *testing.T) {
 	got, err := unrowed("../..", pkgs,
 		copyTable{members: "finga/internal/model/world", marker: "event", file: "internal/application/world/events_test.go", tests: []string{"TestEveryModelEventKeepsItsFields"}},
 		copyTable{members: "finga/internal/application/world", marker: "worldEvent", file: "internal/adapter/gateway/deliveries_test.go", tests: []string{"TestEveryWorldEventKeepsItsValues", "TestAFrameKeepsItsValues"}},
-		copyTable{members: "finga/internal/model/gateway", marker: "push", file: "internal/handler/gateway/ws/push/outbox_test.go", tests: []string{"TestEachPushReachesTheClientAsItsMessage"}},
+		copyTable{members: "finga/internal/model/gateway", marker: "push", file: "internal/handler/transport/push_outbox_test.go", tests: []string{"TestEachPushReachesTheClientAsItsMessage"}},
 	)
 	if err != nil {
 		t.Fatal(err)

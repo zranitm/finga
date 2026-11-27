@@ -17,6 +17,7 @@ type Metrics struct {
 	messages             *prometheus.CounterVec // by direction (in, out) and type
 	slowConsumers        prometheus.Counter
 	welcomeBytes         *prometheus.HistogramVec // by kind (login, rejoin)
+	unencoded            *prometheus.CounterVec   // by push type: a push no handler had an encoder for
 }
 
 // New registers the gateway's metrics on reg; registering twice on one registry fails.
@@ -37,8 +38,11 @@ func New(reg prometheus.Registerer) (*Metrics, error) {
 		welcomeBytes: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metrics.Namespace, Name: "ws_welcome_bytes", Help: "Encoded size of each Welcome, by kind: login or rejoin.", Buckets: welcomeBuckets,
 		}, []string{"kind"}),
+		unencoded: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metrics.Namespace, Name: "ws_unencoded_pushes_total", Help: "Pushes dropped because no handler registered an encoder for their type, which is a bug.",
+		}, []string{"type"}),
 	}
-	return m, metrics.Register(reg, m.playersOnline, m.registrationsWaiting, m.messages, m.slowConsumers, m.welcomeBytes)
+	return m, metrics.Register(reg, m.playersOnline, m.registrationsWaiting, m.messages, m.slowConsumers, m.welcomeBytes, m.unencoded)
 }
 
 // MessageIn counts a message received over the WebSocket.
@@ -54,6 +58,9 @@ func (m *Metrics) WelcomeSent(kind string, bytes int) {
 
 // SlowConsumer counts a connection closed because its send queue filled up.
 func (m *Metrics) SlowConsumer() { m.slowConsumers.Inc() }
+
+// Unencoded counts a push dropped for want of an encoder.
+func (m *Metrics) Unencoded(pushType string) { m.unencoded.WithLabelValues(pushType).Inc() }
 
 // OnlineChanged moves the online gauge by delta.
 func (m *Metrics) OnlineChanged(delta int) { m.playersOnline.Add(float64(delta)) }

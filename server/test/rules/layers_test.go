@@ -36,8 +36,8 @@ var rules = []rule{
 	},
 }
 
-// layered is a package in a module's layer, the module named after it; a name with no application package, as handler/admin, is no module.
-var layered = regexp.MustCompile(`^finga/internal/(application|model|repository|handler|metrics|adapter)/([^/]+)(/|$)`)
+// layered is a package in a module's layer, the module named after it; a name with no application package is no module. The handlers are the top layer: they call the modules' use cases and each other as handlers.go's rule allows, so the module graph leaves them out.
+var layered = regexp.MustCompile(`^finga/internal/(application|model|repository|metrics|adapter)/([^/]+)(/|$)`)
 
 // moduleOf is the module p belongs to, or "" for none.
 func moduleOf(pkgs map[string]pkg, p string) string {

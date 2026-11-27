@@ -2,6 +2,7 @@ package dependencies
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"finga/config"
@@ -10,10 +11,13 @@ import (
 	"finga/internal/application/gateway/push"
 	"finga/internal/application/gateway/send"
 	"finga/internal/application/gateway/session"
-	handler "finga/internal/handler/gateway"
-	"finga/internal/handler/gateway/api"
-	"finga/internal/handler/gateway/ws"
-	"finga/internal/handler/gateway/ws/receive"
+	handleraccount "finga/internal/handler/account"
+	handlercharacter "finga/internal/handler/character"
+	handleritem "finga/internal/handler/item"
+	handlerpvp "finga/internal/handler/pvp"
+	handlersocial "finga/internal/handler/social"
+	"finga/internal/handler/transport"
+	handlerworld "finga/internal/handler/world"
 	metrics "finga/internal/metrics/gateway"
 	"finga/internal/shared/host"
 	"finga/pkg/ratelimit"
@@ -71,15 +75,23 @@ func buildGateway(ctx context.Context, h *host.Host, cfg config.Gateway, public 
 		Panics:   rec,
 		Traces:   h.Traces,
 	}, push.Options{SessionCheckInterval: cfg.Sessions.CheckInterval})
-	h.Serve(httpListener, public.Addr, handler.NewRouter(handler.Routes{
-		API: api.Mount(api.Dependencies{
+	encoders := transport.NewEncoders()
+	if err := errors.Join(handleraccount.Encoders(encoders), handlercharacter.Encoders(encoders), handleritem.Encoders(encoders), handlerpvp.Encoders(encoders), handlersocial.Encoders(encoders), handlerworld.Encoders(encoders)); err != nil {
+		return fmt.Errorf("push encoders: %w", err)
+	}
+	ws, err := transport.NewServer(sendFlow, transport.ServerOptions{
+		Origins: public.CORSOrigins, HelloTimeout: cfg.WS.HelloTimeout, CommandQueue: cfg.WS.CommandQueue,
+		Observer: meters, Logger: log, Panics: rec, Traces: h.Traces,
+	}, encoders, handleraccount.WSRoutes(sendFlow), handleritem.WSRoutes(sendFlow), handlerpvp.WSRoutes(sendFlow), handlersocial.WSRoutes(sendFlow), handlerworld.WSRoutes(sendFlow))
+	if err != nil {
+		return fmt.Errorf("websocket routes: %w", err)
+	}
+	h.Serve(httpListener, public.Addr, transport.NewRouter(transport.HTTPRoutes{
+		API: transport.MountREST(transport.RESTOptions{
 			Lobby: lobby, Logger: log, CORSOrigins: public.CORSOrigins, Panics: rec, Traces: h.Traces,
 			Limit: ratelimit.NewBuckets(cfg.REST.PerSecond, cfg.REST.Burst),
-		}),
-		Gateway: ws.New(sendFlow, ws.Options{
-			Origins: public.CORSOrigins, HelloTimeout: cfg.WS.HelloTimeout, CommandQueue: cfg.WS.CommandQueue,
-			Observer: meters, Logger: log, Panics: rec, Traces: h.Traces,
-		}),
+		}, handleraccount.RESTRoutes(lobby), handlercharacter.RESTRoutes(lobby), handleritem.RESTRoutes(lobby), handlerpvp.RESTRoutes(lobby)),
+		WS: ws,
 	}))
 	m.Task("streams", pushFlow.Run, host.Restartable)
 	h.OnDrain(pushFlow.Drain)
@@ -89,5 +101,5 @@ func buildGateway(ctx context.Context, h *host.Host, cfg config.Gateway, public 
 
 // entryPoint keeps the traces of REST requests and of the commands that answer after calls across modules.
 func entryPoint(span string) bool {
-	return api.EntryPoint(span) || receive.EntryPoint(span)
+	return transport.HTTPEntryPoint(span) || transport.WSEntryPoint(span)
 }
