@@ -73,3 +73,14 @@ type (
 	pushB       struct{}
 	unknownPush struct{}
 )
+
+// A delivery with no event is no push either: it is counted and logged as nil, and never panics the outbox.
+func TestADeliveryWithNoEventIsCountedAndLogged(t *testing.T) {
+	w := &watched{}
+	NewOutbox(w, w, slog.New(slog.DiscardHandler), NewEncoders()).Deliver(model.Delivery{Tick: 9})
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.sent != 0 || len(w.unencoded) != 1 || w.unencoded[0] != "nil" {
+		t.Fatalf("sent %d, counted %v; want nothing sent and nil counted once", w.sent, w.unencoded)
+	}
+}

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	clientv1 "finga/api/gen/client/v1"
+	"finga/internal/application/item"
 	"finga/internal/application/world"
 	"finga/internal/handler/transport"
 	"finga/internal/shared/kernel"
@@ -568,5 +569,12 @@ func TestAFrameAndADetachHaveNoEncoderOfTheirOwn(t *testing.T) {
 	}
 	if err := transport.Encode(e, func(world.Framed) any { return nil }); err == nil {
 		t.Error("a Framed has no encoder")
+	}
+}
+
+// The causes a world event names a piece by are the item module's names for them: the handler may not import the item module, so the test holds them to it.
+func TestThePieceCausesAreTheItemModulesNames(t *testing.T) {
+	if pieceCauses[world.PieceFromQuest] != item.PieceFromQuest || pieceCauses[world.PieceFromFeat] != item.PieceFromFeat {
+		t.Fatalf("the causes are %v, the item module's %q and %q", pieceCauses, item.PieceFromQuest, item.PieceFromFeat)
 	}
 }
