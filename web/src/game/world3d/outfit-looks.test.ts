@@ -119,6 +119,47 @@ describe('the outfit pieces as the client draws them', () => {
     return atlas;
   };
 
+  /** The swatches, "column,row", that a source file's meshes of these names sample, each triangle by its middle. */
+  async function cellsOf(file: string, names: readonly string[]): Promise<Set<string>> {
+    const cells = new Set<string>();
+    const doc = await read(SRC, file);
+    for (const n of doc.getRoot().listNodes()) {
+      const mesh = n.getMesh();
+      if (!mesh || !names.includes(n.getName())) continue;
+      for (const prim of mesh.listPrimitives()) {
+        const uv = prim.getAttribute('TEXCOORD_0')!;
+        const index = prim.getIndices();
+        const count = index ? index.getCount() : uv.getCount();
+        for (let t = 0; t < count; t += 3) {
+          const at = [0, 1, 2].map((k) =>
+            uv.getElement(index ? index.getScalar(t + k) : t + k, [0, 0]),
+          );
+          const u = at.reduce((sum, e) => sum + e[0]!, 0) / 3;
+          const v = at.reduce((sum, e) => sum + e[1]!, 0) / 3;
+          cells.add(`${Math.min(7, Math.floor(u * 8))},${Math.min(3, Math.floor(v * 4))}`);
+        }
+      }
+    }
+    return cells;
+  }
+
+  it.each(Object.entries(COLOURWAYS))(
+    'recolours colourway %s only swatches that a piece wearing it samples, so none changes nothing',
+    async (key, c) => {
+      const wearing = Object.values(PIECE_LOOKS).filter((p) => p.colourway === key);
+      expect(wearing.length, `a piece wears ${key}`).toBeGreaterThan(0);
+      const used = new Set<string>();
+      for (const piece of wearing) {
+        expect(piece.file, key).toBe(c.file);
+        for (const cell of await cellsOf(piece.file, piece.meshes)) used.add(cell);
+      }
+      expect(
+        Object.keys(c.swatches).filter((cell) => !used.has(cell)),
+        key,
+      ).toEqual([]);
+    },
+  );
+
   it.each(Object.entries(COLOURWAYS))(
     'writes colourway %s as its file’s atlas at 128 px with its own swatches recoloured and nothing else, skin least of all',
     async (key, c) => {
