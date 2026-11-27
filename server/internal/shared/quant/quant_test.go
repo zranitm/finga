@@ -23,6 +23,10 @@ func TestRoundingMatchesTheSharedVectors(t *testing.T) {
 			MetresPerSecond float64
 			MM              int32
 		}
+		Heading []struct {
+			Unit  float64
+			Milli int32
+		}
 		Yaw []struct {
 			Radians float64
 			Milli   int32
@@ -39,6 +43,11 @@ func TestRoundingMatchesTheSharedVectors(t *testing.T) {
 	for _, c := range v.Speed {
 		if got := quant.Speed(c.MetresPerSecond); got != c.MM {
 			t.Errorf("speed %v: %d, want %d", c.MetresPerSecond, got, c.MM)
+		}
+	}
+	for _, c := range v.Heading {
+		if got := quant.Heading(c.Unit); got != c.Milli {
+			t.Errorf("heading %v: %d, want %d", c.Unit, got, c.Milli)
 		}
 	}
 	for _, c := range v.Yaw {

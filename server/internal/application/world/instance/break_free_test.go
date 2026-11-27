@@ -255,7 +255,7 @@ func TestABreakFreesLeapPassesThroughAMobInItsWay(t *testing.T) {
 				if gone := math.Hypot(got.X-held.X, got.Z-held.Z); math.Abs(gone-4) > 1e-9 {
 					t.Fatalf("%s from %+v through the slime at (%v, %v): went %v m to %+v; want 4", tc.skill, held, slime.X, slime.Z, gone, got)
 				}
-				if apart := math.Hypot(got.X-now.X, got.Z-now.Z); apart < ring-worldtest.ViewGrain { // the slime as the view has it, to the centimetre // the slime may have walked up to touch since
+				if apart := math.Hypot(got.X-now.X, got.Z-now.Z); apart < ring-1e-9 { // the slime may have walked up to touch since
 					t.Fatalf("%s landed %v m from the slime's centre; want clear of its body, %v", tc.skill, apart, ring)
 				}
 			})

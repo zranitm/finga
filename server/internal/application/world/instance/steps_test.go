@@ -1,7 +1,6 @@
 package instance_test
 
 import (
-	"math"
 	"testing"
 	"testing/synctest"
 
@@ -38,8 +37,8 @@ func TestAWalkingPlayerGoesOutAsStepsAndItsOwnViewWhole(t *testing.T) {
 		}
 		own, _ := ws.Own(walker.ID)
 		seen := sightOf(t, wt).players[walker.ID]
-		if math.Abs(seen.State.X-own.State.X) > worldtest.ViewGrain/2+1e-9 || math.Abs(seen.State.Z-own.State.Z) > worldtest.ViewGrain/2+1e-9 {
-			t.Fatalf("the watcher holds the walker at %v, %v; it stands at %v, %v: want within half a centimetre", seen.State.X, seen.State.Z, own.State.X, own.State.Z)
+		if seen.State.X != own.State.X || seen.State.Z != own.State.Z {
+			t.Fatalf("the watcher holds the walker at %v, %v; it stands at %v, %v", seen.State.X, seen.State.Z, own.State.X, own.State.Z)
 		}
 		if own.State.X == quant.Metres(quant.Position(own.State.X)) {
 			t.Fatalf("the walker's own x, %v, is a whole centimetre; want the exact one the sim has", own.State.X)

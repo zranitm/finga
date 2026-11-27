@@ -19,6 +19,7 @@ const vectors = JSON.parse(
 ) as {
   position: { metres: number; cm: number }[];
   speed: { metresPerSecond: number; mm: number }[];
+  heading: { unit: number; milli: number }[];
   yaw: { radians: number; milli: number }[];
 };
 
@@ -29,6 +30,9 @@ describe('rounding', () => {
     }
     for (const c of vectors.speed) {
       expect(whole(c.metresPerSecond * 1000)).toBe(c.mm);
+    }
+    for (const c of vectors.heading) {
+      expect(whole(c.unit * 1000)).toBe(c.milli);
     }
     for (const c of vectors.yaw) {
       expect(whole(Math.fround(c.radians) * 1000)).toBe(c.milli);

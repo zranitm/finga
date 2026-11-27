@@ -38,9 +38,6 @@ import (
 	"finga/pkg/runner"
 )
 
-// ViewGrain is the metre a position a client reads off a step is good to: the wire rounds it to the centimetre, so a test that measures a view of another body, a mob or a player, allows it.
-const ViewGrain = 0.01
-
 // TickInterval is the tick Options give a map by default.
 const TickInterval = 50 * time.Millisecond
 
@@ -139,10 +136,10 @@ func (s *Sink) learn(snap model.Snapshot) {
 	}
 }
 
-// steppedPlayer is v after st: its place moved by whole centimetres from where v's rounds to, the rest as st says.
+// steppedPlayer is v after st: the place the map had it at, which the wire rounds to the centimetre (the wire-level differential test in interestbench reads that rounding back), the rest as st says.
 func steppedPlayer(v model.PlayerView, st model.PlayerStep) model.PlayerView {
 	s := &v.State
-	s.X, s.Y, s.Z = quant.Metres(quant.Position(s.X)+st.DX), quant.Metres(quant.Position(s.Y)+st.DY), quant.Metres(quant.Position(s.Z)+st.DZ)
+	s.X, s.Y, s.Z = st.X, quant.Metres(quant.Position(s.Y)+st.DY), st.Z
 	for _, c := range []struct {
 		to   *float64
 		from *int32
@@ -171,7 +168,7 @@ func steppedPlayer(v model.PlayerView, st model.PlayerStep) model.PlayerView {
 }
 
 func steppedMob(v model.MobView, st model.MobStep) model.MobView {
-	v.X, v.Y, v.Z = quant.Metres(quant.Position(v.X)+st.DX), quant.Metres(quant.Position(v.Y)+st.DY), quant.Metres(quant.Position(v.Z)+st.DZ)
+	v.X, v.Y, v.Z = st.X, quant.Metres(quant.Position(v.Y)+st.DY), st.Z
 	if st.Yaw != nil {
 		v.Yaw = quant.Radians(*st.Yaw)
 	}

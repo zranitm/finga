@@ -203,8 +203,7 @@ func TestMobsSpawnAndRespawn(t *testing.T) {
 				t.Fatalf("%d mobs, want 1", len(mobs))
 			}
 			for _, m := range mobs {
-				if m.Type != "green_slime" || math.Hypot(m.X-arenaX, m.Z-slimeZ) > 2*worldtest.ViewGrain || // it stands within a few millimetres of its spot, which the view rounds to the centimetre
-					m.Y != 0 || m.HP != slime.HP || m.MaxHP != slime.HP || !facingSouth(m.Yaw) {
+				if m.Type != "green_slime" || math.Hypot(m.X-arenaX, m.Z-slimeZ) > 0.01 || m.Y != 0 || m.HP != slime.HP || m.MaxHP != slime.HP || !facingSouth(m.Yaw) {
 					t.Fatalf("mob %+v", m)
 				}
 			}

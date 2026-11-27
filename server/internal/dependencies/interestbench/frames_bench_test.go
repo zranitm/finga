@@ -202,13 +202,15 @@ func (d *discard) Close(int, string)           {}
 func (d *discard) MessageOut(string)           {}
 func (d *discard) WelcomeSent(string, int)     {}
 
-// playerView is v as the gateway's model has it, each field the scene sets as the world's facade and adapter copy them.
+// playerView is v as the gateway's model has it, every field as the world's facade and the adapter copy them.
 func playerView(v model.PlayerView) gwmodel.PlayerView {
 	st := v.State
 	return gwmodel.PlayerView{
 		ID: v.ID.String(), Slot: v.Slot, Name: v.Name, Class: v.Class.String(), Level: v.Level, HP: v.HP, MaxHP: v.MaxHP, Dead: v.Dead, Invulnerable: v.Invulnerable,
 		X: st.X, Y: st.Y, Z: st.Z, VX: st.VX, VY: st.VY, VZ: st.VZ, HX: st.HX, HZ: st.HZ, OnGround: st.OnGround, Aim: v.Aim, Held: st.Held, Sprint: st.Sprint, Walk: st.Walk,
-		Statuses: statuses(v.Statuses),
+		Move:    gwmodel.PlayerMove{VX: st.Move.VX, VZ: st.Move.VZ, Left: st.Move.Left, Stop: st.Move.Stop, Through: st.Move.Through, ClearX: st.Move.ClearX, ClearZ: st.Move.ClearZ},
+		Dodging: v.Dodging, Shield: v.Shield, Slow: gwmodel.PlayerSlow{Left: st.Slow.Left, Factor: st.Slow.Factor},
+		Statuses: statuses(v.Statuses), Team: v.Team, Bot: v.Bot, Look: gwmodel.Look(v.Look),
 	}
 }
 
@@ -241,7 +243,7 @@ func gatewayFrame(f *model.Frame) *gwmodel.Frame {
 			g.MobSteps = append(g.MobSteps, st)
 		}
 		for _, v := range p.Mobs {
-			g.Mobs = append(g.Mobs, gwmodel.MobView{ID: v.ID, Type: v.Type, X: v.X, Y: v.Y, Z: v.Z, Yaw: v.Yaw, HP: v.HP, MaxHP: v.MaxHP, Pose: poses[v.Pose], Statuses: statuses(v.Statuses)})
+			g.Mobs = append(g.Mobs, mobViewOf(v))
 		}
 		for _, id := range p.Removed {
 			g.RemovedPlayers = append(g.RemovedPlayers, id.String())
@@ -249,6 +251,10 @@ func gatewayFrame(f *model.Frame) *gwmodel.Frame {
 		g.RemovedMobs = p.RemovedMobs
 	}
 	return out
+}
+
+func mobViewOf(v model.MobView) gwmodel.MobView {
+	return gwmodel.MobView{ID: v.ID, Type: v.Type, X: v.X, Y: v.Y, Z: v.Z, Yaw: v.Yaw, HP: v.HP, MaxHP: v.MaxHP, Pose: poses[v.Pose], Statuses: statuses(v.Statuses)}
 }
 
 var poses = map[model.MobPose]gwmodel.MobPose{model.Standing: gwmodel.Standing, model.Flinching: gwmodel.Flinching, model.Down: gwmodel.Down, model.Rising: gwmodel.Rising}

@@ -89,7 +89,7 @@ func TestAPlayerStopsWhereTheirViewDrewAMovingMob(t *testing.T) {
 		if viewed.Z == now.Z {
 			t.Fatalf("the slime stood at z %v in the view and now; want it walking", now.Z)
 		}
-		if v, _ := s.Own(id); math.Abs(v.State.Z-meetZ(viewed.X, viewed.Z, 1)) > worldtest.ViewGrain { // the slime as the view drew it, to the centimetre
+		if v, _ := s.Own(id); math.Abs(v.State.Z-meetZ(viewed.X, viewed.Z, 1)) > 1e-9 {
 			t.Fatalf("the player stood at z %v; want %v, at the slime's north side as the view drew it at z %v (now %v)", v.State.Z, meetZ(viewed.X, viewed.Z, 1), viewed.Z, now.Z)
 		}
 	})
@@ -239,7 +239,7 @@ func TestNoMobEndsATickInsideAPlayer(t *testing.T) {
 				d := math.Hypot(mb.X-me.State.X, mb.Z-me.State.Z)
 				def := defs[mb.Type]
 				over := me.State.Y < mb.Y+def.Height && mb.Y < me.State.Y+1.75
-				if want := def.Radius + 0.375; over && d < want-worldtest.ViewGrain { // the mob as the view has it, to the centimetre
+				if want := def.Radius + 0.375; over && d < want-1e-9 {
 					t.Fatalf("tick %d: a %s %.3f m from the player; want %v or more", s.Last().Tick, mb.Type, d, want)
 				}
 			}

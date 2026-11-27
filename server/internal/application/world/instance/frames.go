@@ -75,7 +75,7 @@ func (i *Instance) sendFrame(frame *model.Frame, own map[kernel.CharacterID]mode
 		p := i.players[id]
 		parts, unseen := i.follow(frame, id, &all)
 		r := model.Recipient{Character: id, Connection: p.Connection, Parts: parts, AckSeq: p.lastSeq, Unseen: unseen, Pouches: i.ground.Changes(id)}
-		if v, ok := own[id]; ok {
+		if v, ok := own[id]; ok && !framedWhole(frame, parts, id) {
 			r.Own = &v
 		}
 		if e := p.energyAsOfAck(); e != p.toldEnergy {
@@ -98,4 +98,16 @@ func (i *Instance) sendFrame(frame *model.Frame, own map[kernel.CharacterID]mode
 		}
 	}
 	return refused
+}
+
+// framedWhole is whether the player's own view went whole in one of the parts they are sent, so their private part need not carry it again.
+func framedWhole(frame *model.Frame, parts []int, id kernel.CharacterID) bool {
+	for _, k := range parts {
+		for _, v := range frame.Parts[k].Players {
+			if v.ID == id {
+				return true
+			}
+		}
+	}
+	return false
 }
