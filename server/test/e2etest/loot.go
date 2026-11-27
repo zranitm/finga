@@ -167,6 +167,16 @@ func (l *Looter) Await(d time.Duration, pred func(wsconn.Message) bool) bool {
 	return l.During(d, pred, nil, nil)
 }
 
+// Expect is Player's, observing every message read on the way, as a client takes each frame: the world sends a tick's frame before its events, so a Respawned comes after the frame that placed the player.
+func (l *Looter) Expect(msgType string) wsconn.Message {
+	l.t.Helper()
+	var got wsconn.Message
+	if !l.Await(15*time.Second, func(m wsconn.Message) bool { got = m; return m.Type == msgType }) {
+		l.t.Fatalf("no %s within 15 s", msgType)
+	}
+	return got
+}
+
 // Until reads until pick finds (and consumes) what it wants, asking after every message; it gives up once d of the world's ticks pass, or when no frame comes for Stalled.
 func (l *Looter) Until(d time.Duration, pick func() bool) bool {
 	return l.During(d, func(wsconn.Message) bool { return pick() }, pick, nil)
