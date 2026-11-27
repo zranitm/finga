@@ -10,7 +10,7 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// Frames shares each frame part's encoding among the players sent it, each frame's for as long as it lives, as several maps' frames interleave on a gateway's outboxes.
+// Frames shares each frame part's encoding among the players sent it, each frame's for as long as it lives, as several maps' frames interleave on a node's outboxes.
 type Frames struct {
 	mu     sync.Mutex
 	frames map[weak.Pointer[world.Frame]]*encoding
@@ -25,7 +25,7 @@ type encoding struct {
 	out   []*wsconn.Shared
 }
 
-// newFrames makes the cache a gateway's outboxes share.
+// newFrames makes the cache a node's outboxes share.
 func newFrames() *Frames { return &Frames{frames: map[weak.Pointer[world.Frame]]*encoding{}} }
 
 func (f *Frames) shared(frame *world.Frame, parts []int) []*wsconn.Shared {

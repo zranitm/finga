@@ -6,15 +6,15 @@
 
 - **At this size the split costs more than it gives:**
   - It would isolate failures only for item and social, and only with degraded modes that don't exist.
-  - A world restart loses its in-memory state whether or not the gateway keeps the socket.
+  - A world restart loses its in-memory state whether or not the server keeps the socket.
   - The services already ship together: one SHA for every image, and mixed versions unsupported. Independent deploys go unused.
 - **One process removes** network failures between modules, the gRPC plumbing, and five deploy units with their ports.
-- **The module boundaries stay,** so a later split remains possible. Sharding the world across nodes is the one case where a separate gateway pays off.
+- **The module boundaries stay,** so a later split remains possible. Sharding the world across nodes is the one case where a separate connection tier pays off.
 
 ## 2. What has to hold
 
 - **A module's internals stay private.** Another module reaches it only through its facade, and the rule tests enforce it.
-- **The tick never waits on the database, and the read loop never blocks.** The `itemcalls` pool and its batching, world's party copy, and the gateway's per-player command queue stay as they are.
+- **The tick never waits on the database, and the read loop never blocks.** The `itemcalls` pool and its batching, world's party copy, and the transport's per-player command queue stay as they are.
 - **A bug in one module doesn't take the game down.** A panic inside a call to another module becomes an error, as a gRPC call's did.
 - **Every goroutine runs under `pkg/runner` or `panics.Recorder.Go`, or recovers its own panic,** so no panic goes unrecovered. A rule test enforces it over every package the binaries link:
   - the `go` keyword appears only in `pkg/panics` and `pkg/runner`;
@@ -94,13 +94,13 @@ The codebase on main before step 1 (2026-11-13), six services over gRPC. What ea
     - No retry passes a rule, but a retryable one, declared with `.Retryable()`: account's `busy`, and world's `map_busy` and `world_stopped`. It's `transient.ErrUnavailable` too, so a retry keyed on that retries it, and its reason still reaches the wire.
   - `pkg/transient.ErrUnavailable` stays the failure a later try may clear, and `kernel.ErrInternal` is a recovered panic.
   - A facade wraps both errors, `fmt.Errorf("%w: %w", kernel.ErrX, cause)`, so `errors.Is` finds the kernel error and the logs keep the cause.
-  - The gateway's `PublicOf` stays, so every client-facing code is unchanged.
+  - `failure.PublicOf` stays, so every client-facing code is unchanged.
 - **Dependency order:**
   1. account and item, which call nobody;
   2. character, which calls item;
   3. social;
   4. world, which calls character, item and social;
-  5. the gateway, which calls them all.
+  5. account's connection flows, which call them all (the player-facing side was a `gateway` module until step c of the layout correction, and is account's now).
 
   The graph has no cycles, and the rule tests keep it so.
 
@@ -121,7 +121,7 @@ A small helper in the facade wraps each method:
 
 ### Streams
 
-- **A producer's facade has `Subscribe(id) *hub.Sub[Event]`** over a hub it owns, with the bounded queues the handlers had: world 8192, social 4096 for the gateways and 4096 for the worlds, sessions 1024. The events are the facade's own types, and a full subscriber is closed, as before.
+- **A producer's facade has `Subscribe(id) *hub.Sub[Event]`** over a hub it owns, with the bounded queues the handlers had: world 8192, social 4096 for the nodes and 4096 for the worlds, sessions 1024. The events are the facade's own types, and a full subscriber is closed, as before.
 - **A new `hub.Follow` replaces `grpcx.Follow` for in-process consumers,** in step 4 with its first consumer. It subscribes, pumps events to the handler, and on a close calls `OnBreak` so the consumer resyncs.
   - It resubscribes after a short backoff, doubling from 10 ms to 1 s with each wait jittered ±50%, since no network sits between them.
   - A panic in the handler breaks the subscription and is counted, as now.
@@ -149,7 +149,7 @@ A small helper in the facade wraps each method:
 ### Draining on SIGTERM
 
 1. Readiness goes off.
-2. The gateway stops accepting, sends every player `Kicked{server_restart}`, and closes the sockets.
+2. The server stops accepting, sends every player `Kicked{server_restart}`, and closes the sockets.
 3. World flushes its checkpoints and its pending item batches.
 4. Every module's tasks stop.
 5. The database pool closes, then the tracer flushes.
@@ -162,7 +162,7 @@ Today a panicked map stops `World.Run` and only the world process restarts; a fa
 
 - **A call** (a facade method): recovered and returned as `kernel.ErrInternal` (section 4).
 - **A connection or a request:**
-  - the gateway's per-player command or action goroutine closes that player's socket, so they reconnect;
+  - the transport's per-player command or action goroutine closes that player's socket, so they reconnect;
   - an HTTP handler answers 500.
   - The game goes on for everyone else.
 - **A restartable task,** a loop that keeps no live game state of its own:
@@ -170,7 +170,7 @@ Today a panicked map stops `World.Run` and only the world process restarts; a fa
     - item's outbox and retention;
     - account's session watch and retention;
     - social's sweeps and retention;
-    - the gateway's stream pumps;
+    - the account's stream pumps;
     - world's party copy.
   - The host restarts it with backoff, 100 ms to 5 s.
   - It counts `finga_task_restarts_total{module,task}` and logs the panic with its stack.
@@ -186,7 +186,7 @@ Today a panicked map stops `World.Run` and only the world process restarts; a fa
 One file, strict as now. Its shared sections are followed by one section per module:
 
 ```yaml
-http: {addr: ":8080", cors_origins: [...]}
+http: {addr: ":8080", cors_origins: [...], account_limit: {per_second, burst}}
 ops: {addr: ":9100"}
 admin: {addr: "127.0.0.1:9200", enabled: false}
 shutdown_grace: ...
@@ -194,8 +194,8 @@ log: {...}
 tracing: {otlp_endpoint: ...}
 database: {url: ...}
 data_dir: data
-gateway: {ws: {...}, sessions: {...}}
-account: {...}
+ws: {hello_timeout, command_queue}
+account: {..., connections: {join_timeout, check_interval}}
 character: {...}
 item: {...}
 world: {...}
@@ -227,7 +227,7 @@ social: {...}
     - It writes as a session's account and grants items, so it must never reach prod.
   - It listens on its own address, never the public or ops listener, so neither nginx nor a scrape can reach it.
   - Its endpoints are the calls testers makes today (sessions, characters, inventory and item grants), written through the modules' facades. The item and idempotency rules therefore hold.
-  - Testers keeps driving the gateway for the rest.
+  - Testers keeps driving the server for the rest.
 - **`cmd/bot` doesn't change,** beyond the metrics port.
 
 ## 9. Infra and CI
@@ -256,10 +256,10 @@ social: {...}
   - **layers:** unchanged inside a module.
   - **`TestNoServiceReachesAnother` becomes `TestModulesMeetAtFacades`:** a module imports another only at its root package, never its `internal/`, and the dependency graph has no cycles.
   - **contracts:** goes, with the internal protos.
-  - **error tables:** every model error has a row in its facade's table, and every kernel error a gateway `PublicOf` row.
+  - **error tables:** every model error has a row in its facade's table, and every kernel error a `failure.PublicOf` row.
   - **no unrecovered goroutine:** a `go` statement appears only in `pkg/panics` and `pkg/runner`, and every other goroutine a binary starts is a reviewed site (section 2).
   - **ctx names, stamping, timestamps and docs:** unchanged.
-  - **copy rows** (since large regions step 6b): every map event, world stream event and gateway push has a row in its conversion's copy test.
+  - **copy rows** (since large regions step 6b): every map event, world stream event and push has a row in its conversion's copy test.
 - **Unit tests** move with their code. Each facade gets table-driven tests of its conversion and error table.
 
 ## 11. When things fail

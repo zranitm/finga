@@ -31,7 +31,7 @@ From the code as it is (the rules this design keeps):
 | Stats (`internal/shared/progression`) | `Equipment{WeaponAttack, ArmorDefense, Penetration}`, always passed empty | `ItemStats` (eighteen stats) summed over worn items; a stat sheet with the equipment's share |
 | Item module | Locations `inventory` and `destroyed`; no per-item attributes | An `equipped` location with an equip slot, an insert-only `item_rolls` table, and `Equip` and `Unequip` |
 | World module | Knows items only through pickups and the starter safety net | Rolls equipment stats at drop time, loads worn items at join, runs equip and unequip through its workers, re-derives stats |
-| Gateway | Routes inventory moves straight to the item module | Routes `Equip` and `Unequip` to the world, with a Response; seven new error codes |
+| Server | Routes inventory moves straight to the item module | Routes `Equip` and `Unequip` to the world, with a Response; seven new error codes |
 | Client | Inventory window, no tooltip, no stats beyond the five primary | Character window (C key), equipment in the inventory store, a hover card with comparison |
 | Character module | Unchanged | Unchanged: it stores level, primary stats, HP and energy; derived stats are never stored |
 
@@ -134,7 +134,7 @@ Checks 5, 6, and 8 hold unchanged. Check 6 already sums every item's quantity wh
 ```mermaid
 sequenceDiagram
   participant C as Client
-  participant G as Gateway
+  participant G as Server
   participant W as World (map instance)
   participant P as Item-call worker
   participant I as Item module
@@ -154,7 +154,7 @@ sequenceDiagram
 ```
 
 - **Why through the world, unlike `InventoryMove`:** two things only the world has. The level check needs the live level, and combat needs the new stats. Sending it straight to the item module would need the level from somewhere else and a second message to tell the world.
-- **The world's handler waits; the tick doesn't.** The `Equip` RPC posts a message with a reply channel and waits for the outcome, within the gateway's 5-second limit. The tick only drains the inbox, hands the job to a worker, and later applies the result.
+- **The world's handler waits; the tick doesn't.** The `Equip` RPC posts a message with a reply channel and waits for the outcome, within the server's 5-second limit. The tick only drains the inbox, hands the job to a worker, and later applies the result.
 - **On the tick, before the call:**
   - A dead character is refused with `CHARACTER_DEAD`.
   - When no worker is free, the map's inbox is full, or the connection no longer holds the character (mid-transfer, say), the answer is `UNAVAILABLE`: the client may retry, and the key makes the retry safe.
@@ -163,23 +163,23 @@ sequenceDiagram
   - It marks the player changed, so the next Delta carries the new max HP to everyone on the map.
   - It queues `InventoryChanged` (inventory and equip slots, revision) and `StatsChanged` (the sheet and HP) as the player's private events.
   - It answers the waiting RPC.
-- **Ordering:** the gateway's per-connection command queue runs one command at a time, so a player never has two equips in flight. An `InventoryMove` can still interleave, since it goes straight to the item module; the owner's lock serializes the two, and the revision orders what the client shows.
+- **Ordering:** the server's per-connection command queue runs one command at a time, so a player never has two equips in flight. An `InventoryMove` can still interleave, since it goes straight to the item module; the owner's lock serializes the two, and the revision orders what the client shows.
   - **As built (the pouches playtest's fix):**
     - Actions (`Input`, `Attack`, `UseSkill`, `EnterPortal` and `Teleport`) run on a queue of their own beside the commands, in their own order. So a command waiting on the item module never holds the player still.
     - Actions keep their order with each other, as the world counts a press from the input after it. They wait for `Hello`'s answer.
     - So an attack sent right after an equip, without waiting for its answer, uses the old weapon until the equip settles. A client that waits for the answer first isn't affected.
     - A portal press during an item call waits for it to settle, then enters if the player is still alive and in the portal. The client sends a press once.
-- **Gateway routes:** `Equip` and `Unequip` join `InventoryMove` and `InventoryDiscard` under the shared 5-per-second limit, with `respond`, so the client gets a Response carrying its request ID.
+- **Server routes:** `Equip` and `Unequip` join `InventoryMove` and `InventoryDiscard` under the shared 5-per-second limit, with `respond`, so the client gets a Response carrying its request ID.
 
 ### Join, rejoin, and moves between maps
 
 - **Join:** after the character's `Load`, `World.Join` reads the worn items from the item module (`Inventory` now includes them) and passes the sum to `DeriveStats`.
-  - Unlike the best-effort starter call, this read is required. When the item module doesn't answer, the join fails with `Unavailable`, and the gateway's join already retries that with backoff.
+  - Unlike the best-effort starter call, this read is required. When the item module doesn't answer, the join fails with `Unavailable`, and the server's join already retries that with backoff.
   - The sheet goes back in `JoinResponse.CharacterView`, so Welcome carries it.
-- **Welcome:** the gateway's `Inventory` call already happens during Hello. Its worn items go into `Welcome.equipment` under the same revision as the inventory.
+- **Welcome:** the server's `Inventory` call already happens during Hello. Its worn items go into `Welcome.equipment` under the same revision as the inventory.
 - **Rejoin after a world restart** reloads the worn items the same way, so combat is right again after the freeze. The client's view doesn't change, since nothing it holds changed.
 - **Portals, deaths, and level-ups:** the worn sum travels with the player through `handOff`. Level-up re-derives with it (`progress.go`), as does every landing (`players.go`). Respawn HP is half of the maximum with equipment.
-- **An equip in flight keeps the player on its map:** a portal is refused and a respawn away from the map waits until the result settles, so it applies where the player is and the hand-off carries it. An item call takes milliseconds, and at most 3.5 s, every try included. That's inside the 5 s the gateway gives a command, so one with no answer is `UNAVAILABLE`, never the gateway's own deadline. The same 3.5 s bounds unequips, looks, potions, inventory moves, discards and wardrobe adds. A call a world worker makes counts its 3.5 s from when the worker takes it, after queues and ticks a starved box can stretch, so the command's wait also gives up 0.5 s before its deadline as `UNAVAILABLE`. The result still settles on the tick whenever it comes.
+- **An equip in flight keeps the player on its map:** a portal is refused and a respawn away from the map waits until the result settles, so it applies where the player is and the hand-off carries it. An item call takes milliseconds, and at most 3.5 s, every try included. That's inside the 5 s the server gives a command, so one with no answer is `UNAVAILABLE`, never the server's own deadline. The same 3.5 s bounds unequips, looks, potions, inventory moves, discards and wardrobe adds. A call a world worker makes counts its 3.5 s from when the worker takes it, after queues and ticks a starved box can stretch, so the command's wait also gives up 0.5 s before its deadline as `UNAVAILABLE`. The result still settles on the tick whenever it comes.
 - **Checkpoints don't change:** the character module stores HP and energy. Max values are never stored, and a join clamps HP to the maximum it derives.
 
 ## 7. Protocol
@@ -254,7 +254,7 @@ By layer (`web/eslint.config.js`):
 | Item module down | Equip answers `UNAVAILABLE`; a join waits and retries | Nothing changed, so a retry is the same request |
 | Request times out, the change committed | Retry with the same key gets the stored reply; the world applies it | Idempotency key per request |
 | World crashes after the commit, before applying | A short freeze; the rejoin reloads worn items, so stats are right | The item module is the record; the world's sum is a copy |
-| Gateway restarts mid-equip | Reconnect; the Welcome shows what is worn | Same as above |
+| Server restarts mid-equip | Reconnect; the Welcome shows what is worn | Same as above |
 | Item module crashes mid-swap | Nothing changed, or all of it | One transaction; checks 9 to 12 after the crash test |
 | Two clients of one account | Can't happen: one session per account | — |
 
@@ -274,7 +274,7 @@ By layer (`web/eslint.config.js`):
   - level-ups, portals, and deaths keep the worn sum;
   - a join fails over when the item module is down;
   - drops roll within range, and the same seed rolls the same.
-- **Gateway:** route rows, `PublicOf` rows, and `codes.json`.
+- **Server:** route rows, `PublicOf` rows, and `codes.json`.
 - **Contracts:** golden files, and `make breaking` passes.
 - **End to end:** one row per D3 and D6 acceptance criterion the server can show (`server/test/equipment_e2e_test.go`), including a swap during a world restart.
 - **Client:** Vitest for the equipment store, the comparison and ring rule, and card placement. Testing Library for the character window and for double-click and drag in the inventory.
@@ -287,7 +287,7 @@ By layer (`web/eslint.config.js`):
   - The third band waits for a map with mobs of its levels; until then it is a rare find in the cave (0.2% to 0.4% a kill), as is the 6★ Moonstone Ring.
   - Green slimes keep their drops, so a new player's first kills fill the Etc and Use tabs as before.
 - **Balance:** equipment bonuses have never applied in combat. Even a starter sword adds attack (+48% attack power for a level 1 warrior), so the content step raises mob HP until the weapon a player of the mob's level likely holds kills it in as many hits as before (open question 3): green slime 30 to 44, orange mushroom 70 to 90, wild boar 180 to 216, cave bat 150 to 180. Mob attack stays, so armor makes mobs hit softer, as it should.
-- **Deploy order:** item service first, then world, then gateway, then the client. The item service answers old callers as before, except an old world's pickup of equipment, which carries no roll: it is refused and the drop stays on the ground until that world restarts, seconds later in a release. Old clients ignore the new fields and never send `Equip`.
+- **Deploy order:** item service first, then world, then server, then the client. The item service answers old callers as before, except an old world's pickup of equipment, which carries no roll: it is refused and the drop stays on the ground until that world restarts, seconds later in a release. Old clients ignore the new fields and never send `Equip`.
 - **An old item service beside the new schema:** an item service from before rolls, running against a database the migration has reached, writes equipment with no roll, as starter grants and pickups. Every read gives such an item its template's lowest roll, so it never counts as zero. The owner's next change writes that roll and logs a warning, so check 11 holds again and a later retune doesn't move it.
 
 ## 12. Build order
@@ -302,9 +302,9 @@ Each step is one reviewed commit, green on `make test`, `make lint`, and `make c
 1. **Game data:** stars, descriptions, slot kinds, ranges, validation, and the client generator. No behaviour changes.
 2. **Stats model:** `ItemStats` and `DeriveStats` over the worn sum, in `internal/shared/progression`. `Sheet` comes with its first caller, the world, in step 5.
 3. **Item module, rolls:** the `item_rolls` table, `Add` with a roll, starter items at the lowest roll, check 11, and the backfill. The world rolls at drop time in the same step, since `Add` refuses equipment without a roll.
-4. **Item module, equipping:** the `equipped` location, `Equip` and `Unequip`, worn items refusing move and discard, checks 9, 10, and 12, and the property and crash tests (the crash test swaps through the item module, as no client route exists yet). The item module's six new error codes reach the client in this step, since `ITEM_WORN` can already answer a move. The gateway and the world leave worn items out of their inventory views until they show and use them.
+4. **Item module, equipping:** the `equipped` location, `Equip` and `Unequip`, worn items refusing move and discard, checks 9, 10, and 12, and the property and crash tests (the crash test swaps through the item module, as no client route exists yet). The item module's six new error codes reach the client in this step, since `ITEM_WORN` can already answer a move. The server and the world leave worn items out of their inventory views until they show and use them.
 5. **World:** worn items at join, `Equip` and `Unequip` through the workers, the `Sheet`, re-derive and `StatsChanged`, with `CHARACTER_DEAD` reaching the client as its reason arrives.
-6. **Gateway and protocol:** routes, Welcome and InventoryChanged with equipment, the contracts, and starter equipment worn from the start, now that the client shows it.
+6. **Server and protocol:** routes, Welcome and InventoryChanged with equipment, the contracts, and starter equipment worn from the start, now that the client shows it.
 7. **Client, character window:** stores, the C key, the window, and equipping by double-click and drag.
 8. **Client, item card:** the hover card and the comparison.
 9. **Content and balance:** the new items, drop lists, and tuning.

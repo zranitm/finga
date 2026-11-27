@@ -187,7 +187,7 @@ linters:
             - pkg: finga/pkg/dbx
               desc: the handler never touches the database
         handlers-no-database:
-          files: ["**/internal/handler/{account,character,item,pvp,social,world,transport}/**", "**/internal/metrics/transport/**", "**/server/config/gateway.go", "**/internal/dependencies/gateway.go"]
+          files: ["**/internal/handler/{account,character,item,pvp,social,world,transport}/**", "**/internal/metrics/transport/**", "**/server/config/ws.go", "**/internal/dependencies/transport.go"]
           deny:
             - pkg: github.com/jackc/pgx
               desc: the handlers hold no database
@@ -491,10 +491,10 @@ linters:
             - pkg: finga/cmd
               desc: the migrations know no code above them
         gin-at-the-edge:
-          files: ["$all", "!**/internal/handler/{account,character,item,pvp,social,world,transport}/**", "!**/internal/dependencies/gateway.go"]
+          files: ["$all", "!**/internal/handler/{account,character,item,pvp,social,world,transport}/**", "!**/internal/dependencies/transport.go"]
           deny:
             - pkg: github.com/gin-gonic/gin
-              desc: Gin stays in the gateway's handlers and its wiring
+              desc: Gin stays in the handlers and the transport's wiring
         zap-behind-slog:
           files: ["$all", "!**/pkg/observability/logger/**"]
           deny:

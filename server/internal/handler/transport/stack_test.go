@@ -49,7 +49,7 @@ import (
 const (
 	tokenAlice = "tok-alice"
 	tokenBob   = "tok-bob"
-	gatewayID  = "gw-test"
+	nodeID     = "gw-test"
 )
 
 var (
@@ -68,8 +68,8 @@ type observer interface {
 	account.ConnectionsObserver
 }
 
-// gatewayURL is where a client dials; the harness's transport ignores the address.
-const gatewayURL = "ws://gateway"
+// serverURL is where a client dials; the harness's transport ignores the address.
+const serverURL = "ws://server"
 
 type harness struct {
 	http    *http.Client
@@ -99,7 +99,7 @@ type (
 	}
 )
 
-// deps are the modules the gateway calls, faked, and its settings.
+// deps are the modules the server calls, faked, and its settings.
 type deps struct {
 	ID                   string
 	Account              adapter.OwnModule
@@ -125,16 +125,16 @@ func (d deps) build() (*account.Streams, http.Handler) {
 	recorder := panics.NewRecorder(d.Logger, nil)
 	items := adapter.NewItems(d.Items)
 	guard := adapter.NewGuard(d.Account)
-	sessions := account.NewConnections(account.ConnectionsDeps{World: worldPort, Social: socialPort, Pvp: pvpPort, Items: items, Logger: d.Logger, Panics: recorder, Traces: d.Traces, Observer: d.Observer}, account.ConnectionsOptions{Gateway: d.ID, JoinTimeout: d.JoinTimeout})
+	sessions := account.NewConnections(account.ConnectionsDeps{World: worldPort, Social: socialPort, Pvp: pvpPort, Items: items, Logger: d.Logger, Panics: recorder, Traces: d.Traces, Observer: d.Observer}, account.ConnectionsOptions{Node: d.ID, JoinTimeout: d.JoinTimeout})
 	sends := account.CommandsDeps{Sessions: guard, Registry: sessions, World: worldPort, Social: socialPort, Logger: d.Logger, Observer: d.Observer}
 	pushes := account.StreamsDeps{Sessions: guard, Registry: sessions, World: worldPort, Social: socialPort, Pvp: pvpPort, Account: adapter.NewSessionEnds(d.Account, d.Logger, nil), Logger: d.Logger, Panics: recorder, Traces: d.Traces}
-	sendGateway := account.NewCommands(sends, account.CommandsOptions{JoinTimeout: d.JoinTimeout})
-	return account.NewStreams(pushes, account.StreamsOptions{SessionCheckInterval: d.SessionCheckInterval}), newServer(sendGateway, d, transport.ServerOptions{
+	sendServer := account.NewCommands(sends, account.CommandsOptions{JoinTimeout: d.JoinTimeout})
+	return account.NewStreams(pushes, account.StreamsOptions{SessionCheckInterval: d.SessionCheckInterval}), newServer(sendServer, d, transport.ServerOptions{
 		Origins: d.CORSOrigins, HelloTimeout: d.HelloTimeout, CommandQueue: d.CommandQueue, Observer: d.Observer, Logger: d.Logger, Panics: recorder, Traces: d.Traces,
 	})
 }
 
-// newHarness runs the gateway over a fake world and waits until it follows the world's stream.
+// newHarness runs the server over a fake world and waits until it follows the world's stream.
 func newHarness(t *testing.T, opts ...func(*deps)) *harness {
 	t.Helper()
 	return newHarnessOn(t, newFakeWorld(), opts...)
@@ -145,7 +145,7 @@ func newHarnessOn(t *testing.T, fw *fakeWorld, opts ...func(*deps)) *harness {
 	obs := newFakeObserver()
 	acc := newFakeAccount()
 	d := deps{
-		ID:                   gatewayID,
+		ID:                   nodeID,
 		Account:              acc,
 		World:                fw,
 		Items:                &fakeItems{},
@@ -171,7 +171,7 @@ func newHarnessOn(t *testing.T, fw *fakeWorld, opts ...func(*deps)) *harness {
 	select {
 	case <-fw.deliveries.subscribed:
 	case <-time.After(5 * time.Second):
-		t.Fatal("the gateway never subscribed to the world")
+		t.Fatal("the server never subscribed to the world")
 	}
 	return &harness{http: client, world: fw, account: acc, obs: obs, streams: streams}
 }
@@ -193,7 +193,7 @@ func (h *harness) dialAs(t *testing.T, subprotocol string) *client {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	c, _, err := websocket.Dial(ctx, gatewayURL, &websocket.DialOptions{HTTPClient: h.http, Subprotocols: []string{subprotocol}})
+	c, _, err := websocket.Dial(ctx, serverURL, &websocket.DialOptions{HTTPClient: h.http, Subprotocols: []string{subprotocol}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,7 +307,7 @@ func TestHelloHappyPath(t *testing.T) {
 			t.Fatalf("snapshot %+v (tick %d)", snap, s.Tick)
 		}
 		joined := h.world.joins()
-		if len(joined) != 1 || joined[0].p.Character != aylaID || joined[0].account != alice || joined[0].gateway != gatewayID || joined[0].p.Conn != connectionOf(h.world, aylaID) {
+		if len(joined) != 1 || joined[0].p.Character != aylaID || joined[0].account != alice || joined[0].node != nodeID || joined[0].p.Conn != connectionOf(h.world, aylaID) {
 			t.Fatalf("joined %+v", joined)
 		}
 		if welcome.GetCharacter().GetStats().GetStr() != 12 {
@@ -647,12 +647,12 @@ func TestARefusedCommandAnswersWithAResponse(t *testing.T) {
 	})
 }
 
-func TestOriginCheckAppliesToTheGateway(t *testing.T) {
+func TestOriginCheckAppliesToTheServer(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t, func(d *deps) { d.CORSOrigins = []string{"http://localhost:5173"} })
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_, res, err := websocket.Dial(ctx, gatewayURL, &websocket.DialOptions{HTTPClient: h.http, HTTPHeader: http.Header{"Origin": []string{"http://evil.example"}}})
+		_, res, err := websocket.Dial(ctx, serverURL, &websocket.DialOptions{HTTPClient: h.http, HTTPHeader: http.Header{"Origin": []string{"http://evil.example"}}})
 		if err == nil || res == nil || res.StatusCode != http.StatusForbidden {
 			t.Fatalf("err %v res %v", err, res)
 		}
@@ -690,7 +690,7 @@ func TestAClientWithoutAKnownSubprotocolIsClosedAsAPolicyViolation(t *testing.T)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		for _, asked := range [][]string{nil, {"finga.v0.json"}} {
-			c, _, err := websocket.Dial(ctx, gatewayURL, &websocket.DialOptions{HTTPClient: h.http, Subprotocols: asked})
+			c, _, err := websocket.Dial(ctx, serverURL, &websocket.DialOptions{HTTPClient: h.http, Subprotocols: asked})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1121,7 +1121,7 @@ func TestUseItemAnswersOnceTheWorldApplies(t *testing.T) {
 func TestAnUnexpectedCommandErrorIsInternalAndLoggedWithItsCause(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		logs := &lockedBuffer{}
-		// The item module failed with no rule: in one process the gateway gets its error, cause and all, and logs it.
+		// The item module failed with no rule: in one process the server gets its error, cause and all, and logs it.
 		items := &fakeItems{err: fmt.Errorf("discard: %w", errors.New("pq: connection reset"))}
 		h := newHarness(t, func(d *deps) {
 			d.Items = items
@@ -1143,7 +1143,7 @@ func TestAnUnexpectedCommandErrorIsInternalAndLoggedWithItsCause(t *testing.T) {
 	})
 }
 
-// An inventory command whose item module never answers is unavailable 3.5 s in, inside the 5 s the gateway gives it, not internal at that deadline, and logs no failure.
+// An inventory command whose item module never answers is unavailable 3.5 s in, inside the 5 s the server gives it, not internal at that deadline, and logs no failure.
 func TestAnUnansweredInventoryCommandIsUnavailable(t *testing.T) {
 	for _, m := range []proto.Message{
 		&clientv1.InventoryMove{IdempotencyKey: "k", ItemId: kernel.NewItemID().String(), Tab: "use", Slot: 1},
@@ -1173,11 +1173,11 @@ func TestAnUnansweredInventoryCommandIsUnavailable(t *testing.T) {
 	}
 }
 
-// panickingItems is an item module whose Discard panics on the connection's command goroutine, as a bug in the gateway's adapter would.
+// panickingItems is an item module whose Discard panics on the connection's command goroutine, as a bug in the server's adapter would.
 type panickingItems struct{ itemModule }
 
 func (panickingItems) Discard(context.Context, item.Actor, item.DiscardRequest) (item.Result, error) {
-	panic("nil map in the gateway")
+	panic("nil map in the server")
 }
 
 // A panic in a command answers internal, keeps the connection and marks the command's trace as failed.
@@ -1213,7 +1213,7 @@ func TestAPanicInACommandAnswersInternalAndTheConnectionLivesOn(t *testing.T) {
 		c.send(wsconn.Message{Data: &clientv1.Ping{ClientTime: 5}})
 		c.expect("Pong")
 		got := logs.String()
-		for _, want := range []string{`"msg":"panic recovered"`, `"flow":"ws"`, `"panic":"nil map in the gateway"`, `"type":"InventoryDiscard"`, `"req_id":"r-1"`, `"conn":`} {
+		for _, want := range []string{`"msg":"panic recovered"`, `"flow":"ws"`, `"panic":"nil map in the server"`, `"type":"InventoryDiscard"`, `"req_id":"r-1"`, `"conn":`} {
 			if !strings.Contains(got, want) {
 				t.Fatalf("log lacks %s: %s", want, got)
 			}
@@ -1227,11 +1227,11 @@ type panicsOnceJoining struct {
 	done *atomic.Bool
 }
 
-func (w panicsOnceJoining) Join(ctx context.Context, gateway string, acc kernel.AccountID, p world.Presence) (world.View, error) {
+func (w panicsOnceJoining) Join(ctx context.Context, node string, acc kernel.AccountID, p world.Presence) (world.View, error) {
 	if w.done.CompareAndSwap(false, true) {
-		panic("nil map in the gateway")
+		panic("nil map in the server")
 	}
-	return w.worldModule.Join(ctx, gateway, acc, p)
+	return w.worldModule.Join(ctx, node, acc, p)
 }
 
 // panicsOnceListing is an item module whose first Inventory panics on the Hello's goroutine, after its world join.
@@ -1242,7 +1242,7 @@ type panicsOnceListing struct {
 
 func (i panicsOnceListing) Inventory(ctx context.Context, owner kernel.CharacterID) (item.Inventory, error) {
 	if i.done.CompareAndSwap(false, true) {
-		panic("nil map in the gateway")
+		panic("nil map in the server")
 	}
 	return i.itemModule.Inventory(ctx, owner)
 }
@@ -1340,7 +1340,7 @@ func TestAnAnsweredCommandKeepsItsTrace(t *testing.T) {
 	})
 }
 
-// failingPortals is a world whose EnterPortal fails in a way the gateway cannot name, and whose Attack finds it out of reach.
+// failingPortals is a world whose EnterPortal fails in a way the server cannot name, and whose Attack finds it out of reach.
 type failingPortals struct{ worldModule }
 
 func (failingPortals) EnterPortal(context.Context, world.Presence) error {
@@ -1382,7 +1382,7 @@ func TestAWorldCommandsUnexpectedFailureIsLoggedSampled(t *testing.T) {
 	})
 }
 
-// lockedBuffer is a log destination the gateway's goroutines can share.
+// lockedBuffer is a log destination the server's goroutines can share.
 type lockedBuffer struct {
 	mu  sync.Mutex
 	buf bytes.Buffer
@@ -1477,14 +1477,14 @@ func TestEnterPortalIsRoutedAsTheSender(t *testing.T) {
 	})
 }
 
-// socialHarness builds the gateway over fs and waits for its first subscription.
+// socialHarness builds the server over fs and waits for its first subscription.
 func socialHarness(t *testing.T, fs *fakeSocial, opts ...func(*deps)) *harness {
 	t.Helper()
 	h := newHarness(t, append(opts, func(d *deps) { d.Social = fs })...)
 	select {
 	case <-fs.deliveries.subscribed:
 	case <-time.After(5 * time.Second):
-		t.Fatal("the gateway never subscribed to the social module")
+		t.Fatal("the server never subscribed to the social module")
 	}
 	synctest.Wait() // the subscription's registration round has run with no one on, so a login after it registers once
 	return h
@@ -1505,7 +1505,7 @@ func TestADetachedConnectionJoinsAgain(t *testing.T) {
 	})
 }
 
-// Deliveries for a connection the gateway does not have mean a stray presence: the gateway takes it off its map, once, as a drop, since no logout came through it.
+// Deliveries for a connection the server does not have mean a stray presence: the server takes it off its map, once, as a drop, since no logout came through it.
 func TestAPresenceWithoutAConnectionIsTakenOffItsMap(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t)
@@ -1541,7 +1541,7 @@ func TestALeaveTheWorldRefusedIsTriedAgain(t *testing.T) {
 	})
 }
 
-// A Leave the gateway sends on its own runs in a trace of its own: the refused call and its retry carry one trace ID.
+// A Leave the server sends on its own runs in a trace of its own: the refused call and its retry carry one trace ID.
 func TestABackgroundLeaveRunsInOneTrace(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
@@ -1662,7 +1662,7 @@ func TestAHelloWhoseJoinTimedOutRejoinsTheOlderConnection(t *testing.T) {
 		h.world.joinGate = rejoin // joins from here on wait at their own gate
 		h.world.mu.Unlock()
 		time.Sleep(2 * time.Second) // past the Hello's deadline, and the rejoin's spread
-		close(late)                 // the world finishes the newer join, its reply lost to the gateway
+		close(late)                 // the world finishes the newer join, its reply lost to the server
 		synctest.Wait()
 		close(rejoin)
 		older.expect("Snapshot")
@@ -1926,7 +1926,7 @@ func TestPartyCommandsAndState(t *testing.T) {
 				mine = p
 			}
 		}
-		if m := mine.Member; m.Name != "Ayla" || m.Class != "warrior" || m.MapID != "town" || m.MaxHP != 204 || m.Level != 1 || mine.Gateway == "" || mine.Connection != connectionOf(h.world, aylaID) || mine.JoinSeq != joinSeqOf(h.world, aylaID) {
+		if m := mine.Member; m.Name != "Ayla" || m.Class != "warrior" || m.MapID != "town" || m.MaxHP != 204 || m.Level != 1 || mine.Node == "" || mine.Connection != connectionOf(h.world, aylaID) || mine.JoinSeq != joinSeqOf(h.world, aylaID) {
 			t.Fatalf("online %+v", fs.onlineCalls())
 		}
 
@@ -1997,7 +1997,7 @@ func TestPartyCommandsAndState(t *testing.T) {
 			}
 		})
 		part(t, "a stream that breaks registers everyone again, and sends no PartyState", func() {
-			// The module answers each Online with the member's party; with none to send, any PartyState is the gateway's own.
+			// The module answers each Online with the member's party; with none to send, any PartyState is the server's own.
 			fs.mu.Lock()
 			clear(fs.of)
 			fs.mu.Unlock()
@@ -2067,11 +2067,11 @@ func TestExpiredSessionIsKicked(t *testing.T) {
 	})
 }
 
-func TestTheGatewayFollowsTheAccountServicesSessionEnds(t *testing.T) {
+func TestTheServerFollowsTheAccountServicesSessionEnds(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t)
 		ends := h.account.ends
-		<-ends.subscribed // an end sent before the gateway subscribes is lost, as the module's would be
+		<-ends.subscribed // an end sent before the server subscribes is lost, as the module's would be
 
 		part(t, "a new login elsewhere kicks as logged_in_elsewhere, and its leave is a drop, for that login to land on a match's body", func() {
 			c := h.dial(t)
@@ -2108,14 +2108,14 @@ func TestTheGatewayFollowsTheAccountServicesSessionEnds(t *testing.T) {
 				t.Fatalf("drops %v, want the logout's leave none", drops)
 			}
 		})
-		part(t, "after the stream breaks the gateway subscribes again, under its ID", func() {
+		part(t, "after the stream breaks the server subscribes again, under its ID", func() {
 			ends.cut(t)
 			select {
 			case <-ends.subscribed:
 			case <-time.After(5 * time.Second):
 				t.Fatalf("subscriptions %v", ends.subscriptions())
 			}
-			if got := ends.subscriptions(); len(got) != 2 || got[0] != gatewayID || got[1] != gatewayID {
+			if got := ends.subscriptions(); len(got) != 2 || got[0] != nodeID || got[1] != nodeID {
 				t.Fatalf("subscriptions %v", got)
 			}
 		})
@@ -2224,7 +2224,7 @@ func TestAfterTheWorldsStreamBreaksEveryPlayerIsJoinedAgain(t *testing.T) {
 func TestAHelloWhileTheWorldsStreamIsDownWaitsForIt(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t)
-		h.world.deliveries.cut(t) // the stream is down until the gateway subscribes again
+		h.world.deliveries.cut(t) // the stream is down until the server subscribes again
 		c := h.dial(t)
 		c.hello(tokenAlice, aylaID)
 		c.expect("Welcome")
@@ -2451,7 +2451,7 @@ func TestDrainKicksEveryConnectionAsServerRestart(t *testing.T) {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_, res, err := websocket.Dial(ctx, gatewayURL, &websocket.DialOptions{HTTPClient: h.http})
+		_, res, err := websocket.Dial(ctx, serverURL, &websocket.DialOptions{HTTPClient: h.http})
 		if err == nil || res == nil || res.StatusCode != http.StatusServiceUnavailable {
 			t.Fatalf("a new connection while draining: err %v, response %v", err, res)
 		}

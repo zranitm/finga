@@ -32,7 +32,7 @@ From the code (the rules this design keeps):
 | Social stream | `Membership{character_ids, members}` | Adds `party_id`, so a map can keep a turn per party |
 | Game data | Loot timings are constants in `ground.go` | `data/loot.yaml`: `collect_delay` (1s), `drop_life` (60s), `room_check_every` (2s) |
 | Client protocol | `PickUp`; drops have no owner; a removed drop just goes | `DropView.owner_id`; `Delta.collected_drops`; a new `Loot` message; `PickUp` unused |
-| Gateway | Routes `PickUp` to the world | Answers `PickUp` with nothing and calls no module; `pickup_busy` and `pickups_unavailable` retire |
+| Server | Routes `PickUp` to the world | Answers `PickUp` with nothing and calls no module; `pickup_busy` and `pickups_unavailable` retire |
 | Client | Pickup key, pickup hint, one chat list | No pickup key; drops fly to their owner; chat box tabs General, Party, Combat; a combat log; a toast for 4★ and up |
 | Item module | `Add` per pickup | `AddMany`: several drops for one owner in one transaction, each under its own key and savepoint; `Add` stays |
 | World: grant calls | One call per pickup | At most one call in flight per owner; the drops that came due meanwhile go together in the next (section 5) |
@@ -105,7 +105,7 @@ At the load-test target of 1,000 players on one node, the drops come to the low 
 | `DropView` | Gains `owner_id` (character ID), so every client knows where a drop will fly |
 | `Delta` | Gains `repeated uint32 collected_drops`: drops that left the ground because they were collected. `removed_drops` keeps meaning "gone": expired or lost. |
 | `Loot` (server) | New: `kind` (`COLLECTED`, `WAITING`, `LOST`), `map_id`, `drop_id`, `owner_id`, `owner_name`, `template`, `quantity`. Drop IDs are a map's own, so `map_id` tells two maps' drops apart. `COLLECTED` goes to the owner and to party members on the map; `WAITING` and `LOST` go to the owner only. |
-| `PickUp` (client) | Marked deprecated; the gateway answers it with nothing and calls no module, so a press from an older client does nothing. Unrouted, it would answer `NOT_IMPLEMENTED`, which an older client shows as a toast. |
+| `PickUp` (client) | Marked deprecated; the server answers it with nothing and calls no module, so a press from an older client does nothing. Unrouted, it would answer `NOT_IMPLEMENTED`, which an older client shows as a toast. |
 
 - EXP and level-ups need nothing new: the combat channel reads the existing `ExpGained` (a negative amount is the death penalty) and `LevelUp`.
 - Error codes `pickup_busy` and `pickups_unavailable` retire: nothing answers them any more. `codes.json` and the client's `errorCodes` lose them in the same commit.
@@ -115,7 +115,7 @@ At the load-test target of 1,000 players on one node, the drops come to the low 
 
 - `social.v1`: `Membership` gains `party_id`.
 - `world.v1`:
-  - the `PickUp` rpc is deprecated: it answers and does nothing, for a gateway that still routes the key;
+  - the `PickUp` rpc is deprecated: it answers and does nothing, for a node that still routes the key;
   - `pickup_failed` and the reasons `pickups_unavailable` and `pickup_busy` are deprecated, never sent;
   - `DeliverResponse` gains `Loot`;
   - the delta frame gains `collected_drops`;
@@ -206,9 +206,9 @@ On `feat/auto-pickup`, based on `main` after PR #2. Each step is one commit, gre
    - owners at the kill and round-robin;
    - automatic grants batched per owner over `AddMany`;
    - waiting for room and lost drops;
-   - `Loot` and `collected_drops` in the world's own model and in `world.v1`, its contract with the gateway.
+   - `Loot` and `collected_drops` in the world's own model and in `world.v1`, its contract with the server.
    `PickUp` stops doing anything in the world.
-5. **Gateway and protocol:** `DropView.owner_id`, `Delta.collected_drops`, `Loot`, `PickUp` answered with nothing, the two codes retired, contracts, and the bot.
+5. **Server and protocol:** `DropView.owner_id`, `Delta.collected_drops`, `Loot`, `PickUp` answered with nothing, the two codes retired, contracts, and the bot.
 6. **End to end and the crash test**, rewritten for auto pickup, and a `make bots` run to record the batch sizes and the item module's latency.
 7. **Client, drops:** no pickup key or hint; drops fly or fade.
 8. **Client, combat channel:** the combat log, chat tabs, the 4★ toast, and the HUD waiting notice.

@@ -14,7 +14,7 @@ const (
 	InviteTTL  = 30 * time.Second
 )
 
-// Member is a party member as the others see them, fed by the gateway and the world.
+// Member is a party member as the others see them, fed by the server and the world.
 type Member struct {
 	ID      kernel.CharacterID
 	Name    string
@@ -27,8 +27,8 @@ type Member struct {
 	Online  bool
 	// Connection is the one the member is online through; an Offline naming another is stale.
 	Connection string
-	// Gateway is the one the member is online through, where their deliveries go.
-	Gateway string
+	// Node is the one the member is online through, where their deliveries go.
+	Node string
 	// JoinSeq is the world's sequence of the join behind Connection; an Online with a lower one is stale.
 	JoinSeq uint64
 	// JoinOrder is lowest for the longest-standing member, who leads when the leader goes.

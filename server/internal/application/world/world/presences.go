@@ -18,7 +18,7 @@ type presence struct {
 	transit bool   // handed off by its last map, and not yet marked landed on inst
 }
 
-// presences is the world's registry of joined characters, which routes the gateway's commands; the character's lock covers every change but the tick's, which only hands a presence off or drops it.
+// presences is the world's registry of joined characters, which routes the server's commands; the character's lock covers every change but the tick's, which only hands a presence off or drops it.
 type presences struct {
 	mu   sync.Mutex
 	by   map[kernel.CharacterID]presence

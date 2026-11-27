@@ -105,7 +105,7 @@
   - **Each pick is answered once its call settles:** taken, or the code of why not.
     - A full tab answers with its tab: `EQUIP_TAB_FULL`, `USE_TAB_FULL` or `ETC_TAB_FULL`.
     - **No answer from the item module:** the pick is answered `UNAVAILABLE`. Its items stay marked as being taken, and are asked for again every 2 s under the same keys until an answer comes. The owner then hears `InventoryChanged` and `Loot{taken}`, as from any take. Only owners with such items are looked at for a retry.
-      - As built: a grant call, its retry included, has 3.5 s. That's inside the 5 s the gateway gives a take, so each pick is answered rather than the whole take failing at the gateway's deadline.
+      - As built: a grant call, its retry included, has 3.5 s. That's inside the 5 s the server gives a take, so each pick is answered rather than the whole take failing at the server's deadline.
       - The 3.5 s counts from when a worker takes the call, and on a starved box the queues and ticks before it can use up the rest of the 5 s. So the take's wait also gives up 0.5 s before its deadline and answers each pick `UNAVAILABLE`, as built after a CI run that answered the whole take `INTERNAL`. The grant still settles whenever it answers.
     - **Every item-call worker's queue full:** the take is answered `UNAVAILABLE` at once, and its items stay to take. A retry that finds the queue full waits another 2 s.
     - **An item refused by another rule** is given up and logged, answered `POUCH_GONE`.
@@ -113,7 +113,7 @@
     - **A given-up item's outcome is unknown:** its grant may have committed before the answer was lost. It's answered `POUCH_GONE` either way. Its key keeps it from ever being granted twice, so the player has it at most once: in their bag when they next load it, or not at all.
     - **An owner off the map hears the left notice through the connection they last joined it by.** One who has since logged out or reconnected misses it. That's cosmetic: the pouch was theirs alone, and nothing was granted.
   - **At most `pouches_max` (30) pouches and boxes per owner on a map.** A new one past that ends the oldest's life in the same tick, as its life ending would: what's left in it is `Loot{left}`, and an item in a call still settles. This bounds a party left farming, or a pile of boxes. Pouches are held per owner and by id, so a take, a join's `Snapshot` and a retry look only at that owner's own.
-  - **Private frames:** each recipient of a frame carries its own pouches that changed (`model.Recipient.Pouches`), as it carries its ack and energy. The gateway splices them into that player's `Delta` beside the shared part, which stays encoded once. A joiner's `Snapshot` lists their own pouches.
+  - **Private frames:** each recipient of a frame carries its own pouches that changed (`model.Recipient.Pouches`), as it carries its ack and energy. The server splices them into that player's `Delta` beside the shared part, which stays encoded once. A joiner's `Snapshot` lists their own pouches.
 
 ## 5. Timed bosses
 

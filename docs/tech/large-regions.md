@@ -38,7 +38,7 @@ What grows with area or crowds, found in the code before step 2; step 2a has sin
 
 | Where | Today | At 1 km, 150 players, 400 mobs |
 | --- | --- | --- |
-| **Frames and events** (`instance/frames.go` `broadcast`) | Every changed entity and every event goes to every player on the map; the gateway encodes one frame for all (`push/frames.go` `shared`) | Every player gets every fight in the region |
+| **Frames and events** (`instance/frames.go` `broadcast`) | Every changed entity and every event goes to every player on the map; the server encodes one frame for all (`push/frames.go` `shared`) | Every player gets every fight in the region |
 | **Join snapshot** | Everything on the map | About 600 views on each join |
 | **Movement** (`sim.slide`, `Ground`, `Map.Holds`) | Scans every box, cylinder and blocker, per player, per sub-step | O(players × solids), with thousands of trees |
 | **Mobs** (`mobs.Arena.Step`) | Every mob runs every tick while one player is on the map. `spread` is O(mobs²); `yield`, sight and `reached` scan every mob or player | Mobs a kilometre away still think |
@@ -308,7 +308,7 @@ biomes:
     - the pick's rules and the sweep's clock, as units;
     - through a running World: joins filling channels, a party's channel first then the least full, a teleport in, an idle channel closing and its number opened again while the first stays, a death in channel 2 getting up there, the four refusals, a switch landing at the same spot, another cancelled, and a cancelled switch keeping its channel open;
     - a match from a channel going back to it;
-    - through the gateway, both messages with their arguments and codes;
+    - through the server, both messages with their arguments and codes;
     - one e2e through the stack, with two a channel: the third player in channel 2, the list, and a switch landing among channel 2's players, who see the player come.
 - **As built (step 4b-3b, the client):**
   - **The channel** the latest Snapshot named is kept in `state/map-view.ts`, 0 off regions.
@@ -330,7 +330,7 @@ biomes:
   - its players and mobs that changed;
   - those that arrived in it, as full views.
 - **A player's frame** is their watched cells' parts, plus their private part (`AckSeq`, energy, their own pouches).
-  - Protobuf merges repeated fields when messages are concatenated, so the gateway joins the encoded parts in place of decoding them.
+  - Protobuf merges repeated fields when messages are concatenated, so the server joins the encoded parts in place of decoding them.
   - So the "encode once" saving of `push/frames.go` holds per cell.
 - **Coming into view:** when a player's block changes (they moved cells), or an entity crosses into a watched cell, the player gets the entity's full view. Cells no longer watched give `Unseen{ids}`. The client drops what it no longer sees.
 - **Events by place:** `Damage`, `SkillUsed`, `AttackUsed`, `MobAttacked` and status events go to the watchers of the cell where they happen.
@@ -351,13 +351,13 @@ biomes:
   - **A full part** (every body in the cell) is made the first time in a tick that a player's block reaches a cell. A player gets a cell's changes part only if their block already held it.
   - **Each player keeps what they've seen.** A body that leaves their block, or whose cell their block leaves, comes in `Delta.unseen`. The client drops it with no death: a mob goes as it stands, a player as one who left.
   - **The field boss** also goes in the map's own part, which every player is sent: `Delta.boss`, and `Snapshot.boss` on a join. The client feeds the boss bar from it and never draws from it, so the boss is drawn once its cell is in the block.
-  - **The gateway** encodes each part once, and keeps a frame's parts while the frame lives (step 1b). A player's message is their parts' bytes and then their own fields: ack, energy, `unseen` and their pouches. JSON merges the parts instead.
+  - **The server** encodes each part once, and keeps a frame's parts while the frame lives (step 1b). A player's message is their parts' bytes and then their own fields: ack, energy, `unseen` and their pouches. JSON merges the parts instead.
   - **Events** go to the watchers of either end: the source's cell or the target's. A mob attack's target is where it lands. A shot into a block shows its hit there, and a shot out of it the shooter's swing. Deaths, respawns, chat, the boss's notices and matches go to the whole map.
   - **A map nobody is on** isn't cut. The first player to come files every mob again, as some may have come or gone, and nobody is told of those who left before.
   - **The client** keeps drawing a body that comes back before its removal is drawn past, as at a cell line a player steps back and forth over.
   - **Measured** on an Apple M3, 150 players walking a 1 km map among 400 mobs (`internal/dependencies/interestbench`):
 
-    | Block | World's tick | Its allocations | Bytes to each client | The gateway, for all 150 |
+    | Block | World's tick | Its allocations | Bytes to each client | The server, for all 150 |
     |---|---|---|---|---|
     | Whole map | 0.45 ms | 794, 266 KB | 30,100 | 0.35 ms |
     | 7×7 | 0.51 ms | 1,200, 396 KB | 1,550 | 0.25 ms |
@@ -365,7 +365,7 @@ biomes:
 
     At 20 frames a second, 7×5 sends each client about 22 kB/s, under the soak's 40 kB/s; the whole map would send 600 kB/s.
 
-  - **Today's maps** cost what they did before step 1a, in runs alternating with main on one machine: a 50-player town's tick takes 49.8 µs against 50.9 µs; a frame's encoding for 10, 50 and 200 players is within 4% either way, with 4 more allocations a frame; and the world's copy of it for the gateway is within 2%.
+  - **Today's maps** cost what they did before step 1a, in runs alternating with main on one machine: a 50-player town's tick takes 49.8 µs against 50.9 µs; a frame's encoding for 10, 50 and 200 players is within 4% either way, with 4 more allocations a frame; and the world's copy of it for the server is within 2%.
 - **As built (step 1b):**
   - **Party spots** come from the instance, not through `tellParty`, so the social module's party store isn't rewritten every second.
     - Once a second, on a map cut by cells, each player in a party is told a private `PartySpots`: their party members on the map whom they don't see, and where they stand. It goes when it's empty too, so the client hears within a second of a member leaving the map, its channel or the game. A map sent whole tells nothing.
@@ -376,7 +376,7 @@ biomes:
     - Only a wide screen at the far zoom sees that far: the top corners are 76 m to the side at 16:9, and 100 m at 21:9.
     - A hidden mob's attack still shows its warning area, as the attacks are drawn on their own clock.
     - The lock's marks for enemy players aren't cut at the edge: only the arenas have enemies, and they're sent whole.
-  - **The gateway** keeps each frame's encoded parts while the frame lives, by a weak pointer that a cleanup drops, and the last frame's at hand for its run of players. So the frames of several maps can interleave: two maps of 50 players each take 0.18 ms, against 1.97 ms with one frame kept.
+  - **The server** keeps each frame's encoded parts while the frame lives, by a weak pointer that a cleanup drops, and the last frame's at hand for its run of players. So the frames of several maps can interleave: two maps of 50 players each take 0.18 ms, against 1.97 ms with one frame kept.
   - **A player whose join failed** never reached a frame, so nobody is told they left.
 
 - **As built (the slim update, protocol 3):**
@@ -622,7 +622,7 @@ Built with step 1, which says who watches a cell.
     - No same-stone check refuses a teleport to the stone one stands by: it doubles as a way out for anyone wedged near one.
   - **The test region** is reached by its main town's waypoint, `town`.
   - **The stone lists** now come from the same `interest.of` that files a player: each stone goes in every cell holding a spot of the square 13 m round it. Edges built as `k × 32 m` could disagree with `interest.of` by a rounding on a cell's line.
-  - **Copy rows:** test/rules' `TestEveryEventAndPushHasACopyRow` fails the build for a map event, world stream event or gateway push with no row in its conversion's copy test. `AreaEntered`, `ArenaBar` and `MatchState` had none and gained theirs.
+  - **Copy rows:** test/rules' `TestEveryEventAndPushHasACopyRow` fails the build for a map event, world stream event or server push with no row in its conversion's copy test. `AreaEntered`, `ArenaBar` and `MatchState` had none and gained theirs.
 - **As built (step 6c-1), the map window:**
   - **Data:** mapjson writes a region's waypoints into its map JSON: each one's id, name, stone's spot and `main`, from the Go loader, so the client works out no main town itself. The scene hands them to the map views' store, and `layoutOf` gives them for a map picked on the World tab.
   - **Found:** a `waypoints` store holds the ids found, from `Welcome`'s list and then each `WaypointFound`. A find also says "Waypoint found: <name>" as a notice, the name from the player's own region. Leaving the character clears it.
@@ -845,7 +845,7 @@ Built with step 1, which says who watches a cell.
     - **Tests:**
       - the instance: both areas up at the start, then the beaten one's time back as of the tick that answered, and none on a map;
       - the world: the test region's four up in order, refused in town and from another connection;
-      - the adapter's milliseconds, the gateway's answer, and the protocol's sample and golden;
+      - the adapter's milliseconds, the server's answer, and the protocol's sample and golden;
       - This region's crowns and countdowns from an answer, none before it, the player's own area from its frames over the query's (red at its spot out of their view), the 5 s asks and their stop, a channel switch clearing them and asking at once with the old channel's late answer dropped, none off a region, and none on a picked map;
       - the minimap's own area: red at its spot out of the frames' view, only the live crown in it;
       - the minimap's own crown alone, and the area cleared by a map change;
@@ -924,7 +924,7 @@ Built with step 1, which says who watches a cell.
     - A refused or cancelled teleport is left for 10 s.
     - Otherwise it walks, finding waypoints on the way. The road graph waits for a region whose trips need it, as the test region's 256 m don't.
   - **`REGION`:** the bots teleport into the region's main town and only hunt there: no quests, town visits or promotion. A map that isn't a region with a main town is refused.
-  - **Sign-ups** run no more password hashes at once than the gateway does (`account.password.concurrent`, 4, a test holds the two equal), and each call refused 429 or 503 is tried again after 0.5 s, doubling to 16 s. Started together, 150 bots would find the slots taken, and a refused bot gave up, so the soak would run short.
+  - **Sign-ups** run no more password hashes at once than the server does (`account.password.concurrent`, 4, a test holds the two equal), and each call refused 429 or 503 is tried again after 0.5 s, doubling to 16 s. Started together, 150 bots would find the slots taken, and a refused bot gave up, so the soak would run short.
   - **The report** says how many bots played of those asked for, and names any that never got in. It adds each bot's downstream kB/s, and its busiest whole second's after the first 5 s of its connection (when it fell, and the join's own beside it), against the 40 kB/s budget, over the bots that played. It lists the refusals by request and code. It also counts the refusals coded `UNAVAILABLE`, which a full inbox answers with. Ticks were already keyed by map and channel.
   - **The budget run** waits for a region near section 5's size, about 1 km with 400 mobs. The test region has about 25.
 

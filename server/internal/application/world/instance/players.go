@@ -181,7 +181,7 @@ func (p *player) spendAhead(seq uint32, cost int) {
 	p.spentAhead = append(p.spentAhead, energySpend{seq: seq, cost: cost})
 }
 
-// energyAsOfAck is the energy as of the last input applied, as the client counts it. A press counts from the input after the one it came during: the world may take it in after that input steps, but the gateway posts no later input until the press is answered. So a spend for a press during or past the last input is added back, and a skill pressed before it and still waiting for its turn is taken off.
+// energyAsOfAck is the energy as of the last input applied, as the client counts it. A press counts from the input after the one it came during: the world may take it in after that input steps, but the server posts no later input until the press is answered. So a spend for a press during or past the last input is added back, and a skill pressed before it and still waiting for its turn is taken off.
 func (p *player) energyAsOfAck() int {
 	p.spentAhead = slices.DeleteFunc(p.spentAhead, func(s energySpend) bool { return s.seq < p.lastSeq })
 	e := p.Energy

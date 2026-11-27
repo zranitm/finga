@@ -14,8 +14,8 @@ import (
 	"finga/pkg/transient"
 )
 
-// A command's item-module call that gets no answer is unavailable 3.5 s in, every try included, inside the 5 s the gateway waits: the command hears the module isn't there, never the gateway's own deadline, which it would count a fault.
-func TestAnUnansweredItemCallIsUnavailableInsideTheGatewaysWait(t *testing.T) {
+// A command's item-module call that gets no answer is unavailable 3.5 s in, every try included, inside the 5 s the server waits: the command hears the module isn't there, never the server's own deadline, which it would count a fault.
+func TestAnUnansweredItemCallIsUnavailableInsideTheServersWait(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		opts func() worldtest.Options // an item module that never answers
@@ -55,14 +55,14 @@ func TestAnUnansweredItemCallIsUnavailableInsideTheGatewaysWait(t *testing.T) {
 				began := time.Now()
 				err := <-tt.ask(inst, p.ID)
 				if took := time.Since(began); !errors.Is(err, transient.ErrUnavailable) || errors.Is(err, context.DeadlineExceeded) || took < 3500*time.Millisecond || took >= 4*time.Second {
-					t.Fatalf("%v after %v; want unavailable at 3.5 s, inside the gateway's 5", err, took)
+					t.Fatalf("%v after %v; want unavailable at 3.5 s, inside the server's 5", err, took)
 				}
 			})
 		})
 	}
 }
 
-// A command whose item call starts late, the queues and ticks before it having taken most of the gateway's 5 s as a starved box can, still hears the module isn't there before its own deadline: its wait gives up half a second short of it, never with the deadline itself, which the gateway would answer as a fault.
+// A command whose item call starts late, the queues and ticks before it having taken most of the server's 5 s as a starved box can, still hears the module isn't there before its own deadline: its wait gives up half a second short of it, never with the deadline itself, which the server would answer as a fault.
 func TestALateItemCallIsUnavailableBeforeTheCommandsDeadline(t *testing.T) {
 	const left = 2 * time.Second // of the command's 5 s when the world takes it: under callFor
 	for _, tt := range []struct {

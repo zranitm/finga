@@ -14,7 +14,7 @@ func TestAWelcomeKeepsWhatTheJoinFound(t *testing.T) {
 		Renames: map[string]string{"View": "Joined"},
 		Computed: map[string]string{
 			"Token":      "the Hello's own, rotated",
-			"ServerTime": "the gateway's clock as the Welcome goes out",
+			"ServerTime": "the server's clock as the Welcome goes out",
 			"Written":    "the pvp module's section, to mark its matches told once sent",
 		},
 		Skip: map[string]string{"JoinSeq": "the session keeps it, to order the character's joins; the client never sees it"},

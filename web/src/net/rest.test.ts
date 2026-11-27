@@ -335,7 +335,7 @@ describe('rest client', () => {
     expect(refusedHeard).toBe(0);
   });
 
-  it('a body that is not JSON, as a proxy’s page while the gateway restarts, is malformed', async () => {
+  it('a body that is not JSON, as a proxy’s page while the server restarts, is malformed', async () => {
     const { fetch } = fakeFetch(() => ({ status: 502 }));
     const client = restClientOn(fetch);
     const err = (await client.getSettings().catch((e: unknown) => e)) as RestError;

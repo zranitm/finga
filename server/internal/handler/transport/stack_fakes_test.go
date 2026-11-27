@@ -34,11 +34,11 @@ import (
 	"finga/pkg/uuidv7"
 )
 
-// traces samples as the gateway does, and spans records every span it samples.
-var traces, spans = gatewayTraces()
+// traces samples as the server does, and spans records every span it samples.
+var traces, spans = serverTraces()
 
-func gatewayTraces() (*tracing.Provider, *tracetest.SpanRecorder) {
-	tp, err := tracing.New(context.Background(), tracing.Config{}, tracing.Options{Service: "gateway", Root: transport.WSEntryPoint})
+func serverTraces() (*tracing.Provider, *tracetest.SpanRecorder) {
+	tp, err := tracing.New(context.Background(), tracing.Config{}, tracing.Options{Service: "server", Root: transport.WSEntryPoint})
 	if err != nil {
 		panic(err)
 	}
@@ -73,23 +73,23 @@ func copied[T any](mu *sync.Mutex, s *[]T) []T {
 	return slices.Clone(*s)
 }
 
-// stream is a module's stream to the gateway, on a hub the fake owns as the module does.
+// stream is a module's stream to the server, on a hub the fake owns as the module does.
 type stream[T any] struct {
 	hub        *hub.Hub[T]
 	subscribed chan struct{} // receives once per subscription, while it has room
 	mu         sync.Mutex
-	gateways   []string // each subscription's gateway ID, in order
+	nodes      []string // each subscription's node ID, in order
 }
 
 func newStream[T any]() *stream[T] {
 	return &stream[T]{hub: hub.New[T](1024), subscribed: make(chan struct{}, 8)}
 }
 
-// subscribe opens the gateway's subscription, closing an older one, as the module's Subscribe does.
-func (s *stream[T]) subscribe(gateway string) *hub.Sub[T] {
-	sub := s.hub.Subscribe(gateway)
+// subscribe opens the server's subscription, closing an older one, as the module's Subscribe does.
+func (s *stream[T]) subscribe(node string) *hub.Sub[T] {
+	sub := s.hub.Subscribe(node)
 	s.mu.Lock()
-	s.gateways = append(s.gateways, gateway)
+	s.nodes = append(s.nodes, node)
 	s.mu.Unlock()
 	select {
 	case s.subscribed <- struct{}{}:
@@ -98,23 +98,23 @@ func (s *stream[T]) subscribe(gateway string) *hub.Sub[T] {
 	return sub
 }
 
-func (s *stream[T]) subscriptions() []string { return copied(&s.mu, &s.gateways) }
+func (s *stream[T]) subscriptions() []string { return copied(&s.mu, &s.nodes) }
 
-// open reports whether the gateway holds a subscription.
-func (s *stream[T]) open(gateway string) bool {
-	_, ok := s.hub.Get(gateway)
+// open reports whether the server holds a subscription.
+func (s *stream[T]) open(node string) bool {
+	_, ok := s.hub.Get(node)
 	return ok
 }
 
-// send queues v on the gateway's subscription; with none open, it is lost, as the module's would be.
+// send queues v on the server's subscription; with none open, it is lost, as the module's would be.
 func (s *stream[T]) send(v T) { s.hub.Broadcast(v) }
 
-// cut closes the gateway's subscription, as a full queue does: the adapter subscribes again and hands over its Subscribed.
+// cut closes the server's subscription, as a full queue does: the adapter subscribes again and hands over its Subscribed.
 func (s *stream[T]) cut(t testing.TB) {
 	t.Helper()
-	sub, ok := s.hub.Get(gatewayID)
+	sub, ok := s.hub.Get(nodeID)
 	if !ok {
-		t.Fatal("cut a stream the gateway holds no subscription to")
+		t.Fatal("cut a stream the server holds no subscription to")
 	}
 	sub.Close()
 }
@@ -173,8 +173,8 @@ func (f *fakeAccount) expire(sessionID kernel.SessionID) {
 	f.expired[sessionID] = true
 }
 
-func (f *fakeAccount) Subscribe(gateway string) *hub.Sub[account.Event] {
-	return f.ends.subscribe(gateway)
+func (f *fakeAccount) Subscribe(node string) *hub.Sub[account.Event] {
+	return f.ends.subscribe(node)
 }
 
 // fakeWorld is the world module; Join sends what came before and a Snapshot on the stream before answering.
@@ -233,7 +233,7 @@ type fakeWorld struct {
 	tick       uint64
 	tickRate   int          // what Join reports; 30 when unset
 	leaveErr   error        // every Leave fails with it, as a module refusing for good
-	ops        atomic.Int64 // every call the gateway made but Subscribe, which it may make at any time
+	ops        atomic.Int64 // every call the server made but Subscribe, which it may make at any time
 }
 
 type fakeCharacter struct {
@@ -245,7 +245,7 @@ type fakeCharacter struct {
 // The world's calls as the fake recorded them.
 type (
 	joinCall struct {
-		gateway string
+		node    string
 		account kernel.AccountID
 		p       world.Presence
 	}
@@ -353,18 +353,18 @@ func newFakeWorld() *fakeWorld {
 	}
 }
 
-func (f *fakeWorld) Subscribe(gateway string) *hub.Sub[world.Delivery] {
+func (f *fakeWorld) Subscribe(node string) *hub.Sub[world.Delivery] {
 	f.mu.Lock()
 	hold := f.hold
 	f.mu.Unlock()
-	sub := f.deliveries.subscribe(gateway)
+	sub := f.deliveries.subscribe(node)
 	if hold != nil {
 		<-hold // joins work already; the adapter has not handed over WorldSubscribed yet
 	}
 	return sub
 }
 
-func (f *fakeWorld) Join(ctx context.Context, gateway string, acc kernel.AccountID, p world.Presence) (_ world.View, err error) {
+func (f *fakeWorld) Join(ctx context.Context, node string, acc kernel.AccountID, p world.Presence) (_ world.View, err error) {
 	f.ops.Add(1)
 	ctx, call := worldCalls.Start(ctx, "Join")
 	defer call.End(&err)
@@ -388,29 +388,29 @@ func (f *fakeWorld) Join(ctx context.Context, gateway string, acc kernel.Account
 		case <-ctx.Done():
 			go func() {
 				<-gate
-				_, _ = f.land(gateway, acc, p) // the map still applies the join it took; only the reply is lost
+				_, _ = f.land(node, acc, p) // the map still applies the join it took; only the reply is lost
 			}()
 			return world.View{}, ctx.Err()
 		}
 	}
-	return f.land(gateway, acc, p)
+	return f.land(node, acc, p)
 }
 
 // land joins the character as its map applies the join.
-func (f *fakeWorld) land(gateway string, acc kernel.AccountID, p world.Presence) (world.View, error) {
+func (f *fakeWorld) land(node string, acc kernel.AccountID, p world.Presence) (world.View, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.joinErr != nil {
 		return world.View{}, f.joinErr
 	}
-	if !f.deliveries.open(gateway) {
+	if !f.deliveries.open(node) {
 		return world.View{}, kernel.ErrNotSubscribed
 	}
 	c, ok := f.chars[p.Character]
 	if !ok || c.account != acc {
 		return world.View{}, refusal(kernel.ErrCharacterNotFound)
 	}
-	f.joined = append(f.joined, joinCall{gateway: gateway, account: acc, p: p})
+	f.joined = append(f.joined, joinCall{node: node, account: acc, p: p})
 	f.conns[p.Character] = p.Conn
 	for _, d := range f.before {
 		d.Character, d.Conn = p.Character, "conn-older"
@@ -870,7 +870,7 @@ type fakeItems struct {
 	err         error
 	gate        chan struct{} // when set, Inventory waits for it to close
 	hang        bool          // a command never answers: it waits out its context
-	ops         atomic.Int64  // every call the gateway made
+	ops         atomic.Int64  // every call the server made
 }
 
 // itemCall is an inventory command as the item module got it.
@@ -1029,7 +1029,7 @@ func (f *fakePvp) Told(_ context.Context, id kernel.CharacterID, matches []kerne
 	return f.record(said)
 }
 
-func (f *fakePvp) Subscribe(gateway string) *hub.Sub[pvp.Push] { return f.pushes.subscribe(gateway) }
+func (f *fakePvp) Subscribe(node string) *hub.Sub[pvp.Push] { return f.pushes.subscribe(node) }
 
 func (f *fakePvp) recorded() []string {
 	f.mu.Lock()
@@ -1041,12 +1041,12 @@ func newFakeSocial() *fakeSocial {
 	return &fakeSocial{deliveries: newStream[social.Delivery](), of: map[kernel.CharacterID]*social.Party{}}
 }
 
-func (f *fakeSocial) Subscribe(gateway string) *hub.Sub[social.Delivery] {
-	return f.deliveries.subscribe(gateway)
+func (f *fakeSocial) Subscribe(node string) *hub.Sub[social.Delivery] {
+	return f.deliveries.subscribe(node)
 }
 
-// GatewayLeft is the adapter telling of a break; the module's sweep after its grace is not faked.
-func (f *fakeSocial) GatewayLeft(string) {}
+// NodeLeft is the adapter telling of a break; the module's sweep after its grace is not faked.
+func (f *fakeSocial) NodeLeft(string) {}
 
 func (f *fakeSocial) record(s string) error {
 	f.mu.Lock()

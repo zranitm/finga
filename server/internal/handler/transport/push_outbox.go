@@ -26,7 +26,7 @@ type Observer interface {
 	Unencoded(pushType string)
 }
 
-// Outbox is one connection's writing side: the application.Outbox the gateway reaches the player through.
+// Outbox is one connection's writing side: the application.Outbox the server reaches the player through.
 type Outbox struct {
 	ws       wsconn.Conn
 	obs      Observer

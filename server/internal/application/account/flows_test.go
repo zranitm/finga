@@ -26,25 +26,25 @@ var (
 
 const token = "tok"
 
-// gateway is both flows over one registry, as the composition root builds them.
-type gateway struct {
+// node is both flows over one registry, as the composition root builds them.
+type node struct {
 	*flows.Commands
 	pushes *flows.Streams
 }
 
 const joinTimeout = 5 * time.Second
 
-func newGateway(w *flowWorld) gateway { return newGatewayWith(w, &guard{}, time.Hour) }
+func newServer(w *flowWorld) node { return newServerWith(w, &guard{}, time.Hour) }
 
-func newGatewayWith(w *flowWorld, g *guard, checkEvery time.Duration) gateway {
-	return newGatewayOver(w, g, checkEvery, idle{})
+func newServerWith(w *flowWorld, g *guard, checkEvery time.Duration) node {
+	return newServerOver(w, g, checkEvery, idle{})
 }
 
-// newGatewayOver is newGatewayWith over items, which every Welcome reads the inventory from.
-func newGatewayOver(w *flowWorld, g *guard, checkEvery time.Duration, items flows.ConnectionsItems) gateway {
+// newServerOver is newServerWith over items, which every Welcome reads the inventory from.
+func newServerOver(w *flowWorld, g *guard, checkEvery time.Duration, items flows.ConnectionsItems) node {
 	log := slog.New(slog.DiscardHandler)
-	sessions := flows.NewConnections(flows.ConnectionsDeps{World: w, Social: idle{}, Pvp: flowPvp{}, Items: items, Logger: log, Panics: panics.NewRecorder(log, nil), Traces: noop.NewTracerProvider(), Observer: idle{}}, flows.ConnectionsOptions{Gateway: "gw-1", JoinTimeout: joinTimeout})
-	return gateway{
+	sessions := flows.NewConnections(flows.ConnectionsDeps{World: w, Social: idle{}, Pvp: flowPvp{}, Items: items, Logger: log, Panics: panics.NewRecorder(log, nil), Traces: noop.NewTracerProvider(), Observer: idle{}}, flows.ConnectionsOptions{Node: "gw-1", JoinTimeout: joinTimeout})
+	return node{
 		Commands: flows.NewCommands(flows.CommandsDeps{Sessions: g, Registry: sessions, World: w, Social: idle{}, Logger: log, Observer: idle{}}, flows.CommandsOptions{JoinTimeout: joinTimeout}),
 		pushes:   flows.NewStreams(flows.StreamsDeps{Sessions: g, Registry: sessions, World: w, Social: idle{}, Pvp: flowPvp{}, Account: idle{}, Logger: log, Panics: panics.NewRecorder(log, nil), Traces: noop.NewTracerProvider()}, flows.StreamsOptions{SessionCheckInterval: checkEvery}),
 	}
@@ -110,7 +110,7 @@ func (idle) FollowSessionEnds(ctx context.Context, _ string, _ func(model.Sessio
 
 func TestHello(t *testing.T) {
 	t.Run("a Hello that joins welcomes the player through the Outbox with the rotated token", func(t *testing.T) {
-		g := newGateway(&flowWorld{})
+		g := newServer(&flowWorld{})
 		c := &flowOutbox{}
 		s := g.Open("c-1", c)
 		before := time.Now()
@@ -135,7 +135,7 @@ func TestHello(t *testing.T) {
 		{"a character that is not the account's", token, &failure.ServiceError{Public: failure.CharacterNotFound, Err: errors.New("not found")}},
 	} {
 		t.Run(tt.name+" is rejected, and nobody is welcomed", func(t *testing.T) {
-			g := newGateway(&flowWorld{joinErr: tt.join})
+			g := newServer(&flowWorld{joinErr: tt.join})
 			c := &flowOutbox{}
 			if err := g.Hello(t.Context(), g.Open("c-1", c), tt.token, ayla); !errors.Is(err, failure.ErrHelloRejected) {
 				t.Fatalf("err = %v, want ErrHelloRejected", err)
@@ -146,7 +146,7 @@ func TestHello(t *testing.T) {
 		})
 	}
 	t.Run("a flowWorld that cannot join is a failure the client retries, not a rejection", func(t *testing.T) {
-		g := newGateway(&flowWorld{joinErr: errors.New("boom")})
+		g := newServer(&flowWorld{joinErr: errors.New("boom")})
 		err := g.Hello(t.Context(), g.Open("c-1", &flowOutbox{}), token, ayla)
 		if err == nil || errors.Is(err, failure.ErrHelloRejected) {
 			t.Fatalf("err = %v", err)
@@ -163,7 +163,7 @@ var (
 // Only the account module saying unauthenticated rejects a Hello; anything else is a failure the client retries.
 func TestHelloAndTheAccountService(t *testing.T) {
 	t.Run("an account module that is down fails the Hello without rejecting it", func(t *testing.T) {
-		g := newGatewayWith(&flowWorld{}, &guard{validate: unavailable}, time.Hour)
+		g := newServerWith(&flowWorld{}, &guard{validate: unavailable}, time.Hour)
 		c := &flowOutbox{}
 		err := g.Hello(t.Context(), g.Open("c-1", c), token, ayla)
 		if err == nil || errors.Is(err, failure.ErrHelloRejected) || c.welcomed() != nil {
@@ -172,7 +172,7 @@ func TestHelloAndTheAccountService(t *testing.T) {
 	})
 	t.Run("a join that fails rotates no token, so the client's still works", func(t *testing.T) {
 		auth := &guard{}
-		g := newGatewayWith(&flowWorld{joinErr: errors.New("boom")}, auth, time.Hour)
+		g := newServerWith(&flowWorld{joinErr: errors.New("boom")}, auth, time.Hour)
 		if err := g.Hello(t.Context(), g.Open("c-1", &flowOutbox{}), token, ayla); err == nil {
 			t.Fatal("the Hello joined")
 		}
@@ -190,7 +190,7 @@ func TestHelloAndTheAccountService(t *testing.T) {
 	} {
 		t.Run(tt.name+" welcomes nobody and takes the player off the map", func(t *testing.T) {
 			w := &flowWorld{}
-			g := newGatewayWith(w, &guard{rotate: tt.err}, time.Hour)
+			g := newServerWith(w, &guard{rotate: tt.err}, time.Hour)
 			c := &flowOutbox{}
 			s := g.Open("c-1", c)
 			err := g.Hello(t.Context(), s, token, ayla)
@@ -219,7 +219,7 @@ func TestAClosedConnectionDropsAndALogoutLeaves(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w := &flowWorld{}
-			g := newGatewayWith(w, &guard{}, time.Hour)
+			g := newServerWith(w, &guard{}, time.Hour)
 			s := g.Open("c-1", &flowOutbox{})
 			if err := g.Hello(t.Context(), s, token, ayla); err != nil {
 				t.Fatal(err)
@@ -240,7 +240,7 @@ func TestTheSessionCheckKicksOnlyEndedSessions(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		auth := &guard{check: unavailable}
 		w := &flowWorld{following: make(chan struct{})}
-		g := newGatewayWith(w, auth, time.Minute)
+		g := newServerWith(w, auth, time.Minute)
 		go func() { _ = g.pushes.Run(t.Context()) }()
 		<-w.following
 		o := &flowOutbox{ends: make(chan model.EndReason, 1)}
@@ -384,7 +384,7 @@ type flowWorld struct {
 	flood       int
 	followPanic string
 	deliver     func(model.WorldEvent)
-	following   chan struct{} // closed once the gateway follows the stream
+	following   chan struct{} // closed once the server follows the stream
 	leaves      int
 	drops       int // the leaves that were drops
 	tickRate    int // what Join reports
@@ -467,27 +467,27 @@ func (w *flowWorld) FollowDeliveries(ctx context.Context, _ string, deliver func
 	<-ctx.Done()
 }
 
-// running runs a gateway's push flow on w until the test ends.
-func running(t *testing.T, w *flowWorld) gateway {
+// running runs a node's push flow on w until the test ends.
+func running(t *testing.T, w *flowWorld) node {
 	t.Helper()
 	return runningOver(t, w, idle{})
 }
 
 // runningOver is running over items.
-func runningOver(t *testing.T, w *flowWorld, items flows.ConnectionsItems) gateway {
+func runningOver(t *testing.T, w *flowWorld, items flows.ConnectionsItems) node {
 	t.Helper()
 	w.following = make(chan struct{})
-	g := newGatewayOver(w, &guard{}, time.Hour, items)
+	g := newServerOver(w, &guard{}, time.Hour, items)
 	go func() { _ = g.pushes.Run(t.Context()) }()
 	select {
 	case <-w.following:
 	case <-time.After(5 * time.Second):
-		t.Fatal("the gateway never followed the flowWorld")
+		t.Fatal("the server never followed the flowWorld")
 	}
 	return g
 }
 
-func TestSessionsTheGatewayEnds(t *testing.T) {
+func TestSessionsTheServerEnds(t *testing.T) {
 	t.Run("a join holding more deliveries than it may ends as delivery_backlog", func(t *testing.T) {
 		g := running(t, &flowWorld{flood: 200})
 		o := &flowOutbox{ends: make(chan model.EndReason, 1)}
@@ -590,7 +590,7 @@ func (i *inventories) fail(err error) {
 }
 
 func TestAPanickingFollowerStopsRun(t *testing.T) {
-	g := newGateway(&flowWorld{followPanic: "bad stream"})
+	g := newServer(&flowWorld{followPanic: "bad stream"})
 	done := make(chan error, 1)
 	go func() { done <- g.pushes.Run(context.Background()) }()
 	select {

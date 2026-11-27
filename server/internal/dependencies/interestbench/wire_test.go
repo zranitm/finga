@@ -27,7 +27,7 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// wire is a map stepped by hand with its players as the gateway's clients: each frame goes through the push package's encoder and the client's codec, and each client reads it through protocol.Expander, the code the bots and the e2e kit read frames with.
+// wire is a map stepped by hand with its players as the server's clients: each frame goes through the push package's encoder and the client's codec, and each client reads it through protocol.Expander, the code the bots and the e2e kit read frames with.
 type wire struct {
 	inst    *instance.Instance
 	frame   *model.Frame

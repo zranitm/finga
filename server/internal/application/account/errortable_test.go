@@ -80,8 +80,8 @@ func call(t *testing.T, do func() error) (err error) {
 	return do()
 }
 
-// Each reason the module ends sessions for reaches a subscribed gateway by name, and one it has no name for as RevokeUnspecified.
-func TestEachRevokeReasonReachesTheGateway(t *testing.T) {
+// Each reason the module ends sessions for reaches a subscribed node by name, and one it has no name for as RevokeUnspecified.
+func TestEachRevokeReasonReachesTheServer(t *testing.T) {
 	m, notes := account.SessionsOnly()
 	sub := m.Subscribe("gw")
 	for _, tt := range []struct {

@@ -112,7 +112,7 @@ feats:
   - A new kind, `collected`: quantity −1, taken from the stack, cause `player`.
   - `templateTotals` (check 6) counts it and `used`. It hadn't counted `used`, which a randomized test found once potions were used in it.
   - A new invariant (check 13): every `collected` event has the `account_pieces` row naming its item, and every such row has its event.
-- **Adding** (`AddToWardrobe{item}`, through the gateway straight to the item module, as discarding goes):
+- **Adding** (`AddToWardrobe{item}`, through the server straight to the item module, as discarding goes):
   1. The item must be the actor's, in the inventory, and a piece's item. Otherwise `ITEM_NOT_FOUND` or `NOT_A_PIECE`.
   2. A piece already collected is `PIECE_COLLECTED`, and nothing changes.
   3. Otherwise, in one transaction: take one from the stack (`collected`) and insert the row.
@@ -150,7 +150,7 @@ feats:
     - **A lost grant:** a failed or given-up grant is logged. Every win asks again, so it comes with the next win. A join doesn't ask for win feats, since the world doesn't see pvp's records.
 - **Notices** (step 4): a grant or an add that made a row pushes `PiecesAdded{pieces}` to the account's live session. Until then the add's answer is the only word.
   - **Who pushes it:** the caller of the item module, on the stream it already has to the player; the item module keeps no stream of its own. A rank's at a match's end goes through pvp's deliveries (as built, 4a-2); a quest's (as built, 4b-1) and a feat's at a level, a boss, a promotion or a quest (as built, 4b-2) go through the world's; the PvP win feat's at a match's end goes through pvp's (as built, 4b-3).
-  - **As built (4a-1):** only the add. The gateway delivers it to the adding session once the add succeeds; a refused add pushes none. A replayed add (the same idempotency key) pushes it again, and the client shows a piece's notice once each time the player enters the world.
+  - **As built (4a-1):** only the add. The server delivers it to the adding session once the add succeeds; a refused add pushes none. A replayed add (the same idempotency key) pushes it again, and the client shows a piece's notice once each time the player enters the world.
 - **The look:**
   - `SetLook{look}` goes through the world, as `Equip` does. The world refuses a dead player (`CHARACTER_DEAD`) or one in combat (C20's 5 s clock, `IN_COMBAT`, as a trait change is).
   - The item module then checks each pick, wings too, against the player's live class:

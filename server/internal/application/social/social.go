@@ -24,7 +24,7 @@ type Module struct {
 	chat    chat
 	notes   *notifier
 	panics  *panics.Recorder // a sweep's, which runs on a timer
-	// registering lets one Online, or one step of a gone gateway's sweep, run at a time, so a sweep never undoes a newer registration
+	// registering lets one Online, or one step of a gone node's sweep, run at a time, so a sweep never undoes a newer registration
 	registering *semaphore.Weighted
 }
 
@@ -82,7 +82,7 @@ func New(d Deps) (*Module, error) {
 	}, nil
 }
 
-// Online records a character as connected through a gateway; one from an older join than theirs changes nothing.
+// Online records a character as connected through a node; one from an older join than theirs changes nothing.
 func (m *Module) Online(ctx context.Context, p Presence) (err error) {
 	ctx, call := m.calls.Start(ctx, "Online")
 	defer call.End(&err)

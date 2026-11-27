@@ -128,10 +128,10 @@ The client counts the time left down itself from `leaves_in_ms`.
 
 ## 5. Social module: announcing to everyone
 
-- **`Announce(Announcement)`,** a new RPC on the social service, sends the announcement once to each gateway that anyone in `presence` is online through, over its `Deliver` stream, with no character named. The gateway hands it to every player it has in the world. One message per gateway, not per player, keeps the burst within a gateway's delivery queue however many are online; one per player would fill the queue at a few thousand players and end that gateway's stream. An announcement of no kind is refused.
+- **`Announce(Announcement)`,** a new RPC on the social service, sends the announcement once to each node that anyone in `presence` is online through, over its `Deliver` stream, with no character named. The server hands it to every player it has in the world. One message per server, not per player, keeps the burst within a node's delivery queue however many are online; one per player would fill the queue at a few thousand players and end that node's stream. An announcement of no kind is refused.
 - **The world sends it off the tick:** the instance hands the announcement to the `announce` queue, which a goroutine sends with a 2-second timeout, as `party.Copy` sends member updates. The queue is the same coalescing one, keyed by the news, so a boss's notice still waiting is replaced by the next one from its map rather than piling up. A failure is logged and dropped. The boss still appears; only the notice is lost.
 - **`Announcement` is typed:** a oneof whose first case is `boss_appeared{boss, map}`. The client writes the words from game data, so names stay in one place and later notices add cases.
-- **The gateway** maps the new `DeliverResponse` case to a push of its kind, `model.BossAppeared`, which the outbox writes as an `Announcement`; a later kind adds its own push. It comes as a `SocialBroadcast`, which every active session in the world gets.
+- **The server** maps the new `DeliverResponse` case to a push of its kind, `model.BossAppeared`, which the outbox writes as an `Announcement`; a later kind adds its own push. It comes as a `SocialBroadcast`, which every active session in the world gets.
 
 ## 6. Protocol
 
@@ -205,7 +205,7 @@ All additive, so `buf breaking` passes:
   - each drop's owner, with party turns untouched for the next ordinary kill;
   - the events, and the snapshot for a player joining mid-fight;
   - a boss taking its two attacks in turn (C12's arena tests).
-- **Social and gateway:** `Announce` going once to each gateway with players online and to none without, the gateway handing it to each of its players, and the new push.
+- **Social and server:** `Announce` going once to each node with players online and to none without, the server handing it to each of its players, and the new push.
 - **Client:** the bar's countdown and HP, the joining snapshot, the toast and the `[Notice]` line, and the leaving notice.
 - **End to end,** on test data with a small `kills`: kill until the boss appears, see the announcement on another map, beat it in a party, and check each player's EXP and drop owner.
 - **Balance:** the boss checks in the harness.
@@ -215,8 +215,8 @@ All additive, so `buf breaking` passes:
 After animation cancel is merged, on its own branch and PR. Each step is one commit, green on `make test`, `make lint`, `make cover`, and `make breaking`:
 
 1. **Game data:** `boss`, `field_boss`, the `boss` layer in all 12 hunting maps with first stats by the rules above, validation, and the generator.
-2. **Arena and world:** `SpawnBoss`, `Remove`, `Dealt`, the count, appearing and leaving, the tally, the payout, and the events, with the world contract's messages and snapshot field: the world's stream must carry every event it raises, and the gateway passes over one it doesn't know yet.
-3. **Social, gateway, and protocol:** `Announce`, the fan-out, the client's messages and push, its snapshot field, and contracts.
+2. **Arena and world:** `SpawnBoss`, `Remove`, `Dealt`, the count, appearing and leaving, the tally, the payout, and the events, with the world contract's messages and snapshot field: the world's stream must carry every event it raises, and the server passes over one it doesn't know yet.
+3. **Social, server, and protocol:** `Announce`, the fan-out, the client's messages and push, its snapshot field, and contracts.
 4. **Client:** the boss bar, the boss's look, the announcement toast and `[Notice]` line, and the leaving notice.
 5. **Content and balance:** the harness's boss checks, the 12 bosses tuned to them, an end-to-end run, and `make bots`.
 
@@ -224,7 +224,7 @@ After animation cancel is merged, on its own branch and PR. Each step is one com
 
 Agreed on 2026-11-12:
 
-1. **Announcements go through the social module,** as a typed message the client puts into words. It already tracks every online player across gateways, so the world needs no list of its own.
+1. **Announcements go through the social module,** as a typed message the client puts into words. It already tracks every online player across nodes, so the world needs no list of its own.
 2. **Boss EXP:** about 40 of its map's normal mob's, so one player beating it alone in 3 minutes earns more than 3 minutes of ordinary hunting.
 3. **Drop list:** its map's band gear at 10 times its normal mob's chances, plus potions, to tune.
 4. **A solo melee player's potion budget:** at most 30 of the band's potion for the 3-minute fight, so a boss is hard alone but not a wall.

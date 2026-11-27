@@ -13,10 +13,10 @@ import (
 	"finga/pkg/panics"
 )
 
-// WorldModule is the world module as the gateway calls it.
+// WorldModule is the world module as the server calls it.
 type WorldModule interface {
-	Subscribe(gateway string) *hub.Sub[world.Delivery]
-	Join(ctx context.Context, gateway string, account kernel.AccountID, p world.Presence) (world.View, error)
+	Subscribe(node string) *hub.Sub[world.Delivery]
+	Join(ctx context.Context, node string, account kernel.AccountID, p world.Presence) (world.View, error)
 	Leave(ctx context.Context, p world.Presence) error
 	Drop(ctx context.Context, p world.Presence) error
 	Say(ctx context.Context, p world.Presence, name, text string) error
@@ -34,9 +34,9 @@ func NewWorld(w WorldModule, log *slog.Logger, rec *panics.Recorder) World {
 	return World{w: w, log: log, panics: rec}
 }
 
-// Join joins a character through one of this gateway's connections.
-func (w World) Join(ctx context.Context, gateway, conn string, account kernel.AccountID, character kernel.CharacterID) (model.Joined, error) {
-	v, err := w.w.Join(ctx, gateway, account, world.Presence{Character: character, Conn: conn})
+// Join joins a character through one of this node's connections.
+func (w World) Join(ctx context.Context, node, conn string, account kernel.AccountID, character kernel.CharacterID) (model.Joined, error) {
+	v, err := w.w.Join(ctx, node, account, world.Presence{Character: character, Conn: conn})
 	if err != nil {
 		return model.Joined{}, worldErr(err)
 	}
@@ -65,9 +65,9 @@ func (w World) Say(ctx context.Context, p model.Presence, name, text string) err
 	return worldErr(w.w.Say(ctx, presence(p), name, text))
 }
 
-// FollowDeliveries follows this gateway's delivery stream until ctx ends; each subscription starts with WorldSubscribed, as the world dropped the players of a closed one.
-func (w World) FollowDeliveries(ctx context.Context, gateway string, deliver func(model.WorldEvent)) {
-	hub.Follow(ctx, func() *hub.Sub[world.Delivery] { return w.w.Subscribe(gateway) }, func(context.Context) error {
+// FollowDeliveries follows this node's delivery stream until ctx ends; each subscription starts with WorldSubscribed, as the world dropped the players of a closed one.
+func (w World) FollowDeliveries(ctx context.Context, node string, deliver func(model.WorldEvent)) {
+	hub.Follow(ctx, func() *hub.Sub[world.Delivery] { return w.w.Subscribe(node) }, func(context.Context) error {
 		deliver(model.WorldSubscribed{})
 		return nil
 	}, func(d world.Delivery) { delivered(d, deliver) }, hub.FollowOptions{Panics: w.panics, OnBreak: func(err error) {

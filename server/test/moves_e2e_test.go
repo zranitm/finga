@@ -132,7 +132,7 @@ func TestASlimesAttackPassesThroughADodge(t *testing.T) {
 	}
 }
 
-// C17: a skill pressed mid-swing waits for the attack's cancel point, the gateway holding the inputs after the press until it's answered, so its move starts from the input after the press, as the client marks it.
+// C17: a skill pressed mid-swing waits for the attack's cancel point, the server holding the inputs after the press until it's answered, so its move starts from the input after the press, as the client marks it.
 // A slow runner can bring the press to the world past the cancel point, cast at once: its move starts from the same input, so the test holds either way and says which it saw.
 func TestAMoveStartsFromTheInputAfterAPressMidSwing(t *testing.T) {
 	t.Parallel()

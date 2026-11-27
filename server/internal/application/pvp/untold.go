@@ -44,7 +44,7 @@ func (s *cases) Missed(ctx context.Context, id kernel.CharacterID) (Missed, erro
 	return out, nil
 }
 
-// Told marks the character told of matches' outcomes, as a gateway handed them on, live or in a Welcome.
+// Told marks the character told of matches' outcomes, as a node handed them on, live or in a Welcome.
 func (s *cases) Told(ctx context.Context, id kernel.CharacterID, matches []kernel.MatchID) error {
 	return s.d.Store.MarkTold(ctx, id, matches)
 }

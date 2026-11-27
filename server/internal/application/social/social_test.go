@@ -110,8 +110,8 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 		}
 	}
 	t.Run("Online", func(t *testing.T) {
-		err := m.Online(ctx, Presence{Member: Member{ID: ann, Name: "Ann", Class: "mage", Level: 3, HP: 90, MaxHP: 100, MapID: "forest"}, Gateway: "gw", Connection: "conn-1", JoinSeq: 7})
-		want := model.Member{ID: ann, Name: "Ann", Class: "mage", Level: 3, HP: 90, MaxHP: 100, MapID: "forest", Gateway: "gw", Connection: "conn-1", JoinSeq: 7}
+		err := m.Online(ctx, Presence{Member: Member{ID: ann, Name: "Ann", Class: "mage", Level: 3, HP: 90, MaxHP: 100, MapID: "forest"}, Node: "gw", Connection: "conn-1", JoinSeq: 7})
+		want := model.Member{ID: ann, Name: "Ann", Class: "mage", Level: 3, HP: 90, MaxHP: 100, MapID: "forest", Node: "gw", Connection: "conn-1", JoinSeq: 7}
 		same(t, err, p.got, []any{want})
 	})
 	t.Run("Offline", func(t *testing.T) { same(t, m.Offline(ctx, ann, "conn-1"), p.got, []any{ann, "conn-1"}) })

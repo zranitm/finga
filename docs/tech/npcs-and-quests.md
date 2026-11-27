@@ -63,7 +63,7 @@ From the code, the rules this design keeps:
 ## 4. NPCs in the world
 
 - **NPCs are static map content.** Each map instance loads its NPCs from the map at start. They aren't in Snapshots or Deltas, since the client draws them from the same map data. They don't collide, can't be attacked, and never change.
-- **`Talk{npc}`** comes from the client through the gateway, with a Response, under a "dialog" rate limit (5 a second). On the tick:
+- **`Talk{npc}`** comes from the client through the server, with a Response, under a "dialog" rate limit (5 a second). On the tick:
   - It is refused with `NPC_OUT_OF_REACH` when the NPC isn't on this map or is out of reach, or with `CHARACTER_DEAD` while dead.
   - Otherwise the world sends the player an **`NpcDialog`**: the NPC, and what it offers this character now.
     - **quests to give:** each with its state, *available*, *active*, *finished* (one-time), or *conditions unmet*, and the unmet conditions listed;
@@ -104,7 +104,7 @@ From the code, the rules this design keeps:
   2. **Rolls:** equipment rewards are rolled now, with the map's seeded generator, as drops are.
   3. **The item call:** a job goes to the item-call pool: `item.HandIn` with the collect objectives to take and the rewards to give.
      - It names the quest and the completion it makes, `times_finished + 1`. The item module hands each completion in once, so a retry, or a hand-in repeated after a crash, takes and gives nothing twice.
-     - A try that times out or finds the item module down is tried again. Every try fits in 3.5 seconds, inside the 5 seconds the gateway and the client give a command, so the outcome always reaches the request. The hand-in's wait also gives up half a second before the request's deadline as `UNAVAILABLE`, in case the queues before the call used up the rest. A refusal is final.
+     - A try that times out or finds the item module down is tried again. Every try fits in 3.5 seconds, inside the 5 seconds the server and the client give a command, so the outcome always reaches the request. The hand-in's wait also gives up half a second before the request's deadline as `UNAVAILABLE`, in case the queues before the call used up the rest. A refusal is final.
      - The log has a warning for each try that failed, an error for a hand-in given up, and an info line for each one a join finished.
   4. **The result comes back through the inbox:**
      - on success: the quest is marked finished, `times_finished` goes up, the reward EXP is awarded in memory, and the change is queued to save at once. The player gets `InventoryChanged`, `QuestChanged`, and `ExpGained`. This holds for the character on the map whatever its connection, so a reconnect meanwhile still gets it;
@@ -134,7 +134,7 @@ From the code, the rules this design keeps:
 | `NpcDialog` | server | New: the NPC, its quests to give and take with their states and unmet conditions, and its promotions with each condition met or not |
 | `AcceptQuest`, `HandInQuest` | client | New: `npc`, `quest`; Response |
 | `AbandonQuest` | client | New: `quest`; Response |
-| `Welcome` | server | New `quests`: the log, active quests with progress, and finished quests with counts. Also sent again, with no token, when the gateway joins the character again on its own (the world restarted, or its stream broke): pushes sent meanwhile may be lost, so the client takes the whole screen again, as a login does |
+| `Welcome` | server | New `quests`: the log, active quests with progress, and finished quests with counts. Also sent again, with no token, when the server joins the character again on its own (the world restarted, or its stream broke): pushes sent meanwhile may be lost, so the client takes the whole screen again, as a login does |
 | `QuestChanged` | server | New: what happened (accepted, progressed, handed in, or abandoned), and the quest's status, progress, and count after it |
 
 - **New error codes:**
@@ -146,7 +146,7 @@ From the code, the rules this design keeps:
   - `TOO_MANY_QUESTS` (330011): "You have 20 quests already.", the number being `max_active` in `quests.yaml`;
   - `QUEST_NOT_READY` (330012): "That quest isn't finished yet.";
   - `NOT_ENOUGH_ITEMS` (220024): "You don't have everything the quest asks for."
-- **Gateway routes:** `Talk`, `AcceptQuest`, `AbandonQuest`, and `HandInQuest` go to the world under a new dialog limit (5 a second), with `respond`.
+- **Server routes:** `Talk`, `AcceptQuest`, `AbandonQuest`, and `HandInQuest` go to the world under a new dialog limit (5 a second), with `respond`.
 
 ### Internal contracts
 
@@ -189,7 +189,7 @@ From the code, the rules this design keeps:
 | The player reconnects while a hand-in is in flight | The quest finishes on the new connection | The answer finishes it for the character on the map, whatever its connection |
 | The world's stream breaks, or the world restarts | Nothing unusual: the screen is put right, the party too | The rejoin sends a whole `Welcome`, with no token, read after the join: character, map, quests, and inventory as the modules hold them. Changes lost in the break, and a world's unsaved ones undone by its restart, show as they are. The party panel stays as it is until the `PartyState` that follows, as after a login. If the inventory can't be read, the connection ends and the client logs in again |
 
-**What a `Welcome` carries:** only what the screen needs at once, built section by section in the gateway (the character, map and tick rate, and quests from the world's join; the inventory and what is worn from one item read). Data a window opens on demand, such as storage or mail later, loads when that window opens, never in the `Welcome`. The gateway measures each `Welcome`'s encoded size, by login or rejoin, as the signal for when its sections need skipping or compressing.
+**What a `Welcome` carries:** only what the screen needs at once, built section by section in the server (the character, map and tick rate, and quests from the world's join; the inventory and what is worn from one item read). Data a window opens on demand, such as storage or mail later, loads when that window opens, never in the `Welcome`. The server measures each `Welcome`'s encoded size, by login or rejoin, as the signal for when its sections need skipping or compressing.
 
 ## 12. Testing
 
@@ -230,7 +230,7 @@ First of the two designs, on its own branch and PR after PR #5. Each step is one
 3. **Character module:** `character_quests`, `Load`, and the checkpoint rows.
 4. **World, NPCs:** static NPCs, `Talk`, and `NpcDialog` (quests only; promotions arrive with the classes design).
 5. **World, quests:** accept, abandon, progress, and hand-in through the item-call pool.
-6. **Gateway and protocol:** routes, messages, error codes, and contracts.
+6. **Server and protocol:** routes, messages, error codes, and contracts.
 7. **Client:** NPCs, the Talk key, the dialog, the quest log, markers, and combat-channel lines.
 8. **Content:**
    - the town guide's starter quests;
@@ -256,5 +256,5 @@ Agreed on 2026-11-10:
 - **The world counting collected items:** the world would need every inventory, or a call that waits. The item module counts at hand-in, where it matters.
 - **NPCs sent in Snapshots:** they never change, and the client already has the maps.
 - **Server-pushed markers:** they would be event-driven and cheap: recomputed on the same events, and sent only when a marker changes.
-  - **The catch is inventory:** moves and discards go straight from the gateway to the item module and never pass through the world. The world couldn't tell when a discard leaves a "bring N items" quest short again, unless every inventory change were also sent to it, or it asked the item module for counts.
+  - **The catch is inventory:** moves and discards go straight from the server to the item module and never pass through the world. The world couldn't tell when a discard leaves a "bring N items" quest short again, unless every inventory change were also sent to it, or it asked the item module for counts.
   - **The client already knows:** it holds the exact inventory and gets every one of those events already.

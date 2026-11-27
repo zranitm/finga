@@ -56,7 +56,7 @@ func (r *Connections) missedSection(ctx context.Context, character kernel.Charac
 	}
 	ctx = context.WithoutCancel(ctx)
 	w.Written = func() {
-		r.job(ctx, "gateway.mark_told", func(ctx context.Context) {
+		r.job(ctx, "account.mark_told", func(ctx context.Context) {
 			ctx, cancel := context.WithTimeout(ctx, toldTimeout)
 			defer cancel()
 			if err := r.deps.Pvp.Told(ctx, character, told); err != nil {

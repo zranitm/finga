@@ -77,7 +77,7 @@ describe('LoginScreen', () => {
       text: 'Can’t reach the server. Check your connection and try again.',
     },
     {
-      name: 'a proxy page while the gateway restarts',
+      name: 'a proxy page while the server restarts',
       reply: () => ({ status: 502 }),
       text: 'The server isn’t answering right now. Try again in a moment.',
     },

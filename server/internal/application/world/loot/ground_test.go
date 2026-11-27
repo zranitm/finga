@@ -742,8 +742,8 @@ func TestAGrantCallsWorkerReadsNothingTheTickWrites(t *testing.T) {
 	})
 }
 
-// A grant call with no answer is cut off 3.5 s in, its retry included, so a take answers each pick unavailable inside the 5 s the gateway waits rather than the gateway giving up on the whole request.
-func TestATakeWithNoAnswerIsAnsweredInsideTheGatewaysWait(t *testing.T) {
+// A grant call with no answer is cut off 3.5 s in, its retry included, so a take answers each pick unavailable inside the 5 s the server waits rather than the server giving up on the whole request.
+func TestATakeWithNoAnswerIsAnsweredInsideTheServersWait(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
 		hold  func(ctx context.Context, n int) error

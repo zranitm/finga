@@ -20,7 +20,7 @@ type SkillUse struct {
 	Way         sim.Way
 }
 
-// Presence is the character a command is for and the gateway connection it comes from; a command from an older connection is ignored.
+// Presence is the character a command is for and the server connection it comes from; a command from an older connection is ignored.
 type Presence struct {
 	Character kernel.CharacterID
 	Conn      string
@@ -152,7 +152,7 @@ func timersOf(t model.SkillTimers) SkillTimers {
 	return out
 }
 
-// sheetOf copies the skill points, traits and buffs, which the event outlives on its way to the gateway.
+// sheetOf copies the skill points, traits and buffs, which the event outlives on its way to the server.
 func sheetOf(s model.Sheet) Sheet {
 	out := Sheet{Sheet: s.Sheet, Points: Points(s.Points), Skills: Skills{Points: maps.Clone(s.Skills.Points), Traits: maps.Clone(s.Skills.Traits), Unspent: s.Skills.Unspent}, AttackLengthTicks: s.AttackLengthTicks}
 	for _, b := range s.Buffs {

@@ -63,7 +63,7 @@ So:
   - A giver equal to the player is sent empty.
 - **The wire:**
   - `BuffView.left_ms` is an `int64`, as `SkillTimer`'s is.
-  - The gateway model keeps `Left` as a duration and turns it into milliseconds at the wire, as it does for skill timers.
+  - The server model keeps `Left` as a duration and turns it into milliseconds at the wire, as it does for skill timers.
 - **The client:**
   - **The store:** `character.buffs` holds `FrameBuff`s from each sheet: `buffsOf` in `state/character.ts`.
     - A buff the list had, from the same giver and points and ending within 300 ms of the new end, keeps its times. So a sheet sent for anything else, such as gear, leaves its sweep alone.

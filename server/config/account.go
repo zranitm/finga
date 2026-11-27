@@ -4,8 +4,15 @@ import "time"
 
 // Account is the account module's section of config/config.yaml; FINGA_ACCOUNT_<PATH> overrides a key.
 type Account struct {
-	Password Password        `mapstructure:"password"`
-	Sessions AccountSessions `mapstructure:"sessions"`
+	Password    Password           `mapstructure:"password"`
+	Sessions    AccountSessions    `mapstructure:"sessions"`
+	Connections AccountConnections `mapstructure:"connections"`
+}
+
+// AccountConnections is how the account module keeps its players' live connections.
+type AccountConnections struct {
+	JoinTimeout   time.Duration `mapstructure:"join_timeout" validate:"gt=0"`   // a Hello's or a rejoin's whole join, retries included
+	CheckInterval time.Duration `mapstructure:"check_interval" validate:"gt=0"` // how often every session is checked with the account module
 }
 
 // AccountSessions is how long a session is kept once it ended, revoked or expired, and how older ones are deleted.

@@ -26,19 +26,18 @@ func TestTheDefaultsLoad(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := config.Config{
-		HTTP:          host.HTTPSection{Addr: ":8080", CORSOrigins: []string{}},
+		HTTP:          config.HTTP{Addr: ":8080", CORSOrigins: []string{}, AccountLimit: config.AccountLimit{PerSecond: 2, Burst: 10}},
 		Ops:           host.OpsSection{Addr: ":9100"},
 		Admin:         config.AdminSection{Addr: "127.0.0.1:9200"},
 		ShutdownGrace: 10 * time.Second,
 		Log:           logger.Config{Level: "info", Format: "json", Sampling: logger.Sampling{Initial: 100, Thereafter: 100}},
 		Database:      database,
 		DataDir:       "data",
-		Gateway: config.Gateway{
-			WS: config.WS{HelloTimeout: 5 * time.Second, CommandQueue: 64}, Sessions: config.GatewaySessions{JoinTimeout: 5 * time.Second, CheckInterval: time.Minute},
-			REST: config.GatewayREST{PerSecond: 2, Burst: 10}},
+		WS:            config.WS{HelloTimeout: 5 * time.Second, CommandQueue: 64},
 		Account: config.Account{
-			Password: config.Password{Time: 1, MemoryKiB: 64 * 1024, Threads: 4, Concurrent: 4, Wait: time.Second},
-			Sessions: config.AccountSessions{Keep: 30 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000, PruneGap: 100 * time.Millisecond}},
+			Password:    config.Password{Time: 1, MemoryKiB: 64 * 1024, Threads: 4, Concurrent: 4, Wait: time.Second},
+			Connections: config.AccountConnections{JoinTimeout: 5 * time.Second, CheckInterval: time.Minute},
+			Sessions:    config.AccountSessions{Keep: 30 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000, PruneGap: 100 * time.Millisecond}},
 		Item: config.Item{
 			IdempotencyKeys: config.IdempotencyKeys{Keep: 24 * time.Hour, PruneEvery: 10 * time.Minute, PruneBatch: 1000, PruneGap: 100 * time.Millisecond},
 			Outbox:          config.Outbox{PublishedKeep: 24 * time.Hour, UnpublishedKeep: 7 * 24 * time.Hour, PruneEvery: 10 * time.Minute, PruneBatch: 1000, PruneGap: 100 * time.Millisecond}},
@@ -63,7 +62,7 @@ func TestOnlyFingaHasSettings(t *testing.T) {
 	if err != nil || s.Ops != ":9100" || s.DataDir != "data" || s.Database != database || s.ShutdownGrace != 10*time.Second {
 		t.Errorf("finga: %+v, %v", s, err)
 	}
-	for _, process := range []string{"gateway", "world", "auction"} {
+	for _, process := range []string{"server", "world", "auction"} {
 		if _, err := cfg.Host(process); err == nil {
 			t.Errorf("settings for a process %s", process)
 		}
@@ -107,7 +106,7 @@ func TestAnAccountsRESTBucketRefillsAndHoldsACall(t *testing.T) {
 	for key, valid := range map[string]bool{"PER_SECOND=0.5": true, "PER_SECOND=0": false, "BURST=1": true, "BURST=0": false} {
 		t.Run(key, func(t *testing.T) {
 			name, value, _ := strings.Cut(key, "=")
-			t.Setenv("FINGA_GATEWAY_REST_"+name, value)
+			t.Setenv("FINGA_HTTP_ACCOUNT_LIMIT_"+name, value)
 			if _, err := load(); (err == nil) != valid {
 				t.Fatalf("%s: %v", key, err)
 			}
@@ -128,7 +127,7 @@ func TestTheOutboxsUnpublishedTTLCanBeOff(t *testing.T) {
 	}
 }
 
-// A gateway back within its 30 s grace re-registers its players from what social kept, so keep never drops below a few minutes.
+// A node back within its 30 s grace re-registers its players from what social kept, so keep never drops below a few minutes.
 func TestMembersAreKeptAFewMinutesAtLeast(t *testing.T) {
 	for keep, valid := range map[string]bool{"30s": false, "4m": false, "5m": true, "1h": true} {
 		t.Run(keep, func(t *testing.T) {

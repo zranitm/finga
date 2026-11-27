@@ -51,7 +51,7 @@ func (g *Streams) registerAgain(ctx context.Context) {
 
 // registerRound registers every active player once, all in one trace.
 func (g *Streams) registerRound(ctx context.Context) {
-	ctx, span := g.tracer.Start(ctx, "gateway.register_again", trace.WithNewRoot())
+	ctx, span := g.tracer.Start(ctx, "account.register_again", trace.WithNewRoot())
 	defer span.End()
 	var round errgroup.Group
 	round.SetLimit(onlineAtOnce)

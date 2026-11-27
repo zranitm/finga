@@ -102,7 +102,7 @@ Twenty-nine extras, one for each active skill that takes points, each on top of 
 
 ## 4. Choosing a trait
 
-- **`ChooseTrait{skill, trait}`** goes through the gateway to the world, with a Response and the skill points' rate limit. On the tick, it is refused, in this order:
+- **`ChooseTrait{skill, trait}`** goes through the server to the world, with a Response and the skill points' rate limit. On the tick, it is refused, in this order:
   1. `CHARACTER_DEAD` while dead;
   2. `SKILL_NOT_LEARNED` for a skill with no points, one the data doesn't have, or one the class can't learn;
   3. `TRAIT_UNKNOWN` for a trait the skill doesn't have, a passive's or a granted skill's included;
@@ -149,7 +149,7 @@ Twenty-nine extras, one for each active skill that takes points, each on top of 
 - **Internal contracts:**
   - `world.v1`: `ChooseTrait`, and the trait in `SkillUsed` and in the skill timers of `JoinResponse` and the handoff;
   - `character.v1`: each skill's trait in `Load` and the checkpoint, and each timer's.
-- **Gateway:** `ChooseTrait` routed with a Response, under the skill points' limit.
+- **Server:** `ChooseTrait` routed with a Response, under the skill points' limit.
 
 ## 7. Client
 
@@ -287,7 +287,7 @@ Three PRs, and the chains panel on its own:
    - the data, validation and generator, with the twenty-nine traits;
    - the character module's columns;
    - the world's `ChooseTrait`, in-combat clock, uses, buffs and `SkillUsed`;
-   - the protocol and gateway.
+   - the protocol and server.
 3. **Traits, client side:**
    - the sheet's traits;
    - the diamonds and the trait card;

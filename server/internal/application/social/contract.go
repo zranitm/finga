@@ -26,10 +26,10 @@ type Member struct {
 	Channel int // the region's channel, from 1; 0 off regions
 }
 
-// Presence is a character online through one connection of a gateway, which the world's join of sequence JoinSeq is behind.
+// Presence is a character online through one connection of a node, which the world's join of sequence JoinSeq is behind.
 type Presence struct {
 	Member     Member
-	Gateway    string
+	Node       string
 	Connection string
 	JoinSeq    uint64
 }
@@ -72,7 +72,7 @@ type Message struct {
 
 func (p Presence) model() model.Member {
 	m := p.Member
-	return model.Member{ID: m.ID, Name: m.Name, Class: m.Class, Level: m.Level, HP: m.HP, MaxHP: m.MaxHP, MapID: m.MapID, Channel: m.Channel, Connection: p.Connection, Gateway: p.Gateway, JoinSeq: p.JoinSeq}
+	return model.Member{ID: m.ID, Name: m.Name, Class: m.Class, Level: m.Level, HP: m.HP, MaxHP: m.MaxHP, MapID: m.MapID, Channel: m.Channel, Connection: p.Connection, Node: p.Node, JoinSeq: p.JoinSeq}
 }
 
 func messageOf(m model.Message) Message {

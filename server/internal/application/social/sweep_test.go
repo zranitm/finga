@@ -39,9 +39,9 @@ func newLive(t *testing.T, fault func(call string, id kernel.CharacterID), rec *
 
 func discarding() *panics.Recorder { return panics.NewRecorder(slog.New(slog.DiscardHandler), nil) }
 
-// at is id online through gateway, on the forest map, behind the world's join of sequence seq.
-func at(gateway string, id kernel.CharacterID, seq uint64) Presence {
-	return Presence{Member: Member{ID: id, Name: "X", Level: 3, HP: 90, MaxHP: 100, MapID: "forest"}, Gateway: gateway, Connection: "conn-" + id.String(), JoinSeq: seq}
+// at is id online through node, on the forest map, behind the world's join of sequence seq.
+func at(node string, id kernel.CharacterID, seq uint64) Presence {
+	return Presence{Member: Member{ID: id, Name: "X", Level: 3, HP: 90, MaxHP: 100, MapID: "forest"}, Node: node, Connection: "conn-" + id.String(), JoinSeq: seq}
 }
 
 func register(t *testing.T, m *Module, p Presence) {
@@ -75,7 +75,7 @@ func online(sub *hub.Sub[Delivery]) map[kernel.CharacterID]bool {
 	return out
 }
 
-// A sweep cut short, here by its timeout while an Online holds the registration, tries again, as a gateway gone for good never resubscribes to finish it.
+// A sweep cut short, here by its timeout while an Online holds the registration, tries again, as a node gone for good never resubscribes to finish it.
 func TestASweepCutShortTriesAgain(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ann, bo, cy, di := kernel.NewCharacterID(), kernel.NewCharacterID(), kernel.NewCharacterID(), kernel.NewCharacterID()
@@ -88,14 +88,14 @@ func TestASweepCutShortTriesAgain(t *testing.T) {
 		gone, stays := m.Subscribe("gw-a"), m.Subscribe("gw-b")
 		register(t, m, at("gw-a", ann, 1))
 		register(t, m, at("gw-a", bo, 2))
-		register(t, m, at("gw-b", di, 3)) // Di, on a gateway that stays, hears the party
+		register(t, m, at("gw-b", di, 3)) // Di, on a node that stays, hears the party
 		formParty(t, m, ann, bo)
 		formParty(t, m, ann, di)
 		held := make(chan error, 1)
 		go func() { held <- m.Online(t.Context(), at("gw-b", cy, 4)) }()
 		synctest.Wait()
 		gone.Close()
-		m.GatewayLeft("gw-a")
+		m.NodeLeft("gw-a")
 		time.Sleep(45 * time.Second) // the sweep starts after the grace and times out waiting on Cy's registration
 		close(release)
 		if err := <-held; err != nil {
@@ -104,7 +104,7 @@ func TestASweepCutShortTriesAgain(t *testing.T) {
 		time.Sleep(2 * time.Minute)
 		synctest.Wait()
 		if got := online(stays); got[ann] || got[bo] || !got[di] {
-			t.Fatalf("Di's party %v, after Ann and Bo's gateway went and the sweep's first try timed out", got)
+			t.Fatalf("Di's party %v, after Ann and Bo's node went and the sweep's first try timed out", got)
 		}
 	})
 }
@@ -136,7 +136,7 @@ func TestASweepThatPanicsInTheModuleStops(t *testing.T) {
 		register(t, m, at("gw-a", bo, 2))
 		formParty(t, m, ann, bo)
 		sub.Close()
-		m.GatewayLeft("gw-a")
+		m.NodeLeft("gw-a")
 		time.Sleep(10 * time.Minute)
 		synctest.Wait()
 		count.mu.Lock()
@@ -147,8 +147,8 @@ func TestASweepThatPanicsInTheModuleStops(t *testing.T) {
 	})
 }
 
-// A gateway that comes back while its players are being taken offline keeps each one it registers again.
-func TestAGatewayBackMidSweepKeepsThePlayersItRegistersAgain(t *testing.T) {
+// A node that comes back while its players are being taken offline keeps each one it registers again.
+func TestANodeBackMidSweepKeepsThePlayersItRegistersAgain(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		gate, reached := make(chan struct{}), make(chan struct{}, 1)
 		m := newLive(t, func(call string, _ kernel.CharacterID) {
@@ -169,7 +169,7 @@ func TestAGatewayBackMidSweepKeepsThePlayersItRegistersAgain(t *testing.T) {
 		formParty(t, m, ann, bo)
 		formParty(t, m, ann, di)
 		gone.Close()
-		m.GatewayLeft("gw-a")
+		m.NodeLeft("gw-a")
 		<-reached // the sweep is taking its first player offline
 		m.Subscribe("gw-a")
 		again := make(chan error, 2)
@@ -185,13 +185,13 @@ func TestAGatewayBackMidSweepKeepsThePlayersItRegistersAgain(t *testing.T) {
 		}
 		synctest.Wait()
 		if got := online(stays); !got[ann] || !got[bo] {
-			t.Fatalf("Di's party %v, after Ann and Bo's gateway registered them again", got)
+			t.Fatalf("Di's party %v, after Ann and Bo's node registered them again", got)
 		}
 	})
 }
 
-// A gateway whose subscription stays gone past the grace takes its players offline; one back within the grace keeps its own, as does one that never left.
-func TestAGatewayGoneForGoodTakesItsPlayersOffline(t *testing.T) {
+// A node whose subscription stays gone past the grace takes its players offline; one back within the grace keeps its own, as does one that never left.
+func TestANodeGoneForGoodTakesItsPlayersOffline(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		m := newLive(t, func(string, kernel.CharacterID) {}, discarding())
 		ann, bo, cy := kernel.NewCharacterID(), kernel.NewCharacterID(), kernel.NewCharacterID()
@@ -206,18 +206,18 @@ func TestAGatewayGoneForGoodTakesItsPlayersOffline(t *testing.T) {
 		formParty(t, m, ann, cy)
 		goneB.Close()
 		goneC.Close()
-		m.GatewayLeft("gw-b")
-		m.GatewayLeft("gw-c")
+		m.NodeLeft("gw-b")
+		m.NodeLeft("gw-c")
 		time.Sleep(time.Second)
 		m.Subscribe("gw-c") // back within the grace
 		time.Sleep(time.Minute)
 		synctest.Wait()
 		got := online(stays)
 		if len(got) != 3 || got[bo] {
-			t.Fatalf("Ann's party %v: Bo is online through a gateway gone for a minute", got)
+			t.Fatalf("Ann's party %v: Bo is online through a node gone for a minute", got)
 		}
 		if !got[cy] || !got[ann] {
-			t.Fatalf("Ann's party %v: a player of a gateway that came back, or of one that never left, went offline", got)
+			t.Fatalf("Ann's party %v: a player of a node that came back, or of one that never left, went offline", got)
 		}
 	})
 }

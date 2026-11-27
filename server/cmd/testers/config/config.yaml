@@ -1,8 +1,8 @@
-# Committed defaults, nothing secret: FINGA_<KEY_PATH> (FINGA_GATEWAY) overrides a key, and CONFIG_PATH or a git-ignored config.local.yaml beside this file replaces it.
+# Committed defaults, nothing secret: FINGA_<KEY_PATH> (FINGA_SERVER) overrides a key, and CONFIG_PATH or a git-ignored config.local.yaml beside this file replaces it.
 # make testers runs it in the stack's own network, where infra/docker-compose.yml points these at the game.
 
 data_dir: data
-gateway: http://localhost:8080
+server: http://localhost:8080
 admin: http://localhost:9200  # the game's private admin API (admin.enabled), where no player path exists
-remote: false            # true allows a gateway or admin API that isn't loopback or a Compose service
+remote: false            # true allows a server or admin API that isn't loopback or a Compose service
 password: testers-only   # every test account's; README lists them

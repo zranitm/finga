@@ -14,12 +14,6 @@ const EnvPrefix = "FINGA"
 // ConfigDir holds the server's configuration, relative to server/ (/app in an image).
 const ConfigDir = "config"
 
-// HTTPSection is where the process serves players: REST and the WebSocket.
-type HTTPSection struct {
-	Addr        string   `mapstructure:"addr" validate:"required"`
-	CORSOrigins []string `mapstructure:"cors_origins" validate:"dive,url"`
-}
-
 // OpsSection is where a process serves /healthz, /readyz and /metrics.
 type OpsSection struct {
 	Addr string `mapstructure:"addr" validate:"required"`

@@ -123,7 +123,7 @@ Until section 15, attacks cut at 0.85 (the Thief's at 0.8): ticks 17, 15, 10, 17
 ## 6. Protocol
 
 - **No new messages.** `Attack` and `UseSkill` carry every action, early or not.
-- **`StatSheet.attack_cooldown_ticks` becomes `attack_length_ticks`.** It keeps field number 6, so `buf breaking` (WIRE) passes. The JSON name changes, and the gateway and the client change with it.
+- **`StatSheet.attack_cooldown_ticks` becomes `attack_length_ticks`.** It keeps field number 6, so `buf breaking` (WIRE) passes. The JSON name changes, and the server and the client change with it.
 - **No new codes.** A press can't be refused for timing (section 5).
 
 ## 7. Client
@@ -327,7 +327,7 @@ At first the look was timed to the cancel point, as before. At 0.3, a Warrior's 
 - [Energy](./energy.md) left gains unpredicted because the earliest cancel came at least 400 ms into an attack, after the server's count was back. It now comes 150 to 350 ms in, about one round trip. So a skill that needs the running attack's energy can be pressed before the client has the count.
 - **The client's own `AttackUsed` tells it the count has come:**
   - The world counts the gain in the tick the attack starts, as its hit lands then.
-  - That tick's frame carries the count in the player's `Delta`. `broadcast` sends the frame before the tick's events, through the one queue to the gateway, which keeps their order on the connection. So the `Delta` with the gain arrives before the attack's `AttackUsed`.
+  - That tick's frame carries the count in the player's `Delta`. `broadcast` sends the frame before the tick's events, through the one queue to the server, which keeps their order on the connection. So the `Delta` with the gain arrives before the attack's `AttackUsed`.
   - The client ignores its own `AttackUsed` today. Now it marks its latest attack counted.
 - **The wait, in `skill-keys`:** a press that finds the shown energy short while the latest attack is uncounted waits until that attack's `AttackUsed` arrives or the attack ends, whichever comes first. Then it checks again, and goes or shows "Not enough energy".
   - The attack's end bounds the wait. An attack the world never started sends no `AttackUsed`, and by its end the skill would have gone without a cancel anyway.

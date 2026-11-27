@@ -123,7 +123,7 @@ func (p *Postgres) Untold(ctx context.Context, id kernel.CharacterID) ([]model.U
 	return out, failures.Classify(err)
 }
 
-// MarkTold marks the character told of matches, as a gateway handed them their outcomes.
+// MarkTold marks the character told of matches, as a node handed them their outcomes.
 func (p *Postgres) MarkTold(ctx context.Context, id kernel.CharacterID, matches []kernel.MatchID) error {
 	ids := make([]uuid.UUID, 0, len(matches))
 	for _, m := range matches {

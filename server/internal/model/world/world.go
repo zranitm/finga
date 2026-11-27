@@ -146,7 +146,7 @@ type Player struct {
 	Energy  int     // 0 to the game data's max
 	X, Y, Z float64 // where to appear, on the ground under (X, Z): feet centre in metres, y up
 	Yaw     float32 // the way it faces as it appears, radians from north toward east
-	// Connection is the gateway connection joined through; a Leave from another one is ignored.
+	// Connection is the server connection joined through; a Leave from another one is ignored.
 	Connection string
 	Worn       Worn        // travels with the player between maps
 	Look       Look        // travels with the player too
@@ -344,7 +344,7 @@ type Teleport struct {
 	Yaw     float32
 }
 
-// Detached tells a connection its character is on no map any more (a transfer failed); the gateway joins it again.
+// Detached tells a connection its character is on no map any more (a transfer failed); the server joins it again.
 type Detached struct{}
 
 // Damage is one resolved hit, sent to everyone on the map.

@@ -8,32 +8,32 @@ import (
 	"finga/pkg/transient"
 )
 
-// Public is a failure as a client sees it; Message is the gateway's own, never an error's text, so causes never leak.
+// Public is a failure as a client sees it; Message is the server's own, never an error's text, so causes never leak.
 type Public struct {
 	Code    int    // six digits: the area, then the case (failures.go)
 	Name    string // EQUIP_TAB_FULL: the code in source and in logs
 	Message string
 }
 
-// ErrHelloRejected is a Hello the gateway refuses itself.
-var ErrHelloRejected = errors.New("gateway: hello rejected")
+// ErrHelloRejected is a Hello the server refuses itself.
+var ErrHelloRejected = errors.New("failure: hello rejected")
 
 // ErrBadAim is an attack or a skill aimed along a yaw that isn't a finite number.
-var ErrBadAim = errors.New("gateway: aim is not a finite yaw")
+var ErrBadAim = errors.New("failure: aim is not a finite yaw")
 
 // ErrTooManyPicks is a TakeLoot of more picks than MaxPicks.
-var ErrTooManyPicks = errors.New("gateway: a take of more picks than any reach holds")
+var ErrTooManyPicks = errors.New("failure: a take of more picks than any reach holds")
 
 // MaxPicks is the most items one TakeLoot may name.
 const MaxPicks = 64
 
-// The kinds of module failure the gateway acts on itself.
+// The kinds of module failure the server acts on itself.
 var (
-	ErrUnavailable   = errors.New("gateway: module unavailable")
-	ErrNotSubscribed = errors.New("gateway: the world does not hold this gateway's stream")
+	ErrUnavailable   = errors.New("failure: module unavailable")
+	ErrNotSubscribed = errors.New("failure: the world does not hold this node's stream")
 )
 
-// ServiceError is a module's failure: what the client sees, the kind the gateway acts on (or nil), and the cause.
+// ServiceError is a module's failure: what the client sees, the kind the server acts on (or nil), and the cause.
 type ServiceError struct {
 	Public Public
 	Kind   error
@@ -50,7 +50,7 @@ func (e *ServiceError) Unwrap() []error {
 	return []error{e.Err}
 }
 
-// ownErrors are the gateway's own failures and every module's, each as the client sees it.
+// ownErrors are the server's own failures and every module's, each as the client sees it.
 var ownErrors = []struct {
 	err error
 	pub Public

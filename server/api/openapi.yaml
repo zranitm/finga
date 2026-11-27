@@ -15,7 +15,7 @@ info:
     name, status and message. Authenticated calls send `Authorization: Bearer TOKEN`.
     Each account's authenticated calls draw on one bucket, whichever route
     and token: by default 10 at once, refilled 2 a second (config.yaml's
-    gateway.rest). Past it, a call answers 429 RATE_LIMITED. The web client's
+    http.account_limit). Past it, a call answers 429 RATE_LIMITED. The web client's
     busiest moment sends 5 at once, and a whole session of its calls fits the
     bucket with none refilled. Logging in has its own limit, per username.
 servers:

@@ -171,7 +171,7 @@ func (m *Module) Database(ctx context.Context) (*pgxpool.Pool, *dbxprom.Metrics,
 	return m.h.pool, observer, nil
 }
 
-// Serve adds a listener that serves handler over HTTP, as the gateway serves its players.
+// Serve adds a listener that serves handler over HTTP, as the server serves its players.
 func (h *Host) Serve(name, addr string, handler http.Handler) {
 	h.listeners = append(h.listeners, runner.Listener{Name: name, Addr: addr, Server: runner.HTTP(handler)})
 }

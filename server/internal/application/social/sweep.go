@@ -11,50 +11,50 @@ import (
 	"finga/pkg/panics"
 )
 
-// A gateway's players go offline once its subscription has stayed gone gatewayGrace; marking them takes up to sweepTimeout, and a sweep cut short tries again after sweepRetry, backing off to sweepRetryMax.
+// A node's players go offline once its subscription has stayed gone nodeGrace; marking them takes up to sweepTimeout, and a sweep cut short tries again after sweepRetry, backing off to sweepRetryMax.
 const (
-	gatewayGrace  = 30 * time.Second
+	nodeGrace     = 30 * time.Second
 	sweepTimeout  = 10 * time.Second
 	sweepRetry    = 5 * time.Second
 	sweepRetryMax = time.Minute
 )
 
-// GatewayLeft says a gateway's subscription ended: once it has stayed gone gatewayGrace, its players go offline; one back in time registers them again.
-func (m *Module) GatewayLeft(gateway string) {
+// NodeLeft says a node's subscription ended: once it has stayed gone nodeGrace, its players go offline; one back in time registers them again.
+func (m *Module) NodeLeft(node string) {
 	retry := &backoff.ExponentialBackOff{InitialInterval: sweepRetry, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: sweepRetryMax}
 	var try func()
 	try = func() {
 		m.panics.Do(context.Background(), panics.FlowJob, func() {
-			if err := m.sweepGone(gateway); err != nil && !errors.Is(err, errBack) {
-				time.AfterFunc(retry.NextBackOff(), try) // a dead gateway never comes back to finish it
+			if err := m.sweepGone(node); err != nil && !errors.Is(err, errBack) {
+				time.AfterFunc(retry.NextBackOff(), try) // a dead node never comes back to finish it
 			}
-		}, "job", "sweep", "gateway_id", gateway)
+		}, "job", "sweep", "node_id", node)
 	}
-	time.AfterFunc(gatewayGrace, try)
+	time.AfterFunc(nodeGrace, try)
 }
 
-// errBack ends a sweep: the gateway is back and registers its players again.
-var errBack = errors.New("social: the gateway is back")
+// errBack ends a sweep: the server is back and registers its players again.
+var errBack = errors.New("social: the server is back")
 
-// sweepGone takes a gone gateway's players offline, until one fails or the gateway is back.
-func (m *Module) sweepGone(gateway string) error {
+// sweepGone takes a gone node's players offline, until one fails or the server is back.
+func (m *Module) sweepGone(node string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), sweepTimeout)
 	defer cancel()
-	for id, conn := range m.notes.through(gateway) {
-		if err := m.sweep(ctx, gateway, id, conn); err != nil {
+	for id, conn := range m.notes.through(node) {
+		if err := m.sweep(ctx, node, id, conn); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// sweep takes one player of a gone gateway offline, unless the gateway is back.
-func (m *Module) sweep(ctx context.Context, gateway string, id kernel.CharacterID, conn string) error {
+// sweep takes one player of a gone node offline, unless the server is back.
+func (m *Module) sweep(ctx context.Context, node string, id kernel.CharacterID, conn string) error {
 	if err := m.registering.Acquire(ctx, 1); err != nil {
 		return err
 	}
 	defer m.registering.Release(1)
-	if m.notes.subscribed(gateway) {
+	if m.notes.subscribed(node) {
 		return errBack
 	}
 	return m.parties.Offline(ctx, id, conn)

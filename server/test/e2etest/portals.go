@@ -26,7 +26,7 @@ func (l *Looter) Hop(t *testing.T, at gamedata.Point, wantMap string, want gamed
 		if away() && !l.WalkTo(at, game.Remaining()) {
 			t.Fatalf("could not reach (%v, %v) (at %.2f, %.2f)", at.X, at.Z, l.X, l.Z)
 		}
-		l.Pump(time.Until(next), nil) // the gateway takes 2 presses a second, by the wall clock
+		l.Pump(time.Until(next), nil) // the server takes 2 presses a second, by the wall clock
 		if !l.Until(2*time.Second, l.Standing) || away() {
 			continue // still in the air, or knocked out of it while landing
 		}

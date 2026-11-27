@@ -8,7 +8,7 @@ import (
 	"finga/internal/shared/host"
 )
 
-// Build adds every module to h from cfg, in the order they call each other, the gateway last, then the admin API if cfg enables it; it fails fast on bad game data or an unreachable database.
+// Build adds every module to h from cfg, in the order they call each other, the server last, then the admin API if cfg enables it; it fails fast on bad game data or an unreachable database.
 func Build(ctx context.Context, h *host.Host, cfg config.Config) error {
 	data, err := h.GameData()
 	if err != nil {
@@ -38,7 +38,7 @@ func Build(ctx context.Context, h *host.Host, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	if err := buildGateway(ctx, h, cfg.Gateway, cfg.HTTP, gatewayModules{Account: accounts, Character: characters, Item: items, Wardrobes: items, World: maps, Social: parties, Pvp: matches, Arena: matches}); err != nil {
+	if err := buildTransport(ctx, h, cfg, transportModules{Account: accounts, Character: characters, Item: items, Wardrobes: items, World: maps, Social: parties, Pvp: matches, Arena: matches}); err != nil {
 		return err
 	}
 	return buildAdmin(h, cfg, data, accounts, characters, items, maps)

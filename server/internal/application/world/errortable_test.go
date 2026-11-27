@@ -61,7 +61,7 @@ func TestEachErrorReachesCallersAsItsKernelError(t *testing.T) {
 		{model.ErrQuestNotReady, kernel.ErrQuestNotReady, "quest_not_ready", false},
 		{model.ErrHPFull, kernel.ErrHPFull, "hp_full", false},
 		{model.ErrNotUsable, kernel.ErrNotUsable, "not_usable", false},
-		{kernel.ErrNotSubscribed, kernel.ErrNotSubscribed, "not_subscribed", false}, // the facade's own: a join without its gateway's stream
+		{kernel.ErrNotSubscribed, kernel.ErrNotSubscribed, "not_subscribed", false}, // the facade's own: a join without its node's stream
 		{kernel.ErrBadID, kernel.ErrBadID, "bad_id", false},
 		{transient.ErrUnavailable, nil, "", true},
 		{errors.New("disk on fire"), nil, "", false}, // passes as it is, so a caller reads it as internal

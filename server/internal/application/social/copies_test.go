@@ -89,7 +89,7 @@ func TestEveryConversionKeepsEveryField(t *testing.T) {
 		"partyOf": copytest.Diff(copytest.Match{Skip: map[string]string{
 			"ID":                 "a member sees the party, not its ID",
 			"Members.Connection": "routing, which the notifier keeps",
-			"Members.Gateway":    "routing, which the notifier keeps",
+			"Members.Node":       "routing, which the notifier keeps",
 			"Members.JoinSeq":    "the party module's check for a stale Online",
 			"Members.JoinOrder":  "the party module's choice of the next leader",
 			"Members.OfflineAt":  "the party module's grace for a member gone",

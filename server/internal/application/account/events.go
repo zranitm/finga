@@ -6,15 +6,15 @@ import (
 	"finga/pkg/hub"
 )
 
-// sessionsQueue bounds the session ends queued for a slow gateway before its subscription is closed.
+// sessionsQueue bounds the session ends queued for a slow node before its subscription is closed.
 const sessionsQueue = 1024
 
-// Event is what a gateway hears on its sessions stream: a SessionRevoked or a Revoked, each after it commits.
+// Event is what a node hears on its sessions stream: a SessionRevoked or a Revoked, each after it commits.
 //
 //sumtype:decl
 type Event interface{ sessionEvent() }
 
-// SessionRevoked is one ended session: the gateway closes its connection.
+// SessionRevoked is one ended session: the server closes its connection.
 type SessionRevoked struct {
 	Session kernel.SessionID
 	Reason  RevokeReason
@@ -46,20 +46,20 @@ var revokeReasons = map[string]RevokeReason{
 	ReasonNewLogin:   RevokeNewLogin,
 }
 
-// Subscribe opens a gateway's sessions stream from now on; a newer one under the same ID closes it, as a full queue does.
-func (m *Module) Subscribe(gateway string) *hub.Sub[Event] { return m.sessions.Subscribe(gateway) }
+// Subscribe opens a node's sessions stream from now on; a newer one under the same ID closes it, as a full queue does.
+func (m *Module) Subscribe(node string) *hub.Sub[Event] { return m.sessions.Subscribe(node) }
 
-// notifier tells every gateway of ended sessions; it never blocks.
+// notifier tells every node of ended sessions; it never blocks.
 type notifier struct{ sessions *hub.Hub[Event] }
 
 var _ Notifier = notifier{}
 
-// SessionRevoked tells every gateway one session ended.
+// SessionRevoked tells every node one session ended.
 func (n notifier) SessionRevoked(_ context.Context, id kernel.SessionID, reason string) {
 	n.sessions.Broadcast(SessionRevoked{Session: id, Reason: revokeReasons[reason]})
 }
 
-// AccountRevoked tells every gateway all of an account's sessions ended.
+// AccountRevoked tells every node all of an account's sessions ended.
 func (n notifier) AccountRevoked(_ context.Context, id kernel.AccountID, reason string) {
 	n.sessions.Broadcast(Revoked{Account: id, Reason: revokeReasons[reason]})
 }

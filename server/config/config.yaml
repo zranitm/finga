@@ -1,9 +1,12 @@
 # The server's committed defaults, nothing secret: the shared sections, then one per module.
 # FINGA_<KEY_PATH> overrides a key (FINGA_DATABASE_URL, FINGA_WORLD_TICK_RATE_HZ), and CONFIG_PATH or a git-ignored config.local.yaml beside this file replaces it.
 
-http:                    # where the gateway serves players: REST under /api and the WebSocket at /ws
+http:                    # where the server serves players: REST under /api and the WebSocket at /ws
   addr: ":8080"
   cors_origins: []      # browser origins allowed for REST and WebSocket; empty: same origin only
+  account_limit:        # each account's REST calls once logged in, past which they answer 429 rate_limited; the edge limits each address besides
+    per_second: 2       # the bucket's refill
+    burst: 10           # its size: the client's busiest moment, settings opened and every switch flipped, sends 5 at once
 ops:                     # /healthz, /readyz and /metrics
   addr: ":9100"
 admin:                   # the private admin API make testers writes through; never public, and pinned off in prod
@@ -27,18 +30,14 @@ database:                # one Postgres; each module with tables keeps to its ow
   idle_in_transaction_timeout: 10s  # and a session left idle in a transaction is ended
 data_dir: data           # the game data, relative to server/, loaded once per process
 
-gateway:
-  ws:
-    hello_timeout: 5s     # a connection that sends no Hello in this long is closed
-    command_queue: 64     # a connection's commands waiting their turn; one more answers rate_limited
-  sessions:
-    join_timeout: 5s      # a Hello's or a rejoin's whole join, retries included
-    check_interval: 1m    # how often every session is checked with the account module
-  rest:                   # each account's REST calls once logged in, past which they answer 429 rate_limited; the edge limits each address besides
-    per_second: 2         # the bucket's refill
-    burst: 10             # its size: the client's busiest moment, settings opened and every switch flipped, sends 5 at once
+ws:
+  hello_timeout: 5s       # a connection that sends no Hello in this long is closed
+  command_queue: 64       # a connection's commands waiting their turn; one more answers rate_limited
 
 account:
+  connections:
+    join_timeout: 5s     # a Hello's or a rejoin's whole join, retries included
+    check_interval: 1m   # how often every session is checked with the account module
   password:               # the Argon2id cost of a password hash; raise it as the hardware allows, and each account follows at its next login
     time: 1
     memory_kib: 65536
@@ -65,7 +64,7 @@ item:
     prune_gap: 100ms      # the pause between batches, so other writers get the table in between
 
 world:
-  tick_rate_hz: 20        # a whole number of movement steps per tick (data/movement.yaml dt); the gateway admits 30 inputs a second
+  tick_rate_hz: 20        # a whole number of movement steps per tick (data/movement.yaml dt); the server admits 30 inputs a second
   checkpoint_interval: 30s
   flush_timeout: 10s      # the last saves on shutdown, all together; after shutdown_grace
   item_calls:
@@ -77,7 +76,7 @@ world:
 
 social:
   members:                # a member offline and in no party is forgotten keep after going offline
-    keep: 1h              # well past a gateway's 30 s grace, so one that comes back finds what the world reported
+    keep: 1h              # well past a node's 30 s grace, so one that comes back finds what the world reported
     prune_every: 5m       # how often older ones are forgotten
     prune_batch: 1000     # members per pass, so none holds the store's lock long
     prune_gap: 100ms      # the pause between batches, so other writers get the store in between

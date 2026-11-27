@@ -28,7 +28,7 @@ type Actor struct {
 	Character kernel.CharacterID
 }
 
-// EndReason is why the gateway ends a player's session; the handler decides what the client sees.
+// EndReason is why the server ends a player's session; the handler decides what the client sees.
 type EndReason string
 
 // The reasons a session ends.

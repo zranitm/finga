@@ -23,7 +23,7 @@ type worldModule struct {
 // The arguments of each world call after its presence.
 type (
 	joinArgs struct {
-		Gateway string
+		Node    string
 		Account kernel.AccountID
 	}
 	sayArgs struct{ Name, Text string }
@@ -36,8 +36,8 @@ func (w *worldModule) record(p world.Presence, args any) error {
 
 func (w *worldModule) Subscribe(string) *hub.Sub[world.Delivery] { return nil }
 
-func (w *worldModule) Join(_ context.Context, gateway string, account kernel.AccountID, p world.Presence) (world.View, error) {
-	return w.view, w.record(p, joinArgs{gateway, account})
+func (w *worldModule) Join(_ context.Context, node string, account kernel.AccountID, p world.Presence) (world.View, error) {
+	return w.view, w.record(p, joinArgs{node, account})
 }
 
 func (w *worldModule) Leave(_ context.Context, p world.Presence) error { return w.record(p, nil) }
@@ -93,13 +93,13 @@ func TestAJoinKeepsItsFields(t *testing.T) {
 	w := &worldModule{}
 	a := NewWorld(w, slog.New(slog.DiscardHandler), nil)
 	type join struct {
-		Gateway, Conn string
-		Account       kernel.AccountID
-		Character     kernel.CharacterID
+		Node, Conn string
+		Account    kernel.AccountID
+		Character  kernel.CharacterID
 	}
-	asked := copytest.Diff(copytest.Match{Renames: map[string]string{"Gateway": "Args.Gateway", "Account": "Args.Account", "Conn": "P.Conn", "Character": "P.Character"}},
+	asked := copytest.Diff(copytest.Match{Renames: map[string]string{"Node": "Args.Node", "Account": "Args.Account", "Conn": "P.Conn", "Character": "P.Character"}},
 		func(j join) atWorld[joinArgs] {
-			_, _ = a.Join(t.Context(), j.Gateway, j.Conn, j.Account, j.Character)
+			_, _ = a.Join(t.Context(), j.Node, j.Conn, j.Account, j.Character)
 			return atWorld[joinArgs]{P: w.p, Args: w.args.(joinArgs)}
 		})
 	if len(asked) > 0 {

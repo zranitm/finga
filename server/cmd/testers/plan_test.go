@@ -244,7 +244,7 @@ func TestTheNewTesterIsLeftAsCreated(t *testing.T) {
 	}
 }
 
-func TestOnlyALocalGatewayIsSeededUnlessRemote(t *testing.T) {
+func TestOnlyALocalServerIsSeededUnlessRemote(t *testing.T) {
 	for url, want := range map[string]bool{
 		"http://localhost:8080": true, "http://127.0.0.1:48080": true, "http://[::1]:8080": true,
 		"http://finga:8080":         true, // a Compose service on the stack's own network

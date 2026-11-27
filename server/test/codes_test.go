@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// codesByName maps a failure's name to its number, read from the file the gateway's tests keep current.
+// codesByName maps a failure's name to its number, read from the file the server's tests keep current.
 var codesByName = func() map[string]int32 {
 	raw, err := os.ReadFile("../testdata/errors/codes.json")
 	if err != nil {

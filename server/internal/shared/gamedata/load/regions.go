@@ -112,10 +112,10 @@ func (l *loader) loadRegions(dir string) error {
 	return l.placesBelow()
 }
 
-// gateWaypoint is how near each gate of a place below a waypoint stands.
-const gateWaypoint = 20
+// waypointNearGate is how near each gate of a place below a waypoint stands.
+const waypointNearGate = 20
 
-// placesBelow checks each place below against the region above it (underground-and-underwater.md section 3): that region is one, on the land; every gate leads up to it, a waypoint within gateWaypoint; and it's all hunting, no town. linkMaps checks each gate leads back.
+// placesBelow checks each place below against the region above it (underground-and-underwater.md section 3): that region is one, on the land; every gate leads up to it, a waypoint within waypointNearGate; and it's all hunting, no town. linkMaps checks each gate leads back.
 func (l *loader) placesBelow() error {
 	for _, id := range slices.Sorted(maps.Keys(l.regions)) {
 		r := l.regions[id]
@@ -138,8 +138,8 @@ func (l *loader) placesBelow() error {
 			if g.To.Region != r.under {
 				return fmt.Errorf("%s: gate %s leads to %s; a place below's gates lead up to %s", file, g.Name, g.To.Region, r.under)
 			}
-			if !slices.ContainsFunc(r.waypoints, func(w gamedata.Waypoint) bool { return math.Hypot(w.At.X-g.At[0], w.At.Z-g.At[1]) <= gateWaypoint }) {
-				return fmt.Errorf("%s: gate %s has no waypoint within %d m, where those inside die back to and teleport", file, g.Name, gateWaypoint)
+			if !slices.ContainsFunc(r.waypoints, func(w gamedata.Waypoint) bool { return math.Hypot(w.At.X-g.At[0], w.At.Z-g.At[1]) <= waypointNearGate }) {
+				return fmt.Errorf("%s: gate %s has no waypoint within %d m, where those inside die back to and teleport", file, g.Name, waypointNearGate)
 			}
 		}
 	}

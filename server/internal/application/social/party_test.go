@@ -386,7 +386,7 @@ func TestMembersStayThroughDisconnectsAndStateFollowsThem(t *testing.T) {
 	must(t, f.svc.Offline(f.ctx, cass, "c-cass"))
 }
 
-// A gateway registering a connection again sends its Hello's values; the party keeps what the world reported since.
+// A node registering a connection again sends its Hello's values; the party keeps what the world reported since.
 func TestRegisteringAgainKeepsWhatTheWorldReported(t *testing.T) {
 	f := newFixture(t, "Ayla", "Robin")
 	f.invite(t, "Ayla", "Robin")
@@ -394,8 +394,8 @@ func TestRegisteringAgainKeepsWhatTheWorldReported(t *testing.T) {
 	atHello := model.Member{ID: f.id("Robin"), Name: "Robin", Class: "beginner", Level: 2, HP: 100, MaxHP: 100, MapID: "forest", Connection: "c-Robin"}
 	for _, step := range []struct {
 		name    string
-		offline bool // the gateway's stream stayed gone long enough for its players to be taken offline
-	}{{"while online", false}, {"after going offline with the gateway", true}} {
+		offline bool // the server's stream stayed gone long enough for its players to be taken offline
+	}{{"while online", false}, {"after going offline with the server", true}} {
 		if step.offline {
 			must(t, f.svc.Offline(f.ctx, f.id("Robin"), "c-Robin"))
 		}

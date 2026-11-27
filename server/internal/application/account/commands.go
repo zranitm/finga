@@ -62,5 +62,5 @@ func NewCommands(deps CommandsDeps, opts CommandsOptions) *Commands {
 	return &Commands{deps: deps, opts: opts, sessions: deps.Registry}
 }
 
-// Draining reports whether the gateway drains; new connections are refused from then on.
+// Draining reports whether the server drains; new connections are refused from then on.
 func (g *Commands) Draining() bool { return g.sessions.Draining() }

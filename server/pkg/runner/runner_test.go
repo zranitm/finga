@@ -512,7 +512,7 @@ func TestARestartableTaskRestartsAfterAFailure(t *testing.T) {
 			again := make(chan struct{})
 			r := newRunner(t, runner.Options{Logger: log, Panics: panics.NewRecorder(log, shared), Restarts: counted},
 				[]runner.Listener{{Name: "http", Addr: "127.0.0.1:0", Server: runner.HTTP(http.NotFoundHandler())}},
-				runner.Task{Name: "pump", Module: "gateway", Kind: runner.Restartable, Panics: panics.NewRecorder(log, own), Run: func(ctx context.Context) error {
+				runner.Task{Name: "pump", Module: "node", Kind: runner.Restartable, Panics: panics.NewRecorder(log, own), Run: func(ctx context.Context) error {
 					if runs.Add(1) == 1 {
 						return tt.fail()
 					}
@@ -526,8 +526,8 @@ func TestARestartableTaskRestartsAfterAFailure(t *testing.T) {
 			case <-time.After(5 * time.Second):
 				t.Fatal("the task never ran again")
 			}
-			if !r.Ready() || counted.get("gateway", "pump") != 1 || !strings.Contains(logs.String(), `"module":"gateway","task":"pump"`) {
-				t.Fatalf("ready %v, restarts %d, log %q", r.Ready(), counted.get("gateway", "pump"), logs.String())
+			if !r.Ready() || counted.get("node", "pump") != 1 || !strings.Contains(logs.String(), `"module":"node","task":"pump"`) {
+				t.Fatalf("ready %v, restarts %d, log %q", r.Ready(), counted.get("node", "pump"), logs.String())
 			}
 			if want := map[bool]int{true: 1}[tt.name == "panic"]; own.get(panics.FlowTask) != want || shared.get(panics.FlowTask) != 0 {
 				t.Fatalf("the task's own recorder counted %d panics, the runner's %d; want %d and 0", own.get(panics.FlowTask), shared.get(panics.FlowTask), want)
@@ -535,8 +535,8 @@ func TestARestartableTaskRestartsAfterAFailure(t *testing.T) {
 			if err := stop(); err != nil {
 				t.Fatalf("Run returned %v", err)
 			}
-			if runs.Load() != 2 || counted.get("gateway", "pump") != 1 {
-				t.Fatalf("%d runs, %d restarts after shutdown", runs.Load(), counted.get("gateway", "pump"))
+			if runs.Load() != 2 || counted.get("node", "pump") != 1 {
+				t.Fatalf("%d runs, %d restarts after shutdown", runs.Load(), counted.get("node", "pump"))
 			}
 		})
 	}

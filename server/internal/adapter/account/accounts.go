@@ -11,12 +11,12 @@ import (
 	"finga/pkg/panics"
 )
 
-// OwnModule is the account module as the gateway calls it.
+// OwnModule is the account module as the server calls it.
 type OwnModule interface {
 	Validate(ctx context.Context, token string) (account.Principal, error)
 	Rotate(ctx context.Context, id kernel.SessionID) (string, error)
 	Check(ctx context.Context, id kernel.SessionID) error
-	Subscribe(gateway string) *hub.Sub[account.Event]
+	Subscribe(node string) *hub.Sub[account.Event]
 }
 
 // Guard is the login-session ports of the Hello, the token rotation and the session check, over the account module.
@@ -56,8 +56,8 @@ func NewSessionEnds(a OwnModule, log *slog.Logger, rec *panics.Recorder) Session
 }
 
 // FollowSessionEnds follows the ended sessions until ctx ends.
-func (s SessionEnds) FollowSessionEnds(ctx context.Context, gateway string, deliver func(model.SessionEnd)) {
-	hub.Follow(ctx, func() *hub.Sub[account.Event] { return s.a.Subscribe(gateway) }, nil, func(e account.Event) {
+func (s SessionEnds) FollowSessionEnds(ctx context.Context, node string, deliver func(model.SessionEnd)) {
+	hub.Follow(ctx, func() *hub.Sub[account.Event] { return s.a.Subscribe(node) }, nil, func(e account.Event) {
 		if end, ok := sessionEnd(e); ok {
 			deliver(end)
 		}
@@ -66,7 +66,7 @@ func (s SessionEnds) FollowSessionEnds(ctx context.Context, gateway string, deli
 	}})
 }
 
-// sessionEnd is one event as the gateway acts on it; false for one it has no name for.
+// sessionEnd is one event as the server acts on it; false for one it has no name for.
 func sessionEnd(e account.Event) (model.SessionEnd, bool) {
 	switch e := e.(type) {
 	case account.SessionRevoked:

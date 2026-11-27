@@ -34,7 +34,7 @@
   - combat between players;
   - bots.
 - **A match's path:**
-  1. `PvpQueue{mode}` goes through the gateway to `pvp.Queue`. That asks the world whether the characters can fight (`world.CanFight`): promoted, online and not in a match.
+  1. `PvpQueue{mode}` goes through the server to `pvp.Queue`. That asks the world whether the characters can fight (`world.CanFight`): promoted, online and not in a match.
   2. Each second the matcher forms matches, with bot places where players are missing. It pushes an offer to every player in each one.
   3. When everyone accepts, pvp calls `world.OpenMatch(spec)`.
   4. The world builds a match instance, moves the players in with their world state set aside, adds the bots, and runs the rules.
@@ -45,7 +45,7 @@
   - pvp → world: `CanFight`, `OpenMatch` and `SetBuild`.
   - world → pvp: `Results`.
   - As built (step 4), pvp sends each player's build after `OpenMatch` returns, rather than the world reading it at entry. The world is built before pvp, so a world → pvp port would need a cycle. Section 6 has the order that keeps a save from being lost.
-  - The gateway serves both modules' commands and pushes.
+  - The server serves both modules' commands and pushes.
 
 ## 3. Data
 
@@ -159,7 +159,7 @@ bots:
     - **The match ends during the grace:** the held player is rated by the result, as anyone there, never as a leaver. No connection is there to follow a hand-off, so they're saved at `back`, where their next login lands. They miss `MatchEnded`, and are told at their next `Welcome` (below).
     - **No bot during the grace:** a stand-in starts with cooldowns ready and no statuses, so a free return would make a drop a reset. A player weaker than the match's bots could also drop to let one fight for them. The price is a team one short for up to 20 s on a long drop.
     - **As built (step 7a):**
-      - **A drop or a logout:** the gateway tells them apart by how the session ended. A logout or an ended login (`session_expired`) is a `Leave`. Any other close is the world's `Drop`: a closed socket, a login elsewhere, or a presence on a connection the gateway doesn't know.
+      - **A drop or a logout:** the server tells them apart by how the session ended. A logout or an ended login (`session_expired`) is a `Leave`. Any other close is the world's `Drop`: a closed socket, a login elsewhere, or a presence on a connection the server doesn't know.
       - **`Drop`** asks the match to hold the place. Off a match it's a `Leave`, and so is a drop the match holds no place for: another connection's, a mode with `reconnect: 0`, or the outcome showing.
       - **The held body** keeps its presence under the dropped connection, and what's sent to it goes nowhere. Its held keys and queued inputs are cleared, so it stands. A hit still to land, a queued attack and a skill waiting its turn are dropped. Keys sent before the drop that come after it are refused.
       - **The return:** `Join` first offers the account's presence to its match. The match puts the new connection on the body, with its inputs counted again from the new client's first, and retells the party. A join the match doesn't take, as with the outcome showing or the match's map stopped since the join looked, is a plain one. As this return loads no character, only the character's own account's presence is offered.

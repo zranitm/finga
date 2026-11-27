@@ -840,7 +840,7 @@ const interest = {
   side: must(interestFile.side, isNumber, 'world.yaml interest side'),
 };
 
-// The gateway's error catalog, each code by its name: ERR.EQUIP_TAB_FULL reads better than 220005.
+// The server's error catalog, each code by its name: ERR.EQUIP_TAB_FULL reads better than 220005.
 const errorCodes = Object.fromEntries(
   must(JSON.parse(readFileSync(codesFile, 'utf8')), isArray, 'codes.json').map((raw) => {
     const { code, name } = must(raw, isRecord, 'a codes.json row');

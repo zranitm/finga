@@ -17,7 +17,7 @@ import (
 	"finga/internal/shared/sim"
 )
 
-// onStream is a player's sink whose frames go to a stream shared with others, as a gateway's.
+// onStream is a player's sink whose frames go to a stream shared with others, as a node's.
 type onStream struct {
 	*worldtest.Sink
 	stream *frames
@@ -45,13 +45,13 @@ func TestATicksFrameGoesOnceToEachStream(t *testing.T) {
 		x, z := worldtest.TownSpawn(t, data)
 		inst, stop := worldtest.RunMap(t, data, worldtest.Town(data), nil, worldtest.Options{})
 		defer stop()
-		gateway := &frames{}
+		node := &frames{}
 		ayla, robin, bruno := worldtest.NewPlayer("Ayla", x, z), worldtest.NewPlayer("Robin", x, z), worldtest.NewPlayer("Bruno", x, z)
 		ayla.Connection, robin.Connection = "c-ayla", "c-robin"
 		for _, j := range []struct {
 			p model.Player
 			s instance.Sink
-		}{{ayla, onStream{&worldtest.Sink{}, gateway}}, {robin, onStream{&worldtest.Sink{}, gateway}}, {bruno, &worldtest.Sink{}}} {
+		}{{ayla, onStream{&worldtest.Sink{}, node}}, {robin, onStream{&worldtest.Sink{}, node}}, {bruno, &worldtest.Sink{}}} {
 			if err := inst.Join(context.Background(), j.p, j.s); err != nil {
 				t.Fatal(err)
 			}
@@ -61,24 +61,24 @@ func TestATicksFrameGoesOnceToEachStream(t *testing.T) {
 		}
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
-		gateway.mu.Lock()
-		defer gateway.mu.Unlock()
+		node.mu.Lock()
+		defer node.mu.Unlock()
 		type named struct {
 			character  kernel.CharacterID
 			connection string
 			ack        uint32
 		}
 		want := []named{{ayla.ID, "c-ayla", 7}, {robin.ID, "c-robin", 0}}
-		if len(gateway.sent) == 0 {
+		if len(node.sent) == 0 {
 			t.Fatal("no frame to the shared stream")
 		}
-		last := gateway.sent[len(gateway.sent)-1]
+		last := node.sent[len(node.sent)-1]
 		got := make([]named, len(last))
 		for k, r := range last {
 			got[k] = named{r.Character, r.Connection, r.AckSeq}
 		}
 		if !slices.Equal(got, want) || !slices.Equal(last[0].Parts, last[1].Parts) {
-			t.Fatalf("frames to the shared stream %+v, want each tick's once to %+v, side by side sent the same parts", gateway.sent, want)
+			t.Fatalf("frames to the shared stream %+v, want each tick's once to %+v, side by side sent the same parts", node.sent, want)
 		}
 	})
 }

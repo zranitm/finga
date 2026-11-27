@@ -572,7 +572,7 @@ As built in slice PR 5:
 | `SkillUsed`, `AttackUsed` | `aim` replaces `facing` |
 | `MobAttacked` | `yaw`, and `to` as x, y, z, replacing `facing` and `to_x` |
 
-- **The gateway** maps the new fields (`push/wire.go`, `receive/messages.go`, `local/world.go`, `local/deliveries.go`).
+- **The server** maps the new fields (`push/wire.go`, `receive/messages.go`, `local/world.go`, `local/deliveries.go`).
 - **The world module's contract** (`events.go`, `contract.go`) carries them.
 - **Persistence:** a migration adds `pos_z` and `yaw` to `characters`, and the checkpoint saves them. Before go-live, a fresh database is fine. `cmd/testers` seeds the start town's spawn with z.
 
@@ -599,7 +599,7 @@ As built in slice PR 6, every field above is added, and nothing is removed yet:
   - A yaw is the facing's: east π/2, west −π/2. That covers mobs, respawns, map changes, and the checkpoint.
   - A saved yaw turns into a facing on join: west when its sine is negative, else east.
   - `aim` is the yaw of the player's latest attack or skill. It is told on `AttackUsed`, `SkillUsed`, and `PlayerView`, and nothing aims by it yet.
-- **The gateway** refuses an aim that is NaN or infinite with `MALFORMED_BODY`.
+- **The server** refuses an aim that is NaN or infinite with `MALFORMED_BODY`.
 - **The 2D client** sends its facing's yaw as the aim.
 - **Persistence:** migration 00005 adds `pos_z` and `yaw`, both `real`, defaulting to 0. The admin API's progress takes `z` and `yaw`. `cmd/testers` writes 0 for both until the spawns have their own, in slice PR 4. As built in slice PR 4, it seeds the start town's spawn and its yaw.
 
@@ -1095,7 +1095,7 @@ PRs into `3d`, each green on `make test`, `make lint`, `make cover`, and `make b
    - mob AI and attacks;
    - portals, talk, drops, and the boss;
    - `worldtest` and the world and e2e tests.
-6. **Protocol and persistence:** the proto, the gateway, the migration, and testers.
+6. **Protocol and persistence:** the proto, the server, the migration, and testers.
 7. **Client world:** the scene, camera and fading, characters and mobs with animation and beats, NPCs, portals, drops, prediction and interpolation, and input.
 8. **Client combat:** auto-aim and the outline, telegraphs, sparks, hit-stop, trails, the afterimage, skill looks, damage numbers and tags. Phaser and the 2D assets are removed.
 9. **Bots.**

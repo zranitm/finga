@@ -13,10 +13,10 @@ import (
 	"finga/pkg/hub"
 )
 
-// deliverQueue bounds a gateway's stream: about two seconds of frames for a few hundred players.
+// deliverQueue bounds a node's stream: about two seconds of frames for a few hundred players.
 const deliverQueue = 8192
 
-// Delivery is one event on a gateway's stream: for one player through one connection, or a Frame for several.
+// Delivery is one event on a node's stream: for one player through one connection, or a Frame for several.
 type Delivery struct {
 	Character kernel.CharacterID // zero for a Frame
 	Conn      string
@@ -42,13 +42,13 @@ type Snapshot struct {
 	Boss          *MobView       // the field boss as it stands while one is up, wherever on the map, for its bar
 }
 
-// Frame is what changed on a map in one tick, in parts its players share through the gateway; read-only.
+// Frame is what changed on a map in one tick, in parts its players share through the server; read-only.
 type Frame struct {
 	Parts      []Part
 	Recipients []Recipient
 }
 
-// Framed is a frame as one of its recipients is sent it: the frame, one value for every recipient so a gateway shares its encoding, and the recipient's own part of it.
+// Framed is a frame as one of its recipients is sent it: the frame, one value for every recipient so a node shares its encoding, and the recipient's own part of it.
 type Framed struct {
 	Frame     *Frame
 	Recipient Recipient
@@ -97,7 +97,7 @@ type Teleport struct {
 	Yaw   float32
 }
 
-// Detached says a connection's character is on no map any more, as a failed transfer leaves it; the gateway joins it again.
+// Detached says a connection's character is on no map any more, as a failed transfer leaves it; the server joins it again.
 type Detached struct{}
 
 // Damage is one resolved hit, sent to everyone on the map.
@@ -598,8 +598,8 @@ const (
 	ConditionQuest               // finished: need 1, and have 1 once it is
 )
 
-// Subscribe opens a gateway's stream; a newer one under the same ID closes it, as a full queue does, and a closed one drops its players.
-func (m *Module) Subscribe(gateway string) *hub.Sub[Delivery] { return m.deliver.Subscribe(gateway) }
+// Subscribe opens a node's stream; a newer one under the same ID closes it, as a full queue does, and a closed one drops its players.
+func (m *Module) Subscribe(node string) *hub.Sub[Delivery] { return m.deliver.Subscribe(node) }
 
 // sink is how a map tells one player, through the connection it joined by, what happens.
 type sink struct {
@@ -610,7 +610,7 @@ type sink struct {
 
 var _ instance.Sink = sink{}
 
-// Stream is the player's gateway's stream, which every player joined through that gateway shares.
+// Stream is the player's node's stream, which every player joined through that node shares.
 func (s sink) Stream() instance.Stream { return stream{sub: s.sub} }
 
 // Send queues one event for the player; false drops the player.
@@ -623,10 +623,10 @@ func (s sink) Send(e model.Event) bool {
 	return s.sub.Send(d)
 }
 
-// stream is one gateway's stream.
+// stream is one node's stream.
 type stream struct{ sub *hub.Sub[Delivery] }
 
-// SendFrame queues the frame once for all its recipients on the gateway; false drops every recipient.
+// SendFrame queues the frame once for all its recipients on the server; false drops every recipient.
 func (g stream) SendFrame(f *model.Frame, to []model.Recipient) bool {
 	return g.sub.Send(Delivery{Tick: f.Tick, Event: frameOf(f, to)})
 }
@@ -664,7 +664,7 @@ func frameOf(f *model.Frame, to []model.Recipient) Frame {
 	return out
 }
 
-// deliveryOf is a map's event as its gateway hears it, with its tick; no event for one it has no name for.
+// deliveryOf is a map's event as its node hears it, with its tick; no event for one it has no name for.
 func deliveryOf(e model.Event) Delivery {
 	switch ev := e.(type) {
 	case model.Snapshot:
