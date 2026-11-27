@@ -4,6 +4,8 @@ package transport
 import (
 	"encoding/json"
 	"errors"
+	application "finga/internal/application/account"
+	"finga/internal/shared/failure"
 	"io"
 	"log/slog"
 	"net/http"
@@ -11,13 +13,11 @@ import (
 	"slices"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"go.opentelemetry.io/otel/trace"
-
-	application "finga/internal/application/gateway"
-	model "finga/internal/model/gateway"
 	"finga/pkg/panics"
 	"finga/pkg/ratelimit"
+
+	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -58,8 +58,8 @@ func MountREST(d RESTOptions, modules ...func(REST)) func(e *gin.Engine) {
 			add(REST{Public: rest, Authed: authed})
 		}
 
-		e.NoRoute(edge(func(c *gin.Context) { WritePublic(c, model.NoSuchEndpoint) })...)
-		e.NoMethod(edge(func(c *gin.Context) { WritePublic(c, model.MethodNotAllowed) })...)
+		e.NoRoute(edge(func(c *gin.Context) { WritePublic(c, failure.NoSuchEndpoint) })...)
+		e.NoMethod(edge(func(c *gin.Context) { WritePublic(c, failure.MethodNotAllowed) })...)
 	}
 }
 
@@ -74,22 +74,22 @@ func Decode(c *gin.Context, v any) error {
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
 		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
-			WritePublic(c, model.BodyTooLarge)
+			WritePublic(c, failure.BodyTooLarge)
 			return err
 		}
 		if errors.Is(err, os.ErrDeadlineExceeded) {
-			WritePublic(c, model.BodyTimeout)
+			WritePublic(c, failure.BodyTimeout)
 			return err
 		}
-		WritePublic(c, model.MalformedBody)
+		WritePublic(c, failure.MalformedBody)
 		return err
 	}
 	if dec.More() {
-		WritePublic(c, model.MalformedBody)
+		WritePublic(c, failure.MalformedBody)
 		return errMalformed
 	}
 	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
-		WritePublic(c, model.MalformedBody)
+		WritePublic(c, failure.MalformedBody)
 		return errMalformed
 	}
 	return nil
@@ -98,7 +98,7 @@ func Decode(c *gin.Context, v any) error {
 // Missing rejects a request with a required field left out; validating values is the module's job.
 func Missing(c *gin.Context, fields ...string) bool {
 	if slices.Contains(fields, "") {
-		WritePublic(c, model.MissingField)
+		WritePublic(c, failure.MissingField)
 		return true
 	}
 	return false

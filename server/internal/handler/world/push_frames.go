@@ -7,7 +7,7 @@ import (
 	"weak"
 
 	clientv1 "finga/api/gen/client/v1"
-	model "finga/internal/model/gateway"
+	model "finga/internal/model/account"
 	"finga/pkg/wsconn"
 )
 

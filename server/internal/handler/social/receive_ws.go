@@ -2,19 +2,19 @@ package social
 
 import (
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/application/gateway/send"
+	application "finga/internal/application/account"
 	"finga/internal/handler/transport"
-	model "finga/internal/model/gateway"
+	model "finga/internal/model/account"
 	"finga/internal/shared/kernel"
 )
 
 // ws is the module's client messages: client to server.
 type ws struct {
-	gw *send.Gateway
+	gw *application.Commands
 }
 
 // WSRoutes adds the module's client messages to a Receiver.
-func WSRoutes(gw *send.Gateway) transport.Routes {
+func WSRoutes(gw *application.Commands) transport.Routes {
 	h := &ws{gw: gw}
 	return func(r *transport.Receiver) {
 		transport.Handle(r, "PartyInvite", h.partyInvite, r.Command(transport.LimitParty, r.Respond)...)

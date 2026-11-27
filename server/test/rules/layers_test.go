@@ -29,8 +29,8 @@ var rules = []rule{
 		},
 	},
 	{
-		name:   "a module's use cases and model know no transport, contract or database; its other layers do: the gateway's handler, the adapters (other modules' facades bring the host), the repository, and metrics, whose Prometheus client brings net/http",
-		from:   regexp.MustCompile(`^finga/internal/(application/gateway|application/[^/]+/[^/]+|model/[^/]+)(/|$)`),
+		name:   "a module's use cases and model know no transport, contract or database; its other layers do: the handlers, the adapters (other modules' facades bring the host), the repository, and metrics, whose Prometheus client brings net/http",
+		from:   regexp.MustCompile(`^finga/internal/(application/[^/]+/[^/]+|model/[^/]+)(/|$)`),
 		except: regexp.MustCompile(`^finga/internal/application/world/worldtest$`), // test support, which builds Worlds with tracing, outside the rule before the move too
 		deny:   []string{"finga/api/gen", "google.golang.org/grpc", "net/http", "github.com/jackc/pgx", "finga/pkg/dbx"},
 	},
@@ -97,8 +97,8 @@ func TestModulesMeetAtFacades(t *testing.T) {
 			calls[own][other] = true
 		}
 	}
-	if len(calls["gateway"]) == 0 {
-		t.Fatal("the gateway imports no module: is the check broken?")
+	if len(calls["account"]) == 0 {
+		t.Fatal("the account imports no module: is the check broken?")
 	}
 	if c := cycleIn(calls); c != nil {
 		t.Errorf("the modules call each other round a cycle: %s", strings.Join(c, " → "))
@@ -135,11 +135,11 @@ func cycleIn(graph map[string]map[string]bool) []string {
 }
 
 func TestTheCycleCheckFindsACycle(t *testing.T) {
-	graph := map[string]map[string]bool{"world": {"item": true, "social": true}, "social": {"gateway": true}, "gateway": {"world": true}, "item": {}}
-	if got, want := cycleIn(graph), []string{"gateway", "world", "social", "gateway"}; !slices.Equal(got, want) {
+	graph := map[string]map[string]bool{"world": {"item": true, "social": true}, "social": {"account": true}, "account": {"world": true}, "item": {}}
+	if got, want := cycleIn(graph), []string{"account", "world", "social", "account"}; !slices.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
-	delete(graph["gateway"], "world")
+	delete(graph["account"], "world")
 	if got := cycleIn(graph); got != nil {
 		t.Fatalf("a cycle %v in a graph without one", got)
 	}

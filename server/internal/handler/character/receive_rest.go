@@ -1,13 +1,13 @@
 package character
 
 import (
+	application "finga/internal/application/account"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
-
-	application "finga/internal/application/gateway"
 	"finga/internal/handler/transport"
 	"finga/internal/shared/kernel"
+
+	"github.com/gin-gonic/gin"
 )
 
 // rest serves a player's characters over REST: client to server.

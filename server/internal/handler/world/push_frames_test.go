@@ -6,7 +6,7 @@ import (
 	"time"
 	"weak"
 
-	model "finga/internal/model/gateway"
+	model "finga/internal/model/account"
 )
 
 // A frame's encodings go once the frame does, and only its own: a gateway keeps those of the frames still being sent.

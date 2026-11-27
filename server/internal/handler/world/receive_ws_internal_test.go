@@ -2,10 +2,9 @@ package world
 
 import (
 	"errors"
+	"finga/internal/shared/failure"
 	"math"
 	"testing"
-
-	model "finga/internal/model/gateway"
 )
 
 // An attack's or a skill's aim passes when finite, and is a malformed body when NaN or infinite.
@@ -17,9 +16,9 @@ func TestAnAimMustBeFinite(t *testing.T) {
 	}{
 		{"finite", -2.5, nil},
 		{"zero", 0, nil},
-		{"NaN", float32(math.NaN()), model.ErrBadAim},
-		{"+Inf", float32(math.Inf(1)), model.ErrBadAim},
-		{"-Inf", float32(math.Inf(-1)), model.ErrBadAim},
+		{"NaN", float32(math.NaN()), failure.ErrBadAim},
+		{"+Inf", float32(math.Inf(1)), failure.ErrBadAim},
+		{"-Inf", float32(math.Inf(-1)), failure.ErrBadAim},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			aim, err := aimOf(tt.yaw)

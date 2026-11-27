@@ -1,13 +1,13 @@
 package transport_test
 
 import (
+	"finga/internal/shared/failure"
 	"fmt"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	clientv1 "finga/api/gen/client/v1"
-	model "finga/internal/model/gateway"
 	"finga/pkg/wsconn"
 )
 
@@ -103,7 +103,7 @@ func TestGroupedCommandsShareOneBudget(t *testing.T) {
 					if m.Type == "Pong" {
 						break
 					}
-					if r, ok := m.Data.(*clientv1.Response); ok && r.Code == int32(model.RateLimited.Code) {
+					if r, ok := m.Data.(*clientv1.Response); ok && r.Code == int32(failure.RateLimited.Code) {
 						refused++
 					}
 				}

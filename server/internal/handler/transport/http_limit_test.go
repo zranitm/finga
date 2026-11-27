@@ -2,6 +2,7 @@ package transport_test
 
 import (
 	"context"
+	"finga/internal/shared/failure"
 	"net/http"
 	"testing"
 	"testing/synctest"
@@ -9,7 +10,6 @@ import (
 
 	"finga/internal/application/account"
 	"finga/internal/application/character"
-	model "finga/internal/model/gateway"
 	"finga/internal/shared/kernel"
 	"finga/pkg/ratelimit"
 )
@@ -29,12 +29,12 @@ func TestAnAccountPastItsBurstIsRateLimitedTillItsBucketRefills(t *testing.T) {
 				t.Fatalf("call %d answered %d, want 200 within the burst", k+1, rec.Code)
 			}
 		}
-		assertError(t, h.do(http.MethodGet, "/api/characters", "", authed()), http.StatusTooManyRequests, model.RateLimited)
+		assertError(t, h.do(http.MethodGet, "/api/characters", "", authed()), http.StatusTooManyRequests, failure.RateLimited)
 		time.Sleep(500 * time.Millisecond) // a token at 2 a second
 		if rec := h.do(http.MethodGet, "/api/characters", "", authed()); rec.Code != http.StatusOK {
 			t.Fatalf("after the refill answered %d, want 200", rec.Code)
 		}
-		assertError(t, h.do(http.MethodPut, "/api/settings", `{}`, authed()), http.StatusTooManyRequests, model.RateLimited) // every route draws on the one bucket
+		assertError(t, h.do(http.MethodPut, "/api/settings", `{}`, authed()), http.StatusTooManyRequests, failure.RateLimited) // every route draws on the one bucket
 	})
 }
 
@@ -50,7 +50,7 @@ func TestTwoAccountsDoNotShareABucket(t *testing.T) {
 	if rec := h.do(http.MethodGet, "/api/characters", "", authed()); rec.Code != http.StatusOK {
 		t.Fatalf("the first account answered %d, want 200", rec.Code)
 	}
-	assertError(t, h.do(http.MethodGet, "/api/characters", "", authed()), http.StatusTooManyRequests, model.RateLimited)
+	assertError(t, h.do(http.MethodGet, "/api/characters", "", authed()), http.StatusTooManyRequests, failure.RateLimited)
 	if rec := h.do(http.MethodGet, "/api/characters", "", map[string]string{"Authorization": "Bearer tok-other-0123456789abcdef"}); rec.Code != http.StatusOK {
 		t.Fatalf("the other account answered %d past the first's limit, want 200", rec.Code)
 	}
@@ -59,7 +59,7 @@ func TestTwoAccountsDoNotShareABucket(t *testing.T) {
 func TestARequestWithoutAValidTokenIsRefusedBeforeTheLimit(t *testing.T) {
 	h := limited(2, 1)
 	for range 3 {
-		assertError(t, h.do(http.MethodGet, "/api/characters", "", map[string]string{"Authorization": "Bearer tok-bad"}), http.StatusUnauthorized, model.Unauthenticated)
+		assertError(t, h.do(http.MethodGet, "/api/characters", "", map[string]string{"Authorization": "Bearer tok-bad"}), http.StatusUnauthorized, failure.Unauthenticated)
 	}
 	if rec := h.do(http.MethodGet, "/api/characters", "", authed()); rec.Code != http.StatusOK {
 		t.Fatalf("the account answered %d after refused tokens, want 200: they draw on no bucket", rec.Code)

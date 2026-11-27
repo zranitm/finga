@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"finga/internal/shared/failure"
 	"fmt"
 	"log/slog"
 	"math"
@@ -25,16 +26,12 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
-	adapter "finga/internal/adapter/gateway"
+	adapter "finga/internal/adapter/account"
 	"finga/internal/application/account"
-	"finga/internal/application/gateway/push"
-	"finga/internal/application/gateway/send"
-	"finga/internal/application/gateway/session"
 	"finga/internal/application/item"
 	"finga/internal/application/social"
 	"finga/internal/application/world"
 	"finga/internal/handler/transport"
-	model "finga/internal/model/gateway"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"
@@ -62,9 +59,9 @@ var (
 )
 
 type observer interface {
-	send.Observer
+	account.CommandsObserver
 	transport.Observer
-	session.Observer
+	account.ConnectionsObserver
 }
 
 // gatewayURL is where a client dials; the harness's transport ignores the address.
@@ -75,13 +72,13 @@ type harness struct {
 	world   *fakeWorld
 	account *fakeAccount
 	obs     *fakeObserver
-	streams *push.Gateway
+	streams *account.Streams
 }
 
 // deps are the modules the gateway calls, faked, and its settings.
 type deps struct {
 	ID                   string
-	Account              adapter.AccountModule
+	Account              adapter.OwnModule
 	World                adapter.WorldModule
 	Items                adapter.ItemModule
 	Social               adapter.SocialModule
@@ -97,18 +94,18 @@ type deps struct {
 }
 
 // build wires d as the composition root does, over the in-process adapters: one registry under both flows.
-func (d deps) build() (*push.Gateway, http.Handler) {
+func (d deps) build() (*account.Streams, http.Handler) {
 	worldPort := adapter.NewWorld(d.World, d.Logger, nil)
 	socialPort := adapter.NewSocial(d.Social, d.Logger, nil)
 	pvpPort := adapter.NewPvp(d.Pvp, d.Logger, nil)
 	recorder := panics.NewRecorder(d.Logger, nil)
 	items := adapter.NewItems(d.Items)
 	guard := adapter.NewGuard(d.Account)
-	sessions := session.NewRegistry(session.Deps{World: worldPort, Social: socialPort, Pvp: pvpPort, Items: items, Logger: d.Logger, Panics: recorder, Traces: d.Traces, Observer: d.Observer}, session.Options{Gateway: d.ID, JoinTimeout: d.JoinTimeout})
-	sends := send.Deps{Sessions: guard, Registry: sessions, World: worldPort, Items: items, Social: socialPort, Pvp: pvpPort, Logger: d.Logger, Observer: d.Observer}
-	pushes := push.Deps{Sessions: guard, Registry: sessions, World: worldPort, Social: socialPort, Pvp: pvpPort, Account: adapter.NewSessionEnds(d.Account, d.Logger, nil), Logger: d.Logger, Panics: recorder, Traces: d.Traces}
-	sendGateway := send.New(sends, send.Options{JoinTimeout: d.JoinTimeout})
-	return push.New(pushes, push.Options{SessionCheckInterval: d.SessionCheckInterval}), newServer(sendGateway, transport.ServerOptions{
+	sessions := account.NewConnections(account.ConnectionsDeps{World: worldPort, Social: socialPort, Pvp: pvpPort, Items: items, Logger: d.Logger, Panics: recorder, Traces: d.Traces, Observer: d.Observer}, account.ConnectionsOptions{Gateway: d.ID, JoinTimeout: d.JoinTimeout})
+	sends := account.CommandsDeps{Sessions: guard, Registry: sessions, World: worldPort, Items: items, Social: socialPort, Pvp: pvpPort, Logger: d.Logger, Observer: d.Observer}
+	pushes := account.StreamsDeps{Sessions: guard, Registry: sessions, World: worldPort, Social: socialPort, Pvp: pvpPort, Account: adapter.NewSessionEnds(d.Account, d.Logger, nil), Logger: d.Logger, Panics: recorder, Traces: d.Traces}
+	sendGateway := account.NewCommands(sends, account.CommandsOptions{JoinTimeout: d.JoinTimeout})
+	return account.NewStreams(pushes, account.StreamsOptions{SessionCheckInterval: d.SessionCheckInterval}), newServer(sendGateway, transport.ServerOptions{
 		Origins: d.CORSOrigins, HelloTimeout: d.HelloTimeout, CommandQueue: d.CommandQueue, Observer: d.Observer, Logger: d.Logger, Panics: recorder, Traces: d.Traces,
 	})
 }
@@ -472,7 +469,7 @@ func TestRateLimits(t *testing.T) {
 				r := m.Data.(*clientv1.Response)
 				codes[m.ReqID] = r.Code
 			}
-			if codes["r-5"] != int32(model.RateLimited.Code) || codes["r-0"] != 0 || len(codes) != 6 {
+			if codes["r-5"] != int32(failure.RateLimited.Code) || codes["r-0"] != 0 || len(codes) != 6 {
 				t.Fatalf("codes %v", codes)
 			}
 		})
@@ -617,7 +614,7 @@ func TestARefusedCommandAnswersWithAResponse(t *testing.T) {
 		c.expect("Snapshot")
 		c.send(wsconn.Message{ReqID: "r-1", Data: &clientv1.PartyLeave{}})
 		m := c.expect("Response")
-		if m.ReqID != "r-1" || m.Data.(*clientv1.Response).GetOk() || m.Data.(*clientv1.Response).Code != int32(model.NoParty.Code) {
+		if m.ReqID != "r-1" || m.Data.(*clientv1.Response).GetOk() || m.Data.(*clientv1.Response).Code != int32(failure.NoParty.Code) {
 			t.Fatalf("response %+v", m)
 		}
 		c.send(wsconn.Message{Seq: 1, Data: &clientv1.Attack{}}) // no request ID: silently ignored
@@ -814,7 +811,7 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 			c.send(wsconn.Message{ReqID: "t-1", Data: &clientv1.TakeLoot{Picks: []*clientv1.LootPick{{Pouch: 3, Item: 1}, {Pouch: 3, Item: 2}}}})
 			r := c.expect("Response")
 			want := &clientv1.Response{Ok: true, Picks: []*clientv1.PickAnswer{
-				{Pick: &clientv1.LootPick{Pouch: 3, Item: 1}}, {Pick: &clientv1.LootPick{Pouch: 3, Item: 2}, Code: int32(model.EtcTabFull.Code)},
+				{Pick: &clientv1.LootPick{Pouch: 3, Item: 1}}, {Pick: &clientv1.LootPick{Pouch: 3, Item: 2}, Code: int32(failure.EtcTabFull.Code)},
 			}}
 			if r.ReqID != "t-1" || !proto.Equal(r.Data.(*clientv1.Response), want) {
 				t.Fatalf("response %+v, want %v", r, want)
@@ -822,12 +819,12 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 			if takes := h.world.takeCalls(); len(takes) != 1 || !slices.Equal(takes[0], []world.Pick{{Pouch: 3, Item: 1}, {Pouch: 3, Item: 2}}) {
 				t.Fatalf("takes %+v", takes)
 			}
-			picks := make([]*clientv1.LootPick, model.MaxPicks+1)
+			picks := make([]*clientv1.LootPick, failure.MaxPicks+1)
 			for k := range picks {
 				picks[k] = &clientv1.LootPick{Pouch: 3, Item: uint32(k)}
 			}
 			c.send(wsconn.Message{ReqID: "t-2", Data: &clientv1.TakeLoot{Picks: picks}})
-			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.MalformedBody.Code) || len(h.world.takeCalls()) != 1 {
+			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(failure.MalformedBody.Code) || len(h.world.takeCalls()) != 1 {
 				t.Fatalf("a take of %d picks answered %+v; want it refused as malformed before the world", len(picks), r)
 			}
 		})
@@ -857,7 +854,7 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 			items.err = refusal(kernel.ErrBadQuantity)
 			c.send(wsconn.Message{ReqID: "r-2", Data: &clientv1.InventoryDiscard{IdempotencyKey: "k-2", ItemId: potion.ID.String(), Quantity: 9}})
 			r := c.expect("Response").Data.(*clientv1.Response)
-			if r.GetOk() || r.Code != int32(model.BadQuantity.Code) {
+			if r.GetOk() || r.Code != int32(failure.BadQuantity.Code) {
 				t.Fatalf("response %+v", r)
 			}
 			items.err = nil
@@ -866,7 +863,7 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 			before := len(items.discards)
 			c.send(wsconn.Message{ReqID: "r-3", Data: &clientv1.InventoryDiscard{IdempotencyKey: "k-3", ItemId: "nope", Quantity: 1}})
 			r := c.expect("Response").Data.(*clientv1.Response)
-			if r.GetOk() || r.Code != int32(model.BadID.Code) {
+			if r.GetOk() || r.Code != int32(failure.BadID.Code) {
 				t.Fatalf("response %+v", r)
 			}
 			if len(items.discards) != before {
@@ -893,7 +890,7 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 			}
 			items.err = refusal(kernel.ErrBadBatchSize)
 			c.send(wsconn.Message{ReqID: "r-5", Data: &clientv1.InventoryDiscardMany{IdempotencyKey: "k-5"}})
-			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.BadItemBatch.Code) {
+			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(failure.BadItemBatch.Code) {
 				t.Fatalf("response %+v", r)
 			}
 			items.err = nil
@@ -1015,13 +1012,13 @@ func TestEquipmentInWelcomeAndCommands(t *testing.T) {
 			for _, tt := range []struct {
 				err  error
 				msg  proto.Message
-				code model.Public
+				code failure.Public
 			}{
-				{refusal(kernel.ErrLevelTooLow), &clientv1.Equip{IdempotencyKey: "k-4", ItemId: leatherCap.ID.String()}, model.LevelTooLow},
-				{refusal(kernel.ErrWrongEquipSlot), &clientv1.Equip{IdempotencyKey: "k-5", ItemId: leatherCap.ID.String(), EquipSlot: "ring_9"}, model.WrongEquipSlot},
-				{refusal(kernel.ErrNothingWorn), &clientv1.Unequip{IdempotencyKey: "k-6", EquipSlot: "cape"}, model.NothingWorn},
-				{refusal(kernel.ErrCharacterDead), &clientv1.Unequip{IdempotencyKey: "k-7", EquipSlot: "weapon"}, model.CharacterDead},
-				{errDown, &clientv1.Equip{IdempotencyKey: "k-8", ItemId: leatherCap.ID.String()}, model.Unavailable},
+				{refusal(kernel.ErrLevelTooLow), &clientv1.Equip{IdempotencyKey: "k-4", ItemId: leatherCap.ID.String()}, failure.LevelTooLow},
+				{refusal(kernel.ErrWrongEquipSlot), &clientv1.Equip{IdempotencyKey: "k-5", ItemId: leatherCap.ID.String(), EquipSlot: "ring_9"}, failure.WrongEquipSlot},
+				{refusal(kernel.ErrNothingWorn), &clientv1.Unequip{IdempotencyKey: "k-6", EquipSlot: "cape"}, failure.NothingWorn},
+				{refusal(kernel.ErrCharacterDead), &clientv1.Unequip{IdempotencyKey: "k-7", EquipSlot: "weapon"}, failure.CharacterDead},
+				{errDown, &clientv1.Equip{IdempotencyKey: "k-8", ItemId: leatherCap.ID.String()}, failure.Unavailable},
 			} {
 				time.Sleep(time.Second) // under the inventory limit of 5 a second
 				h.world.failEquips(tt.err)
@@ -1035,7 +1032,7 @@ func TestEquipmentInWelcomeAndCommands(t *testing.T) {
 		part(t, "a malformed item ID is BAD_ID without reaching the world", func() {
 			before, _ := h.world.equipCalls()
 			c.send(wsconn.Message{ReqID: "r-9", Data: &clientv1.Equip{IdempotencyKey: "k-9", ItemId: "nope"}})
-			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.BadID.Code) {
+			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(failure.BadID.Code) {
 				t.Fatalf("response %+v", r)
 			}
 			if after, _ := h.world.equipCalls(); len(after) != len(before) {
@@ -1068,12 +1065,12 @@ func TestUseItemAnswersOnceTheWorldApplies(t *testing.T) {
 		part(t, "a refusal answers the world's rule, or the item module's", func() {
 			for _, tt := range []struct {
 				err  error
-				code model.Public
+				code failure.Public
 			}{
-				{refusal(kernel.ErrHPFull), model.HPFull},
-				{refusal(kernel.ErrNotUsable), model.NotUsable}, // the world's and the item module's: one rule in the kernel
-				{refusal(kernel.ErrItemNotFound), model.ItemNotFound},
-				{refusal(kernel.ErrCharacterDead), model.CharacterDead},
+				{refusal(kernel.ErrHPFull), failure.HPFull},
+				{refusal(kernel.ErrNotUsable), failure.NotUsable}, // the world's and the item module's: one rule in the kernel
+				{refusal(kernel.ErrItemNotFound), failure.ItemNotFound},
+				{refusal(kernel.ErrCharacterDead), failure.CharacterDead},
 			} {
 				h.world.failUses(tt.err)
 				c.send(wsconn.Message{ReqID: "r-" + tt.code.Name, Data: &clientv1.UseItem{IdempotencyKey: "k-" + tt.code.Name, ItemId: potion, Template: "red_potion"}})
@@ -1087,7 +1084,7 @@ func TestUseItemAnswersOnceTheWorldApplies(t *testing.T) {
 		part(t, "a malformed item ID is BAD_ID without reaching the world", func() {
 			before := len(h.world.useCalls())
 			c.send(wsconn.Message{ReqID: "r-9", Data: &clientv1.UseItem{IdempotencyKey: "k-9", ItemId: "nope", Template: "red_potion"}})
-			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.BadID.Code) {
+			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(failure.BadID.Code) {
 				t.Fatalf("response %+v", r)
 			}
 			if len(h.world.useCalls()) != before {
@@ -1112,7 +1109,7 @@ func TestAnUnexpectedCommandErrorIsInternalAndLoggedWithItsCause(t *testing.T) {
 		c.expect("Snapshot")
 		c.send(wsconn.Message{ReqID: "r-1", Data: &clientv1.InventoryDiscard{IdempotencyKey: "k", ItemId: kernel.NewItemID().String(), Quantity: 1}})
 		r := c.expect("Response").Data.(*clientv1.Response)
-		if r.GetOk() || r.Code != int32(model.Internal.Code) || strings.Contains(r.String(), "connection reset") {
+		if r.GetOk() || r.Code != int32(failure.Internal.Code) || strings.Contains(r.String(), "connection reset") {
 			t.Fatalf("response %+v; the cause must stay out of it", r)
 		}
 		got := logs.String()
@@ -1141,7 +1138,7 @@ func TestAnUnansweredInventoryCommandIsUnavailable(t *testing.T) {
 				began := time.Now()
 				c.send(wsconn.Message{ReqID: "r-1", Data: m})
 				r := c.expect("Response").Data.(*clientv1.Response)
-				if took := time.Since(began); r.Code != int32(model.Unavailable.Code) || took < 3500*time.Millisecond || took >= 4*time.Second {
+				if took := time.Since(began); r.Code != int32(failure.Unavailable.Code) || took < 3500*time.Millisecond || took >= 4*time.Second {
 					t.Fatalf("response %+v after %v; want unavailable at 3.5 s", r, took)
 				}
 				if strings.Contains(logs.String(), `"command failed"`) {
@@ -1186,7 +1183,7 @@ func TestAPanicInACommandAnswersInternalAndTheConnectionLivesOn(t *testing.T) {
 		if attrs := attribute.NewSet(root.Attributes()...); !attrs.HasValue("character_id") {
 			t.Fatalf("the span names no character: %v", root.Attributes())
 		}
-		if r := m.Data.(*clientv1.Response); m.ReqID != "r-1" || r.GetOk() || r.Code != int32(model.Internal.Code) || strings.Contains(r.String(), "nil map") {
+		if r := m.Data.(*clientv1.Response); m.ReqID != "r-1" || r.GetOk() || r.Code != int32(failure.Internal.Code) || strings.Contains(r.String(), "nil map") {
 			t.Fatalf("response %q %+v; the panic must stay out of it", m.ReqID, r)
 		}
 		c.send(wsconn.Message{Data: &clientv1.Ping{ClientTime: 5}})
@@ -1431,7 +1428,7 @@ func TestAMalformedItemIDNeverReachesTheItemService(t *testing.T) {
 		c.hello(tokenAlice, aylaID)
 		c.expect("Snapshot")
 		c.send(wsconn.Message{ReqID: "r-2", Data: &clientv1.InventoryDiscard{IdempotencyKey: "k", ItemId: "x", Quantity: 1}})
-		if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.BadID.Code) {
+		if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(failure.BadID.Code) {
 			t.Fatalf("a malformed item ID: %+v", r)
 		}
 		items.mu.Lock()
@@ -1836,7 +1833,7 @@ func TestChatRouting(t *testing.T) {
 		})
 		part(t, "a line on no channel is refused", func() {
 			ayla.send(wsconn.Message{Data: &clientv1.ChatSend{Text: "where?"}})
-			if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.BadChatChannel.Code) {
+			if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(failure.BadChatChannel.Code) {
 				t.Fatalf("response %+v", r)
 			}
 		})
@@ -1846,7 +1843,7 @@ func TestChatRouting(t *testing.T) {
 			fs.mu.Unlock()
 			ayla.send(wsconn.Message{Data: &clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Text: "..."}})
 			r := ayla.expect("Response")
-			if r.ReqID != "" || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != int32(model.ChatTooLong.Code) {
+			if r.ReqID != "" || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != int32(failure.ChatTooLong.Code) {
 				t.Fatalf("response %+v", r)
 			}
 		})
@@ -1934,14 +1931,14 @@ func TestPartyCommandsAndState(t *testing.T) {
 		part(t, "errors map to the Response code", func() {
 			time.Sleep(time.Second) // the five above spent the party budget's burst; two more refill in a second
 			ayla.send(wsconn.Message{ReqID: "p-x", Data: &clientv1.PartyInvite{CharacterId: "nope"}})
-			if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.BadID.Code) {
+			if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(failure.BadID.Code) {
 				t.Fatalf("malformed id: %+v", r)
 			}
 			fs.mu.Lock()
 			fs.err = refusal(kernel.ErrNotPartyLeader)
 			fs.mu.Unlock()
 			ayla.send(wsconn.Message{ReqID: "p-y", Data: &clientv1.PartyKick{CharacterId: brunoID.String()}})
-			if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.NotPartyLeader.Code) {
+			if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(failure.NotPartyLeader.Code) {
 				t.Fatalf("not leader: %+v", r)
 			}
 			fs.mu.Lock()
@@ -2275,7 +2272,7 @@ func TestAFullQueueAnswersRateLimited(t *testing.T) {
 			c.send(wsconn.Message{Seq: 3, Data: &clientv1.Input{}})
 			c.send(wsconn.Message{Seq: 4, Data: &clientv1.Input{Left: true}}) // dropped: no request ID to answer
 			c.send(wsconn.Message{ReqID: "s-1", Seq: 4, Data: &clientv1.UseSkill{Skill: "strike"}})
-			if r := c.expect("Response"); r.ReqID != "s-1" || r.Data.(*clientv1.Response).Code != int32(model.RateLimited.Code) {
+			if r := c.expect("Response"); r.ReqID != "s-1" || r.Data.(*clientv1.Response).Code != int32(failure.RateLimited.Code) {
 				t.Fatalf("response %+v, want the skill refused", r)
 			}
 			c.send(wsconn.Message{ReqID: "p-1", Data: &clientv1.PartyLeave{}})
@@ -2304,7 +2301,7 @@ func TestAFullQueueAnswersRateLimited(t *testing.T) {
 			c.send(wsconn.Message{ReqID: "p-1", Data: &clientv1.PartyLeave{}})
 			c.send(wsconn.Message{ReqID: "p-2", Data: &clientv1.PartyLeave{}})
 			c.send(wsconn.Message{ReqID: "p-3", Data: &clientv1.PartyLeave{}})
-			if r := c.expect("Response"); r.ReqID != "p-3" || r.Data.(*clientv1.Response).Code != int32(model.RateLimited.Code) {
+			if r := c.expect("Response"); r.ReqID != "p-3" || r.Data.(*clientv1.Response).Code != int32(failure.RateLimited.Code) {
 				t.Fatalf("response %+v, want the third command refused", r)
 			}
 			c.send(wsconn.Message{Seq: 1, Data: &clientv1.Input{Right: true}})
@@ -2601,18 +2598,18 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 			for _, tt := range []struct {
 				rule error
 				msg  proto.Message
-				want model.Public
+				want failure.Public
 			}{
-				{kernel.ErrPointsChanged, &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: 1}}, model.PointsChanged},
-				{kernel.ErrNotEnoughPoints, &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: 9}}, model.NotEnoughPoints},
-				{kernel.ErrBadPoints, &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: -1}}, model.BadPoints},
-				{kernel.ErrNoFreeReset, &clientv1.ResetPoints{ExpectedUnspent: 5}, model.NoFreeReset},
-				{kernel.ErrSkillPointsChanged, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"strike": 1}}, model.SkillPointsChanged},
-				{kernel.ErrNotEnoughSkillPoints, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"strike": 9}}, model.NotEnoughSkillPoints},
-				{kernel.ErrSkillNotLearnable, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"fireball": 1}}, model.SkillNotLearnable},
-				{kernel.ErrSkillLocked, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"charge": 1}}, model.SkillLocked},
-				{kernel.ErrBadSkillPoints, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"strike": -1}}, model.BadSkillPoints},
-				{kernel.ErrInCombat, &clientv1.ChooseTrait{Skill: "strike", Trait: "concussion"}, model.InCombat},
+				{kernel.ErrPointsChanged, &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: 1}}, failure.PointsChanged},
+				{kernel.ErrNotEnoughPoints, &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: 9}}, failure.NotEnoughPoints},
+				{kernel.ErrBadPoints, &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: -1}}, failure.BadPoints},
+				{kernel.ErrNoFreeReset, &clientv1.ResetPoints{ExpectedUnspent: 5}, failure.NoFreeReset},
+				{kernel.ErrSkillPointsChanged, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"strike": 1}}, failure.SkillPointsChanged},
+				{kernel.ErrNotEnoughSkillPoints, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"strike": 9}}, failure.NotEnoughSkillPoints},
+				{kernel.ErrSkillNotLearnable, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"fireball": 1}}, failure.SkillNotLearnable},
+				{kernel.ErrSkillLocked, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"charge": 1}}, failure.SkillLocked},
+				{kernel.ErrBadSkillPoints, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"strike": -1}}, failure.BadSkillPoints},
+				{kernel.ErrInCombat, &clientv1.ChooseTrait{Skill: "strike", Trait: "concussion"}, failure.InCombat},
 			} {
 				time.Sleep(time.Second) // under the points limit of 2 a second
 				h.world.failPoints(refusal(tt.rule))
@@ -2633,7 +2630,7 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 			}
 			time.Sleep(time.Second) // under the skill limit of 5 a second
 			c.send(wsconn.Message{ReqID: "u-nan", Data: &clientv1.UseSkill{Skill: "strike", Aim: float32(math.NaN())}})
-			if r := c.expect("Response"); r.ReqID != "u-nan" || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != int32(model.MalformedBody.Code) {
+			if r := c.expect("Response"); r.ReqID != "u-nan" || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != int32(failure.MalformedBody.Code) {
 				t.Fatalf("response %+v, want MALFORMED_BODY to an aim that is not a number", r)
 			}
 			if casts := h.world.castCalls(); len(casts) != 1 {
@@ -2641,16 +2638,16 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 			}
 			for _, tt := range []struct {
 				rule error
-				want model.Public
+				want failure.Public
 			}{
-				{kernel.ErrSkillNotLearned, model.SkillNotLearned},
-				{kernel.ErrSkillPassive, model.SkillPassive},
-				{kernel.ErrNotInTown, model.NotInTown},
-				{kernel.ErrSkillCoolingDown, model.SkillCoolingDown},
-				{kernel.ErrNotEnoughEnergy, model.NotEnoughEnergy},
-				{kernel.ErrSkillWaiting, model.SkillWaiting},
-				{kernel.ErrCantAct, model.CantAct},
-				{kernel.ErrSilenced, model.Silenced},
+				{kernel.ErrSkillNotLearned, failure.SkillNotLearned},
+				{kernel.ErrSkillPassive, failure.SkillPassive},
+				{kernel.ErrNotInTown, failure.NotInTown},
+				{kernel.ErrSkillCoolingDown, failure.SkillCoolingDown},
+				{kernel.ErrNotEnoughEnergy, failure.NotEnoughEnergy},
+				{kernel.ErrSkillWaiting, failure.SkillWaiting},
+				{kernel.ErrCantAct, failure.CantAct},
+				{kernel.ErrSilenced, failure.Silenced},
 			} {
 				time.Sleep(time.Second) // under the skill limit of 5 a second
 				h.world.failCasts(refusal(tt.rule))
@@ -2671,14 +2668,14 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 			}
 			for _, tt := range []struct {
 				rule error
-				want model.Public
+				want failure.Public
 			}{
-				{kernel.ErrTeleportUnknownMap, model.TeleportUnknownMap},
-				{kernel.ErrTeleportSameMap, model.TeleportSameMap},
-				{kernel.ErrTeleportDead, model.TeleportDead},
-				{kernel.ErrTeleportBusy, model.TeleportBusy},
-				{kernel.ErrTeleportUnknownWaypoint, model.TeleportUnknownWaypoint},
-				{kernel.ErrTeleportNotFound, model.TeleportNotFound},
+				{kernel.ErrTeleportUnknownMap, failure.TeleportUnknownMap},
+				{kernel.ErrTeleportSameMap, failure.TeleportSameMap},
+				{kernel.ErrTeleportDead, failure.TeleportDead},
+				{kernel.ErrTeleportBusy, failure.TeleportBusy},
+				{kernel.ErrTeleportUnknownWaypoint, failure.TeleportUnknownWaypoint},
+				{kernel.ErrTeleportNotFound, failure.TeleportNotFound},
 			} {
 				time.Sleep(time.Second) // under the teleport limit of 2 a second
 				h.world.failTeleports(refusal(tt.rule))
@@ -2700,12 +2697,12 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 			}
 			for _, tt := range []struct {
 				rule error
-				want model.Public
+				want failure.Public
 			}{
-				{kernel.ErrNotARegion, model.NotARegion},
-				{kernel.ErrSameChannel, model.SameChannel},
-				{kernel.ErrNoSuchChannel, model.NoSuchChannel},
-				{kernel.ErrChannelFull, model.ChannelFull},
+				{kernel.ErrNotARegion, failure.NotARegion},
+				{kernel.ErrSameChannel, failure.SameChannel},
+				{kernel.ErrNoSuchChannel, failure.NoSuchChannel},
+				{kernel.ErrChannelFull, failure.ChannelFull},
 			} {
 				time.Sleep(time.Second)
 				h.world.failTeleports(refusal(tt.rule))
@@ -2751,11 +2748,11 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 			}
 			for _, tt := range []struct {
 				rule error
-				want model.Public
+				want failure.Public
 			}{
-				{kernel.ErrPromotionConditionsUnmet, model.PromotionUnmet},
-				{kernel.ErrNotYourNextClass, model.NotYourNextClass},
-				{kernel.ErrNpcOutOfReach, model.NpcOutOfReach},
+				{kernel.ErrPromotionConditionsUnmet, failure.PromotionUnmet},
+				{kernel.ErrNotYourNextClass, failure.NotYourNextClass},
+				{kernel.ErrNpcOutOfReach, failure.NpcOutOfReach},
 			} {
 				time.Sleep(time.Second) // under the dialog limit
 				h.world.failPromotes(refusal(tt.rule))
@@ -2882,17 +2879,17 @@ func TestQuestCommandsAndEvents(t *testing.T) {
 			for _, tt := range []struct {
 				err  error
 				msg  proto.Message
-				want model.Public
+				want failure.Public
 			}{
-				{refusal(kernel.ErrNpcOutOfReach), &clientv1.Talk{NpcId: "town_guide"}, model.NpcOutOfReach},
-				{refusal(kernel.ErrQuestUnavailable), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "nope"}, model.QuestUnavailable},
-				{refusal(kernel.ErrQuestConditionsUnmet), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, model.QuestConditionsUnmet},
-				{refusal(kernel.ErrQuestAlreadyActive), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, model.QuestAlreadyActive},
-				{refusal(kernel.ErrQuestAlreadyFinished), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "slime_cleanup"}, model.QuestAlreadyFinished},
-				{refusal(kernel.ErrTooManyQuests), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, model.TooManyQuests},
-				{refusal(kernel.ErrQuestNotReady), &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, model.QuestNotReady},
-				{refusal(kernel.ErrNotEnoughItems), &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, model.NotEnoughItems},
-				{refusal(kernel.ErrUseTabFull), &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, model.UseTabFull},
+				{refusal(kernel.ErrNpcOutOfReach), &clientv1.Talk{NpcId: "town_guide"}, failure.NpcOutOfReach},
+				{refusal(kernel.ErrQuestUnavailable), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "nope"}, failure.QuestUnavailable},
+				{refusal(kernel.ErrQuestConditionsUnmet), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, failure.QuestConditionsUnmet},
+				{refusal(kernel.ErrQuestAlreadyActive), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, failure.QuestAlreadyActive},
+				{refusal(kernel.ErrQuestAlreadyFinished), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "slime_cleanup"}, failure.QuestAlreadyFinished},
+				{refusal(kernel.ErrTooManyQuests), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, failure.TooManyQuests},
+				{refusal(kernel.ErrQuestNotReady), &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, failure.QuestNotReady},
+				{refusal(kernel.ErrNotEnoughItems), &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, failure.NotEnoughItems},
+				{refusal(kernel.ErrUseTabFull), &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, failure.UseTabFull},
 			} {
 				time.Sleep(time.Second) // under the dialog limit of 5 a second
 				h.world.failQuests(tt.err)
@@ -2914,7 +2911,7 @@ func TestQuestCommandsAndEvents(t *testing.T) {
 				m := c.expect("Response")
 				answers[m.ReqID] = m.Data.(*clientv1.Response).GetCode()
 			}
-			if answers["t-5"] != int32(model.RateLimited.Code) || answers["t-0"] != 0 || answers["t-4"] != 0 || len(answers) != 6 {
+			if answers["t-5"] != int32(failure.RateLimited.Code) || answers["t-0"] != 0 || answers["t-4"] != 0 || len(answers) != 6 {
 				t.Fatalf("answers %v", answers)
 			}
 		})
@@ -3009,7 +3006,7 @@ func TestTheWardrobesCommands(t *testing.T) {
 					answer = r
 				}
 			}
-			if answer == nil || answer.GetOk() || answer.Code != int32(model.PieceCollected.Code) {
+			if answer == nil || answer.GetOk() || answer.Code != int32(failure.PieceCollected.Code) {
 				t.Fatalf("response %+v", answer)
 			}
 			items.err = nil
@@ -3029,7 +3026,7 @@ func TestTheWardrobesCommands(t *testing.T) {
 			time.Sleep(time.Second)
 			h.world.failEquips(refusal(kernel.ErrInCombat))
 			c.send(wsconn.Message{ReqID: "l-2", Data: &clientv1.SetLook{IdempotencyKey: "k-4", Look: &clientv1.Look{}}})
-			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.InCombat.Code) {
+			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(failure.InCombat.Code) {
 				t.Fatalf("response %+v", r)
 			}
 			h.world.failEquips(nil)

@@ -1,6 +1,7 @@
 package transport_test
 
 import (
+	"finga/internal/shared/failure"
 	"fmt"
 	"maps"
 	"net/http"
@@ -9,7 +10,6 @@ import (
 	"testing"
 
 	"finga/internal/application/pvp"
-	model "finga/internal/model/gateway"
 	"finga/internal/shared/kernel"
 )
 
@@ -34,8 +34,8 @@ func TestTheArenaEndpoints(t *testing.T) {
 		h.arena.profile = func(kernel.AccountID, kernel.CharacterID) (pvp.Profile, error) {
 			return pvp.Profile{}, fmt.Errorf("%w: another account's", kernel.ErrCharacterNotFound)
 		}
-		assertError(t, h.do("GET", "/api/characters/"+id+"/pvp", "", authed()), http.StatusNotFound, model.CharacterNotFound)
-		assertError(t, h.do("GET", "/api/characters/nope/pvp", "", authed()), http.StatusBadRequest, model.BadID)
+		assertError(t, h.do("GET", "/api/characters/"+id+"/pvp", "", authed()), http.StatusNotFound, failure.CharacterNotFound)
+		assertError(t, h.do("GET", "/api/characters/nope/pvp", "", authed()), http.StatusBadRequest, failure.BadID)
 	})
 	t.Run("build", func(t *testing.T) {
 		var got []string
@@ -53,12 +53,12 @@ func TestTheArenaEndpoints(t *testing.T) {
 		if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != body || !slices.Equal(got, []string{"strike", "war_cry", "", "", "", "", "", ""}) || !maps.Equal(gotTraits, map[string]string{"strike": "concussion"}) {
 			t.Fatalf("status %d: %s; the module got %v with %v", rec.Code, rec.Body.String(), got, gotTraits)
 		}
-		assertError(t, h.do("PUT", path, `{"skill_bar":"strike"}`, authed()), http.StatusBadRequest, model.MalformedBody)
-		assertError(t, h.do("PUT", path, `{"skill_bar":[],"bar":[]}`, authed()), http.StatusBadRequest, model.MalformedBody)
+		assertError(t, h.do("PUT", path, `{"skill_bar":"strike"}`, authed()), http.StatusBadRequest, failure.MalformedBody)
+		assertError(t, h.do("PUT", path, `{"skill_bar":[],"bar":[]}`, authed()), http.StatusBadRequest, failure.MalformedBody)
 		h.arena.setBuild = func(kernel.AccountID, kernel.CharacterID, []string, map[string]string) error {
 			return fmt.Errorf("%w: seven keys", kernel.ErrBadPvpBuild)
 		}
-		assertError(t, h.do("PUT", path, body, authed()), http.StatusBadRequest, model.BadPvpBuild)
+		assertError(t, h.do("PUT", path, body, authed()), http.StatusBadRequest, failure.BadPvpBuild)
 	})
 	t.Run("leaderboard", func(t *testing.T) {
 		ayla := kernel.NewCharacterID()
@@ -73,10 +73,10 @@ func TestTheArenaEndpoints(t *testing.T) {
 		if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != want {
 			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 		}
-		assertError(t, h.do("GET", "/api/pvp/leaderboard", "", authed()), http.StatusBadRequest, model.MissingField)
-		assertError(t, h.do("GET", "/api/pvp/leaderboard?mode=ffa", "", authed()), http.StatusBadRequest, model.PvpUnknownMode)
+		assertError(t, h.do("GET", "/api/pvp/leaderboard", "", authed()), http.StatusBadRequest, failure.MissingField)
+		assertError(t, h.do("GET", "/api/pvp/leaderboard?mode=ffa", "", authed()), http.StatusBadRequest, failure.PvpUnknownMode)
 	})
 	for _, r := range [][2]string{{"GET", "/api/characters/" + id + "/pvp"}, {"PUT", "/api/characters/" + id + "/pvp-build"}, {"GET", "/api/pvp/leaderboard?mode=duel"}} {
-		assertError(t, h.do(r[0], r[1], "{}", nil), http.StatusUnauthorized, model.Unauthenticated)
+		assertError(t, h.do(r[0], r[1], "{}", nil), http.StatusUnauthorized, failure.Unauthenticated)
 	}
 }

@@ -2,17 +2,16 @@ package transport
 
 import (
 	"errors"
+	application "finga/internal/application/account"
 	"log/slog"
 	"net/http"
 	"time"
 
-	"go.opentelemetry.io/otel/trace"
-
-	"finga/internal/application/gateway/send"
-	"finga/internal/application/gateway/session"
 	"finga/internal/shared/protocol"
 	"finga/pkg/panics"
 	"finga/pkg/wsconn"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 // ServerOptions tune the WebSocket server.
@@ -31,7 +30,7 @@ type ServerOptions struct {
 
 // Server serves /ws.
 type Server struct {
-	gw           *send.Gateway
+	gw           *application.Commands
 	subprotocols []wsconn.Subprotocol
 	opts         ServerOptions
 	receive      *Receiver
@@ -41,11 +40,11 @@ type Server struct {
 // Connection is one socket's receiving side and its session: the state wsconn hands back to each callback.
 type Connection struct {
 	in      *Inbox
-	session *session.Session
+	session *application.Connection
 }
 
 // NewServer serves gw's connections: each message is routed as routes say, and each push is written as encoders say; it fails if two routes take a message, or the Welcome has no encoder.
-func NewServer(gw *send.Gateway, opts ServerOptions, encoders *Encoders, routes ...Routes) (*Server, error) {
+func NewServer(gw *application.Commands, opts ServerOptions, encoders *Encoders, routes ...Routes) (*Server, error) {
 	if err := encoders.Complete(); err != nil {
 		return nil, err
 	}

@@ -5,7 +5,7 @@ import (
 	"reflect"
 
 	clientv1 "finga/api/gen/client/v1"
-	model "finga/internal/model/gateway"
+	model "finga/internal/model/account"
 )
 
 // Encoders turn what the application pushes to a connection into the client protocol's messages. Each module's handler registers the encoders of the pushes it owns, and the account's registers the Welcome's; the wiring calls them all before the server starts.

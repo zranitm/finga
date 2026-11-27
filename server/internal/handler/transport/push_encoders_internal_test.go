@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	model "finga/internal/model/gateway"
+	model "finga/internal/model/account"
 	"finga/pkg/wsconn"
 )
 

@@ -1,0 +1,102 @@
+// Package gateway is the gateway module's use cases: the lobby, before a player enters the world, and the ports its flows call the other modules through; push, send and session hold the flows.
+package account
+
+import (
+	"context"
+
+	model "finga/internal/model/account"
+	"finga/internal/shared/kernel"
+)
+
+// Lobby is the REST API's use cases, before a player enters the world.
+type Lobby struct {
+	accounts   LobbyAccounts
+	characters LobbyCharacters
+	sessions   LobbySessions
+	wardrobes  LobbyWardrobes
+	arena      LobbyArena
+}
+
+// LobbyDeps are what the lobby is built over: the account, character, item and pvp modules and the session guard.
+type LobbyDeps struct {
+	Accounts   LobbyAccounts
+	Characters LobbyCharacters
+	Sessions   LobbySessions
+	Wardrobes  LobbyWardrobes
+	Arena      LobbyArena
+}
+
+// NewLobby builds the use cases over deps.
+func NewLobby(deps LobbyDeps) *Lobby {
+	return &Lobby{accounts: deps.Accounts, characters: deps.Characters, sessions: deps.Sessions, wardrobes: deps.Wardrobes, arena: deps.Arena}
+}
+
+// Authenticate resolves a bearer token to its login session.
+func (l *Lobby) Authenticate(ctx context.Context, token string) (model.Principal, error) {
+	return l.sessions.Validate(ctx, token)
+}
+
+// Register signs up.
+func (l *Lobby) Register(ctx context.Context, username, password string) (model.Summary, error) {
+	return l.accounts.Register(ctx, username, password)
+}
+
+// Login returns a new session token; it is throttled per username here and per IP at the edge.
+func (l *Lobby) Login(ctx context.Context, username, password string) (string, error) {
+	return l.accounts.Login(ctx, username, password)
+}
+
+// Logout ends the caller's login session.
+func (l *Lobby) Logout(ctx context.Context, p model.Principal) error {
+	return l.sessions.Revoke(ctx, p.SessionID)
+}
+
+// LogoutEverywhere ends every session of the caller's account, closing its connections.
+func (l *Lobby) LogoutEverywhere(ctx context.Context, p model.Principal) error {
+	return l.sessions.RevokeAll(ctx, p.AccountID)
+}
+
+// Characters lists the caller's characters.
+func (l *Lobby) Characters(ctx context.Context, p model.Principal) ([]model.Character, error) {
+	return l.characters.List(ctx, p.AccountID)
+}
+
+// CreateCharacter creates a character for the caller, a Beginner.
+func (l *Lobby) CreateCharacter(ctx context.Context, p model.Principal, name string) (model.Character, error) {
+	return l.characters.Create(ctx, p.AccountID, name)
+}
+
+// SetSkillBar stores which skill sits on each key of one of the caller's characters.
+func (l *Lobby) SetSkillBar(ctx context.Context, p model.Principal, id kernel.CharacterID, bar []string) error {
+	return l.characters.SetSkillBar(ctx, p.AccountID, id, bar)
+}
+
+// PvpProfile is one of the caller's characters' standing in each rated mode, and their arena build.
+func (l *Lobby) PvpProfile(ctx context.Context, p model.Principal, id kernel.CharacterID) (model.PvpProfile, error) {
+	return l.arena.Profile(ctx, p.AccountID, id)
+}
+
+// SetArenaBuild saves the arena build of one of the caller's characters.
+func (l *Lobby) SetArenaBuild(ctx context.Context, p model.Principal, id kernel.CharacterID, b model.ArenaBuild) error {
+	return l.arena.SetBuild(ctx, p.AccountID, id, b)
+}
+
+// Leaderboard is a rated mode's board, the same for every caller.
+func (l *Lobby) Leaderboard(ctx context.Context, mode string) ([]model.PvpRow, error) {
+	return l.arena.Leaderboard(ctx, mode)
+}
+
+// Settings are the caller's account settings.
+func (l *Lobby) Settings(ctx context.Context, p model.Principal) (model.Settings, error) {
+	return l.accounts.Settings(ctx, p.AccountID)
+}
+
+// Wardrobe lists the caller's account's pieces, oldest first.
+func (l *Lobby) Wardrobe(ctx context.Context, p model.Principal) ([]model.Piece, error) {
+	return l.wardrobes.Pieces(ctx, p.AccountID)
+}
+
+// UpdateSettings replaces the caller's account settings.
+func (l *Lobby) UpdateSettings(ctx context.Context, p model.Principal, s model.Settings) error {
+	return l.accounts.UpdateSettings(ctx, p.AccountID, s)
+}

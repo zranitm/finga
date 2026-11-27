@@ -6,7 +6,7 @@ import (
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/handler/transport"
-	model "finga/internal/model/gateway"
+	model "finga/internal/model/account"
 	"finga/pkg/wsconn"
 )
 

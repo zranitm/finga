@@ -3,7 +3,7 @@ package account
 import (
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/handler/transport"
-	model "finga/internal/model/gateway"
+	model "finga/internal/model/account"
 )
 
 // Encoders registers the account's part of the Welcome: the token, the clock and the waypoints a join answers with.

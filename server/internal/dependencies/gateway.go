@@ -3,14 +3,11 @@ package dependencies
 import (
 	"context"
 	"errors"
+	application "finga/internal/application/account"
 	"fmt"
 
 	"finga/config"
-	adapter "finga/internal/adapter/gateway"
-	application "finga/internal/application/gateway"
-	"finga/internal/application/gateway/push"
-	"finga/internal/application/gateway/send"
-	"finga/internal/application/gateway/session"
+	adapter "finga/internal/adapter/account"
 	handleraccount "finga/internal/handler/account"
 	handlercharacter "finga/internal/handler/character"
 	handleritem "finga/internal/handler/item"
@@ -18,7 +15,8 @@ import (
 	handlersocial "finga/internal/handler/social"
 	"finga/internal/handler/transport"
 	handlerworld "finga/internal/handler/world"
-	metrics "finga/internal/metrics/gateway"
+	metricsaccount "finga/internal/metrics/account"
+	metricstransport "finga/internal/metrics/transport"
 	"finga/internal/shared/host"
 	"finga/pkg/ratelimit"
 	"finga/pkg/uuidv7"
@@ -29,7 +27,7 @@ const httpListener = "http"
 
 // gatewayModules are the modules the gateway calls, in the same process.
 type gatewayModules struct {
-	Account   adapter.AccountModule
+	Account   adapter.OwnModule
 	Character adapter.CharacterModule
 	Item      adapter.ItemModule
 	World     adapter.WorldModule
@@ -46,15 +44,19 @@ func buildGateway(ctx context.Context, h *host.Host, cfg config.Gateway, public 
 	}
 	m.TraceRoots(entryPoint)
 	log, rec := m.Logger, m.Panics
-	meters, err := metrics.New(h.Registry())
+	online, err := metricsaccount.New(h.Registry())
+	if err != nil {
+		return fmt.Errorf("metrics: %w", err)
+	}
+	socket, err := metricstransport.New(h.Registry())
 	if err != nil {
 		return fmt.Errorf("metrics: %w", err)
 	}
 	guard, world, social, items := adapter.NewGuard(mods.Account), adapter.NewWorld(mods.World, log, rec), adapter.NewSocial(mods.Social, log, rec), adapter.NewItems(mods.Item)
 	matches := adapter.NewPvp(mods.Pvp, log, rec)
 	lobby := application.NewLobby(application.LobbyDeps{Accounts: adapter.NewAccounts(mods.Account), Characters: adapter.NewCharacters(mods.Character), Sessions: guard, Wardrobes: items, Arena: adapter.NewArena(mods.Arena)})
-	sessions := session.NewRegistry(session.Deps{World: world, Social: social, Pvp: matches, Items: items, Logger: log, Panics: rec, Traces: h.Traces, Observer: meters}, session.Options{Gateway: uuidv7.NewString(), JoinTimeout: cfg.Sessions.JoinTimeout})
-	sendFlow := send.New(send.Deps{
+	sessions := application.NewConnections(application.ConnectionsDeps{World: world, Social: social, Pvp: matches, Items: items, Logger: log, Panics: rec, Traces: h.Traces, Observer: online}, application.ConnectionsOptions{Gateway: uuidv7.NewString(), JoinTimeout: cfg.Sessions.JoinTimeout})
+	sendFlow := application.NewCommands(application.CommandsDeps{
 		Sessions: guard,
 		Registry: sessions,
 		World:    world,
@@ -62,9 +64,9 @@ func buildGateway(ctx context.Context, h *host.Host, cfg config.Gateway, public 
 		Social:   social,
 		Pvp:      matches,
 		Logger:   log,
-		Observer: meters,
-	}, send.Options{JoinTimeout: cfg.Sessions.JoinTimeout})
-	pushFlow := push.New(push.Deps{
+		Observer: online,
+	}, application.CommandsOptions{JoinTimeout: cfg.Sessions.JoinTimeout})
+	pushFlow := application.NewStreams(application.StreamsDeps{
 		Sessions: guard,
 		Registry: sessions,
 		World:    world,
@@ -74,14 +76,14 @@ func buildGateway(ctx context.Context, h *host.Host, cfg config.Gateway, public 
 		Logger:   log,
 		Panics:   rec,
 		Traces:   h.Traces,
-	}, push.Options{SessionCheckInterval: cfg.Sessions.CheckInterval})
+	}, application.StreamsOptions{SessionCheckInterval: cfg.Sessions.CheckInterval})
 	encoders := transport.NewEncoders()
 	if err := errors.Join(handleraccount.Encoders(encoders), handlercharacter.Encoders(encoders), handleritem.Encoders(encoders), handlerpvp.Encoders(encoders), handlersocial.Encoders(encoders), handlerworld.Encoders(encoders)); err != nil {
 		return fmt.Errorf("push encoders: %w", err)
 	}
 	ws, err := transport.NewServer(sendFlow, transport.ServerOptions{
 		Origins: public.CORSOrigins, HelloTimeout: cfg.WS.HelloTimeout, CommandQueue: cfg.WS.CommandQueue,
-		Observer: meters, Logger: log, Panics: rec, Traces: h.Traces,
+		Observer: socket, Logger: log, Panics: rec, Traces: h.Traces,
 	}, encoders, handleraccount.WSRoutes(sendFlow), handleritem.WSRoutes(sendFlow), handlerpvp.WSRoutes(sendFlow), handlersocial.WSRoutes(sendFlow), handlerworld.WSRoutes(sendFlow))
 	if err != nil {
 		return fmt.Errorf("websocket routes: %w", err)

@@ -3,7 +3,7 @@ package account
 import (
 	"time"
 
-	model "finga/internal/model/gateway"
+	model "finga/internal/model/account"
 )
 
 // RegisterRequest is POST /api/accounts.
@@ -50,7 +50,7 @@ type SettingsResponse struct {
 	Keys             map[string]string `json:"keys"` // never null: {} for the defaults
 }
 
-func toAccount(a model.Account) AccountResponse {
+func toAccount(a model.Summary) AccountResponse {
 	return AccountResponse{ID: a.ID.String(), Username: a.Username, CreatedAt: a.CreatedAt}
 }
 
