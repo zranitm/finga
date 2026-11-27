@@ -66,6 +66,10 @@ const bones = (who: string, ...rest: string[]) =>
     (m) => `Skeleton_${who}_${m}`,
   );
 
+/** The wings, made for the game by `npm run wings`: each pair's two halves, named for their side. */
+const WINGS = 'wings/Wings.glb';
+const pair = (kind: string) => [`${kind}_Wing_L`, `${kind}_Wing_R`];
+
 /** The Knight's Helm over a Rogue's head, wide enough that the earring sits inside its cheek guard. */
 const OVER_EARRING: Fit = { offset: [0, 0, 0], scale: 1.08 };
 
@@ -179,6 +183,13 @@ export const PIECE_LOOKS: Readonly<Record<string, PieceLook>> = {
   skeleton_axe: { slot: 'weapon', file: SKELETON_WEAPONS, meshes: ['Skeleton_Axe'] },
   skeleton_crossbow: { slot: 'weapon', file: SKELETON_WEAPONS, meshes: ['Skeleton_Crossbow'] },
   skeleton_staff: { slot: 'weapon', file: SKELETON_WEAPONS, meshes: ['Skeleton_Staff'] },
+  // The catalogue's candidate wings (outfits.md section 8), looks only till the user picks: their hinge angles are the flap table's, in wear.ts.
+  wings_feather: { slot: 'wings', file: WINGS, meshes: pair('Feathered') },
+  wings_raven: { slot: 'wings', file: WINGS, meshes: pair('Feathered'), colourway: 'wings_raven' },
+  wings_bat: { slot: 'wings', file: WINGS, meshes: pair('Bat') },
+  wings_butterfly: { slot: 'wings', file: WINGS, meshes: pair('Butterfly') },
+  wings_dragon: { slot: 'wings', file: WINGS, meshes: pair('Dragon'), glow: true },
+  wings_crystal: { slot: 'wings', file: WINGS, meshes: pair('Crystal'), glow: true },
 };
 
 export const COLOURWAYS: Readonly<Record<string, Colourway>> = {
@@ -199,4 +210,6 @@ export const COLOURWAYS: Readonly<Record<string, Colourway>> = {
   knight_veteran: { file: KNIGHT, swatches: { '3,0': 0x59626e, '7,0': 0x3a4049, '0,1': 0x2c5aa0 } },
   // The PvP win's stand-in: the Barbarian's hat in red fur with gold horns.
   barbarian_victor: { file: BARBARIAN, swatches: { '7,0': 0x8c2a24, '2,1': 0xd8a23e } },
+  // The feathered wings in raven's colours: the feathers, their tips and the shade between.
+  wings_raven: { file: WINGS, swatches: { '1,0': 0x2b2b33, '2,0': 0x5a4a7a, '3,0': 0x1c1c22 } },
 };

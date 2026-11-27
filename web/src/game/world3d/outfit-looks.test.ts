@@ -56,10 +56,16 @@ describe('the outfit pieces as the client draws them', () => {
   });
 
   it('gives every class file and parts file one rig, joint for joint, bind for bind, so a part swaps onto any of them', async () => {
+    // the wings' file is made for the game: no skin and no rig, only a node at each half's root; every other file must have the rig
+    const made = new Set(
+      Object.values(PIECE_LOOKS)
+        .filter((p) => p.slot === 'wings')
+        .map((p) => partsFile(p.file)),
+    );
     const files = [
       ...new Set(Object.values(MODELS).flatMap((m) => (m.own ? [m.file] : []))),
       ...new Set(Object.values(PIECE_LOOKS).map((p) => partsFile(p.file))),
-    ];
+    ].filter((f) => !made.has(f));
     expect(files.length).toBeGreaterThan(5);
     const docs = await Promise.all(files.map(async (f) => ({ f, doc: await read(OUT, f) })));
     const skinned = docs.filter((d) => d.doc.getRoot().listSkins().length > 0);
@@ -88,6 +94,16 @@ describe('the outfit pieces as the client draws them', () => {
         } else if (parentOf.get(n.getName())) {
           expect(parent, `${f} ${n.getName()}`).toBe(parentOf.get(n.getName())); // the rig's root hangs on the scene's Rig node
         }
+      }
+    }
+    // the made file is what it says: no skin, no joint of the rig, each half's node a mesh at the scene's root
+    for (const f of made) {
+      const doc = await read(OUT, f);
+      expect(doc.getRoot().listSkins(), f).toHaveLength(0);
+      for (const n of doc.getRoot().listNodes()) {
+        expect(parentOf.has(n.getName()), `${f} ${n.getName()}`).toBe(false);
+        expect(n.getMesh(), `${f} ${n.getName()}`).not.toBeNull();
+        expect(n.getParentNode(), `${f} ${n.getName()}`).toBeNull();
       }
     }
   });
