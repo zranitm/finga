@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"math"
 	"slices"
 	"testing"
 	"time"
@@ -91,7 +92,7 @@ func TestASlamStunsAPlayer(t *testing.T) {
 
 // C19 §13: a slammed Beginner presses Roll Back's key, which offers Break Free while held, granted with no points: the frame acking the input after the press
 // shows no status and no hold, the player already walking on it. Judged by the frames' acks.
-// From #357's CI: east, into the slimes, a slime can stop the step, and a slam while the reader lags knocks the player back; so west, judged from the frame before.
+// From #357's CI: a slime can stop the step, and a slam while the reader lags knocks the player back; so it walks away from the nearest slime, east or west, judged from the frame before.
 func TestAStunnedPlayerBreaksFree(t *testing.T) {
 	t.Parallel()
 	s := newStackOver(t, e2etest.GameData(t, slamming...))
@@ -101,10 +102,11 @@ func TestAStunnedPlayerBreaksFree(t *testing.T) {
 	l.Await(300*time.Millisecond, nil)
 
 	var press uint32
+	var west bool                                // the walk's way: away from the slime nearest the player when it presses
 	var last, before, after *clientv1.PlayerView // the player's latest frame, the one before the first acking an input past the press, and that one
 	answered := false
 	for game := l.Game(15 * time.Second); game.Left() && (after == nil || !answered); {
-		if err := l.Input(&clientv1.Input{Left: press > 0}); err != nil {
+		if err := l.Input(&clientv1.Input{Left: press > 0 && west, Right: press > 0 && !west}); err != nil {
 			t.Fatal(err)
 		}
 		l.Pump(50*time.Millisecond, func(m wsconn.Message) bool {
@@ -125,6 +127,7 @@ func TestAStunnedPlayerBreaksFree(t *testing.T) {
 					switch {
 					case press == 0 && stunned && v.GetHeld() > 0:
 						press = l.Seq
+						west = nearest(l.Mobs, v.GetX(), v.GetZ()) > v.GetX()
 						l.Send(wsconn.Message{ReqID: "free", Seq: press, Data: &clientv1.UseSkill{Skill: "break_free", ChainRoot: "roll_back"}})
 					case press > 0 && d.GetAckSeq() > press && after == nil:
 						before, after = last, v
@@ -138,7 +141,22 @@ func TestAStunnedPlayerBreaksFree(t *testing.T) {
 	if press == 0 || !answered || after == nil {
 		t.Fatalf("pressed during input %d, answered %v, a frame past the press %v, within 15 s", press, answered, after != nil)
 	}
-	if len(after.GetStatuses()) != 0 || after.GetHeld() != 0 || after.GetX() >= before.GetX() {
-		t.Fatalf("the first frame acking past the press's input %d: statuses %v, held %d, x %v from %v; want free, walking west", press, after.GetStatuses(), after.GetHeld(), after.GetX(), before.GetX())
+	away := after.GetX() < before.GetX()
+	if !west {
+		away = after.GetX() > before.GetX()
 	}
+	if len(after.GetStatuses()) != 0 || after.GetHeld() != 0 || !away {
+		t.Fatalf("the first frame acking past the press's input %d: statuses %v, held %d, x %v from %v; want free, walking away from the slimes (west %v)", press, after.GetStatuses(), after.GetHeld(), after.GetX(), before.GetX(), west)
+	}
+}
+
+// nearest is the x of the mob closest to (x, z); x itself when there is none.
+func nearest(mobs map[uint32]*clientv1.MobView, x, z float64) float64 {
+	at, best := x, math.Inf(1)
+	for _, m := range mobs {
+		if d := math.Hypot(m.GetX()-x, m.GetZ()-z); d < best {
+			at, best = m.GetX(), d
+		}
+	}
+	return at
 }
