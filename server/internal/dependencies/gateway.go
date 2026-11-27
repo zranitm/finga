@@ -27,14 +27,30 @@ const httpListener = "http"
 
 // gatewayModules are the modules the gateway calls, in the same process.
 type gatewayModules struct {
-	Account   adapter.OwnModule
+	Account interface {
+		adapter.OwnModule
+		handleraccount.Accounts
+		transport.Sessions
+	}
 	Character handlercharacter.Characters
-	Item      adapter.ItemModule
+	Item      interface {
+		adapter.ItemModule
+		handleritem.Items
+	}
 	Wardrobes handleritem.Wardrobes
-	World     adapter.WorldModule
-	Social    adapter.SocialModule
-	Pvp       adapter.PvpModule
-	Arena     handlerpvp.Arena
+	World     interface {
+		adapter.WorldModule
+		handlerworld.World
+	}
+	Social interface {
+		adapter.SocialModule
+		handlersocial.Social
+	}
+	Pvp interface {
+		adapter.PvpModule
+		handlerpvp.Queue
+	}
+	Arena handlerpvp.Arena
 }
 
 // buildGateway adds the gateway module to h from cfg, serving players at public and calling mods.

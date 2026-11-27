@@ -13,7 +13,6 @@ import (
 	model "finga/internal/model/account"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
-	"finga/internal/shared/sim"
 	"finga/pkg/hub"
 	"finga/pkg/panics"
 )
@@ -24,30 +23,7 @@ type WorldModule interface {
 	Join(ctx context.Context, gateway string, account kernel.AccountID, p world.Presence) (world.View, error)
 	Leave(ctx context.Context, p world.Presence) error
 	Drop(ctx context.Context, p world.Presence) error
-	Input(ctx context.Context, p world.Presence, seq uint32, in sim.Input, view uint32) error
-	Attack(ctx context.Context, p world.Presence, aim float32, target world.EntityRef) error
-	EnterPortal(ctx context.Context, p world.Presence) error
-	Teleport(ctx context.Context, p world.Presence, mapID, waypoint string, seq uint32) error
-	SwitchChannel(ctx context.Context, p world.Presence, n int, seq uint32) error
-	Channels(ctx context.Context, p world.Presence) (world.Channels, error)
-	Bosses(ctx context.Context, p world.Presence) ([]world.AreaBoss, error)
 	Say(ctx context.Context, p world.Presence, name, text string) error
-	Equip(ctx context.Context, p world.Presence, key string, item kernel.ItemID, equipSlot string) error
-	SetLook(ctx context.Context, p world.Presence, key string, look world.Look) error
-	TakeLoot(ctx context.Context, p world.Presence, picks []world.Pick) ([]world.PickAnswer, error)
-	UseItem(ctx context.Context, p world.Presence, key string, item kernel.ItemID, template string) error
-	Unequip(ctx context.Context, p world.Presence, key, equipSlot string, toSlot *int) error
-	SpendPoints(ctx context.Context, p world.Presence, expected int, points gamedata.Stats) error
-	ResetPoints(ctx context.Context, p world.Presence, expected int) error
-	SpendSkillPoints(ctx context.Context, p world.Presence, expected int, points map[string]int) error
-	ChooseTrait(ctx context.Context, p world.Presence, skill, trait string) error
-	UseSkill(ctx context.Context, p world.Presence, use world.SkillUse, seq uint32) error
-	Promote(ctx context.Context, p world.Presence, npc string, class kernel.Class) error
-	Talk(ctx context.Context, p world.Presence, npc string) error
-	AcceptQuest(ctx context.Context, p world.Presence, npc, quest string) error
-	AbandonQuest(ctx context.Context, p world.Presence, quest string) error
-	HandInQuest(ctx context.Context, p world.Presence, npc, quest string) error
-	Forfeit(ctx context.Context, p world.Presence) error
 }
 
 // World is the application's World over the world module.

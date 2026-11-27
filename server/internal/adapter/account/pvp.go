@@ -14,9 +14,6 @@ import (
 
 // PvpModule is the pvp module as the gateway calls it.
 type PvpModule interface {
-	Queue(ctx context.Context, p pvp.Player, mode string) error
-	LeaveQueue(ctx context.Context, who kernel.CharacterID) error
-	Answer(ctx context.Context, who kernel.CharacterID, offer string, accept bool) error
 	Offline(ctx context.Context, who kernel.CharacterID) error
 	Missed(ctx context.Context, id kernel.CharacterID) (pvp.Missed, error)
 	Told(ctx context.Context, id kernel.CharacterID, matches []kernel.MatchID) error

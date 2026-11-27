@@ -15,22 +15,8 @@ import (
 
 // accountModule records what it was asked and answers with its fields.
 type accountModule struct {
-	creds     account.Credentials
-	id        kernel.AccountID
-	acc       account.Account
 	token     string
 	principal account.Principal
-	settings  account.Settings
-}
-
-func (m *accountModule) Register(_ context.Context, c account.Credentials) (account.Account, error) {
-	m.creds = c
-	return m.acc, nil
-}
-
-func (m *accountModule) Login(_ context.Context, c account.Credentials) (string, error) {
-	m.creds = c
-	return m.token, nil
 }
 
 func (m *accountModule) Validate(_ context.Context, token string) (account.Principal, error) {
@@ -41,20 +27,6 @@ func (m *accountModule) Validate(_ context.Context, token string) (account.Princ
 func (m *accountModule) Rotate(context.Context, kernel.SessionID) (string, error) { return "", nil }
 
 func (m *accountModule) Check(context.Context, kernel.SessionID) error { return nil }
-
-func (m *accountModule) Revoke(context.Context, kernel.SessionID) error { return nil }
-
-func (m *accountModule) RevokeAll(context.Context, kernel.AccountID) error { return nil }
-
-func (m *accountModule) Settings(_ context.Context, id kernel.AccountID) (account.Settings, error) {
-	m.id = id
-	return m.settings, nil
-}
-
-func (m *accountModule) UpdateSettings(_ context.Context, id kernel.AccountID, s account.Settings) error {
-	m.id, m.settings = id, s
-	return nil
-}
 
 func (m *accountModule) Subscribe(string) *hub.Sub[account.Event] { return nil }
 

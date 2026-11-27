@@ -13,19 +13,13 @@ import (
 
 // OwnModule is the account module as the gateway calls it.
 type OwnModule interface {
-	Register(ctx context.Context, c account.Credentials) (account.Account, error)
-	Login(ctx context.Context, c account.Credentials) (string, error)
 	Validate(ctx context.Context, token string) (account.Principal, error)
 	Rotate(ctx context.Context, id kernel.SessionID) (string, error)
 	Check(ctx context.Context, id kernel.SessionID) error
-	Revoke(ctx context.Context, id kernel.SessionID) error
-	RevokeAll(ctx context.Context, id kernel.AccountID) error
-	Settings(ctx context.Context, id kernel.AccountID) (account.Settings, error)
-	UpdateSettings(ctx context.Context, id kernel.AccountID, s account.Settings) error
 	Subscribe(gateway string) *hub.Sub[account.Event]
 }
 
-// Guard is the send flow's and the push flow's session ports over the account module.
+// Guard is the login-session ports of the Hello, the token rotation and the session check, over the account module.
 type Guard struct{ a OwnModule }
 
 // NewGuard adapts the account module.

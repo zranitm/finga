@@ -147,24 +147,6 @@ func (m *socialModule) Online(_ context.Context, p social.Presence) error {
 
 func (m *socialModule) Offline(context.Context, kernel.CharacterID, string) error { return nil }
 
-func (m *socialModule) Invite(context.Context, kernel.CharacterID, kernel.CharacterID) (social.InviteID, error) {
-	return social.InviteID{}, nil
-}
-
-func (m *socialModule) Respond(context.Context, kernel.CharacterID, social.InviteID, bool) error {
-	return nil
-}
-
-func (m *socialModule) LeaveParty(context.Context, kernel.CharacterID) error { return nil }
-
-func (m *socialModule) Kick(context.Context, kernel.CharacterID, kernel.CharacterID) error {
-	return nil
-}
-
-func (m *socialModule) Promote(context.Context, kernel.CharacterID, kernel.CharacterID) error {
-	return nil
-}
-
 func (m *socialModule) Chat(_ context.Context, l social.Line) (social.Message, error) {
 	m.line = l
 	return m.msg, nil

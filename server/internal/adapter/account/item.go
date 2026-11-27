@@ -12,10 +12,6 @@ import (
 // ItemModule is the item module as the gateway calls it.
 type ItemModule interface {
 	Inventory(ctx context.Context, owner kernel.CharacterID) (item.Inventory, error)
-	Move(ctx context.Context, actor item.Actor, r item.MoveRequest) (item.Result, error)
-	Discard(ctx context.Context, actor item.Actor, r item.DiscardRequest) (item.Result, error)
-	DiscardMany(ctx context.Context, actor item.Actor, r item.DiscardManyRequest) (item.Result, error)
-	AddToWardrobe(ctx context.Context, actor item.Actor, r item.WardrobeRequest) (item.Result, error)
 }
 
 // Items is the application's Items over the item module.
@@ -46,16 +42,11 @@ func itemView(it item.Item) model.ItemView {
 	return model.ItemView{ID: it.ID.String(), Template: it.TemplateID, Tab: string(it.Tab), Slot: it.Slot, Quantity: it.Quantity, Stats: rollOf(it.Stats)}
 }
 
-// rollOf is an item's roll, nil for anything but equipment.
+// rollOf is a copy of an item's roll, nil for anything but equipment.
 func rollOf(s *progression.ItemStats) *model.ItemStats {
 	if s == nil {
 		return nil
 	}
-	return &model.ItemStats{
-		STR: s.STR, DEX: s.DEX, INT: s.INT, AGI: s.AGI, VIT: s.VIT,
-		PhysicalAttack: s.PhysicalAttack, MagicAttack: s.MagicAttack, PhysicalDefense: s.PhysicalDefense, MagicDefense: s.MagicDefense,
-		MaxHP: s.MaxHP, Accuracy: s.Accuracy, Evasion: s.Evasion,
-		CritRate: s.CritRate, CritDamage: s.CritDamage, Penetration: s.Penetration, HPRegen: s.HPRegen,
-		CooldownSpeed: s.CooldownSpeed, MoveSpeed: s.MoveSpeed,
-	}
+	roll := *s
+	return &roll
 }

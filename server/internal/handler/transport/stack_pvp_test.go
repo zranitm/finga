@@ -53,8 +53,9 @@ func TestPvpCommandsAndPushes(t *testing.T) {
 		if r := ayla.expect("Response").Data.(*clientv1.Response); !r.GetOk() {
 			t.Fatalf("forfeit: %+v", r)
 		}
+		conn := connectionOf(fw, aylaID)
 		fw.mu.Lock()
-		if len(fw.forfeits) != 1 || fw.forfeits[0].Character != aylaID {
+		if len(fw.forfeits) != 1 || fw.forfeits[0].Character != aylaID || fw.forfeits[0].Conn != conn {
 			t.Fatalf("forfeits %+v, want Ayla's", fw.forfeits)
 		}
 		fw.mu.Unlock()

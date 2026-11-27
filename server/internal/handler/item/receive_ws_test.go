@@ -3,6 +3,8 @@ package item
 import (
 	"testing"
 
+	clientv1 "finga/api/gen/client/v1"
+	"finga/internal/application/item"
 	"finga/pkg/copytest"
 )
 
@@ -23,7 +25,7 @@ func TestTheSlotsACommandChangedKeepEveryField(t *testing.T) {
 			"Look":                   "a move or a discard changes no look",
 		},
 	}
-	if got := copytest.Diff(match, inventoryChanged); len(got) > 0 {
+	if got := copytest.Diff(match, func(res item.Result) *clientv1.InventoryChanged { return InventoryChanged(changedOf(res)) }); len(got) > 0 {
 		t.Error(got)
 	}
 }

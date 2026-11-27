@@ -15,11 +15,6 @@ import (
 type SocialModule interface {
 	Online(ctx context.Context, p social.Presence) error
 	Offline(ctx context.Context, id kernel.CharacterID, conn string) error
-	Invite(ctx context.Context, from, to kernel.CharacterID) (social.InviteID, error)
-	Respond(ctx context.Context, who kernel.CharacterID, invite social.InviteID, accept bool) error
-	LeaveParty(ctx context.Context, who kernel.CharacterID) error
-	Kick(ctx context.Context, leader, target kernel.CharacterID) error
-	Promote(ctx context.Context, leader, target kernel.CharacterID) error
 	Chat(ctx context.Context, l social.Line) (social.Message, error)
 	Subscribe(gateway string) *hub.Sub[social.Delivery]
 	GatewayLeft(gateway string)

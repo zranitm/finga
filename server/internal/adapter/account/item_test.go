@@ -10,43 +10,15 @@ import (
 	"finga/pkg/copytest"
 )
 
-// itemModule records the last call and answers with inv or res.
+// itemModule records the last call and answers with inv.
 type itemModule struct {
-	actor  item.Actor
-	req    any
-	inv    item.Inventory
-	res    item.Result
-	pieces []item.Piece
-}
-
-func (m *itemModule) Wardrobe(_ context.Context, account kernel.AccountID) ([]item.Piece, error) {
-	m.req = account
-	return m.pieces, nil
+	req any
+	inv item.Inventory
 }
 
 func (m *itemModule) Inventory(_ context.Context, owner kernel.CharacterID) (item.Inventory, error) {
 	m.req = owner
 	return m.inv, nil
-}
-
-func (m *itemModule) Move(_ context.Context, a item.Actor, r item.MoveRequest) (item.Result, error) {
-	m.actor, m.req = a, r
-	return m.res, nil
-}
-
-func (m *itemModule) Discard(_ context.Context, a item.Actor, r item.DiscardRequest) (item.Result, error) {
-	m.actor, m.req = a, r
-	return m.res, nil
-}
-
-func (m *itemModule) AddToWardrobe(_ context.Context, a item.Actor, r item.WardrobeRequest) (item.Result, error) {
-	m.actor, m.req = a, r
-	return m.res, nil
-}
-
-func (m *itemModule) DiscardMany(_ context.Context, a item.Actor, r item.DiscardManyRequest) (item.Result, error) {
-	m.actor, m.req = a, r
-	return m.res, nil
 }
 
 // An inventory reaches the use cases with every field of every item, its roll too: those in a tab as items, the worn ones by their equip slot.

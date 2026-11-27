@@ -108,22 +108,19 @@ func changed(res item.Result, err error) (any, error) {
 	if err != nil || len(res.Changed) == 0 {
 		return nil, err
 	}
-	return inventoryChanged(res), nil
+	return InventoryChanged(changedOf(res)), nil
 }
 
-// inventoryChanged is the message for the slots a command changed.
-func inventoryChanged(res item.Result) *clientv1.InventoryChanged {
-	slots := make([]*clientv1.InventorySlot, 0, len(res.Changed))
+// changedOf is the slots a command changed, each item with its roll.
+func changedOf(res item.Result) model.InventoryChanged {
+	out := model.InventoryChanged{Revision: res.Revision, Slots: make([]model.InventorySlot, 0, len(res.Changed))}
 	for _, s := range res.Changed {
-		slot := &clientv1.InventorySlot{Tab: string(s.Tab), Slot: int32(s.Slot)}
+		slot := model.InventorySlot{Tab: string(s.Tab), Slot: s.Slot}
 		if s.Item != nil {
-			slot.Item = wireItem(*s.Item)
+			it := s.Item
+			slot.Item = &model.ItemView{ID: it.ID.String(), Template: it.TemplateID, Tab: string(it.Tab), Slot: it.Slot, Quantity: it.Quantity, Stats: it.Stats}
 		}
-		slots = append(slots, slot)
+		out.Slots = append(out.Slots, slot)
 	}
-	return &clientv1.InventoryChanged{Slots: slots, Revision: res.Revision}
-}
-
-func wireItem(it item.Item) *clientv1.ItemView {
-	return &clientv1.ItemView{ItemId: it.ID.String(), Template: it.TemplateID, Tab: string(it.Tab), Slot: int32(it.Slot), Quantity: int32(it.Quantity), Stats: transport.ItemStats((*model.ItemStats)(it.Stats))}
+	return out
 }

@@ -33,7 +33,7 @@ type CommandsObserver interface {
 	OnlineChanged(delta int)
 }
 
-// CommandsDeps are what the send flow is built from.
+// CommandsDeps are what Hello and chat are built from.
 type CommandsDeps struct {
 	Sessions CommandsSessions
 	Registry *Connections // the sessions both flows share
@@ -43,21 +43,21 @@ type CommandsDeps struct {
 	Observer CommandsObserver
 }
 
-// CommandsOptions tune the send flow.
+// CommandsOptions tune the Hello.
 type CommandsOptions struct {
 	JoinTimeout time.Duration // a Hello's whole join, retries included
 }
 
 const rotateTimeout = 5 * time.Second
 
-// Commands runs the send flow's use cases over the registry's sessions.
+// Commands runs a connection's Hello and its chat over the registry's connections.
 type Commands struct {
 	deps     CommandsDeps
 	opts     CommandsOptions
 	sessions *Connections
 }
 
-// NewCommands builds the send flow over deps.
+// NewCommands builds Hello and chat over deps.
 func NewCommands(deps CommandsDeps, opts CommandsOptions) *Commands {
 	return &Commands{deps: deps, opts: opts, sessions: deps.Registry}
 }

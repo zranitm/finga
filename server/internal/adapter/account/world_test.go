@@ -8,22 +8,16 @@ import (
 
 	"finga/internal/application/world"
 	model "finga/internal/model/account"
-	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
-	"finga/internal/shared/sim"
 	"finga/pkg/copytest"
 	"finga/pkg/hub"
 )
 
-// worldModule records the last call: the presence and the rest of its arguments; Join answers with view, and TakeLoot with picks and err.
+// worldModule records the last call: the presence and the rest of its arguments; Join answers with view.
 type worldModule struct {
-	p        world.Presence
-	args     any
-	view     world.View
-	picks    []world.PickAnswer
-	channels world.Channels
-	bosses   []world.AreaBoss
-	err      error
+	p    world.Presence
+	args any
+	view world.View
 }
 
 // The arguments of each world call after its presence.
@@ -32,70 +26,7 @@ type (
 		Gateway string
 		Account kernel.AccountID
 	}
-	inputArgs struct {
-		Seq  uint32
-		In   sim.Input
-		View uint32
-	}
-	sayArgs     struct{ Name, Text string }
-	npcArgs     struct{ NPC string }
-	questArgs   struct{ Quest string }
-	npcQuest    struct{ NPC, Quest string }
-	promoteArgs struct {
-		NPC   string
-		Class kernel.Class
-	}
-	equipArgs struct {
-		Key       string
-		Item      kernel.ItemID
-		EquipSlot string
-	}
-	lookArgs struct {
-		Key  string
-		Look world.Look
-	}
-	takeArgs    struct{ Picks []world.Pick }
-	unequipArgs struct {
-		Key       string
-		EquipSlot string
-		ToSlot    *int
-	}
-	useArgs struct {
-		Key      string
-		Item     kernel.ItemID
-		Template string
-	}
-	pointsArgs struct {
-		Expected int
-		Points   gamedata.Stats
-	}
-	skillPointsArgs struct {
-		Expected int
-		Points   map[string]int
-	}
-	traitArgs struct{ Skill, Trait string }
-	skillArgs struct {
-		Skill  string
-		Root   string
-		Aim    float32
-		Target world.EntityRef
-		Way    sim.Way
-		Seq    uint32
-	}
-	teleportArgs struct {
-		MapID    string
-		Waypoint string
-		Seq      uint32
-	}
-	switchArgs struct {
-		Channel int
-		Seq     uint32
-	}
-	aimArgs struct {
-		Aim    float32
-		Target world.EntityRef
-	}
-	resetArgs struct{ Expected int }
+	sayArgs struct{ Name, Text string }
 )
 
 func (w *worldModule) record(p world.Presence, args any) error {
@@ -113,103 +44,42 @@ func (w *worldModule) Leave(_ context.Context, p world.Presence) error { return 
 
 func (w *worldModule) Drop(_ context.Context, p world.Presence) error { return w.record(p, nil) }
 
-func (w *worldModule) Input(_ context.Context, p world.Presence, seq uint32, in sim.Input, view uint32) error {
-	return w.record(p, inputArgs{seq, in, view})
-}
-
-func (w *worldModule) Attack(_ context.Context, p world.Presence, aim float32, target world.EntityRef) error {
-	return w.record(p, aimArgs{aim, target})
-}
-
-func (w *worldModule) EnterPortal(_ context.Context, p world.Presence) error {
-	return w.record(p, nil)
-}
-
 func (w *worldModule) Say(_ context.Context, p world.Presence, name, text string) error {
 	return w.record(p, sayArgs{name, text})
 }
 
-func (w *worldModule) Equip(_ context.Context, p world.Presence, key string, item kernel.ItemID, equipSlot string) error {
-	return w.record(p, equipArgs{key, item, equipSlot})
-}
-
-func (w *worldModule) SetLook(_ context.Context, p world.Presence, key string, look world.Look) error {
-	return w.record(p, lookArgs{key, look})
-}
-
-func (w *worldModule) TakeLoot(_ context.Context, p world.Presence, picks []world.Pick) ([]world.PickAnswer, error) {
-	_ = w.record(p, takeArgs{picks})
-	return w.picks, w.err
-}
-
-func (w *worldModule) UseItem(_ context.Context, p world.Presence, key string, item kernel.ItemID, template string) error {
-	return w.record(p, useArgs{key, item, template})
-}
-
-func (w *worldModule) Unequip(_ context.Context, p world.Presence, key, equipSlot string, toSlot *int) error {
-	return w.record(p, unequipArgs{key, equipSlot, toSlot})
-}
-
-func (w *worldModule) SpendPoints(_ context.Context, p world.Presence, expected int, points gamedata.Stats) error {
-	return w.record(p, pointsArgs{expected, points})
-}
-
-func (w *worldModule) ResetPoints(_ context.Context, p world.Presence, expected int) error {
-	return w.record(p, resetArgs{expected})
-}
-
-func (w *worldModule) SpendSkillPoints(_ context.Context, p world.Presence, expected int, points map[string]int) error {
-	return w.record(p, skillPointsArgs{expected, points})
-}
-
-func (w *worldModule) ChooseTrait(_ context.Context, p world.Presence, skill, trait string) error {
-	return w.record(p, traitArgs{skill, trait})
-}
-
-func (w *worldModule) UseSkill(_ context.Context, p world.Presence, use world.SkillUse, seq uint32) error {
-	return w.record(p, skillArgs{use.Skill, use.Root, use.Aim, use.Target, use.Way, seq})
-}
-
-func (w *worldModule) Teleport(_ context.Context, p world.Presence, mapID, waypoint string, seq uint32) error {
-	return w.record(p, teleportArgs{mapID, waypoint, seq})
-}
-
-func (w *worldModule) SwitchChannel(_ context.Context, p world.Presence, n int, seq uint32) error {
-	return w.record(p, switchArgs{n, seq})
-}
-
-func (w *worldModule) Channels(_ context.Context, p world.Presence) (world.Channels, error) {
-	_ = w.record(p, nil)
-	return w.channels, w.err
-}
-
-func (w *worldModule) Bosses(_ context.Context, p world.Presence) ([]world.AreaBoss, error) {
-	_ = w.record(p, nil)
-	return w.bosses, w.err
-}
-
-func (w *worldModule) Promote(_ context.Context, p world.Presence, npc string, class kernel.Class) error {
-	return w.record(p, promoteArgs{npc, class})
-}
-
-func (w *worldModule) Talk(_ context.Context, p world.Presence, npc string) error {
-	return w.record(p, npcArgs{npc})
-}
-
-func (w *worldModule) AcceptQuest(_ context.Context, p world.Presence, npc, quest string) error {
-	return w.record(p, npcQuest{npc, quest})
-}
-
-func (w *worldModule) AbandonQuest(_ context.Context, p world.Presence, quest string) error {
-	return w.record(p, questArgs{quest})
-}
-
-func (w *worldModule) HandInQuest(_ context.Context, p world.Presence, npc, quest string) error {
-	return w.record(p, npcQuest{npc, quest})
-}
-
-func (w *worldModule) Forfeit(_ context.Context, p world.Presence) error {
-	return w.record(p, struct{}{})
+// Leave, Drop and Say reach the module with the player's presence, the connection included, and Say with its line.
+func TestLeaveDropAndSayKeepTheirFields(t *testing.T) {
+	w := &worldModule{}
+	a := NewWorld(w, slog.New(slog.DiscardHandler), nil)
+	match := copytest.Match{Renames: map[string]string{"Connection": "Conn"}}
+	for name, call := range map[string]func(model.Presence) error{
+		"Leave": func(p model.Presence) error { return a.Leave(t.Context(), p) },
+		"Drop":  func(p model.Presence) error { return a.Drop(t.Context(), p) },
+	} {
+		got := copytest.Diff(match, func(p model.Presence) world.Presence {
+			_ = call(p)
+			return w.p
+		})
+		if len(got) > 0 {
+			t.Errorf("%s: %v", name, got)
+		}
+	}
+	type say struct {
+		P          model.Presence
+		Name, Text string
+	}
+	type said struct {
+		P    world.Presence
+		Args sayArgs
+	}
+	got := copytest.Diff(copytest.Match{Renames: map[string]string{"P.Connection": "P.Conn", "Name": "Args.Name", "Text": "Args.Text"}}, func(in say) said {
+		_ = a.Say(t.Context(), in.P, in.Name, in.Text)
+		return said{w.p, w.args.(sayArgs)}
+	})
+	if len(got) > 0 {
+		t.Errorf("Say: %v", got)
+	}
 }
 
 // atWorld is what the module gets: the presence and the arguments after it.
