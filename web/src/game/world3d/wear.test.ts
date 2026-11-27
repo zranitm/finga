@@ -147,7 +147,14 @@ describe('an outfit piece worn', () => {
               );
             }
           }
-          if (piece.slot !== 'face' && piece.slot !== 'wings') {
+          if (piece.slot === 'face' || piece.slot === 'wings') {
+            // a piece made in code hangs from its slot's joint: face on the head, wings at the chest
+            for (const name of piece.meshes) {
+              expect(mesh(b, `${name} worn`)!.parent?.parent?.name, `${key} ${name}`).toBe(
+                piece.slot === 'face' ? 'head' : 'chest',
+              );
+            }
+          } else {
             for (const name of look.own![piece.slot]) {
               expect(mesh(b, name)?.isEnabled(), `${key} ${name}`).toBe(false);
             }
