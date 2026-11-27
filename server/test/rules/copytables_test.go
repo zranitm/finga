@@ -1,4 +1,4 @@
-// Every event a map sends, every event the world module's stream brings and every push the gateway sends has a row in the test that checks its conversion keeps each field: one without a row could lose a field unseen.
+// Every event a map sends, every event the world module's stream brings and every push the account module sends has a row in the test that checks its conversion keeps each field: one without a row could lose a field unseen.
 
 package rules_test
 
@@ -107,8 +107,8 @@ func TestEveryEventAndPushHasACopyRow(t *testing.T) {
 	}
 	got, err := unrowed("../..", pkgs,
 		copyTable{members: "finga/internal/model/world", marker: "event", file: "internal/application/world/events_test.go", tests: []string{"TestEveryModelEventKeepsItsFields"}},
-		copyTable{members: "finga/internal/application/world", marker: "worldEvent", file: "internal/adapter/gateway/deliveries_test.go", tests: []string{"TestEveryWorldEventKeepsItsValues", "TestAFrameKeepsItsValues"}},
-		copyTable{members: "finga/internal/model/gateway", marker: "push", file: "internal/handler/transport/push_outbox_test.go", tests: []string{"TestEachPushReachesTheClientAsItsMessage"}},
+		copyTable{members: "finga/internal/application/world", marker: "worldEvent", file: "internal/adapter/account/deliveries_test.go", tests: []string{"TestEveryWorldEventKeepsItsValues", "TestAFrameKeepsItsValues"}},
+		copyTable{members: "finga/internal/model/account", marker: "push", file: "internal/handler/transport/push_outbox_test.go", tests: []string{"TestEachPushReachesTheClientAsItsMessage"}},
 	)
 	if err != nil {
 		t.Fatal(err)

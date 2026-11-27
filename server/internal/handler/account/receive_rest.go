@@ -1,13 +1,13 @@
 package account
 
 import (
+	application "finga/internal/application/account"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
-
-	application "finga/internal/application/gateway"
 	"finga/internal/handler/transport"
-	model "finga/internal/model/gateway"
+	model "finga/internal/model/account"
+
+	"github.com/gin-gonic/gin"
 )
 
 // rest serves accounts, login sessions and settings over REST: client to server.

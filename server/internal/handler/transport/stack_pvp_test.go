@@ -1,6 +1,7 @@
 package transport_test
 
 import (
+	"finga/internal/shared/failure"
 	"slices"
 	"strings"
 	"testing"
@@ -12,7 +13,6 @@ import (
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/application/pvp"
-	model "finga/internal/model/gateway"
 	"finga/internal/shared/kernel"
 	"finga/pkg/wsconn"
 )
@@ -63,7 +63,7 @@ func TestPvpCommandsAndPushes(t *testing.T) {
 		fp.err = refusal(kernel.ErrPvpAlreadyQueued)
 		fp.mu.Unlock()
 		ayla.send(wsconn.Message{ReqID: "q-x", Data: &clientv1.PvpQueue{Mode: "duel"}})
-		if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.PvpAlreadyQueued.Code) {
+		if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(failure.PvpAlreadyQueued.Code) {
 			t.Fatalf("queued twice: %+v", r)
 		}
 		for _, id := range []kernel.CharacterID{aylaID, robinID} { // Robin isn't on this gateway: dropped

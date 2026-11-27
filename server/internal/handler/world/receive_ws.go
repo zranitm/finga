@@ -1,24 +1,25 @@
 package world
 
 import (
+	application "finga/internal/application/account"
+	"finga/internal/shared/failure"
 	"math"
 	"strconv"
 	"strings"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/application/gateway/send"
 	"finga/internal/handler/transport"
-	model "finga/internal/model/gateway"
+	model "finga/internal/model/account"
 	"finga/internal/shared/kernel"
 )
 
 // ws is the module's client messages: client to server.
 type ws struct {
-	gw *send.Gateway
+	gw *application.Commands
 }
 
 // WSRoutes adds the module's client messages to a Receiver.
-func WSRoutes(gw *send.Gateway) transport.Routes {
+func WSRoutes(gw *application.Commands) transport.Routes {
 	h := &ws{gw: gw}
 	return func(r *transport.Receiver) {
 		transport.Handle(r, "Input", h.input, r.Action(transport.LimitInput, r.Logged)...)
@@ -65,8 +66,8 @@ func (h *ws) attack(c *transport.Context, in *clientv1.Attack) (any, error) {
 
 // takeLoot answers each pick once the item module did: taken with code 0, or refused with the code of why.
 func (h *ws) takeLoot(c *transport.Context, in *clientv1.TakeLoot) (any, error) {
-	if len(in.GetPicks()) > model.MaxPicks {
-		return nil, model.ErrTooManyPicks
+	if len(in.GetPicks()) > failure.MaxPicks {
+		return nil, failure.ErrTooManyPicks
 	}
 	picks := make([]model.LootPick, 0, len(in.GetPicks()))
 	for _, p := range in.GetPicks() {
@@ -80,7 +81,7 @@ func (h *ws) takeLoot(c *transport.Context, in *clientv1.TakeLoot) (any, error) 
 	for _, a := range answers {
 		answer := &clientv1.PickAnswer{Pick: &clientv1.LootPick{Pouch: uint32(a.Pouch), Item: a.Item}} //nolint:gosec // pouch IDs count up within one map instance
 		if a.Err != nil {
-			answer.Code = int32(model.PublicOf(a.Err).Code) //nolint:gosec // six-digit codes
+			answer.Code = int32(failure.PublicOf(a.Err).Code) //nolint:gosec // six-digit codes
 		}
 		out.Picks = append(out.Picks, answer)
 	}
@@ -239,7 +240,7 @@ func targetOf(ref string) (model.Target, error) {
 // aimOf is a yaw an attack or a skill aims along, refused unless finite.
 func aimOf(yaw float32) (float32, error) {
 	if f := float64(yaw); math.IsNaN(f) || math.IsInf(f, 0) {
-		return 0, model.ErrBadAim
+		return 0, failure.ErrBadAim
 	}
 	return yaw, nil
 }

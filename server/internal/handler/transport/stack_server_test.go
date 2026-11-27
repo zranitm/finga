@@ -1,7 +1,7 @@
 package transport_test
 
 import (
-	"finga/internal/application/gateway/send"
+	application "finga/internal/application/account"
 	haccount "finga/internal/handler/account"
 	hcharacter "finga/internal/handler/character"
 	hitem "finga/internal/handler/item"
@@ -23,7 +23,7 @@ func allEncoders() *transport.Encoders {
 }
 
 // newServer is the WebSocket server over every module's routes and encoders, as the wiring builds it.
-func newServer(gw *send.Gateway, opts transport.ServerOptions) *transport.Server {
+func newServer(gw *application.Commands, opts transport.ServerOptions) *transport.Server {
 	srv, err := transport.NewServer(gw, opts, allEncoders(), haccount.WSRoutes(gw), hitem.WSRoutes(gw), hpvp.WSRoutes(gw), hsocial.WSRoutes(gw), hworld.WSRoutes(gw))
 	if err != nil {
 		panic(err)

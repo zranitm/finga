@@ -16,7 +16,7 @@ import (
 	"finga/internal/application/world/instance"
 	"finga/internal/application/world/worldtest"
 	"finga/internal/handler/transport"
-	gwmodel "finga/internal/model/gateway"
+	gwmodel "finga/internal/model/account"
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"

@@ -2,10 +2,9 @@ package transport
 
 import (
 	"encoding/json"
+	"finga/internal/shared/failure"
 
 	"github.com/gin-gonic/gin"
-
-	model "finga/internal/model/gateway"
 )
 
 const (
@@ -13,17 +12,17 @@ const (
 	causeKey   = "finga.internal_cause"
 )
 
-// WriteError answers err as model.PublicOf maps it; the error's text never reaches the body, only the request log.
+// WriteError answers err as failure.PublicOf maps it; the error's text never reaches the body, only the request log.
 func WriteError(c *gin.Context, err error) {
-	p := model.PublicOf(err)
-	if model.IsInternal(p) || p == model.Unavailable {
+	p := failure.PublicOf(err)
+	if failure.IsInternal(p) || p == failure.Unavailable {
 		c.Set(causeKey, err)
 	}
 	WritePublic(c, p)
 }
 
 // WritePublic sends p and notes it for the request log.
-func WritePublic(c *gin.Context, p model.Public) {
+func WritePublic(c *gin.Context, p failure.Public) {
 	c.Set(refusalKey, p)
 	WriteJSON(c, status(p), ErrorResponse{Code: p.Code, Message: p.Message})
 }

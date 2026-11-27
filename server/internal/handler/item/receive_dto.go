@@ -3,7 +3,7 @@ package item
 import (
 	"time"
 
-	model "finga/internal/model/gateway"
+	model "finga/internal/model/account"
 )
 
 // WardrobeResponse is the account's pieces, oldest first.

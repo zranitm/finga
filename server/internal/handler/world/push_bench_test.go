@@ -7,7 +7,7 @@ import (
 
 	"finga/internal/handler/transport"
 	"finga/internal/handler/world"
-	model "finga/internal/model/gateway"
+	model "finga/internal/model/account"
 	"finga/internal/shared/protocol"
 	"finga/pkg/wsconn"
 )

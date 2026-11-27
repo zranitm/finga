@@ -20,7 +20,7 @@ linters:
     depguard:
       rules:
         below-cmd:
-          files: ["**/internal/shared/**", "**/internal/application/*/*/**", "**/internal/application/gateway/*.go", "**/internal/application/{account,character,item,pvp,social}/*.go", "!**/internal/application/account/account.go", "!**/internal/application/character/character.go", "!**/internal/application/item/item.go", "!**/internal/application/pvp/pvp.go", "!**/internal/application/social/social.go", "**/internal/model/**", "**/internal/repository/**", "**/internal/handler/**", "**/internal/metrics/**", "**/internal/adapter/**", "**/cmd/internal/**", "**/pkg/**"]
+          files: ["**/internal/shared/**", "**/internal/application/*/*/**", "**/internal/application/{account,character,item,pvp,social}/*.go", "!**/internal/application/account/account.go", "!**/internal/application/character/character.go", "!**/internal/application/item/item.go", "!**/internal/application/pvp/pvp.go", "!**/internal/application/social/social.go", "**/internal/model/**", "**/internal/repository/**", "**/internal/handler/**", "**/internal/metrics/**", "**/internal/adapter/**", "**/cmd/internal/**", "**/pkg/**"]
           deny:
             - pkg: finga/cmd
               desc: only a binary and the tests import its composition root
@@ -93,10 +93,10 @@ linters:
               desc: the shared kernel knows no database
         # A module's inner layers, below its facade, are business logic; an adapter's test builds the module it adapts on a host.
         modules:
-          files: ["**/internal/application/*/*/**", "**/internal/application/gateway/*.go", "**/internal/application/{account,character,item,pvp,social}/*.go", "!**/internal/application/account/account.go", "!**/internal/application/character/character.go", "!**/internal/application/item/item.go", "!**/internal/application/pvp/pvp.go", "!**/internal/application/social/social.go", "**/internal/model/**", "**/internal/repository/**", "**/internal/adapter/**", "!**/internal/adapter/*/*_test.go", "!**/internal/application/*/errortable_test.go"]
+          files: ["**/internal/application/*/*/**", "**/internal/application/{account,character,item,pvp,social}/*.go", "!**/internal/application/account/account.go", "!**/internal/application/character/character.go", "!**/internal/application/item/item.go", "!**/internal/application/pvp/pvp.go", "!**/internal/application/social/social.go", "**/internal/model/**", "**/internal/repository/**", "**/internal/adapter/**", "!**/internal/adapter/*/*_test.go", "!**/internal/application/*/errortable_test.go"]
           deny:
             - pkg: net/http
-              desc: a module knows no transport; the gateway's handler speaks HTTP and gives each failure its status
+              desc: a module knows no transport; its handler speaks HTTP and gives each failure its status
             - pkg: finga/internal/metrics
               desc: a module declares observer interfaces; its own metrics package implements them
             - pkg: finga/config
@@ -104,20 +104,20 @@ linters:
             - pkg: finga/internal/shared/host
               desc: a module knows nothing of how its process runs
         modules-no-contracts:
-          files: ["**/internal/application/*/*/**", "**/internal/application/gateway/*.go", "**/internal/application/{account,character,item,pvp,social}/*.go", "!**/internal/application/account/account.go", "!**/internal/application/character/character.go", "!**/internal/application/item/item.go", "!**/internal/application/pvp/pvp.go", "!**/internal/application/social/social.go", "**/internal/model/**", "**/internal/repository/**", "**/internal/metrics/**", "**/internal/adapter/**"]
+          files: ["**/internal/application/*/*/**", "**/internal/application/{account,character,item,pvp,social}/*.go", "!**/internal/application/account/account.go", "!**/internal/application/character/character.go", "!**/internal/application/item/item.go", "!**/internal/application/pvp/pvp.go", "!**/internal/application/social/social.go", "**/internal/model/**", "**/internal/repository/**", "**/internal/metrics/**", "**/internal/adapter/**"]
           deny:
             - pkg: finga/api/gen
-              desc: a module returns its own types; the gateway's handler turns them into the client protocol's
+              desc: a module returns its own types; its handler turns them into the client protocol's
         modules-no-client-protocol:
-          files: ["**/internal/application/**", "**/internal/model/**", "**/internal/repository/**", "**/internal/handler/**", "**/internal/metrics/**", "**/internal/adapter/**", "**/internal/migration/**", "!**/internal/application/gateway/**", "!**/internal/model/gateway/**", "!**/internal/repository/gateway/**", "!**/internal/handler/{account,character,item,pvp,social,world,transport}/**", "!**/internal/metrics/gateway/**", "!**/internal/adapter/gateway/**"]
+          files: ["**/internal/application/**", "**/internal/model/**", "**/internal/repository/**", "**/internal/handler/**", "**/internal/metrics/**", "**/internal/adapter/**", "**/internal/migration/**", "!**/internal/handler/{account,character,item,pvp,social,world,transport}/**"]
           deny:
             - pkg: finga/api/gen/client
-              desc: only the gateway speaks the client protocol
+              desc: only the handlers speak the client protocol
             - pkg: finga/internal/shared/protocol
-              desc: only the gateway speaks the client protocol
-        # The gateway's model and use cases know no socket and no HTTP; the handlers adapt both.
-        gateway-application:
-          files: ["**/internal/model/gateway/**", "**/internal/application/gateway/**"]
+              desc: only the handlers speak the client protocol
+        # The account's model and use cases know no socket and no HTTP; the handlers adapt both.
+        account-no-socket:
+          files: ["**/internal/model/account/**", "**/internal/application/account/**"]
           deny:
             - pkg: finga/pkg/wsconn
               desc: the WebSocket handler adapts the socket to the application's Conn
@@ -128,7 +128,7 @@ linters:
             - pkg: finga/internal/handler
               desc: the handler calls the application, never the reverse
             - pkg: finga/internal/shared/protocol
-              desc: the client protocol is the WebSocket handler's alone; the model has its own views
+              desc: the client protocol is the handlers' alone; the model has its own views
         # The world's domains (mobs, loot, party, itemcalls) know no map actor; the actor knows no World.
         world-domains:
           files: ["**/internal/application/world/mobs/**", "**/internal/application/world/loot/**", "**/internal/application/world/party/**", "**/internal/application/world/itemcalls/**"]
@@ -145,7 +145,7 @@ linters:
         # Only a module's repository layer and sqlc's output talk to the database.
         # The tests that run a module's use cases on Postgres (a file ending _pg_test.go in its root) build its repository, which a use case never imports.
         modules-no-sql:
-          files: ["**/internal/application/*/*/**", "**/internal/application/gateway/*.go", "**/internal/application/{account,character,item,pvp,social}/*.go", "!**/internal/application/account/account.go", "!**/internal/application/character/character.go", "!**/internal/application/item/item.go", "!**/internal/application/pvp/pvp.go", "!**/internal/application/social/social.go", "**/internal/model/**", "**/internal/handler/**", "**/internal/metrics/**", "**/internal/adapter/**", "!$test", "!**/internal/application/*/*_pg_test.go"]
+          files: ["**/internal/application/*/*/**", "**/internal/application/{account,character,item,pvp,social}/*.go", "!**/internal/application/account/account.go", "!**/internal/application/character/character.go", "!**/internal/application/item/item.go", "!**/internal/application/pvp/pvp.go", "!**/internal/application/social/social.go", "**/internal/model/**", "**/internal/handler/**", "**/internal/metrics/**", "**/internal/adapter/**", "!$test", "!**/internal/application/*/*_pg_test.go"]
           deny:
             - pkg: github.com/jackc/pgx
               desc: only the repository layer talks to the database
@@ -161,9 +161,9 @@ linters:
               desc: model knows no storage
             - pkg: finga/internal/handler
               desc: model knows no transport
-        # A module's use cases: account, character, item, pvp and social keep theirs in the root beside the facade, whose Module and New are the file named for the module; world's are its subpackages; the gateway's sit at its root, as it has no facade.
+        # A module's use cases: account, character, item, pvp and social keep theirs in the root beside the facade, whose Module and New are the file named for the module; world's are its subpackages;
         layer-application:
-          files: ["**/internal/application/*/*/**", "**/internal/application/gateway/*.go", "**/internal/application/{account,character,item,pvp,social}/*.go", "!**/internal/application/account/account.go", "!**/internal/application/character/character.go", "!**/internal/application/item/item.go", "!**/internal/application/pvp/pvp.go", "!**/internal/application/social/social.go", "!**/internal/application/social/main_test.go", "!**/internal/application/*/*_pg_test.go"]
+          files: ["**/internal/application/*/*/**", "**/internal/application/{account,character,item,pvp,social}/*.go", "!**/internal/application/account/account.go", "!**/internal/application/character/character.go", "!**/internal/application/item/item.go", "!**/internal/application/pvp/pvp.go", "!**/internal/application/social/social.go", "!**/internal/application/social/main_test.go", "!**/internal/application/*/*_pg_test.go"]
           deny:
             - pkg: finga/internal/repository
               desc: application declares its Store; the repository implements it, and the wiring connects them
@@ -186,23 +186,23 @@ linters:
               desc: the handler never touches the database
             - pkg: finga/pkg/dbx
               desc: the handler never touches the database
-        gateway-no-database:
-          files: ["**/internal/application/gateway/**", "**/internal/model/gateway/**", "**/internal/repository/gateway/**", "**/internal/handler/{account,character,item,pvp,social,world,transport}/**", "**/internal/metrics/gateway/**", "**/internal/adapter/gateway/**", "**/server/config/gateway.go", "**/internal/dependencies/gateway.go"]
+        handlers-no-database:
+          files: ["**/internal/handler/{account,character,item,pvp,social,world,transport}/**", "**/internal/metrics/transport/**", "**/server/config/gateway.go", "**/internal/dependencies/gateway.go"]
           deny:
             - pkg: github.com/jackc/pgx
-              desc: the gateway holds no database
+              desc: the handlers hold no database
             - pkg: finga/pkg/dbx
-              desc: the gateway holds no database
+              desc: the handlers hold no database
             - pkg: finga/pkg/outbox
-              desc: the gateway holds no database
+              desc: the handlers hold no database
             - pkg: finga/pkg/idempotency
-              desc: the gateway holds no database
+              desc: the handlers hold no database
             - pkg: finga/pkg/pgtest
-              desc: the gateway's tests need no database
+              desc: the handlers' tests need no database
         # A module's layers below its facade are its own: only its layers and the wiring, internal/dependencies, import them; the end-to-end tests have their own rule.
         # The transport's tests drive every module's handler together, as the wiring does.
         account-private:
-          files: ["$all", "!**/internal/application/account/**", "!**/internal/model/account/**", "!**/internal/repository/account/**", "!**/internal/handler/account/**", "!**/internal/metrics/account/**", "!**/internal/adapter/account/**", "!**/internal/dependencies/**", "!**/server/test/**", "!**/internal/handler/transport/*_test.go"]
+          files: ["$all", "!**/internal/application/account/**", "!**/internal/model/account/**", "!**/internal/repository/account/**", "!**/internal/handler/account/**", "!**/internal/metrics/account/**", "!**/internal/adapter/account/**", "!**/internal/dependencies/**", "!**/server/test/**", "!**/internal/handler/{character,item,pvp,social,world,transport}/**"]
           deny:
             - pkg: finga/internal/application/account/
               desc: only the account module's own layers and the wiring import below its facade
@@ -231,19 +231,6 @@ linters:
               desc: only the character module's own layers and the wiring import below its facade
             - pkg: finga/internal/adapter/character
               desc: only the character module's own layers and the wiring import below its facade
-        gateway-private:
-          files: ["$all", "!**/internal/application/gateway/**", "!**/internal/model/gateway/**", "!**/internal/repository/gateway/**", "!**/internal/handler/{account,character,item,pvp,social,world,transport}/**", "!**/internal/metrics/gateway/**", "!**/internal/adapter/gateway/**", "!**/internal/dependencies/**", "!**/server/test/**"]
-          deny:
-            - pkg: finga/internal/application/gateway
-              desc: only the gateway module's own layers and the wiring import below its facade
-            - pkg: finga/internal/model/gateway
-              desc: only the gateway module's own layers and the wiring import below its facade
-            - pkg: finga/internal/repository/gateway
-              desc: only the gateway module's own layers and the wiring import below its facade
-            - pkg: finga/internal/metrics/gateway
-              desc: only the gateway module's own layers and the wiring import below its facade
-            - pkg: finga/internal/adapter/gateway
-              desc: only the gateway module's own layers and the wiring import below its facade
         item-private:
           files: ["$all", "!**/internal/application/item/**", "!**/internal/model/item/**", "!**/internal/repository/item/**", "!**/internal/handler/item/**", "!**/internal/metrics/item/**", "!**/internal/adapter/item/**", "!**/internal/dependencies/**", "!**/server/test/**", "!**/internal/handler/transport/*_test.go"]
           deny:
@@ -260,7 +247,7 @@ linters:
             - pkg: finga/internal/adapter/item
               desc: only the item module's own layers and the wiring import below its facade
         social-private:
-          files: ["$all", "!**/internal/application/social/**", "!**/internal/model/social/**", "!**/internal/repository/social/**", "!**/internal/handler/social/**", "!**/internal/metrics/social/**", "!**/internal/adapter/social/**", "!**/internal/dependencies/**", "!**/server/test/**", "!**/internal/adapter/gateway/social_test.go", "!**/internal/handler/transport/*_test.go"]
+          files: ["$all", "!**/internal/application/social/**", "!**/internal/model/social/**", "!**/internal/repository/social/**", "!**/internal/handler/social/**", "!**/internal/metrics/social/**", "!**/internal/adapter/social/**", "!**/internal/dependencies/**", "!**/server/test/**", "!**/internal/adapter/account/social_test.go", "!**/internal/handler/transport/*_test.go"]
           deny:
             - pkg: finga/internal/application/social/
               desc: only the social module's own layers and the wiring import below its facade
@@ -318,17 +305,7 @@ linters:
               desc: an end-to-end test drives the game through its API and the wiring
             - pkg: finga/internal/adapter/character
               desc: an end-to-end test drives the game through its API and the wiring
-            - pkg: finga/internal/application/gateway
-              desc: an end-to-end test drives the game through its API and the wiring
-            - pkg: finga/internal/model/gateway
-              desc: an end-to-end test drives the game through its API and the wiring
-            - pkg: finga/internal/repository/gateway
-              desc: an end-to-end test drives the game through its API and the wiring
             - pkg: finga/internal/handler
-              desc: an end-to-end test drives the game through its API and the wiring
-            - pkg: finga/internal/metrics/gateway
-              desc: an end-to-end test drives the game through its API and the wiring
-            - pkg: finga/internal/adapter/gateway
               desc: an end-to-end test drives the game through its API and the wiring
             - pkg: finga/internal/application/item/
               desc: an end-to-end test drives the game through its API and the wiring
@@ -368,7 +345,7 @@ linters:
               desc: an end-to-end test drives the game through its API and the wiring
             - pkg: finga/internal/adapter/world
               desc: an end-to-end test drives the game through its API and the wiring
-        # Only a module's in-process adapters, internal/adapter/<module>, call another module, and the wiring connects them; a gateway handler's test fakes the modules behind the production adapters.
+        # Only a module's in-process adapters, internal/adapter/<module>, call another module, and the wiring connects them; a handler's test fakes the modules behind the production adapters.
         account-facades:
           files: ["**/internal/application/account/**", "**/internal/model/account/**", "**/internal/repository/account/**", "**/internal/handler/account/**", "**/internal/metrics/account/**", "!**/internal/handler/*/receive_admin*.go"]
           deny:
@@ -381,7 +358,7 @@ linters:
             - pkg: finga/internal/application/world
               desc: only the module's adapters call another module's facade
         character-facades:
-          files: ["**/internal/application/character/**", "**/internal/model/character/**", "**/internal/repository/character/**", "**/internal/handler/character/**", "**/internal/metrics/character/**", "!**/internal/handler/*/receive_admin*.go"]
+          files: ["**/internal/application/character/**", "**/internal/model/character/**", "**/internal/repository/character/**", "**/internal/metrics/character/**", "!**/internal/handler/*/receive_admin*.go"]
           deny:
             - pkg: finga/internal/application/account
               desc: only the module's adapters call another module's facade
@@ -392,11 +369,10 @@ linters:
             - pkg: finga/internal/application/world
               desc: only the module's adapters call another module's facade
         # A module's admin routes (receive_admin*.go) call the facades of the modules they write through, as the admin API's handler did; they sit in the lowest module whose graph covers them.
-        gateway-facades:
-          files: ["**/internal/application/gateway/**", "**/internal/model/gateway/**", "**/internal/repository/gateway/**", "**/internal/handler/{account,character,item,pvp,social,world,transport}/**", "**/internal/metrics/gateway/**", "!**/internal/handler/*/*_test.go", "!**/internal/handler/*/receive_admin*.go"]
+        # The handlers reach the others through the account's Commands and Lobby, which the account's facade serves; they call no other facade.
+        handlers-facades:
+          files: ["**/internal/handler/{account,character,item,pvp,social,world,transport}/**", "!**/internal/handler/*/*_test.go", "!**/internal/handler/*/receive_admin*.go"]
           deny:
-            - pkg: finga/internal/application/account
-              desc: only the module's adapters call another module's facade
             - pkg: finga/internal/application/character
               desc: only the module's adapters call another module's facade
             - pkg: finga/internal/application/item
@@ -406,7 +382,7 @@ linters:
             - pkg: finga/internal/application/world
               desc: only the module's adapters call another module's facade
         item-facades:
-          files: ["**/internal/application/item/**", "**/internal/model/item/**", "**/internal/repository/item/**", "**/internal/handler/item/**", "**/internal/metrics/item/**", "!**/internal/handler/*/receive_admin*.go"]
+          files: ["**/internal/application/item/**", "**/internal/model/item/**", "**/internal/repository/item/**", "**/internal/metrics/item/**", "!**/internal/handler/*/receive_admin*.go"]
           deny:
             - pkg: finga/internal/application/account
               desc: only the module's adapters call another module's facade
@@ -417,7 +393,7 @@ linters:
             - pkg: finga/internal/application/world
               desc: only the module's adapters call another module's facade
         social-facades:
-          files: ["**/internal/application/social/**", "**/internal/model/social/**", "**/internal/repository/social/**", "**/internal/handler/social/**", "**/internal/metrics/social/**", "!**/internal/handler/*/receive_admin*.go"]
+          files: ["**/internal/application/social/**", "**/internal/model/social/**", "**/internal/repository/social/**", "**/internal/metrics/social/**", "!**/internal/handler/*/receive_admin*.go"]
           deny:
             - pkg: finga/internal/application/account
               desc: only the module's adapters call another module's facade
@@ -428,7 +404,7 @@ linters:
             - pkg: finga/internal/application/world
               desc: only the module's adapters call another module's facade
         world-facades:
-          files: ["**/internal/application/world/**", "**/internal/model/world/**", "**/internal/repository/world/**", "**/internal/handler/world/**", "**/internal/metrics/world/**", "!**/internal/handler/*/receive_admin*.go"]
+          files: ["**/internal/application/world/**", "**/internal/model/world/**", "**/internal/repository/world/**", "**/internal/metrics/world/**", "!**/internal/handler/*/receive_admin*.go"]
           deny:
             - pkg: finga/internal/application/account
               desc: only the module's adapters call another module's facade

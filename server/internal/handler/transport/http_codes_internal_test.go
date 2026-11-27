@@ -130,10 +130,10 @@ type declared struct {
 	name       string
 }
 
-// declaredFailures are the Publics model/failures.go declares, each with the area of the block it sits in.
+// declaredFailures are the Publics shared/failure/failures.go declares, each with the area of the block it sits in.
 func declaredFailures(t *testing.T) []declared {
 	t.Helper()
-	src, err := os.ReadFile(filepath.Join("..", "..", "model", "gateway", "failures.go"))
+	src, err := os.ReadFile(filepath.Join("..", "..", "shared", "failure", "failures.go"))
 	if err != nil {
 		t.Fatal(err)
 	}

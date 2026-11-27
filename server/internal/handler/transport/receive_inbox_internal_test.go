@@ -1,17 +1,16 @@
 package transport
 
 import (
+	application "finga/internal/application/account"
 	"log/slog"
 	"sync"
 	"testing"
 	"time"
 
-	"go.opentelemetry.io/otel/trace/noop"
-
-	"finga/internal/application/gateway/send"
-	"finga/internal/application/gateway/session"
 	"finga/pkg/panics"
 	"finga/pkg/wsconn"
+
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 // closedConn is a connection that keeps the code it was closed with.
@@ -52,8 +51,8 @@ func (t *panicTally) Inc(flow string) {
 func TestAPanicOnTheCommandGoroutineClosesTheSocket(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	count := &panicTally{n: map[string]int{}}
-	reg := session.NewRegistry(session.Deps{Logger: log, Traces: noop.NewTracerProvider()}, session.Options{})
-	h, err := NewReceiver(send.New(send.Deps{Logger: log, Registry: reg}, send.Options{}), ReceiveOptions{Logger: log, Traces: noop.NewTracerProvider(), Panics: panics.NewRecorder(log, count), HelloTimeout: time.Hour, CommandQueue: 4})
+	reg := application.NewConnections(application.ConnectionsDeps{Logger: log, Traces: noop.NewTracerProvider()}, application.ConnectionsOptions{})
+	h, err := NewReceiver(application.NewCommands(application.CommandsDeps{Logger: log, Registry: reg}, application.CommandsOptions{}), ReceiveOptions{Logger: log, Traces: noop.NewTracerProvider(), Panics: panics.NewRecorder(log, count), HelloTimeout: time.Hour, CommandQueue: 4})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,4 +1,4 @@
-// Every error a module's model declares has a row in its facade's table; every kernel error has one in the gateway's PublicOf, and one in the gateway's test that pins the name and kind each reaches a client with.
+// Every error a module's model declares has a row in its facade's table; every kernel error has one in the failure package's PublicOf, and one in the account adapters' test that pins the name and kind each reaches a client with.
 
 package rules_test
 
@@ -133,7 +133,7 @@ func testTables(t *testing.T) []*packages.Package {
 // in is the file named name.
 func in(name string) func(file string) bool { return func(file string) bool { return file == name } }
 
-// A model's error without a row reaches the caller as itself, which a client reads as internal; a kernel error without a PublicOf row does too, and one without a row in the gateway's pin goes unchecked.
+// A model's error without a row reaches the caller as itself, which a client reads as internal; a kernel error without a PublicOf row does too, and one without a row in the adapters' pin goes unchecked.
 func TestEveryErrorHasARow(t *testing.T) {
 	t.Parallel()
 	facade := func(module string) errorTable { // the model's errors become kernel errors
@@ -144,15 +144,15 @@ func TestEveryErrorHasARow(t *testing.T) {
 		t.Fatal(err)
 	}
 	pinned := slices.IndexFunc(pkgs, func(p *packages.Package) bool {
-		return p.ForTest == "finga/internal/adapter/gateway" && p.PkgPath == p.ForTest
+		return p.ForTest == "finga/internal/adapter/account" && p.PkgPath == p.ForTest
 	})
 	if pinned < 0 {
-		t.Fatal("the gateway's adapters were not loaded with their tests")
+		t.Fatal("the account adapters were not loaded with their tests")
 	}
 	got, err := unmapped("../..", append(built(pkgs), pkgs[pinned]),
 		facade("account"), facade("character"), facade("item"), facade("social"), facade("world"),
-		errorTable{errs: "finga/internal/shared/kernel", table: "internal/model/gateway/public.go"},
-		errorTable{errs: "finga/internal/shared/kernel", table: "internal/adapter/gateway/public_test.go"},
+		errorTable{errs: "finga/internal/shared/kernel", table: "internal/shared/failure/public.go"},
+		errorTable{errs: "finga/internal/shared/kernel", table: "internal/adapter/account/public_test.go"},
 	)
 	if err != nil {
 		t.Fatal(err)

@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"errors"
+	"finga/internal/shared/failure"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -11,7 +12,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
-	model "finga/internal/model/gateway"
 	"finga/pkg/panics"
 	"finga/pkg/wsconn"
 )
@@ -38,7 +38,7 @@ func (h *Receiver) helloFirst(c *Context) {
 func (h *Receiver) limited(l Limit) Step {
 	return func(c *Context) {
 		if !c.Session.allow(l, time.Now()) {
-			replyError(c, model.RateLimited)
+			replyError(c, failure.RateLimited)
 			return
 		}
 		c.Next()
@@ -57,7 +57,7 @@ func enqueue(c *Context, q chan<- func()) {
 	select {
 	case q <- func() { c.Ctx = c.Session.ctx; rest() }:
 	default:
-		replyError(c, model.RateLimited)
+		replyError(c, failure.RateLimited)
 	}
 }
 
@@ -133,8 +133,8 @@ func (h *Receiver) RespondOnError(c *Context) {
 // Logged ends a command that answers nothing; its unexpected failures are logged sampled, as inputs come 20 a second.
 func (h *Receiver) Logged(c *Context) {
 	c.Next()
-	restarting := errors.Is(c.Err, model.ErrUnavailable) || errors.Is(c.Err, model.ErrNotSubscribed)
-	if model.IsInternal(model.PublicOf(c.Err)) && !restarting && !closing(c) {
+	restarting := errors.Is(c.Err, failure.ErrUnavailable) || errors.Is(c.Err, failure.ErrNotSubscribed)
+	if failure.IsInternal(failure.PublicOf(c.Err)) && !restarting && !closing(c) {
 		h.failures.Do(func() { h.logFailure(c) })
 	}
 }
@@ -149,17 +149,17 @@ func (h *Receiver) panicked(c *Context, e *panics.Error) {
 		c.Session.out.Close(wsconn.CloseInternal, "hello")
 		return
 	}
-	replyError(c, model.Internal)
+	replyError(c, failure.Internal)
 }
 
 func (h *Receiver) notImplemented(c *Context) {
-	replyError(c, model.NotImplemented)
+	replyError(c, failure.NotImplemented)
 }
 
 // publicError is what the client may see of the command's error; an unexpected one is logged with its cause.
-func (h *Receiver) publicError(c *Context) model.Public {
-	p := model.PublicOf(c.Err)
-	if model.IsInternal(p) && !closing(c) {
+func (h *Receiver) publicError(c *Context) failure.Public {
+	p := failure.PublicOf(c.Err)
+	if failure.IsInternal(p) && !closing(c) {
 		h.logFailure(c)
 	}
 	return p
@@ -170,7 +170,7 @@ func (h *Receiver) logFailure(c *Context) {
 }
 
 // replyError answers p to a message that has a request ID; without one nobody is waiting.
-func replyError(c *Context, p model.Public) {
+func replyError(c *Context, p failure.Public) {
 	if c.Message.ReqID != "" {
 		c.Session.out.Reply(c.Message.ReqID, RefusalResponse(p))
 	}

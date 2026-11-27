@@ -29,14 +29,17 @@ func start() {
 	}
 }
 
-// Main runs a package's tests, then releases the cluster if one started; a package's TestMain is this.
-func Main(m *testing.M) {
+// Run runs a package's tests, then releases the cluster if one started, and reports the exit code; a TestMain that wraps the run in a check of its own, goleak's, calls it.
+func Run(m interface{ Run() int }) int {
 	code := m.Run()
 	if cluster != nil {
 		_ = cluster.Close(context.Background())
 	}
-	os.Exit(code)
+	return code
 }
+
+// Main is a package's TestMain: its tests, then the cluster released.
+func Main(m *testing.M) { os.Exit(Run(m)) }
 
 // DB is a fresh migrated database for t, and its pool.
 func DB(t testing.TB) *pgxpool.Pool {

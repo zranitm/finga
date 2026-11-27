@@ -1,6 +1,8 @@
 package transport
 
 import (
+	application "finga/internal/application/account"
+	"finga/internal/shared/failure"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -8,16 +10,15 @@ import (
 	"strings"
 	"time"
 
+	model "finga/internal/model/account"
+	"finga/pkg/panics"
+	"finga/pkg/ratelimit"
+
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
-
-	application "finga/internal/application/gateway"
-	model "finga/internal/model/gateway"
-	"finga/pkg/panics"
-	"finga/pkg/ratelimit"
 )
 
 const principalKey = "finga.principal"
@@ -65,13 +66,13 @@ func requireAuth(lobby *application.Lobby) gin.HandlerFunc {
 		token = strings.TrimSpace(token)
 		if !ok || !strings.EqualFold(scheme, bearerScheme) || token == "" {
 			c.Header("WWW-Authenticate", "Bearer")
-			WritePublic(c, model.Unauthenticated)
+			WritePublic(c, failure.Unauthenticated)
 			c.Abort()
 			return
 		}
 		p, err := lobby.Authenticate(c.Request.Context(), token)
 		if err != nil {
-			if model.PublicOf(err) == model.Unauthenticated {
+			if failure.PublicOf(err) == failure.Unauthenticated {
 				c.Header("WWW-Authenticate", "Bearer")
 			}
 			WriteError(c, err)
@@ -87,7 +88,7 @@ func requireAuth(lobby *application.Lobby) gin.HandlerFunc {
 func limitAccount(limit ratelimit.Limiter) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !limit.Allow(PrincipalOf(c).AccountID.String()) {
-			WritePublic(c, model.RateLimited)
+			WritePublic(c, failure.RateLimited)
 			c.Abort()
 			return
 		}
@@ -131,7 +132,7 @@ func requestLog(log *slog.Logger, rec *panics.Recorder) gin.HandlerFunc {
 			aborted := p == http.ErrAbortHandler //nolint:errorlint // net/http compares the sentinel itself
 			if p != nil && !aborted {
 				if !c.Writer.Written() {
-					WritePublic(c, model.Internal)
+					WritePublic(c, failure.Internal)
 				}
 				c.Abort()
 				rec.Record(r.Context(), panics.FlowHTTP, panics.Of(p), "method", r.Method, "path", r.URL.Path)
@@ -139,7 +140,7 @@ func requestLog(log *slog.Logger, rec *panics.Recorder) gin.HandlerFunc {
 			args := []any{"method", r.Method, "path", r.URL.Path, "status", c.Writer.Status(), "duration_ms", float64(time.Since(start).Microseconds()) / 1000}
 			level := slog.LevelInfo
 			if v, ok := c.Get(refusalKey); ok {
-				if p, ok := v.(model.Public); ok {
+				if p, ok := v.(failure.Public); ok {
 					args = append(args, "code", p.Code, "refusal", p.Name)
 				}
 			}

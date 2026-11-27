@@ -1,12 +1,12 @@
 package item
 
 import (
+	application "finga/internal/application/account"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
-
-	application "finga/internal/application/gateway"
 	"finga/internal/handler/transport"
+
+	"github.com/gin-gonic/gin"
 )
 
 // rest serves an account's wardrobe over REST: client to server.

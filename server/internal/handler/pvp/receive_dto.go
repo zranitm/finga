@@ -1,7 +1,7 @@
 package pvp
 
 import (
-	model "finga/internal/model/gateway"
+	model "finga/internal/model/account"
 )
 
 // ArenaBuildRequest is a character's arena build: eight keys, "" for an empty one, and the trait chosen for skills on it.

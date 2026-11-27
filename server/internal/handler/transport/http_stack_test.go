@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"finga/internal/shared/failure"
 	"fmt"
 	"io"
 	"log/slog"
@@ -19,16 +20,14 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 
-	adapter "finga/internal/adapter/gateway"
+	adapter "finga/internal/adapter/account"
 	"finga/internal/application/account"
 	"finga/internal/application/character"
-	application "finga/internal/application/gateway"
 	"finga/internal/application/item"
 	haccount "finga/internal/handler/account"
 	hcharacter "finga/internal/handler/character"
 	hitem "finga/internal/handler/item"
 	"finga/internal/handler/transport"
-	model "finga/internal/model/gateway"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/pkg/observability/tracing"
@@ -87,7 +86,7 @@ func newLimitedHarness(limit ratelimit.Limiter, origins ...string) *restHarness 
 	e := transport.NewEngine()
 	log := slog.New(slog.NewJSONHandler(h.logs, nil))
 	mountREST(transport.RESTOptions{
-		Lobby:  application.NewLobby(application.LobbyDeps{Accounts: adapter.NewAccounts(h.accounts), Characters: adapter.NewCharacters(h.characters), Sessions: adapter.NewGuard(h.accounts), Wardrobes: adapter.NewItems(h.items), Arena: adapter.NewArena(h.arena)}),
+		Lobby:  account.NewLobby(account.LobbyDeps{Accounts: adapter.NewAccounts(h.accounts), Characters: adapter.NewCharacters(h.characters), Sessions: adapter.NewGuard(h.accounts), Wardrobes: adapter.NewItems(h.items), Arena: adapter.NewArena(h.arena)}),
 		Logger: log, CORSOrigins: origins, Panics: panics.NewRecorder(log, nil), Traces: restTraceProvider, Limit: limit,
 	})(e)
 	h.handler = e
@@ -113,7 +112,7 @@ func decode(t *testing.T, rec *httptest.ResponseRecorder, into any) {
 	}
 }
 
-func assertError(t *testing.T, rec *httptest.ResponseRecorder, status int, want model.Public) {
+func assertError(t *testing.T, rec *httptest.ResponseRecorder, status int, want failure.Public) {
 	t.Helper()
 	if rec.Code != status {
 		t.Fatalf("status %d, want %d: %s", rec.Code, status, rec.Body.String())
@@ -133,16 +132,16 @@ var errorRows = []struct {
 	name   string
 	err    error
 	status int
-	code   model.Public
+	code   failure.Public
 }{
-	{"bad input is 400 with its own code", fmt.Errorf("%w: too short", kernel.ErrBadPassword), http.StatusBadRequest, model.BadPassword},
-	{"unauthenticated is 401", errUnauthenticated, http.StatusUnauthorized, model.Unauthenticated},
-	{"a missing character is 404 CHARACTER_NOT_FOUND", fmt.Errorf("%w: no such row", kernel.ErrCharacterNotFound), http.StatusNotFound, model.CharacterNotFound},
-	{"a taken username is 409 USERNAME_TAKEN", fmt.Errorf("%w: unique violation", kernel.ErrUsernameTaken), http.StatusConflict, model.UsernameTaken},
-	{"too many logins is 429 LOGIN_RATE_LIMITED", fmt.Errorf("%w: 5 in a minute", kernel.ErrLoginRateLimited), http.StatusTooManyRequests, model.LoginRateLimited},
-	{"a module out of reach is 503 unavailable", fmt.Errorf("%w: connection refused", transient.ErrUnavailable), http.StatusServiceUnavailable, model.Unavailable},
-	{"a wrapped error keeps its code and hides its cause", fmt.Errorf("create: %w", fmt.Errorf("%w: %w", kernel.ErrNameTaken, errInternal)), http.StatusConflict, model.NameTaken},
-	{"a plain error is 500 internal without its text", errInternal, http.StatusInternalServerError, model.Internal},
+	{"bad input is 400 with its own code", fmt.Errorf("%w: too short", kernel.ErrBadPassword), http.StatusBadRequest, failure.BadPassword},
+	{"unauthenticated is 401", errUnauthenticated, http.StatusUnauthorized, failure.Unauthenticated},
+	{"a missing character is 404 CHARACTER_NOT_FOUND", fmt.Errorf("%w: no such row", kernel.ErrCharacterNotFound), http.StatusNotFound, failure.CharacterNotFound},
+	{"a taken username is 409 USERNAME_TAKEN", fmt.Errorf("%w: unique violation", kernel.ErrUsernameTaken), http.StatusConflict, failure.UsernameTaken},
+	{"too many logins is 429 LOGIN_RATE_LIMITED", fmt.Errorf("%w: 5 in a minute", kernel.ErrLoginRateLimited), http.StatusTooManyRequests, failure.LoginRateLimited},
+	{"a module out of reach is 503 unavailable", fmt.Errorf("%w: connection refused", transient.ErrUnavailable), http.StatusServiceUnavailable, failure.Unavailable},
+	{"a wrapped error keeps its code and hides its cause", fmt.Errorf("create: %w", fmt.Errorf("%w: %w", kernel.ErrNameTaken, errInternal)), http.StatusConflict, failure.NameTaken},
+	{"a plain error is 500 internal without its text", errInternal, http.StatusInternalServerError, failure.Internal},
 }
 
 func TestRegister(t *testing.T) {
@@ -173,15 +172,15 @@ func TestRegister(t *testing.T) {
 		tests := []struct {
 			name string
 			body string
-			code model.Public
+			code failure.Public
 		}{
-			{"not JSON", `{username`, model.MalformedBody},
-			{"wrong type", `{"username":1,"password":"x"}`, model.MalformedBody},
-			{"missing username", `{"password":"correct horse"}`, model.MissingField},
-			{"missing password", `{"username":"alice"}`, model.MissingField},
-			{"empty body", ``, model.MalformedBody},
-			{"unknown field", `{"username":"alice","password":"correct horse","admin":true}`, model.MalformedBody},
-			{"two JSON documents", `{"username":"alice","password":"correct horse"}{}`, model.MalformedBody},
+			{"not JSON", `{username`, failure.MalformedBody},
+			{"wrong type", `{"username":1,"password":"x"}`, failure.MalformedBody},
+			{"missing username", `{"password":"correct horse"}`, failure.MissingField},
+			{"missing password", `{"username":"alice"}`, failure.MissingField},
+			{"empty body", ``, failure.MalformedBody},
+			{"unknown field", `{"username":"alice","password":"correct horse","admin":true}`, failure.MalformedBody},
+			{"two JSON documents", `{"username":"alice","password":"correct horse"}{}`, failure.MalformedBody},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
@@ -193,7 +192,7 @@ func TestRegister(t *testing.T) {
 	t.Run("an oversized body is 413", func(t *testing.T) {
 		h := newRestHarness()
 		big := `{"username":"alice","password":"` + strings.Repeat("p", 70*1024) + `"}`
-		assertError(t, h.do("POST", "/api/accounts", big, nil), http.StatusRequestEntityTooLarge, model.BodyTooLarge)
+		assertError(t, h.do("POST", "/api/accounts", big, nil), http.StatusRequestEntityTooLarge, failure.BodyTooLarge)
 	})
 	t.Run("module errors", func(t *testing.T) {
 		for _, tt := range errorRows {
@@ -239,7 +238,7 @@ func TestLogin(t *testing.T) {
 	})
 	t.Run("malformed input", func(t *testing.T) {
 		h := newRestHarness()
-		assertError(t, h.do("POST", "/api/sessions", `{"username":"alice"}`, nil), http.StatusBadRequest, model.MissingField)
+		assertError(t, h.do("POST", "/api/sessions", `{"username":"alice"}`, nil), http.StatusBadRequest, failure.MissingField)
 	})
 	t.Run("module errors", func(t *testing.T) {
 		for _, tt := range errorRows {
@@ -265,7 +264,7 @@ func TestLogout(t *testing.T) {
 	})
 	t.Run("needs a session", func(t *testing.T) {
 		h := newRestHarness()
-		assertError(t, h.do("DELETE", "/api/sessions/current", "", nil), http.StatusUnauthorized, model.Unauthenticated)
+		assertError(t, h.do("DELETE", "/api/sessions/current", "", nil), http.StatusUnauthorized, failure.Unauthenticated)
 	})
 }
 
@@ -288,7 +287,7 @@ func TestAuthentication(t *testing.T) {
 				headers["Authorization"] = tt.header
 			}
 			rec := h.do("GET", "/api/characters", "", headers)
-			assertError(t, rec, http.StatusUnauthorized, model.Unauthenticated)
+			assertError(t, rec, http.StatusUnauthorized, failure.Unauthenticated)
 			if rec.Header().Get("WWW-Authenticate") != "Bearer" {
 				t.Fatalf("WWW-Authenticate %q", rec.Header().Get("WWW-Authenticate"))
 			}
@@ -297,7 +296,7 @@ func TestAuthentication(t *testing.T) {
 	t.Run("a session store failure is 500, not 401", func(t *testing.T) {
 		h := newRestHarness()
 		h.accounts.validate = func(string) (account.Principal, error) { return account.Principal{}, errInternal }
-		assertError(t, h.do("GET", "/api/characters", "", authed()), http.StatusInternalServerError, model.Internal)
+		assertError(t, h.do("GET", "/api/characters", "", authed()), http.StatusInternalServerError, failure.Internal)
 	})
 	t.Run("bearer is matched regardless of case", func(t *testing.T) {
 		h := newRestHarness()
@@ -363,11 +362,11 @@ func TestCharacters(t *testing.T) {
 		tests := []struct {
 			name string
 			body string
-			code model.Public
+			code failure.Public
 		}{
-			{"missing name", `{}`, model.MissingField},
-			{"a class, which a new character can't choose", `{"name":"Ayla","class":"warrior"}`, model.MalformedBody},
-			{"not JSON", `nope`, model.MalformedBody},
+			{"missing name", `{}`, failure.MissingField},
+			{"a class, which a new character can't choose", `{"name":"Ayla","class":"warrior"}`, failure.MalformedBody},
+			{"not JSON", `nope`, failure.MalformedBody},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
@@ -395,12 +394,12 @@ func TestCharacters(t *testing.T) {
 		if gotID != sampleChar.ID || gotOwner != accountID || !slices.Equal(gotBar, []string{"", "throw", "", "", "", "strike", "", "spark"}) {
 			t.Fatalf("module got %v for %s of %s", gotBar, gotID, gotOwner)
 		}
-		assertError(t, h.do("PUT", "/api/characters/nope/skill-bar", `{"slots":[]}`, authed()), http.StatusBadRequest, model.BadID)
-		assertError(t, h.do("PUT", path, `{"slots":"strike"}`, authed()), http.StatusBadRequest, model.MalformedBody)
+		assertError(t, h.do("PUT", "/api/characters/nope/skill-bar", `{"slots":[]}`, authed()), http.StatusBadRequest, failure.BadID)
+		assertError(t, h.do("PUT", path, `{"slots":"strike"}`, authed()), http.StatusBadRequest, failure.MalformedBody)
 		h.characters.setBar = func(context.Context, kernel.CharacterID, kernel.AccountID, []string) error {
 			return fmt.Errorf("%w: unknown skill fireball", kernel.ErrBadSkillBar)
 		}
-		assertError(t, h.do("PUT", path, `{"slots":["fireball","","","","","","",""]}`, authed()), http.StatusBadRequest, model.BadSkillBar)
+		assertError(t, h.do("PUT", path, `{"slots":["fireball","","","","","","",""]}`, authed()), http.StatusBadRequest, failure.BadSkillBar)
 	})
 	t.Run("module errors", func(t *testing.T) {
 		for _, tt := range errorRows {
@@ -500,18 +499,18 @@ func TestSettings(t *testing.T) {
 		h.accounts.updateSettings = func(context.Context, kernel.AccountID, account.Settings) error {
 			return fmt.Errorf("%w: Enter", kernel.ErrBadKeyBindings)
 		}
-		assertError(t, h.do("PUT", "/api/settings", `{"keys":{"attack":"Enter"}}`, authed()), http.StatusBadRequest, model.BadKeyBindings)
+		assertError(t, h.do("PUT", "/api/settings", `{"keys":{"attack":"Enter"}}`, authed()), http.StatusBadRequest, failure.BadKeyBindings)
 	})
 	t.Run("a zoom past its ends is the module's rule", func(t *testing.T) {
 		h := newRestHarness()
 		h.accounts.updateSettings = func(context.Context, kernel.AccountID, account.Settings) error {
 			return fmt.Errorf("%w: 2", kernel.ErrBadZoom)
 		}
-		assertError(t, h.do("PUT", "/api/settings", `{"zoom":2}`, authed()), http.StatusBadRequest, model.BadZoom)
+		assertError(t, h.do("PUT", "/api/settings", `{"zoom":2}`, authed()), http.StatusBadRequest, failure.BadZoom)
 	})
 	t.Run("write with a setting the server doesn't know, such as the presets' control_preset", func(t *testing.T) {
 		h := newRestHarness()
-		assertError(t, h.do("PUT", "/api/settings", `{"control_preset":"wasd"}`, authed()), http.StatusBadRequest, model.MalformedBody)
+		assertError(t, h.do("PUT", "/api/settings", `{"control_preset":"wasd"}`, authed()), http.StatusBadRequest, failure.MalformedBody)
 	})
 	t.Run("module errors", func(t *testing.T) {
 		for _, tt := range errorRows {
@@ -663,7 +662,7 @@ func TestPanicIsContained(t *testing.T) {
 		panic("kaboom: secret detail")
 	}
 	rec := h.do("GET", "/api/characters", "", authed())
-	assertError(t, rec, http.StatusInternalServerError, model.Internal)
+	assertError(t, rec, http.StatusInternalServerError, failure.Internal)
 	if strings.Contains(rec.Body.String(), "kaboom") {
 		t.Fatal("panic text reached the response")
 	}
@@ -705,7 +704,7 @@ func TestRequestLog(t *testing.T) {
 	if strings.Contains(h.logs.String(), goodToken) {
 		t.Fatal("the token reached a log line")
 	}
-	if lines[0]["code"] != nil || lines[1]["code"] != float64(model.Unauthenticated.Code) || lines[1]["refusal"] != model.Unauthenticated.Name || lines[1]["err"] != nil {
+	if lines[0]["code"] != nil || lines[1]["code"] != float64(failure.Unauthenticated.Code) || lines[1]["refusal"] != failure.Unauthenticated.Name || lines[1]["err"] != nil {
 		t.Fatalf("a success carries no code, a refusal its own and no cause: %v / %v", lines[0], lines[1])
 	}
 }
@@ -715,12 +714,12 @@ func TestRequestLogCarriesTheCauseOfAnUnexpectedError(t *testing.T) {
 	h.characters.list = func(context.Context, kernel.AccountID) ([]character.Character, error) {
 		return nil, fmt.Errorf("list characters: %w", errInternal)
 	}
-	assertError(t, h.do("GET", "/api/characters", "", authed()), http.StatusInternalServerError, model.Internal)
+	assertError(t, h.do("GET", "/api/characters", "", authed()), http.StatusInternalServerError, failure.Internal)
 	var l map[string]any
 	if err := json.Unmarshal([]byte(strings.TrimSpace(h.logs.String())), &l); err != nil {
 		t.Fatalf("log %q: %v", h.logs.String(), err)
 	}
-	if l["level"] != "ERROR" || l["code"] != float64(model.Internal.Code) || l["refusal"] != model.Internal.Name || l["err"] != "list characters: pq: connection reset" {
+	if l["level"] != "ERROR" || l["code"] != float64(failure.Internal.Code) || l["refusal"] != failure.Internal.Name || l["err"] != "list characters: pq: connection reset" {
 		t.Fatalf("log line %v, want level ERROR, code internal and the cause", l)
 	}
 }
@@ -730,12 +729,12 @@ func TestAServiceDownAnswers503AndWarns(t *testing.T) {
 	h.characters.list = func(context.Context, kernel.AccountID) ([]character.Character, error) {
 		return nil, fmt.Errorf("%w: connection refused", transient.ErrUnavailable)
 	}
-	assertError(t, h.do("GET", "/api/characters", "", authed()), http.StatusServiceUnavailable, model.Unavailable)
+	assertError(t, h.do("GET", "/api/characters", "", authed()), http.StatusServiceUnavailable, failure.Unavailable)
 	var l map[string]any
 	if err := json.Unmarshal([]byte(strings.TrimSpace(h.logs.String())), &l); err != nil {
 		t.Fatalf("log %q: %v", h.logs.String(), err)
 	}
-	if l["level"] != "WARN" || l["code"] != float64(model.Unavailable.Code) || l["refusal"] != model.Unavailable.Name || l["err"] == nil {
+	if l["level"] != "WARN" || l["code"] != float64(failure.Unavailable.Code) || l["refusal"] != failure.Unavailable.Name || l["err"] == nil {
 		t.Fatalf("log line %v, want level WARN, code unavailable and the cause", l)
 	}
 }
@@ -768,6 +767,6 @@ func TestLogoutEverywhere(t *testing.T) {
 	})
 	t.Run("needs a session", func(t *testing.T) {
 		h := newRestHarness()
-		assertError(t, h.do("DELETE", "/api/sessions", "", nil), http.StatusUnauthorized, model.Unauthenticated)
+		assertError(t, h.do("DELETE", "/api/sessions", "", nil), http.StatusUnauthorized, failure.Unauthenticated)
 	})
 }

@@ -2,11 +2,11 @@ package account
 
 import (
 	"errors"
+	application "finga/internal/application/account"
+	"finga/internal/shared/failure"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/application/gateway/send"
 	"finga/internal/handler/transport"
-	model "finga/internal/model/gateway"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/protocol"
 	"finga/pkg/wsconn"
@@ -14,11 +14,11 @@ import (
 
 // ws is the module's client messages: client to server.
 type ws struct {
-	gw *send.Gateway
+	gw *application.Commands
 }
 
 // WSRoutes adds the module's client messages to a Receiver.
-func WSRoutes(gw *send.Gateway) transport.Routes {
+func WSRoutes(gw *application.Commands) transport.Routes {
 	h := &ws{gw: gw}
 	return func(r *transport.Receiver) {
 		transport.Handle(r, "Hello", h.hello, r.Queued, r.Traced)
@@ -42,7 +42,7 @@ func (h *ws) hello(c *transport.Context, in *clientv1.Hello) (any, error) {
 	switch err := h.gw.Hello(c.Ctx, inbox.Session(), in.GetToken(), id); {
 	case err == nil:
 		joined = true
-	case errors.Is(err, model.ErrHelloRejected):
+	case errors.Is(err, failure.ErrHelloRejected):
 		inbox.Out().Kick(clientv1.KickReason_KICK_REASON_UNAUTHENTICATED)
 	default:
 		inbox.Out().Close(wsconn.CloseInternal, "hello")

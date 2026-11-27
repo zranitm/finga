@@ -1,0 +1,206 @@
+package account
+
+import (
+	"time"
+
+	"finga/internal/shared/kernel"
+)
+
+// Player is the character a connection plays, as its party sees it.
+type Player struct {
+	ID    kernel.CharacterID
+	Name  string
+	Class string
+	Level int
+	HP    int
+	MaxHP int
+}
+
+// PlayerOf is the character as the session and the social module know it.
+func PlayerOf(id kernel.CharacterID, c CharacterView) Player {
+	return Player{ID: id, Name: c.Name, Class: c.Class, Level: c.Level, HP: c.HP, MaxHP: c.MaxHP}
+}
+
+// Presence is a connected player: its character and the connection it joined through; every world command carries it.
+type Presence struct {
+	Character  kernel.CharacterID
+	Connection string
+}
+
+// Actor is who acts on items: the account scopes idempotency keys, the character owns the items.
+type Actor struct {
+	Account   kernel.AccountID
+	Character kernel.CharacterID
+}
+
+// EndReason is why the gateway ends a player's session; the handler decides what the client sees.
+type EndReason string
+
+// The reasons a session ends.
+const (
+	EndLoggedInElsewhere EndReason = "logged_in_elsewhere"
+	EndSessionExpired    EndReason = "session_expired"
+	EndServerRestart     EndReason = "server_restart"
+	EndDeliveryBacklog   EndReason = "delivery_backlog" // a join held more deliveries than it may
+	EndRejoinFailed      EndReason = "rejoin_failed"
+	EndTickRateChanged   EndReason = "tick_rate_changed" // a rejoin found the world at another rate, which the client learns from a new Welcome
+)
+
+// Welcome is what a joined player's screen starts from, after a login or a rejoin the player didn't ask for.
+type Welcome struct {
+	Token             string // replaces the one Hello sent; empty after a rejoin, where the client keeps its own
+	Character         CharacterView
+	Inventory         []ItemView
+	Equipment         []EquipSlot
+	InventoryRevision uint64
+	MapID             string
+	ServerTime        time.Time
+	TickRateHz        int
+	Quests            []QuestState
+	Timers            []SkillTimer
+	Waypoints         []string // the ids of those found
+	Missed            Missed   // the matches that ended while the player was away
+	Written           func()   // run once the Welcome is written to the socket, never if it isn't; nil for none
+}
+
+// Missed is the newest matches that ended while the player was away, newest first, and the older ones the Welcome only counts.
+type Missed struct {
+	Matches []MissedMatch
+	Older   []kernel.MatchID
+}
+
+// MissedMatch is a match that ended while the player was away: its mode, how it went for them, whether they'd left it, and when.
+type MissedMatch struct {
+	Match  kernel.MatchID
+	Mode   string
+	Result MatchOutcome
+	Left   bool
+	Ended  time.Time
+}
+
+// TimerKind is what a skill timer times.
+type TimerKind int
+
+// The kinds of skill timer.
+const (
+	CooldownTimer TimerKind = iota + 1
+	BuffTimer
+)
+
+// SkillTimer is the time left on one of a skill's cooldown or buff; a buff keeps the points and trait it was used with.
+type SkillTimer struct {
+	Skill  string
+	Kind   TimerKind
+	Left   time.Duration
+	Points int
+	Trait  string
+}
+
+// QuestAsk is a dialog's request about one quest at an NPC.
+type QuestAsk struct {
+	NPC   string
+	Quest string
+}
+
+// Keys are the keys a player holds.
+type Keys struct {
+	Left, Right, Up, Down, Jump bool
+	Walk                        bool // walk mode, which never sprints
+}
+
+// ItemMove moves an item to a slot of a tab.
+type ItemMove struct {
+	IdempotencyKey string
+	Item           kernel.ItemID
+	Tab            string
+	Slot           int
+}
+
+// ItemEquip wears an Equip-tab item; EquipSlot is needed for rings only.
+type ItemEquip struct {
+	IdempotencyKey string
+	Item           kernel.ItemID
+	EquipSlot      string
+}
+
+// ItemUse drinks a Use-tab potion; Template is the one the client means, so a slot that changed under it is refused.
+type ItemUse struct {
+	IdempotencyKey string
+	Item           kernel.ItemID
+	Template       string
+}
+
+// SkillUse is a press of an active skill: aimed along the yaw Aim, at the lock Target first (zero for none), a moving skill going Way.
+type SkillUse struct {
+	Skill     string
+	ChainRoot string // the key's root: the skill itself on its own key
+	Aim       float32
+	Target    Target
+	Way       Way
+}
+
+// Target is the lock a press names: a mob or a character, zero for none.
+type Target struct {
+	Character kernel.CharacterID
+	Mob       uint64
+}
+
+// Way is where a moving skill goes, as the client worked it out: along the unit (X, Z) for Length metres; zero for a skill that doesn't move.
+type Way struct {
+	X, Z, Length float64
+}
+
+// SkillPointsSpend invests skill points, by skill ID, out of the unspent ones, if their count is still ExpectedUnspent.
+type SkillPointsSpend struct {
+	ExpectedUnspent int
+	Points          map[string]int
+}
+
+// TraitChoice sets the trait, by ID, a skill is used with.
+type TraitChoice struct {
+	Skill, Trait string
+}
+
+// PointsSpend adds points to the stats, out of the unspent ones, if their count is still ExpectedUnspent.
+type PointsSpend struct {
+	ExpectedUnspent int
+	Points          Stats
+}
+
+// ItemUnequip puts a worn item back in the Equip tab, in ToSlot or, when nil, the first free slot.
+type ItemUnequip struct {
+	IdempotencyKey string
+	EquipSlot      string
+	ToSlot         *int
+}
+
+// ItemDiscard destroys some or all of a stack.
+type ItemDiscard struct {
+	IdempotencyKey string
+	Item           kernel.ItemID
+	Quantity       int
+}
+
+// WardrobeAdd adds the piece an item holds to the account's wardrobe, taking one of the item.
+type WardrobeAdd struct {
+	IdempotencyKey string
+	Item           kernel.ItemID
+}
+
+// WardrobeAdded is what an add changed: the slot it took one from, and the piece it made, a cause of item.
+type WardrobeAdded struct {
+	Changed InventoryChanged
+	Piece   AddedPiece
+}
+
+// LookSet wears a look of collected pieces.
+type LookSet struct {
+	IdempotencyKey string
+	Look           Look
+}
+
+// ItemDiscardMany destroys whole items or stacks, all of them or none.
+type ItemDiscardMany struct {
+	IdempotencyKey string
+	Items          []kernel.ItemID
+}

@@ -52,7 +52,7 @@ func handlerDirs(t *testing.T) []string {
 // A push without an encoder is dropped, and a second encoder for one is refused at startup; either would be found in a game, so this finds it first.
 func TestEveryPushHasExactlyOneEncoder(t *testing.T) {
 	pushes := map[string]int{}
-	for _, f := range goFiles(t, "../../internal/model/gateway") {
+	for _, f := range goFiles(t, "../../internal/model/account") {
 		for _, d := range f.Decls {
 			if fn, ok := d.(*ast.FuncDecl); ok && fn.Recv != nil && fn.Name.Name == "push" && len(fn.Recv.List) == 1 {
 				if id, ok := fn.Recv.List[0].Type.(*ast.Ident); ok {
@@ -62,7 +62,7 @@ func TestEveryPushHasExactlyOneEncoder(t *testing.T) {
 		}
 	}
 	if len(pushes) == 0 {
-		t.Fatal("model/gateway declares no push(): is the scan broken?")
+		t.Fatal("model/account declares no push(): is the scan broken?")
 	}
 	extra := map[string]int{}
 	for _, f := range goFiles(t, handlerDirs(t)...) {

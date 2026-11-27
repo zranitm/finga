@@ -3,17 +3,16 @@ package transport
 import (
 	"context"
 	"errors"
+	application "finga/internal/application/account"
 	"log/slog"
 	"time"
 
-	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/time/rate"
-
-	"finga/internal/application/gateway/send"
-	"finga/internal/application/gateway/session"
 	"finga/pkg/panics"
 	"finga/pkg/wsconn"
 	"finga/pkg/wsrouter"
+
+	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/time/rate"
 )
 
 const tracerName = "finga/internal/handler/transport"
@@ -36,7 +35,7 @@ type ReceiveOptions struct {
 
 // Receiver routes every connection's messages as the modules' routes say, through the middleware they share.
 type Receiver struct {
-	gw       *send.Gateway
+	gw       *application.Commands
 	opts     ReceiveOptions
 	router   *wsrouter.Router[*Inbox]
 	failures *rate.Sometimes
@@ -46,7 +45,7 @@ type Receiver struct {
 }
 
 // NewReceiver routes messages to gw's use cases as routes register them, and fails if two routes take one message.
-func NewReceiver(gw *send.Gateway, opts ReceiveOptions, routes ...Routes) (*Receiver, error) {
+func NewReceiver(gw *application.Commands, opts ReceiveOptions, routes ...Routes) (*Receiver, error) {
 	h := &Receiver{gw: gw, opts: opts, failures: &rate.Sometimes{First: 1, Interval: failureLogGap}, tracer: opts.Traces.Tracer(tracerName), names: map[string]bool{}}
 	h.build(routes)
 	return h, errors.Join(h.errs...)
@@ -55,7 +54,7 @@ func NewReceiver(gw *send.Gateway, opts ReceiveOptions, routes ...Routes) (*Rece
 // Inbox is one connection's receiving side: Hello first, the rate limits, and two queues, each run in order on its own goroutine: commands, and actions, which a command waiting on a module never holds.
 type Inbox struct {
 	out        *Outbox
-	session    *session.Session
+	session    *application.Connection
 	helloTimer *time.Timer
 
 	// Owned by the read loop.
@@ -74,7 +73,7 @@ type Inbox struct {
 }
 
 // Open starts a connection's receiving side for s: its Hello deadline and its command goroutine.
-func (h *Receiver) Open(out *Outbox, s *session.Session) *Inbox {
+func (h *Receiver) Open(out *Outbox, s *application.Connection) *Inbox {
 	in := &Inbox{out: out, session: s, limiters: map[string]*rate.Limiter{}, queue: make(chan func(), h.opts.CommandQueue), actions: make(chan func(), h.opts.CommandQueue),
 		drained: make(chan struct{}), acted: make(chan struct{}), hello: make(chan struct{})}
 	in.ctx, in.cancel = context.WithCancel(context.Background())
@@ -155,7 +154,7 @@ func (in *Inbox) allow(l Limit, now time.Time) bool {
 }
 
 // Session is the application's session of the connection, which a handler passes to the use cases.
-func (in *Inbox) Session() *session.Session { return in.session }
+func (in *Inbox) Session() *application.Connection { return in.session }
 
 // Out is the connection's outbox, for the replies and the kicks a handler chooses.
 func (in *Inbox) Out() *Outbox { return in.out }

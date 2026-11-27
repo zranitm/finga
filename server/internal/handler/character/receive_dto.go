@@ -1,7 +1,7 @@
 package character
 
 import (
-	model "finga/internal/model/gateway"
+	model "finga/internal/model/account"
 )
 
 // CreateCharacterRequest is POST /api/characters; every new character is a Beginner, so it names no class.

@@ -1,6 +1,8 @@
 package transport
 
 import (
+	application "finga/internal/application/account"
+	"finga/internal/shared/failure"
 	"log/slog"
 	"reflect"
 	"strings"
@@ -9,8 +11,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/application/gateway/session"
-	model "finga/internal/model/gateway"
+	model "finga/internal/model/account"
 	"finga/pkg/wsconn"
 )
 
@@ -25,7 +26,7 @@ type Observer interface {
 	Unencoded(pushType string)
 }
 
-// Outbox is one connection's writing side: the session.Outbox the gateway reaches the player through.
+// Outbox is one connection's writing side: the application.Outbox the gateway reaches the player through.
 type Outbox struct {
 	ws       wsconn.Conn
 	obs      Observer
@@ -36,7 +37,7 @@ type Outbox struct {
 	ending bool       // the first End, Kick or Close wins; nothing is sent after it
 }
 
-var _ session.Outbox = (*Outbox)(nil)
+var _ application.Outbox = (*Outbox)(nil)
 
 // NewOutbox writes to ws and counts every message on obs; encoders turn what the application pushes into messages.
 func NewOutbox(ws wsconn.Conn, obs Observer, log *slog.Logger, encoders *Encoders) *Outbox {
@@ -125,7 +126,7 @@ func (o *Outbox) Close(code int, reason string) {
 }
 
 // RefusalResponse is a command's refusal as the client reads it.
-func RefusalResponse(p model.Public) *clientv1.Response {
+func RefusalResponse(p failure.Public) *clientv1.Response {
 	return &clientv1.Response{Ok: false, Code: int32(p.Code)}
 }
 
