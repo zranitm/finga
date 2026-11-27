@@ -113,6 +113,54 @@ describe('the wings made for the game', () => {
   });
 });
 
+describe('the wings’ faces', () => {
+  /** A mesh's triangles as [normal z's sign, swatch], read off its first vertex. */
+  function faces(node: Node): [number, string][] {
+    const primitive = node.getMesh()!.listPrimitives()[0]!;
+    const normal = primitive.getAttribute('NORMAL')!;
+    const uv = primitive.getAttribute('TEXCOORD_0')!;
+    return Array.from({ length: normal.getCount() / 3 }, (_, i) => {
+      const [u, v] = uv.getElement(i * 3, [0, 0]);
+      return [
+        Math.sign(normal.getElement(i * 3, [0, 0, 0])[2]!),
+        `${Math.floor(u * 8)},${Math.floor(v * 4)}`,
+      ];
+    });
+  }
+
+  it.each(KINDS.filter((k) => k !== 'Crystal'))(
+    'give each flat half of the %s pair a face to either side, one lit toward the back and one toward the front, in the same swatches',
+    async (kind) => {
+      const doc = await committed;
+      for (const side of ['L', 'R']) {
+        const all = faces(nodeOf(doc, `${kind}_Wing_${side}`));
+        const back = all
+          .filter(([z]) => z < 0)
+          .map(([, cell]) => cell)
+          .sort();
+        const front = all
+          .filter(([z]) => z > 0)
+          .map(([, cell]) => cell)
+          .sort();
+        expect(back.length, `${kind} ${side}`).toBeGreaterThan(10);
+        expect(front, `${kind} ${side}`).toEqual(back);
+      }
+    },
+  );
+
+  it('keep the crystal’s shards single, closed solids, and cull the back of every face', async () => {
+    const doc = await committed;
+    const crystal = faces(nodeOf(doc, 'Crystal_Wing_L'));
+    expect(crystal.length).toBe(half('Crystal').length);
+    expect(
+      doc
+        .getRoot()
+        .listMaterials()
+        .every((m) => !m.getDoubleSided()),
+    ).toBe(true);
+  });
+});
+
 describe('the wings as served', () => {
   it('keep each half’s node and hinge as made: the parts file `npm run models` writes', async () => {
     const made = await committed;

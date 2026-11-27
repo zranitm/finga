@@ -17,6 +17,7 @@ import {
   meshOf,
   mirrored,
   sub,
+  twoSided,
 } from './lib/mesh.ts';
 import type { P, Tri, V } from './lib/mesh.ts';
 
@@ -358,7 +359,7 @@ export async function wingsFile(): Promise<Uint8Array> {
   const material = doc
     .createMaterial('wings')
     .setBaseColorTexture(texture)
-    .setDoubleSided(true)
+    .setDoubleSided(false) // each flat half has a face to either side, so culling keeps the one facing the camera, lit right
     .setRoughnessFactor(1)
     .setMetallicFactor(0);
   for (const kind of KINDS) {
@@ -368,7 +369,9 @@ export async function wingsFile(): Promise<Uint8Array> {
       ['R', -1, mirrored(left)],
     ] as const) {
       const name = `${kind}_Wing_${suffix}`;
-      const node = doc.createNode(name).setMesh(meshOf(doc, buffer, material, name, tris));
+      const node = doc
+        .createNode(name)
+        .setMesh(meshOf(doc, buffer, material, name, twoSided(tris)));
       scene.addChild(node.setTranslation([side * HINGE[0], HINGE[1], HINGE[2]]));
     }
   }
