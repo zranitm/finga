@@ -4,6 +4,7 @@ package interestbench
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"math/rand/v2"
 	"slices"
@@ -14,7 +15,8 @@ import (
 
 	"finga/internal/application/world/instance"
 	"finga/internal/application/world/worldtest"
-	"finga/internal/handler/gateway/ws/push"
+	"finga/internal/handler/transport"
+	handlerworld "finga/internal/handler/world"
 	gwmodel "finga/internal/model/gateway"
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
@@ -58,7 +60,7 @@ func BenchmarkACrowdedRegionsFrames(b *testing.B) {
 			bytes := 0
 			b.ReportAllocs()
 			for b.Loop() {
-				o, parts := push.NewOutbox(conn, conn, push.NewFrames()), gatewayFrame(frame)
+				o, parts := newOutbox(conn), gatewayFrame(frame)
 				bytes = 0
 				for _, r := range to {
 					o.Deliver(gwmodel.Delivery{Tick: frame.Tick, Push: gwmodel.Delta{Frame: parts, Parts: r.Parts, AckSeq: r.AckSeq, Unseen: unseen(r.Unseen), Own: own(r)}})
@@ -199,8 +201,25 @@ type discard struct{ last wsconn.Message }
 func (d *discard) ID() string                  { return "c-1" }
 func (d *discard) Send(m wsconn.Message) error { d.last = m; return nil }
 func (d *discard) Close(int, string)           {}
+func (d *discard) MessageIn(string)            {}
 func (d *discard) MessageOut(string)           {}
 func (d *discard) WelcomeSent(string, int)     {}
+func (d *discard) SlowConsumer()               {}
+func (d *discard) Unencoded(string)            {}
+
+// newOutbox is a player's outbox with the world's encoders, and so a frame cache of its own, as each tick starts one.
+func newOutbox(conn *discard) *transport.Outbox {
+	return transport.NewOutbox(conn, conn, slog.New(slog.DiscardHandler), newEncoders())
+}
+
+// newEncoders are the world's push encoders, with a frame cache of their own.
+func newEncoders() *transport.Encoders {
+	enc := transport.NewEncoders()
+	if err := handlerworld.Encoders(enc); err != nil {
+		panic(err)
+	}
+	return enc
+}
 
 // playerView is v as the gateway's model has it, every field as the world's facade and the adapter copy them.
 func playerView(v model.PlayerView) gwmodel.PlayerView {
@@ -301,7 +320,7 @@ func BenchmarkACrowdInACamp(b *testing.B) {
 			codec := protocol.ServerCodec(wsconn.Binary)
 			conn := &discard{}
 			size := func(f *gwmodel.Frame, r model.Recipient, withOwn bool) int {
-				o := push.NewOutbox(conn, conn, push.NewFrames())
+				o := newOutbox(conn)
 				d := gwmodel.Delta{Frame: f, Parts: r.Parts, AckSeq: r.AckSeq, Unseen: unseen(r.Unseen)}
 				if withOwn {
 					d.Own = own(r)

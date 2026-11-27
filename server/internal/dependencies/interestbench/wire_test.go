@@ -3,6 +3,7 @@ package interestbench
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"math/rand/v2"
 	"slices"
@@ -14,7 +15,7 @@ import (
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/application/world/instance"
 	"finga/internal/application/world/worldtest"
-	"finga/internal/handler/gateway/ws/push"
+	"finga/internal/handler/transport"
 	gwmodel "finga/internal/model/gateway"
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
@@ -71,10 +72,10 @@ func (k wireSink) Send(e model.Event) bool {
 func (k wireSink) Stream() instance.Stream { return k.w }
 
 // push is a message as the outbox sends it and the client decodes it.
-func (w *wire) push(t testing.TB, frames *push.Frames, d gwmodel.Push, tick uint64) any {
+func (w *wire) push(t testing.TB, enc *transport.Encoders, d gwmodel.Push, tick uint64) any {
 	t.Helper()
 	conn := &discard{}
-	push.NewOutbox(conn, conn, frames).Deliver(gwmodel.Delivery{Tick: tick, Push: d})
+	transport.NewOutbox(conn, conn, slog.New(slog.DiscardHandler), enc).Deliver(gwmodel.Delivery{Tick: tick, Push: d})
 	b, err := protocol.ServerCodec(wsconn.Binary).Encode(conn.last)
 	if err != nil {
 		t.Fatal(err)
@@ -108,7 +109,7 @@ func (w *wire) step(t testing.TB) {
 		}
 	}
 	w.away = w.away[:0]
-	frames := push.NewFrames()
+	enc := newEncoders() // a tick's frame cache, shared by every client's outbox
 	for id, s := range w.snaps {
 		snap := gwmodel.Snapshot{}
 		for _, v := range s.Players {
@@ -117,7 +118,7 @@ func (w *wire) step(t testing.TB) {
 		for _, v := range s.Mobs {
 			snap.Mobs = append(snap.Mobs, mobViewOf(v))
 		}
-		got := w.push(t, frames, snap, w.tick).(*clientv1.Snapshot)
+		got := w.push(t, enc, snap, w.tick).(*clientv1.Snapshot)
 		c := &client{id: id, ex: protocol.NewExpander(id.String()), players: map[string]*clientv1.PlayerView{}, mobs: map[uint32]*clientv1.MobView{}}
 		c.ex.Snapshot(got)
 		for _, v := range got.Players {
@@ -139,7 +140,7 @@ func (w *wire) step(t testing.TB) {
 		if c == nil {
 			continue
 		}
-		d := w.push(t, frames, gwmodel.Delta{Frame: parts, Parts: r.Parts, AckSeq: r.AckSeq, Unseen: unseen(r.Unseen), Own: own(r)}, w.frame.Tick).(*clientv1.Delta)
+		d := w.push(t, enc, gwmodel.Delta{Frame: parts, Parts: r.Parts, AckSeq: r.AckSeq, Unseen: unseen(r.Unseen), Own: own(r)}, w.frame.Tick).(*clientv1.Delta)
 		c.ex.Delta(d)
 		for _, v := range d.Players {
 			c.players[v.Id] = v
