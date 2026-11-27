@@ -249,11 +249,12 @@ body {
   color: var(--muted);
   font-size: 14px;
 }
-/* A checkbox sits on its text's line. */
+/* A checkbox sits on its text's line, and only the box and its text toggle it, not the empty row beside them. */
 .field-check {
   flex-direction: row;
   align-items: center;
   gap: 8px;
+  width: fit-content;
 }
 .field input[type='text'],
 .field input:not([type]),
