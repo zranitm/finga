@@ -508,8 +508,19 @@ These steps follow the regions' build (large-regions.md section 14).
 5. **Sea mobs:**
    - their models picked with the user from previews;
    - their data and stats, with the balance harness.
+   - **As built (step 5, #333).**
+     - **The models** are Quaternius's Animated Cute Fish, as Poly Pizza has them, committed under `web/public/models/quaternius/`: `Fish_Piranha`, `Fish_Lionfish`, `Fish_Swordfish`, `Fish_GoblinShark` and `Fish_Anglerfish`. One rig serves all five.
+     - **Their looks** (`model-looks.ts`): `Swimming_Normal` stands and falls, `Swimming_Fast` walks and runs, `Swimming_Impulse` is the hit, `Death` the death, and `Attack` the attack, struck at 0.33 of it, where the head moves fastest. Each is `flies: true`, so a fish is drawn at its cylinder's middle, as a bat is; each takes its tint on its `<Fish>_Main` material.
+     - **Their circles** are half the fish's length across, on the 1/32 m grid. `npm run models` leaves the pack's `Out_Of_Water` clip out.
+     - **The entries** are in `mobs.yaml`: the four fish unplaced until the shrine, and the Anglerfish's, tuned on a scratch shrine, added with it (step 6). Its slam and spit cooldowns are the Vampire Bat's, 8.25 s and 4.25 s, the smallest times that keep a melee player within 30 red potions.
 6. **The two places:** designed with the green region's layout (regions step 8), from the generator's previews, and built with it.
    - **As designed** in [The green region](./green-region.md), sections 5 and 6: Greyfang Cave, with the Cave Bat and the Vampire Bat moved down to 12 and 14, and the Sunken Shrine, with the Anglerfish's entry added.
+   - **As built (step 6, #445).** Both plans are in `data/regions` as places below Willowmere (`under: willowmere`), each with its gate up to Willowmere's (`mouth` to `cave_mouth`, `shore` to `dive_spot`) and a waypoint beside it.
+     - **Greyfang Cave** is 384 by 256 m at a 0.5 m cell, carved from rock 4.5 m high with a 1.5 m wander, with `torch_mounted` torches 10 m apart along its walls and standing torches ringing its camps and the roost. Its halls and 10 m tunnels make a loop: the mouth, the west warren, the gallery, the roost and the east warren. The Thief Trainer stands in the mouth hall. It has five camps, three of Wild Boars (4, 3 and 3) and two of Cave Bats (4 and 4), and the Vampire Bat's spot in the roost at (320, 180).
+     - **The Cave Bat and the Vampire Bat** are levels 12 and 14 now (HP, attack, defences and EXP set again for them by `mobs.yaml`'s rule; their drops are as they were).
+     - **The Sunken Shrine** is 256 m square at a 1 m cell, in the `sea` look: a seabed with a north and a south reef 2 m high with ramped edges, the shrine's court raised 3 m with six pillars round it, its camps of Piranhas, Lionfish, Swordfish and Goblin Sharks, and the Anglerfish's spot in the court at (198, 128).
+     - **The design tests** (large-regions.md section 14: no mob sees an arrival, each mob reaches a player anywhere in its leash, no solid leaves a gap only a player fits) run on both, as on Willowmere. They found a swordfish camp 3 m from a one-spot pocket, and it moved.
+     - **Tests below the region:** the shrine and the cave are part of the shipped data's loader, nav and bot tests; the stand-ins the other tests load (`gamedatatest.Shipped`) have the same ids, gates and waypoints, in small form.
 
 ## 12. Decisions
 
