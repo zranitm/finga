@@ -57,7 +57,7 @@ func piecesAdded(p pvp.PiecesAdded) *clientv1.PiecesAdded {
 	return &clientv1.PiecesAdded{Pieces: out}
 }
 
-// The names of what gave a piece, as the item module has them; a test holds them to its.
+// The names of what gave a piece, as the item module has them. The handlers-not-item rule keeps this handler from importing the module for its constants, though pvp calls item in the application graph, so TestThePieceCausesAreTheItemModulesNames holds them to its.
 const (
 	pieceFromRank = "rank"
 	pieceFromFeat = "feat"

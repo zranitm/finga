@@ -63,8 +63,7 @@ func TestAnInventoryKeepsItsFields(t *testing.T) {
 	}
 	wornM := copytest.Match{Renames: itemRenames("Items", "")}
 	wornM.Skip = map[string]string{"Revision": "the revision is the Welcome's own: TestAnInventoryKeepsItsRevision"}
-	wornM.Computed = map[string]string{"Tab": "a worn item is in no tab", "Slot": "a worn item is in no tab"}
-	wornM.Skip["Items.Tab"], wornM.Skip["Items.Slot"], wornM.Skip["Items.EquipSlot"] = "a worn item is in no tab", "a worn item is in no tab", "it names the equip slot, which the slot carries: below"
+	wornM.Skip["Items.EquipSlot"] = "it names the equip slot, which the slot carries"
 	if got := copytest.Diff(wornM, inventory(true)); len(got) > 0 {
 		t.Errorf("worn: %v", got)
 	}
