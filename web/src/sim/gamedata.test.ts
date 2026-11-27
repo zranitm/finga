@@ -372,6 +372,7 @@ describe('generated gamedata', () => {
         look: { sky: string };
         beginning?: boolean;
         under?: string;
+        waypoints?: { id: string; name: string }[];
         camps?: { mob: string; at: [number, number]; radius: number }[];
         gates?: { name: string; at: [number, number]; radius: number; to: { region: string } }[];
         areas: {
@@ -394,6 +395,7 @@ describe('generated gamedata', () => {
         min_level: null,
         max_level: null,
         under: raw.under ?? null,
+        waypoints: (raw.waypoints ?? []).map((w) => ({ id: w.id, name: w.name })),
         spawns: (raw.camps ?? []).map((c) => ({
           mob: c.mob,
           x: c.at[0],

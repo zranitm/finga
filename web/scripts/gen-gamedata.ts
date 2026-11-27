@@ -521,6 +521,7 @@ for (const file of readdirSync(join(dataDir, 'maps'))
     min_level: hunting ? must(levels[0], isNumber, `${file} levels`) : null,
     max_level: hunting ? must(levels[1], isNumber, `${file} levels`) : null,
     under: null,
+    waypoints: [],
     spawns: (m.spawns === undefined ? [] : must(m.spawns, isArray, `${file} spawns`)).map((raw) => {
       const sp = must(raw, isRecord, `a ${file} spawn`);
       const [x, z] = pair(sp.at, `${file} spawn ${String(sp.name)} at`);
@@ -606,6 +607,16 @@ for (const file of existsSync(regionsDir)
     min_level: null,
     max_level: null,
     under: r.under === undefined ? null : must(r.under, isString, `${file} under`), // a place below's region above (underground-and-underwater.md section 3)
+    waypoints: (r.waypoints === undefined
+      ? []
+      : must(r.waypoints, isArray, `${file} waypoints`)
+    ).map((raw) => {
+      const w = must(raw, isRecord, `a ${file} waypoint`);
+      return {
+        id: must(w.id, isString, `a ${file} waypoint id`),
+        name: must(w.name, isString, `a ${file} waypoint name`), // what a WaypointFound toasts, whichever map is showing
+      };
+    }),
     spawns: (r.camps === undefined ? [] : must(r.camps, isArray, `${file} camps`)).map((raw) => {
       const c = must(raw, isRecord, `a ${file} camp`);
       const [x, z] = pair(c.at, `${file} camp ${String(c.name)} at`);

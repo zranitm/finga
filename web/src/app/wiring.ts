@@ -11,6 +11,7 @@ import { pieceById } from '@/progression/pieces';
 import { readyQuests } from '@/progression/quests';
 import { blockOf, skillById, skillCooldownTicks, specAt } from '@/progression/skills';
 import { autoAssign, hasSplit } from '@/progression/stats';
+import { waypointName } from '@/progression/waypoints';
 import { ERR, errorText, refusalCode } from '@/protocol/errors';
 import {
   LootKind,
@@ -186,8 +187,7 @@ export function wireSocket(socket: GameSocket): () => void {
     }),
     socket.on('waypointFound', (m) => {
       waypoints.getState().find(m.d.waypoint);
-      const found = mapView.getState().waypoints.find((w) => w.id === m.d.waypoint); // found where the player stands
-      toasts.getState().push(`Waypoint found: ${found?.name ?? m.d.waypoint}`, 'info');
+      toasts.getState().push(`Waypoint found: ${waypointName(m.d.waypoint)}`, 'info'); // the first tick on a new map comes before its view is shown
     }),
     socket.on('piecesAdded', (m) => {
       for (const p of m.d.pieces) {
