@@ -4,6 +4,9 @@
 http:                    # where the server serves players: REST under /api and the WebSocket at /ws
   addr: ":8080"
   cors_origins: []      # browser origins allowed for REST and WebSocket; empty: same origin only
+  account_limit:        # each account's REST calls once logged in, past which they answer 429 rate_limited; the edge limits each address besides
+    per_second: 2       # the bucket's refill
+    burst: 10           # its size: the client's busiest moment, settings opened and every switch flipped, sends 5 at once
 ops:                     # /healthz, /readyz and /metrics
   addr: ":9100"
 admin:                   # the private admin API make testers writes through; never public, and pinned off in prod
@@ -30,9 +33,6 @@ data_dir: data           # the game data, relative to server/, loaded once per p
 ws:
   hello_timeout: 5s       # a connection that sends no Hello in this long is closed
   command_queue: 64       # a connection's commands waiting their turn; one more answers rate_limited
-rest:                     # each account's REST calls once logged in, past which they answer 429 rate_limited; the edge limits each address besides
-  per_second: 2           # the bucket's refill
-  burst: 10               # its size: the client's busiest moment, settings opened and every switch flipped, sends 5 at once
 
 account:
   connections:

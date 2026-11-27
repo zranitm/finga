@@ -91,14 +91,13 @@ func NewStackBuilt(t *testing.T, data string, build host.Build[config.Config], e
 	t.Helper()
 	at := FreeAddrs(t, 3)
 	s := &Stack{T: t, URL: "http://" + at[0], Ops: "http://" + at[1], Admin: "http://" + at[2], Data: data, build: build, Cfg: config.Config{
-		HTTP:          host.HTTPSection{Addr: at[0], CORSOrigins: []string{"http://localhost:5173"}},
+		HTTP:          config.HTTP{Addr: at[0], CORSOrigins: []string{"http://localhost:5173"}, AccountLimit: config.AccountLimit{PerSecond: 2, Burst: 10}}, // the limit is config.yaml's, which TestTheDefaultsLoad pins
 		Ops:           host.OpsSection{Addr: at[1]},
 		Admin:         config.AdminSection{Addr: at[2], Enabled: true},
 		ShutdownGrace: grace,
 		DataDir:       data,
 		Database:      dbx.Config{URL: Cluster.URL(t), MaxConns: 12},
 		WS:            config.WS{HelloTimeout: 5 * time.Second, CommandQueue: 64},
-		REST:          config.REST{PerSecond: 2, Burst: 10}, // config.yaml's, which TestTheDefaultsLoad pins
 		Account: config.Account{
 			Password:    cheapPasswords,
 			Sessions:    config.AccountSessions{Keep: 30 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000},

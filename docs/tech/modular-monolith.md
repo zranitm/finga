@@ -186,7 +186,7 @@ Today a panicked map stops `World.Run` and only the world process restarts; a fa
 One file, strict as now. Its shared sections are followed by one section per module:
 
 ```yaml
-http: {addr: ":8080", cors_origins: [...]}
+http: {addr: ":8080", cors_origins: [...], account_limit: {per_second, burst}}
 ops: {addr: ":9100"}
 admin: {addr: "127.0.0.1:9200", enabled: false}
 shutdown_grace: ...
@@ -195,7 +195,6 @@ tracing: {otlp_endpoint: ...}
 database: {url: ...}
 data_dir: data
 ws: {hello_timeout, command_queue}
-rest: {per_second, burst}
 account: {..., connections: {join_timeout, check_interval}}
 character: {...}
 item: {...}

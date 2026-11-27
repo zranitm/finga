@@ -14,20 +14,19 @@ import (
 
 // Config is config/config.yaml; FINGA_<PATH> overrides any key.
 type Config struct {
-	HTTP          host.HTTPSection `mapstructure:"http"`
-	Ops           host.OpsSection  `mapstructure:"ops"`
-	Admin         AdminSection     `mapstructure:"admin"`
-	ShutdownGrace time.Duration    `mapstructure:"shutdown_grace" validate:"gt=0"`
-	Log           logger.Config    `mapstructure:"log"`
-	Tracing       tracing.Config   `mapstructure:"tracing"`
-	Database      dbx.Config       `mapstructure:"database"`
-	DataDir       string           `mapstructure:"data_dir" validate:"required"`
-	WS            WS               `mapstructure:"ws"`
-	REST          REST             `mapstructure:"rest"`
-	Account       Account          `mapstructure:"account"`
-	Item          Item             `mapstructure:"item"`
-	World         World            `mapstructure:"world"`
-	Social        Social           `mapstructure:"social"`
+	HTTP          HTTP            `mapstructure:"http"`
+	Ops           host.OpsSection `mapstructure:"ops"`
+	Admin         AdminSection    `mapstructure:"admin"`
+	ShutdownGrace time.Duration   `mapstructure:"shutdown_grace" validate:"gt=0"`
+	Log           logger.Config   `mapstructure:"log"`
+	Tracing       tracing.Config  `mapstructure:"tracing"`
+	Database      dbx.Config      `mapstructure:"database"`
+	DataDir       string          `mapstructure:"data_dir" validate:"required"`
+	WS            WS              `mapstructure:"ws"`
+	Account       Account         `mapstructure:"account"`
+	Item          Item            `mapstructure:"item"`
+	World         World           `mapstructure:"world"`
+	Social        Social          `mapstructure:"social"`
 }
 
 // AdminSection is the private admin API's listener (internal/shared/adminapi), off unless Enabled: it writes as any session's account, so it never faces players.

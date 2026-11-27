@@ -106,7 +106,7 @@ func buildTransport(ctx context.Context, h *host.Host, cfg config.Config, mods t
 	h.Serve(httpListener, public.Addr, transport.NewRouter(transport.HTTPRoutes{
 		API: transport.MountREST(transport.RESTOptions{
 			Sessions: mods.Account, Logger: log, CORSOrigins: public.CORSOrigins, Panics: rec, Traces: h.Traces,
-			Limit: ratelimit.NewBuckets(cfg.REST.PerSecond, cfg.REST.Burst),
+			Limit: ratelimit.NewBuckets(cfg.HTTP.AccountLimit.PerSecond, cfg.HTTP.AccountLimit.Burst),
 		}, handleraccount.RESTRoutes(mods.Account), handlercharacter.RESTRoutes(mods.Character), handleritem.RESTRoutes(mods.Wardrobes), handlerpvp.RESTRoutes(mods.Arena)),
 		WS: ws,
 	}))

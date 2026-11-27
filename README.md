@@ -174,7 +174,7 @@ at `admin.addr` (127.0.0.1:9200) when `admin.enabled` is set; `database.max_conn
 | Section     | Keys                                                                              |
 |-------------|-----------------------------------------------------------------------------------|
 | `ws`        | `hello_timeout` (5s), `command_queue` (64): each WebSocket connection. Players are served at the shared `http.addr` and `http.cors_origins` |
-| `rest`      | `per_second` (2), `burst` (10): each account's REST bucket |
+| `http.account_limit` | `per_second` (2), `burst` (10): each account's REST bucket, beside the listener's `addr` and `cors_origins` |
 | `account`   | `password` (`time`, `memory_kib`, `threads`, `concurrent`, `wait`), the Argon2id cost; `sessions` (`keep` 720h, `prune_*`); `connections` (`join_timeout` 5s, `check_interval` 1m), the live connections |
 | `item`      | `idempotency_keys` (`keep` 24h, `prune_*`); `outbox` (`published_keep` 24h, `unpublished_keep` 168h, `prune_*`) |
 | `world`     | `tick_rate_hz` (20), `checkpoint_interval` (30s), `flush_timeout` (10s), `item_calls.workers` (8), `item_calls.batch_max` (32, at most the item module's 32) |
