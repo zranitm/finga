@@ -53,14 +53,20 @@ func newGatewayOver(w *flowWorld, g *guard, checkEvery time.Duration, items flow
 // flowPvp is the pvp module, which these tests don't exercise: no queue, and a stream that waits for its end.
 type flowPvp struct{}
 
-func (flowPvp) Queue(context.Context, model.Player, string) error              { return nil }
-func (flowPvp) LeaveQueue(context.Context, kernel.CharacterID) error           { return nil }
+func (flowPvp) Queue(context.Context, model.Player, string) error { return nil }
+
+func (flowPvp) LeaveQueue(context.Context, kernel.CharacterID) error { return nil }
+
 func (flowPvp) Answer(context.Context, kernel.CharacterID, string, bool) error { return nil }
-func (flowPvp) Offline(context.Context, kernel.CharacterID) error              { return nil }
+
+func (flowPvp) Offline(context.Context, kernel.CharacterID) error { return nil }
+
 func (flowPvp) Missed(context.Context, kernel.CharacterID) (model.Missed, error) {
 	return model.Missed{}, nil
 }
+
 func (flowPvp) Told(context.Context, kernel.CharacterID, []kernel.MatchID) error { return nil }
+
 func (flowPvp) FollowDeliveries(ctx context.Context, _ string, _ func(model.PvpDelivery)) {
 	<-ctx.Done()
 }
@@ -71,33 +77,49 @@ type idle struct{}
 func (idle) Inventory(context.Context, kernel.CharacterID) (model.Inventory, error) {
 	return model.Inventory{}, nil
 }
+
 func (idle) Move(context.Context, model.Actor, model.ItemMove) (model.InventoryChanged, error) {
 	return model.InventoryChanged{}, nil
 }
+
 func (idle) Discard(context.Context, model.Actor, model.ItemDiscard) (model.InventoryChanged, error) {
 	return model.InventoryChanged{}, nil
 }
+
 func (idle) DiscardMany(context.Context, model.Actor, model.ItemDiscardMany) (model.InventoryChanged, error) {
 	return model.InventoryChanged{}, nil
 }
+
 func (idle) AddToWardrobe(context.Context, model.Actor, model.WardrobeAdd) (model.WardrobeAdded, error) {
 	return model.WardrobeAdded{}, nil
 }
+
 func (idle) Chat(_ context.Context, _ model.Player, channel model.ChatChannel, text string) (model.ChatLine, error) {
 	return model.ChatLine{Channel: channel, Text: text}, nil
 }
-func (idle) Invite(context.Context, kernel.CharacterID, kernel.CharacterID) error       { return nil }
-func (idle) Respond(context.Context, kernel.CharacterID, string, bool) error            { return nil }
-func (idle) Leave(context.Context, kernel.CharacterID) error                            { return nil }
-func (idle) Kick(context.Context, kernel.CharacterID, kernel.CharacterID) error         { return nil }
-func (idle) Promote(context.Context, kernel.CharacterID, kernel.CharacterID) error      { return nil }
+
+func (idle) Invite(context.Context, kernel.CharacterID, kernel.CharacterID) error { return nil }
+
+func (idle) Respond(context.Context, kernel.CharacterID, string, bool) error { return nil }
+
+func (idle) Leave(context.Context, kernel.CharacterID) error { return nil }
+
+func (idle) Kick(context.Context, kernel.CharacterID, kernel.CharacterID) error { return nil }
+
+func (idle) Promote(context.Context, kernel.CharacterID, kernel.CharacterID) error { return nil }
+
 func (idle) Online(context.Context, string, string, uint64, model.Player, string) error { return nil }
-func (idle) Offline(context.Context, kernel.CharacterID, string) error                  { return nil }
-func (idle) RegistrationsWaiting(int)                                                   {}
-func (idle) OnlineChanged(int)                                                          {}
+
+func (idle) Offline(context.Context, kernel.CharacterID, string) error { return nil }
+
+func (idle) RegistrationsWaiting(int) {}
+
+func (idle) OnlineChanged(int) {}
+
 func (idle) FollowDeliveries(ctx context.Context, _ string, _ func(model.SocialEvent)) {
 	<-ctx.Done()
 }
+
 func (idle) FollowSessionEnds(ctx context.Context, _ string, _ func(model.SessionEnd)) {
 	<-ctx.Done()
 }
@@ -282,7 +304,9 @@ func (o *flowOutbox) Welcome(w model.Welcome) {
 	defer o.mu.Unlock()
 	o.welcome = &w
 }
+
 func (o *flowOutbox) Deliver(model.Delivery) {}
+
 func (o *flowOutbox) End(r model.EndReason) {
 	select {
 	case o.ends <- r:
@@ -402,10 +426,8 @@ func (w *flowWorld) Join(_ context.Context, _, conn string, _ kernel.AccountID, 
 		return model.Joined{}, err
 	}
 	for i := range flood {
-		d := model.Delivery{Push: model.Delta{Frame: &model.Frame{}}}
-		if i == 0 {
-			d.Push = model.Snapshot{}
-		}
+		d := model.Delivery{Event: struct{}{}}
+		d.Starts = i == 0
 		deliver(model.WorldDelivery{Connection: conn, Delivery: d})
 	}
 	return model.Joined{Character: model.CharacterView{ID: c.String(), Name: "Ayla", Level: 1}, MapID: "town", TickRateHz: hz}, nil
@@ -431,6 +453,7 @@ func (w *flowWorld) reconnect() {
 	w.mu.Unlock()
 	deliver(model.WorldSubscribed{})
 }
+
 func (w *flowWorld) Leave(context.Context, model.Presence) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -445,46 +468,9 @@ func (w *flowWorld) Drop(ctx context.Context, p model.Presence) error {
 	w.mu.Unlock()
 	return w.Leave(ctx, p)
 }
-func (w *flowWorld) Input(context.Context, model.Presence, uint32, model.Keys, uint32) error {
-	return nil
-}
-func (w *flowWorld) Attack(context.Context, model.Presence, float32, model.Target) error { return nil }
-func (w *flowWorld) EnterPortal(context.Context, model.Presence) error                   { return nil }
-func (w *flowWorld) Say(context.Context, model.Presence, string, string) error           { return nil }
-func (w *flowWorld) Equip(context.Context, model.Presence, model.ItemEquip) error        { return nil }
-func (w *flowWorld) SetLook(context.Context, model.Presence, model.LookSet) error        { return nil }
-func (w *flowWorld) TakeLoot(context.Context, model.Presence, []model.LootPick) ([]model.PickAnswer, error) {
-	return nil, nil
-}
-func (w *flowWorld) Unequip(context.Context, model.Presence, model.ItemUnequip) error { return nil }
-func (w *flowWorld) UseItem(context.Context, model.Presence, model.ItemUse) error     { return nil }
-func (w *flowWorld) SpendPoints(context.Context, model.Presence, model.PointsSpend) error {
-	return nil
-}
-func (w *flowWorld) ResetPoints(context.Context, model.Presence, int) error { return nil }
-func (w *flowWorld) SpendSkillPoints(context.Context, model.Presence, model.SkillPointsSpend) error {
-	return nil
-}
-func (w *flowWorld) ChooseTrait(context.Context, model.Presence, model.TraitChoice) error { return nil }
-func (w *flowWorld) UseSkill(context.Context, model.Presence, model.SkillUse, uint32) error {
-	return nil
-}
-func (w *flowWorld) Teleport(context.Context, model.Presence, string, string, uint32) error {
-	return nil
-}
-func (w *flowWorld) SwitchChannel(context.Context, model.Presence, int, uint32) error { return nil }
-func (w *flowWorld) Channels(context.Context, model.Presence) (model.Channels, error) {
-	return model.Channels{}, nil
-}
-func (w *flowWorld) Bosses(context.Context, model.Presence) ([]model.AreaBoss, error) {
-	return nil, nil
-}
-func (w *flowWorld) Promote(context.Context, model.Presence, string, string) error     { return nil }
-func (w *flowWorld) Forfeit(context.Context, model.Presence) error                     { return nil }
-func (w *flowWorld) Talk(context.Context, model.Presence, string) error                { return nil }
-func (w *flowWorld) AcceptQuest(context.Context, model.Presence, model.QuestAsk) error { return nil }
-func (w *flowWorld) AbandonQuest(context.Context, model.Presence, string) error        { return nil }
-func (w *flowWorld) HandInQuest(context.Context, model.Presence, model.QuestAsk) error { return nil }
+
+func (w *flowWorld) Say(context.Context, model.Presence, string, string) error { return nil }
+
 func (w *flowWorld) FollowDeliveries(ctx context.Context, _ string, deliver func(model.WorldEvent)) {
 	if w.followPanic != "" {
 		panic(w.followPanic)

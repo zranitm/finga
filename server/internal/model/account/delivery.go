@@ -10,6 +10,9 @@ type Delivery struct {
 	MapID  string // set by a map change: the map the player is on from now
 }
 
+// Push marks the model's own pushes, those a module other than the world tells a player, which the handlers encode by their type; the world's are its facade's events.
+type Push interface{ push() }
+
 // PiecesAdded tells of new wardrobe entries, each with what gave it.
 type PiecesAdded struct {
 	Pieces []AddedPiece
@@ -121,3 +124,21 @@ type PvpRatingChange struct {
 	RankBefore, RankAfter string
 	PlacementLeft         int
 }
+
+func (PiecesAdded) push() {}
+
+func (ChatMessage) push() {}
+
+func (PartyState) push() {}
+
+func (PartyInvited) push() {}
+
+func (PvpQueued) push() {}
+
+func (PvpUnqueued) push() {}
+
+func (PvpOffer) push() {}
+
+func (PvpOfferCancelled) push() {}
+
+func (MatchEnded) push() {}

@@ -17,11 +17,11 @@ func delivered(d world.Delivery, deliver func(model.WorldEvent)) {
 		deliver(model.Detached{Connection: d.Conn, Character: d.Character})
 	default:
 		out := model.Delivery{Tick: d.Tick, Event: d.Event}
-		switch ev := d.Event.(type) {
-		case world.Snapshot:
+		if _, ok := d.Event.(world.Snapshot); ok {
 			out.Starts = true
-		case world.Teleport:
-			out.MapID = ev.MapID
+		}
+		if tp, ok := d.Event.(world.Teleport); ok {
+			out.MapID = tp.MapID
 		}
 		deliver(model.WorldDelivery{Connection: d.Conn, Character: d.Character, Delivery: out})
 	}

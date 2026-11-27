@@ -14,13 +14,13 @@ import (
 // A push has one encoder: a second registration is an error at startup, not whichever ran last.
 func TestASecondEncoderForAPushIsRefused(t *testing.T) {
 	e := NewEncoders()
-	if err := Encode(e, func(model.MapChange) any { return nil }); err != nil {
+	if err := Encode(e, func(pushA) any { return nil }); err != nil {
 		t.Fatal(err)
 	}
-	if err := Encode(e, func(model.MapChange) any { return nil }); err == nil {
-		t.Fatal("a second encoder for MapChange was accepted")
+	if err := Encode(e, func(pushA) any { return nil }); err == nil {
+		t.Fatal("a second encoder for pushA was accepted")
 	}
-	if err := Encode(e, func(model.Died) any { return nil }); err != nil {
+	if err := Encode(e, func(pushB) any { return nil }); err != nil {
 		t.Fatalf("an encoder for another push was refused: %v", err)
 	}
 }
@@ -56,13 +56,20 @@ func (w *watched) Unencoded(pushType string) {
 func TestAPushWithoutAnEncoderIsCountedAndLogged(t *testing.T) {
 	w := &watched{}
 	logs := &bytes.Buffer{}
-	NewOutbox(w, w, slog.New(slog.NewJSONHandler(logs, nil)), NewEncoders()).Deliver(model.Delivery{Tick: 9, Push: model.MapChange{MapID: "town"}})
+	NewOutbox(w, w, slog.New(slog.NewJSONHandler(logs, nil)), NewEncoders()).Deliver(model.Delivery{Tick: 9, Event: unknownPush{}})
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if w.sent != 0 || len(w.unencoded) != 1 || w.unencoded[0] != "MapChange" {
-		t.Fatalf("sent %d, counted %v; want nothing sent and MapChange counted once", w.sent, w.unencoded)
+	if w.sent != 0 || len(w.unencoded) != 1 || w.unencoded[0] != "unknownPush" {
+		t.Fatalf("sent %d, counted %v; want nothing sent and pushA counted once", w.sent, w.unencoded)
 	}
-	if got := logs.String(); !strings.Contains(got, `"level":"ERROR"`) || !strings.Contains(got, `"push":"MapChange"`) {
+	if got := logs.String(); !strings.Contains(got, `"level":"ERROR"`) || !strings.Contains(got, `"push":"unknownPush"`) {
 		t.Fatalf("logged %q, want an error naming the push's type", got)
 	}
 }
+
+// Two kinds of push no handler knows.
+type (
+	pushA       struct{}
+	pushB       struct{}
+	unknownPush struct{}
+)

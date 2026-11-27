@@ -49,20 +49,29 @@ func handlerDirs(t *testing.T) []string {
 	return dirs
 }
 
-// A push without an encoder is dropped, and a second encoder for one is refused at startup; either would be found in a game, so this finds it first.
+// A push without an encoder is dropped, and a second encoder for one is refused at startup; either would be found in a game, so this finds it first. A push is a type of the model marked push(), or an event of the world's facade, but the frame and the detach, which the adapter turns into one delivery per recipient and a re-join.
 func TestEveryPushHasExactlyOneEncoder(t *testing.T) {
-	pushes := map[string]int{}
+	pushes := map[string]int{"world.Framed": 0}
 	for _, f := range goFiles(t, "../../internal/model/account") {
 		for _, d := range f.Decls {
 			if fn, ok := d.(*ast.FuncDecl); ok && fn.Recv != nil && fn.Name.Name == "push" && len(fn.Recv.List) == 1 {
 				if id, ok := fn.Recv.List[0].Type.(*ast.Ident); ok {
-					pushes[id.Name] = 0
+					pushes["model."+id.Name] = 0
 				}
 			}
 		}
 	}
-	if len(pushes) == 0 {
-		t.Fatal("model/account declares no push(): is the scan broken?")
+	for _, f := range goFiles(t, "../../internal/application/world") {
+		for _, d := range f.Decls {
+			if fn, ok := d.(*ast.FuncDecl); ok && fn.Recv != nil && fn.Name.Name == "worldEvent" && len(fn.Recv.List) == 1 {
+				if id, ok := fn.Recv.List[0].Type.(*ast.Ident); ok && id.Name != "Frame" && id.Name != "Detached" {
+					pushes["world."+id.Name] = 0
+				}
+			}
+		}
+	}
+	if len(pushes) < 3 {
+		t.Fatal("no push found: is the scan broken?")
 	}
 	extra := map[string]int{}
 	for _, f := range goFiles(t, handlerDirs(t)...) {
@@ -83,10 +92,13 @@ func TestEveryPushHasExactlyOneEncoder(t *testing.T) {
 				return true
 			}
 			if t, ok := lit.Type.Params.List[0].Type.(*ast.SelectorExpr); ok {
-				if _, known := pushes[t.Sel.Name]; known {
-					pushes[t.Sel.Name]++
-				} else {
-					extra[t.Sel.Name]++
+				if pkg, ok := t.X.(*ast.Ident); ok {
+					key := pkg.Name + "." + t.Sel.Name
+					if _, known := pushes[key]; known {
+						pushes[key]++
+					} else {
+						extra[key]++
+					}
 				}
 			}
 			return true
@@ -94,11 +106,11 @@ func TestEveryPushHasExactlyOneEncoder(t *testing.T) {
 	}
 	for name, n := range pushes {
 		if n != 1 {
-			t.Errorf("the push model.%s has %d encoders registered by transport.Encode, want exactly 1", name, n)
+			t.Errorf("the push %s has %d encoders registered by transport.Encode, want exactly 1", name, n)
 		}
 	}
 	for name := range extra {
-		t.Errorf("transport.Encode registers an encoder for model.%s, which is no push", name)
+		t.Errorf("transport.Encode registers an encoder for %s, which is no push", name)
 	}
 }
 
