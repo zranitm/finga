@@ -5,6 +5,7 @@ import (
 
 	"finga/internal/application/character"
 	"finga/internal/application/item"
+	repository "finga/internal/repository/character"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/host"
 )
@@ -15,5 +16,9 @@ func buildCharacter(ctx context.Context, h *host.Host, data *gamedata.Data, item
 	if err != nil {
 		return nil, err
 	}
-	return character.New(ctx, character.Deps{Module: m, Data: data, Item: items})
+	pool, dbMetrics, err := m.Database(ctx) // fails fast on an unreachable database
+	if err != nil {
+		return nil, err
+	}
+	return character.New(character.Deps{Module: m, Data: data, Item: items, Store: repository.NewPostgres(pool, dbMetrics)})
 }

@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	application "finga/internal/application/item/service"
+	application "finga/internal/application/item"
 	model "finga/internal/model/item"
 	"finga/internal/repository/item/internal/db"
 	"finga/internal/shared/gamedata"
@@ -81,7 +81,7 @@ func (p *Postgres) Inventory(ctx context.Context, owner kernel.CharacterID) (mod
 }
 
 // HandedIn lists the owner's hand-ins of the completions asked.
-func (p *Postgres) HandedIn(ctx context.Context, owner kernel.CharacterID, asked []application.Completion) ([]application.HandIn, error) {
+func (p *Postgres) HandedIn(ctx context.Context, owner kernel.CharacterID, asked []application.QuestCompletion) ([]application.HandIn, error) {
 	params := db.ListHandInsParams{CharacterID: uuid.UUID(owner)}
 	for _, c := range asked {
 		params.QuestIds = append(params.QuestIds, c.Quest)
@@ -302,7 +302,7 @@ type handIns struct {
 }
 
 // Claim takes the owner's inventory lock, then reads the completion's record.
-func (h handIns) Claim(ctx context.Context, owner kernel.CharacterID, c application.Completion) (application.HandIn, bool, error) {
+func (h handIns) Claim(ctx context.Context, owner kernel.CharacterID, c application.QuestCompletion) (application.HandIn, bool, error) {
 	if err := h.q.LockOwner(ctx, owner.String()); err != nil {
 		return application.HandIn{}, false, err
 	}
@@ -350,7 +350,7 @@ func (i idem) Lock(ctx context.Context, owner kernel.AccountID, scope, key strin
 }
 
 // Run runs fn once per key for the account.
-func (i idem) Run(ctx context.Context, owner kernel.AccountID, scope, key string, fingerprint []byte, fn func() (application.Result, error)) (application.Result, error) {
+func (i idem) Run(ctx context.Context, owner kernel.AccountID, scope, key string, fingerprint []byte, fn func() (application.Changes, error)) (application.Changes, error) {
 	raw, err := i.store.Do(ctx, owner.String(), scope, key, fingerprint, func() ([]byte, error) {
 		res, err := fn()
 		if err != nil {
@@ -360,9 +360,9 @@ func (i idem) Run(ctx context.Context, owner kernel.AccountID, scope, key string
 	})
 	if err != nil {
 		if errors.Is(err, idempotency.ErrKeyReused) {
-			return application.Result{}, fmt.Errorf("%w: %w", model.ErrKeyReused, err)
+			return application.Changes{}, fmt.Errorf("%w: %w", model.ErrKeyReused, err)
 		}
-		return application.Result{}, err
+		return application.Changes{}, err
 	}
 	return decodeReply(raw)
 }

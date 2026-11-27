@@ -6,9 +6,7 @@ import (
 	"errors"
 
 	adapter "finga/internal/adapter/character"
-	application "finga/internal/application/character/service"
 	model "finga/internal/model/character"
-	repository "finga/internal/repository/character"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/host"
@@ -19,12 +17,12 @@ import (
 // Module is the character module; every call to it goes through these methods.
 type Module struct {
 	calls *facade.Calls
-	svc   service
+	svc   useCases
 }
 
-// service is the module's application, as the facade calls it.
-type service interface {
-	Create(ctx context.Context, account kernel.AccountID, in application.CreateInput) (model.Character, error)
+// useCases is the module's use cases, as the facade calls them.
+type useCases interface {
+	Create(ctx context.Context, account kernel.AccountID, in CreateInput) (model.Character, error)
 	List(ctx context.Context, account kernel.AccountID) ([]model.Character, error)
 	Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error)
 	Find(ctx context.Context, ids []kernel.CharacterID) ([]model.Character, error)
@@ -44,25 +42,22 @@ type Items = adapter.Items
 
 // Deps are what the module is built from; Item grants a new character its starter items.
 type Deps struct {
-	Module *host.Module   // its logs, panics, metrics and the process's database
+	Module *host.Module   // its logs, panics and metrics
 	Data   *gamedata.Data // classes, stat rules, the start town and skills
 	Item   Items
+	Store  Store // its persistence, which the wiring builds on the process's database
 }
 
-// New builds the module; it fails fast on an unreachable database.
-func New(ctx context.Context, d Deps) (*Module, error) {
+// New builds the module.
+func New(d Deps) (*Module, error) {
 	if d.Item == nil {
 		return nil, errors.New("character: give Item")
-	}
-	pool, dbMetrics, err := d.Module.Database(ctx)
-	if err != nil {
-		return nil, err
 	}
 	calls, err := d.Module.Calls(errorTable)
 	if err != nil {
 		return nil, err
 	}
-	svc := application.NewService(application.Deps{Store: repository.NewPostgres(pool, dbMetrics), Content: d.Data, Starter: adapter.NewStarter(d.Item), Logger: d.Module.Logger})
+	svc := newCases(casesDeps{Store: d.Store, Content: d.Data, Starter: adapter.NewStarter(d.Item), Logger: d.Module.Logger})
 	return &Module{calls: calls, svc: svc}, nil
 }
 
@@ -70,7 +65,7 @@ func New(ctx context.Context, d Deps) (*Module, error) {
 func (m *Module) Create(ctx context.Context, account kernel.AccountID, name string) (_ Character, err error) {
 	ctx, call := m.calls.Start(ctx, "Create")
 	defer call.End(&err)
-	c, err := m.svc.Create(ctx, account, application.CreateInput{Name: name})
+	c, err := m.svc.Create(ctx, account, CreateInput{Name: name})
 	if err != nil {
 		return Character{}, err
 	}

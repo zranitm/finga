@@ -10,16 +10,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel/trace/noop"
-
-	application "finga/internal/application/character/service"
 	model "finga/internal/model/character"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"
 	"finga/pkg/panics"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 var (
@@ -33,79 +32,79 @@ var (
 	end = time.Date(2026, 11, 13, 10, 0, 30, 0, time.UTC)
 )
 
-// fakeService records what the facade passed in and answers err when set; derivedErr fails Derived alone.
-type fakeService struct {
+// fakeCases records what the facade passed in and answers err when set; derivedErr fails Derived alone.
+type fakeCases struct {
 	in         any
 	read       []string // what Load read, in order
 	derivedErr error
 	err        error
 }
 
-func (f *fakeService) Create(_ context.Context, account kernel.AccountID, in application.CreateInput) (model.Character, error) {
+func (f *fakeCases) Create(_ context.Context, account kernel.AccountID, in CreateInput) (model.Character, error) {
 	f.in = []any{account, in}
 	return ayla, f.err
 }
 
-func (f *fakeService) List(_ context.Context, account kernel.AccountID) ([]model.Character, error) {
+func (f *fakeCases) List(_ context.Context, account kernel.AccountID) ([]model.Character, error) {
 	f.in = account
 	return []model.Character{ayla}, f.err
 }
 
-func (f *fakeService) Load(_ context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error) {
+func (f *fakeCases) Load(_ context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error) {
 	f.in, f.read = []any{id, account}, append(f.read, "character")
 	return ayla, f.err
 }
 
-func (f *fakeService) Find(_ context.Context, ids []kernel.CharacterID) ([]model.Character, error) {
+func (f *fakeCases) Find(_ context.Context, ids []kernel.CharacterID) ([]model.Character, error) {
 	f.in = ids
 	return []model.Character{ayla}, f.err
 }
 
-func (f *fakeService) Quests(_ context.Context, _ kernel.CharacterID) ([]model.Quest, error) {
+func (f *fakeCases) Quests(_ context.Context, _ kernel.CharacterID) ([]model.Quest, error) {
 	f.read = append(f.read, "quests")
 	return []model.Quest{{ID: "slime_cleanup", Status: model.QuestActive, Progress: []int{7}}, {ID: "sticky_samples", Status: model.QuestFinished, TimesFinished: 2}}, nil
 }
 
-func (f *fakeService) Skills(_ context.Context, _ kernel.CharacterID) ([]model.SkillPoints, error) {
+func (f *fakeCases) Skills(_ context.Context, _ kernel.CharacterID) ([]model.SkillPoints, error) {
 	f.read = append(f.read, "skills")
 	return []model.SkillPoints{{ID: "strike", Points: 25, Trait: "concussion"}}, nil
 }
 
-func (f *fakeService) Timers(_ context.Context, _ kernel.CharacterID) ([]model.SkillTimer, error) {
+func (f *fakeCases) Timers(_ context.Context, _ kernel.CharacterID) ([]model.SkillTimer, error) {
 	f.read = append(f.read, "timers")
 	return []model.SkillTimer{{Skill: "iron_body", Kind: model.BuffTimer, Until: end, Points: 3, Trait: "iron_wall"}}, nil
 }
 
-func (f *fakeService) Waypoints(_ context.Context, _ kernel.CharacterID) ([]model.Waypoint, error) {
+func (f *fakeCases) Waypoints(_ context.Context, _ kernel.CharacterID) ([]model.Waypoint, error) {
 	f.read = append(f.read, "waypoints")
 	return []model.Waypoint{{ID: "town", FoundAt: end}}, nil
 }
 
-func (f *fakeService) Own(model.Character) gamedata.Stats { return own }
+func (f *fakeCases) Own(model.Character) gamedata.Stats { return own }
 
-func (f *fakeService) Derived(model.Character) (progression.Derived, error) {
+func (f *fakeCases) Derived(model.Character) (progression.Derived, error) {
 	if f.derivedErr != nil {
 		return progression.Derived{}, f.derivedErr
 	}
 	return progression.Derived{MaxHP: 250}, nil
 }
 
-func (f *fakeService) SaveCheckpoint(_ context.Context, cp model.Checkpoint) error {
+func (f *fakeCases) SaveCheckpoint(_ context.Context, cp model.Checkpoint) error {
 	f.in = cp
 	return f.err
 }
 
-func (f *fakeService) SaveLevelUp(_ context.Context, lu model.LevelUp) error {
+func (f *fakeCases) SaveLevelUp(_ context.Context, lu model.LevelUp) error {
 	f.in = lu
 	return f.err
 }
 
-func (f *fakeService) SetSkillBar(_ context.Context, id kernel.CharacterID, account kernel.AccountID, bar []string) error {
+func (f *fakeCases) SetSkillBar(_ context.Context, id kernel.CharacterID, account kernel.AccountID, bar []string) error {
 	f.in = []any{id, account, bar}
 	return f.err
 }
 
-func newModule(t *testing.T, svc service) *Module {
+func newModule(t *testing.T, svc useCases) *Module {
 	t.Helper()
 	calls, err := facade.New(facade.Options{Module: "character", Traces: noop.NewTracerProvider(), Registry: prometheus.NewRegistry(), Panics: panics.NewRecorder(slog.New(slog.DiscardHandler), nil), Errors: errorTable})
 	if err != nil {
@@ -123,21 +122,21 @@ var wantAyla = Character{
 func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 	ctx := t.Context()
 	t.Run("Create", func(t *testing.T) {
-		f := &fakeService{}
+		f := &fakeCases{}
 		c, err := newModule(t, f).Create(ctx, owner, "Ayla")
-		if err != nil || !reflect.DeepEqual(c, wantAyla) || !reflect.DeepEqual(f.in, []any{owner, application.CreateInput{Name: "Ayla"}}) {
+		if err != nil || !reflect.DeepEqual(c, wantAyla) || !reflect.DeepEqual(f.in, []any{owner, CreateInput{Name: "Ayla"}}) {
 			t.Fatalf("got %+v from %+v, err %v", c, f.in, err)
 		}
 	})
 	t.Run("List", func(t *testing.T) {
-		f := &fakeService{}
+		f := &fakeCases{}
 		cs, err := newModule(t, f).List(ctx, owner)
 		if err != nil || len(cs) != 1 || !reflect.DeepEqual(cs[0], wantAyla) || f.in != owner {
 			t.Fatalf("got %+v, err %v", cs, err)
 		}
 	})
 	t.Run("Load reads the character, then its quests, skills, timers and found waypoints", func(t *testing.T) {
-		f := &fakeService{}
+		f := &fakeCases{}
 		l, err := newModule(t, f).Load(ctx, ayla.ID, owner)
 		want := Loaded{
 			Character: wantAyla,
@@ -151,7 +150,7 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 		}
 	})
 	t.Run("SaveCheckpoint passes an unknown status or kind on, for the module to refuse", func(t *testing.T) {
-		f := &fakeService{}
+		f := &fakeCases{}
 		cp := Checkpoint{
 			ID: ayla.ID, Class: "thief", MapID: "cave", X: 10, Y: 20, HP: 5, Energy: 6, Level: 5, Exp: 7, Points: gamedata.Stats{STR: 9}, UnspentPoints: 1, FreeResetUsed: true,
 			Quests:             []Quest{{ID: "slime_cleanup", Status: QuestActive, Progress: []int{3, 0}, TimesFinished: 1}, {ID: "odd"}},
@@ -172,7 +171,7 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 		}
 	})
 	t.Run("SaveLevelUp", func(t *testing.T) {
-		f := &fakeService{}
+		f := &fakeCases{}
 		if err := newModule(t, f).SaveLevelUp(ctx, LevelUp{ID: ayla.ID, Level: 4, Exp: 3, Points: gamedata.Stats{STR: 9, VIT: 6}, HP: 280}); err != nil {
 			t.Fatal(err)
 		}
@@ -181,7 +180,7 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 		}
 	})
 	t.Run("SetSkillBar", func(t *testing.T) {
-		f := &fakeService{}
+		f := &fakeCases{}
 		bar := []string{"", "throw", "", "", "", "strike", "", "spark"}
 		if err := newModule(t, f).SetSkillBar(ctx, ayla.ID, owner, bar); err != nil || !reflect.DeepEqual(f.in, []any{ayla.ID, owner, bar}) {
 			t.Fatalf("got %+v, err %v", f.in, err)
@@ -191,7 +190,7 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 
 // A class the game data lost is refused at Load, before any quest is read; in a list it only leaves the maximums 0.
 func TestAClassTheGameDataLacks(t *testing.T) {
-	f := &fakeService{derivedErr: model.ErrClassUnavailable}
+	f := &fakeCases{derivedErr: model.ErrClassUnavailable}
 	m := newModule(t, f)
 	if _, err := m.Load(t.Context(), ayla.ID, owner); !errors.Is(err, kernel.ErrClassUnavailable) || !slices.Equal(f.read, []string{"character"}) {
 		t.Fatalf("got %v after reading %v", err, f.read)
@@ -206,14 +205,14 @@ func TestAClassTheGameDataLacks(t *testing.T) {
 func TestEveryModelErrorReachesCallersAsItsKernelError(t *testing.T) {
 	for _, row := range errorTable {
 		t.Run(row.Model.Error(), func(t *testing.T) {
-			m := newModule(t, &fakeService{err: fmt.Errorf("saving: %w", row.Model)})
+			m := newModule(t, &fakeCases{err: fmt.Errorf("saving: %w", row.Model)})
 			err := m.SaveLevelUp(t.Context(), LevelUp{ID: ayla.ID})
 			if !errors.Is(err, row.Kernel) || !errors.Is(err, row.Model) {
 				t.Fatalf("got %v, want %v wrapping %v", err, row.Kernel, row.Model)
 			}
 		})
 	}
-	m := newModule(t, &fakeService{err: model.ErrNotFound})
+	m := newModule(t, &fakeCases{err: model.ErrNotFound})
 	if _, err := m.Load(t.Context(), ayla.ID, kernel.NewAccountID()); !errors.Is(err, kernel.ErrCharacterNotFound) {
 		t.Fatalf("someone else's character: got %v", err)
 	}

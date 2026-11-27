@@ -6,8 +6,6 @@ import (
 	"math/rand/v2"
 
 	adapter "finga/internal/adapter/pvp"
-	"finga/internal/application/pvp/service"
-	repository "finga/internal/repository/pvp"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/host"
@@ -21,30 +19,27 @@ const pushQueue = 4096
 // Module is the pvp module; every call to it goes through these methods.
 type Module struct {
 	calls  *facade.Calls
-	svc    *service.Service
+	svc    *cases
 	pushes *hub.Hub[Push]
 }
 
 // Deps are what the module is built from.
 type Deps struct {
-	Module    *host.Module // its logs, panics, tasks, metrics and database
+	Module    *host.Module // its logs, panics, tasks and metrics
 	Data      *gamedata.Data
 	World     adapter.WorldModule
 	Social    adapter.SocialModule
 	Character adapter.CharacterModule
 	Items     adapter.ItemModule // ranks' pieces go to the wardrobe
+	Store     Store              // its persistence, which the wiring builds on the process's database
 }
 
 // New builds the module and adds its matcher and its follower of the world's outcomes; the queue lives in memory, so a restart empties it.
-func New(ctx context.Context, d Deps) (*Module, error) {
-	pool, dbMetrics, err := d.Module.Database(ctx)
-	if err != nil {
-		return nil, err
-	}
+func New(d Deps) (*Module, error) {
 	pushes := hub.New[Push](pushQueue)
 	world, social := adapter.NewWorld(d.World), adapter.NewSocial(d.Social, d.Module.Panics)
-	svc := service.New(service.Deps{
-		Data: d.Data, World: world, Social: social, Characters: adapter.NewCharacters(d.Character), Store: repository.NewPostgres(pool, dbMetrics), Items: adapter.NewItems(d.Items), Notifier: notifier{pushes}, Logger: d.Module.Logger, Panics: d.Module.Panics,
+	svc := newCases(casesDeps{
+		Data: d.Data, World: world, Social: social, Characters: adapter.NewCharacters(d.Character), Store: d.Store, Items: adapter.NewItems(d.Items), Notifier: notifier{pushes}, Logger: d.Module.Logger, Panics: d.Module.Panics,
 		Rand: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())), //nolint:gosec // bots' classes and names, not a secret
 	})
 	d.Module.Task("matcher", svc.Run, host.Restartable)
@@ -133,6 +128,6 @@ func (m *Module) Subscribe(gateway string) *hub.Sub[Push] {
 type notifier struct{ pushes *hub.Hub[Push] }
 
 // Push sends d for to.
-func (n notifier) Push(to kernel.CharacterID, d service.Delivery) {
+func (n notifier) Push(to kernel.CharacterID, d Delivery) {
 	n.pushes.Broadcast(Push{To: to, Delivery: d})
 }

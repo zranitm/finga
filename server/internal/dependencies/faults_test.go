@@ -74,7 +74,7 @@ func (f *flakyItems) build(ctx context.Context, h *host.Host, cfg config.Config)
 	if err != nil {
 		return err
 	}
-	parties, err := buildSocial(ctx, h, cfg, data)
+	parties, err := buildSocial(h, cfg, data)
 	if err != nil {
 		return err
 	}

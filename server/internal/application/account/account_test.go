@@ -9,19 +9,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel/trace/noop"
-
-	application "finga/internal/application/account/service"
 	model "finga/internal/model/account"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/kernel"
 	"finga/pkg/hub"
 	"finga/pkg/panics"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
-// fakeService records what the facade passed in and answers err when set.
-type fakeService struct {
+// fakeCases records what the facade passed in and answers err when set.
+type fakeCases struct {
 	in       any
 	id       any
 	settings model.Settings
@@ -34,45 +33,45 @@ var (
 	created   = time.Date(2026, 11, 13, 9, 0, 0, 0, time.UTC)
 )
 
-func (f *fakeService) Register(_ context.Context, in application.RegisterInput) (model.Account, error) {
+func (f *fakeCases) Register(_ context.Context, in RegisterInput) (model.Account, error) {
 	f.in = in
 	return model.Account{ID: accountID, Username: in.Username, Settings: model.Settings{ChatPinned: true}, CreatedAt: created}, f.err
 }
 
-func (f *fakeService) Login(_ context.Context, in application.LoginInput) (string, error) {
+func (f *fakeCases) Login(_ context.Context, in LoginInput) (string, error) {
 	f.in = in
 	return "tok-1", f.err
 }
 
-func (f *fakeService) Validate(_ context.Context, token string) (model.Principal, error) {
+func (f *fakeCases) Validate(_ context.Context, token string) (model.Principal, error) {
 	f.in = token
 	return model.Principal{AccountID: accountID, SessionID: sessionID}, f.err
 }
 
-func (f *fakeService) Rotate(_ context.Context, id kernel.SessionID) (string, error) {
+func (f *fakeCases) Rotate(_ context.Context, id kernel.SessionID) (string, error) {
 	f.id = id
 	return "tok-2", f.err
 }
 
-func (f *fakeService) Check(_ context.Context, id kernel.SessionID) error  { f.id = id; return f.err }
-func (f *fakeService) Revoke(_ context.Context, id kernel.SessionID) error { f.id = id; return f.err }
+func (f *fakeCases) Check(_ context.Context, id kernel.SessionID) error  { f.id = id; return f.err }
+func (f *fakeCases) Revoke(_ context.Context, id kernel.SessionID) error { f.id = id; return f.err }
 
-func (f *fakeService) RevokeAll(_ context.Context, id kernel.AccountID) error {
+func (f *fakeCases) RevokeAll(_ context.Context, id kernel.AccountID) error {
 	f.id = id
 	return f.err
 }
 
-func (f *fakeService) Settings(_ context.Context, id kernel.AccountID) (model.Settings, error) {
+func (f *fakeCases) Settings(_ context.Context, id kernel.AccountID) (model.Settings, error) {
 	f.id = id
 	return model.Settings{AutoAssignPoints: true, Keys: map[string]string{"attack": "KeyV"}}, f.err
 }
 
-func (f *fakeService) UpdateSettings(_ context.Context, id kernel.AccountID, s model.Settings) error {
+func (f *fakeCases) UpdateSettings(_ context.Context, id kernel.AccountID, s model.Settings) error {
 	f.id, f.settings = id, s
 	return f.err
 }
 
-func newModule(t *testing.T, svc service) *Module {
+func newModule(t *testing.T, svc useCases) *Module {
 	t.Helper()
 	calls, err := facade.New(facade.Options{Module: "account", Traces: noop.NewTracerProvider(), Registry: prometheus.NewRegistry(), Panics: panics.NewRecorder(slog.New(slog.DiscardHandler), nil), Errors: errorTable})
 	if err != nil {
@@ -83,18 +82,18 @@ func newModule(t *testing.T, svc service) *Module {
 
 func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 	ctx := t.Context()
-	f := &fakeService{}
+	f := &fakeCases{}
 	m := newModule(t, f)
 	t.Run("Register", func(t *testing.T) {
 		a, err := m.Register(ctx, Credentials{Username: "alice", Password: "correct horse"})
 		want := Account{ID: accountID, Username: "alice", Settings: Settings{ChatPinned: true}, CreatedAt: created}
-		if err != nil || !reflect.DeepEqual(a, want) || f.in != (application.RegisterInput{Username: "alice", Password: "correct horse"}) {
+		if err != nil || !reflect.DeepEqual(a, want) || f.in != (RegisterInput{Username: "alice", Password: "correct horse"}) {
 			t.Fatalf("got %+v from %+v, err %v", a, f.in, err)
 		}
 	})
 	t.Run("Login", func(t *testing.T) {
 		token, err := m.Login(ctx, Credentials{Username: "alice", Password: "pw"})
-		if err != nil || token != "tok-1" || f.in != (application.LoginInput{Username: "alice", Password: "pw"}) {
+		if err != nil || token != "tok-1" || f.in != (LoginInput{Username: "alice", Password: "pw"}) {
 			t.Fatalf("got %q from %+v, err %v", token, f.in, err)
 		}
 	})
@@ -139,14 +138,14 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 func TestEveryModelErrorReachesCallersAsItsKernelError(t *testing.T) {
 	for _, row := range errorTable {
 		t.Run(row.Model.Error(), func(t *testing.T) {
-			m := newModule(t, &fakeService{err: fmt.Errorf("login: %w", row.Model)})
+			m := newModule(t, &fakeCases{err: fmt.Errorf("login: %w", row.Model)})
 			_, err := m.Login(t.Context(), Credentials{Username: "alice", Password: "pw"})
 			if !errors.Is(err, row.Kernel) || !errors.Is(err, row.Model) {
 				t.Fatalf("got %v, want %v wrapping %v", err, row.Kernel, row.Model)
 			}
 		})
 	}
-	m := newModule(t, &fakeService{err: model.ErrNotFound})
+	m := newModule(t, &fakeCases{err: model.ErrNotFound})
 	if err := m.Check(t.Context(), sessionID); !errors.Is(err, kernel.ErrAccountNotFound) {
 		t.Fatalf("an unknown account: got %v", err)
 	}
@@ -154,12 +153,12 @@ func TestEveryModelErrorReachesCallersAsItsKernelError(t *testing.T) {
 
 // Every subscribed gateway hears each ended session the module tells of, with why, in order.
 func TestASubscribedGatewayHearsOfEachEndedSession(t *testing.T) {
-	m := newModule(t, &fakeService{})
+	m := newModule(t, &fakeCases{})
 	n := notifier{sessions: m.sessions}
 	a, b := m.Subscribe("gw-a"), m.Subscribe("gw-b")
-	n.SessionRevoked(t.Context(), sessionID, application.ReasonTokenReuse)
-	n.AccountRevoked(t.Context(), accountID, application.ReasonNewLogin)
-	n.AccountRevoked(t.Context(), accountID, application.ReasonLogout)
+	n.SessionRevoked(t.Context(), sessionID, ReasonTokenReuse)
+	n.AccountRevoked(t.Context(), accountID, ReasonNewLogin)
+	n.AccountRevoked(t.Context(), accountID, ReasonLogout)
 	want := []Event{
 		SessionRevoked{Session: sessionID, Reason: RevokeTokenReuse},
 		Revoked{Account: accountID, Reason: RevokeNewLogin},

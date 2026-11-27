@@ -20,6 +20,7 @@ import (
 	migrateapp "finga/cmd/migrate/app"
 	"finga/config"
 	"finga/internal/application/item"
+	repository "finga/internal/repository/item"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/gamedata/load"
 	"finga/internal/shared/host"
@@ -147,7 +148,11 @@ func itemsOn(t *testing.T, cfg config.Config, data *gamedata.Data) *item.Module 
 	if err != nil {
 		t.Fatal(err)
 	}
-	items, err := item.New(t.Context(), item.Deps{Module: m, Config: cfg.Item, Data: data})
+	pool, dbMetrics, err := m.Database(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, err := item.New(item.Deps{Module: m, Config: cfg.Item, Data: data, Pool: pool, Store: repository.NewPostgres(pool, dbMetrics)})
 	if err != nil {
 		t.Fatal(err)
 	}

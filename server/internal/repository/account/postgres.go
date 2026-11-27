@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	application "finga/internal/application/account/service"
+	application "finga/internal/application/account"
 	model "finga/internal/model/account"
 	"finga/internal/repository/account/internal/db"
 	"finga/internal/shared/kernel"

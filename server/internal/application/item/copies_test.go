@@ -1,15 +1,13 @@
 package item
 
 import (
-	"maps"
-	"reflect"
-	"testing"
-
-	application "finga/internal/application/item/service"
 	model "finga/internal/model/item"
 	"finga/internal/shared/kernel"
 	"finga/pkg/copytest"
 	"finga/pkg/uuidv7"
+	"maps"
+	"reflect"
+	"testing"
 )
 
 // owners skips each item's owner below the result at prefix: callers asked as that owner, so it doesn't come back.
@@ -38,14 +36,14 @@ type (
 	}
 	handedInSent struct {
 		Owner kernel.CharacterID
-		Asked []application.Completion
+		Asked []QuestCompletion
 	}
 )
 
 // Each conversion between the facade and the module carries every field, so one added on both sides and missed in between shows.
 func TestEveryConversionKeepsEveryField(t *testing.T) {
 	ctx := t.Context()
-	f := &fakeService{}
+	f := &fakeCases{}
 	m := newModule(t, f)
 	results := map[string]func() (Result, error){
 		"Add":           func() (Result, error) { return m.Add(ctx, actor, AddRequest{Key: key, Cause: Cause{Type: CauseDrop}}) },
@@ -61,7 +59,7 @@ func TestEveryConversionKeepsEveryField(t *testing.T) {
 		"SetLook":       func() (Result, error) { return m.SetLook(ctx, actor, LookRequest{Key: key}) },
 	}
 	for name, call := range results {
-		got := copytest.Diff(copytest.Match{Skip: owners("")}, func(res application.Result) Result {
+		got := copytest.Diff(copytest.Match{Skip: owners("")}, func(res Changes) Result {
 			f.result = res
 			out, err := call()
 			if err != nil {
@@ -94,16 +92,16 @@ func TestEveryConversionKeepsEveryField(t *testing.T) {
 				Computed: map[string]string{"In.Key": keyCheck, "In.Cause.Quest": "only a hand-in's cause names a quest, which no Add sends"},
 				Enums:    causes,
 			}
-			return copytest.Diff(match, func(a asked[AddRequest]) sent[application.AddInput] {
+			return copytest.Diff(match, func(a asked[AddRequest]) sent[AddInput] {
 				a.Req.Key = key
 				if _, err := m.Add(ctx, a.Actor, a.Req); err != nil {
 					t.Fatal(err)
 				}
-				in := f.in.(application.AddInput)
+				in := f.in.(AddInput)
 				if in.Key != key {
 					t.Errorf("Add sent key %q, not %q", in.Key, key)
 				}
-				return sent[application.AddInput]{f.actor, in}
+				return sent[AddInput]{f.actor, in}
 			})
 		},
 		"AddMany's drops": func() []string {
@@ -113,7 +111,7 @@ func TestEveryConversionKeepsEveryField(t *testing.T) {
 				Computed: map[string]string{"In.Key": keyCheck, "In.Cause.Quest": "only a hand-in's cause names a quest, which no drop sends"},
 				Enums:    causes,
 			}
-			return copytest.Diff(match, func(a asked[[]AddRequest]) sent[[]application.AddInput] {
+			return copytest.Diff(match, func(a asked[[]AddRequest]) sent[[]AddInput] {
 				want := make([]string, len(a.Req))
 				for i := range a.Req {
 					want[i] = "k-" + uuidv7.NewString()
@@ -127,13 +125,13 @@ func TestEveryConversionKeepsEveryField(t *testing.T) {
 						t.Errorf("drop %d sent key %q, not %q", i, in.Key, want[i])
 					}
 				}
-				return sent[[]application.AddInput]{f.actor, f.drops}
+				return sent[[]AddInput]{f.actor, f.drops}
 			})
 		},
 		"AddMany's batch": func() []string {
 			skip := owners("Outcomes.Result.")
 			maps.Copy(skip, map[string]string{"Changed.Item.Owner": "the owner is the actor asked for"})
-			return copytest.Diff(copytest.Match{Skip: skip}, func(b application.Batch) Batch { // each outcome's error left nil; TestAddManyAnswersEachDrop maps the errors
+			return copytest.Diff(copytest.Match{Skip: skip}, func(b DropBatch) Batch { // each outcome's error left nil; TestAddManyAnswersEachDrop maps the errors
 				f.batch = b
 				drops := make([]AddRequest, len(b.Outcomes))
 				for i := range drops {
@@ -148,22 +146,22 @@ func TestEveryConversionKeepsEveryField(t *testing.T) {
 		},
 		"AddToWardrobe's request": func() []string {
 			match := copytest.Match{Renames: map[string]string{"Req": "In"}, Skip: keys, Computed: map[string]string{"In.Key": keyCheck}}
-			return copytest.Diff(match, func(a asked[WardrobeRequest]) sent[application.WardrobeInput] {
+			return copytest.Diff(match, func(a asked[WardrobeRequest]) sent[WardrobeInput] {
 				a.Req.Key = key
 				if _, err := m.AddToWardrobe(ctx, a.Actor, a.Req); err != nil {
 					t.Fatal(err)
 				}
-				return sent[application.WardrobeInput]{f.actor, f.in.(application.WardrobeInput)}
+				return sent[WardrobeInput]{f.actor, f.in.(WardrobeInput)}
 			})
 		},
 		"SetLook's request": func() []string {
 			match := copytest.Match{Renames: map[string]string{"Req": "In"}, Skip: keys, Computed: map[string]string{"In.Key": keyCheck}}
-			return copytest.Diff(match, func(a asked[LookRequest]) sent[application.LookInput] {
+			return copytest.Diff(match, func(a asked[LookRequest]) sent[LookInput] {
 				a.Req.Key = key
 				if _, err := m.SetLook(ctx, a.Actor, a.Req); err != nil {
 					t.Fatal(err)
 				}
-				return sent[application.LookInput]{f.actor, f.in.(application.LookInput)}
+				return sent[LookInput]{f.actor, f.in.(LookInput)}
 			})
 		},
 		"Wardrobe's pieces": func() []string {
@@ -187,11 +185,11 @@ func TestEveryConversionKeepsEveryField(t *testing.T) {
 			})
 		},
 		"HandIn's request": func() []string {
-			return copytest.Diff(copytest.Match{Renames: map[string]string{"Req": "In"}}, func(a asked[HandInRequest]) sent[application.HandInInput] {
+			return copytest.Diff(copytest.Match{Renames: map[string]string{"Req": "In"}}, func(a asked[HandInRequest]) sent[HandInInput] {
 				if _, err := m.HandIn(ctx, a.Actor, a.Req); err != nil {
 					t.Fatal(err)
 				}
-				return sent[application.HandInInput]{f.actor, f.in.(application.HandInInput)}
+				return sent[HandInInput]{f.actor, f.in.(HandInInput)}
 			})
 		},
 		"HandedIn's completions": func() []string {
@@ -208,7 +206,7 @@ func TestEveryConversionKeepsEveryField(t *testing.T) {
 				"ID":          "the hand-in's cause ID stays in the module",
 				"Fingerprint": "the lines a hand-in was made with, which only the module compares",
 			})
-			return copytest.Diff(copytest.Match{Skip: skip}, func(found []application.HandIn) []HandedIn {
+			return copytest.Diff(copytest.Match{Skip: skip}, func(found []HandIn) []HandedIn {
 				f.handedIn = found
 				out, err := m.HandedIn(ctx, actor.Character, nil)
 				if err != nil {

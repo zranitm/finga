@@ -5,36 +5,22 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 
-	application "finga/internal/application/account/service"
-	"finga/internal/migration"
+	application "finga/internal/application/account"
 	model "finga/internal/model/account"
+	"finga/internal/repository/dbtest"
 	"finga/internal/shared/kernel"
-	"finga/pkg/pgtest"
 	"finga/pkg/transient"
 )
 
 // These run against real Postgres through the store, so errors arrive classified.
 
-var cluster *pgtest.Cluster
-
-func TestMain(m *testing.M) {
-	ctx := context.Background()
-	var err error
-	cluster, err = pgtest.Start(ctx, pgtest.Migrations(migration.FS, migration.Table)) // the whole sequence, as the server runs on it
-	if err != nil {
-		panic(err)
-	}
-	code := m.Run()
-	_ = cluster.Close(ctx)
-	os.Exit(code)
-}
+func TestMain(m *testing.M) { dbtest.Main(m) }
 
 var t0 = time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
 
@@ -63,7 +49,7 @@ func hashOf(s string) []byte { h := sha256.Sum256([]byte(s)); return h[:] }
 func TestAccounts(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	pool := cluster.DB(t)
+	pool := dbtest.DB(t)
 	store := NewPostgres(pool, nil)
 
 	t.Run("insert and find by username, ignoring letter case", func(t *testing.T) {
@@ -157,7 +143,7 @@ func TestAccounts(t *testing.T) {
 func TestSessions(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	store := NewPostgres(cluster.DB(t), nil)
+	store := NewPostgres(dbtest.DB(t), nil)
 	acc, _ := insertAccount(t, store, "dave")
 	session := func(token string) model.Session {
 		return model.Session{ID: kernel.NewSessionID(), AccountID: acc, TokenHash: hashOf(token), ExpiresAt: t0.Add(time.Hour)}
@@ -227,7 +213,7 @@ func TestSessions(t *testing.T) {
 func TestDeleteEndedSessions(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	store := NewPostgres(cluster.DB(t), nil)
+	store := NewPostgres(dbtest.DB(t), nil)
 	cutoff := t0
 	tests := []struct {
 		name             string
@@ -286,7 +272,7 @@ func TestDeleteEndedSessions(t *testing.T) {
 func TestDeleteEndedSessionsSkipsOneAnotherTransactionHolds(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	pool := cluster.DB(t)
+	pool := dbtest.DB(t)
 	store := NewPostgres(pool, nil)
 	ids := []kernel.SessionID{kernel.NewSessionID(), kernel.NewSessionID()}
 	for i, id := range ids {

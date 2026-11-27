@@ -6,13 +6,14 @@ import (
 	"time"
 
 	"finga/config"
-	application "finga/internal/application/item/service"
 	model "finga/internal/model/item"
-	repository "finga/internal/repository/item"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/host"
 	"finga/internal/shared/kernel"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"finga/pkg/idempotency/idempotencypg"
 	"finga/pkg/outbox/outboxpg"
 	"finga/pkg/outbox/outboxprom"
@@ -23,25 +24,25 @@ import (
 // Module is the item module; every call to it goes through these methods.
 type Module struct {
 	calls *facade.Calls
-	svc   service
+	svc   useCases
 }
 
-// service is the module's application, as the facade calls it.
-type service interface {
+// useCases is the module's use cases, as the facade calls them.
+type useCases interface {
 	Inventory(ctx context.Context, owner kernel.CharacterID) (model.Inventory, error)
-	Add(ctx context.Context, actor model.Actor, in application.AddInput) (application.Result, error)
-	AddMany(ctx context.Context, actor model.Actor, drops []application.AddInput) (application.Batch, error)
-	Move(ctx context.Context, actor model.Actor, in application.MoveInput) (application.Result, error)
-	Discard(ctx context.Context, actor model.Actor, in application.DiscardInput) (application.Result, error)
-	DiscardMany(ctx context.Context, actor model.Actor, in application.DiscardManyInput) (application.Result, error)
-	Use(ctx context.Context, actor model.Actor, in application.UseInput) (application.Result, bool, error)
-	GrantStarter(ctx context.Context, actor model.Actor) (application.Result, error)
-	Equip(ctx context.Context, actor model.Actor, in application.EquipInput) (application.Result, error)
-	Unequip(ctx context.Context, actor model.Actor, in application.UnequipInput) (application.Result, error)
-	HandIn(ctx context.Context, actor model.Actor, in application.HandInInput) (application.Result, error)
-	HandedIn(ctx context.Context, owner kernel.CharacterID, asked []application.Completion) ([]application.HandIn, error)
-	AddToWardrobe(ctx context.Context, actor model.Actor, in application.WardrobeInput) (application.Result, error)
-	SetLook(ctx context.Context, actor model.Actor, in application.LookInput) (application.Result, error)
+	Add(ctx context.Context, actor model.Actor, in AddInput) (Changes, error)
+	AddMany(ctx context.Context, actor model.Actor, drops []AddInput) (DropBatch, error)
+	Move(ctx context.Context, actor model.Actor, in MoveInput) (Changes, error)
+	Discard(ctx context.Context, actor model.Actor, in DiscardInput) (Changes, error)
+	DiscardMany(ctx context.Context, actor model.Actor, in DiscardManyInput) (Changes, error)
+	Use(ctx context.Context, actor model.Actor, in UseInput) (Changes, bool, error)
+	GrantStarter(ctx context.Context, actor model.Actor) (Changes, error)
+	Equip(ctx context.Context, actor model.Actor, in EquipInput) (Changes, error)
+	Unequip(ctx context.Context, actor model.Actor, in UnequipInput) (Changes, error)
+	HandIn(ctx context.Context, actor model.Actor, in HandInInput) (Changes, error)
+	HandedIn(ctx context.Context, owner kernel.CharacterID, asked []QuestCompletion) ([]HandIn, error)
+	AddToWardrobe(ctx context.Context, actor model.Actor, in WardrobeInput) (Changes, error)
+	SetLook(ctx context.Context, actor model.Actor, in LookInput) (Changes, error)
 	GrantPieces(ctx context.Context, account kernel.AccountID, grants []model.PieceGrant) ([]model.PieceGrant, error)
 	Pieces(ctx context.Context, account kernel.AccountID) ([]model.Piece, error)
 	Look(ctx context.Context, character kernel.CharacterID) (model.Look, error)
@@ -52,13 +53,15 @@ const outboxCountEvery = 15 * time.Second
 
 // Deps are what the module is built from.
 type Deps struct {
-	Module *host.Module // its logs, panics, tasks, metrics and the process's database
+	Module *host.Module // its logs, panics, tasks and metrics
 	Config config.Item
 	Data   *gamedata.Data
+	Pool   *pgxpool.Pool // the process's database, for its outbox and key retention
+	Store  Store         // its persistence, which the wiring builds on Pool
 }
 
-// New builds the module and adds its outbox gauge and retention tasks; it fails fast on an unreachable database.
-func New(ctx context.Context, d Deps) (*Module, error) {
+// New builds the module and adds its outbox gauge and retention tasks.
+func New(d Deps) (*Module, error) {
 	m, cfg, log := d.Module, d.Config, d.Module.Logger
 	outboxMetrics, err := outboxprom.New(m.Registry(), "item")
 	if err != nil {
@@ -68,10 +71,7 @@ func New(ctx context.Context, d Deps) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	pool, dbMetrics, err := m.Database(ctx)
-	if err != nil {
-		return nil, err
-	}
+	pool := d.Pool
 	m.Task("outbox gauge", func(ctx context.Context) error {
 		return outboxMetrics.Track(ctx, outboxCountEvery, func(ctx context.Context) (int64, error) { return outboxpg.Unpublished(ctx, pool) }, log)
 	}, host.Restartable)
@@ -103,7 +103,7 @@ func New(ctx context.Context, d Deps) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	svc := application.NewService(application.Deps{Store: repository.NewPostgres(pool, dbMetrics), Content: d.Data, Logger: log})
+	svc := newCases(casesDeps{Store: d.Store, Content: d.Data, Logger: log})
 	return &Module{calls: calls, svc: svc}, nil
 }
 
@@ -127,9 +127,6 @@ func (m *Module) Add(ctx context.Context, actor Actor, r AddRequest) (_ Result, 
 	return resultOf(res), err
 }
 
-// MaxBatch is the most drops one AddMany takes.
-const MaxBatch = application.MaxBatch
-
 // AddMany grants a batch of drops for one owner; a rule refuses a drop alone, and its outcome says which.
 func (m *Module) AddMany(ctx context.Context, actor Actor, drops []AddRequest) (_ Batch, err error) {
 	ctx, call := m.calls.Start(ctx, "AddMany")
@@ -138,7 +135,7 @@ func (m *Module) AddMany(ctx context.Context, actor Actor, drops []AddRequest) (
 		return Batch{}, model.ErrBadBatch
 	}
 	out := Batch{Outcomes: make([]Outcome, len(drops))}
-	var ins []application.AddInput
+	var ins []AddInput
 	var at []int // each input's drop
 	for i, d := range drops {
 		in, err := d.input(true) // key, then cause
@@ -169,7 +166,7 @@ func (m *Module) Move(ctx context.Context, actor Actor, r MoveRequest) (_ Result
 	if err := checkKey(r.Key); err != nil {
 		return Result{}, err
 	}
-	res, err := m.svc.Move(ctx, model.Actor(actor), application.MoveInput(r))
+	res, err := m.svc.Move(ctx, model.Actor(actor), MoveInput(r))
 	return resultOf(res), err
 }
 
@@ -180,7 +177,7 @@ func (m *Module) Discard(ctx context.Context, actor Actor, r DiscardRequest) (_ 
 	if err := checkKey(r.Key); err != nil {
 		return Result{}, err
 	}
-	res, err := m.svc.Discard(ctx, model.Actor(actor), application.DiscardInput(r))
+	res, err := m.svc.Discard(ctx, model.Actor(actor), DiscardInput(r))
 	return resultOf(res), err
 }
 
@@ -191,7 +188,7 @@ func (m *Module) DiscardMany(ctx context.Context, actor Actor, r DiscardManyRequ
 	if err := checkKey(r.Key); err != nil {
 		return Result{}, err
 	}
-	res, err := m.svc.DiscardMany(ctx, model.Actor(actor), application.DiscardManyInput(r))
+	res, err := m.svc.DiscardMany(ctx, model.Actor(actor), DiscardManyInput(r))
 	return resultOf(res), err
 }
 
@@ -202,7 +199,7 @@ func (m *Module) Use(ctx context.Context, actor Actor, r UseRequest) (_ Result, 
 	if err := checkKey(r.Key); err != nil {
 		return Result{}, false, err
 	}
-	res, replayed, err := m.svc.Use(ctx, model.Actor(actor), application.UseInput(r))
+	res, replayed, err := m.svc.Use(ctx, model.Actor(actor), UseInput(r))
 	return resultOf(res), replayed, err
 }
 
@@ -221,7 +218,7 @@ func (m *Module) Equip(ctx context.Context, actor Actor, r EquipRequest) (_ Resu
 	if err := checkKey(r.Key); err != nil {
 		return Result{}, err
 	}
-	res, err := m.svc.Equip(ctx, model.Actor(actor), application.EquipInput(r))
+	res, err := m.svc.Equip(ctx, model.Actor(actor), EquipInput(r))
 	return resultOf(res), err
 }
 
@@ -232,7 +229,7 @@ func (m *Module) Unequip(ctx context.Context, actor Actor, r UnequipRequest) (_ 
 	if err := checkKey(r.Key); err != nil {
 		return Result{}, err
 	}
-	res, err := m.svc.Unequip(ctx, model.Actor(actor), application.UnequipInput(r))
+	res, err := m.svc.Unequip(ctx, model.Actor(actor), UnequipInput(r))
 	return resultOf(res), err
 }
 
@@ -248,9 +245,9 @@ func (m *Module) HandIn(ctx context.Context, actor Actor, r HandInRequest) (_ Re
 func (m *Module) HandedIn(ctx context.Context, owner kernel.CharacterID, asked []Completion) (_ []HandedIn, err error) {
 	ctx, call := m.calls.Start(ctx, "HandedIn")
 	defer call.End(&err)
-	in := make([]application.Completion, 0, len(asked))
+	in := make([]QuestCompletion, 0, len(asked))
 	for _, c := range asked {
-		in = append(in, application.Completion(c))
+		in = append(in, QuestCompletion(c))
 	}
 	found, err := m.svc.HandedIn(ctx, owner, in)
 	out := make([]HandedIn, 0, len(found))
@@ -267,7 +264,7 @@ func (m *Module) AddToWardrobe(ctx context.Context, actor Actor, r WardrobeReque
 	if err := checkKey(r.Key); err != nil {
 		return Result{}, err
 	}
-	res, err := m.svc.AddToWardrobe(ctx, model.Actor(actor), application.WardrobeInput(r))
+	res, err := m.svc.AddToWardrobe(ctx, model.Actor(actor), WardrobeInput(r))
 	return resultOf(res), err
 }
 
@@ -294,7 +291,7 @@ func (m *Module) SetLook(ctx context.Context, actor Actor, r LookRequest) (_ Res
 	if err := checkKey(r.Key); err != nil {
 		return Result{}, err
 	}
-	res, err := m.svc.SetLook(ctx, model.Actor(actor), application.LookInput{Key: r.Key, Look: model.Look(r.Look), Class: r.Class})
+	res, err := m.svc.SetLook(ctx, model.Actor(actor), LookInput{Key: r.Key, Look: model.Look(r.Look), Class: r.Class})
 	return resultOf(res), err
 }
 

@@ -9,10 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel/trace/noop"
-
-	application "finga/internal/application/item/service"
 	model "finga/internal/model/item"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/gamedata"
@@ -20,19 +16,22 @@ import (
 	"finga/internal/shared/progression"
 	"finga/pkg/panics"
 	"finga/pkg/uuidv7"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
-// fakeService records what the facade passed in and answers with what each test sets.
-type fakeService struct {
+// fakeCases records what the facade passed in and answers with what each test sets.
+type fakeCases struct {
 	actor     model.Actor
 	owner     kernel.CharacterID
 	in        any
-	drops     []application.AddInput
-	asked     []application.Completion
+	drops     []AddInput
+	asked     []QuestCompletion
 	inventory model.Inventory
-	result    application.Result
-	batch     application.Batch
-	handedIn  []application.HandIn
+	result    Changes
+	batch     DropBatch
+	handedIn  []HandIn
 	account   kernel.AccountID
 	pieces    []model.Piece
 	granted   []model.PieceGrant
@@ -41,109 +40,109 @@ type fakeService struct {
 	calls     int
 }
 
-func (f *fakeService) AddToWardrobe(_ context.Context, actor model.Actor, in application.WardrobeInput) (application.Result, error) {
+func (f *fakeCases) AddToWardrobe(_ context.Context, actor model.Actor, in WardrobeInput) (Changes, error) {
 	f.calls++
 	f.actor, f.in = actor, in
 	return f.result, f.err
 }
 
-func (f *fakeService) SetLook(_ context.Context, actor model.Actor, in application.LookInput) (application.Result, error) {
+func (f *fakeCases) SetLook(_ context.Context, actor model.Actor, in LookInput) (Changes, error) {
 	f.calls++
 	f.actor, f.in = actor, in
 	return f.result, f.err
 }
 
-func (f *fakeService) GrantPieces(_ context.Context, account kernel.AccountID, grants []model.PieceGrant) ([]model.PieceGrant, error) {
+func (f *fakeCases) GrantPieces(_ context.Context, account kernel.AccountID, grants []model.PieceGrant) ([]model.PieceGrant, error) {
 	f.calls++
 	f.account, f.in = account, grants
 	return f.granted, f.err
 }
 
-func (f *fakeService) Pieces(_ context.Context, account kernel.AccountID) ([]model.Piece, error) {
+func (f *fakeCases) Pieces(_ context.Context, account kernel.AccountID) ([]model.Piece, error) {
 	f.calls++
 	f.account = account
 	return f.pieces, f.err
 }
 
-func (f *fakeService) Look(_ context.Context, character kernel.CharacterID) (model.Look, error) {
+func (f *fakeCases) Look(_ context.Context, character kernel.CharacterID) (model.Look, error) {
 	f.calls++
 	f.owner = character
 	return f.look, f.err
 }
 
-func (f *fakeService) Inventory(_ context.Context, owner kernel.CharacterID) (model.Inventory, error) {
+func (f *fakeCases) Inventory(_ context.Context, owner kernel.CharacterID) (model.Inventory, error) {
 	f.calls++
 	f.owner = owner
 	return f.inventory, f.err
 }
 
-func (f *fakeService) Add(_ context.Context, actor model.Actor, in application.AddInput) (application.Result, error) {
+func (f *fakeCases) Add(_ context.Context, actor model.Actor, in AddInput) (Changes, error) {
 	f.calls++
 	f.actor, f.in = actor, in
 	return f.result, f.err
 }
 
-func (f *fakeService) AddMany(_ context.Context, actor model.Actor, drops []application.AddInput) (application.Batch, error) {
+func (f *fakeCases) AddMany(_ context.Context, actor model.Actor, drops []AddInput) (DropBatch, error) {
 	f.calls++
 	f.actor, f.drops = actor, drops
 	return f.batch, f.err
 }
 
-func (f *fakeService) Move(_ context.Context, actor model.Actor, in application.MoveInput) (application.Result, error) {
+func (f *fakeCases) Move(_ context.Context, actor model.Actor, in MoveInput) (Changes, error) {
 	f.calls++
 	f.actor, f.in = actor, in
 	return f.result, f.err
 }
 
-func (f *fakeService) Discard(_ context.Context, actor model.Actor, in application.DiscardInput) (application.Result, error) {
+func (f *fakeCases) Discard(_ context.Context, actor model.Actor, in DiscardInput) (Changes, error) {
 	f.calls++
 	f.actor, f.in = actor, in
 	return f.result, f.err
 }
 
-func (f *fakeService) DiscardMany(_ context.Context, actor model.Actor, in application.DiscardManyInput) (application.Result, error) {
+func (f *fakeCases) DiscardMany(_ context.Context, actor model.Actor, in DiscardManyInput) (Changes, error) {
 	f.calls++
 	f.actor, f.in = actor, in
 	return f.result, f.err
 }
 
-func (f *fakeService) Use(_ context.Context, actor model.Actor, in application.UseInput) (application.Result, bool, error) {
+func (f *fakeCases) Use(_ context.Context, actor model.Actor, in UseInput) (Changes, bool, error) {
 	f.calls++
 	f.actor, f.in = actor, in
 	return f.result, true, f.err
 }
 
-func (f *fakeService) GrantStarter(_ context.Context, actor model.Actor) (application.Result, error) {
+func (f *fakeCases) GrantStarter(_ context.Context, actor model.Actor) (Changes, error) {
 	f.calls++
 	f.actor = actor
 	return f.result, f.err
 }
 
-func (f *fakeService) Equip(_ context.Context, actor model.Actor, in application.EquipInput) (application.Result, error) {
+func (f *fakeCases) Equip(_ context.Context, actor model.Actor, in EquipInput) (Changes, error) {
 	f.calls++
 	f.actor, f.in = actor, in
 	return f.result, f.err
 }
 
-func (f *fakeService) Unequip(_ context.Context, actor model.Actor, in application.UnequipInput) (application.Result, error) {
+func (f *fakeCases) Unequip(_ context.Context, actor model.Actor, in UnequipInput) (Changes, error) {
 	f.calls++
 	f.actor, f.in = actor, in
 	return f.result, f.err
 }
 
-func (f *fakeService) HandIn(_ context.Context, actor model.Actor, in application.HandInInput) (application.Result, error) {
+func (f *fakeCases) HandIn(_ context.Context, actor model.Actor, in HandInInput) (Changes, error) {
 	f.calls++
 	f.actor, f.in = actor, in
 	return f.result, f.err
 }
 
-func (f *fakeService) HandedIn(_ context.Context, owner kernel.CharacterID, asked []application.Completion) ([]application.HandIn, error) {
+func (f *fakeCases) HandedIn(_ context.Context, owner kernel.CharacterID, asked []QuestCompletion) ([]HandIn, error) {
 	f.calls++
 	f.owner, f.asked = owner, asked
 	return f.handedIn, f.err
 }
 
-func newModule(t *testing.T, svc service) *Module {
+func newModule(t *testing.T, svc useCases) *Module {
 	t.Helper()
 	calls, err := facade.New(facade.Options{Module: "item", Traces: noop.NewTracerProvider(), Registry: prometheus.NewRegistry(), Panics: panics.NewRecorder(slog.New(slog.DiscardHandler), nil), Errors: errorTable})
 	if err != nil {
@@ -157,7 +156,7 @@ var (
 	key     = "k-" + uuidv7.NewString()
 	sword   = model.Item{ID: kernel.NewItemID(), TemplateID: "iron_sword", Owner: actor.Character, Tab: gamedata.Equip, Slot: 2, Quantity: 1, Stats: &progression.ItemStats{PhysicalAttack: 7}}
 	worn    = model.Item{ID: kernel.NewItemID(), TemplateID: "leather_cap", Owner: actor.Character, Quantity: 1, EquipSlot: "hat"}
-	changed = application.Result{
+	changed = Changes{
 		Changed:   []model.Slot{{Tab: gamedata.Equip, Slot: 1}, {Tab: gamedata.Equip, Slot: 2, Item: &sword}},
 		Equipment: []model.WornSlot{{Slot: "hat", Item: &worn}, {Slot: "weapon"}},
 		Worn:      []model.Item{worn},
@@ -187,7 +186,7 @@ func equalAt(a, b *Item) bool { return a == nil && b == nil || a != nil && b != 
 
 func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 	ctx := t.Context()
-	f := &fakeService{result: changed}
+	f := &fakeCases{result: changed}
 	m := newModule(t, f)
 	gift := uuidv7.New()
 	t.Run("Inventory", func(t *testing.T) {
@@ -202,7 +201,7 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 	})
 	t.Run("Add", func(t *testing.T) {
 		res, err := m.Add(ctx, actor, AddRequest{Key: key, TemplateID: "wooden_sword", Quantity: 1, Cause: Cause{Type: CausePromotion, ID: gift}, Stats: sword.Stats})
-		want := application.AddInput{Key: key, TemplateID: "wooden_sword", Quantity: 1, Cause: model.Cause{Type: model.CausePromotion, ID: gift}, Stats: sword.Stats}
+		want := AddInput{Key: key, TemplateID: "wooden_sword", Quantity: 1, Cause: model.Cause{Type: model.CausePromotion, ID: gift}, Stats: sword.Stats}
 		if err != nil || f.in != want || f.actor != model.Actor(actor) {
 			t.Fatalf("sent %+v for %+v, err %v", f.in, f.actor, err)
 		}
@@ -215,17 +214,17 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 		}{
 			{func() (Result, error) {
 				return m.Move(ctx, actor, MoveRequest{Key: key, ItemID: sword.ID, Tab: gamedata.Equip, Slot: 4})
-			}, application.MoveInput{Key: key, ItemID: sword.ID, Tab: gamedata.Equip, Slot: 4}},
+			}, MoveInput{Key: key, ItemID: sword.ID, Tab: gamedata.Equip, Slot: 4}},
 			{func() (Result, error) {
 				return m.Discard(ctx, actor, DiscardRequest{Key: key, ItemID: sword.ID, Quantity: 1})
-			}, application.DiscardInput{Key: key, ItemID: sword.ID, Quantity: 1}},
+			}, DiscardInput{Key: key, ItemID: sword.ID, Quantity: 1}},
 			{func() (Result, error) {
 				res, replayed, err := m.Use(ctx, actor, UseRequest{Key: key, ItemID: sword.ID, Template: "red_potion"})
 				if !replayed {
 					t.Error("Use lost replayed")
 				}
 				return res, err
-			}, application.UseInput{Key: key, ItemID: sword.ID, Template: "red_potion"}},
+			}, UseInput{Key: key, ItemID: sword.ID, Template: "red_potion"}},
 		} {
 			res, err := tt.call()
 			if err != nil || f.in != tt.want {
@@ -235,7 +234,7 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 		}
 		ids := []kernel.ItemID{sword.ID, worn.ID}
 		res, err := m.DiscardMany(ctx, actor, DiscardManyRequest{Key: key, ItemIDs: ids})
-		if in, ok := f.in.(application.DiscardManyInput); err != nil || !ok || in.Key != key || !slices.Equal(in.ItemIDs, ids) {
+		if in, ok := f.in.(DiscardManyInput); err != nil || !ok || in.Key != key || !slices.Equal(in.ItemIDs, ids) {
 			t.Fatalf("sent %+v, err %v", f.in, err)
 		}
 		wantChanged(t, res)
@@ -243,13 +242,13 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 	t.Run("Equip and Unequip", func(t *testing.T) {
 		r := EquipRequest{Key: key, ItemID: sword.ID, EquipSlot: "weapon", Level: 9, Class: "warrior", Stats: gamedata.Stats{STR: 4}}
 		res, err := m.Equip(ctx, actor, r)
-		if err != nil || f.in != application.EquipInput(r) {
+		if err != nil || f.in != EquipInput(r) {
 			t.Fatalf("sent %+v, err %v", f.in, err)
 		}
 		wantChanged(t, res)
 		to := 6
 		res, err = m.Unequip(ctx, actor, UnequipRequest{Key: key, EquipSlot: "hat", ToSlot: &to})
-		if in, ok := f.in.(application.UnequipInput); err != nil || !ok || in.EquipSlot != "hat" || in.ToSlot != &to {
+		if in, ok := f.in.(UnequipInput); err != nil || !ok || in.EquipSlot != "hat" || in.ToSlot != &to {
 			t.Fatalf("sent %+v, err %v", f.in, err)
 		}
 		wantChanged(t, res)
@@ -264,14 +263,14 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 	t.Run("HandIn and HandedIn", func(t *testing.T) {
 		r := HandInRequest{Quest: "sticky_samples", Completion: 2, Take: []gamedata.Grant{{Item: "slime_gel", Quantity: 5}}, Give: []Give{{TemplateID: "leather_cap", Quantity: 1, Stats: sword.Stats}}}
 		res, err := m.HandIn(ctx, actor, r)
-		in, ok := f.in.(application.HandInInput)
-		if err != nil || !ok || in.Quest != "sticky_samples" || in.Completion != 2 || !slices.Equal(in.Take, r.Take) || !slices.Equal(in.Give, []application.Give{{TemplateID: "leather_cap", Quantity: 1, Stats: sword.Stats}}) {
+		in, ok := f.in.(HandInInput)
+		if err != nil || !ok || in.Quest != "sticky_samples" || in.Completion != 2 || !slices.Equal(in.Take, r.Take) || !slices.Equal(in.Give, []RewardLine{{TemplateID: "leather_cap", Quantity: 1, Stats: sword.Stats}}) {
 			t.Fatalf("sent %+v, err %v", f.in, err)
 		}
 		wantChanged(t, res)
-		f.handedIn = []application.HandIn{{Quest: "sticky_samples", Completion: 2, ID: gift, Result: changed}}
+		f.handedIn = []HandIn{{Quest: "sticky_samples", Completion: 2, ID: gift, Result: changed}}
 		found, err := m.HandedIn(ctx, actor.Character, []Completion{{Quest: "sticky_samples", Completion: 2}, {Quest: "slime_cleanup", Completion: 1}})
-		if err != nil || len(found) != 1 || found[0].Quest != "sticky_samples" || found[0].Completion != 2 || !slices.Equal(f.asked, []application.Completion{{Quest: "sticky_samples", Completion: 2}, {Quest: "slime_cleanup", Completion: 1}}) {
+		if err != nil || len(found) != 1 || found[0].Quest != "sticky_samples" || found[0].Completion != 2 || !slices.Equal(f.asked, []QuestCompletion{{Quest: "sticky_samples", Completion: 2}, {Quest: "slime_cleanup", Completion: 1}}) {
 			t.Fatalf("found %+v asking %+v, err %v", found, f.asked, err)
 		}
 		wantChanged(t, found[0].Result)
@@ -310,7 +309,7 @@ func TestCheckKey(t *testing.T) {
 
 // A bad key or cause is refused at the facade, before the module runs.
 func TestAMalformedRequestNeverReachesTheModule(t *testing.T) {
-	f := &fakeService{}
+	f := &fakeCases{}
 	m := newModule(t, f)
 	ctx := t.Context()
 	for _, tt := range []struct {
@@ -351,8 +350,8 @@ func TestAddManyAnswersEachDrop(t *testing.T) {
 		return AddRequest{Key: key, TemplateID: "slime_gel", Quantity: 1, Cause: Cause{Type: CauseDrop}}
 	}
 	key2, key3 := "k-"+uuidv7.NewString(), "k-"+uuidv7.NewString()
-	f := &fakeService{batch: application.Batch{
-		Outcomes: []application.Outcome{{}, {Replayed: true, Result: changed}, {Err: fmt.Errorf("add: %w", model.ErrEtcTabFull)}},
+	f := &fakeCases{batch: DropBatch{
+		Outcomes: []DropOutcome{{}, {Replayed: true, Result: changed}, {Err: fmt.Errorf("add: %w", model.ErrEtcTabFull)}},
 		Changed:  changed.Changed,
 		Revision: 12,
 	}}
@@ -385,14 +384,14 @@ func TestAddManyAnswersEachDrop(t *testing.T) {
 func TestEveryModelErrorReachesCallersAsItsKernelError(t *testing.T) {
 	for _, row := range errorTable {
 		t.Run(row.Model.Error(), func(t *testing.T) {
-			m := newModule(t, &fakeService{err: fmt.Errorf("move: %w", row.Model)})
+			m := newModule(t, &fakeCases{err: fmt.Errorf("move: %w", row.Model)})
 			_, err := m.Move(t.Context(), actor, MoveRequest{Key: key, ItemID: sword.ID})
 			if !errors.Is(err, row.Kernel) || !errors.Is(err, row.Model) {
 				t.Fatalf("got %v, want %v wrapping %v", err, row.Kernel, row.Model)
 			}
 		})
 	}
-	m := newModule(t, &fakeService{err: model.ErrItemWorn})
+	m := newModule(t, &fakeCases{err: model.ErrItemWorn})
 	if _, err := m.Discard(t.Context(), actor, DiscardRequest{Key: key, ItemID: worn.ID, Quantity: 1}); !errors.Is(err, kernel.ErrItemWorn) {
 		t.Fatalf("a worn item: got %v", err)
 	}
