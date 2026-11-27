@@ -68,7 +68,14 @@ func TestEveryModelEventKeepsItsFields(t *testing.T) {
 			Frame model.Frame
 			To    []model.Recipient
 		}
-		m := copytest.Match{Renames: map[string]string{"Frame": "", "To": "Recipients"}, Skip: map[string]string{"Frame.Tick": "SendFrame puts it on the delivery"}}
+		m := copytest.Match{Renames: map[string]string{"Frame": "", "To": "Recipients"}, Skip: map[string]string{
+			"Frame.Tick":             "SendFrame puts it on the delivery",
+			"Frame.Parts.Steps.ID":   "the map's own, to find the baseline a step is against; the wire names it by slot",
+			"Frame.Parts.Steps.X":    "the map's own, as ID",
+			"Frame.Parts.Steps.Z":    "the map's own, as ID",
+			"Frame.Parts.MobSteps.X": "the map's own, as ID",
+			"Frame.Parts.MobSteps.Z": "the map's own, as ID",
+		}}
 		for _, problem := range copytest.Diff(m, func(s sent) Frame { return frameOf(&s.Frame, s.To) }) {
 			t.Error(problem)
 		}

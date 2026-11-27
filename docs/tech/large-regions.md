@@ -379,6 +379,26 @@ biomes:
   - **The gateway** keeps each frame's encoded parts while the frame lives, by a weak pointer that a cleanup drops, and the last frame's at hand for its run of players. So the frames of several maps can interleave: two maps of 50 players each take 0.18 ms, against 1.97 ms with one frame kept.
   - **A player whose join failed** never reached a frame, so nobody is told they left.
 
+- **As built (the slim update, protocol 3):**
+  - **Why:** the soak's downstream went to the players in view. A `PlayerView` is 138 bytes on the wire (its id, name, class, look and eight doubles), sent whole each tick a player moves; at a camp with 105 other players in the block that is 12 kB of a client's 13 kB a tick, and a mob's 45 bytes add 0.7 to 2.3 kB at 5 to 15 mobs a camp (`BenchmarkACrowdInACamp`: 150 players clumped on six camps, the worst case the cap allows).
+  - **A step, not a view:** when a body changed only in where it is and how it moves, its frame carries a `PlayerStep` or `MobStep`, which names it by a number and gives each channel as a small whole number against the last view the client holds of it.
+    - A player's step: its `slot` (a number the map gives each join and never reuses, in place of the 36-character id), the place as whole centimetres from its last place (`sint32`, so a small move is a byte or two), and the fields that differ: velocity in mm/s, heading in thousandths, `on_ground`, `hp`, `sprint`, `held`, `aim`. A field that didn't change is left out.
+    - A mob's step: its id, the place the same way, and `yaw` in thousandths of a radian, `hp` and `pose` when they changed.
+    - **The heading is two numbers still,** its east and north parts in thousandths: the sim keeps them as a unit pair, and one angle would round-trip through `atan2` and `sincos` on every CPU. A walking player's heading rarely changes, so it's mostly absent.
+  - **A whole view still goes** when anything a step can't say changed (level, look, a status, a dodge, the shield, the side, the move or slow state), when the body has no baseline yet, and when it *came to a cell*: a player who watches that cell was never sent it, so a step has nothing to read against. A part a player gets as a cell's full part, and a snapshot, are whole.
+  - **The baseline** is the view last sent, kept per body and moved by every frame, step or whole. A view handed out whole to one player (a join's snapshot, a cell's full part) never moves it: a view that differs from the baseline drops it instead, and the body's next frame goes whole to everyone, so a change the join showed and the frames did not (a hit guard the clock ended) is not left out of the watchers' next step. The client's is the same view: its held place rounded the same way, so a step lands the same on both. Positions are rounded `floor(v × 100 + 0.5)`, in Go as in JavaScript, so the two agree to the bit on every CPU (shared vectors in `server/testdata/quant.json`, read by `quant_test.go` and `expand.test.ts`).
+  - **Units,** and why: whole centimetres for a place, in a `sint32`, so a step's small delta takes one or two bytes where a `float32` takes four and a double eight. A centimetre is below what a frame can show: the client interpolates between ticks that are 25 cm apart at a sprint. Velocity in mm/s and a heading in thousandths are the same trade.
+  - **Exact where it matters:** the server keeps its own state as it is and quantises only the wire. A player's own view is sent whole, exact, in their private part (`Delta.players`), once: it is left out there when the view already went whole in one of the parts they are sent. Each tick a player moves that is about 140 bytes, 2.8 kB/s of a client's budget, counted in the bench's numbers below. The client reconciles its prediction against the same numbers as before; it ignores its own steps. What a client holds of others is within half a centimetre. Everything a rule reads is the server's exact state, never the view.
+  - **The client** (`protocol/expand.ts`) and the bot and e2e kit (`protocol.Expander`) turn each frame's steps back into whole views against the last held, so the rest of each reads `Delta.players` and `Delta.mobs` as before. A body that goes (`removed`, `unseen`) drops its baseline. No library: protobuf's own `sint32` and optional scalars are the codec, and the rounding is one line.
+  - **Measured** on an Apple M3, 150 players clumped on six camps, 105 in a client's block (`BenchmarkACrowdInACamp`):
+
+    | Mobs a camp | Bytes a client a tick, before | After | Players, before | After | Mobs, before | After | At 20 Hz, after |
+    |---|---|---|---|---|---|---|---|
+    | 5 (15 in view) | 12,973 | 1,542 | 12,212 | 1,394 | 744 | 130 | 30.8 kB/s |
+    | 15 (48 in view) | 14,496 | 1,860 | 12,212 | 1,376 | 2,316 | 467 | 37.2 kB/s |
+
+  - **Against the budget:** the line is now **40 kB/s with a 150-player crowd in view** (105 others in a client's block, the bench's), where it was met at 259 to 290 kB/s before. The bench is steady state: every player walks, none fights, and a fight's statuses and hits add whole views and events. The soak decides whether the busiest second stays under; if it doesn't, the next lever is distance tiers (a body past the near cells at a lower rate), a PR of its own, and a cap on the players shown is a product call.
+
 ### Spatial indexes
 
 - **Solids:**
@@ -457,7 +477,7 @@ Built with step 1, which says who watches a cell.
 
 - **The target,** on one region channel at its cap of 150 players and about 400 mobs:
   - tick p99 under 20 ms of its 50 ms;
-  - each client downstream under 40 kB/s in a busy fight.
+  - each client downstream under 40 kB/s in a busy fight, with a 150-player crowd in view (the clumped bench: 105 others in the block).
 - **The test:** a soak with cmd/bot's players (section 13), whose tick p99, overruns and bytes are read from the ops metrics. `world.channels.cap` is set from it.
 - **The inbox** (4096, 1024 drained a tick) holds about 4× a full channel's input rate. The soak checks `ErrBusy` stays at zero.
 

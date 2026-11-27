@@ -18,7 +18,7 @@ func (o *Outbox) body(p model.Push) any {
 	case model.FieldBossGone:
 		return bossGone(p)
 	case model.Delta:
-		return wsconn.Spliced{Shared: o.frames.shared(p.Frame, p.Parts), Own: &clientv1.Delta{AckSeq: p.AckSeq, Energy: p.Energy, Unseen: unseen(p.Unseen), Pouches: pouchViews(p.Pouches), PouchesGone: instanceIDs(p.PouchesGone)}}
+		return wsconn.Spliced{Shared: o.frames.shared(p.Frame, p.Parts), Own: &clientv1.Delta{AckSeq: p.AckSeq, Players: ownView(p.Own), Energy: p.Energy, Unseen: unseen(p.Unseen), Pouches: pouchViews(p.Pouches), PouchesGone: instanceIDs(p.PouchesGone)}}
 	case model.MapChange:
 		return &clientv1.MapChange{MapId: p.MapID, X: p.X, Y: p.Y, Z: p.Z, Yaw: p.Yaw}
 	case model.TeleportCancelled:

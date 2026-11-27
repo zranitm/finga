@@ -33,7 +33,8 @@
           "outfit": "knight_plate",
           "weapon": "greatsword",
           "hide_headwear": true
-        }
+        },
+        "slot": 7
       },
       {
         "id": "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7c",
@@ -153,6 +154,30 @@
     ],
     "pouches_gone": [
       11
+    ],
+    "steps": [
+      {
+        "slot": 7,
+        "dx": -12,
+        "dz": 31,
+        "vx": -2500,
+        "hx": 707,
+        "hz": -707,
+        "on_ground": true,
+        "hp": 240,
+        "aim": 1.25
+      }
+    ],
+    "mob_steps": [
+      {
+        "id": 6,
+        "dx": 4,
+        "dy": -1,
+        "dz": -9,
+        "yaw": -1813,
+        "hp": 20,
+        "pose": "MOB_POSE_FLINCH"
+      }
     ]
   }
 }

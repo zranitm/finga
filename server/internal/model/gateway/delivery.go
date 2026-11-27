@@ -44,7 +44,8 @@ type Delta struct {
 	Parts       []int
 	AckSeq      uint32
 	Energy      *uint32
-	Unseen      *Unseen // nil when nothing went out of their sight
+	Unseen      *Unseen     // nil when nothing went out of their sight
+	Own         *PlayerView // the player's own view, whole, when it changed: they reconcile to it exactly
 	Pouches     []PouchView
 	PouchesGone []uint64
 }
@@ -57,7 +58,9 @@ type Frame struct {
 // Part is what changed in one of a map's cells in a tick, or, for the map's own part, its field boss as it changed.
 type Part struct {
 	Players        []PlayerView
+	Steps          []PlayerStep
 	Mobs           []MobView
+	MobSteps       []MobStep
 	RemovedPlayers []string
 	RemovedMobs    []uint64
 	Boss           *MobView // the map's part: the field boss as it changed, for every player's bar

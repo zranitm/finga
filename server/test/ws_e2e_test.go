@@ -17,6 +17,9 @@ import (
 	"finga/test/e2etest"
 )
 
+// viewSpeedGrain is what another player's speed on the wire is good to: half a millimetre a second, the wire's whole units (large-regions.md section 5).
+const viewSpeedGrain = 0.0005
+
 func TestWalkTogether(t *testing.T) {
 	t.Parallel()
 	s := newStack(t)
@@ -51,13 +54,13 @@ func TestWalkTogether(t *testing.T) {
 			t.Fatal("Robin never saw Ayla move")
 		}
 		v2, ok := robin.Position(ayla.ID, 3*time.Second)
-		if !ok || v2.X <= v1.X || math.Abs(v2.GetVx()-aylaWalk) > 1e-9 || v2.GetHx() != 1 || v2.GetHz() != 0 {
+		if !ok || v2.X <= v1.X || math.Abs(v2.GetVx()-aylaWalk) > viewSpeedGrain || v2.GetHx() != 1 || v2.GetHz() != 0 {
 			t.Fatalf("Ayla as Robin sees her: %+v then %+v", v1, v2)
 		}
 		ayla.Send(wsconn.Message{Seq: ayla.NextSeq(), Data: &clientv1.Input{}})
 		robin.Send(wsconn.Message{Seq: robin.NextSeq(), Data: &clientv1.Input{Left: true}})
 		r1, ok := ayla.Moving(robin.ID, 3*time.Second)
-		if !ok || math.Abs(r1.GetVx()+robinWalk) > 1e-9 || r1.GetHx() != -1 || r1.GetHz() != 0 {
+		if !ok || math.Abs(r1.GetVx()+robinWalk) > viewSpeedGrain || r1.GetHx() != -1 || r1.GetHz() != 0 {
 			t.Fatalf("Robin as Ayla sees him: %+v", r1)
 		}
 		robin.Send(wsconn.Message{Seq: robin.NextSeq(), Data: &clientv1.Input{}})

@@ -52,7 +52,7 @@ func samples() []wsconn.Message {
 		return &clientv1.ItemView{ItemId: item3, Template: "leather_cap", Quantity: 1, Stats: &clientv1.ItemStats{PhysicalDefense: 3, MaxHp: 30}}
 	}
 	player := func() *clientv1.PlayerView { // walking slowed
-		return &clientv1.PlayerView{Id: charA, Name: "Ayla", Class: "warrior", Level: 2, X: 13, Y: 0.5, Vx: 3, OnGround: true, Hp: 250, MaxHp: 250, Z: 2.5, Vz: 4, Hx: 0.6, Hz: 0.8, Aim: 0.75,
+		return &clientv1.PlayerView{Id: charA, Slot: 7, Name: "Ayla", Class: "warrior", Level: 2, X: 13, Y: 0.5, Vx: 3, OnGround: true, Hp: 250, MaxHp: 250, Z: 2.5, Vz: 4, Hx: 0.6, Hz: 0.8, Aim: 0.75,
 			Slow: &clientv1.SlowWalk{Left: 33, Factor: 0.6}, Statuses: []*clientv1.StatusView{{Id: "slow", Ends: 81246}},
 			Look: &clientv1.Look{Outfit: "knight_plate", Weapon: "greatsword", HideHeadwear: true}} // the class's own headwear, hidden, and face
 	}
@@ -135,7 +135,8 @@ func samples() []wsconn.Message {
 		}},
 		// A map whose field boss is up.
 		{Type: "Snapshot", Tick: 81234, Data: &clientv1.Snapshot{Players: []*clientv1.PlayerView{player()}, Mobs: []*clientv1.MobView{mob(), boss()}, Pouches: []*clientv1.PouchView{pouch()}, FieldBoss: &clientv1.FieldBoss{MobId: 9, Type: "king_slime"}, Channel: 2, Area: "west"}},
-		{Type: "Delta", Tick: 81235, Data: &clientv1.Delta{AckSeq: 117, Energy: proto.Uint32(8), Players: []*clientv1.PlayerView{player(), hurt, leaping, bot}, Mobs: []*clientv1.MobView{mob()}, Pouches: []*clientv1.PouchView{pouch()}, PouchesGone: []uint32{11}, RemovedPlayers: []string{charC}, RemovedMobs: []uint32{6}}},
+		{Type: "Delta", Tick: 81235, Data: &clientv1.Delta{AckSeq: 117, Energy: proto.Uint32(8), Players: []*clientv1.PlayerView{player(), hurt, leaping, bot}, Mobs: []*clientv1.MobView{mob()}, Steps: []*clientv1.PlayerStep{{Slot: 7, Dx: -12, Dy: 0, Dz: 31, Vx: proto.Int32(-2500), Hx: proto.Int32(707), Hz: proto.Int32(-707), OnGround: new(true), Hp: proto.Int32(240), Aim: proto.Float32(1.25)}},
+			MobSteps: []*clientv1.MobStep{{Id: 6, Dx: 4, Dy: -1, Dz: -9, Yaw: proto.Int32(-1813), Hp: proto.Int32(20), Pose: clientv1.MobPose_MOB_POSE_FLINCH.Enum()}}, Pouches: []*clientv1.PouchView{pouch()}, PouchesGone: []uint32{11}, RemovedPlayers: []string{charC}, RemovedMobs: []uint32{6}}},
 		{Type: "Damage", Tick: 81235, Data: &clientv1.Damage{Source: "p:" + charA, Target: "m:7", Amount: 23, Crit: true}},
 		{Type: "SkillUsed", Tick: 81235, Data: &clientv1.SkillUsed{Caster: charA, Skill: "strike", Stage: 2, Trait: "concussion", Aim: -1.5, Target: "m:7"}},
 		{Type: "AttackUsed", Tick: 81236, Data: &clientv1.AttackUsed{Attacker: charA, LengthTicks: 18, Aim: 1.5}},

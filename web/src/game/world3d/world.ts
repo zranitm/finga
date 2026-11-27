@@ -37,6 +37,7 @@ import type { Skill, Stage as SkillStage } from '@/progression/skills';
 import { moveSpeedWith } from '@/progression/stats';
 import { blocked } from '@/progression/statuses';
 import type { StatusOn } from '@/progression/statuses';
+import { ViewExpander } from '@/protocol/expand';
 import { MobPose } from '@/protocol/messages';
 import type { Data, PartyView } from '@/protocol/messages';
 import type { Input } from '@/sim/input';
@@ -542,6 +543,8 @@ export class World {
   private readonly deadRemotes = new Set<string>();
   private bossSent: MobWire | null = null; // the field boss as the frames last sent it for its bar, wherever it stands; never drawn from
   private mobs = new MobTracker(this.timing.tickMs);
+  /** The map's frames' steps as whole views. */
+  private view = new ViewExpander('');
   private readonly mobHurt = new Map<number, { hp: number; at: number }>(); // each mob's HP as last drawn, and when it last fell
   private readonly mobViews = new Map<number, Drawn>();
   private readonly mobTypes = new Map<number, string>();
@@ -828,6 +831,7 @@ export class World {
     this.clock = new FixedStep(this.timing);
     this.renderClock = new RenderClock(this.timing.tickMs);
     this.mobs = new MobTracker(this.timing.tickMs);
+    this.view = new ViewExpander(characterId);
     this.feed = new FeedWatch(STALL_MS);
     this.remotes = new RemotePlayers(characterId, this.timing.tickMs);
     this.actions = new ActionClock(this.timing.tickMs, this.deps.now, () => this.afterimage());
@@ -1080,10 +1084,11 @@ export class World {
         this.channel = m.d.channel;
         mapView.getState().inChannel(m.d.channel); // with the map it's of, which a teardown cleared
         this.enteredArea(m.d.area);
+        this.view.snapshot(m.d.players, m.d.mobs);
         this.onSnapshot(m.d.players, m.d.mobs, m.d.boss, this.tickOf(m.tick));
         return;
       case 'delta':
-        this.onDelta(m.d, this.tickOf(m.tick));
+        this.onDelta(m.d, this.view.delta(m.d), this.tickOf(m.tick));
         return;
       case 'died':
         this.onTransition({ t: 'died', d: m.d });
@@ -1131,20 +1136,24 @@ export class World {
     }
   }
 
-  private onDelta(d: Data<'delta'>, tick: number): void {
+  private onDelta(
+    d: Data<'delta'>,
+    seen: { players: readonly Wire[]; mobs: readonly MobWire[] },
+    tick: number,
+  ): void {
     const now = this.deps.now();
     this.ackSeq = d.ackSeq;
     const t = tick * this.timing.tickMs;
     this.renderClock.update(tick, now);
     const unseen = d.unseen;
     const removedPlayers = unseen ? [...d.removedPlayers, ...unseen.players] : d.removedPlayers; // out of sight, a player goes as one who left
-    this.remotes?.applyDelta(t, d.players, removedPlayers);
-    this.mobs.applyDelta(t, d.mobs, d.removedMobs, unseen?.mobs ?? []);
+    this.remotes?.applyDelta(t, seen.players, removedPlayers);
+    this.mobs.applyDelta(t, seen.mobs, d.removedMobs, unseen?.mobs ?? []);
     if (d.boss) {
       this.bossSent = d.boss;
     }
     const leaving = new Set(removedPlayers);
-    for (const p of d.players) {
+    for (const p of seen.players) {
       if (p.id === this.deps.player.characterId) {
         continue;
       }
@@ -1154,7 +1163,7 @@ export class World {
         this.deadRemotes.delete(p.id); // one leaving keeps its last pose till its figure goes, drawn behind the frame
       }
     }
-    const me = d.players.find((p) => p.id === this.deps.player.characterId);
+    const me = seen.players.find((p) => p.id === this.deps.player.characterId);
     if (!me || !this.predictor) {
       return;
     }

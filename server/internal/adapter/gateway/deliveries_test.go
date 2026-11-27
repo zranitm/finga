@@ -229,6 +229,7 @@ type frameRecipient struct {
 	AckSeq      uint32
 	Energy      *uint32
 	Unseen      *model.Unseen
+	Own         *model.PlayerView
 	Pouches     []model.PouchView
 	PouchesGone []uint64
 }
@@ -243,7 +244,7 @@ func TestAFrameKeepsItsValues(t *testing.T) {
 	const recipients = "a frame names its recipients instead"
 	m := match()
 	with(m.Renames, map[string]string{
-		"Tick": "Tick", "Event.Parts": "Frame.Parts", "Event.Parts.Players.State": "Frame.Parts.Players", "Event.Parts.Removed": "Frame.Parts.RemovedPlayers", "Event.Recipients": "Recipients",
+		"Tick": "Tick", "Event.Parts": "Frame.Parts", "Event.Parts.Players.State": "Frame.Parts.Players", "Event.Recipients.Own.State": "Recipients.Own", "Event.Parts.Removed": "Frame.Parts.RemovedPlayers", "Event.Recipients": "Recipients",
 		"Event.Recipients.Pouches.Changed": "Recipients.Pouches", "Event.Recipients.Pouches.Changed.GoneIn": "Recipients.Pouches.GoneInMs", "Event.Recipients.Pouches.Gone": "Recipients.PouchesGone",
 	})
 	with(m.Skip, map[string]string{"Character": recipients, "Conn": recipients})
@@ -260,7 +261,7 @@ func TestAFrameKeepsItsValues(t *testing.T) {
 				t.Fatal("the recipients' pushes share no frame")
 			}
 			out.Tick, out.Frame = d.Delivery.Tick, delta.Frame
-			out.Recipients = append(out.Recipients, frameRecipient{Connection: d.Connection, Character: d.Character, Parts: delta.Parts, AckSeq: delta.AckSeq, Energy: delta.Energy, Unseen: delta.Unseen, Pouches: delta.Pouches, PouchesGone: delta.PouchesGone})
+			out.Recipients = append(out.Recipients, frameRecipient{Connection: d.Connection, Character: d.Character, Parts: delta.Parts, AckSeq: delta.AckSeq, Energy: delta.Energy, Unseen: delta.Unseen, Own: delta.Own, Pouches: delta.Pouches, PouchesGone: delta.PouchesGone})
 		})
 		return out
 	})

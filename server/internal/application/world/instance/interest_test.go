@@ -16,6 +16,7 @@ import (
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
+	"finga/internal/shared/quant"
 	"finga/internal/shared/sim"
 )
 
@@ -587,13 +588,106 @@ func compare(t *testing.T, name string, held, sent sight) {
 		t.Fatalf("%s holds %d players and mobs %v; a join there is sent %d and %v", name, len(held.players), ids(held.mobs), len(sent.players), ids(sent.mobs))
 	}
 	for id, p := range sent.players {
-		if h, ok := held.players[id]; !ok || h.State.X != p.State.X || h.State.Z != p.State.Z {
-			t.Fatalf("%s holds player %s as %v (%v), a join is sent %+v", name, p.Name, h.State, ok, p.State)
+		h, ok := held.players[id]
+		if !ok || !samePlayerOnTheWire(h, p) {
+			t.Fatalf("%s holds player %s as %+v (%v), a join is sent %+v", name, p.Name, h, ok, p)
 		}
 	}
 	for id, m := range sent.mobs {
-		if h, ok := held.mobs[id]; !ok || h.X != m.X || h.Z != m.Z || h.HP != m.HP {
+		h, ok := held.mobs[id]
+		if !ok || !sameMobOnTheWire(h, m) {
 			t.Fatalf("%s holds mob %d as %+v (%v), a join is sent %+v", name, id, h, ok, m)
 		}
+	}
+}
+
+// samePlayerOnTheWire is whether two views are the same in every field the wire carries, a place, speed and heading to the whole unit it rounds them to.
+func samePlayerOnTheWire(a, b model.PlayerView) bool {
+	x, y := a.State, b.State
+	return a.ID == b.ID && a.Slot == b.Slot && a.Name == b.Name && a.Class == b.Class && a.Level == b.Level && a.HP == b.HP && a.MaxHP == b.MaxHP && a.Dead == b.Dead &&
+		a.Invulnerable == b.Invulnerable && a.Dodging == b.Dodging && a.Shield == b.Shield && a.Aim == b.Aim && a.Team == b.Team && a.Bot == b.Bot && a.Look == b.Look &&
+		slices.Equal(a.Statuses, b.Statuses) &&
+		quant.Position(x.X) == quant.Position(y.X) && quant.Position(x.Y) == quant.Position(y.Y) && quant.Position(x.Z) == quant.Position(y.Z) &&
+		quant.Speed(x.VX) == quant.Speed(y.VX) && quant.Speed(x.VY) == quant.Speed(y.VY) && quant.Speed(x.VZ) == quant.Speed(y.VZ) &&
+		quant.Heading(x.HX) == quant.Heading(y.HX) && quant.Heading(x.HZ) == quant.Heading(y.HZ) &&
+		x.OnGround == y.OnGround && x.Sprint == y.Sprint && x.Held == y.Held && x.Walk == y.Walk && x.Move == y.Move && x.Slow == y.Slow
+}
+
+func sameMobOnTheWire(a, b model.MobView) bool {
+	return a.ID == b.ID && a.Type == b.Type && a.HP == b.HP && a.MaxHP == b.MaxHP && a.Pose == b.Pose && slices.Equal(a.Statuses, b.Statuses) &&
+		quant.Position(a.X) == quant.Position(b.X) && quant.Position(a.Y) == quant.Position(b.Y) && quant.Position(a.Z) == quant.Position(b.Z) && quant.Yaw(a.Yaw) == quant.Yaw(b.Yaw)
+}
+
+// Players walk and fight a crowded map while others join and leave beside them, and one leaves and another takes its place: at every checkpoint, what a client holds of every body it sees, from its snapshot and every frame since, is in every field the wire carries what a player joining on its spot is sent. A join or a cell's full part hands a body out whole to one player, which must not leave another's baseline wrong.
+func TestEveryClientHoldsEveryFieldAJoinOnItsSpotWouldSee(t *testing.T) {
+	for seed := range uint64(4) {
+		t.Run(fmt.Sprintf("seed %d", seed), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				data := worldtest.LoadData(t)
+				r := rand.New(rand.NewPCG(seed, 11))
+				var spawns []gamedata.Spawn
+				kinds := []string{"green_slime", "wild_boar", "cave_bat", "orange_mushroom"}
+				for range 80 {
+					spawns = append(spawns, gamedata.Spawn{Mob: kinds[r.IntN(len(kinds))], Max: 2, Respawn: 5 * time.Second, Radius: 8, At: gamedata.Point{X: 10 + r.Float64()*300, Z: 10 + r.Float64()*300}})
+				}
+				inst, stop := worldtest.RunMap(t, data, plain(t, spawns, nil), nil, worldtest.Options{})
+				defer stop()
+				type walker struct {
+					p    model.Player
+					s    *worldtest.Sink
+					seq  uint32
+					in   sim.Input
+					left int
+				}
+				fresh := func(k int) *walker {
+					p := worldtest.NewPlayer(fmt.Sprintf("P%d", k), 20+r.Float64()*280, 20+r.Float64()*280)
+					p.Level, p.HP = 20, 600 // mobs hurt it, and some of its walks end dead
+					return &walker{p: p, s: join(t, inst, p)}
+				}
+				var walkers []*walker
+				for k := range 6 {
+					walkers = append(walkers, fresh(k))
+				}
+				next := len(walkers)
+				for n := range 800 {
+					for _, w := range walkers {
+						if w.left == 0 {
+							w.in, w.left = sim.Input{Left: r.IntN(3) == 0, Right: r.IntN(3) == 0, Up: r.IntN(2) == 0, Down: r.IntN(3) == 0}, 5+r.IntN(40)
+						}
+						w.left--
+						w.seq++
+						_ = inst.Input(w.p.ID, w.seq, w.in, 0)
+						if r.IntN(20) == 0 {
+							_ = inst.Attack(w.p.ID, float32(r.Float64()*2*math.Pi), model.EntityRef{})
+						}
+					}
+					tick(1)
+					if r.IntN(150) == 0 { // one leaves and another comes in its place
+						k := r.IntN(len(walkers))
+						if err := inst.Leave(walkers[k].p.ID, "", nil); err != nil {
+							t.Fatal(err)
+						}
+						walkers[k] = fresh(next)
+						next++
+					}
+					if n%25 != 24 {
+						continue
+					}
+					w := walkers[r.IntN(len(walkers))]
+					me, _ := w.s.Own(w.p.ID)
+					observer := worldtest.NewPlayer("Observer", me.State.X, me.State.Z)
+					seen := join(t, inst, observer)
+					held, sent := sightOf(t, w.s), sightOf(t, seen) // both as of the same frame
+					delete(held.players, observer.ID)
+					delete(sent.players, observer.ID)
+					compare(t, fmt.Sprintf("tick %d, %s", n, w.p.Name), held, sent)
+					if r.IntN(2) == 0 { // some stay a while, so their cells' parts are theirs too
+						if err := inst.Leave(observer.ID, "", nil); err != nil {
+							t.Fatal(err)
+						}
+					}
+				}
+			})
+		})
 	}
 }

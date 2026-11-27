@@ -32,7 +32,8 @@
           "outfit": "knight_plate",
           "weapon": "greatsword",
           "hide_headwear": true
-        }
+        },
+        "slot": 7
       }
     ],
     "mobs": [
