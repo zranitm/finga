@@ -2,6 +2,7 @@ package account
 
 import (
 	"context"
+	"slices"
 
 	"finga/internal/application/item"
 	"finga/internal/shared/kernel"
@@ -24,5 +25,13 @@ func (i Items) Inventory(ctx context.Context, character kernel.CharacterID) (any
 	if err != nil {
 		return nil, wrap(err)
 	}
+	items := slices.Clone(got.Items) // each roll is copied, so the Welcome holds none of the module's
+	for i := range items {
+		if items[i].Stats != nil {
+			roll := *items[i].Stats
+			items[i].Stats = &roll
+		}
+	}
+	got.Items = items
 	return got, nil
 }

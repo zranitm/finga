@@ -31,7 +31,7 @@ func inventoryItems(inv item.Inventory) []*clientv1.ItemView {
 	out := make([]*clientv1.ItemView, 0, len(inv.Items))
 	for _, it := range inv.Items {
 		if it.EquipSlot == "" {
-			out = append(out, itemView(it, string(it.Tab), it.Slot))
+			out = append(out, itemView(it))
 		}
 	}
 	return out
@@ -42,7 +42,7 @@ func worn(inv item.Inventory) []*clientv1.EquipSlot {
 	var out []*clientv1.EquipSlot
 	for _, it := range inv.Items {
 		if it.EquipSlot != "" {
-			out = append(out, &clientv1.EquipSlot{EquipSlot: it.EquipSlot, Item: itemView(it, "", 0)})
+			out = append(out, &clientv1.EquipSlot{EquipSlot: it.EquipSlot, Item: itemView(it)})
 		}
 	}
 	return out
@@ -54,16 +54,16 @@ func inventoryChanged(res item.Result) *clientv1.InventoryChanged {
 	for _, s := range res.Changed {
 		slot := &clientv1.InventorySlot{Tab: string(s.Tab), Slot: int32(s.Slot)} //nolint:gosec // a slot is small
 		if s.Item != nil {
-			slot.Item = itemView(*s.Item, string(s.Item.Tab), s.Item.Slot)
+			slot.Item = itemView(*s.Item)
 		}
 		slots = append(slots, slot)
 	}
 	return &clientv1.InventoryChanged{Slots: slots, Revision: res.Revision}
 }
 
-// itemView is an item on the wire, in the tab and slot named.
-func itemView(it item.Item, tab string, slot int) *clientv1.ItemView {
-	return &clientv1.ItemView{ItemId: it.ID.String(), Template: it.TemplateID, Tab: tab, Slot: int32(slot), Quantity: int32(it.Quantity), Stats: transport.ItemStats(it.Stats)} //nolint:gosec // a slot and a stack are small
+// itemView is an item on the wire, in the tab and slot the item module names for it (a worn item's are empty).
+func itemView(it item.Item) *clientv1.ItemView {
+	return &clientv1.ItemView{ItemId: it.ID.String(), Template: it.TemplateID, Tab: string(it.Tab), Slot: int32(it.Slot), Quantity: int32(it.Quantity), Stats: transport.ItemStats(it.Stats)} //nolint:gosec // a slot and a stack are small
 }
 
 // pieceAdded tells of the wardrobe piece an item gave, as the item's.
