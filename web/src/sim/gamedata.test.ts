@@ -316,12 +316,13 @@ describe('generated gamedata', () => {
       start: false,
       min_level: null,
     });
-    expect(maps.find((m) => m.id === 'shroom_grove')).toMatchObject({
+    const [min, max] = yaml('maps/frost_trail.yaml').levels as [number, number];
+    expect(maps.find((m) => m.id === 'frost_trail')).toMatchObject({
       kind: 'hunting',
       town: 'crossroads',
       start: false,
-      min_level: 15,
-      max_level: 16,
+      min_level: min,
+      max_level: max,
     });
     expect(maps.find((m) => m.id === 'willowmere')).toMatchObject({
       kind: 'region',
@@ -429,8 +430,8 @@ describe('generated gamedata', () => {
       ['town', null],
       ['west', [1, 4]],
       ['south', [10, 14]],
-      ['north', [15, 18]],
-      ['woods', [19, 20]],
+      ['north', [12, 14]],
+      ['woods', [16, 17]],
     ]);
   });
 

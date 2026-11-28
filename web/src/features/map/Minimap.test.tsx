@@ -18,8 +18,8 @@ import { resetStores } from '@/testing/reset-stores';
 
 import { Minimap } from './Minimap';
 
-const grove = maps.find((m) => m.id === 'shroom_grove')!;
-const SIZE = [72, 36] as const; // the grove's
+const trail = maps.find((m) => m.id === 'frost_trail')!;
+const SIZE = [72, 36] as const; // a map of 72 by 36 m
 
 function at(x: number, z: number, yaw = 0) {
   act(() => mapView.getState().mark({ me: { x, z, yaw }, party: [], lock: null, boss: null }));
@@ -28,7 +28,7 @@ function at(x: number, z: number, yaw = 0) {
 describe('Minimap', () => {
   beforeEach(() => {
     resetStores();
-    mapView.getState().showMap('shroom_grove', SIZE, NO_GROUND, []);
+    mapView.getState().showMap('frost_trail', SIZE, NO_GROUND, []);
   });
 
   it('shows 40 m round the player, north up, and holds the view inside the map at its edges', () => {
@@ -47,14 +47,14 @@ describe('Minimap', () => {
     render(<Minimap />);
     at(30, 10, Math.PI / 2);
     const svg = screen.getByRole('img', { name: 'Minimap' });
-    const spawn = grove.spawns[0];
+    const spawn = trail.spawns[0];
     const circle = svg.querySelector(`.map-spawn[data-mob="${spawn.mob}"]`)!;
     expect([
       circle.getAttribute('cx'),
       circle.getAttribute('cy'),
       circle.getAttribute('r'),
     ]).toEqual([String(spawn.x), String(SIZE[1] - spawn.z), String(spawn.radius)]);
-    const portal = grove.portals[0];
+    const portal = trail.portals[0];
     const ring = svg.querySelector(`.map-portal[data-to="${portal.to}"]`)!;
     expect([ring.getAttribute('cx'), ring.getAttribute('cy')]).toEqual([
       String(portal.x),

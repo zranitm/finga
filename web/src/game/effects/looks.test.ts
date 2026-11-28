@@ -82,7 +82,7 @@ describe('looks', () => {
     scene = new Scene(engine);
     servePublic();
     now = 1000;
-    map = await loadMap('shroom_grove');
+    map = await loadMap('frost_trail');
     palette = new Palette(scene);
     fx = new Fx(
       scene,
@@ -576,7 +576,7 @@ describe('moves', () => {
     scene = new Scene(engine);
     servePublic();
     now = 1000;
-    map = await loadMap('shroom_grove');
+    map = await loadMap('frost_trail');
     palette = new Palette(scene);
     fx = new Fx(
       scene,

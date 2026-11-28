@@ -31,7 +31,7 @@ const member = (
   class: 'beginner',
   hp: 100,
   maxHp: 100,
-  mapId: 'shroom_grove',
+  mapId: 'frost_trail',
   online: true,
   ...extra,
 });
@@ -106,7 +106,7 @@ describe('PartyWindow', () => {
         .getState()
         .applyPartyState(
           partyOf('c-ayla', [
-            member('c-ayla', 'Ayla', { level: 12, class: 'warrior', mapId: 'dune_road' }),
+            member('c-ayla', 'Ayla', { level: 12, class: 'warrior', mapId: 'icefall' }),
             member('c-robin', 'Robin', { mapId: 'crossroads', online: false }),
             member('c-jade', 'Jade', { mapId: 'ring' }),
             member('c-bo', 'Bo', { mapId: 'test_region', channel: 2 }),

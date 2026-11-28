@@ -53,7 +53,7 @@ it('warms a figure’s afterimage for both of its passes and every pose, so no c
   let now = 1000;
   const fx = new Fx(
     scene,
-    await loadMap('shroom_grove'),
+    await loadMap('frost_trail'),
     { manifest: emptyManifest, sound: () => undefined },
     () => now,
     palette,

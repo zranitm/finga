@@ -16,7 +16,7 @@ describe('TeleportBar', () => {
     render(<TeleportBar />);
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
     act(() => {
-      teleport.getState().start({ map: 'shroom_grove' });
+      teleport.getState().start({ map: 'frost_trail' });
     });
     const bar = screen.getByRole('status');
     expect(bar).toHaveTextContent('Teleporting to Shroom Grove');
@@ -47,7 +47,7 @@ describe('TeleportBar', () => {
   it('draws a new channel’s fill afresh, from empty', () => {
     render(<TeleportBar />);
     act(() => {
-      teleport.getState().start({ map: 'shroom_grove' });
+      teleport.getState().start({ map: 'frost_trail' });
     });
     const first = document.querySelector('.teleport-bar-fill');
     act(() => {

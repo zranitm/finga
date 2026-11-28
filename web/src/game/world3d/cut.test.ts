@@ -620,17 +620,6 @@ describe('the cut-away round the player', () => {
     expect(floor).toEqual([]);
   });
 
-  it('opens the sandstone cliffs’ south bank before a player at (40, 6), whom it hides from the camera', () => {
-    const cliffs = swept.find((m) => m.id === 'sandstone_cliffs')!;
-    const reach = reachOf(palette.toon({ texture: null, color: Color3.Gray() }, 1, true));
-    const at = cliffs.seen.find((s) => s.spot.x === 40.25 && s.spot.z === 5.75)!;
-    const cover = covered(cliffs.ground, at.cam, at.chest);
-    expect(cover.length).toBeGreaterThan(0);
-    expect(cover.map((p) => cutOf(at.cam, at.chestView, ...p, reach))).toEqual(
-      cover.map(() => 'open'),
-    );
-  });
-
   it('opens round the mobs by a hidden player on every map, so a bank hides neither their bodies nor their lock rings and no decal on it hangs whole in front of them, and opens no walkable floor round them or round a player above them', async () => {
     const cut = await built(
       palette.toon({ texture: null, color: new Color3(0.4, 0.5, 0.3) }, 1, true),

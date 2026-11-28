@@ -22,7 +22,7 @@ import { PrecisionDate } from '@babylonjs/core/Misc/precisionDate';
 import { Node } from '@babylonjs/core/node';
 import type { Scene } from '@babylonjs/core/scene';
 import { create } from '@bufbuild/protobuf';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { classes } from '@/gamedata/classes';
 import { maps } from '@/gamedata/maps';
@@ -129,12 +129,16 @@ vi.mock('@/progression/places', async (actual) => {
   return { ...real, gateBetween: vi.fn(real.gateBetween) }; // no shipped region has a place below yet: a test says where a gate is
 });
 
-const GROVE = 'shroom_grove'; // the real map the tests that walk or draw one use, from disk
+const TRAIL = 'frost_trail'; // the real map the tests that walk or draw one use, from disk
 
-/** Hunting maps with no NPCs, served flat and bare for the tests no map's own layout bears on: FLAT, the two a map change goes to, one served as a region, the widest a block holds, that with a tower, one served as a cave and one as a sea. */
-const [FLAT, FLAT2, FLAT3, REGIONED, WIDE, TOWERED, CAVED, SUNK] = maps
-  .filter((m) => m.kind === 'hunting' && m.id !== GROVE && npcsOn(m.id).length === 0)
-  .map((m) => m.id) as [string, string, string, string, string, string, string, string];
+/** Maps with no NPCs, served flat and bare for the tests no map's own layout bears on: three hunting maps, a map change's FLAT and the two it goes to; the test region, served as a region; the widest a block holds, which the tower test serves with a tower; a cave and a sea, served as the places below. */
+const [FLAT, FLAT2, FLAT3] = ['icefall', 'glacier_peak', 'fallen_keep'] as const;
+const [REGIONED, WIDE, CAVED, SUNK] = [
+  'test_region',
+  'ruin_crypt',
+  'spore_caves',
+  'sunken_shrine',
+] as const;
 
 /** Map id flat and bare, 72 by 40 m. */
 function bare(id: string) {
@@ -236,7 +240,7 @@ function towered(id: string) {
 }
 
 /** The maps served in place of the real ones, made once; the rest come from disk. */
-const SERVED = {
+const SERVED: Record<string, unknown> = {
   [FLAT]: bare(FLAT),
   [FLAT2]: bare(FLAT2),
   [FLAT3]: bare(FLAT3),
@@ -245,7 +249,6 @@ const SERVED = {
   [SUNK]: sunk(SUNK),
   [`regions/${TINY.id}/${TINY.hash}/region.json`]: townedTiny(),
   [WIDE]: wide(WIDE),
-  [TOWERED]: towered(TOWERED),
   crossroads: slim('crossroads'),
   ring: { ...bare('ring'), prep_wall: (mapJson('ring') as { prep_wall: unknown }).prep_wall }, // flat, with its own prep wall
   battlefield: {
@@ -253,6 +256,12 @@ const SERVED = {
     battle: (mapJson('battlefield') as { battle: unknown }).battle,
   },
 };
+
+it('serves the maps it draws bare with no NPCs on them', () => {
+  for (const id of [FLAT, FLAT2, FLAT3, REGIONED, WIDE, CAVED, SUNK]) {
+    expect(npcsOn(id), id).toEqual([]);
+  }
+});
 
 type PlayerWire = NonNullable<ServerInit<'snapshot'>['players']>[number];
 type MobWire = NonNullable<ServerInit<'snapshot'>['mobs']>[number];
@@ -537,10 +546,10 @@ describe('World', () => {
   });
 
   it('draws the map and places the player where its Snapshot says, sending an Input each tick', async () => {
-    const p = await playing(GROVE, 4, 20);
+    const p = await playing(TRAIL, 4, 20);
     const me = p.root(classLook('warrior').file)!;
     expect([me.position.x, me.position.y, me.position.z]).toEqual([4, 0, 20]);
-    expect(p.scene()?.transformNodes.some((n) => n.name === `place ${GROVE}`)).toBe(true);
+    expect(p.scene()?.transformNodes.some((n) => n.name === `place ${TRAIL}`)).toBe(true);
     const before = p.inputs();
     p.frames(10);
     expect(p.inputs() - before).toBe(10);
@@ -1003,15 +1012,15 @@ describe('World', () => {
     expect(chunkWork.closed).toBe(closed + 2);
   });
 
-  it('walks the player east till the mushroom in its way stops them, as the server’s sim would', async () => {
-    const p = await playing(GROVE, 4, 19.5);
+  it('walks the player east till the pine in its way stops them, as the server’s sim would', async () => {
+    const p = await playing(TRAIL, 22, 18);
     key('ArrowRight', true);
     p.live(60);
     key('ArrowRight', false);
     p.live(2);
     const me = p.root(classLook('warrior').file)!;
-    expect(me.position.x).toBeCloseTo(9.5 - 2.79 - movement.radius, 3); // the ring mushroom at 9.5, 19.5
-    expect(me.position.z).toBeCloseTo(19.5, 6);
+    expect(me.position.x).toBeCloseTo(26 - 0.34 - movement.radius, 3); // the pine at 26, 18
+    expect(me.position.z).toBeCloseTo(18, 6);
     expect(p.sent('input').some((d) => d.right === true)).toBe(true);
   });
 
@@ -3059,11 +3068,11 @@ describe('World', () => {
 
   it('leaves a teleport channelling at the attack key in a town, which starts no attack', async () => {
     const p = await playing('crossroads', 17, 20);
-    teleport.getState().start({ map: 'shroom_grove' });
+    teleport.getState().start({ map: 'frost_trail' });
     key('KeyX', true);
     key('KeyX', false);
     p.frames(2);
-    expect([p.sent('attack'), teleport.getState().to]).toEqual([[], { map: 'shroom_grove' }]);
+    expect([p.sent('attack'), teleport.getState().to]).toEqual([[], { map: 'frost_trail' }]);
   });
 
   it('in a match’s prep the wall across the ring stands, drawn and walked against, and attacks and skills wait; the round takes it down', async () => {
@@ -3126,8 +3135,11 @@ describe('World', () => {
   });
 
   it('takes a solid at the camera’s end of its line to the player from the view, 8 m from the player, and gives it back as the player walks clear', async () => {
-    expect(TOWERED).toBeDefined();
-    const p = await playing(TOWERED, 60, 40);
+    SERVED[WIDE] = towered(WIDE);
+    onTestFinished(() => {
+      SERVED[WIDE] = wide(WIDE);
+    });
+    const p = await playing(WIDE, 60, 40);
     p.live(2);
     const tower = () => meshesOn(p, 'tower')[0]!.material!.name;
     expect(tower()).toMatch(/ cut 0$/); // the camera 10.3 m south and 12.3 m up, 1.2 m from its face
@@ -3256,7 +3268,7 @@ describe('World', () => {
           members: [
             { characterId: ME, name: 'Ayla', mapId: FLAT, online: true },
             { characterId: 'c-robin', name: 'Robin', mapId: FLAT, online: true },
-            { characterId: 'c-jade', name: 'Jade', mapId: 'spore_hollow', online: true },
+            { characterId: 'c-jade', name: 'Jade', mapId: 'icefall', online: true },
           ],
         }),
       }),
@@ -3309,7 +3321,7 @@ describe('World', () => {
           members: [
             { characterId: ME, name: 'Ayla', mapId: REGIONED, online: true },
             { characterId: 'c-robin', name: 'Robin', ...robin },
-            { characterId: 'c-jade', name: 'Jade', mapId: 'spore_hollow', online: true },
+            { characterId: 'c-jade', name: 'Jade', mapId: 'icefall', online: true },
           ],
         }),
       });
@@ -3358,7 +3370,7 @@ describe('World', () => {
       party.getState().applyPartyState(party3({ mapId: REGIONED, online: false }));
       frames(2);
       expect(seen()).toEqual({ marked: [], statuses: {} });
-      party.getState().applyPartyState(party3({ mapId: 'spore_hollow', online: true }));
+      party.getState().applyPartyState(party3({ mapId: 'icefall', online: true }));
       frames(2);
       expect(seen()).toEqual({ marked: [], statuses: {} });
       party.getState().applyPartyState(party3({ mapId: REGIONED, online: true }));
@@ -4331,7 +4343,7 @@ describe('World', () => {
             members: [
               { characterId: ME, name: 'Ayla', mapId: FLAT, online: true },
               { characterId: 'c-robin', name: 'Robin', mapId: FLAT, online: true },
-              { characterId: 'c-jade', name: 'Jade', mapId: 'spore_hollow', online: true },
+              { characterId: 'c-jade', name: 'Jade', mapId: 'icefall', online: true },
             ],
           }),
         }),
@@ -4544,8 +4556,8 @@ describe('World', () => {
   });
 
   it('walks on the world’s own frames, each input acked with the state its sim gave, and never resets', async () => {
-    const p = await playing(GROVE, 4, 20);
-    const g = (await loadMap(GROVE)).geometry;
+    const p = await playing(TRAIL, 4, 20);
+    const g = (await loadMap(TRAIL)).geometry;
     const steps = tickTiming(RATE, movement.dt).stepsPerTick;
     let server: State = { x: 4, y: 0, z: 20, vx: 0, vy: 0, vz: 0, on_ground: true, hx: 1, hz: 0 };
     let ran = 0;
