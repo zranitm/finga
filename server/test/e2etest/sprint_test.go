@@ -1,6 +1,7 @@
 package e2etest
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -13,11 +14,15 @@ const (
 	combat  = 100
 )
 
-// walked is a recording of a player walking from tick start, in combat from each hit until combat ticks after it, with the pace the world gives each tick; cut keeps the count from ever rising, reset ends it at the tick.
-func walked(start, last uint64, hits []uint64, cut bool, reset uint64) *Recording {
+// walked is a recording of a player walking from tick start, in combat from each hit until combat ticks after it, with the pace the world gives each tick; cut keeps the count from ever rising, reset ends it at the tick, and a tick in skip has no frame and no input, as on a starved runner whose merged frames the player answers once.
+func walked(start, last uint64, hits []uint64, cut bool, reset uint64, skip ...uint64) *Recording {
 	r := &Recording{Hits: hits}
-	counted := 0
+	counted, ack := 0, uint32(0)
 	for t := start; t <= last; t++ {
+		if slices.Contains(skip, t) {
+			continue
+		}
+		ack++
 		fighting := false
 		for _, h := range hits {
 			fighting = fighting || (t > h && t < h+combat)
@@ -32,7 +37,52 @@ func walked(start, last uint64, hits []uint64, cut bool, reset uint64) *Recordin
 			}
 			counted = min(counted+perTick, steps)
 		}
-		r.Paces = append(r.Paces, Pace{Tick: t, Sprint: counted, Speed: speed})
+		r.Paces = append(r.Paces, Pace{Tick: t, Ack: ack, Sprint: counted, Speed: speed})
+	}
+	return r
+}
+
+// without drops the frame at tick from r, whose input the server applied all the same.
+func without(r *Recording, tick uint64) *Recording {
+	r.Paces = slices.DeleteFunc(r.Paces, func(p Pace) bool { return p.Tick == tick })
+	return r
+}
+
+// idle is r with a frame of the player standing, before any input, ahead of it.
+func idle(r *Recording) *Recording {
+	r.Paces = slices.Insert(r.Paces, 0, Pace{Tick: 15})
+	return r
+}
+
+// stepsOf is a recording of a walk out of combat from tick start whose server steps the player once a tick that brings an input, acking two on each tick of merged and none on each of idle, which steps no one; a tick of gone brings none and has no frame.
+func stepsOf(start, last uint64, idle, merged, gone []uint64) *Recording {
+	r := &Recording{}
+	counted, ack := 0, uint32(0)
+	for t := start; t <= last; t++ {
+		speed := walk
+		if counted >= steps {
+			speed = walk * mult
+		}
+		switch {
+		case slices.Contains(idle, t), slices.Contains(gone, t):
+		case slices.Contains(merged, t):
+			ack += 2
+			counted = min(counted+perTick, steps)
+		default:
+			ack++
+			counted = min(counted+perTick, steps)
+		}
+		if !slices.Contains(gone, t) {
+			r.Paces = append(r.Paces, Pace{Tick: t, Ack: ack, Sprint: counted, Speed: speed})
+		}
+	}
+	return r
+}
+
+// lagging is r with the count a tick late at the end, as when the walk's first tick is counted as the player's own.
+func lagging(r *Recording) *Recording {
+	for i := range r.Paces {
+		r.Paces[i].Sprint = max(0, r.Paces[i].Sprint-perTick)
 	}
 	return r
 }
@@ -45,11 +95,19 @@ func TestARecordedWalkIsJudgedAgainstTheSprintRules(t *testing.T) {
 		fault string
 	}{
 		{"a walk out of combat", walked(10, 80, nil, false, 0), ""},
+		{"frames of a player standing before the walk", idle(walked(40, 90, nil, false, 0)), ""},
 		{"a walk that ends before the sprint", walked(10, 40, nil, false, 0), "no frame showed the sprint"},
 		{"the sprint path cut", walked(10, 80, nil, true, 0), "a sprint count of 0"},
 		{"a count reset part way", walked(10, 120, nil, false, 50), "a sprint count of"},
 		{"a walk through a hit's combat, sprinting after it", walked(10, 200, []uint64{20}, false, 0), ""},
 		{"a hit's combat that never ends in the frames", walked(10, 140, []uint64{20}, false, 0), "no frame showed the sprint"},
+		{"a walk with frames skipped, each leaving an input out", walked(10, 120, nil, false, 0, 30, 41, 42, 70), ""},
+		{"frames skipped through a hit's combat, sprinting after it", walked(10, 220, []uint64{20}, false, 0, 15, 119, 130, 150, 151), ""},
+		{"the frame at combat's last tick lost, its input applied", without(walked(10, 220, []uint64{20}, false, 0), 119), ""},
+		{"two inputs acked in one tick, which steps once", stepsOf(10, 80, nil, []uint64{30, 31, 50}, nil), ""},
+		{"a tick with no input, then two in one step", stepsOf(10, 80, []uint64{30, 45}, []uint64{31, 46}, nil), ""},
+		{"a skipped frame, then two inputs in one step", stepsOf(10, 80, nil, []uint64{31, 61}, []uint64{30, 60}), ""},
+		{"a count that lags behind the inputs with frames skipped", lagging(walked(10, 120, nil, false, 0, 30, 41, 42, 70)), "a sprint count of"},
 		{"the sprint path cut after a hit", walked(10, 200, []uint64{20}, true, 0), "a sprint count of 0"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
