@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"finga/internal/application/world/bots"
+	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/nav"
@@ -391,5 +392,19 @@ func TestABotStandsInAPointsMiddleWhenItsSpotWontTakeIt(t *testing.T) {
 	}
 	if middles == 0 {
 		t.Fatal("no seed rolled a spot in the boulder, so nothing checked the fallback")
+	}
+}
+
+// pvp.md section 19: a bot walking to the side's focus that meets another enemy standing in its way steps round, not keeps pressing at that enemy's body.
+func TestABotStepsRoundAnEnemyOnTheWayToItsFocus(t *testing.T) {
+	f := newBattleFight(t, "warrior", 26, 45)
+	focus := bots.Seen{ID: kernel.NewCharacterID(), Side: 2, Up: true, HP: 10, MaxHP: 100, Body: model.Body{X: f.self.State.X, Z: f.self.State.Z + 8, Radius: f.setup.Radius, Height: f.setup.Height}}
+	blocker := bots.Seen{ID: kernel.NewCharacterID(), Side: 2, Up: true, HP: 100, MaxHP: 100, Body: model.Body{X: f.self.State.X, Z: f.self.State.Z + 1.2, Radius: f.setup.Radius, Height: f.setup.Height}}
+	open := f.decideBattle(&bots.Team{}, nil, 20, focus).Keys
+	if !open.Up || open.Left || open.Right {
+		t.Fatalf("walking to its focus 8 m north, the bot presses %+v; want north", open)
+	}
+	if got := f.decideBattle(&bots.Team{}, nil, 20, focus, blocker).Keys; got.Left == got.Right {
+		t.Fatalf("an enemy 1.2 m ahead, not the focus: the bot presses %+v; want it round, to one side", got)
 	}
 }

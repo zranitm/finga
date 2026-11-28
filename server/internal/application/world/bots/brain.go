@@ -20,6 +20,7 @@ const (
 	rangedFar  = 9.0 // metres past which a bowman or a magician walks in, to rangedNear
 	rangedNear = 6.0
 	tooClose   = 3.0 // metres inside which a bowman or a magician steps away
+	roundReach = 1.8 // metres between centres inside which an enemy ahead that the bot isn't after is stepped round: its body, 0.75 m across, would stop the walk
 )
 
 // Setup is what a bot fights with: its seed, tier, class, build and skills, the map and the walk grid it paths on, and its body.
@@ -119,7 +120,7 @@ func (b *Brain) decide(v View, held sim.Input) Decision {
 	d.Skill = b.defend(v, others, started)
 	if v.Battle != nil {
 		if spot, ok := b.objective(v, others); ok {
-			d.Keys = b.toward(v, held, spot)
+			d.Keys = b.round(me, b.toward(v, held, spot), others, kernel.CharacterID{})
 			return d
 		}
 	}
@@ -155,7 +156,49 @@ func (b *Brain) decide(v View, held sim.Input) Decision {
 	} else {
 		d.Keys = b.keep(v, held, at, to, dist)
 	}
+	d.Keys = b.round(me, d.Keys, others, t.ID)
 	return d
+}
+
+// round is the keys with an enemy in the way stepped round: a bot pressing toward an enemy it isn't after, one whose body would stop it, goes along its side instead, the side the enemy isn't on, still making way.
+func (b *Brain) round(me Self, keys sim.Input, others []Seen, after kernel.CharacterID) sim.Input {
+	ux, uz := float64(b2i(keys.Right)-b2i(keys.Left)), float64(b2i(keys.Up)-b2i(keys.Down))
+	if ux == 0 && uz == 0 {
+		return keys
+	}
+	var best *Seen
+	bestD := roundReach
+	for k := range others {
+		o := &others[k]
+		if o.Side == me.Side || !o.Up || o.ID == after {
+			continue
+		}
+		ex, ez := o.Body.X-me.State.X, o.Body.Z-me.State.Z
+		d := math.Hypot(ex, ez)
+		if d >= bestD || d < 1e-9 || (ux*ex+uz*ez)/(math.Hypot(ux, uz)*d) < 0.5 {
+			continue
+		}
+		best, bestD = o, d
+	}
+	if best == nil {
+		return keys
+	}
+	ex, ez := best.Body.X-me.State.X, best.Body.Z-me.State.Z
+	px, pz := uz, -ux    // to the right of the way
+	if ux*ez-uz*ex < 0 { // the enemy is to the right: go left
+		px, pz = -px, -pz
+	}
+	l := math.Hypot(ux, uz)
+	out := steer.KeysToward(px+ux/l*0.5, pz+uz/l*0.5)
+	out.Jump, out.Walk = keys.Jump, keys.Walk
+	return out
+}
+
+func b2i(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 // breakOut is a held bot's: at its tier's defend chance, rolled once for each hold, it presses its break-free from its root once the hold has lasted its tier's break_free.
