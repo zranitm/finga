@@ -9,6 +9,7 @@
   - Open hunting maps, shared in channels, entered from a region with a short load. Not private copies.
   - Underwater, players walk the sea floor and fight as on land. There's no air bar and no swimming in 3D.
   - Two to start, both in the green region: one underground, one underwater. The other regions decide theirs when they're designed.
+    - **As designed for the desert** ([The desert](./desert-region.md)): two underground, a fungus cave and a buried temple.
   - Deep water on the land still blocks. There's no swimming.
   - Underground, the light comes from the torches.
 - **Why separate maps, with a load:** a region's ground is a height map, one height per spot, so nothing can be walked under a hill. The sim, nav, the bake and the exactness gates all rest on that. A place below is its own map, with its own height map, where the walls are ground too high to climb.
