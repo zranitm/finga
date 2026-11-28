@@ -435,7 +435,7 @@ beforeAll(async () => {
   servePublic();
   swept = [];
   for (const { id } of maps) {
-    if (id === 'willowmere') {
+    if (id === 'willowmere' || id === 'sunreach') {
       continue; // 1 km of ground: a sweep costs tens of seconds under coverage, and test_region and the small maps run the same code
     }
     const map = await loadMap(id);
