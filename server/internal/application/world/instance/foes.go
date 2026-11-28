@@ -51,6 +51,7 @@ func (i *Instance) keepFoes() {
 			kept.bodies = append(kept.bodies, foeBody{id: id, side: i.side(id), body: i.blocker(p)})
 		}
 	}
+	slices.SortFunc(kept.bodies, func(a, b foeBody) int { return cmp.Compare(a.id.String(), b.id.String()) }) // by id, as the client builds them
 }
 
 // blockersFor is what p's step meets: the mobs as p's view saw them and, in a match, the living enemies as that frame left them.

@@ -839,7 +839,10 @@ export class World {
       map.geometry,
       this.timing,
       movementParams(this.kind(), this.moveSpeed()),
-      (view) => this.mobs.blockersAt(view),
+      (view) => [
+        ...this.mobs.blockersAt(view),
+        ...(this.remotes?.foesAt(view, this.myTeam, movement.radius, movement.height) ?? []),
+      ],
     );
     const at = arriving.at;
     this.meCls = this.cls;
