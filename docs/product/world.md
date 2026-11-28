@@ -52,5 +52,5 @@ Today's maps:
 | Start | Forest 1–4, Cave 10–14 | Town |
 | Mushroom woods | Shroom Grove 15–16, Spore Hollow 17–18, Toadstool Heights 19–20 | Crossroads |
 | Desert | Dune Road 21–22, Sandstone Cliffs 23–24, Sunken Ruins 25–26 | Crossroads |
-| Snow | Frost Trail 23–24, Icefall 25–26, Glacier Peak 28–29 | Crossroads |
+| Snow | Frost Trail 26–27, Icefall 28–29, Glacier Peak 29–30 | Crossroads |
 | Keep | Fallen Keep 31–33 | Crossroads |

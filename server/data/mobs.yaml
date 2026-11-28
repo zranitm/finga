@@ -880,15 +880,15 @@ mobs:
       - {item: gold_earrings, chance: 0.006, min: 1, max: 1}
   - id: icewing
     name: Icewing
-    level: 25
-    hp: 564
-    attack: 102
+    level: 26
+    hp: 728
+    attack: 125
     damage: physical
-    physical_defense: 30
+    physical_defense: 31
     magic_defense: 18
-    accuracy: 62
-    evasion: 23
-    exp: 239
+    accuracy: 64
+    evasion: 25
+    exp: 255
     speed: 3
     radius: 0.625
     height: 1
@@ -897,28 +897,23 @@ mobs:
     look: {model: dragon, tint: 0x80b0f0}
     drops:
       - {item: ice_scale, chance: 0.825, min: 1, max: 2}
-      - {item: orange_potion, chance: 0.3, min: 1, max: 1}
-      - {item: knight_sword, chance: 0.03, min: 1, max: 1}
-      - {item: composite_bow, chance: 0.03, min: 1, max: 1}
-      - {item: shadow_kris, chance: 0.03, min: 1, max: 1}
-      - {item: runed_wand, chance: 0.03, min: 1, max: 1}
-      - {item: plate_armor, chance: 0.03, min: 1, max: 1}
-      - {item: plate_greaves, chance: 0.0375, min: 1, max: 1}
-      - {item: plate_gauntlets, chance: 0.03, min: 1, max: 1}
-      - {item: gold_ring, chance: 0.003, min: 1, max: 1}
-      - {item: gold_pendant, chance: 0.003, min: 1, max: 1}
+      - {item: white_potion, chance: 0.225, min: 1, max: 1}
+      - {item: gold_pendant, chance: 0.045, min: 1, max: 1}
+      - {item: gold_earrings, chance: 0.0375, min: 1, max: 1}
+      - {item: mythril_helm, chance: 0.003, min: 1, max: 1}
+      - {item: wind_boots, chance: 0.003, min: 1, max: 1}
   - id: glacier_snail
     name: Glacier Snail
-    level: 26
+    level: 27
     elite: true
-    hp: 1456
-    attack: 78
+    hp: 1856
+    attack: 100
     damage: magic
-    physical_defense: 31
-    magic_defense: 18
-    accuracy: 64
+    physical_defense: 32
+    magic_defense: 19
+    accuracy: 66
     evasion: 25
-    exp: 597
+    exp: 638
     speed: 1
     radius: 0.84375
     height: 1.25
@@ -928,27 +923,22 @@ mobs:
     look: {model: spiky_blob, tint: 0x9ad0e0, scale: 1.5}
     drops:
       - {item: glacier_shell, chance: 0.9, min: 1, max: 2}
-      - {item: orange_potion, chance: 0.6, min: 1, max: 1}
-      - {item: knight_sword, chance: 0.06, min: 1, max: 1}
-      - {item: composite_bow, chance: 0.06, min: 1, max: 1}
-      - {item: shadow_kris, chance: 0.06, min: 1, max: 1}
-      - {item: runed_wand, chance: 0.06, min: 1, max: 1}
-      - {item: plate_armor, chance: 0.06, min: 1, max: 1}
-      - {item: plate_greaves, chance: 0.075, min: 1, max: 1}
-      - {item: plate_gauntlets, chance: 0.06, min: 1, max: 1}
-      - {item: gold_ring, chance: 0.006, min: 1, max: 1}
-      - {item: gold_pendant, chance: 0.006, min: 1, max: 1}
+      - {item: white_potion, chance: 0.45, min: 1, max: 1}
+      - {item: gold_pendant, chance: 0.09, min: 1, max: 1}
+      - {item: gold_earrings, chance: 0.075, min: 1, max: 1}
+      - {item: mythril_helm, chance: 0.006, min: 1, max: 1}
+      - {item: wind_boots, chance: 0.006, min: 1, max: 1}
   - id: crystal_slime
     name: Crystal Slime
-    level: 28
-    hp: 780
-    attack: 103
+    level: 29
+    hp: 805
+    attack: 106
     damage: magic
-    physical_defense: 34
+    physical_defense: 35
     magic_defense: 20
-    accuracy: 70
+    accuracy: 71
     evasion: 29
-    exp: 288
+    exp: 306
     speed: 2
     radius: 0.5
     height: 0.875
@@ -970,16 +960,16 @@ mobs:
       - {item: starlight_ring, chance: 0.003, min: 1, max: 1}
   - id: rime_rat
     name: Rime Rat
-    level: 29
+    level: 30
     elite: true
-    hp: 2100
-    attack: 160
+    hp: 2328
+    attack: 172
     damage: physical
-    physical_defense: 35
-    magic_defense: 20
-    accuracy: 71
-    evasion: 29
-    exp: 720
+    physical_defense: 36
+    magic_defense: 21
+    accuracy: 78
+    evasion: 33
+    exp: 765
     speed: 1.75
     radius: 1.3125
     height: 1.25
@@ -1466,7 +1456,7 @@ mobs:
     boss: true
     level: 26
     hp: 20060
-    attack: 100
+    attack: 132
     damage: magic
     physical_defense: 42
     magic_defense: 24
@@ -1478,7 +1468,7 @@ mobs:
     height: 2.625
     behavior: patrol
     super_armor: true
-    attacks: [{use: hop, distance: 5, spread: 1, cooldown: 4250ms}, {use: slam, cooldown: 8250ms}]
+    attacks: [{use: hop, distance: 5, spread: 1, cooldown: 5250ms}, {use: slam, cooldown: 10250ms}]
     look: {model: yeti_blob, tint: 0x4a6fa5, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
@@ -1490,45 +1480,40 @@ mobs:
   - id: blizzard_wing
     name: Blizzard Wing
     boss: true
-    level: 28
-    hp: 21290
-    attack: 150
+    level: 29
+    hp: 21620
+    attack: 250
     damage: physical
-    physical_defense: 45
+    physical_defense: 47
     magic_defense: 27
-    accuracy: 62
-    evasion: 23
-    exp: 9560
+    accuracy: 64
+    evasion: 25
+    exp: 10200
     speed: 2.25
     radius: 1.875
     height: 3
     behavior: patrol
     super_armor: true
-    attacks: [{use: spit, size: 0.75, cooldown: 4s}, {use: slam, cooldown: 7750ms}]
+    attacks: [{use: spit, size: 0.75, cooldown: 3750ms}, {use: slam, cooldown: 7250ms}]
     look: {model: dragon_king, tint: 0x60a0f0, scale: 3}
     drops:
-      - {item: orange_potion, chance: 1, min: 2, max: 4}
-      - {item: knight_sword, chance: 0.3, min: 1, max: 1}
-      - {item: composite_bow, chance: 0.3, min: 1, max: 1}
-      - {item: shadow_kris, chance: 0.3, min: 1, max: 1}
-      - {item: runed_wand, chance: 0.3, min: 1, max: 1}
-      - {item: plate_armor, chance: 0.3, min: 1, max: 1}
-      - {item: plate_greaves, chance: 0.375, min: 1, max: 1}
-      - {item: plate_gauntlets, chance: 0.3, min: 1, max: 1}
-      - {item: gold_ring, chance: 0.03, min: 1, max: 1}
-      - {item: gold_pendant, chance: 0.03, min: 1, max: 1}
+      - {item: white_potion, chance: 1, min: 2, max: 4}
+      - {item: gold_pendant, chance: 0.45, min: 1, max: 1}
+      - {item: gold_earrings, chance: 0.375, min: 1, max: 1}
+      - {item: mythril_helm, chance: 0.03, min: 1, max: 1}
+      - {item: wind_boots, chance: 0.03, min: 1, max: 1}
   - id: crystal_colossus
     name: Crystal Colossus
     boss: true
-    level: 31
-    hp: 21300
-    attack: 200
+    level: 32
+    hp: 27460
+    attack: 212
     damage: magic
-    physical_defense: 51
+    physical_defense: 53
     magic_defense: 30
-    accuracy: 70
+    accuracy: 71
     evasion: 29
-    exp: 11520
+    exp: 12240
     speed: 1.5
     radius: 1.5
     height: 2.625
