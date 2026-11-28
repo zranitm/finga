@@ -586,6 +586,14 @@ func (a *Arena) BodyAt(t, id uint64) (sim.Blocker, bool) {
 	return sim.Blocker{}, false
 }
 
+// BodiesAt are the living mobs as tick t's frame left them, as sim blockers; nil past History ticks or before it's sent. The list is the arena's: it holds till the frame is kept over.
+func (a *Arena) BodiesAt(t uint64) []sim.Blocker {
+	if kept := &a.history[t%History]; kept.tick == t {
+		return kept.blockers
+	}
+	return nil
+}
+
 // BlockersAt are the living mobs as tick t's frame left them, as sim blockers; nil past History ticks or before it's sent.
 func (a *Arena) BlockersAt(t uint64) *sim.Blockers {
 	if kept := &a.history[t%History]; kept.tick == t {

@@ -90,6 +90,7 @@ type Instance struct {
 	roll     model.Roll // the map's random source, which equipment rewards roll from as drops do
 
 	tick     uint64
+	foes     foes // each tick's fighters' bodies, for the ticks an input's view may name
 	players  map[kernel.CharacterID]*player
 	order    []kernel.CharacterID // join order, so iteration is deterministic
 	ticksPer uint64               // ticks between a player's checkpoints

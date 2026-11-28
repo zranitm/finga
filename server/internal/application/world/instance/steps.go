@@ -85,7 +85,7 @@ func (i *Instance) stepPlayers(views []model.PlayerView) (full []model.PlayerVie
 			full = append(full, v)
 			continue
 		}
-		if at == stays && motionOnly(v, old.view) && (i.tick+uint64(v.Slot))%2 != 0 && i.interest.crowded(i.interest.of(v.State.X, v.State.Z), i.tick) {
+		if at == stays && i.match == nil && motionOnly(v, old.view) && (i.tick+uint64(v.Slot))%2 != 0 && i.interest.crowded(i.interest.of(v.State.X, v.State.Z), i.tick) {
 			p.waiting = true // its baseline stays, so the step it goes in is read from where all its watchers hold it
 			continue
 		}
