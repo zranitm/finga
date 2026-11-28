@@ -171,6 +171,12 @@ func (b *builder) scatter(steep []bool, placed *solidsNear) {
 					continue
 				case !clear.allow(s, a, r) || placed.overlaps(x, z, r):
 					continue
+				case float64(clear.corridor[s]) <= a.Road+r: // a model a gate's corridor keeps off still takes the draws it would, so the yaws of every model after it stay as they were
+					rng.Uint64()
+					if solid.Box != nil {
+						rng.Uint64()
+					}
+					continue
 				}
 				yaw := float64(rng.Uint64() % 360)
 				if solid.Box != nil {
@@ -309,6 +315,7 @@ func (n *solidsNear) overlaps(x, z, r float64) bool {
 // clearances are, per sample, how far it lies past the edge of the nearest road, water, camp, town and spot (waypoints, NPCs, gates, pieces, the start), 0 on one, up to a band past which none matters.
 type clearances struct {
 	road, water, camp, town, spot, torch []float32
+	corridor                             []float32 // the road-wide strips from each gate to the nearest road
 }
 
 // allow is whether a solid reaching r stands at sample s clear of everything by a's distances.
@@ -332,12 +339,20 @@ func (b *builder) clearances() clearances {
 		}
 		return v
 	}
-	c := clearances{road: far(), water: far(), camp: far(), town: far(), spot: far(), torch: far()}
+	c := clearances{road: far(), water: far(), camp: far(), town: far(), spot: far(), torch: far(), corridor: far()}
 	keep := func(into []float32, s int, d float64) { into[s] = min(into[s], float32(max(d, 0))) }
 	for _, r := range b.roads {
 		b.f.near(b.g, r.Path, false, float64(r.Width/2)+band)
 		for _, s := range b.f.touched {
 			keep(c.road, int(s), math.Sqrt(b.f.d2[s])-float64(r.Width/2))
+		}
+	}
+	for _, g := range b.p.Gates { // a road-wide corridor from the end of the road that leads to each gate, so what a road leads to isn't blocked
+		if q, width, ok := roadEndTo(b.roads, g.At); ok {
+			b.f.near(b.g, [][2]float64{q, g.At}, false, float64(width/2)+band)
+			for _, s := range b.f.touched {
+				keep(c.corridor, int(s), math.Sqrt(b.f.d2[s])-float64(width/2))
+			}
 		}
 	}
 	for _, r := range b.rivers {
@@ -388,4 +403,26 @@ func (b *builder) clearances() clearances {
 		}
 	}
 	return c
+}
+
+// roadEndTo is the end of a road, its first or last point, that gate at is nearest to, and the width of that road: the end a road leads from to its gate. It is none where the nearest point of any road is partway along one, as a gate in open land has, or where at is on the road already.
+func roadEndTo(roads []Road, at [2]float64) (end [2]float64, width float64, ok bool) {
+	best, atEnd := math.Inf(1), false
+	for _, r := range roads {
+		for i := 0; i+1 < len(r.Path); i++ {
+			a, b := r.Path[i], r.Path[i+1]
+			dx, dz := b[0]-a[0], b[1]-a[1]
+			t := 0.0
+			if l := float64(dx*dx) + float64(dz*dz); l > 0 {
+				t = min(max((float64((at[0]-a[0])*dx)+float64((at[1]-a[1])*dz))/l, 0), 1)
+			}
+			q := [2]float64{a[0] + float64(t*dx), a[1] + float64(t*dz)}
+			ex, ez := at[0]-q[0], at[1]-q[1]
+			if d := math.Sqrt(float64(ex*ex) + float64(ez*ez)); d < best {
+				best, end, width = d, q, r.Width
+				atEnd = t == 0 && i == 0 || t == 1 && i+2 == len(r.Path)
+			}
+		}
+	}
+	return end, width, atEnd && best > float64(width/2)
 }
