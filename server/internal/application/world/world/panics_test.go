@@ -33,14 +33,14 @@ func TestAPanickingMapStopsTheWorldAndTheOtherMapsSave(t *testing.T) {
 		runDone := make(chan error, 1)
 		go func() { runDone <- w.Run(context.Background()) }()
 
-		w.enter(t, at(t, "Robin", "dune_road"), "dune_road", "c-1", &worldtest.Sink{})
+		w.enter(t, at(t, "Robin", "frost_trail"), "frost_trail", "c-1", &worldtest.Sink{})
 		obs.armed.Store(true)
 
 		err := <-runDone
 		if e, ok := errors.AsType[*panics.Error](err); !ok || e.Value != "corrupt icefall" || !strings.Contains(err.Error(), "map icefall") {
 			t.Fatalf("Run returned %v", err)
 		}
-		if got := saver.attemptsSoFar(); len(got) != 1 || got[0] != "cp dune_road" {
+		if got := saver.attemptsSoFar(); len(got) != 1 || got[0] != "cp frost_trail" {
 			t.Fatalf("saves %v, want the dune road player's checkpoint", got)
 		}
 	})

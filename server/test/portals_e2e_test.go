@@ -92,15 +92,15 @@ func TestTravel(t *testing.T) {
 		}
 	})
 
-	t.Run("from-the-north-pass-to-shroom-grove-and-back", func(t *testing.T) {
-		// The north pass leads out of the region to a map, and the map's way back leads to the pass.
-		northPass, grove := e2etest.Spots(t).NorthPass, e2etest.Spots(t).Grove
+	t.Run("from-the-north-pass-to-sunreach-and-back", func(t *testing.T) {
+		// The north pass leads out of the region to another region's gate, and its way back leads to the pass.
+		northPass, southGate := e2etest.Spots(t).NorthPass, e2etest.Spots(t).SouthGate
 		token, id := s.CreateCharacter(t, "una", "Una", "warrior")
 		s.Place(t, id, "willowmere", gamedata.Point{X: northPass.X - 2, Z: northPass.Z}, 144, 0)
 		p, snap := s.Join(t, token, id)
 		una := e2etest.NewLooter(p, snap)
-		una.Hop(t, northPass, "shroom_grove", grove)
-		una.Hop(t, grove, "willowmere", northPass)
+		una.Hop(t, northPass, "sunreach", southGate)
+		una.Hop(t, southGate, "willowmere", northPass)
 	})
 }
 

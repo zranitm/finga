@@ -242,7 +242,7 @@ func runLootArena(t *testing.T, data *gamedata.Data, items *fakeItems, roll floa
 		opts.Parties, opts.Transfer = extra[0].Parties, extra[0].Transfer
 	}
 	m := arena(t, time.Hour)
-	m.Portals = []gamedata.Portal{{Name: "to_town", At: gamedata.Point{X: arenaX, Z: nextToSlime - 0.8}, Radius: 1, TargetMap: "crossroads", TargetPortal: "from_heights"}} // round the killer, clear of the slime's reach
+	m.Portals = []gamedata.Portal{{Name: "to_town", At: gamedata.Point{X: arenaX, Z: nextToSlime - 0.8}, Radius: 1, TargetMap: "crossroads", TargetPortal: "from_desert"}} // round the killer, clear of the slime's reach
 	inst, stop := worldtest.RunMap(t, data, m, nil, opts)
 	return inst, func() { stop(); cancel(); <-workersDone }
 }

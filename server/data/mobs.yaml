@@ -476,15 +476,15 @@ mobs:
 
   - id: spore_slime
     name: Spore Slime
-    level: 15
-    hp: 278
-    attack: 51
+    level: 12
+    hp: 211
+    attack: 37
     damage: physical
-    physical_defense: 18
-    magic_defense: 11
-    accuracy: 46
-    evasion: 22
-    exp: 101
+    physical_defense: 14
+    magic_defense: 9
+    accuracy: 41
+    evasion: 16
+    exp: 80
     speed: 1.5
     radius: 0.5
     height: 0.875
@@ -494,27 +494,29 @@ mobs:
     drops:
       - {item: spore_jelly, chance: 0.825, min: 1, max: 2}
       - {item: orange_potion, chance: 0.3, min: 1, max: 1}
-      - {item: steel_sword, chance: 0.045, min: 1, max: 1}
-      - {item: longbow, chance: 0.045, min: 1, max: 1}
-      - {item: stiletto, chance: 0.045, min: 1, max: 1}
-      - {item: crystal_wand, chance: 0.045, min: 1, max: 1}
       - {item: iron_helm, chance: 0.0375, min: 1, max: 1}
-      - {item: chain_leggings, chance: 0.0375, min: 1, max: 1}
       - {item: travelers_boots, chance: 0.0375, min: 1, max: 1}
-      - {item: knight_helm, chance: 0.003, min: 1, max: 1}
-      - {item: plate_greaves, chance: 0.003, min: 1, max: 1}
+      - {item: chain_leggings, chance: 0.0375, min: 1, max: 1}
+      - {item: hunters_gloves, chance: 0.0375, min: 1, max: 1}
+      - {item: chain_mail, chance: 0.0375, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.003, min: 1, max: 1}
+      - {item: longbow, chance: 0.003, min: 1, max: 1}
+      - {item: steel_sword, chance: 0.003, min: 1, max: 1}
+      - {item: stiletto, chance: 0.003, min: 1, max: 1}
+      - {item: silver_pendant, chance: 0.003, min: 1, max: 1}
+      - {item: silver_earrings, chance: 0.003, min: 1, max: 1}
   - id: mossback_snail
     name: Mossback Snail
-    level: 16
+    level: 13
     elite: true
-    hp: 725
-    attack: 43
+    hp: 547
+    attack: 36
     damage: magic
-    physical_defense: 19
-    magic_defense: 11
-    accuracy: 47
-    evasion: 23
-    exp: 252
+    physical_defense: 16
+    magic_defense: 10
+    accuracy: 43
+    evasion: 18
+    exp: 200
     speed: 0.875
     radius: 0.84375
     height: 1.25
@@ -525,26 +527,28 @@ mobs:
     drops:
       - {item: moss_shell, chance: 0.9, min: 1, max: 2}
       - {item: orange_potion, chance: 0.6, min: 1, max: 1}
-      - {item: steel_sword, chance: 0.09, min: 1, max: 1}
-      - {item: longbow, chance: 0.09, min: 1, max: 1}
-      - {item: stiletto, chance: 0.09, min: 1, max: 1}
-      - {item: crystal_wand, chance: 0.09, min: 1, max: 1}
       - {item: iron_helm, chance: 0.075, min: 1, max: 1}
-      - {item: chain_leggings, chance: 0.075, min: 1, max: 1}
       - {item: travelers_boots, chance: 0.075, min: 1, max: 1}
-      - {item: knight_helm, chance: 0.006, min: 1, max: 1}
-      - {item: plate_greaves, chance: 0.006, min: 1, max: 1}
+      - {item: chain_leggings, chance: 0.075, min: 1, max: 1}
+      - {item: hunters_gloves, chance: 0.075, min: 1, max: 1}
+      - {item: chain_mail, chance: 0.075, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.006, min: 1, max: 1}
+      - {item: longbow, chance: 0.006, min: 1, max: 1}
+      - {item: steel_sword, chance: 0.006, min: 1, max: 1}
+      - {item: stiletto, chance: 0.006, min: 1, max: 1}
+      - {item: silver_pendant, chance: 0.006, min: 1, max: 1}
+      - {item: silver_earrings, chance: 0.006, min: 1, max: 1}
   - id: dust_moth
     name: Dust Moth
-    level: 17
-    hp: 299
-    attack: 44
+    level: 14
+    hp: 267
+    attack: 39
     damage: magic
-    physical_defense: 20
-    magic_defense: 12
-    accuracy: 48
-    evasion: 23
-    exp: 123
+    physical_defense: 17
+    magic_defense: 11
+    accuracy: 44
+    evasion: 20
+    exp: 89
     speed: 2.5
     radius: 0.625
     height: 1
@@ -554,28 +558,27 @@ mobs:
     drops:
       - {item: moth_dust, chance: 0.825, min: 1, max: 2}
       - {item: orange_potion, chance: 0.3, min: 1, max: 1}
-      - {item: chain_mail, chance: 0.0375, min: 1, max: 1}
       - {item: hunters_gloves, chance: 0.0375, min: 1, max: 1}
-      - {item: silver_pendant, chance: 0.03, min: 1, max: 1}
-      - {item: silver_earrings, chance: 0.03, min: 1, max: 1}
-      - {item: steel_sword, chance: 0.03, min: 1, max: 1}
-      - {item: longbow, chance: 0.03, min: 1, max: 1}
-      - {item: stiletto, chance: 0.03, min: 1, max: 1}
-      - {item: crystal_wand, chance: 0.03, min: 1, max: 1}
-      - {item: plate_boots, chance: 0.003, min: 1, max: 1}
-      - {item: plate_gauntlets, chance: 0.003, min: 1, max: 1}
+      - {item: chain_mail, chance: 0.0375, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.045, min: 1, max: 1}
+      - {item: longbow, chance: 0.045, min: 1, max: 1}
+      - {item: steel_sword, chance: 0.045, min: 1, max: 1}
+      - {item: stiletto, chance: 0.045, min: 1, max: 1}
+      - {item: silver_pendant, chance: 0.0375, min: 1, max: 1}
+      - {item: silver_earrings, chance: 0.003, min: 1, max: 1}
+      - {item: silver_ring, chance: 0.003, min: 1, max: 1}
   - id: toadstool_rat
     name: Toadstool Rat
-    level: 18
+    level: 15
     elite: true
-    hp: 794
-    attack: 58
+    hp: 691
+    attack: 51
     damage: physical
-    physical_defense: 22
-    magic_defense: 13
-    accuracy: 50
-    evasion: 25
-    exp: 308
+    physical_defense: 18
+    magic_defense: 11
+    accuracy: 46
+    evasion: 23
+    exp: 222
     speed: 1.5
     radius: 1.3125
     height: 1.25
@@ -586,27 +589,26 @@ mobs:
     drops:
       - {item: spotted_tail, chance: 0.9, min: 1, max: 2}
       - {item: orange_potion, chance: 0.6, min: 1, max: 1}
-      - {item: chain_mail, chance: 0.075, min: 1, max: 1}
       - {item: hunters_gloves, chance: 0.075, min: 1, max: 1}
-      - {item: silver_pendant, chance: 0.06, min: 1, max: 1}
-      - {item: silver_earrings, chance: 0.06, min: 1, max: 1}
-      - {item: steel_sword, chance: 0.06, min: 1, max: 1}
-      - {item: longbow, chance: 0.06, min: 1, max: 1}
-      - {item: stiletto, chance: 0.06, min: 1, max: 1}
-      - {item: crystal_wand, chance: 0.06, min: 1, max: 1}
-      - {item: plate_boots, chance: 0.006, min: 1, max: 1}
-      - {item: plate_gauntlets, chance: 0.006, min: 1, max: 1}
+      - {item: chain_mail, chance: 0.075, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.09, min: 1, max: 1}
+      - {item: longbow, chance: 0.09, min: 1, max: 1}
+      - {item: steel_sword, chance: 0.09, min: 1, max: 1}
+      - {item: stiletto, chance: 0.09, min: 1, max: 1}
+      - {item: silver_pendant, chance: 0.075, min: 1, max: 1}
+      - {item: silver_earrings, chance: 0.006, min: 1, max: 1}
+      - {item: silver_ring, chance: 0.006, min: 1, max: 1}
   - id: glow_slime
     name: Glow Slime
-    level: 19
-    hp: 327
+    level: 16
+    hp: 285
     attack: 48
     damage: magic
-    physical_defense: 23
-    magic_defense: 13
-    accuracy: 52
-    evasion: 25
-    exp: 150
+    physical_defense: 19
+    magic_defense: 11
+    accuracy: 47
+    evasion: 23
+    exp: 111
     speed: 1.75
     radius: 0.5
     height: 0.875
@@ -616,28 +618,27 @@ mobs:
     drops:
       - {item: glow_gel, chance: 0.825, min: 1, max: 2}
       - {item: orange_potion, chance: 0.3, min: 1, max: 1}
-      - {item: silver_ring, chance: 0.03, min: 1, max: 1}
-      - {item: silver_earrings, chance: 0.0375, min: 1, max: 1}
-      - {item: chain_mail, chance: 0.0375, min: 1, max: 1}
-      - {item: iron_helm, chance: 0.0375, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.045, min: 1, max: 1}
+      - {item: longbow, chance: 0.045, min: 1, max: 1}
+      - {item: steel_sword, chance: 0.045, min: 1, max: 1}
+      - {item: stiletto, chance: 0.045, min: 1, max: 1}
       - {item: silver_pendant, chance: 0.0375, min: 1, max: 1}
-      - {item: knight_sword, chance: 0.003, min: 1, max: 1}
-      - {item: composite_bow, chance: 0.003, min: 1, max: 1}
-      - {item: shadow_kris, chance: 0.003, min: 1, max: 1}
-      - {item: runed_wand, chance: 0.003, min: 1, max: 1}
-      - {item: plate_armor, chance: 0.003, min: 1, max: 1}
+      - {item: silver_earrings, chance: 0.0375, min: 1, max: 1}
+      - {item: silver_ring, chance: 0.003, min: 1, max: 1}
+      - {item: knight_helm, chance: 0.003, min: 1, max: 1}
+      - {item: plate_greaves, chance: 0.003, min: 1, max: 1}
   - id: elder_snail
     name: Elder Snail
-    level: 20
+    level: 17
     elite: true
-    hp: 841
-    attack: 66
+    hp: 734
+    attack: 55
     damage: physical
-    physical_defense: 24
-    magic_defense: 14
-    accuracy: 54
-    evasion: 25
-    exp: 375
+    physical_defense: 20
+    magic_defense: 12
+    accuracy: 48
+    evasion: 23
+    exp: 277
     speed: 0.875
     radius: 0.84375
     height: 1.25
@@ -648,27 +649,26 @@ mobs:
     drops:
       - {item: elder_shell, chance: 0.9, min: 1, max: 2}
       - {item: orange_potion, chance: 0.6, min: 1, max: 1}
-      - {item: silver_ring, chance: 0.06, min: 1, max: 1}
-      - {item: silver_earrings, chance: 0.075, min: 1, max: 1}
-      - {item: chain_mail, chance: 0.075, min: 1, max: 1}
-      - {item: iron_helm, chance: 0.075, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.09, min: 1, max: 1}
+      - {item: longbow, chance: 0.09, min: 1, max: 1}
+      - {item: steel_sword, chance: 0.09, min: 1, max: 1}
+      - {item: stiletto, chance: 0.09, min: 1, max: 1}
       - {item: silver_pendant, chance: 0.075, min: 1, max: 1}
-      - {item: knight_sword, chance: 0.006, min: 1, max: 1}
-      - {item: composite_bow, chance: 0.006, min: 1, max: 1}
-      - {item: shadow_kris, chance: 0.006, min: 1, max: 1}
-      - {item: runed_wand, chance: 0.006, min: 1, max: 1}
-      - {item: plate_armor, chance: 0.006, min: 1, max: 1}
+      - {item: silver_earrings, chance: 0.075, min: 1, max: 1}
+      - {item: silver_ring, chance: 0.006, min: 1, max: 1}
+      - {item: knight_helm, chance: 0.006, min: 1, max: 1}
+      - {item: plate_greaves, chance: 0.006, min: 1, max: 1}
   - id: sand_mouse
     name: Sand Mouse
-    level: 21
-    hp: 460
-    attack: 84
+    level: 18
+    hp: 312
+    attack: 58
     damage: physical
-    physical_defense: 25
-    magic_defense: 15
-    accuracy: 55
-    evasion: 25
-    exp: 177
+    physical_defense: 22
+    magic_defense: 13
+    accuracy: 50
+    evasion: 24
+    exp: 136
     speed: 2.5
     radius: 0.875
     height: 1.25
@@ -678,25 +678,28 @@ mobs:
     drops:
       - {item: sand_whisker, chance: 0.825, min: 1, max: 2}
       - {item: orange_potion, chance: 0.3, min: 1, max: 1}
-      - {item: knight_helm, chance: 0.045, min: 1, max: 1}
-      - {item: plate_greaves, chance: 0.045, min: 1, max: 1}
-      - {item: knight_sword, chance: 0.0375, min: 1, max: 1}
-      - {item: composite_bow, chance: 0.0375, min: 1, max: 1}
-      - {item: shadow_kris, chance: 0.0375, min: 1, max: 1}
-      - {item: runed_wand, chance: 0.0375, min: 1, max: 1}
-      - {item: gold_pendant, chance: 0.003, min: 1, max: 1}
+      - {item: silver_earrings, chance: 0.0375, min: 1, max: 1}
+      - {item: silver_ring, chance: 0.0375, min: 1, max: 1}
+      - {item: knight_helm, chance: 0.003, min: 1, max: 1}
+      - {item: plate_greaves, chance: 0.003, min: 1, max: 1}
+      - {item: composite_bow, chance: 0.003, min: 1, max: 1}
+      - {item: knight_sword, chance: 0.003, min: 1, max: 1}
+      - {item: plate_armor, chance: 0.003, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.003, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.003, min: 1, max: 1}
+      - {item: plate_boots, chance: 0.003, min: 1, max: 1}
   - id: shellback_scarab
     name: Shellback Scarab
-    level: 22
+    level: 19
     elite: true
-    hp: 1325
-    attack: 67
+    hp: 802
+    attack: 55
     damage: magic
-    physical_defense: 26
-    magic_defense: 15
-    accuracy: 58
+    physical_defense: 23
+    magic_defense: 13
+    accuracy: 52
     evasion: 25
-    exp: 443
+    exp: 340
     speed: 1.125
     radius: 0.84375
     height: 1.125
@@ -707,24 +710,27 @@ mobs:
     drops:
       - {item: scarab_shell, chance: 0.9, min: 1, max: 2}
       - {item: orange_potion, chance: 0.6, min: 1, max: 1}
-      - {item: knight_helm, chance: 0.09, min: 1, max: 1}
-      - {item: plate_greaves, chance: 0.09, min: 1, max: 1}
-      - {item: knight_sword, chance: 0.075, min: 1, max: 1}
-      - {item: composite_bow, chance: 0.075, min: 1, max: 1}
-      - {item: shadow_kris, chance: 0.075, min: 1, max: 1}
-      - {item: runed_wand, chance: 0.075, min: 1, max: 1}
-      - {item: gold_pendant, chance: 0.006, min: 1, max: 1}
+      - {item: silver_earrings, chance: 0.075, min: 1, max: 1}
+      - {item: silver_ring, chance: 0.075, min: 1, max: 1}
+      - {item: knight_helm, chance: 0.006, min: 1, max: 1}
+      - {item: plate_greaves, chance: 0.006, min: 1, max: 1}
+      - {item: composite_bow, chance: 0.006, min: 1, max: 1}
+      - {item: knight_sword, chance: 0.006, min: 1, max: 1}
+      - {item: plate_armor, chance: 0.006, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.006, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.006, min: 1, max: 1}
+      - {item: plate_boots, chance: 0.006, min: 1, max: 1}
   - id: dust_vulture
     name: Dust Vulture
-    level: 23
-    hp: 538
-    attack: 91
+    level: 20
+    hp: 329
+    attack: 65
     damage: physical
-    physical_defense: 28
-    magic_defense: 16
-    accuracy: 59
+    physical_defense: 24
+    magic_defense: 14
+    accuracy: 54
     evasion: 25
-    exp: 207
+    exp: 163
     speed: 2.75
     radius: 0.625
     height: 1
@@ -734,23 +740,29 @@ mobs:
     drops:
       - {item: vulture_feather, chance: 0.825, min: 1, max: 2}
       - {item: orange_potion, chance: 0.3, min: 1, max: 1}
-      - {item: plate_armor, chance: 0.0375, min: 1, max: 1}
-      - {item: plate_boots, chance: 0.0375, min: 1, max: 1}
-      - {item: plate_gauntlets, chance: 0.0375, min: 1, max: 1}
+      - {item: silver_ring, chance: 0.0375, min: 1, max: 1}
       - {item: knight_helm, chance: 0.0375, min: 1, max: 1}
-      - {item: gold_earrings, chance: 0.003, min: 1, max: 1}
+      - {item: plate_greaves, chance: 0.0375, min: 1, max: 1}
+      - {item: composite_bow, chance: 0.003, min: 1, max: 1}
+      - {item: knight_sword, chance: 0.003, min: 1, max: 1}
+      - {item: plate_armor, chance: 0.003, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.003, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.003, min: 1, max: 1}
+      - {item: plate_boots, chance: 0.003, min: 1, max: 1}
+      - {item: plate_gauntlets, chance: 0.003, min: 1, max: 1}
+      - {item: gold_pendant, chance: 0.003, min: 1, max: 1}
   - id: sun_slime
     name: Sun Slime
-    level: 24
+    level: 21
     elite: true
-    hp: 1383
-    attack: 71
+    hp: 843
+    attack: 61
     damage: magic
-    physical_defense: 29
-    magic_defense: 17
-    accuracy: 61
-    evasion: 23
-    exp: 518
+    physical_defense: 25
+    magic_defense: 15
+    accuracy: 55
+    evasion: 24
+    exp: 407
     speed: 1.25
     radius: 0.75
     height: 1.3125
@@ -761,22 +773,28 @@ mobs:
     drops:
       - {item: sun_gel, chance: 0.9, min: 1, max: 2}
       - {item: orange_potion, chance: 0.6, min: 1, max: 1}
-      - {item: plate_armor, chance: 0.075, min: 1, max: 1}
-      - {item: plate_boots, chance: 0.075, min: 1, max: 1}
-      - {item: plate_gauntlets, chance: 0.075, min: 1, max: 1}
+      - {item: silver_ring, chance: 0.075, min: 1, max: 1}
       - {item: knight_helm, chance: 0.075, min: 1, max: 1}
-      - {item: gold_earrings, chance: 0.006, min: 1, max: 1}
+      - {item: plate_greaves, chance: 0.075, min: 1, max: 1}
+      - {item: composite_bow, chance: 0.006, min: 1, max: 1}
+      - {item: knight_sword, chance: 0.006, min: 1, max: 1}
+      - {item: plate_armor, chance: 0.006, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.006, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.006, min: 1, max: 1}
+      - {item: plate_boots, chance: 0.006, min: 1, max: 1}
+      - {item: plate_gauntlets, chance: 0.006, min: 1, max: 1}
+      - {item: gold_pendant, chance: 0.006, min: 1, max: 1}
   - id: tomb_rat
     name: Tomb Rat
-    level: 25
-    hp: 564
-    attack: 102
+    level: 21
+    hp: 449
+    attack: 83
     damage: physical
-    physical_defense: 30
-    magic_defense: 18
-    accuracy: 62
-    evasion: 23
-    exp: 239
+    physical_defense: 26
+    magic_defense: 16
+    accuracy: 56
+    evasion: 24
+    exp: 177
     speed: 2.5
     radius: 0.875
     height: 1.25
@@ -786,27 +804,29 @@ mobs:
     drops:
       - {item: tomb_fang, chance: 0.825, min: 1, max: 2}
       - {item: orange_potion, chance: 0.3, min: 1, max: 1}
-      - {item: knight_sword, chance: 0.03, min: 1, max: 1}
-      - {item: composite_bow, chance: 0.03, min: 1, max: 1}
-      - {item: shadow_kris, chance: 0.03, min: 1, max: 1}
-      - {item: runed_wand, chance: 0.03, min: 1, max: 1}
-      - {item: plate_armor, chance: 0.03, min: 1, max: 1}
+      - {item: knight_helm, chance: 0.0375, min: 1, max: 1}
       - {item: plate_greaves, chance: 0.0375, min: 1, max: 1}
-      - {item: plate_gauntlets, chance: 0.03, min: 1, max: 1}
-      - {item: gold_ring, chance: 0.003, min: 1, max: 1}
+      - {item: composite_bow, chance: 0.045, min: 1, max: 1}
+      - {item: knight_sword, chance: 0.045, min: 1, max: 1}
+      - {item: plate_armor, chance: 0.0375, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.045, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.045, min: 1, max: 1}
+      - {item: plate_boots, chance: 0.003, min: 1, max: 1}
+      - {item: plate_gauntlets, chance: 0.003, min: 1, max: 1}
       - {item: gold_pendant, chance: 0.003, min: 1, max: 1}
+      - {item: gold_earrings, chance: 0.003, min: 1, max: 1}
   - id: ruin_wisp
     name: Ruin Wisp
-    level: 26
+    level: 22
     elite: true
-    hp: 1456
-    attack: 78
+    hp: 1296
+    attack: 77
     damage: magic
-    physical_defense: 31
-    magic_defense: 18
-    accuracy: 64
-    evasion: 25
-    exp: 597
+    physical_defense: 28
+    magic_defense: 16
+    accuracy: 61
+    evasion: 26
+    exp: 442
     speed: 1.75
     radius: 0.9375
     height: 1.5
@@ -817,15 +837,17 @@ mobs:
     drops:
       - {item: wisp_essence, chance: 0.9, min: 1, max: 2}
       - {item: orange_potion, chance: 0.6, min: 1, max: 1}
-      - {item: knight_sword, chance: 0.06, min: 1, max: 1}
-      - {item: composite_bow, chance: 0.06, min: 1, max: 1}
-      - {item: shadow_kris, chance: 0.06, min: 1, max: 1}
-      - {item: runed_wand, chance: 0.06, min: 1, max: 1}
-      - {item: plate_armor, chance: 0.06, min: 1, max: 1}
+      - {item: knight_helm, chance: 0.075, min: 1, max: 1}
       - {item: plate_greaves, chance: 0.075, min: 1, max: 1}
-      - {item: plate_gauntlets, chance: 0.06, min: 1, max: 1}
-      - {item: gold_ring, chance: 0.006, min: 1, max: 1}
+      - {item: composite_bow, chance: 0.09, min: 1, max: 1}
+      - {item: knight_sword, chance: 0.09, min: 1, max: 1}
+      - {item: plate_armor, chance: 0.075, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.09, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.09, min: 1, max: 1}
+      - {item: plate_boots, chance: 0.006, min: 1, max: 1}
+      - {item: plate_gauntlets, chance: 0.006, min: 1, max: 1}
       - {item: gold_pendant, chance: 0.006, min: 1, max: 1}
+      - {item: gold_earrings, chance: 0.006, min: 1, max: 1}
   - id: frost_slime
     name: Frost Slime
     level: 23
@@ -1278,15 +1300,15 @@ mobs:
   - id: spore_mother
     name: Spore Mother
     boss: true
-    level: 18
-    hp: 14350
-    attack: 102
+    level: 15
+    hp: 10025
+    attack: 74
     damage: physical
-    physical_defense: 27
-    magic_defense: 17
-    accuracy: 46
-    evasion: 22
-    exp: 4040
+    physical_defense: 22
+    magic_defense: 14
+    accuracy: 42
+    evasion: 20
+    exp: 3200
     speed: 1.125
     radius: 1.5
     height: 2.625
@@ -1296,27 +1318,29 @@ mobs:
     look: {model: mushnub_evolved, tint: 0x8a4fb0, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
-      - {item: steel_sword, chance: 0.45, min: 1, max: 1}
-      - {item: longbow, chance: 0.45, min: 1, max: 1}
-      - {item: stiletto, chance: 0.45, min: 1, max: 1}
-      - {item: crystal_wand, chance: 0.45, min: 1, max: 1}
       - {item: iron_helm, chance: 0.375, min: 1, max: 1}
-      - {item: chain_leggings, chance: 0.375, min: 1, max: 1}
       - {item: travelers_boots, chance: 0.375, min: 1, max: 1}
-      - {item: knight_helm, chance: 0.03, min: 1, max: 1}
-      - {item: plate_greaves, chance: 0.03, min: 1, max: 1}
+      - {item: chain_leggings, chance: 0.375, min: 1, max: 1}
+      - {item: hunters_gloves, chance: 0.375, min: 1, max: 1}
+      - {item: chain_mail, chance: 0.375, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.03, min: 1, max: 1}
+      - {item: longbow, chance: 0.03, min: 1, max: 1}
+      - {item: steel_sword, chance: 0.03, min: 1, max: 1}
+      - {item: stiletto, chance: 0.03, min: 1, max: 1}
+      - {item: silver_pendant, chance: 0.03, min: 1, max: 1}
+      - {item: silver_earrings, chance: 0.03, min: 1, max: 1}
   - id: moth_empress
     name: Moth Empress
     boss: true
-    level: 20
-    hp: 15940
-    attack: 88
+    level: 17
+    hp: 12449
+    attack: 78
     damage: magic
-    physical_defense: 30
-    magic_defense: 18
-    accuracy: 48
-    evasion: 23
-    exp: 4920
+    physical_defense: 25
+    magic_defense: 15
+    accuracy: 43
+    evasion: 21
+    exp: 3560
     speed: 1.875
     radius: 1.875
     height: 3
@@ -1326,28 +1350,27 @@ mobs:
     look: {model: bee_queen, tint: 0xc0a060, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
-      - {item: chain_mail, chance: 0.375, min: 1, max: 1}
       - {item: hunters_gloves, chance: 0.375, min: 1, max: 1}
-      - {item: silver_pendant, chance: 0.3, min: 1, max: 1}
-      - {item: silver_earrings, chance: 0.3, min: 1, max: 1}
-      - {item: steel_sword, chance: 0.3, min: 1, max: 1}
-      - {item: longbow, chance: 0.3, min: 1, max: 1}
-      - {item: stiletto, chance: 0.3, min: 1, max: 1}
-      - {item: crystal_wand, chance: 0.3, min: 1, max: 1}
-      - {item: plate_boots, chance: 0.03, min: 1, max: 1}
-      - {item: plate_gauntlets, chance: 0.03, min: 1, max: 1}
+      - {item: chain_mail, chance: 0.375, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.45, min: 1, max: 1}
+      - {item: longbow, chance: 0.45, min: 1, max: 1}
+      - {item: steel_sword, chance: 0.45, min: 1, max: 1}
+      - {item: stiletto, chance: 0.45, min: 1, max: 1}
+      - {item: silver_pendant, chance: 0.375, min: 1, max: 1}
+      - {item: silver_earrings, chance: 0.03, min: 1, max: 1}
+      - {item: silver_ring, chance: 0.03, min: 1, max: 1}
   - id: lantern_slime
     name: Lantern Slime
     boss: true
-    level: 22
-    hp: 16350
+    level: 19
+    hp: 12909
     attack: 96
     damage: magic
-    physical_defense: 35
-    magic_defense: 20
-    accuracy: 52
+    physical_defense: 31
+    magic_defense: 17
+    accuracy: 47
     evasion: 25
-    exp: 6000
+    exp: 4440
     speed: 1.3125
     radius: 1.5
     height: 2.625
@@ -1357,28 +1380,27 @@ mobs:
     look: {model: pink_blob, tint: 0xffc040, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
-      - {item: silver_ring, chance: 0.3, min: 1, max: 1}
-      - {item: silver_earrings, chance: 0.375, min: 1, max: 1}
-      - {item: chain_mail, chance: 0.375, min: 1, max: 1}
-      - {item: iron_helm, chance: 0.375, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.45, min: 1, max: 1}
+      - {item: longbow, chance: 0.45, min: 1, max: 1}
+      - {item: steel_sword, chance: 0.45, min: 1, max: 1}
+      - {item: stiletto, chance: 0.45, min: 1, max: 1}
       - {item: silver_pendant, chance: 0.375, min: 1, max: 1}
-      - {item: knight_sword, chance: 0.03, min: 1, max: 1}
-      - {item: composite_bow, chance: 0.03, min: 1, max: 1}
-      - {item: shadow_kris, chance: 0.03, min: 1, max: 1}
-      - {item: runed_wand, chance: 0.03, min: 1, max: 1}
-      - {item: plate_armor, chance: 0.03, min: 1, max: 1}
+      - {item: silver_earrings, chance: 0.375, min: 1, max: 1}
+      - {item: silver_ring, chance: 0.03, min: 1, max: 1}
+      - {item: knight_helm, chance: 0.03, min: 1, max: 1}
+      - {item: plate_greaves, chance: 0.03, min: 1, max: 1}
   - id: dune_baron
     name: Dune Baron
     boss: true
-    level: 24
-    hp: 19570
-    attack: 168
+    level: 21
+    hp: 14400
+    attack: 116
     damage: physical
-    physical_defense: 38
-    magic_defense: 23
-    accuracy: 55
-    evasion: 25
-    exp: 7080
+    physical_defense: 33
+    magic_defense: 20
+    accuracy: 50
+    evasion: 26
+    exp: 5440
     speed: 1.875
     radius: 2.625
     height: 3.75
@@ -1388,25 +1410,28 @@ mobs:
     look: {model: cactoro, tint: 0xc89850, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
-      - {item: knight_helm, chance: 0.45, min: 1, max: 1}
-      - {item: plate_greaves, chance: 0.45, min: 1, max: 1}
-      - {item: knight_sword, chance: 0.375, min: 1, max: 1}
-      - {item: composite_bow, chance: 0.375, min: 1, max: 1}
-      - {item: shadow_kris, chance: 0.375, min: 1, max: 1}
-      - {item: runed_wand, chance: 0.375, min: 1, max: 1}
-      - {item: gold_pendant, chance: 0.03, min: 1, max: 1}
+      - {item: silver_earrings, chance: 0.375, min: 1, max: 1}
+      - {item: silver_ring, chance: 0.375, min: 1, max: 1}
+      - {item: knight_helm, chance: 0.03, min: 1, max: 1}
+      - {item: plate_greaves, chance: 0.03, min: 1, max: 1}
+      - {item: composite_bow, chance: 0.03, min: 1, max: 1}
+      - {item: knight_sword, chance: 0.03, min: 1, max: 1}
+      - {item: plate_armor, chance: 0.03, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.03, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.03, min: 1, max: 1}
+      - {item: plate_boots, chance: 0.03, min: 1, max: 1}
   - id: cliff_reaper
     name: Cliff Reaper
     boss: true
-    level: 26
-    hp: 20060
-    attack: 182
+    level: 23
+    hp: 14756
+    attack: 130
     damage: physical
-    physical_defense: 42
-    magic_defense: 24
-    accuracy: 59
-    evasion: 25
-    exp: 8280
+    physical_defense: 41
+    magic_defense: 23
+    accuracy: 57
+    evasion: 26
+    exp: 6520
     speed: 2.0625
     radius: 1.875
     height: 3
@@ -1416,23 +1441,29 @@ mobs:
     look: {model: squidle, tint: 0x804020, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
-      - {item: plate_armor, chance: 0.375, min: 1, max: 1}
-      - {item: plate_boots, chance: 0.375, min: 1, max: 1}
-      - {item: plate_gauntlets, chance: 0.375, min: 1, max: 1}
+      - {item: silver_ring, chance: 0.375, min: 1, max: 1}
       - {item: knight_helm, chance: 0.375, min: 1, max: 1}
-      - {item: gold_earrings, chance: 0.03, min: 1, max: 1}
+      - {item: plate_greaves, chance: 0.375, min: 1, max: 1}
+      - {item: composite_bow, chance: 0.03, min: 1, max: 1}
+      - {item: knight_sword, chance: 0.03, min: 1, max: 1}
+      - {item: plate_armor, chance: 0.03, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.03, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.03, min: 1, max: 1}
+      - {item: plate_boots, chance: 0.03, min: 1, max: 1}
+      - {item: plate_gauntlets, chance: 0.03, min: 1, max: 1}
+      - {item: gold_pendant, chance: 0.03, min: 1, max: 1}
   - id: crypt_warden
     name: Crypt Warden
     boss: true
-    level: 28
-    hp: 21290
-    attack: 204
+    level: 24
+    hp: 17161
+    attack: 166
     damage: physical
     physical_defense: 45
     magic_defense: 27
     accuracy: 62
     evasion: 23
-    exp: 9560
+    exp: 7080
     speed: 1.875
     radius: 2.625
     height: 3.75
@@ -1442,15 +1473,17 @@ mobs:
     look: {model: orc_skull, tint: 0x5a5070, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
-      - {item: knight_sword, chance: 0.3, min: 1, max: 1}
-      - {item: composite_bow, chance: 0.3, min: 1, max: 1}
-      - {item: shadow_kris, chance: 0.3, min: 1, max: 1}
-      - {item: runed_wand, chance: 0.3, min: 1, max: 1}
-      - {item: plate_armor, chance: 0.3, min: 1, max: 1}
+      - {item: knight_helm, chance: 0.375, min: 1, max: 1}
       - {item: plate_greaves, chance: 0.375, min: 1, max: 1}
-      - {item: plate_gauntlets, chance: 0.3, min: 1, max: 1}
-      - {item: gold_ring, chance: 0.03, min: 1, max: 1}
+      - {item: composite_bow, chance: 0.45, min: 1, max: 1}
+      - {item: knight_sword, chance: 0.45, min: 1, max: 1}
+      - {item: plate_armor, chance: 0.375, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.45, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.45, min: 1, max: 1}
+      - {item: plate_boots, chance: 0.03, min: 1, max: 1}
+      - {item: plate_gauntlets, chance: 0.03, min: 1, max: 1}
       - {item: gold_pendant, chance: 0.03, min: 1, max: 1}
+      - {item: gold_earrings, chance: 0.03, min: 1, max: 1}
   - id: avalanche_slime
     name: Avalanche Slime
     boss: true

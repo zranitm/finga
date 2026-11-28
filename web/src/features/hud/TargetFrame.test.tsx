@@ -204,7 +204,10 @@ describe('TargetFrame', () => {
         target.getState().show({ kind: 'mob', ref: 'm:4', type: 'crypt_warden', hp: 9000 }),
       );
       const list = screen.getByRole('list', { name: 'Crypt Warden stats' });
-      expect(list.textContent).toBe('ATK204DEF45M.DEF27ACC62EVA23'); // no spaces to break at, or to widen it
+      const w = mobs.find((m) => m.id === 'crypt_warden')!;
+      expect(list.textContent).toBe(
+        `ATK${w.attack}DEF${w.physical_defense}M.DEF${w.magic_defense}ACC${w.accuracy}EVA${w.evasion}`,
+      ); // no spaces to break at, or to widen it
       const cs = getComputedStyle(list);
       expect(
         ['display', 'flex-wrap', 'gap', 'font-size'].map((k) => cs.getPropertyValue(k)),

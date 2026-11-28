@@ -1,0 +1,57 @@
+# Sunreach's buried temple (B13), entered down the stair on the Sandstone mesa: the old Sunken Ruins' mobs, levels 21 to 22.
+# Tomb Rat 21, Ruin Wisp 22 (elite), and the Crypt Warden 24 in his tomb. Sand has drifted over the floors.
+# The stair hall in the south, a pillared nave north of it, the west crypt, the Warden's flat tomb east, and a tunnel from the crypt back to the stair.
+name: Sunken Ruins
+under: sunreach
+size: [384, 256]
+cell: 0.5
+seed: 47
+look: {sky: cave}
+ground: {noise: {scale: 60, amplitude: 1, octaves: 2}}
+edge: {width: 16, height: [2, 4], biome: rock}
+colour: {slope: 0.25, high: 100}
+rock: {height: 5, rough: 1}
+torches: {spacing: 10, model: torch_mounted}
+features:
+  - {hall: {area: [[136, 20], [200, 20], [204, 64], [132, 64]], flat: true}}           # the stair: gate, waypoint
+  - {tunnel: {path: [[168, 62], [168, 92]], width: 10}}
+  - {hall: {area: [[110, 88], [226, 88], [226, 150], [110, 150]], flat: true}}          # the nave: rats and wisps, flat for their spit
+  - {tunnel: {path: [[112, 130], [80, 150], [62, 174]], width: 10}}
+  - {hall: {area: [[24, 170], [100, 170], [104, 228], [20, 228]], flat: true}}          # the west crypt
+  - {tunnel: {path: [[224, 120], [256, 140], [270, 168]], width: 10}}
+  - {hall: {area: [[236, 164], [304, 164], [304, 228], [236, 228]], flat: true}}        # the tomb: the Crypt Warden
+  - {tunnel: {path: [[36, 172], [36, 112], [52, 84], [90, 50], [134, 40]], width: 10}}            # back to the stair
+areas:
+  - {id: ruin_crypt, name: Sunken Ruins, area: [[16, 16], [368, 16], [368, 240], [16, 240]], levels: [21, 22], biome: crypt, kind: hunting,
+     boss: {at: [270, 196], radius: 6, mob: crypt_warden}}
+camps:
+  - {area: ruin_crypt, name: nave rats, at: [146, 118], radius: 6, mob: tomb_rat, max: 4, respawn: 36s}
+  - {area: ruin_crypt, name: nave wisps, at: [196, 122], radius: 5, mob: ruin_wisp, max: 3, respawn: 45s}
+  - {area: ruin_crypt, name: crypt rats, at: [48, 200], radius: 5, mob: tomb_rat, max: 4, respawn: 36s}
+  - {area: ruin_crypt, name: crypt wisps, at: [80, 204], radius: 5, mob: ruin_wisp, max: 3, respawn: 45s}
+waypoints:
+  - {id: ruin_crypt, name: Sunken Ruins, at: [168, 46]}
+pieces:
+  - {model: sandstone_pillar, at: [120, 98], yaw: 0}
+  - {model: sandstone_pillar, at: [120, 140], yaw: 0}
+  - {model: sandstone_pillar, at: [216, 98], yaw: 0}
+  - {model: sandstone_pillar, at: [216, 140], yaw: 0}
+  - {model: sandstone_pillar, at: [246, 174], yaw: 0}
+  - {model: sandstone_pillar, at: [294, 174], yaw: 0}
+  - {model: sandstone_pillar, at: [246, 218], yaw: 0}
+  - {model: sandstone_pillar, at: [294, 218], yaw: 0}
+  - {model: torch_lit, at: [170, 104], yaw: 0}
+  - {model: torch_lit, at: [64, 184], yaw: 0}
+  - {model: torch_lit, at: [270, 176], yaw: 0}
+  - {model: torch_lit, at: [178, 52], yaw: 0}
+gates:
+  - {name: stair, at: [168, 30], radius: 1.6, to: {region: sunreach, gate: ruins_stair}}
+start: {at: [168, 34], yaw: 0}
+biomes:
+  crypt:
+    colours: {flat: sand, slope: sand, steep: cave_rock, high: cave_rock}
+    scatter:
+      - {model: sand_pebbles, spacing: 6, away: {camp: 1, waypoint: 2}}
+      - {model: dead_shrub, spacing: 24, away: {camp: 2, waypoint: 2}}
+  rock:
+    colours: {flat: cave_rock, slope: cave_rock, steep: cave_rock, high: cave_rock}

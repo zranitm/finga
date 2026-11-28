@@ -71,19 +71,19 @@ func TestAJoinItsCallerGaveUpOnLeavesNoGhost(t *testing.T) {
 func TestATransferRetriesWhileTheMapIsBusy(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := runningWorld(t)
-		bo := at(t, "Bo", "dune_road")
-		w.enter(t, bo, "dune_road", "c-bo", &worldtest.Sink{})
+		bo := at(t, "Bo", "frost_trail")
+		w.enter(t, bo, "frost_trail", "c-bo", &worldtest.Sink{})
 		ayla, s := at(t, "Ayla", "crossroads"), &worldtest.Sink{}
 		w.enter(t, ayla, "crossroads", "c-1", s)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		fillInbox(w, bo.ID, "c-bo")
-		moved := at(t, "Ayla", "dune_road")
+		moved := at(t, "Ayla", "frost_trail")
 		moved.ID, moved.Connection = ayla.ID, "c-1"
-		w.Transfer(w.MapActor("crossroads"), moved, s, instance.Dest{ID: "dune_road"})
+		w.Transfer(w.MapActor("crossroads"), moved, s, instance.Dest{ID: "frost_trail"})
 		time.Sleep(time.Second)
 		synctest.Wait()
-		if snaps := worldtest.Of[model.Snapshot](s); len(snaps) != 2 || snaps[1].MapID != "dune_road" {
+		if snaps := worldtest.Of[model.Snapshot](s); len(snaps) != 2 || snaps[1].MapID != "frost_trail" {
 			t.Fatalf("snapshots %+v, want the forest's after the town's", snaps)
 		}
 	})
@@ -95,9 +95,9 @@ func TestAFailedTransferDetachesTheConnection(t *testing.T) {
 		w := runningWorld(t)
 		ayla, s := at(t, "Ayla", "crossroads"), &worldtest.Sink{}
 		w.enter(t, ayla, "crossroads", "c-1", s)
-		moved := at(t, "Ayla", "dune_road")
+		moved := at(t, "Ayla", "frost_trail")
 		moved.ID, moved.Connection, moved.Class = ayla.ID, "c-1", kernel.Class("nobody")
-		w.Transfer(w.MapActor("crossroads"), moved, s, instance.Dest{ID: "dune_road"})
+		w.Transfer(w.MapActor("crossroads"), moved, s, instance.Dest{ID: "frost_trail"})
 		time.Sleep(time.Second)
 		synctest.Wait()
 		if n := detached(s); n != 1 {
@@ -110,16 +110,16 @@ func TestAFailedTransferDetachesTheConnection(t *testing.T) {
 func TestATransferStopsOnceANewerJoinTakesTheCharacter(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := runningWorld(t)
-		bo, forest := at(t, "Bo", "dune_road"), &worldtest.Sink{}
-		w.enter(t, bo, "dune_road", "c-bo", forest)
+		bo, forest := at(t, "Bo", "frost_trail"), &worldtest.Sink{}
+		w.enter(t, bo, "frost_trail", "c-bo", forest)
 		ayla, s := at(t, "Ayla", "crossroads"), &worldtest.Sink{}
 		w.enter(t, ayla, "crossroads", "c-1", s)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		fillInbox(w, bo.ID, "c-bo")
-		moved := at(t, "Ayla", "dune_road")
+		moved := at(t, "Ayla", "frost_trail")
 		moved.ID, moved.Connection = ayla.ID, "c-1"
-		w.Transfer(w.MapActor("crossroads"), moved, s, instance.Dest{ID: "dune_road"})
+		w.Transfer(w.MapActor("crossroads"), moved, s, instance.Dest{ID: "frost_trail"})
 		synctest.Wait()
 		w.enter(t, ayla, "crossroads", "c-2", &worldtest.Sink{})
 		time.Sleep(time.Second)
@@ -139,9 +139,9 @@ func TestALeaveRacingAPortalLeavesNoGhost(t *testing.T) {
 		data := worldtest.LoadData(t)
 		w := runningWorld(t)
 		townMap, _ := data.Map("crossroads")
-		toForest := portalNamed(t, townMap, "to_dune")
-		bo, forest := at(t, "Bo", "dune_road"), &worldtest.Sink{}
-		w.enter(t, bo, "dune_road", "c-bo", forest)
+		toForest := portalNamed(t, townMap, "to_frost")
+		bo, forest := at(t, "Bo", "frost_trail"), &worldtest.Sink{}
+		w.enter(t, bo, "frost_trail", "c-bo", forest)
 		ayla := worldtest.NewPlayer("Ayla", toForest.At.X, toForest.At.Z)
 		w.enter(t, ayla, "crossroads", "c-ayla", &worldtest.Sink{})
 		time.Sleep(worldtest.TickInterval)
@@ -182,9 +182,9 @@ func TestATransferIntoAMapThatStoppedFirstIsNoFailure(t *testing.T) {
 		synctest.Wait()
 		cancel()
 		synctest.Wait()
-		moved := at(t, "Ayla", "dune_road")
+		moved := at(t, "Ayla", "frost_trail")
 		moved.ID, moved.Connection = ayla.ID, "c-1"
-		w.Transfer(w.MapActor("crossroads"), moved, s, instance.Dest{ID: "dune_road"})
+		w.Transfer(w.MapActor("crossroads"), moved, s, instance.Dest{ID: "frost_trail"})
 		synctest.Wait()
 		close(release)
 		<-done
@@ -198,16 +198,16 @@ func TestATransferIntoAMapThatStoppedFirstIsNoFailure(t *testing.T) {
 func TestAFailedLoginElsewhereMidPortalDetachesTheOlderConnection(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := runningWorld(t)
-		bo := at(t, "Bo", "dune_road")
-		w.enter(t, bo, "dune_road", "c-bo", &worldtest.Sink{})
+		bo := at(t, "Bo", "frost_trail")
+		w.enter(t, bo, "frost_trail", "c-bo", &worldtest.Sink{})
 		ayla, s := at(t, "Ayla", "crossroads"), &worldtest.Sink{}
 		w.enter(t, ayla, "crossroads", "c-1", s)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		fillInbox(w, bo.ID, "c-bo") // the transfer waits at the forest
-		moved := at(t, "Ayla", "dune_road")
+		moved := at(t, "Ayla", "frost_trail")
 		moved.ID, moved.Account, moved.Connection = ayla.ID, ayla.Account, "c-1"
-		w.Transfer(w.MapActor("crossroads"), moved, s, instance.Dest{ID: "dune_road"})
+		w.Transfer(w.MapActor("crossroads"), moved, s, instance.Dest{ID: "frost_trail"})
 		synctest.Wait()
 		delete(w.chars.chars, ayla.ID) // the login elsewhere fails on the load
 		if _, err := w.Join(context.Background(), ayla.Account, ayla.ID, "c-2", &worldtest.Sink{}); err == nil {

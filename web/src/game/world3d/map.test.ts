@@ -103,8 +103,8 @@ describe('loadMap', () => {
     expect(run(b.kept[1])).toBeGreaterThan(b.bases[1].x); // side 2 runs on into its own
   });
 
-  it('reads the crossroads and the grove as Go wrote them, the sim’s geometry number for number', async () => {
-    for (const id of ['crossroads', 'shroom_grove']) {
+  it('reads the crossroads and the frost trail as Go wrote them, the sim’s geometry number for number', async () => {
+    for (const id of ['crossroads', 'frost_trail']) {
       const raw = json(id) as {
         geometry: {
           size_x: number;
@@ -137,24 +137,24 @@ describe('loadMap', () => {
   });
 
   it('strews a scatter’s count over its area, the same way each time', async () => {
-    const m = await loadMap('shroom_grove');
-    const flowers = m.props.filter((p) => p.model === 'flowers');
-    expect(flowers).toHaveLength(90);
-    for (const p of flowers) {
+    const m = await loadMap('frost_trail');
+    const pebbles = m.props.filter((p) => p.model === 'pebbles');
+    expect(pebbles).toHaveLength(40);
+    for (const p of pebbles) {
       expect(p.x).toBeGreaterThanOrEqual(3);
-      expect(p.x).toBeLessThan(69);
-      expect(p.z).toBeGreaterThanOrEqual(4);
-      expect(p.z).toBeLessThan(31);
+      expect(p.x).toBeLessThan(77);
+      expect(p.z).toBeGreaterThanOrEqual(5);
+      expect(p.z).toBeLessThan(30);
     }
-    expect(new Set(flowers.map((p) => `${p.x} ${p.z}`)).size).toBe(90);
-    expect((await loadMap('shroom_grove')).props).toEqual(m.props);
-    expect(m.props).toContainEqual({ model: 'tiny_mushrooms', x: 41, z: 18.5, yaw: 0 }); // a placed one beside the scatter's
+    expect(new Set(pebbles.map((p) => `${p.x} ${p.z}`)).size).toBe(40);
+    expect((await loadMap('frost_trail')).props).toEqual(m.props);
+    expect(m.props).toContainEqual({ model: 'crag', x: 28, z: 33.5, yaw: 0 }); // a placed one beside the scatter's
   });
 
   it('carries each portal’s target', async () => {
-    expect((await loadMap('shroom_grove')).portals).toEqual([
-      { name: 'from_cave', x: 2, z: 18, radius: 1.2, to: 'willowmere' },
-      { name: 'to_hollow', x: 70, z: 18, radius: 1.2, to: 'spore_hollow' },
+    expect((await loadMap('frost_trail')).portals).toEqual([
+      { name: 'from_crossroads', x: 2, z: 18, radius: 1.2, to: 'crossroads' },
+      { name: 'to_icefall', x: 78, z: 18, radius: 1.2, to: 'icefall' },
     ]);
   });
 
@@ -176,7 +176,7 @@ describe('loadMap', () => {
       y: ground,
       main: false,
     });
-    expect((await loadMap('shroom_grove')).waypoints).toEqual([]);
+    expect((await loadMap('frost_trail')).waypoints).toEqual([]);
   });
 
   it('refuses what isn’t a map mapjson wrote', async () => {
@@ -252,10 +252,10 @@ describe('standsIn', () => {
     expect(standsIn({ x: 6, y, z: 5 }, m)?.name).toBe('out');
     expect(standsIn({ x: 5, y, z: 4 }, m)?.name).toBe('out');
     expect(standsIn({ x: 6 + 1e-9, y, z: 5 }, m)).toBeUndefined();
-    const grove = await loadMap('shroom_grove');
-    const p = grove.portals[1]!;
-    expect(standsIn({ x: p.x, y: groundUnder(grove, p.x, p.z), z: p.z }, grove)?.to).toBe(
-      'spore_hollow',
+    const trail = await loadMap('frost_trail');
+    const p = trail.portals[1]!;
+    expect(standsIn({ x: p.x, y: groundUnder(trail, p.x, p.z), z: p.z }, trail)?.to).toBe(
+      'icefall',
     );
   });
 

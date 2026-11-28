@@ -35,7 +35,7 @@ describe('status marks', () => {
     scene = new Scene(engine);
     servePublic();
     now = 1000;
-    const map = await loadMap('shroom_grove');
+    const map = await loadMap('frost_trail');
     fx = new Fx(
       scene,
       map,

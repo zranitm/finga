@@ -51,7 +51,7 @@ func TestTheBotsWalkTheTownAndTheMapsUpToAPromotionsLevel(t *testing.T) {
 			t.Errorf("from %s to %s takes %q, want %q", c.from, c.to, p.Name, c.portal)
 		}
 	}
-	if _, ok := w.portalTo("shroom_grove", "willowmere"); ok {
+	if _, ok := w.portalTo("frost_trail", "willowmere"); ok {
 		t.Error("a way from a map the bots don't walk")
 	}
 }
@@ -298,25 +298,25 @@ func TestABotFightsTheMobInItsWay(t *testing.T) {
 // C12: a map's boss stands for a bot until it hears it beaten there, from the fall or a Snapshot, and again once it's back or the bot sees it appear; a map without one has none.
 func TestABotKeepsOffAMapWhileItsBossIsUp(t *testing.T) {
 	data := gamedatatest.Full(t)
-	b := &bot{data: data, mapID: "shroom_grove"}
-	if !b.bossUp("spore_hollow") || !b.bossUp("shroom_grove") || b.bossUp("willowmere") {
-		t.Fatalf("hearing nothing: spore_hollow %v, shroom_grove %v, willowmere %v; want the two maps with a boss up, Willowmere (its bosses are its areas') none", b.bossUp("spore_hollow"), b.bossUp("shroom_grove"), b.bossUp("willowmere"))
+	b := &bot{data: data, mapID: "frost_trail"}
+	if !b.bossUp("icefall") || !b.bossUp("frost_trail") || b.bossUp("willowmere") {
+		t.Fatalf("hearing nothing: icefall %v, frost_trail %v, willowmere %v; want the two maps with a boss up, Willowmere (its bosses are its areas') none", b.bossUp("icefall"), b.bossUp("frost_trail"), b.bossUp("willowmere"))
 	}
-	b.observe(wsconn.Message{Data: &clientv1.FieldBoss{MobId: 7, Type: "spore_mother"}})
-	b.observe(wsconn.Message{Data: &clientv1.FieldBossGone{MobId: 7, Type: "spore_mother", BackInMs: 60_000}})
-	if b.bossUp("shroom_grove") || !b.bossUp("spore_hollow") || b.boss != 0 {
-		t.Fatalf("after shroom_grove's boss fell: shroom_grove %v, spore_hollow %v, its mob %d", b.bossUp("shroom_grove"), b.bossUp("spore_hollow"), b.boss)
+	b.observe(wsconn.Message{Data: &clientv1.FieldBoss{MobId: 7, Type: "avalanche_slime"}})
+	b.observe(wsconn.Message{Data: &clientv1.FieldBossGone{MobId: 7, Type: "avalanche_slime", BackInMs: 60_000}})
+	if b.bossUp("frost_trail") || !b.bossUp("icefall") || b.boss != 0 {
+		t.Fatalf("after frost_trail's boss fell: frost_trail %v, icefall %v, its mob %d", b.bossUp("frost_trail"), b.bossUp("icefall"), b.boss)
 	}
-	b.observe(wsconn.Message{Data: &clientv1.FieldBoss{MobId: 8, Type: "spore_mother"}})
-	if !b.bossUp("shroom_grove") || b.boss != 8 {
-		t.Fatalf("a boss seen back: up %v, its mob %d", b.bossUp("shroom_grove"), b.boss)
+	b.observe(wsconn.Message{Data: &clientv1.FieldBoss{MobId: 8, Type: "avalanche_slime"}})
+	if !b.bossUp("frost_trail") || b.boss != 8 {
+		t.Fatalf("a boss seen back: up %v, its mob %d", b.bossUp("frost_trail"), b.boss)
 	}
-	b.observe(wsconn.Message{Data: &clientv1.Snapshot{FieldBossGone: &clientv1.FieldBossGone{MobId: 8, Type: "spore_mother", BackInMs: 60_000}}})
-	if b.bossUp("shroom_grove") {
+	b.observe(wsconn.Message{Data: &clientv1.Snapshot{FieldBossGone: &clientv1.FieldBossGone{MobId: 8, Type: "avalanche_slime", BackInMs: 60_000}}})
+	if b.bossUp("frost_trail") {
 		t.Fatal("a Snapshot of the boss down left it up")
 	}
-	b.observe(wsconn.Message{Data: &clientv1.FieldBossGone{MobId: 8, Type: "spore_mother"}})
-	if !b.bossUp("shroom_grove") {
+	b.observe(wsconn.Message{Data: &clientv1.FieldBossGone{MobId: 8, Type: "avalanche_slime"}})
+	if !b.bossUp("frost_trail") {
 		t.Fatal("a boss whose time back has come is still down")
 	}
 }

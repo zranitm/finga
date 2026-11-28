@@ -258,14 +258,36 @@ func players(d *gamedata.Data, level int) []player {
 	return out
 }
 
+// huntingMaps are the hunting maps and, as maps of their own, the hunting areas of the regions from level 12 on; the green region's lower areas are set by hand, and the test region mixes mobs of other areas.
+func huntingMaps(d *gamedata.Data) []*gamedata.Map {
+	var out []*gamedata.Map
+	for _, m := range d.Maps() {
+		switch {
+		case m.Kind == gamedata.Hunting:
+			out = append(out, m)
+		case m.Kind == gamedata.Region && m.ID != "test_region":
+			for i, a := range m.Areas {
+				if a.Kind != gamedata.Hunting || a.MinLevel < 12 {
+					continue
+				}
+				area := &gamedata.Map{ID: m.ID + "_" + a.ID, Kind: gamedata.Hunting, MinLevel: a.MinLevel, MaxLevel: a.MaxLevel, Boss: a.Boss}
+				for _, sp := range m.Spawns {
+					if m.AreaAt(sp.At.X, sp.At.Z) == i {
+						area.Spawns = append(area.Spawns, sp)
+					}
+				}
+				out = append(out, area)
+			}
+		}
+	}
+	return out
+}
+
 // Every hunting map's mobs against each on-level class, held to their region's targets from A on; the table is logged for tuning.
 func TestBalance(t *testing.T) {
 	d := gamedatatest.Shipped(t)
 	items := realItemList(t, d)
-	for _, m := range d.Maps() {
-		if m.Kind != gamedata.Hunting {
-			continue
-		}
+	for _, m := range huntingMaps(d) {
 		t.Run(m.ID, func(t *testing.T) {
 			t.Parallel()
 			balanceOf(t, d, items, m)
@@ -418,7 +440,7 @@ const bossPotions = 30 // the most of its band's potion a melee class standing i
 func TestFieldBosses(t *testing.T) {
 	d := gamedatatest.Shipped(t)
 	items := realItemList(t, d)
-	for _, m := range d.Maps() {
+	for _, m := range huntingMaps(d) {
 		if m.Boss == nil {
 			continue
 		}

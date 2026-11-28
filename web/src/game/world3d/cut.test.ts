@@ -435,7 +435,7 @@ beforeAll(async () => {
   servePublic();
   swept = [];
   for (const { id } of maps) {
-    if (id === 'willowmere') {
+    if (id === 'willowmere' || id === 'sunreach') {
       continue; // 1 km of ground: a sweep costs tens of seconds under coverage, and test_region and the small maps run the same code
     }
     const map = await loadMap(id);
@@ -613,22 +613,11 @@ describe('the cut-away round the player', () => {
         }
       }
     }
-    expect(hidden.length).toBeGreaterThan(700); // the foot of every hunting map's south bank, its portal notches and its mesas
+    expect(hidden.length).toBeGreaterThan(300); // the foot of the south bank of each land map swept (the crossroads, the frost trail and the rest the data still has), its portal notches and its mesas; 323 on the maps swept now, over 700 with the six the desert retired
     expect(shut).toEqual([]);
-    expect(crossed).toBeGreaterThan(1100);
+    expect(crossed).toBeGreaterThan(495); // 522 on the maps swept now, over 1,100 with the six the desert retired
     expect(whole).toEqual([]);
     expect(floor).toEqual([]);
-  });
-
-  it('opens the sandstone cliffs’ south bank before a player at (40, 6), whom it hides from the camera', () => {
-    const cliffs = swept.find((m) => m.id === 'sandstone_cliffs')!;
-    const reach = reachOf(palette.toon({ texture: null, color: Color3.Gray() }, 1, true));
-    const at = cliffs.seen.find((s) => s.spot.x === 40.25 && s.spot.z === 5.75)!;
-    const cover = covered(cliffs.ground, at.cam, at.chest);
-    expect(cover.length).toBeGreaterThan(0);
-    expect(cover.map((p) => cutOf(at.cam, at.chestView, ...p, reach))).toEqual(
-      cover.map(() => 'open'),
-    );
   });
 
   it('opens round the mobs by a hidden player on every map, so a bank hides neither their bodies nor their lock rings and no decal on it hangs whole in front of them, and opens no walkable floor round them or round a player above them', async () => {
@@ -771,9 +760,9 @@ describe('the cut-away round the player', () => {
         }
       }
     }
-    expect(near).toBeGreaterThan(450);
+    expect(near).toBeGreaterThan(190); // 208 on the maps swept now, over 450 with the six the desert retired
     expect(hidden.length / near).toBeLessThan(0.02); // a dune under 1.5 m over a mob's feet may still cover its bottom
-    expect(crossed).toBeGreaterThan(8500);
+    expect(crossed).toBeGreaterThan(3550); // 3,737 on the maps swept now, over 8,500 with the six the desert retired
     expect(whole).toEqual([]);
     expect(floor).toEqual([]);
   });

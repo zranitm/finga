@@ -30,11 +30,19 @@ npcs:
     trainer: thief
     gives: [thiefs_trial]
     takes: [thiefs_trial]
+  - id: oasis_guide
+    name: Oasis Guide
+    look: guide
+    lines:
+      - "Welcome to Palmwater. The spring here has never run dry."
+      - "South, the river cuts the Sporewood Gorge, and a hollow full of moths opens under it."
+      - "The dunes run east past the buttes, and the mesa stands north. Something old sleeps in the ruins beneath it."
+      - "If you fall out there, you'll wake at the nearest waypoint."
   - id: crossroads_guide
     name: Crossroads Guide
     look: guide
     lines:
-      - "Welcome to the Crossroads, where the woods road meets the desert and the snow."
-      - "East over the dunes lie the Sandstone Cliffs, and the ruins below them."
+      - "Welcome to the Crossroads, where the desert road meets the snow."
+      - "West through the pass lies Sunreach, and the oasis at Palmwater."
       - "The Frost Trail climbs to Glacier Peak. Past it stands the Fallen Keep, and few come back."
       - "If you fall out there, you'll wake up here."

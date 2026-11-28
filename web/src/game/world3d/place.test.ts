@@ -165,7 +165,7 @@ function inked(m: AbstractMesh): boolean {
 
 describe('a map drawn', () => {
   it('draws each solid hollow while whole, so an opening shows its inside, not its ink', async () => {
-    for (const id of ['crossroads', 'shroom_grove']) {
+    for (const id of ['crossroads', 'frost_trail']) {
       const map = await mapOf(id);
       const place = await buildPlace(scene, map, lighting, new Models(scene, source));
       for (const s of map.solids) {
@@ -178,7 +178,7 @@ describe('a map drawn', () => {
   });
 
   it('stands each solid on its collision shape, toon-drawn and inked', async () => {
-    for (const id of ['crossroads', 'shroom_grove']) {
+    for (const id of ['crossroads', 'frost_trail']) {
       const map = await mapOf(id);
       const place = await buildPlace(scene, map, lighting, new Models(scene, source));
       expect(allLooks(place, map)).toHaveLength(map.solids.length);
@@ -221,11 +221,11 @@ describe('a map drawn', () => {
     }
   });
 
-  describe('the grove, drawn once', () => {
+  describe('the frost trail, drawn once', () => {
     sharedScene();
     let map: WorldMap;
     beforeAll(async () => {
-      map = await mapOf('shroom_grove');
+      map = await mapOf('frost_trail');
       await buildPlace(scene, map, lighting, new Models(scene, source));
     });
 
@@ -240,10 +240,10 @@ describe('a map drawn', () => {
         expect(normals[i]).toBeGreaterThan(0);
       }
       expect(ground.receiveShadows).toBe(true);
-      expect(ground.material?.name).toBe(`toon - ${linearOf(0x8cc265).toHexString()} cut`);
+      expect(ground.material?.name).toBe(`toon - ${linearOf(0xeef2f6).toHexString()} cut`);
       const apron = scene.getMeshByName('apron')!.material!;
       expect([apron.name, apron.stencil.enabled, apron.stencil.funcRef]).toEqual([
-        `toon apron ${linearOf(0x8cc265).scale(0.8).toHexString()}`,
+        `toon apron ${linearOf(0xeef2f6).scale(0.8).toHexString()}`,
         true,
         0,
       ]); // a ghost or a faint decal draws on it
@@ -262,7 +262,7 @@ describe('a map drawn', () => {
       );
       expect(cliffs.receiveShadows).toBe(true);
       expect(cliffs.material?.name).toBe(
-        `toon - ${linearOf(0x8cc265).scale(0.6).toHexString()} cut`,
+        `toon - ${linearOf(0xeef2f6).scale(0.6).toHexString()} cut`,
       );
     });
 
@@ -273,19 +273,19 @@ describe('a map drawn', () => {
         expect(disc.position.y).toBeCloseTo(groundUnder(map, p.x, p.z) + 0.03, 9);
         expect((await built(disc.material)).needAlphaBlending()).toBe(true);
       }
-      expect((scene.getMeshByName('prop flowers') as Mesh).thinInstanceCount).toBe(90);
-      expect((scene.getMeshByName('prop grass_tuft') as Mesh).thinInstanceCount).toBe(320);
+      expect((scene.getMeshByName('prop pebbles') as Mesh).thinInstanceCount).toBe(40);
+      expect((scene.getMeshByName('prop tree_pine') as Mesh).thinInstanceCount).toBe(21);
     });
   });
 
   it('colours the sky and fogs it by its key, and a dark cave closes in', async () => {
     const forest = await buildPlace(
       scene,
-      await mapOf('shroom_grove'),
+      await mapOf('frost_trail'),
       lighting,
       new Models(scene, source),
     );
-    expect(scene.clearColor.toHexString().slice(0, 7).toLowerCase()).toBe('#8c7fb8');
+    expect(scene.clearColor.toHexString().slice(0, 7).toLowerCase()).toBe('#d9e5ef');
     expect(scene.fogMode).toBe(Scene.FOGMODE_LINEAR);
     forest.dispose();
     expect(scene.getMeshByName('ground')).toBeNull();
@@ -552,35 +552,6 @@ describe('kit models', () => {
     }
   });
 
-  it('fades a prop taller than half a player out of the camera’s way, as the crag by the sandstone cliffs’ south bank, and gives a lower one no copy', async () => {
-    const { kitModels } = await vi.importActual<{
-      kitModels: Readonly<Record<string, KitModel>>;
-    }>('./kit-models');
-    Object.assign(kits, kitModels);
-    const map = await mapOf('sandstone_cliffs');
-    const place = await buildPlace(scene, map, lighting, new Models(scene, source));
-    const crag = allLooks(place, map).find(
-      (l) => l.min.x < 40 && 40 < l.max.x && l.min.z < 1.5 && 1.5 < l.max.z && l.min.y > 2,
-    )!; // the crag on the bank top at (40, 1.5)
-    const { camera, head } = viewFrom(map, 40, 6); // the player behind it, as the live test’s frame has them
-    fade(camera, head, [crag], SETTLED);
-    const faded = copies('sandstone_crag');
-    expect(faded).toHaveLength(templates('sandstone_crag').length);
-    for (const c of faded) {
-      expect([c.position.x, c.position.z]).toEqual([expect.closeTo(40, 6), expect.closeTo(1.5, 6)]);
-      expect(c.material?.name).toMatch(/ 0\.3$/);
-    }
-    await castShadows(faded);
-
-    const low = (key: string) =>
-      scene.meshes.filter((m) => m.name.startsWith(`${key} `) && m.name.endsWith(' faded'));
-    for (const key of ['sand_pebbles', 'cactus_flowers']) {
-      expect(map.props.some((pr) => pr.model === key)).toBe(true);
-      expect(low(key), key).toEqual([]);
-    }
-    expect(low('sandstone_crag').length).toBeGreaterThan(templates('sandstone_crag').length); // one copy per crag
-  });
-
   describe('crossroads from the real kit models, drawn once', () => {
     sharedScene();
     let map: WorldMap;
@@ -603,9 +574,9 @@ describe('kit models', () => {
     });
   });
 
-  it('draw the grove from the real kit models, each key with one drawn from its file and no stand-in', async () => {
+  it('draw the frost trail from the real kit models, each key with one drawn from its file and no stand-in', async () => {
     const kitModels = await realKits();
-    const map = await mapOf('shroom_grove');
+    const map = await mapOf('frost_trail');
     await buildPlace(scene, map, lighting, new Models(scene, source));
     drawsFromFiles(map, kitModels, loaded);
   });
@@ -618,7 +589,7 @@ describe('kit models', () => {
     const before = counts();
     const place = await buildPlace(
       scene,
-      await mapOf('shroom_grove'),
+      await mapOf('frost_trail'),
       lighting,
       new Models(scene, source),
     );
