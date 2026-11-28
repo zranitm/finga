@@ -18,7 +18,7 @@ NPM       ?= npm --prefix web
 # The build's version, which logs and spans carry: the nearest tag and the commits since, or the commit alone.
 VERSION   ?= $(shell git describe --tags --always --dirty --abbrev=12 2>/dev/null || echo dev)
 
-.PHONY: up config prod-check down run test test-go test-web rules-go cover cover-go cover-go-cover cover-go-race race-shards cover-web lint lint-go lint-web fma-check breaking gen region-preview smoke edge bots testers recipes-check
+.PHONY: up config prod-check down run test test-go test-web rules-go cover cover-go cover-go-cover cover-go-race cover-go-race-bot cover-go-race-rest race-shards cover-web lint lint-go lint-web fma-check breaking gen region-preview smoke edge bots testers recipes-check
 
 # OBS=1 also runs the observability stack and sends it the game's traces: Grafana at http://localhost:3000.
 OBSERVED = $(if $(OBS),FINGA_TRACING_OTLP_ENDPOINT=alloy:4317)
@@ -57,7 +57,9 @@ GO_LIST = $(GO) list ./test/... ./... | grep -vx finga/test/rules
 GO_PKGS = $$($(GO_LIST))
 # The race run is every package but those that start no goroutine, where the detector finds nothing and the region checks take minutes: nav's. TestTheRaceRunSkipsOnlyPackagesThatStartNoGoroutine holds each to it.
 GO_RACE_SKIP := finga/internal/shared/nav
-GO_RACE_PKGS = $$($(GO_LIST) | grep -vxF $(foreach p,$(GO_RACE_SKIP),-e $(p)))
+# The bots' soak runs apart from the rest: beside the end-to-end tests it starved them of CPU, and TestWalkingOutOfCombatBreaksIntoASprint failed twice.
+GO_RACE_BOT := finga/cmd/bot
+GO_RACE_REST = $$($(GO_LIST) | grep -vxF $(foreach p,$(GO_RACE_SKIP) $(GO_RACE_BOT),-e $(p)))
 # The end-to-end tests mostly wait in real time, so more of them run at once than there are CPUs.
 GO_PARALLEL ?= 8
 # One Postgres for the whole run, which every pgtest package shares, instead of a container each; a PGTEST_URL already set names your own.
@@ -88,13 +90,18 @@ cover-go-cover:
 	@total=$$(cd $(SERVER) && $(GO) tool cover -func=coverage.out | tail -1 | awk '{print $$3}' | tr -d '%'); \
 	awk -v t="$$total" -v m="$(COVER_MIN)" 'BEGIN { if (t+0 < m+0) { printf "coverage %.1f%% is below the %d%% floor\n", t, m; exit 1 } printf "coverage %.1f%% meets the %d%% floor\n", t, m }'
 
-# The race run, writing its own times file like cover-go-cover's; CI runs it as a job.
-cover-go-race:
-	cd $(SERVER) && $(GO) build -o bin/ ./cmd/testtimes && $(PGTEST) ./bin/testtimes -o go-race-times.tsv $(GO) test -json -race -parallel $(GO_PARALLEL) $(GO_RACE_PKGS)
+# The race run in its two shards, each writing its own times file like cover-go-cover's; CI runs each as a job.
+cover-go-race: cover-go-race-bot cover-go-race-rest
 
-# The packages the race run takes and those it skips, one a line: the rule test reads it to check that together they are every package of GO_PKGS, once each.
+cover-go-race-bot:
+	cd $(SERVER) && $(GO) build -o bin/ ./cmd/testtimes && $(PGTEST) ./bin/testtimes -o go-race-bot-times.tsv $(GO) test -json -race -parallel $(GO_PARALLEL) $(GO_RACE_BOT)
+
+cover-go-race-rest:
+	cd $(SERVER) && $(GO) build -o bin/ ./cmd/testtimes && $(PGTEST) ./bin/testtimes -o go-race-rest-times.tsv $(GO) test -json -race -parallel $(GO_PARALLEL) $(GO_RACE_REST)
+
+# The packages each shard runs and those the run skips, one a line: the rule test reads it to check that together they are every package of GO_PKGS, once each.
 race-shards:
-	@cd $(SERVER) && for p in $(GO_RACE_SKIP); do echo "skipped $$p"; done; for p in $(GO_RACE_PKGS); do echo "race $$p"; done
+	@cd $(SERVER) && for p in $(GO_RACE_SKIP); do echo "skipped $$p"; done; for p in $(GO_RACE_BOT); do echo "bot $$p"; done; for p in $(GO_RACE_REST); do echo "rest $$p"; done
 
 cover-web:
 	$(NPM) run coverage

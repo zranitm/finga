@@ -1,4 +1,4 @@
-// The race run and the packages it skips are every package the Go tests run, once each: a package in neither would never run under -race, and one in both would run twice. A skipped package starts no goroutine, so the detector has nothing to find there.
+// The race run's two shards, bot and rest, and the packages it skips are every package the Go tests run, once each: a package in neither would never run under -race, and one in both would run twice. A skipped package starts no goroutine, so the detector has nothing to find there.
 
 package rules_test
 
@@ -43,11 +43,11 @@ func shardGaps(shards string, all []string) []string {
 
 // The check finds a package in neither the run nor the skipped, one in both, and one a list names that isn't a package, while a package in one shard passes.
 func TestTheCheckFindsEveryPackageThatTheRaceShardsMiss(t *testing.T) {
-	got := shardGaps("skipped a\nskipped b\nrace b\nrace c\nrace z\n", []string{"a", "b", "c", "d"})
+	got := shardGaps("skipped a\nskipped b\nbot b\nrest c\nrest z\n", []string{"a", "b", "c", "d"})
 	want := []string{
-		"b: runs in the skipped shard and the race",
+		"b: runs in the skipped shard and the bot",
 		"d: runs in no shard",
-		"z: runs in the race shard, but is no package the tests run",
+		"z: runs in the rest shard, but is no package the tests run",
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %q, want %q", got, want)
@@ -74,7 +74,7 @@ func TestTheRaceShardsAreEveryPackageOnce(t *testing.T) {
 		}
 	}
 	if gaps := shardGaps(string(shards), all); len(gaps) > 0 {
-		t.Fatalf("the race run misses or repeats packages; GO_RACE_SKIP in the Makefile names those it skips, and every other package is in the run:\n%s", strings.Join(gaps, "\n"))
+		t.Fatalf("the race shards miss or repeat packages; GO_RACE_SKIP in the Makefile names those the run skips, GO_RACE_BOT the bots', and every other package is in rest:\n%s", strings.Join(gaps, "\n"))
 	}
 }
 
