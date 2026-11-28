@@ -66,3 +66,26 @@ func TestAnExpanderTakesAWholeViewAsAFramesLastWordOnABody(t *testing.T) {
 		t.Fatalf("Robin's next step reads at %v; want 20.15, from the whole view", r.X)
 	}
 }
+
+// A whole view of another body, or a mob, is held and returned at the centimetre, as a step leaves it, so it matches the world's kept body; the player's own view stays exact.
+func TestAnExpanderHoldsOthersWholeViewsAtTheCentimetre(t *testing.T) {
+	e := protocol.NewExpander("a")
+	d := &clientv1.Delta{
+		Players: []*clientv1.PlayerView{{Id: "a", Slot: 1, X: 10.0049, Z: 5.1234}, {Id: "r", Slot: 2, X: 20.1249, Y: 0.0051, Z: 6.5}},
+		Mobs:    []*clientv1.MobView{{Id: 9, X: 3.3349, Z: 4.0051}},
+	}
+	e.Snapshot(&clientv1.Snapshot{Players: []*clientv1.PlayerView{{Id: "a", Slot: 1}, {Id: "r", Slot: 2}}, Mobs: []*clientv1.MobView{{Id: 9}}})
+	e.Delta(d)
+	a, r, m := d.Players[0], d.Players[1], d.Mobs[0]
+	if a.X != 10.0049 || a.Z != 5.1234 {
+		t.Fatalf("the player's own view read as (%v, %v); want it exact", a.X, a.Z)
+	}
+	if r.X != 20.12 || r.Y != 0.01 || r.Z != 6.5 || m.X != 3.33 || m.Z != 4.01 {
+		t.Fatalf("Robin read as (%v, %v, %v) and the slime as (%v, %v); want the centimetre", r.X, r.Y, r.Z, m.X, m.Z)
+	}
+	step := &clientv1.Delta{Steps: []*clientv1.PlayerStep{{Slot: 2, Dx: 1}}}
+	e.Delta(step)
+	if got := step.Players[0].X; math.Abs(got-20.13) > 1e-9 {
+		t.Fatalf("a step after the whole view put Robin at %v; want 20.13", got)
+	}
+}

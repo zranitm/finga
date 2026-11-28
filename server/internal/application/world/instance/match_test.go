@@ -205,7 +205,14 @@ func TestALeaverLosesAndIsSavedWhereTheyCameFrom(t *testing.T) {
 // twoFighters runs a duel between Ayla and Robin to its first round.
 func twoFighters(t *testing.T, data *gamedata.Data, results *worldtest.Results) (inst *instance.Instance, ayla, robin model.Player, as, rs *worldtest.Sink, stop func()) {
 	t.Helper()
+	return twoFightersOf(t, data, results, "warrior")
+}
+
+// twoFightersOf is twoFighters with Ayla of class.
+func twoFightersOf(t *testing.T, data *gamedata.Data, results *worldtest.Results, class kernel.Class) (inst *instance.Instance, ayla, robin model.Player, as, rs *worldtest.Sink, stop func()) {
+	t.Helper()
 	ayla, robin = fighterFrom(t, data, "Ayla"), fighterFrom(t, data, "Robin")
+	ayla.Class = class
 	inst, stop = worldtest.RunMatch(t, data, duel(model.Fighter{Character: ayla.ID}, model.Fighter{Character: robin.ID}), nil, worldtest.Options{Results: results})
 	as, rs = &worldtest.Sink{}, &worldtest.Sink{}
 	for _, j := range []struct {

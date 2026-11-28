@@ -10,6 +10,7 @@ import (
 	"finga/internal/application/world/worldtest"
 	model "finga/internal/model/world"
 	"finga/internal/shared/kernel"
+	"finga/internal/shared/quant"
 	"finga/internal/shared/sim"
 )
 
@@ -165,8 +166,8 @@ func TestAHeadOnClashLeavesEnemiesNoDeeperThanTheParting(t *testing.T) {
 		defer stop()
 		before, _ := as.Own(ayla.ID)
 		rb, _ := rs.Own(robin.ID)
-		for range 3 { // some ticks into the clash, on either parity
-			headOn(inst, as, rs, ayla.ID, robin.ID, 4, 60)
+		for k := range 6 { // some ticks into the clash, on either parity, at every lag
+			headOn(inst, as, rs, ayla.ID, robin.ID, k+1, 40)
 			a, _ := as.Own(ayla.ID)
 			r, _ := rs.Own(robin.ID)
 			if d := math.Hypot(a.State.X-r.State.X, a.State.Z-r.State.Z); d < 0.5-0.02 {
@@ -201,6 +202,152 @@ func TestASkillsDashStopsAtAnEnemy(t *testing.T) {
 		sleep(worldtest.TickInterval)
 		if d := apart(as, rs, ayla.ID, robin.ID); d < 0.74 || d > 0.76 {
 			t.Fatalf("Ayla's charge through Robin ended %.3f m from his centre; want 0.75", d)
+		}
+	})
+}
+
+// jumpOver has Ayla walk up to Robin, who stands still, then jump toward him and come down just past him; returns the way she went along z.
+func jumpOver(t *testing.T, inst *instance.Instance, as, rs *worldtest.Sink, ayla, robin kernel.CharacterID) (dir float64) {
+	t.Helper()
+	r, _ := rs.Own(robin)
+	a, _ := as.Own(ayla)
+	dir = sign(r.State.Z - a.State.Z)
+	seq := walkTo(inst, as, ayla, 0, r.State.Z-dir*0.75, 0.01)
+	for range 4 {
+		seq = worldtest.Walk(inst, ayla, seq, sim.Input{Up: dir > 0, Down: dir < 0, Jump: true}, 1)
+	}
+	seq = worldtest.Walk(inst, ayla, seq, sim.Input{Up: dir > 0, Down: dir < 0}, 8)
+	worldtest.Walk(inst, ayla, seq, sim.Input{}, 30) // and stands where she came down, in his body's reach
+	return dir
+}
+
+// A jump from contact clears an enemy who stands still, as it clears a mob, and the parting leaves the jumper on the far side and the enemy where he stood.
+func TestAJumpFromContactClearsAStandingEnemyWithoutAPush(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := pvpData(t, "1.0", "1.0")
+		inst, ayla, robin, as, rs, stop := twoFighters(t, data, nil)
+		defer stop()
+		r0, _ := rs.Own(robin.ID)
+		dir := jumpOver(t, inst, as, rs, ayla.ID, robin.ID)
+		a, _ := as.Own(ayla.ID)
+		r, _ := rs.Own(robin.ID)
+		if r.State.Z != r0.State.Z {
+			t.Fatalf("Robin stood at z %.4f and the jump moved him to %.4f; want him where he was", r0.State.Z, r.State.Z)
+		}
+		if past := (a.State.Z - r.State.Z) * dir; past < 0.1 {
+			t.Fatalf("Ayla is %.3f m past Robin along her way after the jump; want her over and beyond his centre", past)
+		}
+	})
+}
+
+// A round's reset puts each fighter on their spot even when they swapped sides in the round: the pair's order flips with the placing, and the parting leaves it be.
+func TestARoundResetAfterTheFightersSwappedSidesStartsEachOnTheirSpot(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := pvpData(t, "1.0", "1.0")
+		inst, ayla, robin, as, rs, stop := twoFighters(t, data, nil)
+		defer stop()
+		jumpOver(t, inst, as, rs, ayla.ID, robin.ID)
+		was := len(worldtest.Of[model.Respawned](as))
+		for range 4000 {
+			if len(worldtest.Of[model.Respawned](as)) > was {
+				break
+			}
+			sleep(worldtest.TickInterval)
+		}
+		got := worldtest.Of[model.Respawned](as)
+		if len(got) <= was {
+			t.Fatal("the round never reset")
+		}
+		sleep(5 * worldtest.TickInterval)
+		for _, c := range []struct {
+			id  kernel.CharacterID
+			s   *worldtest.Sink
+			who string
+		}{{ayla.ID, as, "Ayla"}, {robin.ID, rs, "Robin"}} {
+			var spot model.Respawned
+			for _, r := range worldtest.Of[model.Respawned](c.s) {
+				if r.ID == c.id {
+					spot = r
+				}
+			}
+			if own, _ := c.s.Own(c.id); math.Hypot(own.State.X-spot.X, own.State.Z-spot.Z) > 0.01 {
+				t.Fatalf("%s stands at (%.2f, %.2f) after the reset; want her on her spot (%.2f, %.2f)", c.who, own.State.X, own.State.Z, spot.X, spot.Z)
+			}
+		}
+	})
+}
+
+// skillPast has Ayla stand reach m short of Robin, who stands still, and use skill on him; returns how far past Robin along her way she ends, and whether Robin moved.
+func skillPast(t *testing.T, class kernel.Class, skill, root string, reach float64, way func(dir float64) sim.Way) (past float64, robinMoved bool) {
+	t.Helper()
+	synctest.Test(t, func(t *testing.T) {
+		data := pvpData(t, "1.0", "1.0")
+		inst, ayla, robin, as, rs, stop := twoFightersOf(t, data, nil, class)
+		defer stop()
+		r0, _ := rs.Own(robin.ID)
+		a, _ := as.Own(ayla.ID)
+		dir := sign(r0.State.Z - a.State.Z)
+		seq := walkTo(inst, as, ayla.ID, 0, r0.State.Z-dir*reach, 0.2)
+		press := func(skill string, seq uint32) {
+			done := make(chan error, 1)
+			go func() {
+				done <- inst.UseSkill(context.Background(), ayla.ID, ayla.Connection, model.SkillUse{Skill: skill, Root: root, Target: model.EntityRef{Player: robin.ID}, Aim: aimAt(as, ayla.ID, robin.ID), Way: way(dir)}, seq)
+			}()
+			sleep(worldtest.TickInterval)
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+		}
+		if root != skill { // the root first, then the follow-up it opens
+			press(root, seq+1)
+			seq = worldtest.Walk(inst, ayla.ID, seq+1, sim.Input{}, 2)
+		}
+		press(skill, seq+1)
+		worldtest.Walk(inst, ayla.ID, seq+1, sim.Input{}, 30)
+		sleep(worldtest.TickInterval)
+		a, _ = as.Own(ayla.ID)
+		r, _ := rs.Own(robin.ID)
+		past, robinMoved = (a.State.Z-r.State.Z)*dir, r.State.Z != r0.State.Z
+	})
+	return past, robinMoved
+}
+
+// A skill that puts a fighter past an enemy leaves them there: the pair's order flips, and the parting takes it for the skill's point, not a pass through.
+func TestABlinkPastAnEnemyEndsWhereTheSkillPutIt(t *testing.T) {
+	past, moved := skillPast(t, "magician", "blink", "blink", 4, func(dir float64) sim.Way { return sim.Way{Z: dir, Length: 6} })
+	if past < 1.5 || moved {
+		t.Fatalf("after a 6 m blink at an enemy 4 m ahead Ayla is %.2f m past him and he moved: %v; want her 2 m past, he still", past, moved)
+	}
+}
+
+func TestAShadowStepBehindAnEnemyEndsBehindHim(t *testing.T) {
+	past, moved := skillPast(t, "thief", "shadow_step", "double_stab", 4, func(dir float64) sim.Way { return sim.Way{Z: dir, Length: 4.8} })
+	if past < 0.5 || moved {
+		t.Fatalf("after a shadow step to an enemy 4 m ahead Ayla is %.2f m past him and he moved: %v; want her 0.8 m behind him, he still", past, moved)
+	}
+}
+
+// A fighter pressed against an enemy stops where the page's sim stops from the wire's numbers: the enemy's body is the centimetre the frames give, not the place off the grid he stands.
+func TestAFighterPressedAgainstAnEnemyOffTheCentimetreStopsAtTheWiresBody(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := pvpData(t, "1.0", "1.0")
+		inst, ayla, robin, as, rs, stop := twoFighters(t, data, nil)
+		defer stop()
+		a, _ := as.Own(ayla.ID)
+		r0, _ := rs.Own(robin.ID)
+		dir := sign(r0.State.Z - a.State.Z)
+		worldtest.Walk(inst, robin.ID, 0, sim.Input{Up: dir < 0, Down: dir > 0}, 3) // a few steps off his spot, and a place between two centimetres
+		worldtest.Walk(inst, robin.ID, 3, sim.Input{}, 5)
+		r, _ := rs.Own(robin.ID)
+		if cm := r.State.Z * 100; cm == math.Round(cm) {
+			t.Fatalf("Robin stands at z %v, on the centimetre grid; the case wants him off it", r.State.Z)
+		}
+		seq := walkTo(inst, as, ayla.ID, 0, r.State.Z-dir*4, 0.2)
+		seq = worldtest.Walk(inst, ayla.ID, seq, sim.Input{Up: dir > 0, Down: dir < 0}, 200)
+		worldtest.Walk(inst, ayla.ID, seq, sim.Input{}, 5)
+		a, _ = as.Own(ayla.ID)
+		if want := quant.Metres(quant.Position(r.State.Z)) - dir*0.75; math.Abs(a.State.Z-want) > 1e-9 {
+			t.Fatalf("Ayla pressed against Robin stops at z %.6f; the page's sim stops her at %.6f from his wire place", a.State.Z, want)
 		}
 	})
 }
