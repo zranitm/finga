@@ -235,6 +235,7 @@ biomes:
     - **Points:** the disc covers the box of the biome's ground. Each new point is tried in the ring `r` to `2r` round an active one, up to 30 times, found by rejection in a square, so no angle is taken.
     - **Ground:** a point is kept on its biome's walkable ground, no steeper than `slope`.
     - **Clearances:** a point is also clear of each road, water, camp, town and spot by its `away` distance plus the model's reach.
+    - **As built (gate corridors):** a road ends where the plan says, not always at its gate, and scatter stood in the gap: Sunreach's Hollow Mouth had a giant mushroom between its road's end and the gate. Every gate now keeps a road-wide corridor, from the gate to the nearest point of the region's roads, as clear as a road is, by the road's `away` distance. A model the corridor keeps off still takes the yaw draws it would have, so the models after it keep their yaws; the 17 models it moved in Sunreach, 16 in Willowmere and 17 in the small test plan are the bakes' only change but for 199 yaws after 3 models that the freed room let in. `TestNoSolidStandsInAGatesCorridor` holds it for every plan with a gate.
       - The spots are waypoints, NPCs, pieces and the start (2 m each), and gates (their radius).
       - Clearance is judged at the nearest sample.
     - **Solids:** no solid comes within 0.5 m of another's reach. A box's reach is its half diagonal.

@@ -755,3 +755,52 @@ func TestTheFirstOfOverlappingAreasHoldsTheGround(t *testing.T) {
 		t.Errorf("ground in the second alone is %s; want its grass", got)
 	}
 }
+
+// No solid stands in the road-wide corridor from a gate to the nearest point of its region's roads, in the test plans and every shipped region: a road leads on to its gate. The corridor is read off the plan's own road paths, which the generator smooths a little, so a solid may reach cornerTolerance into it.
+func TestNoSolidStandsInAGatesCorridor(t *testing.T) {
+	const cornerTolerance = 2.0
+	checked := 0
+	for name, e := range everyRegion(t) {
+		var roads []Road
+		for _, f := range e.plan.Features {
+			if f.Road != nil {
+				roads = append(roads, *f.Road)
+			}
+		}
+		for _, g := range e.plan.Gates {
+			q, width, ok := nearestRoadPoint(roads, g.At)
+			if !ok {
+				continue
+			}
+			checked++
+			away := func(x, z, reach float64) float64 { return segmentDistance(x, z, q, g.At) - reach - width/2 }
+			for _, c := range e.region.Geometry.Cylinders {
+				if dx, dz := c.X-q[0], c.Z-q[1]; float64(dx*dx)+float64(dz*dz) < 1 { // a stone the plan sets at the road's end, a waypoint's
+					continue
+				}
+				if d := away(c.X, c.Z, float64(c.Radius)); d < -cornerTolerance {
+					t.Errorf("%s: a cylinder at (%.1f, %.1f) radius %.2f stands %.1f m into the corridor from gate %s at %v to the road at (%.1f, %.1f)", name, c.X, c.Z, c.Radius, -d, g.Name, g.At, q[0], q[1])
+				}
+			}
+			for _, c := range e.region.Geometry.Boxes {
+				if d := away(c.X, c.Z, math.Sqrt(float64(c.HalfW*c.HalfW)+float64(c.HalfD*c.HalfD))); d < -cornerTolerance {
+					t.Errorf("%s: a box at (%.1f, %.1f) stands %.1f m into the corridor from gate %s at %v", name, c.X, c.Z, -d, g.Name, g.At)
+				}
+			}
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no gate of any plan has a road to keep a corridor from")
+	}
+}
+
+// segmentDistance is how far (x, z) lies from the segment a to b.
+func segmentDistance(x, z float64, a, b [2]float64) float64 {
+	dx, dz := b[0]-a[0], b[1]-a[1]
+	t := 0.0
+	if l := float64(dx*dx) + float64(dz*dz); l > 0 {
+		t = min(max((float64((x-a[0])*dx)+float64((z-a[1])*dz))/l, 0), 1)
+	}
+	ex, ez := x-a[0]-float64(t*dx), z-a[1]-float64(t*dz)
+	return math.Sqrt(float64(ex*ex) + float64(ez*ez))
+}
