@@ -38,7 +38,8 @@
 - **Building it:** regions are generated from a plan that names their areas, mountains, rivers, roads, towns and camps (World). Towns, ruins and landmarks are placed by hand on top.
 - **Rollout:**
   - The green region comes first and replaces Town, Forest and Cave.
-  - The other maps stay, behind a gate at the green region's edge, until the desert and snow regions replace them.
+  - The desert comes next and replaces the mushroom woods and the desert maps, through a gate at the green region's north edge.
+  - The snow maps and the keep stay, behind a pass at the desert's edge, until the snow region replaces them.
   - A character on a retired map starts at the green region's main town.
 - **Fairness:** the server decides every move, hit, count and channel, as today.
 

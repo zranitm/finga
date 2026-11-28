@@ -29,28 +29,26 @@
 | Region | Levels | Character |
 | --- | --- | --- |
 | **Green region** (Willowmere) | 1–12 | Meadows, woods, a mushroom glade, a lake and the northern cliffs; the starting town in the south and a small town in the middle. Below it: a cave under the cliffs, lit by torches, and a shrine sunk under the lake |
-| **Desert** | 12–22 | Dunes, canyons, an oasis town and sunken ruins |
+| **Desert** (Sunreach) | 12–22 | A shaded gorge of giant mushrooms in the south-west, terraces above it, an oasis town in the middle, dunes to the east and a sandstone mesa to the north. Below it: a fungus cave under the gorge and a temple buried under the mesa |
 | **Snow mountains** | 22–30 | Frozen trails, an icefall and a glacier, with the Fallen Keep at the top as the endgame: a challenge for characters at the level cap |
 
 - **Areas:** about five a region, each a few levels wide, each with its field boss.
-- **Mobs:** each type has one level, so a region's areas take the types whose levels fit them. Where none fit, new ones are made: the green region adds twelve for levels 5 to 14, a normal mob, an elite and a boss for each of four areas.
-- **Region names and their layouts** are designed one region at a time, from the generator's previews. The green region's: [The green region](../tech/green-region.md).
-- **Underground and underwater** (B13): the green region has two to start. The cave takes today's Cave's mobs, its Vampire Bat and the Thief's trainer. The sunken shrine has new sea mobs. Inside, players walk and fight as on land. The other regions get theirs, or none, when they're designed.
+- **Mobs:** each type has one level, so a region's areas take the types whose levels fit them. Where none fit, new ones are made: the green region adds twelve for levels 5 to 14, a normal mob, an elite and a boss for each of four areas. Once a region replaces the old maps that held a mob's level, the mob can move: the desert takes the mushroom woods' and the desert maps' mobs three or four levels down, and the snow mobs move down to follow on.
+- **Region names and their layouts** are designed one region at a time, from the generator's previews. The green region's: [The green region](../tech/green-region.md). The desert's: [The desert](../tech/desert-region.md).
+- **Underground and underwater** (B13): the green region has two to start. The cave takes today's Cave's mobs, its Vampire Bat and the Thief's trainer. The sunken shrine has new sea mobs. Inside, players walk and fight as on land. The desert has two: a fungus cave with the old Spore Hollow's mobs, under the gorge, and a buried temple with the old Sunken Ruins', under the mesa. The snow region gets its own, or none, when it's designed.
 
 ## Until the regions are built
 
 The regions replace today's 14 small maps one region at a time (B10):
 
 1. The green region replaces Town, Forest and Cave.
-2. Until the desert and snow regions are built, a gate at the green region's north edge leads to the mushroom woods, where the Cave leads today. They lead on to the Crossroads, and from there to the desert maps, the snow maps and the keep, as now.
-3. Each later region retires the maps whose levels it covers.
+2. The desert replaces the mushroom woods and the desert maps. A gate at the green region's north edge leads into it.
+3. Until the snow region is built, the desert's East Pass leads to the Crossroads, and from there to the snow maps and the keep, as now.
+4. The snow region retires the rest, the Crossroads included.
 
 Today's maps:
 
 | Region | Maps, with their mob levels | Respawn town |
 | --- | --- | --- |
-| Start | Forest 1–4, Cave 10–14 | Town |
-| Mushroom woods | Shroom Grove 15–16, Spore Hollow 17–18, Toadstool Heights 19–20 | Crossroads |
-| Desert | Dune Road 21–22, Sandstone Cliffs 23–24, Sunken Ruins 25–26 | Crossroads |
-| Snow | Frost Trail 26–27, Icefall 28–29, Glacier Peak 29–30 | Crossroads |
+| Snow | Frost Trail 23–24, Icefall 25–26, Glacier Peak 28–29 | Crossroads |
 | Keep | Fallen Keep 31–33 | Crossroads |
