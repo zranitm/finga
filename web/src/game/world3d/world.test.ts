@@ -2868,7 +2868,10 @@ describe('World', () => {
     };
     channel();
     p.live(10);
-    expect([teleport.getState().to, glowing()]).toEqual([{ waypoint: 'greyfang_cave', name: 'Greyfang Cave' }, 2]);
+    expect([teleport.getState().to, glowing()]).toEqual([
+      { waypoint: 'greyfang_cave', name: 'Greyfang Cave' },
+      2,
+    ]);
     key('ArrowRight', true);
     ended();
     key('ArrowRight', false);
