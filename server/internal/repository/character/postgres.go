@@ -237,10 +237,15 @@ func (r repo) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	if err := r.q.DropOtherSkillTimers(ctx, db.DropOtherSkillTimersParams{CharacterID: uuid.UUID(cp.ID), SkillIds: t.SkillIds, Kinds: t.Kinds}); err != nil {
 		return err
 	}
-	w := db.SaveWaypointsParams{CharacterID: uuid.UUID(cp.ID), WaypointIds: []string{}, FoundAts: []time.Time{}, Now: r.now}
-	for _, found := range cp.Waypoints {
-		w.WaypointIds = append(w.WaypointIds, found.ID)
-		w.FoundAts = append(w.FoundAts, found.FoundAt)
+	return r.SaveWaypoints(ctx, cp.ID, cp.Waypoints)
+}
+
+// SaveWaypoints adds the waypoints not found yet; one found keeps its row, and when it was found.
+func (r repo) SaveWaypoints(ctx context.Context, id kernel.CharacterID, found []model.Waypoint) error {
+	w := db.SaveWaypointsParams{CharacterID: uuid.UUID(id), WaypointIds: []string{}, FoundAts: []time.Time{}, Now: r.now}
+	for _, f := range found {
+		w.WaypointIds = append(w.WaypointIds, f.ID)
+		w.FoundAts = append(w.FoundAts, f.FoundAt)
 	}
 	return r.q.SaveWaypoints(ctx, w)
 }

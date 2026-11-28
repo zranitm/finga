@@ -15,9 +15,10 @@ import (
 
 // The paths; every request carries a player's session as a bearer token and acts only on that account's characters. Progress is set only while the character is offline: 409 character_online otherwise.
 const (
-	PathCharacter = "/admin/characters/{id}"          // GET: its progress
-	PathProgress  = "/admin/characters/{id}/progress" // PUT: set its progress
-	PathItems     = "/admin/characters/{id}/items"    // GET: its items; POST: grant one
+	PathCharacter = "/admin/characters/{id}"           // GET: its progress
+	PathProgress  = "/admin/characters/{id}/progress"  // PUT: set its progress
+	PathItems     = "/admin/characters/{id}/items"     // GET: its items; POST: grant one
+	PathWaypoints = "/admin/characters/{id}/waypoints" // POST: find waypoints, adding those not found yet
 )
 
 // Character is a character's progress.
@@ -26,7 +27,8 @@ type Character struct {
 	Level              int            `json:"level"`
 	UnspentPoints      int            `json:"unspent_points"`
 	UnspentSkillPoints int            `json:"unspent_skill_points"`
-	Skills             map[string]int `json:"skills"` // points in each skill that has some
+	Skills             map[string]int `json:"skills"`    // points in each skill that has some
+	Waypoints          []string       `json:"waypoints"` // the waypoints it has found, by id
 }
 
 // Progress puts a character at a level, with every stat point unspent and no exp, as the world's checkpoint saves it: a skill not listed keeps its points.
@@ -43,6 +45,11 @@ type Progress struct {
 	UnspentPoints      int     `json:"unspent_points"`
 	UnspentSkillPoints int     `json:"unspent_skill_points"`
 	Quests             []Quest `json:"quests"` // every quest it has; one not listed goes
+}
+
+// Waypoints are the waypoints to find, by id across every region: added to the character's, the found ones as they are, none taken away. Set only while the character is offline, as progress is.
+type Waypoints struct {
+	IDs []string `json:"waypoints"`
 }
 
 // Quest is a character's state of one quest.
@@ -104,6 +111,11 @@ func (c Client) Character(ctx context.Context, token, id string) (Character, err
 // SetProgress sets the progress of the token's account's character id.
 func (c Client) SetProgress(ctx context.Context, token, id string, p Progress) error {
 	return c.do(ctx, http.MethodPut, "/admin/characters/"+url.PathEscape(id)+"/progress", token, p, nil)
+}
+
+// FindWaypoints adds the waypoints to the token's account's character id's found ones; one found already is kept as it is.
+func (c Client) FindWaypoints(ctx context.Context, token, id string, ids []string) error {
+	return c.do(ctx, http.MethodPost, "/admin/characters/"+url.PathEscape(id)+"/waypoints", token, Waypoints{IDs: ids}, nil)
 }
 
 // Items are the items of the token's account's character id.

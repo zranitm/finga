@@ -54,6 +54,8 @@ type seed struct {
 	hp     int
 	energy int
 	quests []adminapi.Quest
+	// waypoints are every one of the regions a player reaches from the start, found.
+	waypoints []string
 	// unspent and unspentSkills are the level's points, which stats and skills then spend.
 	unspent, unspentSkills int
 	stats                  gamedata.Stats
@@ -67,13 +69,13 @@ type seed struct {
 func plan(data *gamedata.Data, t tester) (seed, error) {
 	start := data.StartClass()
 	if t.stage == fresh {
-		return seed{class: start, level: 1}, nil
+		return seed{class: start, level: 1, waypoints: shippedWaypoints(data)}, nil
 	}
 	future, ok := data.Class(t.future)
 	if !ok || future.Promotion.Level < 1 {
 		return seed{}, fmt.Errorf("%s: no promotion to %q in the data", t.username, t.future)
 	}
-	s := seed{class: start, level: future.Promotion.Level}
+	s := seed{class: start, level: future.Promotion.Level, waypoints: shippedWaypoints(data)}
 	if t.stage == capped {
 		s.class, s.level = future, data.LevelCap()
 	}
@@ -190,4 +192,31 @@ func potions(data *gamedata.Data) []piece {
 		return nil
 	}
 	return []piece{{template: best.ID, quantity: best.MaxStack}}
+}
+
+// shippedWaypoints is every waypoint of the regions a player reaches from the start by gates, in the data's order: the shipped regions and their places below, never the test region or any other nothing leads to.
+func shippedWaypoints(data *gamedata.Data) []string {
+	reached := map[string]bool{data.StartTown().ID: true}
+	for grew := true; grew; {
+		grew = false
+		for _, m := range data.Maps() {
+			if !reached[m.ID] {
+				continue
+			}
+			for _, p := range m.Portals {
+				if !reached[p.TargetMap] {
+					reached[p.TargetMap], grew = true, true
+				}
+			}
+		}
+	}
+	var ids []string
+	for _, m := range data.Maps() {
+		if reached[m.ID] {
+			for _, w := range m.Waypoints {
+				ids = append(ids, w.ID)
+			}
+		}
+	}
+	return ids
 }

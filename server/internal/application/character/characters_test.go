@@ -348,6 +348,33 @@ func TestSaves(t *testing.T) {
 		}
 	})
 
+	t.Run("found waypoints add to those found, each once, and one found keeps its time; one with no id or listed twice saves nothing", func(t *testing.T) {
+		first := time.Now().UTC().Add(-time.Hour)
+		if err := svc.FindWaypoints(ctx, c.ID, []model.Waypoint{{ID: "west", FoundAt: first}, {ID: "north", FoundAt: first}}); err != nil {
+			t.Fatal(err)
+		}
+		later := time.Now().UTC()
+		if err := svc.FindWaypoints(ctx, c.ID, []model.Waypoint{{ID: "west", FoundAt: later}, {ID: "south", FoundAt: later}}); err != nil {
+			t.Fatal(err)
+		}
+		for _, bad := range [][]model.Waypoint{{{FoundAt: later}}, {{ID: "east", FoundAt: later}, {ID: "east", FoundAt: later}}} {
+			if err := svc.FindWaypoints(ctx, c.ID, bad); !errors.Is(err, model.ErrBadWaypoint) {
+				t.Fatalf("%+v: %v", bad, err)
+			}
+		}
+		got, err := svc.Waypoints(ctx, c.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		times := map[string]time.Time{}
+		for _, w := range got {
+			times[w.ID] = w.FoundAt
+		}
+		if times["west"] != first || times["north"] != first || times["south"] != later || times["east"] != (time.Time{}) {
+			t.Fatalf("found %+v; want west and north as first found them, south added, east never", got)
+		}
+	})
+
 	t.Run("a checkpoint with a class the game data lacks saves nothing", func(t *testing.T) {
 		before := store.chars[c.ID]
 		for _, class := range []kernel.Class{"", "paladin"} {

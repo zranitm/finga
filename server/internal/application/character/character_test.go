@@ -99,6 +99,11 @@ func (f *fakeCases) SaveLevelUp(_ context.Context, lu model.LevelUp) error {
 	return f.err
 }
 
+func (f *fakeCases) FindWaypoints(_ context.Context, id kernel.CharacterID, found []model.Waypoint) error {
+	f.in = []any{id, found}
+	return f.err
+}
+
 func (f *fakeCases) SetSkillBar(_ context.Context, id kernel.CharacterID, account kernel.AccountID, bar []string) error {
 	f.in = []any{id, account, bar}
 	return f.err
@@ -177,6 +182,15 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 		}
 		if f.in != (model.LevelUp{ID: ayla.ID, Level: 4, Exp: 3, Points: gamedata.Stats{STR: 9, VIT: 6}, HP: 280}) {
 			t.Fatalf("got %+v", f.in)
+		}
+	})
+	t.Run("FindWaypoints", func(t *testing.T) {
+		f := &fakeCases{}
+		if err := newModule(t, f).FindWaypoints(ctx, ayla.ID, []Waypoint{{ID: "town", FoundAt: end}, {ID: "cave", FoundAt: end}}); err != nil {
+			t.Fatal(err)
+		}
+		if want := []any{ayla.ID, []model.Waypoint{{ID: "town", FoundAt: end}, {ID: "cave", FoundAt: end}}}; !reflect.DeepEqual(f.in, want) {
+			t.Fatalf("got %+v, want %+v", f.in, want)
 		}
 	})
 	t.Run("SetSkillBar", func(t *testing.T) {

@@ -35,6 +35,10 @@ func (m adminModules) Load(context.Context, kernel.CharacterID, kernel.AccountID
 
 func (adminModules) SaveCheckpoint(context.Context, character.Checkpoint) error { return nil }
 
+func (adminModules) FindWaypoints(context.Context, kernel.CharacterID, []character.Waypoint) error {
+	return nil
+}
+
 func (adminModules) Offline(context.Context, kernel.CharacterID, func(context.Context) error) (bool, error) {
 	return true, nil
 }

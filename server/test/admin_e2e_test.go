@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"slices"
 	"testing"
 	"time"
 
@@ -76,6 +77,36 @@ func TestTheAdminAPI(t *testing.T) {
 		}
 	})
 
+	t.Run("waypoints", func(t *testing.T) {
+		if err := admin.FindWaypoints(ctx, ada, id, []string{"sunmeadow", "oakshade"}); err != nil {
+			t.Fatal(err)
+		}
+		var first time.Time
+		if err := s.DB.QueryRow(context.Background(), `SELECT found_at FROM character_waypoints WHERE character_id = $1 AND waypoint_id = 'oakshade'`, id).Scan(&first); err != nil {
+			t.Fatal(err)
+		}
+		if err := admin.FindWaypoints(ctx, ada, id, []string{"oakshade", "willowbrook"}); err != nil { // again, with one more
+			t.Fatal(err)
+		}
+		c, err := admin.Character(ctx, ada, id)
+		slices.Sort(c.Waypoints)
+		if err != nil || !slices.Equal(c.Waypoints, []string{"oakshade", "sunmeadow", "willowbrook"}) {
+			t.Fatalf("Ada found %v (%v); want the three, none twice and none lost", c.Waypoints, err)
+		}
+		var again time.Time
+		if err := s.DB.QueryRow(context.Background(), `SELECT found_at FROM character_waypoints WHERE character_id = $1 AND waypoint_id = 'oakshade'`, id).Scan(&again); err != nil || !again.Equal(first) {
+			t.Fatalf("Oakshade found at %v, then %v (%v); want the first time kept", first, again, err)
+		}
+		for name, ids := range map[string][]string{"an unknown waypoint": {"nowhere"}, "one listed twice": {"sunmeadow_east", "sunmeadow_east"}, "no id": {""}} {
+			if code, _ := e2etest.Status(admin.FindWaypoints(ctx, ada, id, ids)); code < 400 || code >= 500 {
+				t.Errorf("%s: %d; want a refusal", name, code)
+			}
+		}
+		if c, err := admin.Character(ctx, ada, id); err != nil || len(c.Waypoints) != 3 {
+			t.Fatalf("Ada found %v (%v) after the refusals; want the three still", c.Waypoints, err)
+		}
+	})
+
 	t.Run("items", func(t *testing.T) {
 		before := s.InventoryTotals(t, id)["red_potion"]
 		key := uuidv7.NewString()
@@ -109,6 +140,9 @@ func TestTheAdminAPI(t *testing.T) {
 		if code, reason := e2etest.Status(admin.SetProgress(ctx, ada, id, progress)); code != http.StatusConflict || reason != "character_online" {
 			t.Fatalf("progress for Ada on a map: %d %s; want 409 character_online", code, reason)
 		}
+		if code, reason := e2etest.Status(admin.FindWaypoints(ctx, ada, id, []string{"sunmeadow_east"})); code != http.StatusConflict || reason != "character_online" {
+			t.Fatalf("waypoints for Ada on a map: %d %s; want 409 character_online", code, reason)
+		}
 		_ = p.Conn.Close(websocket.StatusNormalClosure, "bye")
 		deadline := time.Now().Add(10 * time.Second)
 		for err = admin.SetProgress(ctx, ada, id, progress); err != nil; err = admin.SetProgress(ctx, ada, id, progress) {
@@ -127,9 +161,10 @@ func TestTheAdminAPI(t *testing.T) {
 			t.Fatal(err)
 		}
 		calls := map[string]func(token, id string) error{
-			"GET character": func(token, id string) error { _, err := admin.Character(ctx, token, id); return err },
-			"PUT progress":  func(token, id string) error { return admin.SetProgress(ctx, token, id, progress) },
-			"GET items":     func(token, id string) error { _, err := admin.Items(ctx, token, id); return err },
+			"GET character":  func(token, id string) error { _, err := admin.Character(ctx, token, id); return err },
+			"PUT progress":   func(token, id string) error { return admin.SetProgress(ctx, token, id, progress) },
+			"POST waypoints": func(token, id string) error { return admin.FindWaypoints(ctx, token, id, []string{"oakshade"}) },
+			"GET items":      func(token, id string) error { _, err := admin.Items(ctx, token, id); return err },
 			"POST a grant": func(token, id string) error {
 				return admin.Grant(ctx, token, id, adminapi.Grant{Key: uuidv7.NewString(), Template: "red_potion", Quantity: 1})
 			},

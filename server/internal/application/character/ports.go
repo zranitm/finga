@@ -46,6 +46,8 @@ type Repository interface {
 	// SaveCheckpoint writes the character's row and its quests as listed, and deletes any other quest of it.
 	SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
 	SaveLevelUp(ctx context.Context, lu model.LevelUp) error
+	// SaveWaypoints adds the waypoints the character has not found yet, each with when it was found, and changes none it has.
+	SaveWaypoints(ctx context.Context, id kernel.CharacterID, found []model.Waypoint) error
 	// SetSkillBar stores the account's character's skill bar; another account's character is ErrNotFound.
 	SetSkillBar(ctx context.Context, id kernel.CharacterID, account kernel.AccountID, bar []string) error
 }

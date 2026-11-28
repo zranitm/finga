@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"finga/internal/application/character"
 	"finga/internal/handler/transport"
@@ -17,6 +18,7 @@ import (
 type adminCharacters interface {
 	Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (character.Loaded, error)
 	SaveCheckpoint(ctx context.Context, cp character.Checkpoint) error
+	FindWaypoints(ctx context.Context, id kernel.CharacterID, found []character.Waypoint) error
 }
 
 // adminWorld runs a write the world would overwrite while it holds the character.
@@ -42,6 +44,7 @@ func AdminRoutes(d AdminDeps) transport.AdminRoutes {
 	return func(a *transport.Admin) {
 		s := &adminRoutes{AdminDeps: d, admin: a}
 		a.Handle("PUT "+adminapi.PathProgress, s.progress)
+		a.Handle("POST "+adminapi.PathWaypoints, s.waypoints)
 	}
 }
 
@@ -69,6 +72,38 @@ func (s *adminRoutes) progress(w http.ResponseWriter, r *http.Request) {
 		Level: p.Level, UnspentPoints: p.UnspentPoints, UnspentSkillPoints: p.UnspentSkillPoints, Quests: quests,
 	}
 	ran, err := s.World.Offline(r.Context(), id, func(ctx context.Context) error { return s.Characters.SaveCheckpoint(ctx, cp) })
+	switch {
+	case err != nil:
+		s.admin.Fail(w, r, err)
+	case !ran:
+		s.admin.Fail(w, r, transport.ErrAdminOnline)
+	default:
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// waypoints adds waypoints to a character's found ones, while the world does not hold it: each must be a waypoint of the data, and one found already keeps its time.
+func (s *adminRoutes) waypoints(w http.ResponseWriter, r *http.Request) {
+	id, _, _, err := transport.AdminOwned(r, s.Characters.Load)
+	if err != nil {
+		s.admin.Fail(w, r, err)
+		return
+	}
+	var in adminapi.Waypoints
+	if err := transport.AdminDecode(w, r, &in); err != nil {
+		s.admin.Fail(w, r, err)
+		return
+	}
+	now := time.Now()
+	found := make([]character.Waypoint, len(in.IDs))
+	for i, wp := range in.IDs {
+		if _, _, ok := s.Data.Waypoint(wp); !ok {
+			s.admin.Fail(w, r, fmt.Errorf("%w: no waypoint %q", transport.ErrAdminBadBody, wp))
+			return
+		}
+		found[i] = character.Waypoint{ID: wp, FoundAt: now}
+	}
+	ran, err := s.World.Offline(r.Context(), id, func(ctx context.Context) error { return s.Characters.FindWaypoints(ctx, id, found) })
 	switch {
 	case err != nil:
 		s.admin.Fail(w, r, err)
