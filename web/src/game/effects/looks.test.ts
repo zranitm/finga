@@ -341,7 +341,7 @@ describe('looks', () => {
     });
 
     it('fills over its own area: halfway through the windup the fill’s rings are the area’s and the points halfway between them, height and all', () => {
-      fx.play('mob.hop', mobAt({ reach: 0.375, to: { x: 52, y: 0, z: 18 } })); // landing on a slope
+      fx.play('mob.hop', mobAt({ reach: 0.375, to: { x: 43.5, y: 0, z: 18 } })); // landing on the ramp
       to(WINDUP.start + 300);
       const [zone, fill] = named('patch').map((m) => [
         ...m.getVerticesData(VertexBuffer.PositionKind)!,
