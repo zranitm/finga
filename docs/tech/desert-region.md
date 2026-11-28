@@ -211,7 +211,9 @@ Each step is its own PR:
 
 - **As built (desert PR 2):**
   - **The chart** places Sunreach at [38, 32], north-east of Willowmere.
-  - **The plans** are in `data/regions` as drafted: Sunreach, `spore_caves` and `ruin_crypt`. The loader's checks passed with no camp moved.
+  - **The plans** are in `data/regions` as drafted: Sunreach, `spore_caves` and `ruin_crypt`. The loader's checks passed with no camp moved; the nav design tests moved two:
+    - the west slimes from (240, 316) to (234, 316), and the rim elders from (380, 560) to (372, 576), so no leash reaches a spot on a terrace's top or beyond a drop where no blow lands;
+    - the Sunken Ruins' tunnel back to the stair bends through (36, 112) and (52, 84) in place of (36, 100), so no rock beside the bend can be walked onto.
   - **Mob stats** are set by the balance test's bands for each area, not scaled from the old levels:
     - a normal mob takes 2.9 hits at the reference pace in Sporewood Gorge, 3 in the four areas after it and 4 in the Sunken Ruins, with the bands' survival and hit-rate targets for every class;
     - an elite takes 2.5 times its normal mob's hits and gives 2.5 times its EXP, a boss 40 times its top normal mob's, and a boss kill takes about 3 minutes alone;
