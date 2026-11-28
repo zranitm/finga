@@ -1,10 +1,11 @@
 // Remote players and mobs are drawn behind the newest server state, blended between buffered states.
 import { classes } from '@/gamedata/classes';
 import type { StatusOn } from '@/progression/statuses';
-import type { State } from '@/sim/step';
+import type { Blocker, State } from '@/sim/step';
 
 import { wireState } from './prediction';
 import type { ServerState } from './prediction';
+import { relationOf } from './teams';
 
 const KEEP_MS = 1000;
 const MIN_DELAY_MS = 100; // at 30 Hz and up, two ticks are shorter than ordinary network jitter
@@ -127,6 +128,14 @@ export class FrameBuffer<S> {
   sample(renderTime: number): S | undefined {
     return sampleWith(this.items, renderTime, this.tickMs, this.mix);
   }
+
+  /** The newest state at or before t as its frame sent it, not blended; none once the body's removal is at or before t. */
+  heldAt(t: number): S | undefined {
+    if (this.removedAt !== null && this.removedAt <= t) {
+      return undefined;
+    }
+    return this.items.findLast((i) => i.t <= t)?.state;
+  }
 }
 
 /** A remote player's buffer. */
@@ -162,11 +171,15 @@ export interface RemoteWire extends ServerState {
   readonly shield: number;
   /** What it wears over its class's look; none, as proto3 sends an empty one, is the class's own. */
   readonly look?: LookWire | undefined;
+  /** Down in a match, as of the frame. */
+  readonly dead?: boolean | undefined;
 }
 
 /** What a remote player shows besides where it stands, as of a frame. */
 export interface RemoteLook {
   readonly dodging: boolean;
+  /** Down in a match: no body to block. */
+  readonly dead: boolean;
   /** What's left of their shields. */
   readonly shield: number;
 }
@@ -242,7 +255,7 @@ export class RemotePlayers {
       l = new FrameBuffer(this.tickMs, steps);
       this.looks.set(p.id, l);
     }
-    l.push(t, { dodging: p.dodging, shield: p.shield });
+    l.push(t, { dodging: p.dodging, shield: p.shield, dead: p.dead ?? false });
   }
 
   /** Each player drawn at renderTime, and how they look then; gone are the ones whose removal it has passed. */
@@ -273,6 +286,26 @@ export class RemotePlayers {
       }
     }
     return { shown, looks, gone };
+  }
+
+  /**
+   * The living enemies' circles as view's frame left them, in id order as the world keeps them, which it blocks inputs at view against (pvp.md section 19):
+   * from each player's tick states, never the smoothed draw. Teammates and everyone outside a match, where every team is 0, are no one's body.
+   */
+  foesAt(view: number, myTeam: number, radius: number, height: number): Blocker[] {
+    const t = view * this.tickMs;
+    const foes: { id: string; blocker: Blocker }[] = [];
+    for (const [id, b] of this.buffers) {
+      if (relationOf(myTeam, this.info.get(id)?.team ?? 0) !== 'foe') {
+        continue;
+      }
+      const s = b.heldAt(t);
+      if (!s || this.looks.get(id)?.heldAt(t)?.dead) {
+        continue;
+      }
+      foes.push({ id, blocker: { x: s.x, z: s.z, radius, bottom: s.y, top: s.y + height } });
+    }
+    return foes.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).map((f) => f.blocker);
   }
 
   /** Who a player is as of the newest frame, until they're gone. */

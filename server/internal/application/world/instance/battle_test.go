@@ -529,7 +529,10 @@ func TestABaseKeepsTheOtherSideOutAndHealsItsOwn(t *testing.T) {
 			t.Fatalf("Robin walked into side 1's base to x %.1f; want him held at its edge, %.1f", own.State.X, edge)
 		}
 		held, _ := rs.Own(robin.ID)
+		seq = worldtest.Walk(inst, ayla.ID, seq, sim.Input{Up: true}, 20) // round Robin, whose body she can't walk through
 		seq = march(inst, sinks, seq, held.State.X+1.4, ayla.ID)
+		seq = worldtest.Walk(inst, ayla.ID, seq, sim.Input{Down: true}, 20)
+		seq = worldtest.Walk(inst, ayla.ID, seq, sim.Input{}, 10)
 		leap := make(chan error, 1)
 		go func() { // aimed west at Robin, leaping east
 			leap <- inst.UseSkill(context.Background(), ayla.ID, ayla.Connection, model.SkillUse{Skill: "disengage", Root: "disengage", Aim: aimAt(as, ayla.ID, robin.ID), Way: sim.Way{X: 1, Length: 6.5}}, seq)
@@ -555,6 +558,7 @@ func TestABaseKeepsTheOtherSideOutAndHealsItsOwn(t *testing.T) {
 			t.Fatalf("Ayla hurt outside her base %+v, 3 s on %+v; want her HP down and staying there", hurt, own)
 		}
 		outside := as.Last().Tick
+		seq = worldtest.Walk(inst, ayla.ID, seq, sim.Input{Up: true}, 20) // round Robin again
 		march(inst, sinks, seq, field.Sides[0][0].At.X, ayla.ID)
 		in := enteredAt(as, ayla.ID, base, outside)
 		sleep(time.Second)

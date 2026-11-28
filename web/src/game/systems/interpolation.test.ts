@@ -164,6 +164,38 @@ describe('RemotePlayers', () => {
     expect(r.statusesOf('a')).toEqual([]);
   });
 
+  it('builds the enemies’ circles at a view from their tick states: never a teammate, a downed enemy or anyone outside a match', () => {
+    const r = new RemotePlayers('me', TICK_MS);
+    const at = (id: string, x: number, team: number, dead = false) => ({
+      ...wire(id, x),
+      team,
+      dead,
+    });
+    r.applySnapshot(1000, [
+      at('foe-b', 10, 2),
+      at('mate', 11, 1),
+      at('downed', 12, 2, true),
+      at('foe-a', 13, 2),
+      at('outside', 14, 0),
+    ]);
+    const bodies = (view: number, mine: number) => r.foesAt(view, mine, 0.375, 1.75);
+    expect(bodies(20, 1)).toEqual([
+      { x: 13, z: 12, radius: 0.375, bottom: 0, top: 1.75 }, // foe-a before foe-b: id order, as the world keeps them
+      { x: 10, z: 12, radius: 0.375, bottom: 0, top: 1.75 },
+    ]);
+    expect(bodies(20, 0)).toEqual([]); // outside a match no one is anyone's enemy
+    expect(bodies(20, 2).map((b) => b.x)).toEqual([11]); // from the other side, the teammate is the enemy
+    r.applyDelta(1050, [at('foe-a', 14, 2)], []);
+    r.applyDelta(1100, [at('foe-a', 15, 2)], []);
+    expect(bodies(21, 1)[0]?.x).toBe(14); // the state its frame at tick 21 sent, not the newest, and not a blend
+    expect(bodies(22, 1)[0]?.x).toBe(15);
+    r.applyDelta(1150, [], ['foe-a']);
+    expect(bodies(22, 1).map((b) => b.x)).toEqual([15, 10]);
+    expect(bodies(23, 1).map((b) => b.x)).toEqual([10]); // gone from the tick it was removed at
+    r.applyDelta(1200, [at('foe-b', 10, 2, true)], []);
+    expect(bodies(24, 1)).toEqual([]); // down from its frame on
+  });
+
   it('a Snapshot sets the map, skipping the local player, and drops anyone not in it', () => {
     const r = new RemotePlayers('me', TICK_MS);
     r.applySnapshot(1000, [wire('me', 1), wire('a', 10, 'Ayla'), wire('b', 20, 'Bruno', 'bowman')]);

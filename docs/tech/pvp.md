@@ -1020,6 +1020,15 @@ One PR, server and client together, since a server that blocks with a client tha
 2. bots stepping round;
 3. the client's predictor.
 
+### As built
+
+- **The world** (`instance/foes.go`): `keepFoes` files each tick's living fighters, by id, as the frame is broadcast; `blockersFor` gives a step the mobs of its view and the other side's bodies of the same tick, built once per tick and side. The shove in `hitPlayer` meets `foesNow`. `part` runs at the end of `simulate`.
+- **Parting keeps order.** Two enemies closing at a walk each way come 0.55 m nearer a tick, more than the 0.5 m a parting leaves between centres, so with stale views they can cross within one tick, and a push along the line between their new centres would finish the swap. A pair whose line now points the other way from the last tick's frame is parted back along that last line.
+- **A match is never tiered.** The crowd tier of large-regions.md section 5 holds a player's motion-only steps every second tick; on a match's map `stepPlayers` skips it, since an enemy's missed tick would leave a blocker guessed, as a mob's would. The check is the instance's, not a loader rule on `interest.crowd`.
+- **A jump from contact clears.** The sim holds a body at an enemy's side until its feet rise over the 1.75 m head, 0.21 s on, and then lets it walk over, as it does for a mob; the shared vector `enemy-jump-pressed-against` records it. The "first touch" in the rule above is not enforced, so a pinned fighter jumps out, as 'a tight escape from being pinned' says.
+- **Bots** (`bots/brain.go`, `round`): a bot pressing toward a point, or its side's focus, with another enemy ahead within 1.8 m goes along that enemy's side. A melee bot already stops at 0.7 of its reach, 1.3 m.
+- **The client** (`RemotePlayers.foesAt`, wired in `world.ts`): the enemies' circles at a view from each player's state at that tick, in id order; the down flag is kept per frame beside the look.
+
 ### Decisions
 
 1. **Enemies in matches only,** the user's choice. The reach problem only comes up against players, and that happens only in a match.

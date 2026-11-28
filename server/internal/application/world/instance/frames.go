@@ -15,6 +15,7 @@ func (i *Instance) broadcast(changed []kernel.CharacterID) {
 		i.interest.rest()
 		return
 	}
+	i.keepFoes()
 	i.stampFights()
 	for _, id := range i.order {
 		if p := i.players[id]; (p.changed || p.moved || p.waiting) && !slices.Contains(changed, id) {
