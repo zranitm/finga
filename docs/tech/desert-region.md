@@ -196,6 +196,8 @@ The region is 1024 m square, with mountains 72 m wide round its edge. You arrive
 Each step is its own PR:
 
 1. **The snow mobs moved:** levels, stats and drops (section 4), and the Frost Trail's and Icefall's bands. Data only.
+   - **As built:** the Frost Trail's Frost Slime 23, Snow Weasel 24 and Avalanche Slime 26, and the Icefall's Icewing 26, Glacier Snail 27 and Blizzard Wing 29, with bands 23–24 and 26–27; Glacier Peak and its mobs are unchanged.
+   - Stats come from the balance test and drops from the tables of the same levels. Each boss has twice its top normal mob's attack, with its cooldowns lengthened by the smallest factor that keeps a melee player within 30 of the band's potion.
 2. **The desert:**
    - the three plans in `data/regions`;
    - the eighteen mobs moved (section 3);

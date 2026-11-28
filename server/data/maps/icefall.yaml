@@ -2,7 +2,7 @@
 name: Icefall
 kind: hunting
 town: crossroads
-levels: [28, 29]
+levels: [26, 27]
 look: {ground: snow, sky: snow}
 size: [75, 36]
 terrain:
