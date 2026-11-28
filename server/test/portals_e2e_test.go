@@ -3,7 +3,9 @@ package e2e_test
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"math"
+	"os"
 	"slices"
 	"testing"
 	"time"
