@@ -54,6 +54,31 @@ func idle(r *Recording) *Recording {
 	return r
 }
 
+// stepsOf is a recording of a walk out of combat from tick start whose server steps the player once a tick that brings an input, acking two on each tick of merged and none on each of idle, which steps no one; a tick of gone brings none and has no frame.
+func stepsOf(start, last uint64, idle, merged, gone []uint64) *Recording {
+	r := &Recording{}
+	counted, ack := 0, uint32(0)
+	for t := start; t <= last; t++ {
+		speed := walk
+		if counted >= steps {
+			speed = walk * mult
+		}
+		switch {
+		case slices.Contains(idle, t), slices.Contains(gone, t):
+		case slices.Contains(merged, t):
+			ack += 2
+			counted = min(counted+perTick, steps)
+		default:
+			ack++
+			counted = min(counted+perTick, steps)
+		}
+		if !slices.Contains(gone, t) {
+			r.Paces = append(r.Paces, Pace{Tick: t, Ack: ack, Sprint: counted, Speed: speed})
+		}
+	}
+	return r
+}
+
 // lagging is r with the count a tick late at the end, as when the walk's first tick is counted as the player's own.
 func lagging(r *Recording) *Recording {
 	for i := range r.Paces {
@@ -79,6 +104,9 @@ func TestARecordedWalkIsJudgedAgainstTheSprintRules(t *testing.T) {
 		{"a walk with frames skipped, each leaving an input out", walked(10, 120, nil, false, 0, 30, 41, 42, 70), ""},
 		{"frames skipped through a hit's combat, sprinting after it", walked(10, 220, []uint64{20}, false, 0, 15, 119, 130, 150, 151), ""},
 		{"the frame at combat's last tick lost, its input applied", without(walked(10, 220, []uint64{20}, false, 0), 119), ""},
+		{"two inputs acked in one tick, which steps once", stepsOf(10, 80, nil, []uint64{30, 31, 50}, nil), ""},
+		{"a tick with no input, then two in one step", stepsOf(10, 80, []uint64{30, 45}, []uint64{31, 46}, nil), ""},
+		{"a skipped frame, then two inputs in one step", stepsOf(10, 80, nil, []uint64{31, 61}, []uint64{30, 60}), ""},
 		{"a count that lags behind the inputs with frames skipped", lagging(walked(10, 120, nil, false, 0, 30, 41, 42, 70)), "a sprint count of"},
 		{"the sprint path cut after a hit", walked(10, 200, []uint64{20}, true, 0), "a sprint count of 0"},
 	} {

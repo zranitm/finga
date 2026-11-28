@@ -68,7 +68,7 @@ func (r *Recording) start() uint64 {
 	return 0
 }
 
-// Fault is what the frames say against walking out of combat as large-regions.md section 7 has it, "" when they agree: a count of perTick sub-steps for each input the server applied since combat's last tick, at most steps, none while in combat (a hit's tick and the combat ticks after it), and once the inputs reach steps the walk's speed times mult. Frames merged on a starved runner skip ticks, so the walk is counted in acked inputs, not ticks; a skipped frame at combat's end leaves as many inputs unknown as ticks it skipped, which the count allows.
+// Fault is what the frames say against walking out of combat as large-regions.md section 7 has it, "" when they agree: a count of perTick sub-steps for each tick the server stepped the player since combat's last tick, at most steps, none while in combat (a hit's tick and the combat ticks after it), and once the steps reach steps/perTick the walk's speed times mult. The server steps a player once a tick however many inputs it acks, and a starved runner merges frames, so a step is only known where the ack rose between two frames: at least one however long the gap, which is the count's floor. A skipped frame at combat's end leaves as many steps unknown as ticks it skipped, which the count allows.
 func (r *Recording) Fault(combat uint64, perTick, steps int, mult float64) string {
 	start := r.start()
 	if start == 0 {
@@ -84,7 +84,7 @@ func (r *Recording) Fault(combat uint64, perTick, steps int, mult float64) strin
 		}
 	}
 	reached := false
-	for _, p := range r.Paces {
+	for i, p := range r.Paces {
 		var hit uint64
 		hurt := false
 		for _, h := range r.Hits {
@@ -105,14 +105,13 @@ func (r *Recording) Fault(combat uint64, perTick, steps int, mult float64) strin
 		case len(r.Hits) > 0, p.Tick < start:
 			continue
 		}
-		from, gap := r.applied(base)
-		walked := int(p.Ack - from) //nolint:gosec // a few hundred inputs
+		walked, gap := r.stepped(i, base)
 		if want := min(steps, perTick*(walked-gap)); p.Sprint < want {
-			return fmt.Sprintf("tick %d, %d inputs into the walk out of combat: a sprint count of %d, want %d or more", p.Tick, walked, p.Sprint, want)
+			return fmt.Sprintf("tick %d, %d steps into the walk out of combat: a sprint count of %d, want %d or more", p.Tick, walked, p.Sprint, want)
 		}
 		if walked > (steps+perTick-1)/perTick+gap {
 			if p.Sprint != steps || math.Abs(p.Speed-walk*mult) > 1e-6 {
-				return fmt.Sprintf("tick %d, %d inputs into the walk out of combat: count %d at %.4f m/s, want %d at %.4f", p.Tick, walked, p.Sprint, p.Speed, steps, walk*mult)
+				return fmt.Sprintf("tick %d, %d steps into the walk out of combat: count %d at %.4f m/s, want %d at %.4f", p.Tick, walked, p.Sprint, p.Speed, steps, walk*mult)
 			}
 			reached = true
 		}
@@ -123,18 +122,24 @@ func (r *Recording) Fault(combat uint64, perTick, steps int, mult float64) strin
 	return ""
 }
 
-// applied is the input the server had applied by tick, from the newest frame of the walk at or before it, and how many ticks that frame falls short of tick, each of which could have applied an input the frames don't show; with no such frame it is the walk's first input less one.
-func (r *Recording) applied(tick uint64) (ack uint32, gap int) {
+// stepped is the steps the server took of the player by frame i, from the newest frame of the walk at or before tick: one for each frame after it whose ack rose on the one before, and how many ticks that frame falls short of tick, each of which could have stepped the player unseen; with no such frame it is from the walk's first frame, which is a step.
+func (r *Recording) stepped(i int, tick uint64) (steps, gap int) {
 	start := r.start()
-	for _, p := range slices.Backward(r.Paces) {
+	from := -1
+	for k, p := range slices.Backward(r.Paces) {
 		if p.Tick <= tick && p.Tick >= start {
-			return p.Ack, int(tick - p.Tick) //nolint:gosec // a few hundred ticks
+			from, gap = k, int(tick-p.Tick) //nolint:gosec // a few hundred ticks
+			break
 		}
 	}
-	for _, p := range r.Paces {
-		if p.Tick == start {
-			return p.Ack - 1, 0
+	if from < 0 {
+		from = slices.IndexFunc(r.Paces, func(p Pace) bool { return p.Tick == start })
+		steps = 1
+	}
+	for k := from + 1; k <= i; k++ {
+		if r.Paces[k].Ack > r.Paces[k-1].Ack {
+			steps++
 		}
 	}
-	return 0, 0
+	return steps, gap
 }
