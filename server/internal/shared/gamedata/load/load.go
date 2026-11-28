@@ -2,6 +2,7 @@
 package load
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"os"
@@ -127,12 +128,11 @@ func (b *byID[K, T]) get(id K) (T, bool) {
 
 // readYAML decodes one file strictly: an unknown key is an error.
 func readYAML(dir, name string, into any) error {
-	f, err := os.Open(filepath.Join(dir, name))
+	raw, err := os.ReadFile(filepath.Join(dir, name)) // whole, as the decoder reads a file in small pieces, a call each
 	if err != nil {
 		return fmt.Errorf("%s: %w", name, err)
 	}
-	defer f.Close()
-	dec := yaml.NewDecoder(f)
+	dec := yaml.NewDecoder(bytes.NewReader(raw))
 	dec.KnownFields(true)
 	if err := dec.Decode(into); err != nil {
 		return fmt.Errorf("%s: %w", name, err)

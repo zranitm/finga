@@ -1,8 +1,6 @@
 package mapfile
 
 import (
-	"crypto/sha256"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -83,16 +81,9 @@ func gridFor(g sim.Geometry, p sim.Params) *sharedGrid {
 	return s.(*sharedGrid)
 }
 
-// gridByContent is the shared grid for g under p, or one of its own when g can't be keyed.
+// gridByContent is the shared grid for g under p, found by what they hold.
 func gridByContent(g sim.Geometry, p sim.Params) *sharedGrid {
-	raw, err := json.Marshal(struct {
-		Geometry sim.Geometry
-		Params   sim.Params
-	}{g, p})
-	if err != nil {
-		return &sharedGrid{}
-	}
-	shared, _ := grids.LoadOrStore(sha256.Sum256(raw), &sharedGrid{})
+	shared, _ := grids.LoadOrStore(contentKey(g, p), &sharedGrid{})
 	return shared.(*sharedGrid)
 }
 
