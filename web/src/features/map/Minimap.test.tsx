@@ -90,7 +90,7 @@ describe('Minimap', () => {
   it('is named for its map, and in a region for the channel too', () => {
     render(<Minimap />);
     at(30, 10);
-    expect(document.querySelector('.minimap-name')).toHaveTextContent(/^Shroom Grove$/);
+    expect(document.querySelector('.minimap-name')).toHaveTextContent(/^Frost Trail$/);
     act(() => {
       mapView.getState().showMap('test_region', [256, 256], NO_GROUND, []);
       mapView.getState().inChannel(2);

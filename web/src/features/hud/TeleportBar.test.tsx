@@ -19,7 +19,7 @@ describe('TeleportBar', () => {
       teleport.getState().start({ map: 'frost_trail' });
     });
     const bar = screen.getByRole('status');
-    expect(bar).toHaveTextContent('Teleporting to Shroom Grove');
+    expect(bar).toHaveTextContent('Teleporting to Frost Trail');
     const fill = bar.querySelector<HTMLElement>('.teleport-bar-fill')!;
     expect([limits.teleport_channel_ms, fill.style.animationDuration]).toEqual([3000, '3000ms']);
     act(() => {

@@ -113,7 +113,7 @@ describe('PartyWindow', () => {
           ]),
         ),
     );
-    expect(screen.getByText('Lv. 12 · Warrior · Dune Road')).toBeInTheDocument(); // as the world chart names it
+    expect(screen.getByText('Lv. 12 · Warrior · Icefall')).toBeInTheDocument(); // as the world chart names it
     expect(screen.getByText('Lv. 1 · Beginner · Test Region · Ch. 2')).toBeInTheDocument();
     expect(screen.getByText('Lv. 1 · Beginner · Crossroads · offline')).toBeInTheDocument();
     expect(screen.getByText('Lv. 1 · Beginner · In a match')).toBeInTheDocument();

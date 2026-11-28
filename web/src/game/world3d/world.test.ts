@@ -1228,7 +1228,7 @@ describe('World', () => {
     const p = await playing('crossroads', 17, 20, 'thief');
     await vi.waitFor(() => expect(p.root(npcLook('guide').file)).toBeDefined(), WAIT); // the guide
     expect(p.label('npc:crossroads_guide')).toBe('Crossroads Guide');
-    expect(p.label('portal:to_dune')).toBe('To Dune Road');
+    expect(p.label('portal:to_frost')).toBe('To Frost Trail');
   });
 
   it('talks to the NPC in reach with the talk key, and in a portal enters it instead', async () => {
@@ -1238,7 +1238,7 @@ describe('World', () => {
     expect(near.sent('talk')).toEqual([expect.objectContaining({ npcId: 'crossroads_guide' })]);
     leave(near);
 
-    const inPortal = await playing('crossroads', 50, 20, 'thief');
+    const inPortal = await playing('crossroads', 26, 38, 'thief');
     key('KeyZ', true);
     key('KeyZ', false);
     expect([inPortal.sent('enterPortal').length, inPortal.sent('talk').length]).toEqual([1, 0]);
@@ -1258,7 +1258,7 @@ describe('World', () => {
     leave(near);
 
     settings.getState().setKeys({});
-    const inPortal = await playing('crossroads', 50, 20, 'thief');
+    const inPortal = await playing('crossroads', 26, 38, 'thief');
     inPortal.frames(1);
     expect(inPortal.label('prompt')).toBe('Z Enter');
     leave(inPortal);
