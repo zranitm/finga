@@ -48,6 +48,12 @@ func without(r *Recording, tick uint64) *Recording {
 	return r
 }
 
+// idle is r with a frame of the player standing, before any input, ahead of it.
+func idle(r *Recording) *Recording {
+	r.Paces = slices.Insert(r.Paces, 0, Pace{Tick: 15})
+	return r
+}
+
 // lagging is r with the count a tick late at the end, as when the walk's first tick is counted as the player's own.
 func lagging(r *Recording) *Recording {
 	for i := range r.Paces {
@@ -64,6 +70,7 @@ func TestARecordedWalkIsJudgedAgainstTheSprintRules(t *testing.T) {
 		fault string
 	}{
 		{"a walk out of combat", walked(10, 80, nil, false, 0), ""},
+		{"frames of a player standing before the walk", idle(walked(40, 90, nil, false, 0)), ""},
 		{"a walk that ends before the sprint", walked(10, 40, nil, false, 0), "no frame showed the sprint"},
 		{"the sprint path cut", walked(10, 80, nil, true, 0), "a sprint count of 0"},
 		{"a count reset part way", walked(10, 120, nil, false, 50), "a sprint count of"},

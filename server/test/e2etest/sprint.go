@@ -123,12 +123,18 @@ func (r *Recording) Fault(combat uint64, perTick, steps int, mult float64) strin
 	return ""
 }
 
-// applied is the input the server had applied by tick, from the newest frame at or before it, and how many ticks that frame falls short of tick, each of which could have applied an input the frames don't show; a walk with no frame before it starts from the first one's input less one.
+// applied is the input the server had applied by tick, from the newest frame of the walk at or before it, and how many ticks that frame falls short of tick, each of which could have applied an input the frames don't show; with no such frame it is the walk's first input less one.
 func (r *Recording) applied(tick uint64) (ack uint32, gap int) {
+	start := r.start()
 	for _, p := range slices.Backward(r.Paces) {
-		if p.Tick <= tick {
+		if p.Tick <= tick && p.Tick >= start {
 			return p.Ack, int(tick - p.Tick) //nolint:gosec // a few hundred ticks
 		}
 	}
-	return r.Paces[0].Ack - 1, 0
+	for _, p := range r.Paces {
+		if p.Tick == start {
+			return p.Ack - 1, 0
+		}
+	}
+	return 0, 0
 }
