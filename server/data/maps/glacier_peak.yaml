@@ -2,7 +2,7 @@
 name: Glacier Peak
 kind: hunting
 town: crossroads
-levels: [29, 30]
+levels: [28, 29]
 look: {ground: snow, sky: snow}
 size: [80, 36]
 terrain:
