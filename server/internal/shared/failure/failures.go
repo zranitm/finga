@@ -79,31 +79,32 @@ var (
 
 // 33: the world and quests.
 var (
-	CharacterDead           = Public{330001, "CHARACTER_DEAD", "you can't do that while dead"}
-	NotEnoughPoints         = Public{330002, "NOT_ENOUGH_POINTS", "you don't have that many points"}
-	PointsChanged           = Public{330003, "POINTS_CHANGED", "your points changed; try again"}
-	NoFreeReset             = Public{330004, "NO_FREE_RESET", "your free reset is used"}
-	BadPoints               = Public{330005, "BAD_POINTS", "spend at least one point, and none below zero"}
-	NpcOutOfReach           = Public{330006, "NPC_OUT_OF_REACH", "move closer"}
-	QuestUnavailable        = Public{330007, "QUEST_UNAVAILABLE", "that quest isn't offered here"}
-	QuestConditionsUnmet    = Public{330008, "QUEST_CONDITIONS_UNMET", "you don't meet that quest's conditions yet"}
-	QuestAlreadyActive      = Public{330009, "QUEST_ALREADY_ACTIVE", "you have that quest already"}
-	QuestAlreadyFinished    = Public{330010, "QUEST_ALREADY_FINISHED", "you've finished that quest"}
-	TooManyQuests           = Public{330011, "TOO_MANY_QUESTS", "you have the most active quests already"}
-	QuestNotReady           = Public{330012, "QUEST_NOT_READY", "that quest isn't finished yet"}
-	HPFull                  = Public{330013, "HP_FULL", "your HP is already full"}
-	NotEnoughSkillPoints    = Public{330014, "NOT_ENOUGH_SKILL_POINTS", "you don't have that many skill points"}
-	SkillPointsChanged      = Public{330015, "SKILL_POINTS_CHANGED", "your skill points changed; try again"}
-	SkillNotLearnable       = Public{330016, "SKILL_NOT_LEARNABLE", "your class can't learn that skill"}
-	BadSkillPoints          = Public{330017, "BAD_SKILL_POINTS", "invest at least one skill point, and none below zero"}
-	SkillNotLearned         = Public{330018, "SKILL_NOT_LEARNED", "put a point in that skill first"}
-	SkillPassive            = Public{330019, "SKILL_PASSIVE", "a passive skill is always on"}
-	NotInTown               = Public{330020, "NOT_IN_TOWN", "you can't use that in town"}
-	SkillCoolingDown        = Public{330021, "SKILL_COOLING_DOWN", "that skill isn't ready yet"}
-	NotEnoughEnergy         = Public{330022, "NOT_ENOUGH_ENERGY", "not enough energy"}
-	SkillWaiting            = Public{330023, "SKILL_WAITING", "another skill is already waiting for its turn"}
-	PromotionUnmet          = Public{330024, "PROMOTION_CONDITIONS_UNMET", "you don't meet every condition yet"}
-	NotYourNextClass        = Public{330025, "NOT_YOUR_NEXT_CLASS", "this trainer can't promote you to that class"}
+	CharacterDead        = Public{330001, "CHARACTER_DEAD", "you can't do that while dead"}
+	NotEnoughPoints      = Public{330002, "NOT_ENOUGH_POINTS", "you don't have that many points"}
+	PointsChanged        = Public{330003, "POINTS_CHANGED", "your points changed; try again"}
+	NoFreeReset          = Public{330004, "NO_FREE_RESET", "your free reset is used"}
+	BadPoints            = Public{330005, "BAD_POINTS", "spend at least one point, and none below zero"}
+	NpcOutOfReach        = Public{330006, "NPC_OUT_OF_REACH", "move closer"}
+	QuestUnavailable     = Public{330007, "QUEST_UNAVAILABLE", "that quest isn't offered here"}
+	QuestConditionsUnmet = Public{330008, "QUEST_CONDITIONS_UNMET", "you don't meet that quest's conditions yet"}
+	QuestAlreadyActive   = Public{330009, "QUEST_ALREADY_ACTIVE", "you have that quest already"}
+	QuestAlreadyFinished = Public{330010, "QUEST_ALREADY_FINISHED", "you've finished that quest"}
+	TooManyQuests        = Public{330011, "TOO_MANY_QUESTS", "you have the most active quests already"}
+	QuestNotReady        = Public{330012, "QUEST_NOT_READY", "that quest isn't finished yet"}
+	HPFull               = Public{330013, "HP_FULL", "your HP is already full"}
+	NotEnoughSkillPoints = Public{330014, "NOT_ENOUGH_SKILL_POINTS", "you don't have that many skill points"}
+	SkillPointsChanged   = Public{330015, "SKILL_POINTS_CHANGED", "your skill points changed; try again"}
+	SkillNotLearnable    = Public{330016, "SKILL_NOT_LEARNABLE", "your class can't learn that skill"}
+	BadSkillPoints       = Public{330017, "BAD_SKILL_POINTS", "invest at least one skill point, and none below zero"}
+	SkillNotLearned      = Public{330018, "SKILL_NOT_LEARNED", "put a point in that skill first"}
+	SkillPassive         = Public{330019, "SKILL_PASSIVE", "a passive skill is always on"}
+	NotInTown            = Public{330020, "NOT_IN_TOWN", "you can't use that in town"}
+	SkillCoolingDown     = Public{330021, "SKILL_COOLING_DOWN", "that skill isn't ready yet"}
+	NotEnoughEnergy      = Public{330022, "NOT_ENOUGH_ENERGY", "not enough energy"}
+	SkillWaiting         = Public{330023, "SKILL_WAITING", "another skill is already waiting for its turn"}
+	PromotionUnmet       = Public{330024, "PROMOTION_CONDITIONS_UNMET", "you don't meet every condition yet"}
+	NotYourNextClass     = Public{330025, "NOT_YOUR_NEXT_CLASS", "this trainer can't promote you to that class"}
+	// Retired, no longer answered, and kept so the codes are never reused: a teleport names a waypoint alone, so no map is named to refuse.
 	TeleportUnknownMap      = Public{330026, "TELEPORT_UNKNOWN_MAP", "there's no such map"}
 	TeleportSameMap         = Public{330027, "TELEPORT_SAME_MAP", "you're already on that map"}
 	TeleportDead            = Public{330028, "TELEPORT_DEAD", "you can't teleport while dead"}

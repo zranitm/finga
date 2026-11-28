@@ -90,7 +90,7 @@ func samples() []wsconn.Message {
 		{Type: "Attack", Seq: 118, Data: &clientv1.Attack{Aim: 1.5}},
 		{Type: "EnterPortal", Seq: 120, Data: &clientv1.EnterPortal{}},
 		{Type: "TakeLoot", ReqID: "r-22", Data: &clientv1.TakeLoot{Picks: []*clientv1.LootPick{{Pouch: 12, Item: 1}, {Pouch: 12, Item: 2}}}},
-		{Type: "Teleport", Seq: 121, ReqID: "r-21", Data: &clientv1.Teleport{MapId: "forest"}},
+		{Type: "Teleport", Seq: 121, ReqID: "r-21", Data: &clientv1.Teleport{Waypoint: "west"}},
 		{Type: "SwitchChannel", Seq: 122, ReqID: "r-23", Data: &clientv1.SwitchChannel{Channel: 2}},
 		{Type: "Channels", ReqID: "r-24", Data: &clientv1.Channels{}},
 		{Type: "Bosses", ReqID: "r-25", Data: &clientv1.Bosses{}},

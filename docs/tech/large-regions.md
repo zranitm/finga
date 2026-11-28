@@ -513,6 +513,7 @@ Built with step 1, which says who watches a cell.
 - **As built (step 4b-4b), the field bosses:**
   - **One per hunting area:** `instance/boss.go` keeps a slot per boss, a hunting map's one or each hunting area's in a region, all raised as the channel starts, each back its own 5 minutes after it falls.
   - **Who hears of one:** on a map, everyone, as before. In a region, only those in its area: its `FieldBoss` as it comes back, its `FieldBossGone` as it falls, and its bar in the frame's part of its own, however far from it they stand. A Snapshot names the area's boss, and `AreaEntered` brings the boss of the area stepped into, up or beaten with its time back, so stepping in raises no "has appeared!"; a town brings none, and the client's boss state clears.
+    - **As built (boss bar on entry):** a frame carries a boss's bar only on a tick it changes, so one idle boss sent none to a player who walked in. A player stepping into its area on foot now has the bar in that tick's frame, from the same whole view the Snapshot carries, with no change to the protocol.
   - **Who it pays:** those alive when it falls, in its area or within its leash of its spot, as its fight may go over the area's line; a party's damage still counts all its members' tallies. Its fall is told before what it pays.
   - **The town line:** a boss holds at it as any mob does, through the one push.
   - This map's crowns for each area's boss, with their time back on request, came with step 5c-3b's map views (section 10).
@@ -619,7 +620,7 @@ Built with step 1, which says who watches a cell.
     - **Leaving dead** saves that same arrival with half HP, and a character saved at 0 HP joins there. The getting up, the checkpoint and the join share one rule, `Data.GetUp`; the old maps keep their town's spawn. In the waypoints playtest, both had come back at the region's start.
 - **As built (step 6b), teleport:**
   - **The request:** `Teleport` keeps `map_id` (1) and gains `waypoint` (2) beside it. A `oneof` round both would move field 1 into it, which `buf breaking` refuses even at WIRE. A set waypoint is the target; `map_id` is read only without one.
-  - **`map_id`** is for the old maps alone, until the last is retired. A region's id is `TELEPORT_UNKNOWN_MAP`, as a match's map's is, and the player's own old map `TELEPORT_SAME_MAP`.
+  - **`map_id`** was for the old maps alone and is out of the protocol (reserved); a teleport names a waypoint, and a region's or a match's id is `TELEPORT_UNKNOWN_WAYPOINT`.
   - **A waypoint** that no region has is `TELEPORT_UNKNOWN_WAYPOINT` (330046, 404). One the player hasn't found, outside a main town, is `TELEPORT_NOT_FOUND` (330047, 409). Dead and busy are refused after these, as before.
   - **The landing:** at the channel's end, the player is handed off beside the stone, at its arrival, facing its way, and checkpointed there.
     - Into a region, from an old map or another region, the World picks the channel as for any join.

@@ -41,8 +41,6 @@ var errorTable = facade.Errors{
 	{Model: model.ErrSkillWaiting, Kernel: kernel.ErrSkillWaiting},
 	{Model: model.ErrPromotionUnmet, Kernel: kernel.ErrPromotionConditionsUnmet},
 	{Model: model.ErrNotYourNextClass, Kernel: kernel.ErrNotYourNextClass},
-	{Model: model.ErrTeleportUnknownMap, Kernel: kernel.ErrTeleportUnknownMap},
-	{Model: model.ErrTeleportSameMap, Kernel: kernel.ErrTeleportSameMap},
 	{Model: model.ErrTeleportDead, Kernel: kernel.ErrTeleportDead},
 	{Model: model.ErrTeleportBusy, Kernel: kernel.ErrTeleportBusy},
 	{Model: model.ErrTeleportUnknownWaypoint, Kernel: kernel.ErrTeleportUnknownWaypoint},

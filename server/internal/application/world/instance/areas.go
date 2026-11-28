@@ -22,6 +22,9 @@ func (i *Instance) trackAreas() {
 		if a := i.m.AreaAt(p.state.X, p.state.Z); a != p.area {
 			p.area = a
 			up, down := i.bossState(p)
+			if k := i.bossOf(p); k >= 0 {
+				i.bosses[k].due = true
+			}
 			p.private = append(p.private, model.AreaEntered{Tick: i.tick, Area: i.areaID(a), FieldBoss: up, FieldBossGone: down})
 		}
 	}

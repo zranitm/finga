@@ -2692,20 +2692,18 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 			}
 			h.world.failCasts(nil)
 		})
-		part(t, "Teleport goes to the world as the sender with its map, its waypoint and input seq, answering once its channel started, or with its refusal", func() {
-			c.send(wsconn.Message{Seq: 11, ReqID: "t-1", Data: &clientv1.Teleport{MapId: "forest", Waypoint: "west"}})
+		part(t, "Teleport goes to the world as the sender with its waypoint and input seq, answering once its channel started, or with its refusal", func() {
+			c.send(wsconn.Message{Seq: 11, ReqID: "t-1", Data: &clientv1.Teleport{Waypoint: "west"}})
 			if r := c.expect("Response"); r.ReqID != "t-1" || !r.Data.(*clientv1.Response).GetOk() {
 				t.Fatalf("response %+v, want ok to t-1", r)
 			}
-			if got := h.world.teleportCalls(); len(got) != 1 || got[0].p.Character != aylaID || got[0].mapID != "forest" || got[0].waypoint != "west" || got[0].seq != 11 {
+			if got := h.world.teleportCalls(); len(got) != 1 || got[0].p.Character != aylaID || got[0].waypoint != "west" || got[0].seq != 11 {
 				t.Fatalf("teleports %+v", got)
 			}
 			for _, tt := range []struct {
 				rule error
 				want failure.Public
 			}{
-				{kernel.ErrTeleportUnknownMap, failure.TeleportUnknownMap},
-				{kernel.ErrTeleportSameMap, failure.TeleportSameMap},
 				{kernel.ErrTeleportDead, failure.TeleportDead},
 				{kernel.ErrTeleportBusy, failure.TeleportBusy},
 				{kernel.ErrTeleportUnknownWaypoint, failure.TeleportUnknownWaypoint},
@@ -2713,7 +2711,7 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 			} {
 				time.Sleep(time.Second) // under the teleport limit of 2 a second
 				h.world.failTeleports(refusal(tt.rule))
-				c.send(wsconn.Message{ReqID: "r-" + tt.want.Name, Data: &clientv1.Teleport{MapId: "forest"}})
+				c.send(wsconn.Message{ReqID: "r-" + tt.want.Name, Data: &clientv1.Teleport{Waypoint: "west"}})
 				if r := c.expect("Response"); r.ReqID != "r-"+tt.want.Name || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != int32(tt.want.Code) {
 					t.Fatalf("response %+v, want %s", r, tt.want.Name)
 				}

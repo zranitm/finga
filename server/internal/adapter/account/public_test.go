@@ -147,8 +147,6 @@ func TestEachKernelErrorReachesTheClientByName(t *testing.T) {
 		{kernel.ErrSkillWaiting, "SKILL_WAITING", none},
 		{kernel.ErrPromotionConditionsUnmet, "PROMOTION_CONDITIONS_UNMET", none},
 		{kernel.ErrNotYourNextClass, "NOT_YOUR_NEXT_CLASS", none},
-		{kernel.ErrTeleportUnknownMap, "TELEPORT_UNKNOWN_MAP", none},
-		{kernel.ErrTeleportSameMap, "TELEPORT_SAME_MAP", none},
 		{kernel.ErrTeleportDead, "TELEPORT_DEAD", none},
 		{kernel.ErrTeleportBusy, "TELEPORT_BUSY", none},
 		{kernel.ErrNotARegion, "NOT_A_REGION", none},
