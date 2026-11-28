@@ -1,6 +1,6 @@
 # The desert region's plan (large-regions.md step 9), wet in the south-west and dry in the north-east, as the user agreed on 2026-11-28.
 # You arrive from Willowmere's north pass into the Sporewood Gorge, a shaded river valley of giant mushrooms (the old mushroom woods' mobs), with Spore Hollow below it.
-# The river comes down from the western mountains along the foot of the ledges and south through the gorge; Palmwater, the main town in the middle, sits by a spring-fed oasis lake. Up on the west terraces are the Toadstool Ledges; east are the Amber Dunes; north is the Sandstone mesa, with the Sunken Ruins under it and the pass on to the Crossroads.
+# The river comes down from the western mountains along the foot of the ledges and south through the gorge; Palmwater, the main town in the middle, sits by a spring-fed oasis lake. Up on the west terraces are the Toadstool Ledges; east are the Amber Dunes; north is the Sandstone mesa, with the Sunken Ruins under it and the pass on to Hoarfell.
 # Mobs keep their looks and attacks and move down to the levels below. Areas sit on 4 m lines; the interior is 72 to 952 on both axes.
 name: Sunreach
 size: [1024, 1024]
@@ -93,7 +93,7 @@ gates:
   - {name: south_gate, at: [380, 84], radius: 1.6, to: {region: willowmere, gate: north_pass}}
   - {name: hollow_mouth, at: [86, 250], radius: 1.6, to: {region: spore_caves, gate: mouth}}
   - {name: ruins_stair, at: [640, 904], radius: 1.6, to: {region: ruin_crypt, gate: stair}}
-  - {name: east_pass, at: [940, 900], radius: 1.6, to: {region: crossroads, gate: from_desert}}
+  - {name: east_pass, at: [940, 900], radius: 1.6, to: {region: hoarfell, gate: west_pass}}
 start: {at: [504, 470], yaw: 0}
 biomes:
   gorge:

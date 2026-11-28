@@ -16,10 +16,10 @@ describe('TeleportBar', () => {
     render(<TeleportBar />);
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
     act(() => {
-      teleport.getState().start({ map: 'frost_trail' });
+      teleport.getState().start({ map: 'hoarfell' });
     });
     const bar = screen.getByRole('status');
-    expect(bar).toHaveTextContent('Teleporting to Frost Trail');
+    expect(bar).toHaveTextContent('Teleporting to Hoarfell');
     const fill = bar.querySelector<HTMLElement>('.teleport-bar-fill')!;
     expect([limits.teleport_channel_ms, fill.style.animationDuration]).toEqual([3000, '3000ms']);
     act(() => {
@@ -47,7 +47,7 @@ describe('TeleportBar', () => {
   it('draws a new channel’s fill afresh, from empty', () => {
     render(<TeleportBar />);
     act(() => {
-      teleport.getState().start({ map: 'frost_trail' });
+      teleport.getState().start({ map: 'hoarfell' });
     });
     const first = document.querySelector('.teleport-bar-fill');
     act(() => {

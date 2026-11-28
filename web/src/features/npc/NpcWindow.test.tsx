@@ -314,9 +314,9 @@ describe('NpcWindow', () => {
 
   it('an NPC with lines says them in place of having nothing for you', () => {
     welcome(15, []);
-    quests.getState().applyNpcDialog(create(NpcDialogSchema, { npcId: 'crossroads_guide' }));
+    quests.getState().applyNpcDialog(create(NpcDialogSchema, { npcId: 'mountain_guide' }));
     render(<NpcWindow socket={fakeSocket().socket} onClose={vi.fn()} />);
-    const lines = npcById('crossroads_guide')!.lines;
+    const lines = npcById('mountain_guide')!.lines;
     expect(lines.length).toBeGreaterThan(0);
     for (const line of lines) {
       expect(screen.getByText(line)).toBeInTheDocument();

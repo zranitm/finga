@@ -27,7 +27,7 @@ const (
 // region is a band of hunting maps, from the lowest mob level of its first map, and what an on-level character meets there.
 type region struct {
 	name       string
-	from       int        // a map is in the last region whose from is at most its min_level
+	from       int        // a map is in the last region whose from is at most the lowest level of its normal mobs
 	hits       [2]float64 // a normal mob's landed hits to kill at the reference pace; a faster class needs more, a slower one fewer
 	survives   [2]int     // a ranged class's mob hits lived through, the least of them a melee class's; 0 as the top is no top
 	playerHits float64    // the least share of every class's attacks that land, when below the class's own floor
@@ -62,15 +62,26 @@ const (
 	bandStars      = 5     // ★6 and ★7 are rare finds, not what a character can expect to wear
 )
 
-func regionOf(m *gamedata.Map) (region, bool) {
+func regionOf(level int) (region, bool) {
 	var r region
 	found := false
 	for _, rg := range regions {
-		if m.MinLevel >= rg.from {
+		if level >= rg.from {
 			r, found = rg, true
 		}
 	}
 	return r, found
+}
+
+// lowest is the least level of mobs, 0 for none.
+func lowest(mobs []gamedata.Mob) int {
+	low := 0
+	for _, m := range mobs {
+		if low == 0 || m.Level < low {
+			low = m.Level
+		}
+	}
+	return low
 }
 
 // fight is how an on-level character and a mob fare against each other, the character standing in its reach all along and never dodging, its attacks stopped while a status stops it acting.
@@ -328,8 +339,8 @@ func TestTheHardiestHasTheMostHP(t *testing.T) {
 
 // balanceOf is TestBalance on one map.
 func balanceOf(t *testing.T, d *gamedata.Data, items []gamedata.Item, m *gamedata.Map) {
-	rg, asserted := regionOf(m)
 	normals, elites := mapMobs(d, m)
+	rg, asserted := regionOf(lowest(normals))
 	for _, mob := range append(normals, elites...) {
 		level := min(mob.Level, d.LevelCap())
 		for _, p := range players(d, level) {

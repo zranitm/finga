@@ -38,11 +38,18 @@ npcs:
       - "South, the river cuts the Sporewood Gorge, and a hollow full of moths opens under it."
       - "The dunes run east past the buttes, and the mesa stands north. Something old sleeps in the ruins beneath it."
       - "If you fall out there, you'll wake at the nearest waypoint."
-  - id: crossroads_guide
-    name: Crossroads Guide
+  - id: mountain_guide
+    name: Mountain Guide
     look: guide
     lines:
-      - "Welcome to the Crossroads, where the desert road meets the snow."
-      - "West through the pass lies Sunreach, and the oasis at Palmwater."
-      - "The Frost Trail climbs to Glacier Peak. Past it stands the Fallen Keep, and few come back."
-      - "If you fall out there, you'll wake up here."
+      - "Welcome to Emberhold. Warm your hands; the climb is cold."
+      - "The Frost Trail circles the mountain's foot. The Icefall's cliffs are the way up."
+      - "Past the glacier, Last Hearth keeps a fire for climbers. Above it stands the Fallen Keep, and few come back."
+      - "If you fall out there, you'll wake at the nearest waypoint."
+  - id: hearth_keeper
+    name: Hearth Keeper
+    look: guide
+    lines:
+      - "Come in from the wind. This is the last fire on the mountain."
+      - "The keep's lord still walks his hall. Go up ready, or don't go up."
+      - "The rime rats chew anything left outside. Keep your packs close."

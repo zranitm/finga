@@ -106,16 +106,16 @@ describe('PartyWindow', () => {
         .getState()
         .applyPartyState(
           partyOf('c-ayla', [
-            member('c-ayla', 'Ayla', { level: 12, class: 'warrior', mapId: 'icefall' }),
-            member('c-robin', 'Robin', { mapId: 'crossroads', online: false }),
+            member('c-ayla', 'Ayla', { level: 12, class: 'warrior', mapId: 'sunreach' }),
+            member('c-robin', 'Robin', { mapId: 'hoarfell', online: false }),
             member('c-jade', 'Jade', { mapId: 'ring' }),
             member('c-bo', 'Bo', { mapId: 'test_region', channel: 2 }),
           ]),
         ),
     );
-    expect(screen.getByText('Lv. 12 · Warrior · Icefall')).toBeInTheDocument(); // as the world chart names it
+    expect(screen.getByText('Lv. 12 · Warrior · Sunreach')).toBeInTheDocument(); // as the world chart names it
     expect(screen.getByText('Lv. 1 · Beginner · Test Region · Ch. 2')).toBeInTheDocument();
-    expect(screen.getByText('Lv. 1 · Beginner · Crossroads · offline')).toBeInTheDocument();
+    expect(screen.getByText('Lv. 1 · Beginner · Hoarfell · offline')).toBeInTheDocument();
     expect(screen.getByText('Lv. 1 · Beginner · In a match')).toBeInTheDocument();
   });
 

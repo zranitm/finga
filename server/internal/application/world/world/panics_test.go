@@ -28,7 +28,7 @@ func (p *panicsOn) ObserveTick(mapID string, _ int, _, _ time.Duration) {
 func TestAPanickingMapStopsTheWorldAndTheOtherMapsSave(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		saver := &fakeSaver{}
-		obs := &panicsOn{mapID: "icefall"}
+		obs := &panicsOn{mapID: "crossroads"}
 		w := newWorld(t, saver, worldtest.Options{Observer: obs})
 		runDone := make(chan error, 1)
 		go func() { runDone <- w.Run(context.Background()) }()
@@ -37,7 +37,7 @@ func TestAPanickingMapStopsTheWorldAndTheOtherMapsSave(t *testing.T) {
 		obs.armed.Store(true)
 
 		err := <-runDone
-		if e, ok := errors.AsType[*panics.Error](err); !ok || e.Value != "corrupt icefall" || !strings.Contains(err.Error(), "map icefall") {
+		if e, ok := errors.AsType[*panics.Error](err); !ok || e.Value != "corrupt crossroads" || !strings.Contains(err.Error(), "map crossroads") {
 			t.Fatalf("Run returned %v", err)
 		}
 		if got := saver.attemptsSoFar(); len(got) != 1 || got[0] != "cp frost_trail" {

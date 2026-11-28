@@ -154,7 +154,6 @@ describe('loadMap', () => {
   it('carries each portal’s target', async () => {
     expect((await loadMap('frost_trail')).portals).toEqual([
       { name: 'from_crossroads', x: 2, z: 18, radius: 1.2, to: 'crossroads' },
-      { name: 'to_icefall', x: 78, z: 18, radius: 1.2, to: 'icefall' },
     ]);
   });
 
@@ -253,7 +252,7 @@ describe('standsIn', () => {
     expect(standsIn({ x: 5, y, z: 4 }, m)?.name).toBe('out');
     expect(standsIn({ x: 6 + 1e-9, y, z: 5 }, m)).toBeUndefined();
     const trail = await loadMap('frost_trail');
-    const p = trail.portals[1]!;
+    const p = trail.portals[0]!;
     expect(standsIn({ x: p.x, y: groundUnder(trail, p.x, p.z), z: p.z }, trail)?.to).toBe(
       'icefall',
     );

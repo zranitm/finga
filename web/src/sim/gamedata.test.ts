@@ -309,20 +309,12 @@ describe('generated gamedata', () => {
     ]);
   });
 
-  it('maps carry their kind and art keys, a hunting map its town and level range', () => {
-    expect(maps.find((m) => m.id === 'crossroads')).toMatchObject({
-      kind: 'town',
-      town: 'crossroads',
+  it('maps carry their kind and art keys, a region its town', () => {
+    expect(maps.find((m) => m.id === 'hoarfell')).toMatchObject({
+      kind: 'region',
+      town: 'hoarfell',
       start: false,
       min_level: null,
-    });
-    const [min, max] = yaml('maps/frost_trail.yaml').levels as [number, number];
-    expect(maps.find((m) => m.id === 'frost_trail')).toMatchObject({
-      kind: 'hunting',
-      town: 'crossroads',
-      start: false,
-      min_level: min,
-      max_level: max,
     });
     expect(maps.find((m) => m.id === 'willowmere')).toMatchObject({
       kind: 'region',

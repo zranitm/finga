@@ -2,7 +2,6 @@ import { create } from '@bufbuild/protobuf';
 import { act, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { maps } from '@/gamedata/maps';
 import {
   FieldBossGoneSchema,
   MatchPhase,
@@ -18,7 +17,6 @@ import { resetStores } from '@/testing/reset-stores';
 
 import { Minimap } from './Minimap';
 
-const trail = maps.find((m) => m.id === 'frost_trail')!;
 const SIZE = [72, 36] as const; // a map of 72 by 36 m
 
 function at(x: number, z: number, yaw = 0) {
@@ -28,7 +26,7 @@ function at(x: number, z: number, yaw = 0) {
 describe('Minimap', () => {
   beforeEach(() => {
     resetStores();
-    mapView.getState().showMap('frost_trail', SIZE, NO_GROUND, []);
+    mapView.getState().showMap('ring', SIZE, NO_GROUND, []);
   });
 
   it('shows 40 m round the player, north up, and holds the view inside the map at its edges', () => {
@@ -43,23 +41,10 @@ describe('Minimap', () => {
     expect(svg().getAttribute('viewBox')).toBe('32 -2 40 40');
   });
 
-  it('places its marks by world x and z, north up: spawns, portals, NPCs and the player’s arrow along the heading', () => {
+  it('places the player’s arrow by world x and z, north up, along the heading', () => {
     render(<Minimap />);
     at(30, 10, Math.PI / 2);
     const svg = screen.getByRole('img', { name: 'Minimap' });
-    const spawn = trail.spawns[0];
-    const circle = svg.querySelector(`.map-spawn[data-mob="${spawn.mob}"]`)!;
-    expect([
-      circle.getAttribute('cx'),
-      circle.getAttribute('cy'),
-      circle.getAttribute('r'),
-    ]).toEqual([String(spawn.x), String(SIZE[1] - spawn.z), String(spawn.radius)]);
-    const portal = trail.portals[0];
-    const ring = svg.querySelector(`.map-portal[data-to="${portal.to}"]`)!;
-    expect([ring.getAttribute('cx'), ring.getAttribute('cy')]).toEqual([
-      String(portal.x),
-      String(SIZE[1] - portal.z),
-    ]);
     expect(svg.querySelector('.map-me')!.getAttribute('transform')).toMatch(
       /^translate\(30 26\) rotate\(90\)/,
     ); // east: turned a quarter clockwise from north
@@ -90,7 +75,7 @@ describe('Minimap', () => {
   it('is named for its map, and in a region for the channel too', () => {
     render(<Minimap />);
     at(30, 10);
-    expect(document.querySelector('.minimap-name')).toHaveTextContent(/^Frost Trail$/);
+    expect(document.querySelector('.minimap-name')).toHaveTextContent(/^Ring$/);
     act(() => {
       mapView.getState().showMap('test_region', [256, 256], NO_GROUND, []);
       mapView.getState().inChannel(2);

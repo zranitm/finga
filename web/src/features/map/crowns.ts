@@ -28,8 +28,9 @@ export function crownsOf(
   others: AreaBosses | null,
   live: boolean,
 ): Crown[] {
-  if (map.boss) {
-    return down ? [{ ...map.boss, down }] : [];
+  const own = map.boss as { readonly mob: string; readonly x: number; readonly z: number } | null; // a land map's; the data has none now
+  if (own) {
+    return down ? [{ ...own, down }] : [];
   }
   return map.areas.flatMap((a): Crown[] => {
     const b = a.boss;

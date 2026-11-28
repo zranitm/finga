@@ -8,6 +8,7 @@ grounds:
   cave_rock: '#4a4540'
   dirt: '#a88b62'
   grass: '#8cc265'
+  ice: '#bcd9e6'
   sand: '#e2cf9a'
   sea_rock: '#5b6e72'
   sea_sand: '#cdbf8e'

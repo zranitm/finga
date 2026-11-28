@@ -861,7 +861,7 @@ export class World {
     this.showPortalLabels();
     const m = maps.find((x) => x.id === map.id);
     if (m) {
-      this.banner(m.min_level !== null ? `${m.name} · Lv ${m.min_level}–${m.max_level}` : m.name); // a region's area's follows with its Snapshot
+      this.banner(m.name); // a region's area's follows with its Snapshot
     }
     this.pouchMarks?.show(pouches.getState().pouches);
     this.offs.push(

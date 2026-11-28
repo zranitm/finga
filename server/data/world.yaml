@@ -1,13 +1,9 @@
 # Each map's place on the world chart: x across and y down, 0 to 100. Links are drawn from the maps' portals.
-# The towns sit near the middle: Willowmere, the desert's Sunreach north-east of it, then the crossroads, whose road goes east to the snow, the levels rising outward.
+# The three large regions, the levels rising from the south-west to the north-east: Willowmere, Sunreach beyond its north pass, and Hoarfell beyond Sunreach's east pass.
 places:
   willowmere:        [26, 56]
   sunreach:          [38, 32]
-  crossroads:        [50, 50]
-  frost_trail:       [64, 38]
-  icefall:           [74, 28]
-  glacier_peak:      [84, 20]
-  fallen_keep:       [92, 10]
+  hoarfell:          [60, 26]
 
 # The interest cells (large-regions.md section 5): a map is cut in squares cell metres wide, by which its bodies are bucketed, so a mob reads only those near it,
 # and each player is sent the block of cells round theirs: rows behind (south) and ahead (north), as the camera always faces north, and columns to each side.

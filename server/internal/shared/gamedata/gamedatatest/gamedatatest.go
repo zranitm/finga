@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 
@@ -43,7 +44,22 @@ func standInsIn(dst string) error {
 			return err
 		}
 	}
-	return nil
+	return AddLandPlaces(dst)
+}
+
+// WithLandPlaces is world.yaml's text with the three land maps of StandIns charted beside the shipped places.
+func WithLandPlaces(text string) string {
+	return strings.Replace(text, "places:\n", "places:\n  crossroads: [50, 50]\n  frost_trail: [64, 38]\n  icefall: [74, 28]\n", 1)
+}
+
+// AddLandPlaces charts the three land maps of StandIns in the world.yaml of the data folder dst.
+func AddLandPlaces(dst string) error {
+	world := filepath.Join(dst, "world.yaml")
+	text, err := os.ReadFile(world)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(world, []byte(WithLandPlaces(string(text))), 0o600)
 }
 
 // ShippedDir is a copy of the shipped data folder with the regions swapped for StandIns, for tests that load a folder themselves; it goes with the test.

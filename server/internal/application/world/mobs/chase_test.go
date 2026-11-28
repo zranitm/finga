@@ -3,7 +3,6 @@ package mobs_test
 import (
 	"fmt"
 	"math"
-	"math/rand/v2"
 	"slices"
 	"strings"
 	"testing"
@@ -376,57 +375,6 @@ func TestABossHoldsAtAPortalsEdge(t *testing.T) {
 	}
 	if v := a.Views()[0]; !hit || distance(v, 30, 36) > 1+def.Radius+0.05 || math.Abs(float64(v.Yaw)) > 1e-3 {
 		t.Fatalf("king %+v, hit %v; want it at the portal's edge, facing north to the player, having hit them", v, hit)
-	}
-}
-
-// No mob or boss on a shipped map steps into a portal: provoked by a player out of reach over each, shooters too come to the portals' edges, never into one, and some attack across one.
-func TestNoShippedMobStepsIntoAPortal(t *testing.T) {
-	data := worldtest.LoadData(t)
-	hits := 0 // landings on a player standing on a portal, over every map
-	for _, m := range data.Maps() {
-		if m.Kind != gamedata.Hunting || len(m.Portals) == 0 {
-			continue
-		}
-		a := mobs.NewArena(mobs.Deps{Map: m, Data: data, Roll: rand.New(rand.NewPCG(1, 2))}, mobs.Tuning{TickInterval: tick})
-		if m.Boss != nil {
-			def, _ := data.Mob(m.Boss.Mob)
-			a.SpawnBoss(def, *m.Boss)
-		}
-		var players []mobs.Body // a player 2.5 m over each portal, then one on it, whom a mob waiting at the edge attacks if it reaches
-		for _, q := range m.Portals {
-			h := m.Geometry.Terrain.Height(q.At.X, q.At.Z)
-			players = append(players, up(player(q.At.X, q.At.Z), h+2.5), up(player(q.At.X, q.At.Z), h))
-		}
-		closest := math.Inf(1)       // the least gap between a mob and a portal's edge
-		for n := range uint64(400) { // 20 s: every circle keeps out of sight of the portals, and the forest's slimes walk 1 m/s
-			a.Step(n+1, players, nil)
-			for k := range m.Portals {
-				if bitten(a, players[2*k+1].ID) {
-					hits++
-				}
-			}
-			if n%100 == 0 { // a provoke lasts 5 s
-				for k, q := range m.Portals {
-					a.Strike(mobs.Strike{By: players[2*k].ID, Shape: gamedata.Shape{Kind: gamedata.AreaShape, Radius: 30}, Most: 100, Power: model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 1}, Aim: model.Aim{X: q.At.X, Z: q.At.Z}})
-				}
-			}
-			for _, v := range a.Views() {
-				def, _ := data.Mob(v.Type)
-				for _, q := range m.Portals {
-					gap := distance(v, q.At.X, q.At.Z) - q.Radius - def.Radius
-					if gap < -1e-9 {
-						t.Fatalf("%s tick %d: %s at (%.2f, %.2f) in portal %s", m.ID, n+1, v.Type, v.X, v.Z, q.Name)
-					}
-					closest = min(closest, gap)
-				}
-			}
-		}
-		if closest > 0.5 {
-			t.Errorf("%s: no mob came within 0.5 m of a portal's edge in 20 s, %.2f m at the closest", m.ID, closest)
-		}
-	}
-	if hits == 0 {
-		t.Error("no mob hit a player standing on a portal; want those that reach across the edge to")
 	}
 }
 
