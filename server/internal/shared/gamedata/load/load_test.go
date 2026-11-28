@@ -298,6 +298,7 @@ interest:
   behind: 1
   ahead: 3
   side: 3
+  crowd: 60
 `,
 		"maps/pit.yaml": `
 name: Pit
@@ -501,7 +502,7 @@ func TestValidDataLoads(t *testing.T) {
 		}
 	})
 	t.Run("the most active quests and the longest chat line", func(t *testing.T) {
-		in := gamedata.Interest{Cell: 32, Behind: 1, Ahead: 3, Side: 3}
+		in := gamedata.Interest{Cell: 32, Behind: 1, Ahead: 3, Side: 3, Crowd: 60}
 		if d.MaxActiveQuests() != 20 || d.ChatLineMax() != 120 || d.TeleportChannel() != 2500*time.Millisecond || d.Interest() != in {
 			t.Fatalf("max active %d, chat line %d, teleport channel %v, interest %+v", d.MaxActiveQuests(), d.ChatLineMax(), d.TeleportChannel(), d.Interest())
 		}
@@ -944,6 +945,7 @@ func TestRejections(t *testing.T) {
 		{"an interest cell that isn't a number", "world.yaml", "  cell: 32\n", "  cell: .nan\n", []string{"world.yaml", "interest.cell"}},
 		{"no interest row behind the player", "world.yaml", "  behind: 1\n", "  behind: 0\n", []string{"world.yaml", "interest.behind"}},
 		{"no interest column to the side", "world.yaml", "  side: 3\n", "", []string{"world.yaml", "side"}},
+		{"an interest crowd under 2", "world.yaml", "  crowd: 60\n", "  crowd: 1\n", []string{"world.yaml", "interest.crowd"}},
 		{"a mob seeing past the row behind", "mobs.yaml", "sight: 9.375", "sight: 32.5", []string{"world.yaml", "a mob's sight", "32.5 m", "32 m"}},
 		{"a mob's shot flying past the row behind", "mobs.yaml", "    attacks: [{use: hop}]\n", "    attacks: [{use: spit, range: 32}]\n", []string{"world.yaml", "green_slime's spit", "32.1875 m"}},
 		{"a mob's leap landing past the row behind", "mobs.yaml", "{use: hop, distance: 5", "{use: hop, distance: 31", []string{"world.yaml", "slime_lord's hop"}},

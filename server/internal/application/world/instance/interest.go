@@ -33,6 +33,9 @@ type interest struct {
 
 	part, to, ends []int  // file's, kept to fill again
 	lit            []bool // awake's, by cell
+	players        []int  // the players in each cell
+	slow           []bool // each cell's tier as of slowAt, which is the tick after the one it was set on
+	slowAt         []uint64
 }
 
 // arrival is the part holding the whole views of the bodies that came from cell from to cell to this frame.
@@ -73,6 +76,7 @@ func newInterest(in gamedata.Interest, sizeX, sizeZ float64) *interest {
 		in: in, nx: nx, nz: nz, whole: in.Whole(nx, nz),
 		where: map[body]int{}, cells: make([][]body, nx*nz), watches: map[kernel.CharacterID]*watch{}, early: map[kernel.CharacterID]struct{}{},
 		changes: make([]int, nx*nz), full: make([]int, nx*nz), lit: make([]bool, nx*nz),
+		players: make([]int, nx*nz), slow: make([]bool, nx*nz), slowAt: make([]uint64, nx*nz),
 	}
 	for c := range n.changes {
 		n.changes[c], n.full[c] = -1, -1
@@ -136,11 +140,39 @@ func (n *interest) place(b body, x, z float64) int {
 	}
 	if on {
 		n.cells[old] = slices.DeleteFunc(n.cells[old], func(o body) bool { return o == b })
+		n.count(b, old, -1)
 	}
 	n.where[b] = c
 	n.cells[c] = append(n.cells[c], b)
+	n.count(b, c, 1)
 	n.crossed = append(n.crossed, b)
 	return c
+}
+
+// count keeps the players in each cell: b came to cell c (1) or left it (-1).
+func (n *interest) count(b body, c, by int) {
+	if b.kind == playerBody {
+		n.players[c] += by
+	}
+}
+
+// crowded is whether the players in cell c are sent at half the rate on the tick: more than Crowd of them in the 3 by 3 cells round it, until 4/5 of Crowd or fewer. It is read once a tick for a cell.
+func (n *interest) crowded(c int, tick uint64) bool {
+	if n.whole {
+		return false
+	}
+	if n.slowAt[c] == tick+1 {
+		return n.slow[c]
+	}
+	col, row, sum := c%n.nx, c/n.nx, 0
+	for r := max(row-1, 0); r <= min(row+1, n.nz-1); r++ {
+		for k := max(col-1, 0); k <= min(col+1, n.nx-1); k++ {
+			sum += n.players[r*n.nx+k]
+		}
+	}
+	n.slow[c] = sum > n.in.Crowd || n.slow[c] && sum*5 > n.in.Crowd*4
+	n.slowAt[c] = tick + 1
+	return n.slow[c]
 }
 
 // lift takes b off the map; its last cell, false if it wasn't on it.
@@ -150,6 +182,7 @@ func (n *interest) lift(b body) (int, bool) {
 		return 0, false
 	}
 	n.cells[c] = slices.DeleteFunc(n.cells[c], func(o body) bool { return o == b })
+	n.count(b, c, -1)
 	delete(n.where, b)
 	n.gone = append(n.gone, left{b, c})
 	return c, true
@@ -319,7 +352,7 @@ func (i *Instance) fullIn(f *model.Frame, c int) int {
 	for _, b := range n.cells[c] {
 		switch b.kind {
 		case playerBody:
-			v := i.view(i.players[b.player])
+			v := i.shown(i.players[b.player])
 			i.toldPlayer(v)
 			part.Players = append(part.Players, v)
 		case mobBody:
@@ -424,7 +457,10 @@ func (i *Instance) watchFrom(p *player, snap *model.Snapshot) {
 		n.watches[p.ID] = &watch{}
 		for _, id := range i.order {
 			o := i.players[id]
-			v := i.view(o)
+			v := i.shown(o)
+			if id == p.ID {
+				v = i.view(o)
+			}
 			if id != p.ID { // the joiner's own view isn't one the others hold: their first frame of it goes whole
 				i.toldPlayer(v)
 			}
@@ -447,8 +483,10 @@ func (i *Instance) watchFrom(p *player, snap *model.Snapshot) {
 	n.watches[p.ID] = w
 	for _, id := range i.order {
 		if c, on := n.where[playerOf(id)]; id == p.ID || on && n.sees(center, c) { // one who joined this tick is filed, and comes, with the next frame
-			v := i.view(i.players[id])
-			if id != p.ID {
+			v := i.shown(i.players[id])
+			if id == p.ID {
+				v = i.view(i.players[id])
+			} else {
 				i.toldPlayer(v)
 			}
 			snap.Players = append(snap.Players, v)
@@ -475,6 +513,7 @@ func (i *Instance) watchFrom(p *player, snap *model.Snapshot) {
 // refile files the map's mobs in their cells again, each cell's by ID; players are filed by their frames, the first after they join.
 func (n *interest) refile(i *Instance) {
 	clear(n.where)
+	clear(n.players)
 	for c := range n.cells {
 		n.cells[c] = n.cells[c][:0]
 	}

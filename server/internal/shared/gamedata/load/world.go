@@ -29,6 +29,7 @@ type worldYAML struct {
 		Behind int     `yaml:"behind"`
 		Ahead  int     `yaml:"ahead"`
 		Side   int     `yaml:"side"`
+		Crowd  int     `yaml:"crowd"`
 	} `yaml:"interest"`
 }
 
@@ -49,10 +50,13 @@ func (l *loader) loadWorld(dir string) error {
 	if in.Behind < 1 || in.Ahead < 1 || in.Side < 1 {
 		return fmt.Errorf("%s: interest.behind, ahead and side must each be at least 1", worldFile)
 	}
+	if in.Crowd < 2 {
+		return fmt.Errorf("%s: interest.crowd must be at least 2", worldFile)
+	}
 	if far, what := l.farthestReach(); far > float64(in.Behind)*in.Cell {
 		return fmt.Errorf("%s: %s reaches %g m, past the %g m the rows behind a player cover (interest.behind × cell)", worldFile, what, far, float64(in.Behind)*in.Cell)
 	}
-	l.interest = gamedata.Interest{Cell: in.Cell, Behind: in.Behind, Ahead: in.Ahead, Side: in.Side}
+	l.interest = gamedata.Interest{Cell: in.Cell, Behind: in.Behind, Ahead: in.Ahead, Side: in.Side, Crowd: in.Crowd}
 	for _, m := range l.maps.list {
 		if m.Kind == string(gamedata.Region) && l.interest.Whole(l.interest.Cells(m.Size[0], m.Size[1])) {
 			return fmt.Errorf("%s: one interest block holds it from every cell, so it would be sent whole; a region is wider than %s's block", fileOf(m), worldFile)

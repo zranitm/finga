@@ -175,6 +175,7 @@ func (d *Data) TeleportChannel() time.Duration { return d.p.TeleportChannel }
 type Interest struct {
 	Cell                float64 // metres a side
 	Behind, Ahead, Side int     // rows south and north of the player's cell, as the camera faces north, and columns to each side
+	Crowd               int     // players in the 3 by 3 cells round a cell past which the players in it are sent at half the rate
 }
 
 // Cells is how many interest cells a map sizeX by sizeZ is across and up.
