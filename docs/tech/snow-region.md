@@ -125,7 +125,7 @@ One PR, after the desert's, since it relinks the desert's East Pass:
   - **The NPCs:** the Crossroads Guide is the Mountain Guide in Emberhold, and the Hearth Keeper stands in Last Hearth.
   - **The balance tests** take an area's band from the lowest level of its normal mobs, not from its first level: the Icefall's areas start a level under their mobs' (25 and 26), which the old rule put in the band below.
   - **The tests that walked the old maps** use two kinds of fixture:
-    - a stand-in of Hoarfell (384 m) in `gamedatatest.Shipped`, as for the other regions;
+    - a stand-in of Hoarfell (256 m) in `gamedatatest.Shipped`, as for the other regions;
     - three small land maps that only the test data has, `crossroads` (a town), `frost_trail` and `icefall` (hunting, with a boss each), with their places on the test data's chart. The tests of the world's portals, saves, transfers, teleports and joins use them, as does the bots' boss test.
   - **The web client's tests** read those three as `web/src/testing/maps/*.json`, which `go test ./cmd/mapjson -update` writes from the test data, as the region bakes' fixtures are kept current; `public-on-disk.ts` falls back to that folder where `public/maps` has none. Tests that need a map with an NPC, a gate and a solid, such as the walk, the talk and the prompt tests, serve Sunreach flat with a pine, its guide and its east pass.
   - **The cut sweeps** skip the regions of 1 km by size, as Willowmere was skipped by name before.

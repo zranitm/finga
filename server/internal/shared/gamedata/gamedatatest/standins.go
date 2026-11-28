@@ -249,48 +249,48 @@ biomes:
 `
 
 const hoarfell = `name: Hoarfell
-size: [384, 384]
+size: [256, 256]
 cell: 2
 seed: 53
 look: {sky: day}
 ground: {noise: {scale: 60, amplitude: 0.5, octaves: 1}}
-edge: {width: 24, height: [6, 10], biome: snow}
+edge: {width: 16, height: [6, 10], biome: snow}
 colour: {slope: 0.25, high: 100}
 areas:
-  - {id: emberhold, name: Emberhold, area: [[24, 24], [96, 24], [96, 96], [24, 96]], biome: snow, kind: town}
-  - {id: frost_trail, name: Frost Trail, area: [[96, 24], [360, 24], [360, 152], [152, 152], [152, 360], [24, 360], [24, 96], [96, 96]], levels: [22, 24], biome: snow, kind: hunting, boss: {at: [75, 330], radius: 6, mob: avalanche_slime}}
-  - {id: icefall, name: Icefall, area: [[152, 152], [360, 152], [360, 240], [256, 240], [256, 360], [152, 360]], levels: [25, 27], biome: snow, kind: hunting, boss: {at: [210, 337], radius: 6, mob: blizzard_wing}}
-  - {id: last_hearth, name: Last Hearth, area: [[256, 240], [300, 240], [300, 288], [256, 288]], biome: snow, kind: town}
-  - {id: glacier, name: Glacier Peak, area: [[300, 240], [360, 240], [360, 300], [300, 300], [300, 360], [256, 360], [256, 288], [300, 288]], levels: [28, 30], biome: snow, kind: hunting, boss: {at: [277, 337], radius: 6, mob: crystal_colossus}}
-  - {id: fallen_keep, name: Fallen Keep, area: [[300, 300], [360, 300], [360, 360], [300, 360]], levels: [31, 33], biome: snow, kind: hunting, boss: {at: [337, 337], radius: 6, mob: shade_lord}}
+  - {id: emberhold, name: Emberhold, area: [[16, 16], [64, 16], [64, 64], [16, 64]], biome: snow, kind: town}
+  - {id: frost_trail, name: Frost Trail, area: [[64, 16], [240, 16], [240, 100], [100, 100], [100, 240], [16, 240], [16, 64], [64, 64]], levels: [22, 24], biome: snow, kind: hunting, boss: {at: [50, 220], radius: 6, mob: avalanche_slime}}
+  - {id: icefall, name: Icefall, area: [[100, 100], [240, 100], [240, 160], [172, 160], [172, 240], [100, 240]], levels: [25, 27], biome: snow, kind: hunting, boss: {at: [135, 225], radius: 6, mob: blizzard_wing}}
+  - {id: last_hearth, name: Last Hearth, area: [[172, 160], [200, 160], [200, 192], [172, 192]], biome: snow, kind: town}
+  - {id: glacier, name: Glacier Peak, area: [[200, 160], [240, 160], [240, 200], [200, 200], [200, 240], [172, 240], [172, 192], [200, 192]], levels: [28, 30], biome: snow, kind: hunting, boss: {at: [186, 225], radius: 6, mob: crystal_colossus}}
+  - {id: fallen_keep, name: Fallen Keep, area: [[200, 200], [240, 200], [240, 240], [200, 240]], levels: [31, 33], biome: snow, kind: hunting, boss: {at: [226, 226], radius: 6, mob: shade_lord}}
 camps:
-  - {area: frost_trail, name: slimes, at: [240, 75], radius: 6, mob: frost_slime, max: 5, respawn: 30s}
-  - {area: frost_trail, name: weasels, at: [315, 105], radius: 6, mob: snow_weasel, max: 3, respawn: 40s}
-  - {area: icefall, name: icewings, at: [195, 195], radius: 6, mob: icewing, max: 5, respawn: 30s}
-  - {area: icefall, name: snails, at: [300, 187], radius: 6, mob: glacier_snail, max: 3, respawn: 40s}
-  - {area: glacier, name: crystal_slimes, at: [325, 262], radius: 6, mob: crystal_slime, max: 5, respawn: 30s}
-  - {area: glacier, name: rime_rats, at: [277, 315], radius: 6, mob: rime_rat, max: 3, respawn: 40s}
-  - {area: fallen_keep, name: bats, at: [322, 322], radius: 6, mob: shade_bat, max: 4, respawn: 30s}
-  - {area: fallen_keep, name: gloom_slimes, at: [345, 307], radius: 5, mob: gloom_slime, max: 3, respawn: 40s}
+  - {area: frost_trail, name: slimes, at: [160, 50], radius: 6, mob: frost_slime, max: 5, respawn: 30s}
+  - {area: frost_trail, name: weasels, at: [210, 70], radius: 6, mob: snow_weasel, max: 3, respawn: 40s}
+  - {area: icefall, name: icewings, at: [130, 130], radius: 6, mob: icewing, max: 5, respawn: 30s}
+  - {area: icefall, name: snails, at: [200, 125], radius: 6, mob: glacier_snail, max: 3, respawn: 40s}
+  - {area: glacier, name: crystal_slimes, at: [222, 178], radius: 6, mob: crystal_slime, max: 5, respawn: 30s}
+  - {area: glacier, name: rime_rats, at: [186, 205], radius: 6, mob: rime_rat, max: 3, respawn: 40s}
+  - {area: fallen_keep, name: bats, at: [218, 214], radius: 5, mob: shade_bat, max: 3, respawn: 30s}
+  - {area: fallen_keep, name: gloom_slimes, at: [228, 206], radius: 4, mob: gloom_slime, max: 2, respawn: 40s}
 waypoints:
-  - {id: emberhold, name: Emberhold, at: [60, 54]}
-  - {id: south_trail, name: South Trail, at: [150, 36]}
-  - {id: frost_meadows, name: Frost Meadows, at: [300, 42]}
-  - {id: east_snowfield, name: East Snowfield, at: [348, 135]}
-  - {id: pinewood, name: Pinewood, at: [45, 180]}
-  - {id: north_pines, name: North Pines, at: [45, 300]}
-  - {id: icefall_steps, name: Icefall Steps, at: [165, 165]}
-  - {id: frozen_shelf, name: Frozen Shelf, at: [348, 210]}
-  - {id: north_ice, name: North Ice, at: [165, 270]}
-  - {id: last_hearth, name: Last Hearth, at: [277, 262]}
-  - {id: rime_ridge, name: Rime Ridge, at: [266, 250]}
-  - {id: glacier_field, name: Glacier Field, at: [352, 200]}
-  - {id: keep_gate, name: Keep Gate, at: [356, 276]}
+  - {id: emberhold, name: Emberhold, at: [40, 36]}
+  - {id: south_trail, name: South Trail, at: [100, 24]}
+  - {id: frost_meadows, name: Frost Meadows, at: [200, 28]}
+  - {id: east_snowfield, name: East Snowfield, at: [232, 90]}
+  - {id: pinewood, name: Pinewood, at: [30, 120]}
+  - {id: north_pines, name: North Pines, at: [30, 200]}
+  - {id: icefall_steps, name: Icefall Steps, at: [110, 110]}
+  - {id: frozen_shelf, name: Frozen Shelf, at: [232, 140]}
+  - {id: north_ice, name: North Ice, at: [110, 180]}
+  - {id: last_hearth, name: Last Hearth, at: [186, 176]}
+  - {id: rime_ridge, name: Rime Ridge, at: [192, 168]}
+  - {id: glacier_field, name: Glacier Field, at: [236, 152]}
+  - {id: keep_gate, name: Keep Gate, at: [176, 164]}
 npcs:
-  - {id: mountain_guide, at: [45, 45], yaw: 90}
-  - {id: hearth_keeper, at: [270, 255], yaw: 90}
+  - {id: mountain_guide, at: [30, 30], yaw: 90}
+  - {id: hearth_keeper, at: [180, 170], yaw: 90}
 gates:
-  - {name: west_pass, at: [30, 60], radius: 1.6, to: {region: sunreach, gate: east_pass}}
+  - {name: west_pass, at: [20, 40], radius: 1.6, to: {region: sunreach, gate: east_pass}}
 start: {at: [40, 48], yaw: 90}
 biomes:
   snow:
