@@ -75,7 +75,9 @@ jobs:
         if: always()
         with:
           name: go-test-times-${{ github.run_attempt }} # a re-run's times beside the first's, each under its own name
-          path: server/go-test-times.tsv
+          path: |
+            server/go-test-times.tsv
+            server/e2etiming.txt
           if-no-files-found: warn
       - uses: actions/cache/save@v6
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -137,7 +139,9 @@ jobs:
         if: always()
         with:
           name: go-race-rest-times-${{ github.run_attempt }}
-          path: server/go-race-rest-times.tsv
+          path: |
+            server/go-race-rest-times.tsv
+            server/e2etiming.txt
           if-no-files-found: warn
       - uses: actions/cache/save@v6
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

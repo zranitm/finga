@@ -5,11 +5,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
+	"finga/internal/shared/e2etiming"
 	"io"
 	"net"
 	"net/http"
-	"os"
 	"strconv"
 	"sync"
 	"testing"
@@ -93,7 +92,7 @@ func NewStackBuilt(t *testing.T, data string, build host.Build[config.Config], e
 	t.Helper()
 	t0 := time.Now()
 	defer func() {
-		fmt.Fprintf(os.Stderr, "E2ETIMING stack %s boot %v, at %v of the process\n", t.Name(), time.Since(t0), time.Since(procStart))
+		e2etiming.Logf("stack %s boot %v, at %v of the process", t.Name(), time.Since(t0), time.Since(procStart))
 	}()
 	at := FreeAddrs(t, 3)
 	s := &Stack{T: t, URL: "http://" + at[0], Ops: "http://" + at[1], Admin: "http://" + at[2], Data: data, build: build, Cfg: config.Config{
@@ -118,7 +117,7 @@ func NewStackBuilt(t *testing.T, data string, build host.Build[config.Config], e
 	}
 	t1 := time.Now()
 	s.start()
-	fmt.Fprintf(os.Stderr, "E2ETIMING stack %s start() %v\n", t.Name(), time.Since(t1))
+	e2etiming.Logf("stack %s start() %v", t.Name(), time.Since(t1))
 	t.Cleanup(func() { s.Stop() })
 	pool, err := pgxpool.New(context.Background(), s.Cfg.Database.URL)
 	if err != nil {

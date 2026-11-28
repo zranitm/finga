@@ -4,9 +4,9 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"finga/internal/shared/e2etiming"
 	"fmt"
 	"math"
-	"os"
 	"slices"
 	"sync"
 	"time"
@@ -54,7 +54,7 @@ func walkGrid(keyed *sync.Once, at **sharedGrid, g sim.Geometry, p sim.Params) *
 	s.once.Do(func() {
 		t0 := time.Now()
 		s.grid = nav.New(g, p.Step)
-		fmt.Fprintf(os.Stderr, "E2ETIMING grid built %vx%v in %v\n", g.SizeX, g.SizeZ, time.Since(t0))
+		e2etiming.Logf("grid built %vx%v in %v", g.SizeX, g.SizeZ, time.Since(t0))
 	})
 	return s.grid
 }
@@ -93,7 +93,7 @@ func gridFor(g sim.Geometry, p sim.Params) *sharedGrid {
 func gridByContent(g sim.Geometry, p sim.Params) *sharedGrid {
 	t0 := time.Now()
 	defer func() {
-		fmt.Fprintf(os.Stderr, "E2ETIMING gridByContent %vx%v keyed in %v\n", g.SizeX, g.SizeZ, time.Since(t0))
+		e2etiming.Logf("gridByContent %vx%v keyed in %v", g.SizeX, g.SizeZ, time.Since(t0))
 	}()
 	raw, err := json.Marshal(struct {
 		Geometry sim.Geometry
@@ -104,7 +104,7 @@ func gridByContent(g sim.Geometry, p sim.Params) *sharedGrid {
 	}
 	shared, loaded := grids.LoadOrStore(sha256.Sum256(raw), &sharedGrid{})
 	if !loaded {
-		fmt.Fprintf(os.Stderr, "E2ETIMING new grid key %vx%v\n", g.SizeX, g.SizeZ)
+		e2etiming.Logf("new grid key %vx%v", g.SizeX, g.SizeZ)
 	}
 	return shared.(*sharedGrid)
 }

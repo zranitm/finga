@@ -3,9 +3,8 @@ package e2e_test
 import (
 	"cmp"
 	"context"
-	"fmt"
+	"finga/internal/shared/e2etiming"
 	"math"
-	"os"
 	"slices"
 	"testing"
 	"time"
@@ -165,7 +164,7 @@ func treeInTheWay(m *gamedata.Map, radius float64) (west, east gamedata.Point, o
 func TestTheShippedRegionsRunOnTheRealData(t *testing.T) {
 	t.Parallel()
 	t0 := time.Now()
-	phase := func(what string) { fmt.Fprintf(os.Stderr, "E2ETIMING shipped %s at +%v\n", what, time.Since(t0)) }
+	phase := func(what string) { e2etiming.Logf("shipped %s at +%v", what, time.Since(t0)) }
 	s := newStackOver(t, e2etest.RealDataDir())
 	phase("stack up")
 	data, err := load.Dir(s.Data)
