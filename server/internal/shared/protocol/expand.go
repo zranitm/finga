@@ -31,6 +31,7 @@ func (e *Expander) Snapshot(s *clientv1.Snapshot) {
 		e.hold(v)
 	}
 	for _, m := range s.Mobs {
+		atCentimetre(&m.X, &m.Y, &m.Z)
 		e.mobs[m.Id] = m
 	}
 }
@@ -60,6 +61,7 @@ func (e *Expander) Delta(d *clientv1.Delta) {
 		e.hold(v)
 	}
 	for _, m := range mobs {
+		atCentimetre(&m.X, &m.Y, &m.Z)
 		e.mobs[m.Id] = m
 	}
 	d.Players, d.Mobs = append(d.Players, players...), append(d.Mobs, mobs...)
@@ -86,11 +88,19 @@ func (e *Expander) forget(id string) {
 }
 
 func (e *Expander) hold(v *clientv1.PlayerView) {
+	if v.Id != e.me {
+		atCentimetre(&v.X, &v.Y, &v.Z)
+	}
 	e.players[v.Slot] = v
 	e.slots[v.Id] = v.Slot
 	if v.Id == e.me {
 		e.mySlot = v.Slot
 	}
+}
+
+// atCentimetre puts a whole view's place at the centimetre, as a step leaves it, so a whole view of another and the world's kept body are the same numbers; the player's own view stays exact.
+func atCentimetre(x, y, z *float64) {
+	*x, *y, *z = quant.Metres(quant.Position(*x)), quant.Metres(quant.Position(*y)), quant.Metres(quant.Position(*z))
 }
 
 // steppedPlayer is v after s: its place moved by whole centimetres from where v's rounds to, the rest as s says.

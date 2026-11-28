@@ -166,8 +166,8 @@ func TestAHeadOnClashLeavesEnemiesNoDeeperThanTheParting(t *testing.T) {
 		defer stop()
 		before, _ := as.Own(ayla.ID)
 		rb, _ := rs.Own(robin.ID)
-		for range 3 { // some ticks into the clash, on either parity
-			headOn(inst, as, rs, ayla.ID, robin.ID, 4, 60)
+		for k := range 6 { // some ticks into the clash, on either parity, at every lag
+			headOn(inst, as, rs, ayla.ID, robin.ID, k+1, 40)
 			a, _ := as.Own(ayla.ID)
 			r, _ := rs.Own(robin.ID)
 			if d := math.Hypot(a.State.X-r.State.X, a.State.Z-r.State.Z); d < 0.5-0.02 {

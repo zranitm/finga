@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"finga/internal/application/world/mobs"
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/gamedata/gamedatatest"
@@ -132,6 +133,31 @@ func TestAMatchsPlayersAreNeverSteppedEverySecondTick(t *testing.T) {
 		_, steps, _ := i.stepPlayers(views)
 		if held := len(views) - len(steps); inMatch && held != 0 || !inMatch && held == 0 {
 			t.Fatalf("in a match %v: %d of 3 players' steps held a tick on an odd tick in a crowd of 3 over 2; want none in a match, some elsewhere", inMatch, held)
+		}
+	}
+}
+
+// Two sprinters with a move-speed bonus who cross within a tick, each coming a step the base walk speed doesn't reach, are parted back the way they stood, never on through each other.
+func TestPartingKeepsTheOrderOfSprintersWithAMoveSpeedBonusWhoCrossedInATick(t *testing.T) {
+	data := gamedatatest.Shipped(t)
+	for _, bonus := range []float64{0.051, 0.3} {
+		moves := data.Movement().Faster(sim.SpeedFactor(bonus))
+		step := moves.WalkSpeed * moves.Sprint.Speed * moves.Dt * 3
+		a, b := &player{state: sim.State{X: 30, Z: 30 + step, OnGround: true}}, &player{state: sim.State{X: 30, Z: 30.5 - step, OnGround: true}}
+		a.ID, b.ID = kernel.NewCharacterID(), kernel.NewCharacterID()
+		a.derived.MoveSpeed, b.derived.MoveSpeed = bonus, bonus
+		i := &Instance{
+			m: &gamedata.Map{Geometry: flat64()}, params: data.Movement(), subSteps: 3, tick: 5,
+			players: map[kernel.CharacterID]*player{a.ID: a, b.ID: b}, order: []kernel.CharacterID{a.ID, b.ID},
+			match: &match{phase: model.PhaseFight, fighters: map[kernel.CharacterID]*fighter{a.ID: {side: 0}, b.ID: {side: 1}}},
+		}
+		i.foes.kept[4%mobs.History] = keptFoes{tick: 4, bodies: []foeBody{
+			{id: a.ID, side: 1, body: sim.Blocker{X: 30, Z: 30, Radius: i.params.Radius, Top: i.params.Height}},
+			{id: b.ID, side: 2, body: sim.Blocker{X: 30, Z: 30.5, Radius: i.params.Radius, Top: i.params.Height}},
+		}}
+		i.part()
+		if !(a.state.Z < b.state.Z) || a.state.Z > 30.1 {
+			t.Fatalf("bonus %v: after crossing a step of %.4f each, a stands at z %.3f and b at %.3f; want them back in order, a behind", bonus, step, a.state.Z, b.state.Z)
 		}
 	}
 }

@@ -15,6 +15,7 @@ const PER_YAW = 1000;
 /** Rounded to the nearest whole, halves toward +infinity, as the server rounds the baseline each step runs from. */
 export const whole = (v: number): number => Math.floor(v + 0.5);
 export const position = (metres: number): number => whole(metres * PER_METRE);
+const metres = (v: number): number => position(v) / PER_METRE;
 
 /** The views a frame's steps say, kept whole by slot and id: a step moves the last view held of its body. */
 export class ViewExpander {
@@ -35,7 +36,7 @@ export class ViewExpander {
       this.hold(p);
     }
     for (const m of mobs) {
-      this.mobs.set(m.id, m);
+      this.mobs.set(m.id, atCentimetre(m));
     }
   }
 
@@ -64,7 +65,7 @@ export class ViewExpander {
       players.push(p);
     }
     for (const m of d.mobs) {
-      this.mobs.set(m.id, m);
+      this.mobs.set(m.id, atCentimetre(m));
       mobs.push(m);
     }
     for (const id of d.removedMobs) {
@@ -80,6 +81,9 @@ export class ViewExpander {
   }
 
   private hold(p: PlayerWire): void {
+    if (p.id !== this.me) {
+      atCentimetre(p);
+    }
     this.players.set(p.slot, p);
     this.slots.set(p.id, p.slot);
     if (p.id === this.me) {
@@ -94,6 +98,14 @@ export class ViewExpander {
       this.slots.delete(id);
     }
   }
+}
+
+/** A body's place as a step leaves it, at the centimetre, so a whole view of another and the world's kept body are the same numbers; the player's own view stays exact. */
+function atCentimetre<T extends PlayerWire | MobWire>(v: T): T {
+  v.x = metres(v.x);
+  v.y = metres(v.y);
+  v.z = metres(v.z);
+  return v;
 }
 
 function steppedPlayer(v: PlayerWire, s: PlayerStep): PlayerWire {

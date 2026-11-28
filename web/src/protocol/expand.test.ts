@@ -62,6 +62,31 @@ describe('ViewExpander', () => {
     expect(mobs[0]?.yaw).toBeCloseTo(-1.813, 5);
   });
 
+  it("holds others' whole views at the centimetre, and the player's own exact", () => {
+    const e = new ViewExpander('a');
+    e.snapshot(
+      [
+        create(PlayerViewSchema, { id: 'a', slot: 1 }),
+        create(PlayerViewSchema, { id: 'r', slot: 2 }),
+      ],
+      [create(MobViewSchema, { id: 9 })],
+    );
+    const { players, mobs } = e.delta(
+      create(DeltaSchema, {
+        players: [
+          create(PlayerViewSchema, { id: 'a', slot: 1, x: 10.0049 }),
+          create(PlayerViewSchema, { id: 'r', slot: 2, x: 20.1249, y: 0.0051 }),
+        ],
+        mobs: [create(MobViewSchema, { id: 9, x: 3.3349, z: 4.0051 })],
+      }),
+    );
+    expect(players[0]?.x).toBe(10.0049);
+    expect(players[1]?.x).toBeCloseTo(20.12, 10);
+    expect(players[1]?.y).toBeCloseTo(0.01, 10);
+    expect(mobs[0]?.x).toBeCloseTo(3.33, 10);
+    expect(mobs[0]?.z).toBeCloseTo(4.01, 10);
+  });
+
   it('leaves out its own steps, and a body that went', () => {
     const e = new ViewExpander('a');
     e.snapshot([ayla, robin], [slime]);
@@ -82,8 +107,8 @@ describe('ViewExpander', () => {
         mobSteps: [create(MobStepSchema, { id: 9, dx: 10 })],
       }),
     );
-    expect(players[players.length - 1]?.x).toBeCloseTo(20.136, 10);
-    expect(mobs[mobs.length - 1]?.x).toBeCloseTo(3.343, 10);
+    expect(players[players.length - 1]?.x).toBeCloseTo(20.14, 10); // the whole view, at the centimetre
+    expect(mobs[mobs.length - 1]?.x).toBeCloseTo(3.34, 10);
     const next = e.delta(
       create(DeltaSchema, { steps: [create(PlayerStepSchema, { slot: 2, dx: 5 })] }),
     );

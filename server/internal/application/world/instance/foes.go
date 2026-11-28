@@ -135,7 +135,7 @@ func (i *Instance) partPair(a, b *player) {
 	if px, pz, ok := i.crossed(a, b, pa, pb); ok && px*dx+pz*dz < 0 { // they passed through each other this tick: parted back the way they stood at its start
 		ux, uz = px/math.Hypot(px, pz), pz/math.Hypot(px, pz)
 		sep = ux*dx + uz*dz
-	} else if pa != nil && pb != nil && d >= math.Hypot(pb.X-pa.X, pb.Z-pa.Z)-1e-9 { // an overlap that's opening, a jumper landing or a body walking out, is left to the walk
+	} else if fa, fb := i.framed(a), i.framed(b); pa != nil && pb != nil && math.Hypot(fb.X-fa.X, fb.Z-fa.Z) >= math.Hypot(pb.X-pa.X, pb.Z-pa.Z)-1e-9 { // an overlap that's opening, a jumper landing or a body walking out, judged on the wire's bodies as the last frame's are, is left to the walk
 		return
 	}
 	need := 2*i.params.Radius - partDepth - sep // how far they must come apart
@@ -184,17 +184,18 @@ func (i *Instance) crossed(a, b *player, pa, pb *sim.Blocker) (x, z float64, ok 
 		return 0, 0, false
 	}
 	x, z = pb.X-pa.X, pb.Z-pa.Z
-	reach := i.stepReach()
-	if d := math.Hypot(x, z); d < 1e-9 || d > 2*i.params.Radius+2*reach || pa.Bottom >= pb.Top || pb.Bottom >= pa.Top {
+	ra, rb := i.stepReach(a), i.stepReach(b)
+	if d := math.Hypot(x, z); d < 1e-9 || d > 2*i.params.Radius+ra+rb || pa.Bottom >= pb.Top || pb.Bottom >= pa.Top {
 		return 0, 0, false
 	}
-	if math.Hypot(a.state.X-pa.X, a.state.Z-pa.Z) > reach || math.Hypot(b.state.X-pb.X, b.state.Z-pb.Z) > reach || math.Hypot(b.state.X-a.state.X, b.state.Z-a.state.Z) >= 2*i.params.Radius {
+	if math.Hypot(a.state.X-pa.X, a.state.Z-pa.Z) > ra || math.Hypot(b.state.X-pb.X, b.state.Z-pb.Z) > rb || math.Hypot(b.state.X-a.state.X, b.state.Z-a.state.Z) >= 2*i.params.Radius {
 		return 0, 0, false
 	}
 	return x, z, true
 }
 
-// stepReach is the farthest a body walks in a tick, a sprint's pace included, with a centimetre for the wire's rounding.
-func (i *Instance) stepReach() float64 {
-	return i.params.WalkSpeed*math.Max(1, i.params.Sprint.Speed)*i.params.Dt*float64(i.subSteps) + 1/quant.PerMetre
+// stepReach is the farthest p walks in a tick at its own pace, a sprint included, with a centimetre for the wire's rounding.
+func (i *Instance) stepReach(p *player) float64 {
+	moves := i.movement(p)
+	return moves.WalkSpeed*math.Max(1, moves.Sprint.Speed)*moves.Dt*float64(i.subSteps) + 1/quant.PerMetre
 }
