@@ -128,3 +128,23 @@ func TestARecordedWalkIsJudgedAgainstTheSprintRules(t *testing.T) {
 		t.Fatalf("a sprint that stays at the walk: fault %q", got)
 	}
 }
+
+// A recording that ends a walk is one ticks past the last hit, or past the first frame moving: with neither, a late first frame is no end, however many ticks it is past the start.
+func TestARecordingWithNoMoveAndNoHitIsNotThroughYet(t *testing.T) {
+	r := &Recording{Paces: []Pace{{Tick: 19}, {Tick: 60}}}
+	if r.Through(10) {
+		t.Fatal("through, with the player never moved and never hit")
+	}
+	r.Paces = append(r.Paces, Pace{Tick: 61, Ack: 1, Speed: 5})
+	if r.Through(10) {
+		t.Fatal("through the tick the walk began")
+	}
+	r.Paces = append(r.Paces, Pace{Tick: 71, Ack: 11, Speed: 5})
+	if !r.Through(10) {
+		t.Fatal("not through 10 ticks after the walk began")
+	}
+	hit := &Recording{Paces: []Pace{{Tick: 19}, {Tick: 60}}, Hits: []uint64{20}}
+	if !hit.Through(10) {
+		t.Fatal("not through 40 ticks after a hit")
+	}
+}

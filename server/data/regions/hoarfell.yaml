@@ -1,0 +1,130 @@
+# The snow region's plan (large-regions.md step 9): a mountain climbed from the south-west to the Fallen Keep on its summit in the north-east.
+# You arrive from Sunreach's East Pass into Emberhold, the village at the mountain's foot. The Frost Trail's pines and snowfields wrap the south and west;
+# the Icefall is a terrace 12 m up, its cliffs blue ice; the Glacier is 12 m higher again, with the Last Hearth lodge at its top; the Keep's summit is 10 m above that.
+# The old snow maps' mobs and the keep's keep their levels from the desert build: 23 to 30, then 31 to 35 in the keep. Areas sit on 4 m lines; the interior is 72 to 952.
+name: Hoarfell
+size: [1024, 1024]
+cell: 1
+seed: 53
+look: {sky: day}
+ground: {noise: {scale: 200, amplitude: 6, octaves: 4}}
+edge: {width: 72, height: [35, 60], biome: peaks}
+colour: {slope: 0.25, high: 30}
+features:
+  - {plateau: {area: [[328, 320], [1000, 320], [1000, 1000], [328, 1000]], height: 12, edge: cliff}}   # the Icefall's terrace, and all above it
+  - {plateau: {area: [[584, 576], [1000, 576], [1000, 1000], [584, 1000]], height: 12, edge: cliff}}   # the Glacier
+  - {plateau: {area: [[744, 760], [1000, 760], [1000, 1000], [744, 1000]], height: 10, edge: cliff}}   # the Keep's summit
+  - {lake: {area: [[510, 200], [505, 220], [490, 235], [470, 240], [450, 235], [435, 220], [430, 200], [435, 180], [450, 165], [470, 160], [490, 165], [505, 180]], depth: 3, banks: gentle}}   # Frostmere
+  - {road: {path: [[200, 208], [300, 200], [400, 140], [540, 130], [620, 180], [630, 300], [640, 340], [700, 420], [660, 520], [624, 560], [624, 600], [700, 650], [780, 700], [790, 760], [790, 790]], width: 6}}   # Emberhold up the terraces to the Keep
+  - {road: {path: [[540, 130], [700, 150], [880, 200], [900, 290]], width: 5}}                                   # east through the snowfields
+  - {road: {path: [[150, 256], [180, 400], [220, 480], [220, 760], [300, 840], [360, 860], [460, 760], [560, 760], [620, 700]], width: 5}}   # north through the pines, up to the Icefall's north and the Glacier's west
+areas:
+  - {id: emberhold, name: Emberhold, area: [[72, 160], [200, 160], [200, 256], [72, 256]], biome: village, kind: town}
+  - {id: frost_trail, name: Frost Trail, area: [[72, 72], [952, 72], [952, 320], [328, 320], [328, 952], [72, 952], [72, 256], [200, 256], [200, 160], [72, 160]], levels: [22, 24], biome: pines, kind: hunting, boss: {at: [180, 900], radius: 6, mob: avalanche_slime}}
+  - {id: icefall, name: Icefall, area: [[328, 320], [952, 320], [952, 576], [584, 576], [584, 952], [328, 952]], levels: [25, 27], biome: icefall, kind: hunting, boss: {at: [420, 920], radius: 6, mob: blizzard_wing}}
+  - {id: last_hearth, name: Last Hearth, area: [[584, 576], [664, 576], [664, 640], [584, 640]], biome: village, kind: town}
+  - {id: glacier, name: Glacier Peak, area: [[664, 576], [952, 576], [952, 760], [744, 760], [744, 952], [584, 952], [584, 640], [664, 640]], levels: [28, 30], biome: glacier, kind: hunting, boss: {at: [620, 920], radius: 6, mob: crystal_colossus}}
+  - {id: fallen_keep, name: Fallen Keep, area: [[744, 760], [952, 760], [952, 952], [744, 952]], levels: [31, 33], biome: keep, kind: hunting, boss: {at: [890, 915], radius: 6, mob: shade_lord}}
+camps:
+  - {area: frost_trail, name: south slimes, at: [300, 110], radius: 8, mob: frost_slime, max: 5, respawn: 30s}
+  - {area: frost_trail, name: meadow slimes, at: [640, 120], radius: 8, mob: frost_slime, max: 5, respawn: 30s}
+  - {area: frost_trail, name: east slimes, at: [820, 250], radius: 8, mob: frost_slime, max: 5, respawn: 30s}
+  - {area: frost_trail, name: pine slimes, at: [110, 440], radius: 8, mob: frost_slime, max: 5, respawn: 30s}
+  - {area: frost_trail, name: north slimes, at: [160, 680], radius: 8, mob: frost_slime, max: 5, respawn: 30s}
+  - {area: frost_trail, name: weasels, at: [760, 120], radius: 9, mob: snow_weasel, max: 3, respawn: 40s}
+  - {area: frost_trail, name: pine weasels, at: [250, 580], radius: 9, mob: snow_weasel, max: 3, respawn: 40s}
+  - {area: frost_trail, name: north weasels, at: [240, 860], radius: 9, mob: snow_weasel, max: 3, respawn: 40s}
+  - {area: icefall, name: step icewings, at: [450, 420], radius: 8, mob: icewing, max: 5, respawn: 30s}
+  - {area: icefall, name: shelf icewings, at: [760, 470], radius: 8, mob: icewing, max: 5, respawn: 30s}
+  - {area: icefall, name: east icewings, at: [880, 500], radius: 8, mob: icewing, max: 5, respawn: 30s}
+  - {area: icefall, name: north icewings, at: [420, 700], radius: 8, mob: icewing, max: 5, respawn: 30s}
+  - {area: icefall, name: far icewings, at: [500, 880], radius: 8, mob: icewing, max: 5, respawn: 30s}
+  - {area: icefall, name: snails, at: [800, 380], radius: 9, mob: glacier_snail, max: 3, respawn: 40s}
+  - {area: icefall, name: north snails, at: [450, 820], radius: 9, mob: glacier_snail, max: 3, respawn: 40s}
+  - {area: glacier, name: crystal slimes, at: [760, 640], radius: 8, mob: crystal_slime, max: 5, respawn: 30s}
+  - {area: glacier, name: east crystal slimes, at: [900, 680], radius: 8, mob: crystal_slime, max: 5, respawn: 30s}
+  - {area: glacier, name: west crystal slimes, at: [640, 800], radius: 8, mob: crystal_slime, max: 5, respawn: 30s}
+  - {area: glacier, name: rime rats, at: [860, 610], radius: 9, mob: rime_rat, max: 3, respawn: 40s}
+  - {area: glacier, name: north rime rats, at: [700, 900], radius: 9, mob: rime_rat, max: 3, respawn: 40s}
+  - {area: fallen_keep, name: gate bats, at: [790, 850], radius: 8, mob: shade_bat, max: 4, respawn: 30s}
+  - {area: fallen_keep, name: east bats, at: [920, 800], radius: 8, mob: shade_bat, max: 4, respawn: 30s}
+  - {area: fallen_keep, name: hall bats, at: [920, 870], radius: 7, mob: shade_bat, max: 3, respawn: 30s}
+  - {area: fallen_keep, name: gloom slimes, at: [850, 830], radius: 9, mob: gloom_slime, max: 3, respawn: 40s}
+  - {area: fallen_keep, name: west gloom slimes, at: [800, 920], radius: 9, mob: gloom_slime, max: 3, respawn: 40s}
+waypoints:
+  - {id: emberhold, name: Emberhold, at: [176, 228]}
+  - {id: south_trail, name: South Trail, at: [350, 172]}
+  - {id: frost_meadows, name: Frost Meadows, at: [700, 150]}
+  - {id: east_snowfield, name: East Snowfield, at: [900, 290]}
+  - {id: pinewood, name: Pinewood, at: [220, 480]}
+  - {id: north_pines, name: North Pines, at: [220, 760]}
+  - {id: icefall_steps, name: Icefall Steps, at: [640, 360]}
+  - {id: frozen_shelf, name: Frozen Shelf, at: [860, 420]}
+  - {id: north_ice, name: North Ice, at: [460, 760]}
+  - {id: last_hearth, name: Last Hearth, at: [640, 620]}
+  - {id: rime_ridge, name: Rime Ridge, at: [620, 700]}
+  - {id: glacier_field, name: Glacier Field, at: [785, 730]}
+  - {id: keep_gate, name: Keep Gate, at: [790, 790]}
+npcs:
+  - {id: mountain_guide, at: [130, 190], yaw: 90}
+  - {id: hearth_keeper, at: [604, 604], yaw: 90}
+pieces:
+  - {model: well, at: [140, 232], yaw: 0}
+  - {model: shop, at: [150, 246], yaw: 0}
+  - {house: {area: [88, 168, 6.1, 7.4], height: 13.6, model: house_small}}
+  - {house: {area: [180, 166, 6.1, 7.4], height: 13.6, model: house_small}}
+  - {house: {area: [96, 230, 11, 14.95], height: 14, model: house_large}}
+  - {house: {area: [594, 624, 6.1, 7.4], height: 13.6, model: house_small}}   # the lodge
+  - {model: torch_lit, at: [632, 590], yaw: 0}
+  - {model: torch_lit, at: [656, 590], yaw: 0}
+  # the keep's broken walls and the hall's columns
+  - {model: rock_wall, at: [826, 778], yaw: 0}
+  - {model: rock_wall, at: [830.6, 778], yaw: 0}
+  - {model: rock_wall, at: [835.2, 778], yaw: 0}
+  - {model: rock_wall, at: [884, 778], yaw: 0}
+  - {model: rock_wall, at: [888.6, 778], yaw: 0}
+  - {model: rock_wall, at: [893.2, 778], yaw: 0}
+  - {model: rock_wall, at: [762, 900], yaw: 0}
+  - {model: rock_wall, at: [762, 904.6], yaw: 0}
+  - {model: rock_wall, at: [762, 909.2], yaw: 0}
+  - {model: pillar, at: [870, 895], yaw: 0}
+  - {model: pillar, at: [910, 895], yaw: 0}
+  - {model: pillar, at: [870, 935], yaw: 0}
+  - {model: pillar, at: [910, 935], yaw: 0}
+gates:
+  - {name: west_pass, at: [84, 208], radius: 1.6, to: {region: sunreach, gate: east_pass}}
+start: {at: [150, 208], yaw: 90}
+biomes:
+  village:
+    colours: {flat: dirt, slope: snow, steep: stone, high: snow}
+    scatter:
+      - {model: tree_pine, spacing: 22, slope: 0.4, away: {road: 3, waypoint: 3}}
+  pines:
+    colours: {flat: snow, slope: snow, steep: stone, high: snow}
+    scatter:
+      - {model: tree_pine, spacing: 9, slope: 0.4, away: {road: 4, water: 2, camp: 3, town: 3, waypoint: 2}}
+      - {model: boulder, spacing: 40, away: {road: 4, water: 2, camp: 4, town: 4, waypoint: 3}}
+      - {model: dead_tree, spacing: 34, away: {road: 3, camp: 3, town: 3}}
+      - {model: pebbles, spacing: 10}
+  icefall:
+    colours: {flat: snow, slope: snow, steep: ice, high: snow}
+    scatter:
+      - {model: tree_pine, spacing: 24, slope: 0.4, away: {road: 4, camp: 3, waypoint: 2}}
+      - {model: boulder, spacing: 50, away: {road: 4, camp: 4, waypoint: 3}}
+      - {model: crag, spacing: 22}
+      - {model: pebbles, spacing: 9}
+  glacier:
+    colours: {flat: ice, slope: snow, steep: ice, high: snow}
+    scatter:
+      - {model: boulder, spacing: 60, away: {road: 4, camp: 4, town: 4, waypoint: 3}}
+      - {model: crag, spacing: 16}
+      - {model: pebbles, spacing: 8}
+  keep:
+    colours: {flat: stone, slope: stone, steep: stone, high: stone}
+    scatter:
+      - {model: pebbles, spacing: 6, away: {camp: 1, waypoint: 2}}
+      - {model: dead_shrub, spacing: 20, away: {camp: 2, waypoint: 2}}
+  peaks:
+    colours: {flat: stone, slope: stone, steep: stone, high: snow}
+    scatter:
+      - {model: boulder, spacing: 30}

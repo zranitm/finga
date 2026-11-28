@@ -16,6 +16,7 @@ import (
 	"finga/internal/application/world/worldtest"
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
+	"finga/internal/shared/gamedata/gamedatatest"
 	"finga/internal/shared/kernel"
 )
 
@@ -80,7 +81,7 @@ func TestJoinByID(t *testing.T) {
 		HP: 999, Energy: 99, MapID: "crossroads", X: 20, Z: 10,
 	}
 	chars := &fakeCharacters{chars: map[kernel.CharacterID]model.Character{ayla.ID: ayla}}
-	gone := []string{"limbo", "shroom_grove", "spore_hollow", "toadstool_heights", "dune_road", "sandstone_cliffs", "sunken_ruins"} // and the six maps the desert retired
+	gone := []string{"limbo", "shroom_grove", "spore_hollow", "toadstool_heights", "dune_road", "sandstone_cliffs", "sunken_ruins", "glacier_peak", "fallen_keep"} // and the maps the desert and the snow region retired that the test data has no stand-in for
 	lost := map[string]model.Character{}
 	for _, id := range gone {
 		c := ayla
@@ -188,6 +189,16 @@ func TestJoinByID(t *testing.T) {
 				}
 			})
 		})
+	}
+}
+
+// Every map the green region, the desert and the snow region retired is gone from the shipped data, so a character saved on one starts at the start map, as the join test above has it.
+func TestEveryRetiredMapIsGoneFromTheShippedData(t *testing.T) {
+	data := gamedatatest.Full(t)
+	for _, id := range []string{"town", "forest", "cave", "shroom_grove", "spore_hollow", "toadstool_heights", "dune_road", "sandstone_cliffs", "sunken_ruins", "crossroads", "frost_trail", "icefall", "glacier_peak", "fallen_keep"} {
+		if _, ok := data.Map(id); ok {
+			t.Errorf("the shipped data still has the map %s", id)
+		}
 	}
 }
 

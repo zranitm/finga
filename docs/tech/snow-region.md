@@ -118,6 +118,24 @@ One PR, after the desert's, since it relinks the desert's East Pass:
 
   These may move a camp a few metres, as in Willowmere.
 
+- **As built (snow region PR):**
+  - **The plan** is in `data/regions` as drafted, with its second gloom slime camp; the loader's checks and the three design tests passed with no camp moved.
+  - **The `ice` ground** is in the kit. The ground table is part of every bake, so every region's bake hash moved, not only the new one's; the grid and geometry lines lost the five maps and nothing else moved.
+  - **The five maps** are gone: `data/maps` holds `ring` and `battlefield`, and the chart holds Willowmere, Sunreach and Hoarfell (at [60, 26]). Sunreach's East Pass leads to Hoarfell's West Pass, in the plan and in the test stand-in.
+  - **The NPCs:** the Crossroads Guide is the Mountain Guide in Emberhold, and the Hearth Keeper stands in Last Hearth.
+  - **The balance tests** take an area's band from the lowest level of its normal mobs, not from its first level: the Icefall's areas start a level under their mobs' (25 and 26), which the old rule put in the band below.
+  - **The tests that walked the old maps** use two kinds of fixture:
+    - a stand-in of Hoarfell (256 m) in `gamedatatest.Shipped`, as for the other regions;
+    - three small land maps that only the test data has, `crossroads` (a town), `frost_trail` and `icefall` (hunting, with a boss each), with their places on the test data's chart. The tests of the world's portals, saves, transfers, teleports and joins use them, as does the bots' boss test.
+  - **The web client's tests** read those three as `web/src/testing/maps/*.json`, which `go test ./cmd/mapjson -update` writes from the test data, as the region bakes' fixtures are kept current; `public-on-disk.ts` falls back to that folder where `public/maps` has none. Tests that need a map with an NPC, a gate and a solid, such as the walk, the talk and the prompt tests, serve Sunreach flat with a pine, its guide and its east pass.
+  - **The cut sweeps** skip the regions of 1 km by size, as Willowmere was skipped by name before.
+  - **The join test** names the seven retired maps the test data has no stand-in for (the Crossroads, Frost Trail and Icefall exist there), and a test checks that the shipped data holds none of the fourteen retired map ids.
+  - **Left as code with no map to use it,** for a cleanup PR, since nothing the shipped data holds uses it now; each is kept by a test on the test data's maps where it has one:
+    - the land maps' portals and the transfer between maps, and a teleport to a land map's id;
+    - a mob's keeping out of a portal (the king and slime unit tests keep it);
+    - a map's own boss, its beaten crown and its levels on the chart, the town's house on the chart, and This map's labels of a land map's spawns, portals and NPCs, in the web client;
+    - the bots' per-map boss check.
+
 **Then:** the generator's previews of the built region, and a live walk from the West Pass up the terraces to the keep. Both are heavy runs, approved by the user first.
 
 ## 6. Decisions

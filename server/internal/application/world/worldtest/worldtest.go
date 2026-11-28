@@ -322,6 +322,9 @@ func LoadDataWith(t testing.TB, edits map[string]func(string) string) *gamedata.
 				t.Fatal(err)
 			}
 			raw = string(b)
+			if name == "world.yaml" {
+				raw = gamedatatest.WithLandPlaces(raw)
+			}
 		}
 		texts[name] = edits[name](raw)
 		key.WriteString(name + "\x00" + texts[name] + "\x00")
@@ -337,6 +340,9 @@ func LoadDataWith(t testing.TB, edits map[string]func(string) string) *gamedata.
 		if err := os.WriteFile(filepath.Join(dst, name), []byte(text), 0o600); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if err := gamedatatest.AddLandPlaces(dst); err != nil {
+		t.Fatal(err)
 	}
 	for name, edit := range edits {
 		if edit == nil {

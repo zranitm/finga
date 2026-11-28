@@ -57,8 +57,8 @@ type Charted = (typeof maps)[number] & { readonly place: readonly [number, numbe
 const charted = maps.filter((m): m is Charted => m.place !== null);
 const levels = (m: MapData) => `Lv ${m.min_level}–${m.max_level}`;
 /** What a map is, under its name: a town, a region, whose areas have levels of their own, or a hunting map's levels. */
-const kindOf = (m: MapData) =>
-  m.kind === 'town' ? 'Town' : m.kind === 'region' ? 'Region' : levels(m);
+const isTown = (m: { readonly kind: string }) => m.kind === 'town'; // no map of the data is one now, as none is hunting
+const kindOf = (m: MapData) => (isTown(m) ? 'Town' : m.kind === 'region' ? 'Region' : levels(m));
 
 /** A label on This map, in pixels: its text centred on x, sitting on bottom; a beaten boss's counts down to its time back. */
 export interface MapLabel extends TagBox {
@@ -728,7 +728,7 @@ function World(props: WorldProps) {
         ))}
         {charted.map((m) => {
           const [x, y] = m.place;
-          const town = m.kind === 'town';
+          const town = isTown(m);
           const names = members.filter(
             (p) => p.online && p.mapId === m.id && p.characterId !== myId,
           );

@@ -34,8 +34,8 @@ describe('layoutOf', () => {
 
   it('fetches a map again after a fetch that failed', async () => {
     const fetched = counted(1);
-    await expect(layoutOf('frost_trail')).rejects.toThrow('map frost_trail: 500');
-    expect((await layoutOf('frost_trail')).size[0]).toBeGreaterThan(0);
-    expect(fetched('frost_trail')).toBe(2);
+    await expect(layoutOf('ring')).rejects.toThrow('map ring: 500');
+    expect((await layoutOf('ring')).size[0]).toBeGreaterThan(0);
+    expect(fetched('ring')).toBe(2);
   });
 });

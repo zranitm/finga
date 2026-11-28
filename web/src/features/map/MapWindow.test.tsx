@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-
 import { create } from '@bufbuild/protobuf';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -34,12 +31,11 @@ import { user } from '@/testing/user';
 import { mapLabels, MapWindow } from './MapWindow';
 
 const map = (id: string) => maps.find((m) => m.id === id)!;
-const trailLevels = `Lv ${map('frost_trail').min_level}–${map('frost_trail').max_level}`;
 
 /** A map's layout as the app gives it: its size, and no image, as jsdom draws none. */
-const layoutOf = vi.fn((id: string) =>
+const layoutOf = vi.fn(() =>
   Promise.resolve({
-    size: id === 'crossroads' ? ([48, 32] as const) : ([72, 40] as const),
+    size: [72, 40] as const,
     ground: NO_GROUND,
     waypoints: [],
   }),
@@ -47,7 +43,7 @@ const layoutOf = vi.fn((id: string) =>
 
 function onMap(id: string, x: number, z: number) {
   const m = map(id);
-  const size = id === 'crossroads' ? ([48, 32] as const) : ([72, 40] as const);
+  const size = [72, 40] as const;
   act(() => {
     mapView.getState().showMap(m.id, size, NO_GROUND, []);
     mapView.getState().mark({ me: { x, z, yaw: 0 }, party: [], lock: null, boss: null });
@@ -69,30 +65,6 @@ const texts = (root: Element, selector: string) =>
 describe('MapWindow', () => {
   beforeEach(() => {
     resetStores();
-  });
-
-  it('This map names each spawn by its mob and level, each portal by where it leads, and the player', () => {
-    onMap('frost_trail', 30, 10);
-    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
-    const svg = screen.getByRole('img', { name: 'Frost Trail' });
-    const slime = mobById('frost_slime')!;
-    const snail = mobById('snow_weasel')!;
-    expect(texts(svg, '.map-label-spawn')).toEqual(
-      expect.arrayContaining([
-        `${slime.name} Lv ${slime.level}`,
-        `${snail.name} Lv ${snail.level}`,
-      ]),
-    );
-    expect(texts(svg, '.map-label-portal').sort()).toEqual(['To Crossroads', 'To Icefall']);
-    expect(texts(svg, '.map-label-me')).toEqual(['You']);
-  });
-
-  it('This map names an NPC by its name: the crossroads’ guide', () => {
-    onMap('crossroads', 20, 10);
-    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
-    expect(texts(screen.getByRole('img', { name: 'Crossroads' }), '.map-label-npc')).toEqual([
-      'Crossroads Guide',
-    ]);
   });
 
   it('names a region’s areas at their middles, a hunting area with its levels and a town by its name, and outlines each, a town tinted', () => {
@@ -206,158 +178,8 @@ describe('MapWindow', () => {
     }
   });
 
-  /** A map's size in metres and its pixels a metre at the window's scale (480 by 320 px at most). */
-  const fitted = (id: string) => {
-    const raw = readFileSync(path.resolve(process.cwd(), `public/maps/${id}.json`), 'utf8');
-    const { size_x: sx, size_z: sz } = (
-      JSON.parse(raw) as { geometry: { size_x: number; size_z: number } }
-    ).geometry;
-    return { sx, sz, scale: Math.min(480 / sx, 320 / sz) };
-  };
-  /** Each spawn label's mob and the middle of its text, in metres, at the window's scale. */
-  const spawnLabels = (id: string) => {
-    const m = map(id);
-    const { sx, sz, scale } = fitted(id);
-    return mapLabels(m, null, scale, [sx, sz], new Set(), [], [])
-      .filter((l) => l.kind === 'spawn')
-      .map((l) => {
-        const mob = m.spawns.find((s) => l.text.startsWith(`${mobById(s.mob)!.name} Lv`))!.mob;
-        return { mob, x: l.x / scale, z: sz - (l.bottom - l.h / 2) / scale };
-      });
-  };
-  const on = (id: string, mob: string, x: number, z: number) =>
-    map(id).spawns.some((s) => s.mob === mob && Math.hypot(s.x - x, s.z - z) <= s.radius);
-
-  it('gives close spawn circles of one mob one label, and keeps a group apart its own: the frost trail', () => {
-    const labels = spawnLabels('frost_trail');
-    // six slime circles: the west, the pine and the drift ones, 12 m apart at most, share one; the field's stands apart; the bank's and the east drift's share one
-    expect(labels.filter((l) => l.mob === 'frost_slime')).toHaveLength(3);
-    // three weasel circles, each too far from the next to share
-    expect(labels.filter((l) => l.mob === 'snow_weasel')).toHaveLength(3);
-  });
-
-  /** A map's labels with its boss beaten, the boss's own, and where its crown's middle is, in pixels down. */
-  const bossLabels = (id: string) => {
-    const m = map(id);
-    const spot = m.boss!;
-    const { sx, sz, scale } = fitted(id);
-    const labels = mapLabels(
-      m,
-      null,
-      scale,
-      [sx, sz],
-      new Set(),
-      [{ ...spot, down: { type: spot.mob, backAt: 0 } }],
-      [],
-    );
-    return { labels, boss: labels.find((l) => l.kind === 'boss')!, crown: (sz - spot.z) * scale };
-  };
-
-  it('puts a beaten boss’s label under its crown when that has more room than tags keep: the frost trail’s', () => {
-    const room = 6; // the boss label's, past the tags' 2 px
-    const { labels, boss, crown } = bossLabels('frost_trail');
-    const near = labels.filter(
-      (l) =>
-        l !== boss &&
-        Math.abs(l.x - boss.x) * 2 < l.w + boss.w &&
-        l.bottom + room > boss.bottom - boss.h &&
-        l.bottom - l.h < boss.bottom + room,
-    );
-    expect([boss.bottom - boss.h >= crown, near.map((l) => l.text)]).toEqual([true, []]);
-  });
-
-  it('keeps a beaten boss’s label off its crown and clear of every label, on every map with a boss', () => {
-    const DOT = 3; // the crown reaches 1.8 dots over its middle and 1.2 under
-    const bad = maps
-      .filter((m) => m.boss)
-      .flatMap(({ id }) => {
-        const { labels, boss, crown } = bossLabels(id);
-        const off = boss.bottom - boss.h >= crown + 1.2 * DOT || boss.bottom <= crown - 1.8 * DOT;
-        return [
-          ...(off ? [] : [`${id}: on its crown`]),
-          ...labels.filter((l) => l !== boss && clashes(l, boss)).map((l) => `${id}: ${l.text}`),
-        ];
-      });
-    expect(bad).toEqual([]);
-  });
-
-  it('puts every spawn label on one of its own mob’s circles, on every map', () => {
-    const off = maps
-      .filter((m) => m.spawns.length > 0 && m.kind !== 'region') // a region's view pans and zooms its tiles (large-regions.md section 10)
-      .flatMap((m) =>
-        spawnLabels(m.id)
-          .filter((l) => !on(m.id, l.mob, l.x, l.z))
-          .map((l) => `${m.id} ${l.mob} (${l.x.toFixed(1)}, ${l.z.toFixed(1)})`),
-      );
-    expect(off).toEqual([]);
-  });
-
-  /** How far each circle of mob on map id is from the nearest label of its own mob: 0 under one, or from its edge. */
-  const fromLabels = (id: string, mob: string) => {
-    const own = spawnLabels(id).filter((l) => l.mob === mob);
-    return map(id)
-      .spawns.filter((s) => s.mob === mob)
-      .map((s) => ({
-        at: [s.x, s.z],
-        far: Math.min(...own.map((l) => Math.max(0, Math.hypot(l.x - s.x, l.z - s.z) - s.radius))),
-      }));
-  };
-
-  it('gives every spawn circle a label of its own mob on it or within 8 m of its edge, on every map', () => {
-    const far = maps
-      .filter((m) => m.spawns.length > 0 && m.kind !== 'region') // a region's view pans and zooms its tiles (large-regions.md section 10)
-      .flatMap((m) =>
-        [...new Set(m.spawns.map((s) => s.mob))].flatMap((mob) =>
-          fromLabels(m.id, mob)
-            .filter((c) => c.far > 8)
-            .map((c) => `${m.id} ${mob} (${c.at.join(', ')}) ${c.far.toFixed(1)} m`),
-        ),
-      );
-    expect(far).toEqual([]);
-  });
-
-  // A chain of five circles had one label 22.5 m from the far one; the keep's west bats sat 12–17 m from theirs.
-  it('cuts a chain so its far circles get their own label: the icefall’s snails, the keep’s west bats', () => {
-    const at = (id: string, mob: string, x: number, z: number) =>
-      fromLabels(id, mob).find((c) => c.at[0] === x && c.at[1] === z)!.far;
-    expect(
-      [
-        at('icefall', 'glacier_snail', 59, 9.5),
-        at('icefall', 'glacier_snail', 59, 26.5),
-        at('fallen_keep', 'shade_bat', 20, 12),
-        at('fallen_keep', 'shade_bat', 20, 25),
-      ].map((far) => far <= 8),
-    ).toEqual([true, true, true, true]);
-  });
-
-  // A chain's middle can fall on another mob's circle, as the keep's west bats' on the gloom slimes'.
-  it('keeps a chained group’s label off other mobs’ circles: the icefall and the fallen keep', () => {
-    for (const id of ['icefall', 'fallen_keep']) {
-      const onOthers = spawnLabels(id).filter((l) =>
-        map(id).spawns.some((s) => s.mob !== l.mob && Math.hypot(s.x - l.x, s.z - l.z) <= s.radius),
-      );
-      expect([id, onOthers]).toEqual([id, []]);
-    }
-  });
-
-  it('lifts the player’s label above an NPC’s name when the player stands at the NPC', () => {
-    const guide = npcs.npcs.find((n) => n.id === 'crossroads_guide')!;
-    const labels = mapLabels(
-      map('crossroads'),
-      { x: guide.x, z: guide.z },
-      6,
-      [48, 32],
-      new Set(),
-      [],
-      [],
-    );
-    const you = labels.find((l) => l.kind === 'me')!;
-    const name = labels.find((l) => l.text === guide.name)!;
-    expect(you.bottom).toBeLessThanOrEqual(name.bottom - name.h - 2);
-  });
-
-  it('World draws every map with a place, a match’s excepted, a line for each pair of maps a portal joins, and a house for a town with no levels', async () => {
-    onMap('frost_trail', 30, 10);
+  it('World draws every map with a place, a match’s excepted, and a line for each pair of maps a gate joins', async () => {
+    onMap('willowmere', 30, 10);
     render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
     await user.click(screen.getByRole('tab', { name: 'World' }));
     const chart = screen.getByRole('group', { name: 'World' });
@@ -372,25 +194,178 @@ describe('MapWindow', () => {
     expect(
       [...chart.querySelectorAll('.map-link')].map((l) => l.getAttribute('data-link')).sort(),
     ).toEqual(mapLinks.map(([a, b]) => `${a}-${b}`).sort());
-    const grove = chart.querySelector('.map-node[data-map="frost_trail"]')!;
-    const [fx, fy] = map('frost_trail').place!;
-    expect([
-      grove.querySelector('.map-hunt')!.getAttribute('cx'),
-      grove.querySelector('.map-hunt')!.getAttribute('cy'),
-    ]).toEqual([String(fx), String(fy)]);
-    expect(texts(grove, '.map-node-levels')).toEqual([trailLevels]);
-    const region = chart.querySelector('.map-node[data-map="willowmere"]')!; // a region is drawn as a hunting map, its kind under its name
-    const [wx, wy] = map('willowmere').place!;
-    expect([
-      region.querySelector('.map-hunt')!.getAttribute('cx'),
-      region.querySelector('.map-hunt')!.getAttribute('cy'),
-      texts(region, '.map-node-levels'),
-    ]).toEqual([String(wx), String(wy), ['Region']]);
-    const town = chart.querySelector('.map-node[data-map="crossroads"]')!;
-    expect([town.querySelector('.map-town'), town.querySelector('.map-node-levels')]).toEqual([
-      expect.anything(),
-      null,
+    for (const id of ['willowmere', 'sunreach', 'hoarfell']) {
+      const node = chart.querySelector(`.map-node[data-map="${id}"]`)!; // a region is drawn as a hunting map, its kind under its name
+      const [x, y] = map(id).place!;
+      expect([
+        node.querySelector('.map-hunt')!.getAttribute('cx'),
+        node.querySelector('.map-hunt')!.getAttribute('cy'),
+        texts(node, '.map-node-levels'),
+      ]).toEqual([String(x), String(y), ['Region']]);
+    }
+  });
+
+  it('This map names a region’s NPC by its name, and lifts the player’s label above it when the player stands at the NPC: Sunreach’s guide', () => {
+    act(() => {
+      mapView.getState().showMap('sunreach', [1024, 1024], NO_GROUND, []);
+      mapView
+        .getState()
+        .mark({ me: { x: 490, z: 490, yaw: 0 }, party: [], lock: null, boss: null });
+    });
+    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
+    expect(texts(screen.getByRole('img', { name: 'Sunreach' }), '.map-label-npc')).toEqual([
+      'Oasis Guide',
     ]);
+    const guide = npcs.npcs.find((n) => n.id === 'oasis_guide')!;
+    const labels = mapLabels(
+      map('sunreach'),
+      { x: guide.x, z: guide.z },
+      4,
+      [1024, 1024],
+      new Set(),
+      [],
+      [],
+    );
+    const you = labels.find((l) => l.kind === 'me')!;
+    const name = labels.find((l) => l.text === guide.name)!;
+    expect(you.bottom).toBeLessThanOrEqual(name.bottom - name.h - 2);
+  });
+
+  it('pointing at a region on World shows its name, its kind and its mobs with their levels', async () => {
+    onMap('willowmere', 30, 10);
+    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
+    await user.click(screen.getByRole('tab', { name: 'World' }));
+    const chart = screen.getByRole('group', { name: 'World' });
+    fireEvent.pointerEnter(chart.querySelector('.map-node[data-map="sunreach"]')!);
+    const card = within(screen.getByRole('tooltip'));
+    const slime = mobById('spore_slime')!;
+    expect(card.getByText('Sunreach')).toBeInTheDocument();
+    expect(card.getByText('Region')).toBeInTheDocument();
+    expect(card.getByText(`${slime.name} Lv ${slime.level}`)).toBeInTheDocument();
+    fireEvent.pointerLeave(chart.querySelector('.map-node[data-map="sunreach"]')!);
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+  });
+
+  it('clicking a region on World shows its layout: its spawns, gates and NPC named, and Back to the chart', async () => {
+    onMap('willowmere', 30, 10);
+    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
+    await user.click(screen.getByRole('tab', { name: 'World' }));
+    await user.click(screen.getByRole('button', { name: 'Sunreach' }));
+    const svg = await screen.findByRole('img', { name: 'Sunreach' });
+    expect(layoutOf).toHaveBeenCalledWith('sunreach');
+    const slime = mobById('spore_slime')!;
+    expect(texts(svg, '.map-label-spawn')).toContain(`${slime.name} Lv ${slime.level}`);
+    expect(texts(svg, '.map-label-portal').sort()).toEqual([
+      'Spore Hollow Lv 14–15', // a gate down is named by its place and its levels
+      'Sunken Ruins Lv 21–22',
+      'To Hoarfell',
+      'To Willowmere',
+    ]);
+    expect(texts(svg, '.map-label-npc')).toEqual(['Oasis Guide']);
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByRole('group', { name: 'World' })).toBeInTheDocument();
+  });
+
+  it('a picked region shows the player and the live marks only when it’s the player’s own', async () => {
+    onMap('willowmere', 30, 10);
+    act(() => {
+      mapView.getState().mark({
+        me: { x: 30, z: 10, yaw: 0 },
+        party: [{ id: 'c-kai', name: 'Kai', x: 20, z: 12 }],
+        lock: { x: 34, z: 10 },
+        boss: { x: 50, z: 20 },
+      });
+    });
+    layoutOf.mockClear();
+    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
+    await user.click(screen.getByRole('tab', { name: 'World' }));
+    const live = '.map-me, .map-party, .map-lock, .map-boss, .map-label-me';
+    await user.click(screen.getByRole('button', { name: 'Willowmere' }));
+    const own = screen.getByRole('img', { name: 'Willowmere' });
+    expect(own.querySelectorAll(live)).toHaveLength(5);
+    expect(layoutOf).not.toHaveBeenCalledWith('willowmere'); // the player's own map is the scene's
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    await user.click(screen.getByRole('button', { name: 'Hoarfell' }));
+    const other = await screen.findByRole('img', { name: 'Hoarfell' });
+    expect(other.querySelectorAll(live)).toHaveLength(0);
+  });
+
+  it('a picked region whose layout won’t load says so, and it offers no Teleport here: a region is reached by its waypoints', async () => {
+    onMap('willowmere', 30, 10);
+    render(
+      <MapWindow
+        socket={idle}
+        layoutOf={() => Promise.reject(new Error('map sunreach: 500'))}
+        onClose={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole('tab', { name: 'World' }));
+    await user.click(screen.getByRole('button', { name: 'Sunreach' }));
+    expect(await screen.findByText('The map didn’t load.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Teleport here' })).not.toBeInTheDocument();
+  });
+
+  /** Each spawn label of region id at 4 px a metre, the finest a region zooms to: its mob and the middle of its text, in metres. */
+  const regionSpawnLabels = (id: string) => {
+    const m = map(id);
+    const size = id === 'test_region' ? 256 : 1024;
+    return mapLabels(m, null, 4, [size, size], new Set(), [], [])
+      .filter((l) => l.kind === 'spawn')
+      .map((l) => {
+        const mob = m.spawns.find((s) => l.text.startsWith(`${mobById(s.mob)!.name} Lv`))!.mob;
+        return { mob, x: l.x / 4, z: size - (l.bottom - l.h / 2) / 4 };
+      });
+  };
+  const regions = ['willowmere', 'sunreach', 'hoarfell', 'test_region'];
+
+  it('puts every spawn label of a region on one of its own mob’s circles, at the finest zoom', () => {
+    const off = regions.flatMap((id) =>
+      regionSpawnLabels(id)
+        .filter(
+          (l) =>
+            !map(id).spawns.some(
+              (s) => s.mob === l.mob && Math.hypot(s.x - l.x, s.z - l.z) <= s.radius,
+            ),
+        )
+        .map((l) => `${id} ${l.mob} (${l.x.toFixed(1)}, ${l.z.toFixed(1)})`),
+    );
+    expect(off).toEqual([]);
+  });
+
+  it('gives every spawn circle of a region a label of its own mob on it or within 8 m of its edge, at the finest zoom', () => {
+    const far = regions.flatMap((id) => {
+      const labels = regionSpawnLabels(id);
+      return map(id)
+        .spawns.filter((s) => {
+          const own = labels.filter((l) => l.mob === s.mob);
+          return !own.some((l) => Math.hypot(l.x - s.x, l.z - s.z) - s.radius <= 8);
+        })
+        .map((s) => `${id} ${s.mob} (${s.x}, ${s.z})`);
+    });
+    expect(far).toEqual([]);
+  });
+
+  it('keeps a beaten area boss’s label off its crown and clear of every label, in every region', () => {
+    const DOT = 3; // the crown reaches 1.8 dots over its middle and 1.2 under
+    const bad = regions.flatMap((id) => {
+      const m = map(id);
+      const size = id === 'test_region' ? 256 : 1024;
+      const crowns = m.areas.flatMap((a) =>
+        a.boss ? [{ ...a.boss, down: { type: a.boss.mob, backAt: 0 } }] : [],
+      );
+      const labels = mapLabels(m, null, 4, [size, size], new Set(), crowns, []);
+      return labels
+        .filter((l) => l.kind === 'boss')
+        .flatMap((boss, k) => {
+          const crown = (size - crowns[k]!.z) * 4;
+          const off = boss.bottom - boss.h >= crown + 1.2 * DOT || boss.bottom <= crown - 1.8 * DOT;
+          return [
+            ...(off ? [] : [`${id}: ${boss.text} on its crown`]),
+            ...labels.filter((l) => l !== boss && clashes(l, boss)).map((l) => `${id}: ${l.text}`),
+          ];
+        });
+    });
+    expect(bad).toEqual([]);
   });
 
   it('in a match shows This map alone: the world chart has no match’s map', async () => {
@@ -414,15 +389,15 @@ describe('MapWindow', () => {
   });
 
   it('World rings the player’s map, “You are here”, and names each online party member under their map', async () => {
-    onMap('frost_trail', 30, 10);
+    onMap('willowmere', 30, 10);
     party.getState().applyPartyState(
       create(PartyStateSchema, {
         party: create(PartyViewSchema, {
           leader: 'c-robin',
           members: [
-            { characterId: 'c-robin', name: 'Robin', mapId: 'icefall', online: true },
-            { characterId: 'c-jade', name: 'Jade', mapId: 'icefall', online: false },
-            { characterId: 'c-kai', name: 'Kai', mapId: 'crossroads', online: true },
+            { characterId: 'c-robin', name: 'Robin', mapId: 'sunreach', channel: 1, online: true },
+            { characterId: 'c-jade', name: 'Jade', mapId: 'sunreach', channel: 1, online: false },
+            { characterId: 'c-kai', name: 'Kai', mapId: 'hoarfell', channel: 3, online: true },
           ],
         }),
       }),
@@ -432,157 +407,18 @@ describe('MapWindow', () => {
     const chart = screen.getByRole('group', { name: 'World' });
     const node = (id: string) => chart.querySelector(`.map-node[data-map="${id}"]`)!;
     expect([
-      node('frost_trail').querySelector('.map-here-ring'),
-      texts(node('frost_trail'), '.map-node-you'),
+      node('willowmere').querySelector('.map-here-ring'),
+      texts(node('willowmere'), '.map-node-you'),
     ]).toEqual([expect.anything(), ['You are here']]);
     expect(chart.querySelectorAll('.map-here-ring')).toHaveLength(1);
     expect([
-      texts(node('icefall'), '.map-node-party'),
-      texts(node('crossroads'), '.map-node-party'),
-    ]).toEqual([['Robin'], ['Kai']]);
+      texts(node('sunreach'), '.map-node-party'),
+      texts(node('hoarfell'), '.map-node-party'),
+    ]).toEqual([['Robin · Ch. 1'], ['Kai · Ch. 3']]);
   });
 
-  it('pointing at a map on World shows its name, levels and mobs with their levels', async () => {
-    onMap('crossroads', 20, 10);
-    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
-    await user.click(screen.getByRole('tab', { name: 'World' }));
-    const chart = screen.getByRole('group', { name: 'World' });
-    fireEvent.pointerEnter(chart.querySelector('.map-node[data-map="frost_trail"]')!);
-    const card = within(screen.getByRole('tooltip'));
-    const slime = mobById('frost_slime')!;
-    expect(card.getByText('Frost Trail')).toBeInTheDocument();
-    expect(card.getByText(trailLevels)).toBeInTheDocument();
-    expect(card.getByText(`${slime.name} Lv ${slime.level}`)).toBeInTheDocument();
-    fireEvent.pointerLeave(chart.querySelector('.map-node[data-map="frost_trail"]')!);
-    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
-  });
-
-  it('clicking a map on World shows its layout: its spawns, portals and NPCs named, and Back to the chart', async () => {
-    onMap('crossroads', 20, 10);
-    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
-    await user.click(screen.getByRole('tab', { name: 'World' }));
-    await user.click(screen.getByRole('button', { name: 'Frost Trail' }));
-    const svg = await screen.findByRole('img', { name: 'Frost Trail' });
-    expect(layoutOf).toHaveBeenCalledWith('frost_trail');
-    expect(screen.getByText(trailLevels)).toBeInTheDocument();
-    const slime = mobById('frost_slime')!;
-    expect(texts(svg, '.map-label-spawn')).toContain(`${slime.name} Lv ${slime.level}`);
-    expect(texts(svg, '.map-label-portal').sort()).toEqual(['To Crossroads', 'To Icefall']);
-    expect(
-      [...svg.querySelectorAll('.map-spawn')].map((c) => [
-        c.getAttribute('data-mob'),
-        c.getAttribute('cx'),
-      ]),
-    ).toEqual(map('frost_trail').spawns.map((sp) => [sp.mob, String(sp.x)]));
-    expect(svg.getAttribute('viewBox')).toBe('0 0 72 40');
-    await user.click(screen.getByRole('button', { name: 'Back' }));
-    expect(screen.getByRole('group', { name: 'World' })).toBeInTheDocument();
-  });
-
-  it('a picked map shows the player and the live marks only when it’s the player’s own', async () => {
-    onMap('frost_trail', 30, 10);
-    act(() => {
-      mapView.getState().mark({
-        me: { x: 30, z: 10, yaw: 0 },
-        party: [{ id: 'c-kai', name: 'Kai', x: 20, z: 12 }],
-        lock: { x: 34, z: 10 },
-        boss: { x: 50, z: 20 },
-      });
-    });
-    layoutOf.mockClear();
-    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
-    await user.click(screen.getByRole('tab', { name: 'World' }));
-    const live = '.map-me, .map-party, .map-lock, .map-boss, .map-label-me';
-    await user.click(screen.getByRole('button', { name: 'Frost Trail' }));
-    const own = screen.getByRole('img', { name: 'Frost Trail' });
-    expect(own.querySelectorAll(live)).toHaveLength(5);
-    expect(layoutOf).not.toHaveBeenCalled();
-    await user.click(screen.getByRole('button', { name: 'Back' }));
-    await user.click(screen.getByRole('button', { name: 'Icefall' }));
-    const other = await screen.findByRole('img', { name: 'Icefall' });
-    expect(other.querySelectorAll(live)).toHaveLength(0);
-  });
-
-  it('a beaten boss shows grey at its spot on its own map, the time until it’s back counting down, till it’s back', () => {
-    vi.useFakeTimers();
-    try {
-      onMap('frost_trail', 30, 10);
-      act(() => {
-        fieldBoss
-          .getState()
-          .applyGone(
-            create(FieldBossGoneSchema, { mobId: 9, type: 'king_slime', backInMs: 192000n }),
-          );
-      });
-      render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
-      const here = screen.getByRole('img', { name: 'Frost Trail' });
-      const [spotX, spotZ] = [map('frost_trail').boss!.x, map('frost_trail').boss!.z];
-      expect(here.querySelector('.map-boss-down')?.getAttribute('transform')).toMatch(
-        new RegExp(`^translate\\(${spotX} ${40 - spotZ}\\)`),
-      );
-      expect(texts(here, '.map-label-boss')).toEqual(['King Slime: back in 3:12']);
-      act(() => {
-        vi.advanceTimersByTime(61000);
-      });
-      expect(texts(here, '.map-label-boss')).toEqual(['King Slime: back in 2:11']);
-      act(() => {
-        fieldBoss
-          .getState()
-          .applyFieldBoss(create(FieldBossSchema, { mobId: 10, type: 'king_slime' }));
-      });
-      expect([here.querySelector('.map-boss-down'), texts(here, '.map-label-boss')]).toEqual([
-        null,
-        [],
-      ]);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('a picked map shows no beaten boss of the player’s own map, at its own boss’s spot or anywhere', async () => {
-    onMap('frost_trail', 30, 10);
-    act(() => {
-      fieldBoss
-        .getState()
-        .applyGone(create(FieldBossGoneSchema, { mobId: 9, type: 'king_slime', backInMs: 60000n }));
-    });
-    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
-    await user.click(screen.getByRole('tab', { name: 'World' }));
-    await user.click(screen.getByRole('button', { name: 'Icefall' }));
-    const other = await screen.findByRole('img', { name: 'Icefall' });
-    expect([
-      other.querySelectorAll('.map-boss-down').length,
-      texts(other, '.map-label-boss'),
-    ]).toEqual([0, []]);
-  });
-
-  it('a picked map names the party members online on it under its header', async () => {
-    onMap('frost_trail', 30, 10);
-    party.getState().applyPartyState(
-      create(PartyStateSchema, {
-        party: create(PartyViewSchema, {
-          leader: 'c-robin',
-          members: [
-            { characterId: 'c-robin', name: 'Robin', mapId: 'icefall', online: true },
-            { characterId: 'c-jade', name: 'Jade', mapId: 'icefall', online: false },
-            { characterId: 'c-kai', name: 'Kai', mapId: 'crossroads', online: true },
-          ],
-        }),
-      }),
-    );
-    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
-    await user.click(screen.getByRole('tab', { name: 'World' }));
-    fireEvent.keyDown(screen.getByRole('button', { name: 'Icefall' }), { key: 'Enter' });
-    const names = await screen.findByRole('list', { name: 'Party in Icefall' });
-    expect(
-      within(names)
-        .getAllByRole('listitem')
-        .map((li) => li.textContent),
-    ).toEqual(['Robin']);
-  });
-
-  it('a region’s party names say each member’s channel, in the chart’s node and a picked map’s list; a land map’s say none', async () => {
-    onMap('frost_trail', 30, 10);
+  it('a region’s party names say each member’s channel, in the chart’s node and a picked map’s list', async () => {
+    onMap('ring', 30, 10);
     party.getState().applyPartyState(
       create(PartyStateSchema, {
         party: create(PartyViewSchema, {
@@ -590,7 +426,6 @@ describe('MapWindow', () => {
           members: [
             { characterId: 'c-bo', name: 'Bo', mapId: 'willowmere', channel: 2, online: true },
             { characterId: 'c-jade', name: 'Jade', mapId: 'willowmere', channel: 1, online: false },
-            { characterId: 'c-kai', name: 'Kai', mapId: 'crossroads', online: true },
           ],
         }),
       }),
@@ -599,10 +434,7 @@ describe('MapWindow', () => {
     await user.click(screen.getByRole('tab', { name: 'World' }));
     const chart = screen.getByRole('group', { name: 'World' });
     const node = (id: string) => chart.querySelector(`.map-node[data-map="${id}"]`)!;
-    expect([
-      texts(node('willowmere'), '.map-node-party'),
-      texts(node('crossroads'), '.map-node-party'),
-    ]).toEqual([['Bo · Ch. 2'], ['Kai']]);
+    expect(texts(node('willowmere'), '.map-node-party')).toEqual(['Bo · Ch. 2']);
     fireEvent.keyDown(screen.getByRole('button', { name: 'Willowmere' }), { key: 'Enter' });
     const names = await screen.findByRole('list', { name: 'Party in Willowmere' });
     expect(
@@ -610,52 +442,6 @@ describe('MapWindow', () => {
         .getAllByRole('listitem')
         .map((li) => li.textContent),
     ).toEqual(['Bo · Ch. 2']);
-  });
-
-  it('a picked map whose layout won’t load says so', async () => {
-    onMap('crossroads', 20, 10);
-    render(
-      <MapWindow
-        socket={idle}
-        layoutOf={() => Promise.reject(new Error('map icefall: 500'))}
-        onClose={vi.fn()}
-      />,
-    );
-    await user.click(screen.getByRole('tab', { name: 'World' }));
-    await user.click(screen.getByRole('button', { name: 'Icefall' }));
-    expect(await screen.findByText('The map didn’t load.')).toBeInTheDocument();
-  });
-
-  it('a picked map offers Teleport here, but not on the player’s own map, nor while they’re dead', async () => {
-    onMap('crossroads', 20, 10);
-    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
-    await user.click(screen.getByRole('tab', { name: 'World' }));
-    await user.click(screen.getByRole('button', { name: 'Frost Trail' }));
-    expect(screen.getByRole('button', { name: 'Teleport here' })).toBeEnabled();
-    await user.click(screen.getByRole('button', { name: 'Back' }));
-    await user.click(screen.getByRole('button', { name: 'Crossroads' }));
-    expect(screen.queryByRole('button', { name: 'Teleport here' })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Back' }));
-    act(() => {
-      character.getState().setDead(true);
-    });
-    await user.click(screen.getByRole('button', { name: 'Frost Trail' }));
-    expect(screen.queryByRole('button', { name: 'Teleport here' })).not.toBeInTheDocument();
-  });
-
-  it('Teleport here asks the server with the latest input’s seq; its answer closes the window and starts the channel', async () => {
-    onMap('crossroads', 20, 10);
-    const { socket, request } = asking(() => Promise.resolve({ ok: true, code: 0 }));
-    const onClose = vi.fn();
-    render(<MapWindow socket={socket} layoutOf={layoutOf} onClose={onClose} />);
-    await user.click(screen.getByRole('tab', { name: 'World' }));
-    await user.click(screen.getByRole('button', { name: 'Frost Trail' }));
-    await user.click(screen.getByRole('button', { name: 'Teleport here' }));
-    expect(request).toHaveBeenCalledWith('teleport', { mapId: 'frost_trail' }, 42);
-    await waitFor(() => {
-      expect(onClose).toHaveBeenCalledOnce();
-    });
-    expect(teleport.getState().to).toEqual({ map: 'frost_trail' });
   });
 
   describe('in a region’s channel', () => {
@@ -774,7 +560,7 @@ describe('MapWindow', () => {
       expect((await rows()).map(([, , s]) => s)).toEqual([false, false, false]);
       unmount();
       request.mockClear();
-      onMap('frost_trail', 30, 10);
+      onMap('ring', 30, 10);
       act(() => mapView.getState().inChannel(0));
       render(<MapWindow socket={socket} layoutOf={layoutOf} onClose={vi.fn()} />);
       expect(screen.queryByRole('region', { name: 'Channels' })).not.toBeInTheDocument();
@@ -927,7 +713,7 @@ describe('MapWindow', () => {
       inRegion();
       render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
       await user.click(screen.getByRole('button', { name: 'West Field' }));
-      onMap('frost_trail', 30, 10);
+      onMap('ring', 30, 10);
       expect(screen.queryByRole('region', { name: 'Waypoint' })).not.toBeInTheDocument();
       expect(document.querySelector('.map-waypoint')).toBeNull();
     });
@@ -1094,7 +880,7 @@ describe('MapWindow', () => {
         vi.advanceTimersByTime(5000);
         expect(asked()).toBe(2);
         const off = answering([]);
-        onMap('frost_trail', 30, 10);
+        onMap('ring', 30, 10);
         render(
           <MapWindow
             socket={{ request: off, sequence: 0 } as never}
@@ -1156,10 +942,8 @@ describe('MapWindow', () => {
       }
       expect(svg.getAttribute('viewBox')).toBe('0 0 1024 1024');
       await user.click(zoomIn());
-      onMap('frost_trail', 30, 10);
-      expect(screen.getByRole('img', { name: 'Frost Trail' }).getAttribute('viewBox')).toBe(
-        '0 0 72 40',
-      ); // a new map whole
+      onMap('ring', 30, 10);
+      expect(screen.getByRole('img', { name: 'Ring' }).getAttribute('viewBox')).toBe('0 0 72 40'); // a new map whole
       expect(tab()).toEqual(['This map', 'World']);
     });
 
@@ -1255,13 +1039,13 @@ describe('MapWindow', () => {
 
     it('a map, however large, keeps its fit, with no buttons, and the wheel and a drag leave it be', () => {
       act(() => {
-        mapView.getState().showMap('frost_trail', [720, 400], NO_GROUND, []); // 0.67 px a metre, as a region zooms from
+        mapView.getState().showMap('ring', [720, 400], NO_GROUND, []); // 0.67 px a metre, as a region zooms from
         mapView
           .getState()
           .mark({ me: { x: 30, z: 10, yaw: 0 }, party: [], lock: null, boss: null });
       });
       render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
-      const svg = screen.getByRole('img', { name: 'Frost Trail' });
+      const svg = screen.getByRole('img', { name: 'Ring' });
       expect(screen.queryByRole('group', { name: 'Zoom' })).not.toBeInTheDocument();
       expect(fireEvent.wheel(svg, { deltaY: -400 })).toBe(true); // the page's, as before
       fireEvent.pointerDown(svg, { button: 0, clientX: 100, clientY: 100 });
@@ -1269,20 +1053,5 @@ describe('MapWindow', () => {
       fireEvent.pointerUp(window);
       expect(svg.getAttribute('viewBox')).toBe('0 0 720 400');
     });
-  });
-
-  it('a refused teleport says why as a notice and leaves the window open', async () => {
-    onMap('crossroads', 20, 10);
-    const { socket } = asking(() => Promise.reject(refusal(ERR.TELEPORT_BUSY)));
-    const onClose = vi.fn();
-    render(<MapWindow socket={socket} layoutOf={layoutOf} onClose={onClose} />);
-    await user.click(screen.getByRole('tab', { name: 'World' }));
-    await user.click(screen.getByRole('button', { name: 'Frost Trail' }));
-    await user.click(screen.getByRole('button', { name: 'Teleport here' }));
-    await waitFor(() => {
-      expect(toasts.getState().toasts.map((t) => t.text)).toEqual(['You’re already teleporting.']);
-    });
-    expect(screen.getByRole('button', { name: 'Teleport here' })).toBeEnabled();
-    expect([onClose.mock.calls.length, teleport.getState().to]).toEqual([0, null]);
   });
 });

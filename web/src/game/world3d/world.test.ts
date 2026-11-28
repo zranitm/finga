@@ -35,7 +35,7 @@ import { actionPoints } from '@/progression/actions';
 import { mobById } from '@/progression/mobs';
 import type * as Places from '@/progression/places';
 import { gateBetween } from '@/progression/places';
-import { npcsOn } from '@/progression/quests';
+import type * as Quests from '@/progression/quests';
 import { skillById } from '@/progression/skills';
 import { statusColor } from '@/progression/statuses';
 import { ERR } from '@/protocol/errors';
@@ -124,21 +124,37 @@ vi.mock('./kit-models', async (actual) => {
   const { torch_mounted, torch_lit, vent } = real.kitModels;
   return { ...real, kitModels: { torch_mounted, torch_lit, vent } };
 });
+const BARE = vi.hoisted(
+  () =>
+    new Set([
+      'ruin_crypt',
+      'greyfang_cave',
+      'willowmere',
+      'hoarfell',
+      'test_region',
+      'spore_caves',
+      'sunken_shrine',
+    ]),
+);
+vi.mock('@/progression/quests', async (actual) => {
+  const real = await actual<typeof Quests>();
+  return { ...real, npcsOn: (id: string) => (BARE.has(id) ? [] : real.npcsOn(id)) }; // the maps served bare have no NPCs drawn on them
+});
 vi.mock('@/progression/places', async (actual) => {
   const real = await actual<typeof Places>();
   return { ...real, gateBetween: vi.fn(real.gateBetween) }; // no shipped region has a place below yet: a test says where a gate is
 });
 
-const TRAIL = 'frost_trail'; // the real map the tests that walk or draw one use, from disk
+const SUN = 'sunreach'; // the map the tests that walk, draw or talk on one use: 1 km flat, with its guide, a pine to walk into and its east pass
 
-/** Maps with no NPCs, served flat and bare for the tests no map's own layout bears on: three hunting maps, a map change's FLAT and the two it goes to; the test region, served as a region; the widest a block holds, which the tower test serves with a tower; a cave and a sea, served as the places below. */
-const [FLAT, FLAT2, FLAT3] = ['icefall', 'glacier_peak', 'fallen_keep'] as const;
-const [REGIONED, WIDE, CAVED, SUNK] = [
-  'test_region',
+/** Maps served flat and bare, with no NPCs drawn, for the tests no map's own layout bears on: a map change's FLAT and the two it goes to, and the widest a block holds; the test region, served as a region; a cave and a sea, served as the places below. */
+const [FLAT, FLAT2, FLAT3, WIDE] = [
   'ruin_crypt',
-  'spore_caves',
-  'sunken_shrine',
+  'greyfang_cave',
+  'willowmere',
+  'hoarfell',
 ] as const;
+const [REGIONED, CAVED, SUNK] = ['test_region', 'spore_caves', 'sunken_shrine'] as const;
 
 /** Map id flat and bare, 72 by 40 m. */
 function bare(id: string) {
@@ -160,7 +176,26 @@ function bare(id: string) {
   };
 }
 
-/** Map id's own size, portals and NPCs, on flat ground with nothing built on it: for the tests of its NPCs and portals, not its houses. */
+/** Sunreach as the tests of walking and talking have it: 1 km flat, a pine at (26, 18) to walk into, and its east pass at (540, 480), by its guide at (490, 490). */
+function sunreach() {
+  const m = bare(SUN);
+  return {
+    ...m,
+    geometry: {
+      ...m.geometry,
+      size_x: 1024,
+      size_z: 1024,
+      terrain: { cell: 8, nx: 129, nz: 129, heights: Array<number>(129 * 129).fill(0) },
+      cylinders: [{ x: 26, z: 18, radius: 0.34, top: 6.5 }],
+    },
+    cylinder_models: ['tree_pine'],
+    portals: [
+      { name: 'east_pass', at: [540, 480] as [number, number], radius: 1.2, to: 'hoarfell' },
+    ],
+  };
+}
+
+/** Battlefield's own size, flat, with its bases and points. */
 function slim(id: string) {
   const m = mapJson(id) as ReturnType<typeof bare>;
   const t = m.geometry.terrain;
@@ -249,19 +284,13 @@ const SERVED: Record<string, unknown> = {
   [SUNK]: sunk(SUNK),
   [`regions/${TINY.id}/${TINY.hash}/region.json`]: townedTiny(),
   [WIDE]: wide(WIDE),
-  crossroads: slim('crossroads'),
+  [SUN]: sunreach(),
   ring: { ...bare('ring'), prep_wall: (mapJson('ring') as { prep_wall: unknown }).prep_wall }, // flat, with its own prep wall
   battlefield: {
     ...slim('battlefield'), // its own size, flat, with its bases and points
     battle: (mapJson('battlefield') as { battle: unknown }).battle,
   },
 };
-
-it('serves the maps it draws bare with no NPCs on them', () => {
-  for (const id of [FLAT, FLAT2, FLAT3, REGIONED, WIDE, CAVED, SUNK]) {
-    expect(npcsOn(id), id).toEqual([]);
-  }
-});
 
 type PlayerWire = NonNullable<ServerInit<'snapshot'>['players']>[number];
 type MobWire = NonNullable<ServerInit<'snapshot'>['mobs']>[number];
@@ -546,10 +575,10 @@ describe('World', () => {
   });
 
   it('draws the map and places the player where its Snapshot says, sending an Input each tick', async () => {
-    const p = await playing(TRAIL, 4, 20);
+    const p = await playing(SUN, 4, 20);
     const me = p.root(classLook('warrior').file)!;
     expect([me.position.x, me.position.y, me.position.z]).toEqual([4, 0, 20]);
-    expect(p.scene()?.transformNodes.some((n) => n.name === `place ${TRAIL}`)).toBe(true);
+    expect(p.scene()?.transformNodes.some((n) => n.name === `place ${SUN}`)).toBe(true);
     const before = p.inputs();
     p.frames(10);
     expect(p.inputs() - before).toBe(10);
@@ -1013,7 +1042,7 @@ describe('World', () => {
   });
 
   it('walks the player east till the pine in its way stops them, as the server’s sim would', async () => {
-    const p = await playing(TRAIL, 22, 18);
+    const p = await playing(SUN, 22, 18);
     key('ArrowRight', true);
     p.live(60);
     key('ArrowRight', false);
@@ -1225,40 +1254,40 @@ describe('World', () => {
   });
 
   it('draws the NPCs with their names, and the portals with the maps they go to', async () => {
-    const p = await playing('crossroads', 17, 20, 'thief');
+    const p = await playing(SUN, 487, 490, 'thief');
     await vi.waitFor(() => expect(p.root(npcLook('guide').file)).toBeDefined(), WAIT); // the guide
-    expect(p.label('npc:crossroads_guide')).toBe('Crossroads Guide');
-    expect(p.label('portal:to_frost')).toBe('To Frost Trail');
+    expect(p.label('npc:oasis_guide')).toBe('Oasis Guide');
+    expect(p.label('portal:east_pass')).toBe('To Hoarfell');
   });
 
   it('talks to the NPC in reach with the talk key, and in a portal enters it instead', async () => {
-    const near = await playing('crossroads', 20.5, 21, 'thief'); // 1.5 m from the guide
+    const near = await playing(SUN, 490, 488.5, 'thief'); // 1.5 m from the guide
     key('KeyZ', true);
     key('KeyZ', false);
-    expect(near.sent('talk')).toEqual([expect.objectContaining({ npcId: 'crossroads_guide' })]);
+    expect(near.sent('talk')).toEqual([expect.objectContaining({ npcId: 'oasis_guide' })]);
     leave(near);
 
-    const inPortal = await playing('crossroads', 26, 38, 'thief');
+    const inPortal = await playing(SUN, 540, 480, 'thief');
     key('KeyZ', true);
     key('KeyZ', false);
     expect([inPortal.sent('enterPortal').length, inPortal.sent('talk').length]).toEqual([1, 0]);
   });
 
   it('prompts the talk key, as bound, over the NPC in reach or the portal the player stands in, and nowhere else', async () => {
-    const near = await playing('crossroads', 20.5, 21, 'thief');
+    const near = await playing(SUN, 490, 488.5, 'thief');
     near.frames(1);
     expect(near.label('prompt')).toBe('Z Talk');
     settings.getState().setKeys({ talk: 'KeyG' });
     near.frames(1);
     expect(near.label('prompt')).toBe('G Talk');
-    quests.getState().applyNpcDialog(create(NpcDialogSchema, { npcId: 'crossroads_guide' }));
+    quests.getState().applyNpcDialog(create(NpcDialogSchema, { npcId: 'oasis_guide' }));
     ui.getState().openWindow('npc');
     near.frames(1);
     expect(near.label('prompt')).toBe(''); // its dialog is open
     leave(near);
 
     settings.getState().setKeys({});
-    const inPortal = await playing('crossroads', 26, 38, 'thief');
+    const inPortal = await playing(SUN, 540, 480, 'thief');
     inPortal.frames(1);
     expect(inPortal.label('prompt')).toBe('Z Enter');
     leave(inPortal);
@@ -3066,15 +3095,6 @@ describe('World', () => {
     expect(toasts.getState().toasts.map((t) => t.text)).not.toContain('You can’t act right now.'); // pressed before the stun, it isn't refused after
   });
 
-  it('leaves a teleport channelling at the attack key in a town, which starts no attack', async () => {
-    const p = await playing('crossroads', 17, 20);
-    teleport.getState().start({ map: 'frost_trail' });
-    key('KeyX', true);
-    key('KeyX', false);
-    p.frames(2);
-    expect([p.sent('attack'), teleport.getState().to]).toEqual([[], { map: 'frost_trail' }]);
-  });
-
   it('in a match’s prep the wall across the ring stands, drawn and walked against, and attacks and skills wait; the round takes it down', async () => {
     const holds = vi.spyOn(Predictor.prototype, 'holdFor');
     const p = await playing('ring', 22, 18);
@@ -3268,7 +3288,7 @@ describe('World', () => {
           members: [
             { characterId: ME, name: 'Ayla', mapId: FLAT, online: true },
             { characterId: 'c-robin', name: 'Robin', mapId: FLAT, online: true },
-            { characterId: 'c-jade', name: 'Jade', mapId: 'crossroads', online: true },
+            { characterId: 'c-jade', name: 'Jade', mapId: WIDE, online: true },
           ],
         }),
       }),
@@ -3321,7 +3341,7 @@ describe('World', () => {
           members: [
             { characterId: ME, name: 'Ayla', mapId: REGIONED, online: true },
             { characterId: 'c-robin', name: 'Robin', ...robin },
-            { characterId: 'c-jade', name: 'Jade', mapId: 'crossroads', online: true },
+            { characterId: 'c-jade', name: 'Jade', mapId: WIDE, online: true },
           ],
         }),
       });
@@ -3370,7 +3390,7 @@ describe('World', () => {
       party.getState().applyPartyState(party3({ mapId: REGIONED, online: false }));
       frames(2);
       expect(seen()).toEqual({ marked: [], statuses: {} });
-      party.getState().applyPartyState(party3({ mapId: 'icefall', online: true }));
+      party.getState().applyPartyState(party3({ mapId: FLAT, online: true }));
       frames(2);
       expect(seen()).toEqual({ marked: [], statuses: {} });
       party.getState().applyPartyState(party3({ mapId: REGIONED, online: true }));
@@ -4343,7 +4363,7 @@ describe('World', () => {
             members: [
               { characterId: ME, name: 'Ayla', mapId: FLAT, online: true },
               { characterId: 'c-robin', name: 'Robin', mapId: FLAT, online: true },
-              { characterId: 'c-jade', name: 'Jade', mapId: 'crossroads', online: true },
+              { characterId: 'c-jade', name: 'Jade', mapId: WIDE, online: true },
             ],
           }),
         }),
@@ -4556,8 +4576,8 @@ describe('World', () => {
   });
 
   it('walks on the world’s own frames, each input acked with the state its sim gave, and never resets', async () => {
-    const p = await playing(TRAIL, 4, 20);
-    const g = (await loadMap(TRAIL)).geometry;
+    const p = await playing(SUN, 4, 20);
+    const g = (await loadMap(SUN)).geometry;
     const steps = tickTiming(RATE, movement.dt).stepsPerTick;
     let server: State = { x: 4, y: 0, z: 20, vx: 0, vy: 0, vz: 0, on_ground: true, hx: 1, hz: 0 };
     let ran = 0;

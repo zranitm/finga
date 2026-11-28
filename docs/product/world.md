@@ -37,18 +37,6 @@
 - **Region names and their layouts** are designed one region at a time, from the generator's previews. The green region's: [The green region](../tech/green-region.md). The desert's: [The desert](../tech/desert-region.md). The snow region's: [The snow region](../tech/snow-region.md).
 - **Underground and underwater** (B13): the green region has two to start. The cave takes today's Cave's mobs, its Vampire Bat and the Thief's trainer. The sunken shrine has new sea mobs. Inside, players walk and fight as on land. The desert has two: a fungus cave with the old Spore Hollow's mobs, under the gorge, and a buried temple with the old Sunken Ruins', under the mesa. The snow region has none: all four of its areas are on the mountain.
 
-## Until the regions are built
+## The small maps
 
-The regions replace today's 14 small maps one region at a time (B10):
-
-1. The green region replaces Town, Forest and Cave.
-2. The desert replaces the mushroom woods and the desert maps. A gate at the green region's north edge leads into it.
-3. Until the snow region is built, the desert's East Pass leads to the Crossroads, and from there to the snow maps and the keep, as now.
-4. The snow region retires the rest, the Crossroads included. The desert's East Pass then leads to it.
-
-Today's maps:
-
-| Region | Maps, with their mob levels | Respawn town |
-| --- | --- | --- |
-| Snow | Frost Trail 23–24, Icefall 26–27, Glacier Peak 29–30 | Crossroads |
-| Keep | Fallen Keep 31–33 | Crossroads |
+The regions replaced the 14 small maps one region at a time (B10): the green region replaced Town, Forest and Cave; the desert, the mushroom woods and the desert maps; the snow region, the last five: Frost Trail, Icefall, Glacier Peak, the Fallen Keep and the Crossroads. A character saved on a retired map starts at Willowmere's start. Only the PvP maps are maps now, and a region's gate leads to the next region's.

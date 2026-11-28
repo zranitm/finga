@@ -950,6 +950,7 @@ Built with step 1, which says who watches a cell.
    - **As designed** in [The desert](./desert-region.md): Sunreach, levels 12 to 22, wet in the south-west and dry in the north-east, with a fungus cave and a buried temple below. It retires the mushroom woods and the desert maps, moving their mobs three or four levels down, and the snow mobs move down to follow on.
    - **As built (desert PR 2):** the plans, the eighteen mobs, the links and the retired maps, with the bots, tests and chart moved off them (desert-region.md section 8).
    - **As designed** in [The snow region](./snow-region.md): Hoarfell, levels 22 to 30, a mountain climbed in terraces with the Fallen Keep on its summit. It retires the snow maps, the keep's and the Crossroads, the last of the small maps.
+   - **As built (snow region PR):** the plan, the five maps retired and the East Pass relinked; the tests that walked the old maps use fixtures of the test data (snow-region.md section 5).
 
 - **Characters on a retired map:** `World.Join` places a character whose map no longer exists at the green region's start, in place of `ErrNoMap`. Built with the plan: `World.Join` starts a character saved on a map that's gone at the start map's spawn.
 - There's no other migration, since the game hasn't gone live.

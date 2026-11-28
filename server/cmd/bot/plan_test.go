@@ -297,7 +297,7 @@ func TestABotFightsTheMobInItsWay(t *testing.T) {
 
 // C12: a map's boss stands for a bot until it hears it beaten there, from the fall or a Snapshot, and again once it's back or the bot sees it appear; a map without one has none.
 func TestABotKeepsOffAMapWhileItsBossIsUp(t *testing.T) {
-	data := gamedatatest.Full(t)
+	data := gamedatatest.Shipped(t)
 	b := &bot{data: data, mapID: "frost_trail"}
 	if !b.bossUp("icefall") || !b.bossUp("frost_trail") || b.bossUp("willowmere") {
 		t.Fatalf("hearing nothing: icefall %v, frost_trail %v, willowmere %v; want the two maps with a boss up, Willowmere (its bosses are its areas') none", b.bossUp("icefall"), b.bossUp("frost_trail"), b.bossUp("willowmere"))

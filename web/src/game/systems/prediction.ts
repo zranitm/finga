@@ -1,5 +1,4 @@
 // The player's own body, stepped ahead of the world on the sim it runs, and set right from each Delta's state for its last input.
-import type { maps } from '@/gamedata/maps';
 import { movement } from '@/gamedata/movement';
 import type { TickTiming } from '@/lib/fixed-step';
 import { RingBuffer } from '@/lib/ring-buffer';
@@ -108,8 +107,8 @@ interface TickEntry {
   state: State;
 }
 
-/** A town, a hunting map or a match's map. */
-export type MapKind = (typeof maps)[number]['kind'];
+/** What a map is: a town or a hunting map on the land, a region, or a match's map. The data holds only the last two now, and the first two stay for the paths that take them. */
+export type MapKind = 'town' | 'hunting' | 'region' | 'pvp';
 
 /** The movement a player predicts with: its move speed in hunting and match maps, and everyone's one pace in towns, as the world moves it. */
 export function movementParams(kind: MapKind, moveSpeed: number): Params {
