@@ -159,3 +159,31 @@ func TestARegionsBossPaysThoseInItsAreaOrWithinItsLeash(t *testing.T) {
 		}
 	})
 }
+
+// A player who walks into an area on foot gets its boss's bar on the tick they cross, as one who arrives by a gate or a login does in their Snapshot, though the boss stands idle and sends no change of its own.
+func TestAPlayerWalkingIntoAnAreaGetsItsBossBarAtOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		inst, stop := worldtest.RunMap(t, worldtest.LoadData(t), fields(t, 80, 0.01), nil, worldtest.Options{}) // a circle too small for the king to wander
+		defer stop()
+		crosser := worldtest.NewPlayer("Robin", line+1, 100)
+		s := join(t, inst, crosser)
+		join(t, inst, worldtest.NewPlayer("Kai", 80, line-10)) // by the king, so its cell stays awake
+		tick(100)
+		for _, d := range s.Deltas() {
+			if d.Boss != nil && d.Boss.Type == "king_slime" {
+				t.Fatalf("the king's bar came to a player in the east on tick %d, before they crossed", d.Tick)
+			}
+		}
+		walkToX(inst, s, crosser.ID, 0, line-1, 0.3)
+		entered := eventsOf[model.AreaEntered](s)
+		if len(entered) != 1 || entered[0].Area != "west" || entered[0].FieldBoss == nil {
+			t.Fatalf("stepping west: %+v; want the west, its king up", entered)
+		}
+		for _, d := range s.Deltas() {
+			if d.Tick == entered[0].Tick && d.Boss != nil && d.Boss.Type == "king_slime" && d.Boss.HP > 0 {
+				return
+			}
+		}
+		t.Fatalf("no frame on tick %d, the tick they entered, carried the king's bar", entered[0].Tick)
+	})
+}

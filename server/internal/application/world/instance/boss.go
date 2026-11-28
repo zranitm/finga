@@ -19,6 +19,7 @@ type bossSlot struct {
 	up     *fieldBoss // nil while beaten
 	fallen uint64     // the beaten boss's mob
 	back   uint64     // the tick a beaten boss is back
+	due    bool       // a player came into its area on foot this tick, who gets its bar in the frame whether it changed or not
 }
 
 // fieldBoss is a boss while it is up: its mob and the HP each character took from it.

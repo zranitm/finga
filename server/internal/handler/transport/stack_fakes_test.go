@@ -311,7 +311,6 @@ type (
 	}
 	teleportCall struct {
 		p        world.Presence
-		mapID    string
 		waypoint string
 		seq      uint32
 	}
@@ -668,11 +667,11 @@ func (f *fakeWorld) UseSkill(_ context.Context, p world.Presence, use world.Skil
 	return f.castErr
 }
 
-func (f *fakeWorld) Teleport(_ context.Context, p world.Presence, mapID, waypoint string, seq uint32) error {
+func (f *fakeWorld) Teleport(_ context.Context, p world.Presence, waypoint string, seq uint32) error {
 	f.ops.Add(1)
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.teleports = append(f.teleports, teleportCall{p: p, mapID: mapID, waypoint: waypoint, seq: seq})
+	f.teleports = append(f.teleports, teleportCall{p: p, waypoint: waypoint, seq: seq})
 	return f.tpErr
 }
 

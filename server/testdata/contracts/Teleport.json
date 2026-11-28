@@ -2,6 +2,6 @@
   "seq": 121,
   "req": "r-21",
   "teleport": {
-    "map_id": "forest"
+    "waypoint": "west"
   }
 }
