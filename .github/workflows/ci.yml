@@ -83,8 +83,8 @@ jobs:
           path: ~/.cache/go-build
           key: go-cover-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-${{ github.sha }}
 
-  # Every test once with the race detector and no coverage, the crash test included: the game is killed mid-pickup and restarts. Run apart from go-cover: the detector checks each of coverage's counters, which made the two together far slower than their sum. In two jobs, the packages that carry most of its time (GO_RACE_HEAVY in the Makefile) and every other, so neither waits for the other.
-  go-race-heavy:
+  # Every test once with the race detector and no coverage, the crash test included: the game is killed mid-pickup and restarts. Run apart from go-cover: the detector checks each of coverage's counters, which made the two together far slower than their sum. Not the packages GO_RACE_SKIP names in the Makefile, which start no goroutine.
+  go-race:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -92,57 +92,27 @@ jobs:
         with:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
-      # The -race build is this job's own, saved from main's pushes alone; the first run falls back to the one go-race kept before it was two jobs.
+      # The -race build is this job's own, saved from main's pushes alone; the first run falls back to the ones the two jobs it replaces kept.
       - uses: actions/cache/restore@v6
         with:
           path: ~/.cache/go-build
-          key: go-race-heavy-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-${{ github.sha }}
+          key: go-race-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-${{ github.sha }}
           restore-keys: |
-            go-race-heavy-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-
-            go-race-heavy-${{ runner.os }}-${{ runner.arch }}-
             go-race-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-
-      - run: make cover-go-race-heavy
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: go-race-heavy-times-${{ github.run_attempt }}
-          path: server/go-race-heavy-times.tsv
-          if-no-files-found: warn
-      - uses: actions/cache/save@v6
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        with:
-          path: ~/.cache/go-build
-          key: go-race-heavy-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-${{ github.sha }}
-
-  go-race-rest:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: server/go.mod
-          cache-dependency-path: server/go.sum
-      # As go-race-heavy's.
-      - uses: actions/cache/restore@v6
-        with:
-          path: ~/.cache/go-build
-          key: go-race-rest-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-${{ github.sha }}
-          restore-keys: |
             go-race-rest-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-
-            go-race-rest-${{ runner.os }}-${{ runner.arch }}-
-            go-race-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-
-      - run: make cover-go-race-rest
+            go-race-${{ runner.os }}-${{ runner.arch }}-
+      - run: make cover-go-race
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: go-race-rest-times-${{ github.run_attempt }}
-          path: server/go-race-rest-times.tsv
+          name: go-race-times-${{ github.run_attempt }}
+          path: server/go-race-times.tsv
           if-no-files-found: warn
       - uses: actions/cache/save@v6
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
           path: ~/.cache/go-build
-          key: go-race-rest-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-${{ github.sha }}
+          key: go-race-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-${{ github.sha }}
 
   # On arm64: the 3D movement vectors replayed by Go and TypeScript, the 3D maps' geometry and walk grids and the region bakes hashed, as checked on amd64, and no fused multiply-add where those numbers are made.
   sim-arm64:

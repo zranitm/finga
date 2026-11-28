@@ -18,8 +18,7 @@ coverage.out
 coverage.html
 coverage.tmp
 go-test-times.tsv
-go-race-heavy-times.tsv
-go-race-rest-times.tsv
+go-race-times.tsv
 
 # client build output and dependencies; maps and region bakes are built from server/data/ at build time
 web/node_modules/
