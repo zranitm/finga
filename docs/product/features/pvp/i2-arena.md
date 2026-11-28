@@ -22,7 +22,7 @@
   - Between rounds: 5 seconds showing who won the round, when the build can change.
 - **The match bar,** at the top centre: the mode, a pip for each round won by each side, and the round's time left.
 - **3v3:**
-  - Teammates show as party frames on the left, with their HP and statuses. The three enemies show as small frames under the match bar.
+  - Teammates show as party frames on the left, with their HP and statuses. The three enemies show as small frames in a column on the right.
   - Parties of two or three queue together. A party of two gets one more teammate: a player near their rating, or a bot.
 - **The result screen:** Victory, Defeat or Draw, each round's winner, and the rating change and rank (I4). The player is taken back after 10 seconds, or at once with Return.
 

@@ -57,7 +57,7 @@ describe('MatchBar', () => {
     vi.useRealTimers();
   });
 
-  it('shows each side’s rounds won from the player’s side, the phase and its time counting down, and the enemy with its BOT tag', () => {
+  it('shows each side’s rounds won from the player’s side, the phase and its time counting down', () => {
     render(<MatchBar socket={fakeSocket().socket} />);
     expect(screen.queryByRole('group', { name: 'Match' })).not.toBeInTheDocument();
     state(MatchPhase.PREP, 1, [0, 0], 10_000);
@@ -72,7 +72,7 @@ describe('MatchBar', () => {
     });
     expect(phase()).toEqual(['Get ready', '0:06']);
     expect(within(bar).getByRole('img', { name: 'Your rounds: 0 of 2' })).toBeInTheDocument();
-    expect(bar.querySelector('.side-enemy')).toHaveTextContent('AshBOT');
+    expect(bar.querySelector('.side-enemy')).not.toHaveTextContent(/Ash|BOT/);
     state(MatchPhase.FIGHT, 2, [0, 1], 60_000);
     expect(phase()).toEqual(['Round 2', '1:00']);
     expect(
@@ -86,7 +86,7 @@ describe('MatchBar', () => {
     expect(within(bar).queryByRole('button', { name: 'Leave match' })).not.toBeInTheDocument(); // it's over
   });
 
-  it('in 3v3 leaves the enemies’ names to their frames under it', () => {
+  it('in 3v3 leaves the enemies’ names to their frames in the right column', () => {
     render(<MatchBar socket={fakeSocket().socket} />);
     act(() =>
       pvp.getState().applyMatchState(

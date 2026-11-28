@@ -6,6 +6,7 @@ import { LoginScreen } from '@/features/auth/LoginScreen';
 import { CharacterWindow } from '@/features/character/CharacterWindow';
 import { CharactersScreen } from '@/features/characters/CharactersScreen';
 import { ChatBox } from '@/features/chat/ChatBox';
+import { BossBar } from '@/features/hud/BossBar';
 import { ConnectionNotice } from '@/features/hud/ConnectionNotice';
 import { DeathOverlay } from '@/features/hud/DeathOverlay';
 import { Hud } from '@/features/hud/Hud';
@@ -230,11 +231,14 @@ function WorldOverlay({
   );
   return (
     <>
-      <Hud />
+      <div className="hud-column">
+        <Hud />
+        <PartyPanel />
+        <TeamFrames />
+      </div>
       <ConnectionNotice />
       <TopBars>
         <MatchBar socket={socket} />
-        <EnemyFrames />
       </TopBars>
       <MatchCount />
       <Minimap />
@@ -249,8 +253,8 @@ function WorldOverlay({
         <button type="button" className="btn btn-quiet" onClick={onLeave}>
           Back to characters
         </button>
-        <PartyPanel />
-        <TeamFrames />
+        <BossBar />
+        <EnemyFrames />
       </div>
       <InviteToasts socket={socket} />
       <ChatBox socket={socket} rest={rest} />

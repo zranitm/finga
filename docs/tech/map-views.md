@@ -160,7 +160,7 @@ One PR, each step one commit, green on `make test`, `make lint`, `make cover`, a
 
 The user's three choices are in section 1. These calls were made in planning and logged for the user to push back on:
 
-1. **The minimap goes in the bottom-right corner,** the one free corner. The top-right holds the party panel and Back to characters, and the top centre the boss bar and the target window.
+1. **The minimap goes in the bottom-right corner,** the one free corner. The top-right holds Back to characters, the boss bar and the enemies' frames, the top left the party panel, and the top centre the match bar and the target window.
 2. **The minimap shows 40 m around the player,** north up, and stops at the map's edge. Maps are 48 to 84 m wide, so it shows about half of one.
 3. **The world chart is laid out by hand in `world.yaml`.** An automatic layout of the portal graph would put maps anywhere. A hand layout can put regions in a sensible order.
 4. **Marks:** party members, the lock, and the field boss are shown; other players aren't.
@@ -170,7 +170,7 @@ The user's three choices are in section 1. These calls were made in planning and
 
 - **Rendering the minimap from the 3D scene with a second camera:** it costs a second render every frame, and props and effects would clutter it. A 2D image of the ground is cheaper and clearer.
 - **Exporting the spawns in the map JSON:** the World tab needs every map's mobs without loading every map's geometry, so the generated game data carries them.
-- **A top-right minimap that pushes the party panel down:** it would move a layout the user already has, for no gain over the free corner.
+- **A top-right minimap that pushes the boss bar and the enemies' frames down:** it would move a layout the user already has, for no gain over the free corner.
 
 ## 12. A map's layout from the World tab
 

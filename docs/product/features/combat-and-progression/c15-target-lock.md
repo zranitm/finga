@@ -32,12 +32,12 @@
   - The locked mob has a gold ring on the ground under it, plus the gold outline that marked the auto-aim's pick before.
   - Only the player sees their own lock.
 - **The target window:**
-  - It sits at the top of the screen, under the field boss's bar when one shows. It's small, much narrower than the boss bar, so it never looks like a boss's HP.
+  - It sits at the top centre of the screen, under the match bar when one shows. The field boss's bar is in the right column, so the window is never mistaken for a boss's HP.
   - It shows the locked mob's name, level, an Elite tag for an elite, and its HP as a bar with numbers.
   - Under the HP, it shows the mob's stats: attack (physical or magic), defense, magic defense, accuracy, and evasion. Pointing at a stat shows its full name, as the Character window names it.
   - It looks like the player's own status frame. A red edge and a red ✕ mark it as an enemy, where the player's frame and the party's have a green edge and a green dot.
   - It updates as the mob is hit, and moves with Tab.
-  - It hides when nothing is locked. For the field boss it shows too, under the boss bar, since the bar carries no stats.
+  - It hides when nothing is locked. For the field boss it shows too, since the boss bar carries no stats.
 - **Unchanged:** the server still decides every hit from the aim it's sent, and walking already lets a player face any way. So a lock gives no reach or power a player couldn't get by turning.
 
 ## Not in this feature

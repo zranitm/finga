@@ -1,8 +1,8 @@
-// The match bar (pvp.md section 13): each side's rounds won as pips, or a battle's scores and points, the phase and its time counted down from what the server said, the enemy's name where no frames show them, and Leave match, which forfeits after a second press; and the count into a round over the world.
+// The match bar (pvp.md section 13): each side's rounds won as pips, or a battle's scores and points, the phase and its time counted down from what the server said, and Leave match, which forfeits after a second press; and the count into a round over the world.
 import { useState } from 'react';
 
 import { Button } from '@/components/Button';
-import { isBattle, pointNames, roundsToWin, teamOf } from '@/features/pvp/modes';
+import { isBattle, pointNames, roundsToWin } from '@/features/pvp/modes';
 import { problemOf } from '@/features/shared/problem';
 import { useNow } from '@/features/shared/useNow';
 import { timeLeft } from '@/features/shared/words';
@@ -10,7 +10,7 @@ import type { GameSocket } from '@/net/socket';
 import { MatchPhase } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { pvp, sideOf } from '@/state/pvp';
-import type { Fighter, Match, MatchPoint } from '@/state/pvp';
+import type { Match, MatchPoint } from '@/state/pvp';
 
 export interface MatchBarProps {
   readonly socket: Pick<GameSocket, 'request'>;
@@ -38,7 +38,6 @@ function Shown({
   const battle = isBattle(match.mode);
   const mine = (battle ? match.score : match.wins)[side - 1] ?? 0;
   const theirs = (battle ? match.score : match.wins)[2 - side] ?? 0;
-  const enemies = teamOf(match.mode) > 1 ? [] : (match.sides[2 - side] ?? []); // a team's show as frames under the bar
   const need = roundsToWin(match.mode);
   const left = match.endsAt - now;
   const forfeit = async () => {
@@ -79,9 +78,6 @@ function Shown({
         ) : (
           <Pips label="Their rounds" won={theirs} of={need} />
         )}
-        {enemies.map((f) => (
-          <Enemy key={f.id} fighter={f} />
-        ))}
       </span>
       {match.phase !== MatchPhase.RESULT &&
         (leaving ? (
@@ -210,15 +206,6 @@ function Point({
         />
       </svg>
       <span className="match-point-name">{name.split(' ')[0]}</span>
-    </span>
-  );
-}
-
-function Enemy({ fighter }: { readonly fighter: Fighter }) {
-  return (
-    <span className="match-enemy">
-      {fighter.name}
-      {fighter.bot && <span className="unit-frame-badge">BOT</span>}
     </span>
   );
 }

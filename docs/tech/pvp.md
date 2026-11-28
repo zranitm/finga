@@ -642,8 +642,8 @@ Area 55, PvP:
   - **15v15:** both scores, the three points in their holders' colours, each with its ring, and the time.
   - Times count locally from `ends_in_ms`.
 - **Frames:**
-  - In 3v3 the enemies show as party-style frames under the bar.
-  - Teammates take the party frames' place in 1v1 and 3v3. In 15v15 the party frames stay the party.
+  - In 1v1 and 3v3 each enemy shows as a compact frame, one per row, in the right column under the two buttons.
+  - Teammates take the party frames' place, under the player's own frame at the left, in 1v1 and 3v3. In 15v15 the party frames stay the party.
 - **Names:** enemies red, teammates green, and a BOT tag over bots and on their frames.
 - **The lock on players:**
   - `Mark` ids become refs (`m:12`, `p:<uuid>`), and `marks` adds enemies in view.
@@ -704,8 +704,8 @@ As built for 3v3 (build step 5, the client):
 - **Frames:**
   - The world scene tells a store, `state/fighters.ts`, each other fighter's level, HP and statuses as of the newest frame, and whether they're down. A fighter unchanged keeps its object, so its frame doesn't render again.
   - A fighter shows once the world has drawn them.
-  - **Teammates** take the party frames' place in a round mode, in the same corner, with their BOT tags. A teammate who is down is dimmed, with "Down".
-  - **Enemies** show in a team mode under the match bar: one row of compact frames, wrapping before it reaches the corner's frames. The bar then leaves their names to the frames; in 1v1 it still names the enemy.
+  - **Teammates** take the party frames' place in a round mode, in the left column under the HUD's tray, with their BOT tags. A teammate who is down is dimmed, with "Down".
+  - **Enemies** show in every round mode, 1v1 included, in the right column under the Settings and Back to characters buttons: a 180 px compact frame each, one per row. The match bar never names them.
   - A mode the client doesn't know has no rounds, so the party frames stay the party, as they will in 15v15.
 - **Party members:** the queue tag and the offer card say who is queued with the player ("with Robin and Jade"), from `PvpQueued`'s members, named as their party names them.
 
@@ -754,7 +754,7 @@ As built for 15v15 (step 6d-1, the client):
 - **The Arena card:** "15 against 15: first to 1,000 points, or the most in 12 minutes.", marked Unrated, with the record alone: no rating, rank or placement.
 - **The result:** "Score 312 – 290" from the player's side, in place of the rounds, and no rating.
 - **Down:** "Back in 7 s", counted from when the down showed to the battle's respawn, then "Back in a moment" till the world gets them up.
-- **Frames:** the party frames stay the party, and the enemies get no frames under the bar.
+- **Frames:** the party frames stay the party, and the enemies get no frames in the right column.
 
 As built for 15v15 (step 6d-2, the points and bases drawn):
 

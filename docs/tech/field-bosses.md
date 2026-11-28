@@ -147,7 +147,7 @@ All additive, so `buf breaking` passes:
 
 ## 7. Client
 
-- **Boss bar:** a `fieldBoss` store holds the boss's mob id, type, and when it leaves, counted from when the `FieldBoss` or the `Snapshot` came. The world scene puts the boss's HP in it as it draws the boss, only when it changes. `BossBar`, at the top center under the connection notice's place, shows the boss's name from game data, that HP, and the time left counting down each second. It's built on the shared `Bar`. It shows while the scene draws the boss and the store holds it.
+- **Boss bar:** a `fieldBoss` store holds the boss's mob id, type, and when it leaves, counted from when the `FieldBoss` or the `Snapshot` came. The world scene puts the boss's HP in it as it draws the boss, only when it changes. `BossBar`, in the right column under the Settings and Back to characters buttons, 180 px wide, shows the boss's name from game data, that HP, and the time left counting down each second. It's built on the shared `Bar`. It shows while the scene draws the boss and the store holds it.
 - **The mob itself** draws with its `look`. A boss's small overhead bar isn't drawn, since the top bar shows the same.
 - **Players draw over every mob,** by the client's one draw-order table, `game/depth.ts`: a melee player fights from inside a boss three times their size, and would otherwise vanish behind one that appeared after them.
 - **Notices:**

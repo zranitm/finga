@@ -1,4 +1,4 @@
-// The match's fighters' frames (pvp.md section 13): in a round mode the teammates take the party frames' place, and in a team mode the enemies show under the match bar; each with its level, HP, statuses and a BOT tag, dimmed while down, and "Reconnecting" while their place is held through a drop.
+// The match's fighters' frames (pvp.md section 13): in a round mode the teammates take the party frames' place and the enemies show in the right column under the field boss's place; each with its level, HP, statuses and a BOT tag, dimmed while down, and "Reconnecting" while their place is held through a drop.
 import { UnitFrame } from '@/features/hud/UnitFrame';
 import { character } from '@/state/character';
 import { fighters } from '@/state/fighters';
@@ -6,7 +6,7 @@ import type { FighterLive } from '@/state/fighters';
 import { pvp, sideOf } from '@/state/pvp';
 import type { Fighter } from '@/state/pvp';
 
-import { roundsToWin, teamOf } from './modes';
+import { roundsToWin } from './modes';
 
 /** The player's teammates in a round mode, in the party frames' place; none in 1v1. */
 export function TeamFrames() {
@@ -26,13 +26,13 @@ export function TeamFrames() {
   ) : null;
 }
 
-/** The enemies in a team mode with rounds, under the match bar; a battle's fifteen aren't framed. */
+/** The enemies in a round mode, 1v1 included, one frame each in the right column; a battle's fifteen aren't framed. */
 export function EnemyFrames() {
   const match = pvp.use((s) => s.match);
   const me = character.use((s) => s.character?.id ?? '');
   const live = fighters.use((s) => s.live);
   const side = sideOf(match, me);
-  if (!match || side === 0 || teamOf(match.mode) <= 1 || roundsToWin(match.mode) === 0) {
+  if (!match || side === 0 || roundsToWin(match.mode) === 0) {
     return null;
   }
   const foes = (match.sides[2 - side] ?? []).filter((f) => live[f.id]);

@@ -319,7 +319,7 @@ body {
   border-bottom: 1px solid var(--panel-border);
 }
 
-/* Top right over the canvas: Back to characters, then the party panel. */
+/* Top right over the canvas: Settings and Back to characters, then the field boss's bar and the enemies' frames, a 180 px column. */
 .world-corner {
   position: fixed;
   top: 12px;
@@ -329,17 +329,28 @@ body {
   align-items: flex-end;
   gap: 8px;
 }
+.world-corner > .boss-bar,
+.world-corner > .enemy-frames {
+  width: 180px;
+  box-sizing: border-box;
+}
 .world-corner > .btn {
   background: color-mix(in srgb, var(--panel) 80%, transparent);
   border-color: var(--panel-border);
   font-size: 13px;
 }
 
-/* The HUD, top left over the canvas: the player's frame, then the tray under it. */
-.hud {
+/* Top left over the canvas: the HUD, then the party's (or a round's teammates') 180 px frames under it. */
+.hud-column {
   position: fixed;
   top: 12px;
   left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* The HUD: the player's frame, then the tray under it. */
+.hud {
   width: 339px; /* the tray's eight 40 px keys a pixel apart, its padding and border */
   display: flex;
   flex-direction: column;
@@ -459,7 +470,7 @@ body {
   font-size: 14px;
 }
 
-/* The field boss's bar sits under the banners' place, at the top centre, and the target window under it, narrower so the two never look alike. */
+/* The match bar sits under the banners' place, at the top centre, and the target window under it, narrower so the two never look alike. */
 .top-bars {
   position: fixed;
   top: 56px;
@@ -1983,18 +1994,11 @@ body {
   flex-direction: column;
   gap: 4px;
 }
-/* In a team mode, the enemies' compact frames side by side under the match bar: one row wider than the bars, wrapping before it reaches the corner's 180 px frames. */
+/* In a round mode, the enemies' compact frames, one per row, in the right column under the field boss's place. */
 .enemy-frames {
-  align-self: center;
-  width: max-content;
-  max-width: calc(100vw - 2 * 204px);
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  flex-direction: column;
   gap: 4px;
-}
-.enemy-frames > .unit-frame {
-  width: 150px;
 }
 .invites {
   position: fixed;
@@ -2265,14 +2269,6 @@ body {
 }
 .match-side.side-enemy {
   color: var(--enemy);
-}
-.match-enemy {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.match-enemy .unit-frame-badge {
-  margin-left: 4px;
 }
 .match-pips {
   display: inline-flex;
