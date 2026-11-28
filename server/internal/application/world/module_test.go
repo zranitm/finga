@@ -3,11 +3,11 @@ package world_test
 import (
 	"context"
 	"errors"
-	"strings"
 	"fmt"
 	"log/slog"
 	"math"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
