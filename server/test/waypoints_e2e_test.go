@@ -62,7 +62,7 @@ func TestATeleportGoesToAFoundWaypointOrTheMainTown(t *testing.T) {
 		to      string
 	}{
 		{&clientv1.Teleport{Waypoint: "north"}, "TELEPORT_NOT_FOUND", "town"},
-		{&clientv1.Teleport{MapId: "test_region"}, "TELEPORT_UNKNOWN_MAP", "west"},
+		{&clientv1.Teleport{}, "TELEPORT_UNKNOWN_WAYPOINT", "west"},
 	} {
 		if r := l.Teleport(t, step.why, step.refused); r.GetOk() || r.GetCode() != code(step.why) {
 			t.Fatalf("teleport %v answered ok %v with %d; want %s", step.refused, r.GetOk(), r.GetCode(), step.why)

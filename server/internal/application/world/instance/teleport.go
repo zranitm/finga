@@ -13,11 +13,10 @@ import (
 	"finga/pkg/transient"
 )
 
-// teleportMsg asks to start a teleport channel to a waypoint or, with none, to one of the old maps; done hears whether it started.
+// teleportMsg asks to start a teleport channel to a waypoint; done hears whether it started.
 type teleportMsg struct {
 	id       kernel.CharacterID
 	conn     string
-	mapID    string
 	waypoint string
 	seq      uint32 // the input it was pressed during
 	done     chan error
@@ -39,15 +38,15 @@ func (switchMsg) message() {}
 // channel is a teleport or a channel switch under way: where to, the input it was pressed during, and the tick it takes the player.
 type channel struct {
 	target *gamedata.Map
-	at     *gamedata.Waypoint // a teleport to a waypoint's, beside which it lands; nil for an old map's spawn
+	at     *gamedata.Waypoint // a teleport's waypoint, beside which it lands; nil on a switch
 	to     int                // a switch's channel of this region; 0 on a teleport
 	seq    uint32
 	end    uint64
 }
 
-// Teleport starts a teleport channel to the waypoint, or, with none, to the old map, pressed during input seq, and returns once it has started or been refused.
-func (i *Instance) Teleport(ctx context.Context, id kernel.CharacterID, conn, mapID, waypoint string, seq uint32) error {
-	m := teleportMsg{id: id, conn: conn, mapID: mapID, waypoint: waypoint, seq: seq, done: make(chan error, 1)}
+// Teleport starts a teleport channel to the waypoint, pressed during input seq, and returns once it has started or been refused.
+func (i *Instance) Teleport(ctx context.Context, id kernel.CharacterID, conn, waypoint string, seq uint32) error {
+	m := teleportMsg{id: id, conn: conn, waypoint: waypoint, seq: seq, done: make(chan error, 1)}
 	return i.ask(ctx, m, m.done)
 }
 
@@ -74,17 +73,14 @@ func (i *Instance) startTeleport(m teleportMsg) {
 
 // teleportTarget is where a teleport goes (large-regions.md section 8): a waypoint the player has found, or one in its region's main town, in any region.
 func (i *Instance) teleportTarget(p *player, m teleportMsg) (*gamedata.Map, *gamedata.Waypoint, error) {
-	if m.waypoint != "" {
-		target, w, ok := i.data.Waypoint(m.waypoint)
-		if !ok {
-			return nil, nil, model.ErrTeleportUnknownWaypoint
-		}
-		if _, found := p.Waypoints[w.ID]; !found && !w.Main {
-			return nil, nil, model.ErrTeleportNotFound
-		}
-		return target, &w, nil
+	target, w, ok := i.data.Waypoint(m.waypoint)
+	if !ok {
+		return nil, nil, model.ErrTeleportUnknownWaypoint // a match's map and a region's id aren't waypoints
 	}
-	return nil, nil, model.ErrTeleportUnknownMap // a match's map is reached by a match alone, a region by its waypoints
+	if _, found := p.Waypoints[w.ID]; !found && !w.Main {
+		return nil, nil, model.ErrTeleportNotFound
+	}
+	return target, &w, nil
 }
 
 // SwitchChannel starts a switch to the region's channel n, pressed during input seq, and returns once it has started or been refused; the World has checked n is open with room.

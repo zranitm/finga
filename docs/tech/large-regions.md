@@ -620,7 +620,7 @@ Built with step 1, which says who watches a cell.
     - **Leaving dead** saves that same arrival with half HP, and a character saved at 0 HP joins there. The getting up, the checkpoint and the join share one rule, `Data.GetUp`; the old maps keep their town's spawn. In the waypoints playtest, both had come back at the region's start.
 - **As built (step 6b), teleport:**
   - **The request:** `Teleport` keeps `map_id` (1) and gains `waypoint` (2) beside it. A `oneof` round both would move field 1 into it, which `buf breaking` refuses even at WIRE. A set waypoint is the target; `map_id` is read only without one.
-  - **`map_id`** is for the old maps alone, until the last is retired. A region's id is `TELEPORT_UNKNOWN_MAP`, as a match's map's is, and the player's own old map `TELEPORT_SAME_MAP`.
+  - **`map_id`** was for the old maps alone and is out of the protocol (reserved); a teleport names a waypoint, and a region's or a match's id is `TELEPORT_UNKNOWN_WAYPOINT`.
   - **A waypoint** that no region has is `TELEPORT_UNKNOWN_WAYPOINT` (330046, 404). One the player hasn't found, outside a main town, is `TELEPORT_NOT_FOUND` (330047, 409). Dead and busy are refused after these, as before.
   - **The landing:** at the channel's end, the player is handed off beside the stone, at its arrival, facing its way, and checkpointed there.
     - Into a region, from an old map or another region, the World picks the channel as for any join.

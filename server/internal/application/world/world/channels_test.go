@@ -227,7 +227,7 @@ func TestATeleportIntoARegionIsPicked(t *testing.T) {
 		w.enterRegion(t, "Ayla")
 		bo, s := at(t, "Bo", "willowmere"), &worldtest.Sink{}
 		w.enter(t, bo, "willowmere", "c-Bo", s)
-		if err := w.Teleport(context.Background(), bo.ID, "c-Bo", "", "town", 1); err != nil {
+		if err := w.Teleport(context.Background(), bo.ID, "c-Bo", "town", 1); err != nil {
 			t.Fatal(err)
 		}
 		time.Sleep(data.TeleportChannel() + 3*worldtest.TickInterval)
@@ -426,7 +426,7 @@ func TestARefusedSwitchKeepsNoChannelOpen(t *testing.T) {
 		before := idle - world.ChannelSweep // a sweep short of the idle time
 		time.Sleep(before)
 		synctest.Wait()
-		if err := w.Teleport(ctx, ayla.ID, "c-Ayla", "", "palmwater", 1); err != nil {
+		if err := w.Teleport(ctx, ayla.ID, "c-Ayla", "palmwater", 1); err != nil {
 			t.Fatal(err)
 		}
 		if err := w.SwitchChannel(ctx, ayla.ID, "c-Ayla", 2, 1); !errors.Is(err, model.ErrTeleportBusy) {

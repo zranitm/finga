@@ -2604,12 +2604,10 @@ func (*EnterPortal) Descriptor() ([]byte, []int) {
 	return file_client_v1_client_proto_rawDescGZIP(), []int{8}
 }
 
-// Teleport starts a channel to a waypoint, or to one of the old maps, answered as it starts; at its end a MapChange follows, as for a portal, unless a TeleportCancelled says what ended it first.
+// Teleport starts a channel to a waypoint, answered as it starts; at its end a MapChange follows, as for a portal, unless a TeleportCancelled says what ended it first.
 type Teleport struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// One of the old maps, which have no waypoints, till the last is retired; a region is reached by its waypoints alone. Read only when waypoint is empty.
-	MapId string `protobuf:"bytes,1,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
-	// A waypoint's id across every region: one the character has found, or one in a region's main town. When set, it's the target.
+	// A waypoint's id across every region: one the character has found, or one in a region's main town.
 	Waypoint      string `protobuf:"bytes,2,opt,name=waypoint,proto3" json:"waypoint,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2643,13 +2641,6 @@ func (x *Teleport) ProtoReflect() protoreflect.Message {
 // Deprecated: Use Teleport.ProtoReflect.Descriptor instead.
 func (*Teleport) Descriptor() ([]byte, []int) {
 	return file_client_v1_client_proto_rawDescGZIP(), []int{9}
-}
-
-func (x *Teleport) GetMapId() string {
-	if x != nil {
-		return x.MapId
-	}
-	return ""
 }
 
 func (x *Teleport) GetWaypoint() string {
@@ -10771,10 +10762,9 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"PickAnswer\x12'\n" +
 	"\x04pick\x18\x01 \x01(\v2\x13.client.v1.LootPickR\x04pick\x12\x12\n" +
 	"\x04code\x18\x02 \x01(\x05R\x04code\"\r\n" +
-	"\vEnterPortal\"=\n" +
-	"\bTeleport\x12\x15\n" +
-	"\x06map_id\x18\x01 \x01(\tR\x05mapId\x12\x1a\n" +
-	"\bwaypoint\x18\x02 \x01(\tR\bwaypoint\")\n" +
+	"\vEnterPortal\"4\n" +
+	"\bTeleport\x12\x1a\n" +
+	"\bwaypoint\x18\x02 \x01(\tR\bwaypointJ\x04\b\x01\x10\x02R\x06map_id\")\n" +
 	"\rSwitchChannel\x12\x18\n" +
 	"\achannel\x18\x01 \x01(\rR\achannel\"\n" +
 	"\n" +

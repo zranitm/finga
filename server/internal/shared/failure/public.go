@@ -171,8 +171,6 @@ var ownErrors = []struct {
 	{kernel.ErrSkillWaiting, SkillWaiting},
 	{kernel.ErrPromotionConditionsUnmet, PromotionUnmet},
 	{kernel.ErrNotYourNextClass, NotYourNextClass},
-	{kernel.ErrTeleportUnknownMap, TeleportUnknownMap},
-	{kernel.ErrTeleportSameMap, TeleportSameMap},
 	{kernel.ErrTeleportDead, TeleportDead},
 	{kernel.ErrTeleportBusy, TeleportBusy},
 	{kernel.ErrNotARegion, NotARegion},

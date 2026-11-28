@@ -123,9 +123,9 @@ func (w *World) UseSkill(ctx context.Context, id kernel.CharacterID, conn string
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.UseSkill(ctx, id, conn, use, seq) })
 }
 
-// Teleport starts a teleport channel to the waypoint, or else the old map, pressed during input seq, and returns once it has started or been refused.
-func (w *World) Teleport(ctx context.Context, id kernel.CharacterID, conn, mapID, waypoint string, seq uint32) error {
-	return w.wait(id, conn, func(i *instance.Instance) error { return i.Teleport(ctx, id, conn, mapID, waypoint, seq) })
+// Teleport starts a teleport channel to the waypoint, pressed during input seq, and returns once it has started or been refused.
+func (w *World) Teleport(ctx context.Context, id kernel.CharacterID, conn, waypoint string, seq uint32) error {
+	return w.wait(id, conn, func(i *instance.Instance) error { return i.Teleport(ctx, id, conn, waypoint, seq) })
 }
 
 // Promote moves the character to the class the NPC within reach trains, once the trainer's weapon is given, and returns once it applies.
