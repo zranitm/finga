@@ -1,14 +1,9 @@
 # Each map's place on the world chart: x across and y down, 0 to 100. Links are drawn from the maps' portals.
-# The towns sit near the middle: the first maps arc from the start town round to the crossroads, and its two roads go east, the desert's south of the snow's, the levels rising outward.
+# The towns sit near the middle: Willowmere, the desert's Sunreach north-east of it, then the crossroads, whose road goes east to the snow, the levels rising outward.
 places:
   willowmere:        [26, 56]
-  shroom_grove:      [20, 32]
-  spore_hollow:      [32, 22]
-  toadstool_heights: [46, 30]
+  sunreach:          [38, 32]
   crossroads:        [50, 50]
-  dune_road:         [64, 58]
-  sandstone_cliffs:  [76, 66]
-  sunken_ruins:      [88, 74]
   frost_trail:       [64, 38]
   icefall:           [74, 28]
   glacier_peak:      [84, 20]

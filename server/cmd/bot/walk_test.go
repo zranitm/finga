@@ -97,14 +97,14 @@ func walkOffline(m *gamedata.Map, mv sim.Params, from, to nav.Point, within floa
 // C12: with a field boss up, a bot hunts its map clear of where its blows could reach the boss; a beaten one, not yet back, keeps it from nothing.
 func TestABotKeepsClearOfAFieldBoss(t *testing.T) {
 	data := gamedatatest.Full(t)
-	grove, _ := data.Map("shroom_grove")
-	b := &bot{data: data, mapID: "shroom_grove", rng: rand.New(rand.NewPCG(1, 2))}
+	grove, _ := data.Map("frost_trail")
+	b := &bot{data: data, mapID: "frost_trail", rng: rand.New(rand.NewPCG(1, 2))}
 	at, r := point(grove.Boss.At), grove.Boss.Radius
-	b.bossBackIn("shroom_grove", time.Minute)
-	if b.nearBoss("shroom_grove", at) {
+	b.bossBackIn("frost_trail", time.Minute)
+	if b.nearBoss("frost_trail", at) {
 		t.Fatal("near a boss that isn't back yet")
 	}
-	b.bossBackIn("shroom_grove", 0)
+	b.bossBackIn("frost_trail", 0)
 	clear := bossClear
 	for _, c := range []struct {
 		name string
@@ -120,15 +120,15 @@ func TestABotKeepsClearOfAFieldBoss(t *testing.T) {
 	} {
 		b.mobs, b.boss = nil, 0
 		if c.seen {
-			b.mobs, b.boss = map[uint32]*clientv1.MobView{9: {Id: 9, Type: "spore_mother", X: at.X, Z: at.Z, Hp: 100}}, 9
+			b.mobs, b.boss = map[uint32]*clientv1.MobView{9: {Id: 9, Type: "avalanche_slime", X: at.X, Z: at.Z, Hp: 100}}, 9
 		}
-		if got := b.nearBoss("shroom_grove", c.at); got != c.want {
+		if got := b.nearBoss("frost_trail", c.at); got != c.want {
 			t.Errorf("%s: near %v, want %v", c.name, got, c.want)
 		}
 	}
-	b.mobs, b.boss = map[uint32]*clientv1.MobView{9: {Id: 9, Type: "spore_mother", X: at.X - r, Z: at.Z, Hp: 100}}, 9
+	b.mobs, b.boss = map[uint32]*clientv1.MobView{9: {Id: 9, Type: "avalanche_slime", X: at.X - r, Z: at.Z, Hp: 100}}, 9
 	far := nav.Point{X: at.X - r + clear + 0.5, Z: at.Z} // past the boss's reach where it's seen, in its circle's
-	if b.nearBoss("shroom_grove", far) {
+	if b.nearBoss("frost_trail", far) {
 		t.Errorf("%+v is near the boss seen at its circle's west edge, want it clear", far)
 	}
 }

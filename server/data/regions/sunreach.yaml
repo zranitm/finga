@@ -1,0 +1,149 @@
+# The desert region's plan (large-regions.md step 9), wet in the south-west and dry in the north-east, as the user agreed on 2026-11-28.
+# You arrive from Willowmere's north pass into the Sporewood Gorge, a shaded river valley of giant mushrooms (the old mushroom woods' mobs), with Spore Hollow below it.
+# The river comes down from the western mountains along the foot of the ledges and south through the gorge; Palmwater, the main town in the middle, sits by a spring-fed oasis lake. Up on the west terraces are the Toadstool Ledges; east are the Amber Dunes; north is the Sandstone mesa, with the Sunken Ruins under it and the pass on to the Crossroads.
+# Mobs keep their looks and attacks and move down to the levels below. Areas sit on 4 m lines; the interior is 72 to 952 on both axes.
+name: Sunreach
+size: [1024, 1024]
+cell: 1
+seed: 31
+look: {sky: day}
+ground: {noise: {scale: 220, amplitude: 5, octaves: 4}}
+edge: {width: 72, height: [35, 60], biome: peaks}
+colour: {slope: 0.25, high: 30}
+features:
+  - {ridge: {path: [[504, 72], [508, 180], [512, 280]], width: 100, height: 14}}                 # the gorge's east wall, between it and the south dunes
+  - {plateau: {area: [[84, 404], [420, 404], [430, 560], [420, 748], [84, 748]], height: 8, edge: cliff}}    # the Toadstool Ledges
+  - {plateau: {area: [[20, 800], [460, 800], [480, 640], [1000, 640], [1000, 1000], [20, 1000]], height: 10, edge: cliff}}   # the Sandstone mesa
+  - {plateau: {area: [[768, 248], [820, 240], [828, 300], [772, 308]], height: 14, edge: cliff}}   # a butte in the dunes
+  - {plateau: {area: [[640, 148], [684, 152], [680, 196], [636, 192]], height: 12, edge: cliff}}   # a smaller butte
+  - {plateau: {area: [[700, 700], [740, 696], [744, 736], [704, 740]], height: 8, edge: cliff}}   # a crag on the mesa
+  - {ridge: {path: [[120, 850], [250, 830], [400, 840]], width: 40, height: 4}}                 # a swell across the west mesa
+  - {ridge: {path: [[600, 110], [720, 150], [860, 120]], width: 44, height: 4}}                  # dunes
+  - {ridge: {path: [[580, 300], [680, 350], [760, 360]], width: 40, height: 3.5}}
+  - {ridge: {path: [[700, 560], [820, 500], [930, 540]], width: 40, height: 4}}
+  - {ridge: {path: [[860, 380], [900, 300], [920, 200]], width: 36, height: 3}}
+  - {lake: {area: [[681, 490], [675, 512], [661, 527], [636, 532], [611, 527], [597, 512], [591, 490], [597, 468], [611, 453], [636, 448], [661, 453], [675, 468]], depth: 3, banks: gentle}}   # the oasis
+  - {river: {path: [[10, 372], [100, 368], [200, 364], [300, 340], [368, 300], [385, 262], [370, 210], [330, 160], [300, 96], [292, 10]], width: 12, depth: 3, fords: [[370, 210]], banks: gentle}}
+  - {road: {path: [[380, 96], [396, 170], [420, 300], [450, 370], [480, 416], [490, 440]], width: 5}}   # the south gate up the gorge's east bank to Palmwater
+  - {road: {path: [[396, 170], [370, 210], [300, 222], [200, 240], [112, 250]], width: 4}}             # over the ford to the hollow's mouth                                 # to the hollow's mouth
+  - {road: {path: [[448, 470], [400, 480], [330, 500], [250, 540], [200, 600], [180, 700], [220, 790], [260, 870]], width: 5}}   # west, over the ledges and up the mesa
+  - {road: {path: [[560, 440], [600, 420], [720, 410], [800, 400], [890, 330], [900, 210]], width: 5}}         # east into the dunes
+  - {road: {path: [[504, 512], [512, 580], [540, 660], [600, 740], [720, 820], [840, 880], [924, 900]], width: 6}}   # north up the mesa to the east pass
+  - {road: {path: [[720, 820], [640, 880]], width: 4}}                                                         # to the ruins' stair
+areas:
+  - {id: sporewood, name: Sporewood Gorge, area: [[72, 72], [480, 72], [480, 384], [72, 384]], levels: [12, 13], biome: gorge, kind: hunting, boss: {at: [130, 140], radius: 6, mob: spore_mother}}
+  - {id: ledges, name: Toadstool Ledges, area: [[72, 384], [448, 384], [448, 768], [72, 768]], levels: [16, 17], biome: ledges, kind: hunting, boss: {at: [120, 720], radius: 6, mob: lantern_slime}}
+  - {id: palmwater, name: Palmwater, area: [[448, 416], [560, 416], [560, 512], [448, 512]], biome: oasis, kind: town}
+  - {id: dunes, name: Amber Dunes, area: [[480, 72], [952, 72], [952, 608], [448, 608], [448, 512], [560, 512], [560, 416], [448, 416], [448, 384], [480, 384]], levels: [18, 19], biome: dunes, kind: hunting, boss: {at: [880, 120], radius: 6, mob: dune_baron}}
+  - {id: sandstone, name: Sandstone Cliffs, area: [[72, 768], [448, 768], [448, 608], [952, 608], [952, 952], [72, 952]], levels: [20, 21], biome: mesa, kind: hunting, boss: {at: [900, 700], radius: 6, mob: cliff_reaper}}
+camps:
+  - {area: sporewood, name: south slimes, at: [200, 130], radius: 8, mob: spore_slime, max: 5, respawn: 30s}
+  - {area: sporewood, name: west slimes, at: [240, 316], radius: 8, mob: spore_slime, max: 5, respawn: 30s}
+  - {area: sporewood, name: riverside slimes, at: [420, 160], radius: 8, mob: spore_slime, max: 5, respawn: 30s}
+  - {area: sporewood, name: bend slimes, at: [330, 260], radius: 8, mob: spore_slime, max: 4, respawn: 30s}
+  - {area: sporewood, name: mossbacks, at: [180, 220], radius: 9, mob: mossback_snail, max: 3, respawn: 40s}
+  - {area: sporewood, name: east mossbacks, at: [440, 240], radius: 9, mob: mossback_snail, max: 3, respawn: 40s}
+  - {area: ledges, name: south glow, at: [150, 450], radius: 8, mob: glow_slime, max: 5, respawn: 30s}
+  - {area: ledges, name: rim glow, at: [340, 460], radius: 8, mob: glow_slime, max: 5, respawn: 30s}
+  - {area: ledges, name: west glow, at: [140, 620], radius: 8, mob: glow_slime, max: 5, respawn: 30s}
+  - {area: ledges, name: north glow, at: [330, 650], radius: 8, mob: glow_slime, max: 5, respawn: 30s}
+  - {area: ledges, name: elders, at: [240, 680], radius: 9, mob: elder_snail, max: 3, respawn: 40s}
+  - {area: ledges, name: rim elders, at: [380, 560], radius: 9, mob: elder_snail, max: 3, respawn: 40s}
+  - {area: dunes, name: south mice, at: [620, 260], radius: 8, mob: sand_mouse, max: 5, respawn: 30s}
+  - {area: dunes, name: butte mice, at: [760, 200], radius: 8, mob: sand_mouse, max: 5, respawn: 30s}
+  - {area: dunes, name: east mice, at: [880, 470], radius: 8, mob: sand_mouse, max: 5, respawn: 30s}
+  - {area: dunes, name: crest mice, at: [760, 560], radius: 8, mob: sand_mouse, max: 5, respawn: 30s}
+  - {area: dunes, name: oasis mice, at: [580, 560], radius: 8, mob: sand_mouse, max: 4, respawn: 30s}
+  - {area: dunes, name: scarabs, at: [680, 330], radius: 9, mob: shellback_scarab, max: 3, respawn: 40s}
+  - {area: dunes, name: east scarabs, at: [860, 230], radius: 9, mob: shellback_scarab, max: 3, respawn: 40s}
+  - {area: sandstone, name: west vultures, at: [160, 900], radius: 8, mob: dust_vulture, max: 5, respawn: 30s}
+  - {area: sandstone, name: mesa vultures, at: [380, 880], radius: 8, mob: dust_vulture, max: 5, respawn: 30s}
+  - {area: sandstone, name: road vultures, at: [600, 780], radius: 8, mob: dust_vulture, max: 5, respawn: 30s}
+  - {area: sandstone, name: east vultures, at: [820, 720], radius: 8, mob: dust_vulture, max: 5, respawn: 30s}
+  - {area: sandstone, name: sun slimes, at: [480, 900], radius: 9, mob: sun_slime, max: 3, respawn: 40s}
+  - {area: sandstone, name: far sun slimes, at: [800, 920], radius: 9, mob: sun_slime, max: 3, respawn: 40s}
+waypoints:
+  - {id: gorge_mouth, name: Gorge Mouth, at: [384, 120]}
+  - {id: sporewood, name: Sporewood, at: [300, 220]}
+  - {id: hollow_mouth, name: Hollow Mouth, at: [112, 250]}
+  - {id: palmwater, name: Palmwater, at: [530, 470]}
+  - {id: ledges, name: Toadstool Ledges, at: [250, 540]}
+  - {id: ledges_north, name: Ledges North, at: [180, 700]}
+  - {id: oasis_shore, name: Oasis Shore, at: [720, 410]}
+  - {id: south_dunes, name: South Dunes, at: [720, 210]}
+  - {id: east_dunes, name: East Dunes, at: [890, 330]}
+  - {id: cliff_road, name: Cliff Road, at: [560, 690]}
+  - {id: mesa_top, name: Mesa Top, at: [720, 820]}
+  - {id: west_mesa, name: West Mesa, at: [260, 870]}
+  - {id: ruins_stair, name: Ruins Stair, at: [640, 880]}
+  - {id: east_pass, name: East Pass, at: [890, 890]}
+npcs:
+  - {id: oasis_guide, at: [490, 490], yaw: 90}
+pieces:
+  - {model: well, at: [490, 455], yaw: 0}
+  - {model: shop, at: [470, 500], yaw: 0}
+  - {house: {area: [456, 424, 6.1, 7.4], height: 13.6, model: house_small}}
+  - {house: {area: [540, 494, 6.1, 7.4], height: 13.6, model: house_small}}
+  - {house: {area: [452, 488, 11, 14.95], height: 14, model: house_large}}
+  - {model: sandstone_pillar, at: [620, 890], yaw: 0}     # the ruins' stair, between broken columns
+  - {model: sandstone_pillar, at: [660, 890], yaw: 0}
+  - {model: sandstone_pillar, at: [620, 920], yaw: 0}
+  - {model: sandstone_pillar, at: [660, 920], yaw: 0}
+gates:
+  - {name: south_gate, at: [380, 84], radius: 1.6, to: {region: willowmere, gate: north_pass}}
+  - {name: hollow_mouth, at: [86, 250], radius: 1.6, to: {region: spore_caves, gate: mouth}}
+  - {name: ruins_stair, at: [640, 904], radius: 1.6, to: {region: ruin_crypt, gate: stair}}
+  - {name: east_pass, at: [940, 900], radius: 1.6, to: {region: crossroads, gate: from_desert}}
+start: {at: [504, 470], yaw: 0}
+biomes:
+  gorge:
+    colours: {flat: grass, slope: dirt, steep: stone, high: stone}
+    scatter:
+      - {model: giant_mushroom, spacing: 16, slope: 0.3, away: {road: 6, water: 3, camp: 4, town: 4, waypoint: 3}}
+      - {model: tree_oak, spacing: 14, slope: 0.4, away: {road: 4, water: 2, camp: 3, town: 3, waypoint: 2}}
+      - {model: ring_mushroom, spacing: 28, away: {road: 4, camp: 3, town: 3, waypoint: 3}}
+      - {model: bush_round, spacing: 10, away: {road: 1}}
+      - {model: small_mushrooms, spacing: 7}
+      - {model: tiny_mushrooms, spacing: 5}
+      - {model: grass_tuft, spacing: 5}
+  ledges:
+    colours: {flat: grass, slope: dirt, steep: stone, high: stone}
+    scatter:
+      - {model: ring_mushroom, spacing: 20, away: {road: 4, camp: 3, town: 3, waypoint: 3}}
+      - {model: giant_mushroom, spacing: 26, slope: 0.3, away: {road: 6, camp: 4, waypoint: 3}}
+      - {model: tree_pine, spacing: 18, slope: 0.4, away: {road: 4, camp: 3, waypoint: 2}}
+      - {model: small_mushrooms, spacing: 6}
+      - {model: tiny_mushrooms, spacing: 4}
+      - {model: grass_tuft, spacing: 6}
+  oasis:
+    colours: {flat: grass, slope: sand, steep: stone, high: stone}
+    scatter:
+      - {model: palm, spacing: 14, away: {road: 3, water: 1, waypoint: 3}}
+      - {model: palm_short, spacing: 10, away: {road: 2, waypoint: 2}}
+      - {model: flowers, spacing: 8, away: {road: 1}}
+  dunes:
+    colours: {flat: sand, slope: sand, steep: stone, high: sand}
+    scatter:
+      - {model: cactus_tall, spacing: 22, away: {road: 3, camp: 3, town: 4, waypoint: 3}}
+      - {model: cactus_round, spacing: 18, away: {road: 2, camp: 2, town: 3}}
+      - {model: cactus_small, spacing: 12, away: {road: 1, town: 2}}
+      - {model: cactus_flowering, spacing: 30, away: {road: 2, town: 3}}
+      - {model: palm, spacing: 45, away: {road: 3, water: 2, camp: 3, town: 3, waypoint: 3}}
+      - {model: dry_tree, spacing: 40, away: {road: 3, camp: 3, town: 3}}
+      - {model: sandstone_boulder, spacing: 60, away: {road: 4, camp: 4, town: 4, waypoint: 3}}
+      - {model: dead_shrub, spacing: 10}
+      - {model: sand_pebbles, spacing: 8}
+  mesa:
+    colours: {flat: sand, slope: sand, steep: brick, high: brick}
+    scatter:
+      - {model: sandstone_pillar, spacing: 50, away: {road: 5, camp: 5, waypoint: 4}}
+      - {model: sandstone_boulder, spacing: 40, away: {road: 4, camp: 4, waypoint: 3}}
+      - {model: sandstone_crag, spacing: 20}
+      - {model: dead_tree, spacing: 30, away: {road: 3, camp: 3}}
+      - {model: cactus_small, spacing: 16, away: {road: 1}}
+      - {model: dead_shrub, spacing: 10}
+      - {model: sand_pebbles, spacing: 8}
+  peaks:
+    colours: {flat: stone, slope: brick, steep: brick, high: sand}
+    scatter:
+      - {model: sandstone_boulder, spacing: 30}

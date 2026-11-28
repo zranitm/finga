@@ -221,7 +221,7 @@ func TestLeaveNamesItsConnection(t *testing.T) {
 func TestACharacterSavedDeadJoinsRespawnedInTown(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		forest, _ := data.Map("dune_road")
+		forest, _ := data.Map("frost_trail")
 		account := kernel.NewAccountID()
 		dead := model.Character{
 			ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 1,
@@ -270,7 +270,7 @@ func TestACharacterSavedDeadInARegionJoinsAtItsNearestWaypoint(t *testing.T) {
 // A saved position the map can't hold starts at the map's spawn; one under an open spot stands on the ground above it.
 func TestASavedPositionOffTheMapStartsAtItsSpawn(t *testing.T) {
 	data := worldtest.LoadData(t)
-	forest, _ := data.Map("dune_road")
+	forest, _ := data.Map("frost_trail")
 	const hillX, hillZ = 24.0, 14.0 // the top of a hill, clear of solids
 	hill := forest.Geometry.Terrain.Height(hillX, hillZ)
 	for _, c := range []struct {
@@ -282,7 +282,7 @@ func TestASavedPositionOffTheMapStartsAtItsSpawn(t *testing.T) {
 		{"fallen far below an open spot stands on the ground there", hillX, -36703.93, hillZ, true}, // a checkpoint saved while falling
 		{"infinitely far below an open spot stands on the ground there", hillX, math.Inf(-1), hillZ, true},
 		{"west of the map", -40, 0, 20, false},
-		{"inside a solid", 29, 0, 17.5, false}, // a pillar on the road
+		{"inside a solid", 36, 0, 4.5, false}, // a rock set into the bank
 		{"NaN", math.NaN(), 0, 20, false},
 		{"infinitely far east", math.Inf(1), 0, 20, false},
 	} {

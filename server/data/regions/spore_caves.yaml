@@ -1,0 +1,55 @@
+# Sunreach's fungus cave (B13), entered from the Sporewood Gorge's hollow_mouth: the old Spore Hollow's mobs, levels 14 to 15.
+# Dust Moth 14, Toadstool Rat 15 (elite), and the Moth Empress 17 in her chamber. Mushrooms grow over the floor.
+# The mouth hall in the south, the moths' flat gallery west, the rats' warren north, the Empress's flat chamber east, and a tunnel back to the mouth.
+name: Spore Hollow
+under: sunreach
+size: [384, 256]
+cell: 0.5
+seed: 43
+look: {sky: cave}
+ground: {noise: {scale: 60, amplitude: 1.5, octaves: 2}}
+edge: {width: 16, height: [2, 4], biome: rock}
+colour: {slope: 0.25, high: 100}
+rock: {height: 4.5, rough: 1.5}
+torches: {spacing: 12, model: torch_mounted}
+features:
+  - {hall: {area: [[128, 20], [192, 20], [196, 64], [124, 64]], flat: true}}           # the mouth: gate, waypoint
+  - {tunnel: {path: [[140, 60], [110, 90], [80, 110]], width: 10}}
+  - {hall: {area: [[30, 100], [110, 100], [114, 170], [26, 170]], flat: true}}          # the gallery: moths, flat for their spit
+  - {tunnel: {path: [[70, 168], [90, 196], [130, 204]], width: 10}}
+  - {hall: {area: [[120, 176], [210, 172], [214, 228], [116, 228]]}}                    # the warren: rats
+  - {tunnel: {path: [[210, 200], [240, 196], [262, 180]], width: 10}}
+  - {hall: {area: [[230, 110], [300, 110], [300, 186], [230, 186]], flat: true}}        # the chamber: the Moth Empress
+  - {tunnel: {path: [[250, 112], [230, 80], [190, 52]], width: 10}}
+areas:
+  - {id: spore_caves, name: Spore Hollow, area: [[16, 16], [368, 16], [368, 240], [16, 240]], levels: [14, 15], biome: cave, kind: hunting,
+     boss: {at: [266, 150], radius: 5, mob: moth_empress}}
+camps:
+  - {area: spore_caves, name: gallery moths, at: [60, 130], radius: 5, mob: dust_moth, max: 4, respawn: 36s}
+  - {area: spore_caves, name: far moths, at: [88, 148], radius: 5, mob: dust_moth, max: 4, respawn: 36s}
+  - {area: spore_caves, name: warren rats, at: [150, 202], radius: 5, mob: toadstool_rat, max: 3, respawn: 45s}
+  - {area: spore_caves, name: deep rats, at: [188, 204], radius: 5, mob: toadstool_rat, max: 3, respawn: 45s}
+waypoints:
+  - {id: spore_caves, name: Spore Hollow, at: [160, 46]}
+pieces:
+  - {model: ring_mushroom, at: [40, 162], yaw: 0}
+  - {model: ring_mushroom, at: [128, 216], yaw: 0}
+  - {model: ring_mushroom, at: [288, 122], yaw: 0}
+  - {model: torch_lit, at: [74, 112], yaw: 0}
+  - {model: torch_lit, at: [100, 160], yaw: 0}
+  - {model: torch_lit, at: [168, 186], yaw: 0}
+  - {model: torch_lit, at: [244, 130], yaw: 0}
+  - {model: torch_lit, at: [286, 170], yaw: 0}
+  - {model: torch_lit, at: [170, 52], yaw: 0}
+gates:
+  - {name: mouth, at: [160, 30], radius: 1.6, to: {region: sunreach, gate: hollow_mouth}}
+start: {at: [160, 34], yaw: 0}
+biomes:
+  cave:
+    colours: {flat: cave_floor, slope: cave_floor, steep: cave_rock, high: cave_rock}
+    scatter:
+      - {model: small_mushrooms, spacing: 5, away: {camp: 1, waypoint: 2}}
+      - {model: tiny_mushrooms, spacing: 4}
+      - {model: pebbles, spacing: 7}
+  rock:
+    colours: {flat: cave_rock, slope: cave_rock, steep: cave_rock, high: cave_rock}

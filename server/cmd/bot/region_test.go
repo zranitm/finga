@@ -29,7 +29,7 @@ func TestASoakWalksItsRegionAlone(t *testing.T) {
 	if got := slices.Sorted(maps.Keys(w.maps)); !slices.Equal(got, []string{"test_region"}) || w.region.ID != "test_region" {
 		t.Fatalf("the soak's maps are %v", got)
 	}
-	for _, bad := range []string{"shroom_grove", "nowhere"} {
+	for _, bad := range []string{"frost_trail", "nowhere"} {
 		if _, err := newWorld(data, bad); err == nil {
 			t.Errorf("a soak in %s", bad)
 		}
@@ -53,10 +53,10 @@ func TestARegionsBotHuntsACampOfItsBand(t *testing.T) {
 		camps []string // the mobs of the camps it picks among, in the plan's order
 	}{
 		{1, []string{"green_slime"}},
-		{5, []string{"green_slime", "orange_mushroom"}}, // between the west's band and the south's
-		{12, []string{"wild_boar"}},                     // the bats, 14, aren't its prey yet
-		{15, []string{"wild_boar", "cave_bat"}},         // its band's spore slimes, 15, aren't its prey yet
-		{16, []string{"spore_slime"}},
+		{5, []string{"green_slime", "orange_mushroom"}},                     // between the west's band and the south's
+		{12, []string{"wild_boar"}},                                         // the bats and spore slimes, 12, aren't its prey yet
+		{15, []string{"wild_boar", "cave_bat", "spore_slime", "dust_moth"}}, // no band holds 15: the south's and the north's, the highest under it
+		{17, []string{"glow_slime"}},
 		{30, []string{"glow_slime"}}, // past every band; the snail is an elite
 	} {
 		for pick := range len(c.camps) + 1 {
@@ -69,17 +69,17 @@ func TestARegionsBotHuntsACampOfItsBand(t *testing.T) {
 	}
 }
 
-// Where bands overlap, a bot hunts in every band that holds its level, not only the highest: the south's widened to 10–16 shares level 16 with the north's 15–18.
+// Where bands overlap, a bot hunts in every band that holds its level, not only the highest: the south's widened to 10–17 shares level 17 with the woods' 16–17.
 func TestARegionsBotHuntsInEveryBandHoldingItsLevel(t *testing.T) {
 	data, w := regionWorld(t)
 	shipped, _ := data.Map("test_region")
 	m := *shipped
 	m.Areas = slices.Clone(shipped.Areas)
 	k := slices.IndexFunc(m.Areas, func(a gamedata.Area) bool { return a.ID == "south" })
-	m.Areas[k].MaxLevel = 16
-	want := []string{"wild_boar", "cave_bat", "spore_slime"}
+	m.Areas[k].MaxLevel = 17
+	want := []string{"wild_boar", "cave_bat", "glow_slime"}
 	for pick := range len(want) {
-		s, ok := w.campSpot(&m, 16, pick)
+		s, ok := w.campSpot(&m, 17, pick)
 		i := slices.IndexFunc(m.Spawns, func(sp gamedata.Spawn) bool { return point(sp.At) == s.at && sp.Radius == s.radius })
 		if !ok || i < 0 || m.Spawns[i].Mob != want[pick] {
 			t.Errorf("pick %d hunts at %+v; want the %s camp", pick, s, want[pick])
@@ -106,7 +106,7 @@ func TestARegionsBotPastEveryBandHuntsInTheHighest(t *testing.T) {
 // A soak's bot off its region teleports to its main town, holding still till it lands; once there it stays.
 func TestASoaksBotTeleportsIntoItsRegion(t *testing.T) {
 	data, w := regionWorld(t)
-	b := &bot{data: data, world: w, mapID: "shroom_grove", held: &clientv1.Input{Up: true}}
+	b := &bot{data: data, world: w, mapID: "frost_trail", held: &clientv1.Input{Up: true}}
 	if !b.enterRegion() || len(b.actions) != 1 || b.actions[0].Data.(*clientv1.Teleport).GetWaypoint() != "town" || b.held.GetUp() || !b.channelling() {
 		t.Fatalf("off the region: actions %v, held %v", b.actions, b.held)
 	}
@@ -149,8 +149,8 @@ func TestARegionsBotTeleportsToAFarCampsWaypoint(t *testing.T) {
 	if b.tripTo(glow) {
 		t.Error("teleported for a camp near")
 	}
-	b.mapID = "shroom_grove"
-	if b.tripTo(spot{mapID: "shroom_grove", at: nav.Point{X: 500, Z: 500}}) {
+	b.mapID = "frost_trail"
+	if b.tripTo(spot{mapID: "frost_trail", at: nav.Point{X: 500, Z: 500}}) {
 		t.Error("teleported on a map with no waypoints")
 	}
 }

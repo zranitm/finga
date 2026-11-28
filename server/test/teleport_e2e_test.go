@@ -12,7 +12,7 @@ import (
 	"finga/test/e2etest"
 )
 
-// B9: a player teleports from Willowbrook to Shroom Grove and back, the map by its id to its player spawn and the region by its main town's waypoint to beside the stone, each landing no sooner than the channel allows, and the database keeps the last.
+// B9: a player teleports from Willowbrook to Frost Trail and back, the map by its id to its player spawn and the region by its main town's waypoint to beside the stone, each landing no sooner than the channel allows, and the database keeps the last.
 func TestTeleportFromTheTownToAMapAndBack(t *testing.T) {
 	t.Parallel()
 	s := newStackOver(t, e2etest.GameData(t, e2etest.DataEdit{File: "world.yaml", Old: "channel: 3s", New: "channel: 1s"})) // twenty ticks still tell a landing before its channel ends
@@ -24,7 +24,7 @@ func TestTeleportFromTheTownToAMapAndBack(t *testing.T) {
 	l := e2etest.NewLooter(s.Join(t, token, id))
 	l.Await(300*time.Millisecond, nil)
 
-	grove, _ := data.Map("shroom_grove")
+	trail, _ := data.Map("frost_trail")
 	_, stone, _ := data.Waypoint("willowbrook")
 	for _, step := range []struct {
 		req    *clientv1.Teleport
@@ -32,7 +32,7 @@ func TestTeleportFromTheTownToAMapAndBack(t *testing.T) {
 		at     gamedata.Point
 		facing float64
 	}{
-		{&clientv1.Teleport{MapId: "shroom_grove"}, "shroom_grove", grove.PlayerSpawn, grove.SpawnYaw},
+		{&clientv1.Teleport{MapId: "frost_trail"}, "frost_trail", trail.PlayerSpawn, trail.SpawnYaw},
 		{&clientv1.Teleport{Waypoint: "willowbrook"}, "willowmere", stone.Arrive, stone.Yaw},
 	} {
 		sent := time.Now() // the channel starts on the first tick to drain the request, after this
@@ -82,7 +82,7 @@ func TestAMobsHitCancelsATeleport(t *testing.T) {
 	l := e2etest.NewLooter(s.Join(t, token, id))
 	l.Await(300*time.Millisecond, nil)
 
-	if r := l.Teleport(t, "tp-grove", &clientv1.Teleport{MapId: "shroom_grove"}); !r.GetOk() {
+	if r := l.Teleport(t, "tp-trail", &clientv1.Teleport{MapId: "frost_trail"}); !r.GetOk() {
 		t.Fatalf("teleport refused with %d", r.GetCode())
 	}
 	var hit uint64

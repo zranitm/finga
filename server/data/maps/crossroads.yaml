@@ -1,4 +1,4 @@
-# Designed in 3D: a waystation village where three roads meet at a raised square round its well: the woods road from the toadstool heights west, the dune road east, and the frost trail climbing north.
+# Designed in 3D: a waystation village where three roads meet at a raised square round its well: the desert road from Sunreach's east pass west, and the frost trail climbing north.
 name: Crossroads
 kind: town
 levels: [0, 0]
@@ -43,8 +43,7 @@ props:
   - {scatter: {model: dead_shrub, area: [44, 14, 8, 12], count: 3, seed: 46}}
   - {scatter: {model: tree_pine, area: [14, 37, 24, 3], count: 6, seed: 47}}
 portals:
-  - {name: from_heights, at: [2, 20], radius: 1.2, to: {map: toadstool_heights, portal: to_crossroads}}
-  - {name: to_dune, at: [50, 20], radius: 1.2, to: {map: dune_road, portal: from_crossroads}}
+  - {name: from_desert, at: [2, 20], radius: 1.2, to: {map: sunreach, portal: east_pass}}
   - {name: to_frost, at: [26, 38], radius: 1.2, to: {map: frost_trail, portal: from_crossroads}}
 player_spawn: {at: [17, 20], yaw: 90}
 npcs:

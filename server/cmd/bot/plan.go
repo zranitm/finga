@@ -52,7 +52,7 @@ func newWorld(data *gamedata.Data, region string) (*world, error) {
 	for queue := []*gamedata.Map{start}; len(queue) > 0; queue = queue[1:] {
 		for _, p := range queue[0].Portals {
 			next, ok := data.Map(p.TargetMap)
-			if !ok || w.maps[next.ID] != nil || (next.Kind == gamedata.Hunting && next.MinLevel > top) {
+			if !ok || w.maps[next.ID] != nil || beyond(next, top) {
 				continue
 			}
 			w.maps[next.ID] = next
@@ -60,6 +60,23 @@ func newWorld(data *gamedata.Data, region string) (*world, error) {
 		}
 	}
 	return w, nil
+}
+
+// beyond is whether every hunting level of m is above level: a map's, or all of a region's areas', which a region with none, or a town, never is.
+func beyond(m *gamedata.Map, level int) bool {
+	if m.Kind != gamedata.Region {
+		return m.Kind == gamedata.Hunting && m.MinLevel > level
+	}
+	hunting := false
+	for _, a := range m.Areas {
+		if a.Kind == gamedata.Hunting {
+			hunting = true
+			if a.MinLevel <= level {
+				return false
+			}
+		}
+	}
+	return hunting
 }
 
 // mainWaypoint is region m's waypoint in its main town, which anyone may teleport to; nil for none.

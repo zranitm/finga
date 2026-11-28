@@ -1,5 +1,5 @@
 # The green region's plan (large-regions.md step 8), as picked on 2026-11-26: the layout, gentle banks on the river and lake, and the twelve new mobs.
-# Camps and bosses name the twelve new mobs the user picked on 2026-11-26 from the monster sheet; Sunmeadow keeps the Forest's. The north pass leads to Shroom Grove, where the old Cave led.
+# Camps and bosses name the twelve new mobs the user picked on 2026-11-26 from the monster sheet; Sunmeadow keeps the Forest's. The north pass leads to Sunreach's South Gate.
 # Areas sit on 4 m lines. The interior is 72 to 952 on both axes.
 name: Willowmere
 size: [1024, 1024]
@@ -88,7 +88,7 @@ pieces:
   - {house: {area: [470, 525, 6.1, 7.4], height: 13.6, model: house_small}}
   - {house: {area: [535, 515, 6.1, 7.4], height: 13.6, model: house_small}}
 gates:
-  - {name: north_pass, at: [940, 880], radius: 1.6, to: {region: shroom_grove, gate: from_cave}}
+  - {name: north_pass, at: [940, 880], radius: 1.6, to: {region: sunreach, gate: south_gate}}
   - {name: cave_mouth, at: [450, 780], radius: 1.6, to: {region: greyfang_cave, gate: mouth}}
   - {name: dive_spot, at: [690, 540], radius: 1.6, to: {region: sunken_shrine, gate: shore}}
 start: {at: [512, 160], yaw: 0}

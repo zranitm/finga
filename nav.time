@@ -1,0 +1,1 @@
+go test ./internal/shared/nav/ -run  -count=1 -v > ../nav.out 2>&1  12.09s user 0.54s system 104% cpu 12.044 total

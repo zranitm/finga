@@ -24,8 +24,8 @@ type Layout struct {
 	Start         gamedata.Point // where a new character appears
 	CaveGate      gamedata.Point // Willowmere's gate to Greyfang Cave
 	CaveMouth     gamedata.Point // the cave's gate back, where a hop lands
-	NorthPass     gamedata.Point // Willowmere's gate to Shroom Grove
-	Grove         gamedata.Point // Shroom Grove's gate back, where a hop lands
+	NorthPass     gamedata.Point // Willowmere's gate to Sunreach
+	SouthGate     gamedata.Point // Sunreach's gate back, where a hop lands
 	Boss          gamedata.Point // Sunmeadow's boss spot
 	FarBats       gamedata.Point // 2 m west of the cave's bats' camp, out of the boars' sight
 }
@@ -40,14 +40,14 @@ func Spots(t testing.TB) Layout {
 	return l
 }
 
-// LayoutOf is the Layout of data's Willowmere, Greyfang Cave and Shroom Grove.
+// LayoutOf is the Layout of data's Willowmere, Greyfang Cave and Sunreach.
 func LayoutOf(data *gamedata.Data) (Layout, error) {
 	var l Layout
 	region, ok := data.Map("willowmere")
 	cave, okCave := data.Map("greyfang_cave")
-	grove, okGrove := data.Map("shroom_grove")
-	if !ok || !okCave || !okGrove {
-		return l, fmt.Errorf("no willowmere, greyfang_cave or shroom_grove map")
+	sunreach, okSunreach := data.Map("sunreach")
+	if !ok || !okCave || !okSunreach {
+		return l, fmt.Errorf("no willowmere, greyfang_cave or sunreach map")
 	}
 	slimes := slices.IndexFunc(region.Spawns, func(s gamedata.Spawn) bool { return s.Mob == "green_slime" })
 	caps := slices.IndexFunc(region.Spawns, func(s gamedata.Spawn) bool { return s.Mob == "orange_mushroom" })
@@ -76,7 +76,7 @@ func LayoutOf(data *gamedata.Data) (Layout, error) {
 	if l.CaveGate, l.CaveMouth, err = gatePair(region, cave); err != nil {
 		return l, err
 	}
-	if l.NorthPass, l.Grove, err = gatePair(region, grove); err != nil {
+	if l.NorthPass, l.SouthGate, err = gatePair(region, sunreach); err != nil {
 		return l, err
 	}
 	for _, a := range region.Areas {

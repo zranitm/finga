@@ -153,7 +153,7 @@ func TestATeleportIsRefused(t *testing.T) {
 			p.Connection = "c1"
 			s := join(t, inst, p)
 			start := teleport(t, inst, s, p.ID, "crossroads", 0)
-			done := teleportAsync(inst, p.ID, "shroom_grove", "", 0)
+			done := teleportAsync(inst, p.ID, "frost_trail", "", 0)
 			tick(1)
 			if err := <-done; !errors.Is(err, model.ErrTeleportBusy) {
 				t.Fatalf("err = %v, want ErrTeleportBusy", err)
@@ -193,7 +193,7 @@ func TestATeleportToAWaypointLandsBesideIt(t *testing.T) {
 	}{
 		{"from an old map to its region's main town, unfound", "crossroads", 0, "", "town", false, instance.Dest{ID: "test_region"}},
 		{"from an old map to one found", "crossroads", 0, "", "west", true, instance.Dest{ID: "test_region"}},
-		{"named beside a map id", "crossroads", 0, "shroom_grove", "west", true, instance.Dest{ID: "test_region"}},
+		{"named beside a map id", "crossroads", 0, "frost_trail", "west", true, instance.Dest{ID: "test_region"}},
 		{"within the region, back into the player's channel", "test_region", 2, "", "west", true, instance.Dest{ID: "test_region", Channel: 2, Switch: true}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -495,7 +495,7 @@ func TestATeleportIsDroppedSilently(t *testing.T) {
 			p := worldtest.NewPlayer("Ayla", portal.At.X, portal.At.Z)
 			p.Connection = "c1"
 			s := join(t, inst, p)
-			teleport(t, inst, s, p.ID, "shroom_grove", 0)
+			teleport(t, inst, s, p.ID, "frost_trail", 0)
 			_ = inst.EnterPortal(p.ID)
 			tick(channelTicks(data) + 1)
 			if got := worldtest.Of[model.Teleport](s); len(got) != 1 || got[0].MapID != portal.TargetMap {

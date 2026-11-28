@@ -67,8 +67,8 @@ func TestPortals(t *testing.T) {
 			synctest.Wait()
 		}()
 		townMap, _ := data.Map("crossroads")
-		forestMap, _ := data.Map("dune_road")
-		toForest := portalNamed(t, townMap, "to_dune")
+		forestMap, _ := data.Map("frost_trail")
+		toForest := portalNamed(t, townMap, "to_frost")
 		fromTown := portalNamed(t, forestMap, "from_crossroads")
 		arrival := fromTown.At // the centre of the portal back, facing away from it into the forest
 		ground := forestMap.Geometry.Terrain.Height(arrival.X, arrival.Z)
@@ -90,11 +90,11 @@ func TestPortals(t *testing.T) {
 			time.Sleep(2 * worldtest.TickInterval)
 			synctest.Wait()
 			tel := worldtest.Of[model.Teleport](sa)
-			if len(tel) != 1 || tel[0].MapID != "dune_road" || tel[0].X != arrival.X || tel[0].Y != ground || tel[0].Z != arrival.Z || tel[0].Yaw != model.YawOf(1, 0) {
+			if len(tel) != 1 || tel[0].MapID != "frost_trail" || tel[0].X != arrival.X || tel[0].Y != ground || tel[0].Z != arrival.Z || tel[0].Yaw != model.YawOf(1, 0) {
 				t.Fatalf("teleports %+v, want one to the forest at %+v", tel, arrival)
 			}
 			snaps := worldtest.Of[model.Snapshot](sa)
-			if len(snaps) != 2 || snaps[1].MapID != "dune_road" {
+			if len(snaps) != 2 || snaps[1].MapID != "frost_trail" {
 				t.Fatalf("snapshots %+v", snaps)
 			}
 			var me model.PlayerView
@@ -119,7 +119,7 @@ func TestPortals(t *testing.T) {
 				}
 			}
 			saver.mu.Unlock()
-			if cp == nil || cp.MapID != "dune_road" || cp.X != arrival.X || cp.Z != arrival.Z || cp.HP != 120 {
+			if cp == nil || cp.MapID != "frost_trail" || cp.X != arrival.X || cp.Z != arrival.Z || cp.HP != 120 {
 				t.Fatalf("checkpoint on the way out: %+v", cp)
 			}
 			if present, removed := seenIn(sr, ayla.ID); removed != 1 || present == 0 {
@@ -164,7 +164,7 @@ func TestPortals(t *testing.T) {
 			synctest.Wait()
 			tel := worldtest.Of[model.Teleport](sc)
 			snaps := worldtest.Of[model.Snapshot](sc)
-			if len(tel) != 1 || len(snaps) != 2 || snaps[1].MapID != "dune_road" || snaps[1].Tick > tel[0].Tick+1 {
+			if len(tel) != 1 || len(snaps) != 2 || snaps[1].MapID != "frost_trail" || snaps[1].Tick > tel[0].Tick+1 {
 				t.Fatalf("teleports %+v snapshots %d", tel, len(snaps))
 			}
 			if _, removed := seenIn(sr, cass.ID); removed != 1 {
@@ -211,7 +211,7 @@ func TestASecondPortalInTheLandingDrainTakesThePlayerOn(t *testing.T) {
 			synctest.Wait()
 		}()
 		townMap, _ := data.Map("crossroads")
-		toForest := portalNamed(t, townMap, "to_dune")
+		toForest := portalNamed(t, townMap, "to_frost")
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		cass := worldtest.NewPlayer("Cass", toForest.At.X, toForest.At.Z)
@@ -234,7 +234,7 @@ func TestASecondPortalInTheLandingDrainTakesThePlayerOn(t *testing.T) {
 		for _, s := range worldtest.Of[model.Snapshot](sc) {
 			maps = append(maps, s.MapID)
 		}
-		if tel := worldtest.Of[model.Teleport](sc); len(tel) != 2 || !slices.Equal(maps, []string{"crossroads", "dune_road", "crossroads"}) {
+		if tel := worldtest.Of[model.Teleport](sc); len(tel) != 2 || !slices.Equal(maps, []string{"crossroads", "frost_trail", "crossroads"}) {
 			t.Fatalf("%d teleports, snapshots on %v; want her through the forest and back on the town", len(tel), maps)
 		}
 	})

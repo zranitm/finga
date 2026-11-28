@@ -20,9 +20,9 @@ areas:
      boss: {at: [46, 110], radius: 5, mob: king_slime}}
   - {id: south, name: South Field, area: [[92, 24], [152, 24], [152, 60], [92, 60]], levels: [10, 14], biome: meadow, kind: hunting,
      boss: {at: [125, 48], radius: 5, mob: vampire_bat}}
-  - {id: north, name: North Field, area: [[92, 112], [152, 112], [152, 232], [92, 232]], levels: [15, 18], biome: meadow, kind: hunting,
+  - {id: north, name: North Field, area: [[92, 112], [152, 112], [152, 232], [92, 232]], levels: [12, 14], biome: meadow, kind: hunting,
      boss: {at: [120, 175], radius: 5, mob: spore_mother}}
-  - {id: woods, name: East Woods, area: [[152, 24], [232, 24], [232, 232], [152, 232]], levels: [19, 20], biome: woods, kind: hunting,
+  - {id: woods, name: East Woods, area: [[152, 24], [232, 24], [232, 232], [152, 232]], levels: [16, 17], biome: woods, kind: hunting,
      boss: {at: [200, 210], radius: 5, mob: moth_empress}}
 camps:
   - {area: west, name: slimes, at: [56, 50], radius: 6, mob: green_slime, max: 4, respawn: 24s}
