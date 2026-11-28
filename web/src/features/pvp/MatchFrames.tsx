@@ -1,4 +1,4 @@
-// The match's fighters' frames (pvp.md section 13): in a round mode the teammates take the party frames' place, and in a round mode the enemies show in the right column under the field boss's place; each with its level, HP, statuses and a BOT tag, dimmed while down, and "Reconnecting" while their place is held through a drop.
+// The match's fighters' frames (pvp.md section 13): in a round mode the teammates take the party frames' place and the enemies show in the right column under the field boss's place; each with its level, HP, statuses and a BOT tag, dimmed while down, and "Reconnecting" while their place is held through a drop.
 import { UnitFrame } from '@/features/hud/UnitFrame';
 import { character } from '@/state/character';
 import { fighters } from '@/state/fighters';

@@ -170,7 +170,7 @@ The user's three choices are in section 1. These calls were made in planning and
 
 - **Rendering the minimap from the 3D scene with a second camera:** it costs a second render every frame, and props and effects would clutter it. A 2D image of the ground is cheaper and clearer.
 - **Exporting the spawns in the map JSON:** the World tab needs every map's mobs without loading every map's geometry, so the generated game data carries them.
-- **A top-right minimap that pushes the party panel down:** it would move a layout the user already has, for no gain over the free corner.
+- **A top-right minimap that pushes the boss bar and the enemies' frames down:** it would move a layout the user already has, for no gain over the free corner.
 
 ## 12. A map's layout from the World tab
 
