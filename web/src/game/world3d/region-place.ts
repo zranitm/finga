@@ -265,8 +265,10 @@ class RegionView implements Place {
         per,
         (cx, cz) => this.drawn.get(key(cx, cz))?.built.ground.skirt,
       );
-      this.skirts = this.mesh('overview skirts', s, s.indices);
-      this.skirts.parent = this.root;
+      this.skirts = s.indices.length > 0 ? this.mesh('overview skirts', s, s.indices) : null; // none where no drawn chunk meets one undrawn: a mesh with no vertices makes Babylon warn
+      if (this.skirts) {
+        this.skirts.parent = this.root;
+      }
     }
   }
 
