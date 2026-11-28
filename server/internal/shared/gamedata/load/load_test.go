@@ -24,7 +24,7 @@ import (
 // wantMovement are the movement constants data/movement.yaml and the fixture both hold.
 var wantMovement = sim.Params{
 	Dt: 1.0 / 60, WalkSpeed: 5, JumpVelocity: 12.34, Gravity: 38, MaxFallSpeed: 22.5,
-	Radius: 0.375, Height: 1.75, Step: 0.3, MaxSlope: 0.7, Snap: 0.5,
+	Radius: 0.375, Height: 1.75, EnemyHeight: 1.25, Step: 0.3, MaxSlope: 0.7, Snap: 0.5,
 	Sprint: sim.Sprint{After: 2, Speed: 1.6},
 }
 
@@ -39,6 +39,7 @@ gravity: 38
 max_fall_speed: 22.5
 radius: 0.375
 height: 1.75
+enemy_height: 1.25
 step: 0.3
 max_slope: 0.7
 snap: 0.5
@@ -1090,6 +1091,7 @@ func TestRejections(t *testing.T) {
 		{"an unknown key is rejected", "items.yaml", `tab: etc`, `tab: etc, colour: green`, []string{"items.yaml", "colour"}},
 		{"movement constants must be positive", "movement.yaml", `gravity: 38`, `gravity: 0`, []string{"movement.yaml", "gravity"}},
 		{"a casting_speed, gone since a skill leaves movement alone", "movement.yaml", "snap: 0.5\n", "snap: 0.5\ncasting_speed: 0.5\n", []string{"movement.yaml", "casting_speed"}},
+		{"an enemy taller than a player", "movement.yaml", "enemy_height: 1.25", "enemy_height: 2", []string{"movement.yaml", "enemy_height"}},
 		{"a sprint with no walk before it", "movement.yaml", "after: 2,", "after: 0,", []string{"movement.yaml", "sprint.after"}},
 		{"a sprint no faster than the walk", "movement.yaml", "speed: 1.6}", "speed: 1}", []string{"movement.yaml", "sprint.speed"}},
 		{"no active quest allowed", "quests.yaml", `max_active: 20`, `max_active: 0`, []string{"quests.yaml", "max_active"}},

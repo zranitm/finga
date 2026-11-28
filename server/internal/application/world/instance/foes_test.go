@@ -351,3 +351,25 @@ func TestAFighterPressedAgainstAnEnemyOffTheCentimetreStopsAtTheWiresBody(t *tes
 		}
 	})
 }
+
+// A walk jump pressed anywhere in a wide window short of an enemy clears him, not only a hair's breadth of one: from 1.8 and 2.3 m short, the jumper lands beyond and the enemy stands where he stood (pvp.md section 19: "a jump over an enemy should be easy").
+func TestAWalkJumpFromAnywhereInTheWindowClearsAnEnemy(t *testing.T) {
+	for _, short := range []float64{1.8, 2.3} {
+		synctest.Test(t, func(t *testing.T) {
+			data := pvpData(t, "1.0", "1.0")
+			inst, ayla, robin, as, rs, stop := twoFighters(t, data, nil)
+			defer stop()
+			r0, _ := rs.Own(robin.ID)
+			a, _ := as.Own(ayla.ID)
+			dir := sign(r0.State.Z - a.State.Z)
+			seq := walkTo(inst, as, ayla.ID, 0, r0.State.Z-dir*short, 0.1)
+			seq = worldtest.Walk(inst, ayla.ID, seq, sim.Input{Up: dir > 0, Down: dir < 0, Jump: true}, 1)
+			worldtest.Walk(inst, ayla.ID, seq, sim.Input{Up: dir > 0, Down: dir < 0}, 80)
+			a, _ = as.Own(ayla.ID)
+			r, _ := rs.Own(robin.ID)
+			if r.State.Z != r0.State.Z || (a.State.Z-r.State.Z)*dir < 1 {
+				t.Fatalf("a jump %.1f m short: Ayla ends %.2f m past Robin along her way, and he stands at z %.4f (was %.4f); want her well past and him unmoved", short, (a.State.Z-r.State.Z)*dir, r.State.Z, r0.State.Z)
+			}
+		})
+	}
+}

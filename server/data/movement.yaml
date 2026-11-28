@@ -6,6 +6,7 @@ gravity: 38                # m/s²
 max_fall_speed: 22.5       # m/s
 radius: 0.375              # the character's cylinder, 0.75 m across
 height: 1.75
+enemy_height: 1.25         # how tall an enemy fighter stands to a jump in a match (pvp.md section 19): a jump clears it more easily than the body
 step: 0.3                  # a solid's top up to this far above the feet is stepped onto; a higher one is a wall
 max_slope: 0.7             # a rise per metre, about 35°: a terrain cell rising more is steep
 snap: 0.5                  # how far the ground may fall away under a walking body before it falls instead

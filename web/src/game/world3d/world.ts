@@ -841,7 +841,7 @@ export class World {
       movementParams(this.kind(), this.moveSpeed()),
       (view) => [
         ...this.mobs.blockersAt(view),
-        ...(this.remotes?.foesAt(view, this.myTeam, movement.radius, movement.height) ?? []),
+        ...(this.remotes?.foesAt(view, this.myTeam, movement.radius, movement.enemy_height) ?? []),
       ],
     );
     const at = arriving.at;

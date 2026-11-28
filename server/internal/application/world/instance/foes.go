@@ -37,13 +37,13 @@ type foeBody struct {
 
 // blocker is p's body as a blocker.
 func (i *Instance) blocker(p *player) sim.Blocker {
-	return sim.Blocker{X: p.state.X, Z: p.state.Z, Radius: i.params.Radius, Bottom: p.state.Y, Top: p.state.Y + i.params.Height}
+	return sim.Blocker{X: p.state.X, Z: p.state.Z, Radius: i.params.Radius, Bottom: p.state.Y, Top: p.state.Y + i.params.EnemyHeight}
 }
 
 // framed is p's body as the wire gives it, at the centimetre, so a mover's step meets what the page holds.
 func (i *Instance) framed(p *player) sim.Blocker {
 	y := quant.Metres(quant.Position(p.state.Y))
-	return sim.Blocker{X: quant.Metres(quant.Position(p.state.X)), Z: quant.Metres(quant.Position(p.state.Z)), Radius: i.params.Radius, Bottom: y, Top: y + i.params.Height}
+	return sim.Blocker{X: quant.Metres(quant.Position(p.state.X)), Z: quant.Metres(quant.Position(p.state.Z)), Radius: i.params.Radius, Bottom: y, Top: y + i.params.EnemyHeight}
 }
 
 // keepFoes files the tick's living fighters, as the frame about to be sent leaves them; a match's downed are not among them, and a held or stood-in fighter is.
@@ -119,7 +119,7 @@ func (i *Instance) part() {
 }
 
 func (i *Instance) partPair(a, b *player) {
-	if a.state.Y >= b.state.Y+i.params.Height || b.state.Y >= a.state.Y+i.params.Height { // one is above the other's head
+	if a.state.Y >= b.state.Y+i.params.EnemyHeight || b.state.Y >= a.state.Y+i.params.EnemyHeight { // one is above the other's head
 		return
 	}
 	dx, dz := b.state.X-a.state.X, b.state.Z-a.state.Z

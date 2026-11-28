@@ -52,6 +52,8 @@ const required = [
   'mob-jump-over',
   'enemy-walk-into',
   'enemy-jump-over-at-walk',
+  'enemy-jump-over-at-walk-late',
+  'enemy-jump-over-at-walk-early',
   'enemy-jump-over-at-sprint',
   'enemy-jump-pressed-against',
   'enemy-jump-too-early',
