@@ -43,8 +43,6 @@ func TestEachErrorReachesCallersAsItsKernelError(t *testing.T) {
 		{model.ErrSkillWaiting, kernel.ErrSkillWaiting, "skill_waiting", false},
 		{model.ErrPromotionUnmet, kernel.ErrPromotionConditionsUnmet, "promotion_conditions_unmet", false},
 		{model.ErrNotYourNextClass, kernel.ErrNotYourNextClass, "not_your_next_class", false},
-		{model.ErrTeleportUnknownMap, kernel.ErrTeleportUnknownMap, "teleport_unknown_map", false},
-		{model.ErrTeleportSameMap, kernel.ErrTeleportSameMap, "teleport_same_map", false},
 		{model.ErrTeleportDead, kernel.ErrTeleportDead, "teleport_dead", false},
 		{model.ErrTeleportBusy, kernel.ErrTeleportBusy, "teleport_busy", false},
 		{model.ErrSkillLocked, kernel.ErrSkillLocked, "skill_locked", false},

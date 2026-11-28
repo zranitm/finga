@@ -57,7 +57,7 @@ type service interface {
 	SpendSkillPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points map[string]int) error
 	ChooseTrait(ctx context.Context, id kernel.CharacterID, conn, skill, trait string) error
 	UseSkill(ctx context.Context, id kernel.CharacterID, conn string, use model.SkillUse, seq uint32) error
-	Teleport(ctx context.Context, id kernel.CharacterID, conn, mapID, waypoint string, seq uint32) error
+	Teleport(ctx context.Context, id kernel.CharacterID, conn, waypoint string, seq uint32) error
 	SwitchChannel(ctx context.Context, id kernel.CharacterID, conn string, n int, seq uint32) error
 	Channels(id kernel.CharacterID, conn string) (model.Channels, error)
 	Bosses(ctx context.Context, id kernel.CharacterID, conn string) ([]model.AreaBoss, error)
@@ -363,11 +363,11 @@ func (m *Module) UseSkill(ctx context.Context, p Presence, use SkillUse, seq uin
 	return m.svc.UseSkill(ctx, p.Character, p.Conn, in, seq)
 }
 
-// Teleport starts a teleport channel with input seq to the waypoint, or, with none, to the old map, and answers once it has started; the hand-off comes as a Teleport at its end, or a TeleportCancelled.
-func (m *Module) Teleport(ctx context.Context, p Presence, mapID, waypoint string, seq uint32) (err error) {
+// Teleport starts a teleport channel with input seq to the waypoint and answers once it has started; the hand-off comes as a Teleport at its end, or a TeleportCancelled.
+func (m *Module) Teleport(ctx context.Context, p Presence, waypoint string, seq uint32) (err error) {
 	ctx, call := m.calls.Start(ctx, "Teleport")
 	defer call.End(&err)
-	return m.svc.Teleport(ctx, p.Character, p.Conn, mapID, waypoint, seq)
+	return m.svc.Teleport(ctx, p.Character, p.Conn, waypoint, seq)
 }
 
 // SwitchChannel starts a switch to channel n of the player's region with input seq and answers once it has started; the hand-off comes as a Teleport to the same map at its end, its Snapshot naming the channel, or a TeleportCancelled.

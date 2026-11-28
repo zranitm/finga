@@ -21,7 +21,7 @@ type World interface {
 	Input(ctx context.Context, p world.Presence, seq uint32, in sim.Input, view uint32) error
 	Attack(ctx context.Context, p world.Presence, aim float32, target world.EntityRef) error
 	EnterPortal(ctx context.Context, p world.Presence) error
-	Teleport(ctx context.Context, p world.Presence, mapID, waypoint string, seq uint32) error
+	Teleport(ctx context.Context, p world.Presence, waypoint string, seq uint32) error
 	SwitchChannel(ctx context.Context, p world.Presence, n int, seq uint32) error
 	Channels(ctx context.Context, p world.Presence) (world.Channels, error)
 	Bosses(ctx context.Context, p world.Presence) ([]world.AreaBoss, error)
@@ -125,7 +125,7 @@ func (h *ws) enterPortal(c *transport.Context, _ *clientv1.EnterPortal) (any, er
 
 // teleport answers once the world started the channel; its MapChange or TeleportCancelled comes on the world's stream.
 func (h *ws) teleport(c *transport.Context, in *clientv1.Teleport) (any, error) {
-	return nil, worldErr(h.world.Teleport(c.Ctx, presence(c), in.GetMapId(), in.GetWaypoint(), c.Message.Seq))
+	return nil, worldErr(h.world.Teleport(c.Ctx, presence(c), in.GetWaypoint(), c.Message.Seq))
 }
 
 // switchChannel answers once the world started the switch; its MapChange or TeleportCancelled comes on the world's stream.

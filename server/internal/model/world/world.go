@@ -62,10 +62,8 @@ var (
 	ErrPromotionUnmet   = errors.New("world: the character doesn't meet every condition of the promotion")
 	ErrNotYourNextClass = errors.New("world: the NPC doesn't train that class, or its parent isn't the character's class")
 
-	ErrTeleportUnknownMap = errors.New("world: no map has that id to teleport to")
-	ErrTeleportSameMap    = errors.New("world: the character is already on that map")
-	ErrTeleportDead       = errors.New("world: a dead character can't teleport")
-	ErrTeleportBusy       = errors.New("world: a teleport is already channelling")
+	ErrTeleportDead = errors.New("world: a dead character can't teleport")
+	ErrTeleportBusy = errors.New("world: a teleport is already channelling")
 
 	ErrTeleportUnknownWaypoint = errors.New("world: no waypoint has that id to teleport to")
 	ErrTeleportNotFound        = errors.New("world: the character hasn't found that waypoint, and it isn't in a region's main town")

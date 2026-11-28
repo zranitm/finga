@@ -33,17 +33,17 @@ func channelTicks(data *gamedata.Data) int {
 	return int(model.TicksIn(data.TeleportChannel(), worldtest.TickInterval)) //nolint:gosec // a few hundred ticks
 }
 
-// teleportAsync asks for a teleport to the waypoint, or with none to mapID, pressed during input seq, on its own goroutine, and returns where its answer lands.
-func teleportAsync(inst *instance.Instance, id kernel.CharacterID, mapID, waypoint string, seq uint32) <-chan error {
+// teleportAsync asks for a teleport to the waypoint, pressed during input seq, on its own goroutine, and returns where its answer lands.
+func teleportAsync(inst *instance.Instance, id kernel.CharacterID, waypoint string, seq uint32) <-chan error {
 	done := make(chan error, 1)
-	go func() { done <- inst.Teleport(context.Background(), id, "c1", mapID, waypoint, seq) }()
+	go func() { done <- inst.Teleport(context.Background(), id, "c1", waypoint, seq) }()
 	return done
 }
 
 // teleport starts a channel to the waypoint on the next tick and returns that tick.
 func teleport(t *testing.T, inst *instance.Instance, s *worldtest.Sink, id kernel.CharacterID, waypoint string, seq uint32) uint64 {
 	t.Helper()
-	done := teleportAsync(inst, id, "", waypoint, seq)
+	done := teleportAsync(inst, id, waypoint, seq)
 	tick(1)
 	if err := <-done; err != nil {
 		t.Fatalf("teleport to %s: %v", waypoint, err)
@@ -99,16 +99,15 @@ func TestATeleportTakesThePlayerToTheWaypointAtTheChannelsEnd(t *testing.T) {
 
 func TestATeleportIsRefused(t *testing.T) {
 	for _, tt := range []struct {
-		name            string
-		mapID, waypoint string
-		want            error
+		name     string
+		waypoint string
+		want     error
 	}{
-		{"to a map that isn't one", "atlantis", "", model.ErrTeleportUnknownMap},
-		{"to a match's map, which a match alone reaches", "ring", "", model.ErrTeleportUnknownMap},
-		{"to a region by its map id, which its waypoints alone reach", "test_region", "", model.ErrTeleportUnknownMap},
-		{"to a waypoint that isn't one", "", "atlantis", model.ErrTeleportUnknownWaypoint},
-		{"to a waypoint that isn't one, beside a map id", "ring", "atlantis", model.ErrTeleportUnknownWaypoint},
-		{"to a waypoint not found, outside a main town", "", "west", model.ErrTeleportNotFound},
+		{"to no waypoint at all", "", model.ErrTeleportUnknownWaypoint},
+		{"to a waypoint that isn't one", "atlantis", model.ErrTeleportUnknownWaypoint},
+		{"to a match's map, which a match alone reaches", "ring", model.ErrTeleportUnknownWaypoint},
+		{"to a region by its id, which its waypoints alone reach", "test_region", model.ErrTeleportUnknownWaypoint},
+		{"to a waypoint not found, outside a main town", "west", model.ErrTeleportNotFound},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
@@ -118,7 +117,7 @@ func TestATeleportIsRefused(t *testing.T) {
 				p := atSpawn(data, "Ayla")
 				p.Connection = "c1"
 				join(t, inst, p)
-				done := teleportAsync(inst, p.ID, tt.mapID, tt.waypoint, 0)
+				done := teleportAsync(inst, p.ID, tt.waypoint, 0)
 				tick(1)
 				if err := <-done; !errors.Is(err, tt.want) {
 					t.Fatalf("err = %v, want %v", err, tt.want)
@@ -136,7 +135,7 @@ func TestATeleportIsRefused(t *testing.T) {
 			p.Connection = "c1"
 			s := join(t, inst, p)
 			start := teleport(t, inst, s, p.ID, "palmwater", 0)
-			done := teleportAsync(inst, p.ID, "", "palmwater", 0)
+			done := teleportAsync(inst, p.ID, "palmwater", 0)
 			tick(1)
 			if err := <-done; !errors.Is(err, model.ErrTeleportBusy) {
 				t.Fatalf("err = %v, want ErrTeleportBusy", err)
@@ -155,7 +154,7 @@ func TestATeleportIsRefused(t *testing.T) {
 			p := warriorAt(nextToSlime)
 			p.HP, p.Connection = 1, "c1"
 			untilDead(t, join(t, inst, p), p.ID)
-			done := teleportAsync(inst, p.ID, "", "palmwater", 0)
+			done := teleportAsync(inst, p.ID, "palmwater", 0)
 			tick(1)
 			if err := <-done; !errors.Is(err, model.ErrTeleportDead) {
 				t.Fatalf("err = %v, want ErrTeleportDead", err)
@@ -167,17 +166,16 @@ func TestATeleportIsRefused(t *testing.T) {
 // Large regions section 8: a teleport to a waypoint lands beside its stone at its arrival, facing its way, checkpointed there; from an old map into its region, or within the region back into the player's own channel. A waypoint named beside a map id is the target.
 func TestATeleportToAWaypointLandsBesideIt(t *testing.T) {
 	for _, c := range []struct {
-		name            string
-		from            string
-		channel         int
-		mapID, waypoint string
-		found           bool
-		want            instance.Dest
+		name     string
+		from     string
+		channel  int
+		waypoint string
+		found    bool
+		want     instance.Dest
 	}{
-		{"from an old map to its region's main town, unfound", "willowmere", 0, "", "town", false, instance.Dest{ID: "test_region"}},
-		{"from an old map to one found", "willowmere", 0, "", "west", true, instance.Dest{ID: "test_region"}},
-		{"named beside a map id", "willowmere", 0, "sunreach", "west", true, instance.Dest{ID: "test_region"}},
-		{"within the region, back into the player's channel", "test_region", 2, "", "west", true, instance.Dest{ID: "test_region", Channel: 2, Switch: true}},
+		{"from an old map to its region's main town, unfound", "willowmere", 0, "town", false, instance.Dest{ID: "test_region"}},
+		{"from an old map to one found", "willowmere", 0, "west", true, instance.Dest{ID: "test_region"}},
+		{"within the region, back into the player's channel", "test_region", 2, "west", true, instance.Dest{ID: "test_region", Channel: 2, Switch: true}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
@@ -196,7 +194,7 @@ func TestATeleportToAWaypointLandsBesideIt(t *testing.T) {
 				}
 				s := join(t, inst, p)
 				cps.Drain()
-				done := teleportAsync(inst, p.ID, c.mapID, c.waypoint, 0)
+				done := teleportAsync(inst, p.ID, c.waypoint, 0)
 				tick(1)
 				if err := <-done; err != nil {
 					t.Fatal(err)
