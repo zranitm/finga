@@ -1,6 +1,7 @@
 package regiongen
 
 import (
+	"fmt"
 	"maps"
 	"math"
 	"slices"
@@ -45,16 +46,18 @@ type LakeWater struct {
 }
 
 const (
-	chunkM     = 64  // a bake chunk's side
-	overviewM  = 8   // the overview's spacing
-	smoothing  = 3   // Chaikin passes on a river's or a road's path
-	freeboard  = 0.5 // a river's or a lake's water below its lowest bank
-	fordDepth  = 0.3 // a ford's water
-	fordRamp   = 0.5 // how far the ground round a ford rises a metre, under max_slope's 0.7, so a body walks out of it every way
-	wadeDepth  = 0.6 // water deeper than this is a wall to every body: twice a ford's
-	roadMean   = 15  // a road's height is the ground's mean this far along it each way
-	townBlend  = 12  // a town's flat ground eases into the land around over this
-	cliffCells = 2   // a cliff edge falls over this many samples
+	chunkM       = 64   // a bake chunk's side
+	overviewM    = 8    // the overview's spacing
+	smoothing    = 3    // Chaikin passes on a river's or a road's path
+	freeboard    = 0.5  // a river's or a lake's water below its lowest bank
+	fordDepth    = 0.3  // a ford's water
+	fordRamp     = 0.5  // how far the ground round a ford rises a metre, under max_slope's 0.7, so a body walks out of it every way
+	wadeDepth    = 0.6  // water deeper than this is a wall to every body: twice a ford's
+	roadMean     = 15   // a road's height is the ground's mean this far along it each way
+	roadSlope    = 0.75 // of max_slope: the steepest a road's middle rises, so the ground between its samples stays walkable
+	townBlend    = 12   // a town's flat ground eases into the land around over this
+	cliffCells   = 2    // a cliff edge falls over this many samples
+	rampEndSlack = 0.5  // how far a road's start or end may be raised to lay its ramp back: a step
 )
 
 // The kit grounds roads and wet ground take.
@@ -66,27 +69,30 @@ const (
 
 // builder is a region on its way: the heights and every mark the later steps read.
 type builder struct {
-	p        Plan
-	k        Kit
-	g        grid
-	maxSlope float64
-	radius   float64 // a body's
-	h        []float64
-	area     []int16   // per sample, the plan's area holding it, or -1
-	onRoad   []bool    // per sample: under a road
-	water    []float64 // per sample: the highest water surface over it, -Inf where none
-	f        *field
-	roads    []Road     // smoothed
-	rivers   []River    // smoothed
-	fords    []fordCone // every river's fords so far, whose ramps a later road keeps
-	floor    []float64  // a cave's ground under its rock, which its halls and tunnels are carved down to
-	rocky    []bool     // a cave's, per sample: rock or a wall, not carved floor
-	cliffs   []bool     // per sample: on a cliff plateau's face, a barrier where it stays steep
-	past     []float64  // a cave's, per sample: the least distance past a carved space's wandering line, negative inside one
-	flat     []float64  // per feature: a flat hall's level, NaN for any other
-	tunnels  []carved   // a cave's tunnels carved so far
-	wander   *noise     // a cave's: how its carved walls' lines wander
-	r        Region
+	p          Plan
+	k          Kit
+	g          grid
+	maxSlope   float64
+	radius     float64 // a body's
+	h          []float64
+	area       []int16   // per sample, the plan's area holding it, or -1
+	onRoad     []bool    // per sample: under a road
+	water      []float64 // per sample: the highest water surface over it, -Inf where none
+	f          *field
+	roads      []Road          // smoothed
+	rivers     []River         // smoothed
+	fords      []fordCone      // every river's fords so far, whose ramps a later road keeps
+	townLevels map[int]float64 // each town's flat height, once a road needed it
+	roadTown   []int16         // per sample on a road laid to a town: the town's index + 1
+	err        error           // the first thing the plan couldn't be built from, which Generate returns
+	floor      []float64       // a cave's ground under its rock, which its halls and tunnels are carved down to
+	rocky      []bool          // a cave's, per sample: rock or a wall, not carved floor
+	cliffs     []bool          // per sample: on a cliff plateau's face, a barrier where it stays steep
+	past       []float64       // a cave's, per sample: the least distance past a carved space's wandering line, negative inside one
+	flat       []float64       // per feature: a flat hall's level, NaN for any other
+	tunnels    []carved        // a cave's tunnels carved so far
+	wander     *noise          // a cave's: how its carved walls' lines wander
+	r          Region
 }
 
 // Generate builds p with kit k for the sim's body, its slope and radius, the same bits on every CPU.
@@ -105,6 +111,7 @@ func Generate(p Plan, k Kit, body sim.Params) (*Region, error) {
 	for _, name := range b.r.Palette {
 		b.r.RGB = append(b.r.RGB, k.rgbOf(name))
 	}
+	b.roadTown = make([]int16, nx*nz)
 	b.areas()
 	b.ground()
 	b.rock()
@@ -125,6 +132,9 @@ func Generate(p Plan, k Kit, body sim.Params) (*Region, error) {
 		default:
 			b.road(*f.Road)
 		}
+	}
+	if b.err != nil {
+		return nil, b.err
 	}
 	b.towns()
 	b.edge()
@@ -405,7 +415,7 @@ func (b *builder) lake(l Lake) {
 
 // road flattens its smoothed path to the ground's mean along it, roadMean each way, easing back to the land over a shoulder as wide as the road; across water it's a causeway, but through a ford its path crosses it wades it, held under the ford's ramp.
 func (b *builder) road(r Road) {
-	path := smooth(r.Path)
+	path := b.splitAtTowns(smooth(r.Path))
 	s := along(path)
 	ground := make([]float64, len(path))
 	for i, p := range path {
@@ -420,6 +430,11 @@ func (b *builder) road(r Road) {
 			}
 		}
 		levels[i] = sum / float64(n)
+	}
+	pinned, town := b.townsOn(path, levels)
+	if err := b.laidBack(r, path, s, levels, pinned); err != nil {
+		b.err = err
+		return
 	}
 	r.Path = path
 	b.roads = append(b.roads, r)
@@ -441,6 +456,9 @@ func (b *builder) road(r Road) {
 		b.h[t] = h
 		if d <= half {
 			b.onRoad[t] = true
+			if town >= 0 {
+				b.roadTown[t] = int16(town + 1) //nolint:gosec // a plan has far fewer than 2¹⁵ areas
+			}
 			b.r.Wet[t] = b.r.Wet[t] && ford && h < b.water[t] // over water a causeway, dry; in a ford it crosses, wet where under the water
 		}
 	}
@@ -448,7 +466,7 @@ func (b *builder) road(r Road) {
 
 // towns flattens each town to its mean height, easing into the land around over townBlend.
 func (b *builder) towns() {
-	for _, a := range b.p.Areas {
+	for k, a := range b.p.Areas {
 		if a.Kind != Town {
 			continue
 		}
@@ -464,9 +482,15 @@ func (b *builder) towns() {
 		}
 		mean := sum / float64(n)
 		b.f.near(b.g, a.Area, true, townBlend)
+		predicted := b.townLevels[k] // the height roads were laid to reach, before later features and the roads themselves moved the town's mean
 		for _, s := range b.f.touched {
-			if !in[s] {
-				b.h[s] = lerp(mean, b.h[s], smoothstep(math.Sqrt(b.f.d2[s])/townBlend))
+			d := math.Sqrt(b.f.d2[s])
+			switch {
+			case in[s]:
+			case b.roadTown[s] == int16(k+1): //nolint:gosec // a plan has far fewer than 2¹⁵ areas // a road's surface keeps the level it was laid at, which already climbs to the town's: it takes only the difference between that and the town's now, easing out
+				b.h[s] += float64((mean - predicted) * (1 - smoothstep(d/townBlend)))
+			default: // the land round the town, a road that never entered it included
+				b.h[s] = lerp(mean, b.h[s], smoothstep(d/townBlend))
 			}
 		}
 		for s, ok := range in {
@@ -481,6 +505,102 @@ func f32Path(path [][2]float64) [][2]float64 {
 	out := make([][2]float64, len(path))
 	for i, p := range path {
 		out[i] = [2]float64{f32(p[0]), f32(p[1])}
+	}
+	return out
+}
+
+// townsOn sets the levels of the path's points inside a town to the town's, and says which they are and which town (the last; -1 for none): a road runs on at the height the town's flat ground will be, not at the mean of the land it crossed.
+func (b *builder) townsOn(path [][2]float64, levels []float64) (pinned []bool, town int) {
+	pinned, town = make([]bool, len(path)), -1
+	for i, p := range path {
+		for k, a := range b.p.Areas {
+			if a.Kind == Town && contains(a.Area, p) {
+				levels[i], pinned[i], town = b.townLevel(k), true, k
+			}
+		}
+	}
+	return pinned, town
+}
+
+// townLevel is the height town area k's flat ground will have: the mean of its samples now.
+func (b *builder) townLevel(k int) float64 {
+	if l, ok := b.townLevels[k]; ok {
+		return l
+	}
+	sum, n := 0.0, 0
+	for s, ok := range b.inside(b.p.Areas[k].Area) {
+		if ok {
+			sum, n = sum+b.h[s], n+1
+		}
+	}
+	l := 0.0
+	if n > 0 {
+		l = sum / float64(n)
+	}
+	if b.townLevels == nil {
+		b.townLevels = map[int]float64{}
+	}
+	b.townLevels[k] = l
+	return l
+}
+
+// laidBack lays levels back along the road's path from any rise it makes: no level is lower than a farther one less roadSlope × max_slope for each metre between, nor higher than a town's by more than that, so a terrace's ramp or a town's takes the run it needs, across bends if it must, below the line it climbs to. A road whose start or end would have to be raised for it is an error: the ramp has no room, and it would bake a wall.
+func (b *builder) laidBack(r Road, path [][2]float64, s, levels []float64, pinned []bool) error {
+	k := float64(roadSlope * b.maxSlope)
+	laid := slices.Clone(levels)
+	for i := 1; i < len(laid); i++ {
+		laid[i] = max(laid[i], laid[i-1]-float64(k*(s[i]-s[i-1])))
+	}
+	for i := len(laid) - 2; i >= 0; i-- {
+		laid[i] = max(laid[i], laid[i+1]-float64(k*(s[i+1]-s[i])))
+	}
+	for j := range laid { // and none so far above a town's level that the road comes down to it too steeply
+		if pinned[j] {
+			for i := range laid {
+				laid[i] = min(laid[i], levels[j]+float64(k*math.Abs(s[i]-s[j])))
+			}
+		}
+	}
+	last := len(laid) - 1
+	for _, i := range []int{0, last} {
+		if laid[i]-levels[i] > rampEndSlack {
+			at := path[i]
+			return fmt.Errorf("road from %v to %v: its ramp up to a terrace has no room before the road's end at (%.0f, %.0f), %.1f m short", r.Path[0], r.Path[len(r.Path)-1], at[0], at[1], laid[i]-levels[i])
+		}
+	}
+	copy(levels, laid)
+	return nil
+}
+
+// splitAtTowns is path with a point added where it crosses into or out of a town, at the line: the road's level reaches the town's there, not at the next point of the path, which may be metres on.
+func (b *builder) splitAtTowns(path [][2]float64) [][2]float64 {
+	in := func(p [2]float64) int {
+		for k, a := range b.p.Areas {
+			if a.Kind == Town && contains(a.Area, p) {
+				return k
+			}
+		}
+		return -1
+	}
+	out := [][2]float64{path[0]}
+	for i := 1; i < len(path); i++ {
+		a, c := path[i-1], path[i]
+		if ka, kc := in(a), in(c); ka != kc {
+			lo, hi := a, c // a point on the line, to within a millimetre, taken from inside the town
+			if ka < 0 {
+				lo, hi = c, a
+			}
+			for range 24 {
+				mid := lerp2(lo, hi, 0.5)
+				if in(mid) >= 0 {
+					lo = mid
+				} else {
+					hi = mid
+				}
+			}
+			out = append(out, lo)
+		}
+		out = append(out, c)
 	}
 	return out
 }
