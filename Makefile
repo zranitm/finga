@@ -18,7 +18,7 @@ NPM       ?= npm --prefix web
 # The build's version, which logs and spans carry: the nearest tag and the commits since, or the commit alone.
 VERSION   ?= $(shell git describe --tags --always --dirty --abbrev=12 2>/dev/null || echo dev)
 
-.PHONY: up config prod-check down run test test-go test-web rules-go cover cover-go cover-go-cover cover-go-race cover-go-race-bot cover-go-race-rest race-shards cover-web lint lint-go lint-web fma-check breaking gen region-preview smoke edge bots testers recipes-check
+.PHONY: race-skip-tests up config prod-check down run test test-go test-web rules-go cover cover-go cover-go-cover cover-go-race cover-go-race-bot cover-go-race-rest race-shards cover-web lint lint-go lint-web fma-check breaking gen region-preview smoke edge bots testers recipes-check
 
 # OBS=1 also runs the observability stack and sends it the game's traces: Grafana at http://localhost:3000.
 OBSERVED = $(if $(OBS),FINGA_TRACING_OTLP_ENDPOINT=alloy:4317)
@@ -52,6 +52,8 @@ run:           ## without Docker: server/.env exported, every module's migration
 
 test: test-go test-web   ## every Go test with the race detector, then the client tests
 
+space := $(subst ,, )
+
 # Every package but test/rules, the end-to-end tests first: they run in real time, so go starts them while it still builds the rest.
 GO_LIST = $(GO) list ./test/... ./... | grep -vx finga/test/rules
 GO_PKGS = $$($(GO_LIST))
@@ -60,6 +62,9 @@ GO_RACE_SKIP := finga/internal/shared/nav
 # The bots' soak runs apart from the rest: beside the end-to-end tests it starved them of CPU, and TestWalkingOutOfCombatBreaksIntoASprint failed twice.
 GO_RACE_BOT := finga/cmd/bot
 GO_RACE_REST = $$($(GO_LIST) | grep -vxF $(foreach p,$(GO_RACE_SKIP) $(GO_RACE_BOT),-e $(p)))
+# Tests the race run skips by name: this one boots the real data, whose three 1 km regions take about 130 s of generation and walk grids under -race, on the run's critical path, and starts no goroutine of its own; the raced world and instance tests cover its hand-offs, and go-cover still runs it. TestTheRaceRunSkipsOnlyTestsThatStartNoGoroutine holds each to it.
+GO_RACE_SKIP_TESTS := TestTheShippedRegionsRunOnTheRealData
+GO_RACE_SKIP_TESTS_RE = ^($(subst $(space),|,$(strip $(GO_RACE_SKIP_TESTS))))$$
 # The end-to-end tests mostly wait in real time, so more of them run at once than there are CPUs.
 GO_PARALLEL ?= 8
 # One Postgres for the whole run, which every pgtest package shares, instead of a container each; a PGTEST_URL already set names your own.
@@ -97,11 +102,15 @@ cover-go-race-bot:
 	cd $(SERVER) && $(GO) build -o bin/ ./cmd/testtimes && $(PGTEST) ./bin/testtimes -o go-race-bot-times.tsv $(GO) test -json -race -parallel $(GO_PARALLEL) $(GO_RACE_BOT)
 
 cover-go-race-rest:
-	cd $(SERVER) && $(GO) build -o bin/ ./cmd/testtimes && $(PGTEST) ./bin/testtimes -o go-race-rest-times.tsv $(GO) test -json -race -parallel $(GO_PARALLEL) $(GO_RACE_REST)
+	cd $(SERVER) && $(GO) build -o bin/ ./cmd/testtimes && $(PGTEST) ./bin/testtimes -o go-race-rest-times.tsv $(GO) test -json -race -skip '$(GO_RACE_SKIP_TESTS_RE)' -parallel $(GO_PARALLEL) $(GO_RACE_REST)
 
 # The packages each shard runs and those the run skips, one a line: the rule test reads it to check that together they are every package of GO_PKGS, once each.
 race-shards:
 	@cd $(SERVER) && for p in $(GO_RACE_SKIP); do echo "skipped $$p"; done; for p in $(GO_RACE_BOT); do echo "bot $$p"; done; for p in $(GO_RACE_REST); do echo "rest $$p"; done
+
+# The tests the race run skips by name, one a line: the rule test checks each exists and starts no goroutine.
+race-skip-tests:
+	@for t in $(GO_RACE_SKIP_TESTS); do echo $$t; done
 
 cover-web:
 	$(NPM) run coverage
