@@ -269,7 +269,7 @@ There is no conversion code, as the product page decided.
   - combat picks attack and defense by type; penetration works on both; bats deal magic damage;
   - regen adds up exactly, stops at the maximum, and skips the dead;
   - a basic attack lasts its class's length in ticks;
-  - move speed applies in hunting maps and not in towns, and a jump at a higher speed lands where the same jump lands at speed 1.
+  - move speed applies on every map (it left out towns while the land maps had them), and a jump at a higher speed lands where the same jump lands at speed 1.
 - **Movement vectors:** speed cases for walking, climbing, jumping, and falling, replayed by both sims.
 - **Item module:** `Equip` with stat requirements; 20-stat rolls in `Add` and `AddMany`; the property tests.
 - **End to end:**

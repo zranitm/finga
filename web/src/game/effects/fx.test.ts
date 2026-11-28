@@ -10,11 +10,11 @@ import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { Scene } from '@babylonjs/core/scene';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { steepMap } from '@/testing/baked-map';
 import { servePublic } from '@/testing/public-on-disk';
 import { builtShaders } from '@/testing/shaders';
 
 import { beatsOf } from '../world3d/beats';
-import { loadMap } from '../world3d/map';
 import type { WorldMap } from '../world3d/map';
 import { Palette } from '../world3d/toon';
 
@@ -64,7 +64,7 @@ describe('effects', () => {
     engine = new NullEngine();
     scene = new Scene(engine);
     servePublic();
-    map = await loadMap('frost_trail');
+    map = await steepMap();
     played.length = 0;
     sounds.loaded = false;
   });

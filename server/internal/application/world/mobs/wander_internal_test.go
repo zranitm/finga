@@ -17,7 +17,7 @@ func meadow(t *testing.T, boxes []sim.Box, spawns ...gamedata.Spawn) *Arena {
 	data := gamedatatest.Shipped(t)
 	g := sim.Geometry{SizeX: 40, SizeZ: 40, Terrain: sim.NewTerrain(40, 2, 2, []float64{0, 0, 0, 0}, 0.7), Cylinders: []sim.Cylinder{}, Boxes: boxes}
 	grid := nav.New(g, data.Movement().Step)
-	m := &gamedata.Map{ID: "meadow", Kind: gamedata.Hunting, Geometry: g, Spawns: spawns, Grid: func() *nav.Grid { return grid }}
+	m := &gamedata.Map{ID: "meadow", Kind: gamedata.Region, Geometry: g, Spawns: spawns, Grid: func() *nav.Grid { return grid }}
 	return NewArena(Deps{Map: m, Data: data, Roll: rand.New(rand.NewPCG(1, 3))}, Tuning{TickInterval: 50 * time.Millisecond})
 }
 

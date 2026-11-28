@@ -118,7 +118,7 @@ const NEAR_MAP_M = 1000; // the test maps' size, well inside the warm's distance
 const MODELS = path.resolve(process.cwd(), 'public/models');
 const WAIT = { timeout: 3000, interval: 5 }; // polled every 5 ms, not 50; 3 s for a build on a CI runner under coverage
 
-// Every key but the torches and the vent a stand-in: place.test draws the crossroads and the grove with the real kit models, a cave's torches stand by their flames here, and a sea's vents give off its bubbles.
+// Every key but the torches and the vent a stand-in: place.test draws the yard and the ridge with the real kit models, a cave's torches stand by their flames here, and a sea's vents give off its bubbles.
 vi.mock('./kit-models', async (actual) => {
   const real = await actual<typeof Kit>();
   const { torch_mounted, torch_lit, vent } = real.kitModels;
@@ -2857,7 +2857,7 @@ describe('World', () => {
     const glowing = () =>
       meshesOn(p, 'ring').filter((m) => m.isEnabled() && m.visibility > 0).length;
     const channel = () => {
-      teleport.getState().start({ map: 'greyfang_cave' });
+      teleport.getState().start({ waypoint: 'greyfang_cave', name: 'Greyfang Cave' });
       p.live(1);
       expect(glowing()).toBe(2);
     };
@@ -2868,7 +2868,10 @@ describe('World', () => {
     };
     channel();
     p.live(10);
-    expect([teleport.getState().to, glowing()]).toEqual([{ map: 'greyfang_cave' }, 2]);
+    expect([teleport.getState().to, glowing()]).toEqual([
+      { waypoint: 'greyfang_cave', name: 'Greyfang Cave' },
+      2,
+    ]);
     key('ArrowRight', true);
     ended();
     key('ArrowRight', false);

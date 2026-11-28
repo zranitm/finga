@@ -52,12 +52,9 @@ func (i *Instance) stats(p *player) Stats {
 	return s
 }
 
-// movement is the player's movement constants: sped up by their move speed outside a town, with no sprint in combat.
+// movement is the player's movement constants: sped up by their move speed, with no sprint in combat.
 func (i *Instance) movement(p *player) sim.Params {
-	moves := i.params
-	if i.m.Kind != gamedata.Town {
-		moves = moves.Faster(sim.SpeedFactor(p.derived.MoveSpeed))
-	}
+	moves := i.params.Faster(sim.SpeedFactor(p.derived.MoveSpeed))
 	if i.inCombat(p) {
 		return moves.Fighting()
 	}

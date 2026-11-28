@@ -245,7 +245,7 @@ func TestStatsChangedWithoutASheetLeavesItUnset(t *testing.T) {
 
 // A Snapshot carries no field boss while none is up.
 func TestASnapshotWithoutABossCarriesNone(t *testing.T) {
-	if snap, _ := deliveryOf(model.Snapshot{MapID: "frost_trail"}).Event.(Snapshot); snap.MapID != "frost_trail" || snap.FieldBoss != nil {
+	if snap, _ := deliveryOf(model.Snapshot{MapID: "sunreach"}).Event.(Snapshot); snap.MapID != "sunreach" || snap.FieldBoss != nil {
 		t.Fatalf("got %+v, want forest with no boss", snap)
 	}
 }

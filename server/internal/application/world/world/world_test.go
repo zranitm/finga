@@ -174,14 +174,14 @@ func TestWorld(t *testing.T) {
 
 		{ // instances run independently
 			sa, sb := &worldtest.Sink{}, &worldtest.Sink{}
-			w.enter(t, at(t, "Ayla", "crossroads"), "crossroads", "c-1", sa)
-			w.enter(t, at(t, "Robin", "frost_trail"), "frost_trail", "c-2", sb)
+			w.enter(t, at(t, "Ayla", "willowmere"), "willowmere", "c-1", sa)
+			w.enter(t, at(t, "Robin", "sunreach"), "sunreach", "c-2", sb)
 			time.Sleep(2 * worldtest.TickInterval)
 			synctest.Wait()
-			if snap := sa.All()[0].(model.Snapshot); snap.MapID != "crossroads" || len(snap.Players) != 1 {
+			if snap := sa.All()[0].(model.Snapshot); snap.MapID != "willowmere" || len(snap.Players) != 1 {
 				t.Fatalf("town snapshot %+v", snap)
 			}
-			if snap := sb.All()[0].(model.Snapshot); snap.MapID != "frost_trail" || len(snap.Players) != 1 {
+			if snap := sb.All()[0].(model.Snapshot); snap.MapID != "sunreach" || len(snap.Players) != 1 {
 				t.Fatalf("forest snapshot %+v", snap)
 			}
 		}
@@ -208,14 +208,14 @@ func TestWorld(t *testing.T) {
 	})
 }
 
-// leaveAndRun has the World save "cp crossroads" then "cp frost_trail", then runs before and shuts the World down.
+// leaveAndRun has the World save "cp willowmere" then "cp sunreach", then runs before and shuts the World down.
 func leaveAndRun(t *testing.T, saver *fakeSaver, before func()) {
 	t.Helper()
 	w := newWorld(t, saver, worldtest.Options{CheckpointInterval: time.Hour, SaveObserver: saver})
 	ctx, cancel := context.WithCancel(context.Background())
 	runDone := make(chan error, 1)
 	go func() { runDone <- w.Run(ctx) }()
-	for _, mapID := range []string{"crossroads", "frost_trail"} {
+	for _, mapID := range []string{"willowmere", "sunreach"} {
 		p := at(t, "Ayla", mapID)
 		w.enter(t, p, mapID, "c-1", &worldtest.Sink{})
 		time.Sleep(worldtest.TickInterval)
@@ -259,7 +259,7 @@ func TestThePersistenceWorkerRetriesBehindTheOthers(t *testing.T) {
 	t.Run("the first two attempts fail, and each save then lands once", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			got := run(t, &fakeSaver{err: errUnavailable, failures: 2})
-			if len(got) != 4 || count(got[2:], "cp crossroads") != 1 || count(got[2:], "cp frost_trail") != 1 {
+			if len(got) != 4 || count(got[2:], "cp willowmere") != 1 || count(got[2:], "cp sunreach") != 1 {
 				t.Fatalf("attempts %v", got)
 			}
 		})
@@ -267,14 +267,14 @@ func TestThePersistenceWorkerRetriesBehindTheOthers(t *testing.T) {
 	t.Run("a save the character module never answers is cut off, and the next goes first", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			got := run(t, &fakeSaver{hangs: 1})
-			if len(got) != 3 || got[0] != "cp crossroads" || got[1] != "cp frost_trail" || got[2] != "cp crossroads" {
+			if len(got) != 3 || got[0] != "cp willowmere" || got[1] != "cp sunreach" || got[2] != "cp willowmere" {
 				t.Fatalf("attempts %v", got)
 			}
 		})
 	})
 	t.Run("one that keeps failing is still tried after a minute, and holds up no other", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			saver := &fakeSaver{err: errUnavailable, failing: "crossroads"}
+			saver := &fakeSaver{err: errUnavailable, failing: "willowmere"}
 			var atOne, atTwo []string
 			leaveAndRun(t, saver, func() {
 				time.Sleep(time.Minute)
@@ -284,7 +284,7 @@ func TestThePersistenceWorkerRetriesBehindTheOthers(t *testing.T) {
 				synctest.Wait()
 				atTwo = saver.attemptsSoFar()
 			})
-			if count(atOne, "cp frost_trail") != 1 || count(atTwo, "cp crossroads") <= count(atOne, "cp crossroads") {
+			if count(atOne, "cp sunreach") != 1 || count(atTwo, "cp willowmere") <= count(atOne, "cp willowmere") {
 				t.Fatalf("attempts after a minute %v, and %s on %v", atOne, quiet, atTwo)
 			}
 		})
@@ -299,7 +299,7 @@ func TestThePersistenceWorkerRetriesBehindTheOthers(t *testing.T) {
 	})
 	t.Run("one failing without a reason is retried for a minute, then dropped and counted", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			saver := &fakeSaver{err: errUnexplained, failing: "crossroads"}
+			saver := &fakeSaver{err: errUnexplained, failing: "willowmere"}
 			var early, late []string
 			leaveAndRun(t, saver, func() {
 				time.Sleep(30 * time.Second)
@@ -309,10 +309,10 @@ func TestThePersistenceWorkerRetriesBehindTheOthers(t *testing.T) {
 				synctest.Wait()
 				late = saver.attemptsSoFar()
 			})
-			if count(early, "cp crossroads") < 3 {
+			if count(early, "cp willowmere") < 3 {
 				t.Fatalf("attempts after 30 s %v; want it retried", early)
 			}
-			if final := saver.attemptsSoFar(); count(final, "cp crossroads") != count(late, "cp crossroads") || count(final, "cp frost_trail") != 1 {
+			if final := saver.attemptsSoFar(); count(final, "cp willowmere") != count(late, "cp willowmere") || count(final, "cp sunreach") != 1 {
 				t.Fatalf("attempts %v; want town dropped before the shutdown and forest saved", final)
 			}
 			if got := saver.droppedSoFar(); !slices.Equal(got, []string{"unexplained"}) {
@@ -330,7 +330,7 @@ func TestShutdownRetriesEachSaveWithinTheFlushBudget(t *testing.T) {
 		before := 0
 		leaveAndRun(t, saver, func() { start, before = time.Now(), len(saver.attemptsSoFar()) })
 		after := saver.attemptsSoFar()[before:]
-		if took := time.Since(start); took < 10*time.Second || took > 10*time.Second+2*worldtest.TickInterval || count(after, "cp crossroads") < 3 || count(after, "cp frost_trail") < 3 {
+		if took := time.Since(start); took < 10*time.Second || took > 10*time.Second+2*worldtest.TickInterval || count(after, "cp willowmere") < 3 || count(after, "cp sunreach") < 3 {
 			t.Fatalf("shutdown took %s with attempts %v after it began; want each retried until the 10 s budget ran out", took, after)
 		}
 		if got := saver.droppedSoFar(); !slices.Equal(got, []string{"shutdown", "shutdown"}) {
@@ -347,8 +347,8 @@ func TestShutdownSavesWithinTheFlushBudget(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		runDone := make(chan error, 1)
 		go func() { runDone <- w.Run(ctx) }()
-		w.enter(t, at(t, "Ayla", "crossroads"), "crossroads", "c-1", &worldtest.Sink{})
-		w.enter(t, at(t, "Bo", "frost_trail"), "frost_trail", "c-2", &worldtest.Sink{})
+		w.enter(t, at(t, "Ayla", "willowmere"), "willowmere", "c-1", &worldtest.Sink{})
+		w.enter(t, at(t, "Bo", "sunreach"), "sunreach", "c-2", &worldtest.Sink{})
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		start := time.Now()
@@ -375,7 +375,7 @@ func TestShutdownSavesInParallel(t *testing.T) {
 		runDone := make(chan error, 1)
 		go func() { runDone <- w.Run(ctx) }()
 		for n := range 10 {
-			w.enter(t, at(t, fmt.Sprintf("P%d", n), "crossroads"), "crossroads", fmt.Sprintf("c-%d", n), &worldtest.Sink{})
+			w.enter(t, at(t, fmt.Sprintf("P%d", n), "willowmere"), "willowmere", fmt.Sprintf("c-%d", n), &worldtest.Sink{})
 		}
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
@@ -400,7 +400,7 @@ func TestSaverErrorsAreLoggedNotFatal(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		runDone := make(chan error, 1)
 		go func() { runDone <- w.Run(ctx) }()
-		w.enter(t, at(t, "Ayla", "crossroads"), "crossroads", "c-1", &worldtest.Sink{})
+		w.enter(t, at(t, "Ayla", "willowmere"), "willowmere", "c-1", &worldtest.Sink{})
 		time.Sleep(3 * time.Second)
 		synctest.Wait()
 		if saver.count() < 2 {
@@ -450,10 +450,10 @@ func TestAJoinThroughANewerConnectionReplacesTheOlder(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		go func() { _ = w.Run(ctx) }()
-		ayla, bo := at(t, "Ayla", "crossroads"), at(t, "Bo", "crossroads")
+		ayla, bo := at(t, "Ayla", "willowmere"), at(t, "Bo", "willowmere")
 		watcher, old := &worldtest.Sink{}, &worldtest.Sink{}
-		w.enter(t, bo, "crossroads", "c-bo", watcher)
-		w.enter(t, ayla, "crossroads", "c-1", old)
+		w.enter(t, bo, "willowmere", "c-bo", watcher)
+		w.enter(t, ayla, "willowmere", "c-1", old)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 
@@ -470,7 +470,7 @@ func TestAJoinThroughANewerConnectionReplacesTheOlder(t *testing.T) {
 		if listed, removed := lastWord(watcher, ayla.ID); listed != 1 || removed {
 			t.Fatalf("the town's last frame naming her lists her %d times, removes her %v; want her shown once", listed, removed)
 		}
-		if snaps := worldtest.Of[model.Snapshot](newer); len(snaps) != 1 || snaps[0].MapID != "crossroads" {
+		if snaps := worldtest.Of[model.Snapshot](newer); len(snaps) != 1 || snaps[0].MapID != "willowmere" {
 			t.Fatalf("snapshots %+v", snaps)
 		}
 		before := len(old.Deltas())
@@ -527,11 +527,11 @@ func TestATransferOfAReplacedPresenceIsDropped(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		go func() { _ = w.Run(ctx) }()
-		townMap, _ := data.Map("crossroads")
-		toForest := portalNamed(t, townMap, "to_frost")
+		townMap, _ := data.Map("willowmere")
+		toForest := portalNamed(t, townMap, "north_pass")
 		ayla := worldtest.NewPlayer("Ayla", toForest.At.X, toForest.At.Z)
 		old := &worldtest.Sink{}
-		w.enter(t, ayla, "crossroads", "c-1", old)
+		w.enter(t, ayla, "willowmere", "c-1", old)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 
@@ -540,9 +540,9 @@ func TestATransferOfAReplacedPresenceIsDropped(t *testing.T) {
 			t.Fatal(err)
 		}
 		newer := &worldtest.Sink{}
-		there := at(t, "Ayla", "frost_trail")
+		there := at(t, "Ayla", "sunreach")
 		there.ID = ayla.ID
-		w.enter(t, there, "frost_trail", "c-2", newer)
+		w.enter(t, there, "sunreach", "c-2", newer)
 		time.Sleep(3 * worldtest.TickInterval)
 		synctest.Wait()
 		if snaps := worldtest.Of[model.Snapshot](old); len(snaps) != 1 {
@@ -564,8 +564,8 @@ func TestARefusedSaveIsLoggedWithItsCharacter(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		runDone := make(chan error, 1)
 		go func() { runDone <- w.Run(ctx) }()
-		p := at(t, "Ayla", "crossroads")
-		w.enter(t, p, "crossroads", "c-1", &worldtest.Sink{})
+		p := at(t, "Ayla", "willowmere")
+		w.enter(t, p, "willowmere", "c-1", &worldtest.Sink{})
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		if err := w.Leave(context.Background(), p.ID, "c-1"); err != nil {
@@ -577,7 +577,7 @@ func TestARefusedSaveIsLoggedWithItsCharacter(t *testing.T) {
 		if err := <-runDone; err != nil {
 			t.Fatal(err)
 		}
-		for _, want := range []string{`"msg":"persistence failed"`, `"character_id":"` + p.ID.String() + `"`, `"map_id":"crossroads"`} {
+		for _, want := range []string{`"msg":"persistence failed"`, `"character_id":"` + p.ID.String() + `"`, `"map_id":"willowmere"`} {
 			if !strings.Contains(logs.String(), want) {
 				t.Fatalf("log %q lacks %s", logs.String(), want)
 			}
@@ -592,8 +592,8 @@ func TestAStoppedWorldAnswersStopped(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		runDone := make(chan error, 1)
 		go func() { runDone <- w.Run(ctx) }()
-		ayla := at(t, "Ayla", "crossroads")
-		w.enter(t, ayla, "crossroads", "c-1", &worldtest.Sink{})
+		ayla := at(t, "Ayla", "willowmere")
+		w.enter(t, ayla, "willowmere", "c-1", &worldtest.Sink{})
 		cancel()
 		if err := <-runDone; err != nil {
 			t.Fatal(err)
@@ -607,8 +607,8 @@ func TestAStoppedWorldAnswersStopped(t *testing.T) {
 		if err := w.Leave(longCtx, ayla.ID, "c-1"); !errors.Is(err, model.ErrStopped) {
 			t.Fatalf("leave: %v", err)
 		}
-		bo := at(t, "Bo", "crossroads")
-		w.chars.chars[bo.ID] = model.Character{ID: bo.ID, Account: bo.Account, Name: bo.Name, Class: bo.Class, Level: 1, Points: bo.Points, HP: bo.HP, Energy: bo.Energy, MapID: "crossroads", X: bo.X, Y: bo.Y, Z: bo.Z}
+		bo := at(t, "Bo", "willowmere")
+		w.chars.chars[bo.ID] = model.Character{ID: bo.ID, Account: bo.Account, Name: bo.Name, Class: bo.Class, Level: 1, Points: bo.Points, HP: bo.HP, Energy: bo.Energy, MapID: "willowmere", X: bo.X, Y: bo.Y, Z: bo.Z}
 		if _, err := w.Join(longCtx, bo.Account, bo.ID, "c-2", &worldtest.Sink{}); !errors.Is(err, model.ErrStopped) {
 			t.Fatalf("join: %v", err)
 		}

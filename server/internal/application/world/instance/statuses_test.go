@@ -484,7 +484,7 @@ func TestAFreezeShattersAndASleepWakes(t *testing.T) {
 	})
 	synctest.Test(t, func(t *testing.T) { // the slime's hop puts them to sleep, and a boar's plain bite wakes them before the next hop
 		m := worldtest.Gridded(t, &gamedata.Map{
-			ID: "arena", Kind: gamedata.Hunting, Town: "willowmere", Geometry: worldtest.Flat(40),
+			ID: "arena", Kind: gamedata.Region, Geometry: worldtest.Flat(40),
 			Spawns: []gamedata.Spawn{
 				{Mob: "green_slime", Max: 1, Respawn: time.Hour, At: gamedata.Point{X: arenaX, Z: slimeZ}, Radius: 0.01},
 				{Mob: "wild_boar", Max: 1, Respawn: time.Hour, At: gamedata.Point{X: arenaX, Z: nextToSlime - 1.5}, Radius: 0.01},

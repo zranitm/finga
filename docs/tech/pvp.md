@@ -669,7 +669,7 @@ As built for 1v1 (build step 2):
   - A remote skill's area at the lock centres on either kind. The place opens round a locked enemy as round a mob.
   - The key-binding window calls Tab "Lock the next target".
 - **Names:** enemies `#ff6b62`, teammates `#7fe08a`. A bot's name carries a BOT tag after it.
-- **A match's map plays as a hunting map,** as the world has it: move speed counts, and the lock, attacks and skills work. Before this, the client read any kind but `hunting` as a town.
+- **A match's map plays as any map does,** as the world has it: move speed counts, and the lock, attacks and skills work. Before this, the client read any kind but `hunting` as a town; with the map kinds gone, it doesn't read a kind for the pace at all.
 - **The prep wall:**
   - It's drawn as a see-through sheet of the portals' blue, `#5fb8ff` at 0.4, laid over the ground. Added light saturated to white on the ring's sand.
   - Prediction walks against the map's solids with the wall's appended after them, from the `MatchState` that starts or ends prep or the countdown.

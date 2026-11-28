@@ -12,10 +12,10 @@ import (
 	"finga/internal/shared/kernel"
 )
 
-// bossSlot is one of the map's field bosses: a hunting map's one, or each hunting area's in a region (large-regions.md section 6), up or beaten.
+// bossSlot is one of a region's field bosses, each hunting area's (large-regions.md section 6), up or beaten.
 type bossSlot struct {
 	spot   gamedata.BossSpot
-	area   int        // its hunting area's index in the region's Areas; -1 on a map, whose players all hear it
+	area   int        // its hunting area's index in the region's Areas
 	up     *fieldBoss // nil while beaten
 	fallen uint64     // the beaten boss's mob
 	back   uint64     // the tick a beaten boss is back
@@ -28,11 +28,8 @@ type fieldBoss struct {
 	dealt map[kernel.CharacterID]int
 }
 
-// bossSlots are m's bosses: its own on a hunting map, each hunting area's in a region.
+// bossSlots are m's bosses: each hunting area's in a region.
 func bossSlots(m *gamedata.Map) []*bossSlot {
-	if m.Boss != nil {
-		return []*bossSlot{{spot: *m.Boss, area: -1}}
-	}
 	var out []*bossSlot
 	for k, a := range m.Areas {
 		if a.Boss != nil {
@@ -58,12 +55,8 @@ func (i *Instance) stepBosses() {
 	}
 }
 
-// announce sends s's news to those who hear it: everyone on a map, those in its area in a region.
+// announce sends s's news to those who hear it: those in its area.
 func (i *Instance) announce(s *bossSlot, e model.Event) {
-	if s.area < 0 {
-		i.events = append(i.events, e)
-		return
-	}
 	for _, id := range i.order {
 		if p := i.players[id]; p.area == s.area {
 			p.private = append(p.private, e)
@@ -71,9 +64,9 @@ func (i *Instance) announce(s *bossSlot, e model.Event) {
 	}
 }
 
-// bossOf is the index in bosses of the boss p hears of: their map's, or their area's in a region; -1 for none.
+// bossOf is the index in bosses of the boss p hears of: their area's; -1 for none.
 func (i *Instance) bossOf(p *player) int {
-	return slices.IndexFunc(i.bosses, func(s *bossSlot) bool { return s.area < 0 || s.area == p.area })
+	return slices.IndexFunc(i.bosses, func(s *bossSlot) bool { return s.area == p.area })
 }
 
 // bossState is the boss p hears of as they're told on coming to it: up, or beaten with when it's back; neither where there's none.
@@ -122,9 +115,6 @@ func (i *Instance) Bosses(ctx context.Context) ([]model.AreaBoss, error) {
 func (i *Instance) areaBosses() []model.AreaBoss {
 	var out []model.AreaBoss
 	for _, s := range i.bosses {
-		if s.area < 0 {
-			continue
-		}
 		b := model.AreaBoss{Area: i.areaID(s.area), Up: s.up != nil}
 		if s.up == nil {
 			b.BackIn = i.bossDown(s).BackIn
@@ -150,14 +140,14 @@ type bossGroup struct {
 	tallied []kernel.CharacterID
 }
 
-// bossGroups are those alive there when s's boss fell, grouped by party in join order: everyone on a map; in a region, those in its area or within its leash of its spot, where its fight may have gone over the area's line.
+// bossGroups are those alive there when s's boss fell, grouped by party in join order: those in its area or within its leash of its spot, where its fight may have gone over the area's line.
 func (i *Instance) bossGroups(s *bossSlot) []bossGroup {
 	reach := s.spot.Radius + i.data.MobRules().Leash
 	var groups []bossGroup
 	byParty := map[string]int{}
 	for _, id := range i.order {
 		p := i.players[id]
-		if p.dead || s.area >= 0 && p.area != s.area && math.Hypot(p.state.X-s.spot.At.X, p.state.Z-s.spot.At.Z) > reach {
+		if p.dead || p.area != s.area && math.Hypot(p.state.X-s.spot.At.X, p.state.Z-s.spot.At.Z) > reach {
 			continue
 		}
 		party := i.deps.Parties.Party(id)

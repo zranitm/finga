@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
-	"flag"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -12,11 +10,10 @@ import (
 	"testing"
 
 	"finga/internal/shared/gamedata"
-	"finga/internal/shared/gamedata/gamedatatest"
 	"finga/internal/shared/gamedata/load"
 )
 
-// Each shipped map is written with the geometry the server builds, number for number, its models in step, its portals' targets, and nothing of its boss; a region with no geometry or models, and its bake named as the server names it, whose chunks hold its ground.
+// Each shipped map is written with the geometry the server builds, number for number, its models in step, its portals' targets, and nothing of its areas' bosses; a region with no geometry or models, and its bake named as the server names it, whose chunks hold its ground.
 func TestEveryMapIsWrittenAsTheServerBuildsIt(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "maps")
 	if err := run("../../data", out); err != nil {
@@ -86,8 +83,8 @@ func TestEveryMapIsWrittenAsTheServerBuildsIt(t *testing.T) {
 				t.Errorf("%s: portal %+v; want %s to %s", m.ID, p, m.Portals[k].Name, m.Portals[k].TargetMap)
 			}
 		}
-		if strings.Contains(string(raw), "kills") || m.Boss != nil && strings.Contains(string(raw), m.Boss.Mob) {
-			t.Errorf("%s: the boss is written out", m.ID)
+		if strings.Contains(string(raw), "kills") || slices.ContainsFunc(m.Areas, func(a gamedata.Area) bool { return a.Boss != nil && strings.Contains(string(raw), a.Boss.Mob) }) {
+			t.Errorf("%s: a boss is written out", m.ID)
 		}
 	}
 	if regions == 0 || battles == 0 {
@@ -102,36 +99,5 @@ func TestBadDataWritesNothing(t *testing.T) {
 	}
 	if _, err := os.Stat(out); !os.IsNotExist(err) {
 		t.Fatalf("wrote %s anyway: %v", out, err)
-	}
-}
-
-var update = flag.Bool("update", false, "rewrite the web client's fixture maps from the test data's land maps")
-
-const clientMaps = "../../../web/src/testing/maps"
-
-// The land maps the web client's tests draw and walk, which the shipped game no longer has, are kept in web/src/testing/maps as the test data's three small ones are written: nothing else of the web tests' maps comes from the shipped data.
-func TestTheWebClientsFixtureMapsAreCurrent(t *testing.T) {
-	out := filepath.Join(t.TempDir(), "maps")
-	if err := run(gamedatatest.ShippedDir(t), out); err != nil {
-		t.Fatal(err)
-	}
-	for _, id := range []string{"crossroads", "frost_trail", "icefall"} {
-		want, err := os.ReadFile(filepath.Join(out, id+".json"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		file := filepath.Join(clientMaps, id+".json")
-		if *update {
-			if err := os.MkdirAll(clientMaps, 0o755); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(file, want, 0o600); err != nil {
-				t.Fatal(err)
-			}
-		}
-		got, err := os.ReadFile(file)
-		if err != nil || !bytes.Equal(got, want) {
-			t.Errorf("%s differs from the test data's map (go test ./cmd/mapjson -update after a change to a land map there): %v", file, err)
-		}
 	}
 }

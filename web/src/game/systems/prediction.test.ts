@@ -535,17 +535,15 @@ describe('mobs', () => {
 });
 
 describe('move speed', () => {
-  it('speeds a hunting or match map’s movement by 1 + move speed in thousandths, and leaves a town’s alone', () => {
-    expect(movementParams('town', 0.3)).toBe(movement);
-    expect(movementParams('hunting', 0)).toBe(movement);
-    const p = movementParams('hunting', 0.0072);
+  it('speeds the movement by 1 + move speed in thousandths, and leaves none alone', () => {
+    expect(movementParams(0)).toBe(movement);
+    const p = movementParams(0.0072);
     expect(p).toEqual(faster(movement, 1.007));
     expect(p.walk_speed).toBeCloseTo(movement.walk_speed * 1.007, 9);
-    expect(movementParams('pvp', 0.0072)).toEqual(p);
   });
 
   it('the predictor walks at the new pace from the step after setParams', () => {
-    const fast = movementParams('hunting', 0.3);
+    const fast = movementParams(0.3);
     const pred = predictor();
     run(pred, [R]);
     const before = pred.state;
@@ -560,7 +558,7 @@ describe('move speed', () => {
   });
 
   it('a buff’s pace walks faster from the first input past its seq, and a replay runs each tick at the pace it ran at', () => {
-    const fast = movementParams('hunting', 0.3);
+    const fast = movementParams(0.3);
     const pred = predictor();
     const states = run(pred, [R, R]);
     pred.pace(2, () => fast);
@@ -581,7 +579,7 @@ describe('move speed', () => {
   });
 
   it('a refused buff’s pace goes: waiting, it never applies; applied, its ticks and those since replay at the pace it replaced', () => {
-    const fast = movementParams('hunting', 0.3);
+    const fast = movementParams(0.3);
     const pred = predictor();
     run(pred, [R]);
     pred.dropPace(pred.pace(1, () => fast));
@@ -601,7 +599,7 @@ describe('move speed', () => {
   it('a reset, for a new map or a rejoin, leaves no pace waiting', () => {
     const pred = predictor();
     run(pred, [R]);
-    pred.pace(1, () => movementParams('hunting', 0.3));
+    pred.pace(1, () => movementParams(0.3));
     pred.reset(start);
     expect(run(pred, [R], 2)[0]?.vx).toBe(params.walk_speed);
   });
@@ -610,17 +608,17 @@ describe('move speed', () => {
     let speed = 0.3;
     const pred = predictor();
     run(pred, [R]);
-    pred.pace(1, () => movementParams('hunting', speed));
+    pred.pace(1, () => movementParams(speed));
     speed = 0.1;
-    expect(run(pred, [R], 2)[0]?.vx).toBe(movementParams('hunting', 0.1).walk_speed);
+    expect(run(pred, [R], 2)[0]?.vx).toBe(movementParams(0.1).walk_speed);
   });
 
   it('two applied paces dropped last first give back the pace before both', () => {
     const pred = predictor();
     const states = run(pred, [R]);
     pred.reconcile(states[0]!, 1, TICK);
-    const hit = pred.pace(1, () => movementParams('hunting', 0.3));
-    const end = pred.pace(2, () => movementParams('hunting', 0.1));
+    const hit = pred.pace(1, () => movementParams(0.3));
+    const end = pred.pace(2, () => movementParams(0.1));
     run(pred, [R, R], 2);
     pred.dropPace(end);
     pred.dropPace(hit);

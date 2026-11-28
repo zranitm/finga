@@ -19,6 +19,7 @@ import { movement } from '@/gamedata/movement';
 import { mobById } from '@/progression/mobs';
 import { height, steep, top } from '@/sim/terrain';
 import type { Terrain } from '@/sim/terrain';
+import { terraceMap } from '@/testing/baked-map';
 import { servePublic } from '@/testing/public-on-disk';
 
 import { CUT_MOBS } from './cut-mobs';
@@ -36,6 +37,7 @@ const ASPECT = 1280 / 800;
 const JUMP = movement.jump_velocity ** 2 / (2 * movement.gravity);
 const FLOOR_M = 2; // the walkable floor this far toward the camera stays; rising at most max_slope, it is off the circle past 1.4 m
 const FLOOR_STEP = 0.5;
+const RING_M = 12; // ground this high over a spot is a region's ring of mountains, 20 m of it, not a bank
 const LIFT = 0.05; // a decal over the drawn ground: the lock ring's, over the red areas' 0.04
 const BACK = 0.005; // a step back toward the camera, finding where a line meets a decal
 // only floor toward the camera, south of the feet, comes into the cut: beside or behind them it's off the circle before it's near enough
@@ -190,6 +192,10 @@ function reachable(map: WorldMap): { x: number; z: number; y: number }[] {
 /** Whether a spot is on the fixed lattice a sweep checks, every `along` m east and every `across` m north from the map's corner. A sweep keeps every row across a bank, where the covering ground changes most: the row by its foot is the one a shallow cut fails. */
 const onLattice = (s: { readonly x: number; readonly z: number }, along: number, across: number) =>
   s.x % along === SPOT / 2 && s.z % across === SPOT / 2;
+
+/** Whether a spot is on a cliff's face, a cell too steep to walk, which a 0.5 m step up it still reaches. */
+const onCliff = (t: Terrain, s: { readonly x: number; readonly z: number }) =>
+  steep(t, s.x, s.z, false) || steep(t, s.x, s.z, true);
 
 /** A spot named in a failure. */
 const where = (id: string, s: { readonly x: number; readonly z: number }) =>
@@ -431,19 +437,18 @@ let swept: {
   readonly seen: readonly Seen[];
 }[] = [];
 
-/** The land maps the test data keeps (the shipped data has none), whose JSON the web tests keep: the sweeps still run on a land map's banks and mesas. */
-const LAND = ['crossroads', 'frost_trail', 'icefall'];
-/** The mobs of the two land maps that have any, as their spawns name them in the test data. */
-const LAND_MOBS: Readonly<Record<string, readonly string[]>> = {
-  frost_trail: ['frost_slime', 'snow_weasel'],
-  icefall: ['icewing', 'glacier_snail'],
-};
+/** The mobs the terrace plan's fixture region is swept with, which it has no camps to name: the terrace, shelf and ridge stand for a bank with a slime on it. */
+const FIXTURE_MOBS: Readonly<Record<string, readonly string[]>> = { terrace: ['green_slime'] };
 
 beforeAll(async () => {
   servePublic();
   swept = [];
-  for (const id of [...maps.map((m) => m.id), ...LAND]) {
-    const map = await loadMap(id);
+  const regions: [string, WorldMap][] = [];
+  for (const id of maps.map((m) => m.id)) {
+    regions.push([id, await loadMap(id)]);
+  }
+  regions.push(['terrace', await terraceMap()]); // 128 m with a 5 m terrace and a 9 m shelf, cliff-edged, and a ridge: the banks the shipped regions' small stand-ins have none of
+  for (const [id, map] of regions) {
     if (map.geometry.size_x > 512) {
       continue; // a shipped region's 1 km of ground: a sweep costs tens of seconds under coverage, and test_region and the small maps run the same code
     }
@@ -621,9 +626,9 @@ describe('the cut-away round the player', () => {
         }
       }
     }
-    expect(hidden.length).toBeGreaterThan(60); // the foot of the south bank of each land map swept: 64 on the test data's three (the shipped regions add none), over 700 with the ten the regions retired
+    expect(hidden.length).toBeGreaterThan(900); // 965 on the terrace fixture alone, mostly the foot of its ring of mountains, the rest under the shelf's and the terrace's north faces
     expect(shut).toEqual([]);
-    expect(crossed).toBeGreaterThan(91); // 96 on the test data's three land maps, over 1,100 with the ten the regions retired
+    expect(crossed).toBeGreaterThan(170); // 185 on the terrace fixture
     expect(whole).toEqual([]);
     expect(floor).toEqual([]);
   });
@@ -645,7 +650,7 @@ describe('the cut-away round the player', () => {
       const t = map.geometry.terrain;
       const kinds = (
         maps.find((m) => m.id === id)?.spawns.map((s) => s.mob) ??
-        LAND_MOBS[id] ??
+        FIXTURE_MOBS[id] ??
         []
       ).flatMap((mobId) => {
         const m = mobById(mobId);
@@ -689,13 +694,21 @@ describe('the cut-away round the player', () => {
         return false;
       };
       for (const { spot, cam, chest, chestView } of all) {
-        if (onLattice(spot, 8, 4)) {
-          // the player's floor, with mobs round them
+        if (
+          onLattice(spot, 8, 4) &&
+          !steep(t, spot.x, spot.z, false) &&
+          !steep(t, spot.x, spot.z, true)
+        ) {
+          // the player's floor, with mobs round them: where they stand
           for (let k = 0; k < 8; k++) {
             for (const d of [1.5, 3, 4.5]) {
               const x = spot.x + Math.sin((k * Math.PI) / 4) * d;
               const z = spot.z + Math.cos((k * Math.PI) / 4) * d;
-              if (on(x, z) && opensFloor(cam, x, height(t, x, z), z, spot.x, spot.y, spot.z, 1)) {
+              if (
+                on(x, z) &&
+                !onCliff(t, { x, z }) &&
+                opensFloor(cam, x, height(t, x, z), z, spot.x, spot.y, spot.z, 1)
+              ) {
                 floor.push(
                   `${where(id, spot)}: the player's floor, a mob at (${x.toFixed(2)}, ${z.toFixed(2)})`,
                 );
@@ -703,8 +716,12 @@ describe('the cut-away round the player', () => {
             }
           }
         }
-        // mobs round the hidden spots every 16 m along the bank, in every row
-        if (!onLattice(spot, 16, SPOT) || covered(ground, cam, chest).length === 0) {
+        // mobs round the hidden spots every 16 m along the bank, in every row; none is fought behind a region's ring of mountains, 20 m of wall that a hole round a mob never opens
+        if (
+          !onLattice(spot, 16, SPOT) ||
+          covered(ground, cam, chest).length === 0 ||
+          covered(ground, cam, chest).some((q) => q[1] > RING_M)
+        ) {
           continue;
         }
         for (const [dx, dz] of [
@@ -716,7 +733,7 @@ describe('the cut-away round the player', () => {
           for (const d of [1.5, 3]) {
             const x = spot.x + dx * d;
             const z = spot.z + dz * d;
-            if (!on(x, z)) {
+            if (!on(x, z) || onCliff(t, { x, z })) {
               continue;
             }
             const y = height(t, x, z);
@@ -772,9 +789,9 @@ describe('the cut-away round the player', () => {
         }
       }
     }
-    expect(near).toBeGreaterThan(53); // 56 on the test data's three land maps, over 450 with the ten the regions retired
+    expect(near).toBeGreaterThan(85); // 92 on the terrace fixture, none behind its ring
     expect(hidden.length / near).toBeLessThan(0.02); // a dune under 1.5 m over a mob's feet may still cover its bottom
-    expect(crossed).toBeGreaterThan(742); // 782 on the test data's three land maps, over 8,500 with the ten the regions retired
+    expect(crossed).toBeGreaterThan(1900); // 2,038 on the terrace fixture
     expect(whole).toEqual([]);
     expect(floor).toEqual([]);
   });

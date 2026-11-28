@@ -493,13 +493,13 @@ Built with step 1, which says who watches a cell.
   - `gamedata.Region.AreaAt(x, z)` comes from a 4 m lookup grid baked from the area polygons.
   - A player's area is tracked each tick from their cell, and entering one sends `AreaEntered{area}`. The client shows the name and band, as on a map change today.
 - **Towns:**
-  - In a town area, damage is refused as in a town map today (`usable` reads the area in place of `Map.Kind`).
+  - In a town area, damage is refused (`usable` reads the area in place of `Map.Kind`).
   - A mob's chase and leash stop at a town's edge.
 - **Field bosses,** one per hunting area:
   - Its boss stands at its circle from the channel's start and comes back 5 minutes after it's beaten, as [Loot pouches and timed bosses](./loot-pouches.md) made the maps' bosses. No kills count toward it: `kills` is gone from the plan's boss and the map file's (step 4b-1).
   - Its bar goes to players in the area, and rewards go to those in the area when it falls.
   - `instance/boss.go` keeps a slice of bosses by area, in place of one.
-- **Death:** the player gets back up at the nearest waypoint or town of their region, by the road graph's distance. They don't hand off to a town map. On the old maps still in use, death hands off to the map's town as today.
+- **Death:** the player gets back up at the nearest waypoint or town of their region, by the road graph's distance. They don't hand off to another map.
 - **Level bands** move from `Map.Levels` to areas. The loader checks camps and bosses against their area.
 - **Chat:** `Instance.Chat` already reaches the whole instance, which is now a region's channel. E1 says "region and channel".
 - **As built (step 4b-4a):**
@@ -954,6 +954,7 @@ Built with step 1, which says who watches a cell.
    - **As built (snow region PR):** the plan, the five maps retired and the East Pass relinked; the tests that walked the old maps use fixtures of the test data (snow-region.md section 5).
 
 - **Characters on a retired map:** `World.Join` places a character whose map no longer exists at the green region's start, in place of `ErrNoMap`. Built with the plan: `World.Join` starts a character saved on a map that's gone at the start map's spawn.
+- **As built (land-map cleanup):** the town and hunting map kinds left with the last maps. A map is a region or a match's map; a town and a hunting area are kinds of area, so `Map.Town`, `Map.Boss` and `Map.Levels` are gone, a boss and its levels belong to an area, and a region revives its own dead. `data/maps` holds `ring` and `battlefield`. A map's gates, the transfer between maps by a portal, the hand-off at a death and a teleport to a map's id left with them: a teleport goes by a waypoint, and a map id is refused. The `map_id` field of `Teleport` and its two codes stay in the protocol till their own PR.
 - There's no other migration, since the game hasn't gone live.
 
 ## 13. Testing

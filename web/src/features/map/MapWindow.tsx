@@ -55,10 +55,8 @@ type Charted = (typeof maps)[number] & { readonly place: readonly [number, numbe
 
 /** The maps on the world chart: every one but a match's, which only a match reaches. */
 const charted = maps.filter((m): m is Charted => m.place !== null);
-const levels = (m: MapData) => `Lv ${m.min_level}–${m.max_level}`;
-/** What a map is, under its name: a town, a region, whose areas have levels of their own, or a hunting map's levels. */
-const isTown = (m: { readonly kind: string }) => m.kind === 'town'; // no map of the data is one now, as none is hunting
-const kindOf = (m: MapData) => (isTown(m) ? 'Town' : m.kind === 'region' ? 'Region' : levels(m));
+/** What a charted map is, under its name: a region, whose areas have levels of their own. */
+const KIND = 'Region';
 
 /** A label on This map, in pixels: its text centred on x, sitting on bottom; a beaten boss's counts down to its time back. */
 export interface MapLabel extends TagBox {
@@ -603,7 +601,7 @@ interface WorldProps {
   readonly onClose: () => void;
 }
 
-/** A map picked on the chart: a header with Back, Teleport here off the player's own map, and its party members, each with their channel in a region, over its layout, which the scene's map draws from what it has and another from layoutOf. */
+/** A map picked on the chart: a header with Back, and its party members, each with their channel in a region, over its layout, which the scene's map draws from what it has and another from layoutOf. */
 function Picked({
   map,
   socket,
@@ -612,12 +610,8 @@ function Picked({
   onBack,
 }: WorldProps & { readonly map: MapData; readonly onBack: () => void }) {
   const own = mapView.use((s) => s.mapId) === map.id;
-  const dead = character.use((s) => s.dead);
   const shown = mapView.use((s) => s.waypoints);
-  const { asking, start } = useChannel(onClose);
   const [picked, setPicked] = useState<string | null>(null);
-  const go = () =>
-    start(() => socket.request('teleport', { mapId: map.id }, socket.sequence), { map: map.id });
   const myId = character.use((s) => s.character?.id);
   const members = party.use((s) => s.party?.members) ?? [];
   const [layout, setLayout] = useState<MapLayout | 'failed' | null>(null);
@@ -646,14 +640,7 @@ function Picked({
           Back
         </button>
         <strong>{map.name}</strong>
-        <span className="muted">{kindOf(map)}</span>
-        {!own &&
-          !dead &&
-          map.kind !== 'region' && ( // a region is reached by its waypoints
-            <button type="button" className="btn" disabled={asking} onClick={go}>
-              Teleport here
-            </button>
-          )}
+        <span className="muted">{KIND}</span>
       </div>
       {here.length > 0 && (
         <ul className="map-picked-party" aria-label={`Party in ${map.name}`}>
@@ -728,7 +715,6 @@ function World(props: WorldProps) {
         ))}
         {charted.map((m) => {
           const [x, y] = m.place;
-          const town = isTown(m);
           const names = members.filter(
             (p) => p.online && p.mapId === m.id && p.characterId !== myId,
           );
@@ -760,29 +746,19 @@ function World(props: WorldProps) {
                   </text>
                 </>
               )}
-              {town ? (
-                <polygon
-                  className="map-town"
-                  points="0,-2.4 2.2,-0.6 1.5,-0.6 1.5,1.8 -1.5,1.8 -1.5,-0.6 -2.2,-0.6"
-                  transform={`translate(${x} ${y})`}
-                />
-              ) : (
-                <circle className="map-hunt" cx={x} cy={y} r={1.8} />
-              )}
+              <circle className="map-hunt" cx={x} cy={y} r={1.8} />
               <text className="map-node-name" x={x} y={y + 4.4} textAnchor="middle">
                 {m.name}
               </text>
-              {!town && (
-                <text className="map-node-levels" x={x} y={y + 6.6} textAnchor="middle">
-                  {kindOf(m)}
-                </text>
-              )}
+              <text className="map-node-levels" x={x} y={y + 6.6} textAnchor="middle">
+                {KIND}
+              </text>
               {names.map((p, i) => (
                 <text
                   key={p.characterId}
                   className="map-node-party"
                   x={x}
-                  y={y + (town ? 6.6 : 8.8) + 2.2 * i}
+                  y={y + 8.8 + 2.2 * i}
                   textAnchor="middle"
                 >
                   {withChannel(p.name, p.channel)}
@@ -804,7 +780,7 @@ function World(props: WorldProps) {
           )}
         >
           <strong>{card.name}</strong>
-          <div className="muted">{kindOf(card)}</div>
+          <div className="muted">{KIND}</div>
           <ul>
             {[...new Set(card.spawns.map((s) => s.mob))]
               .flatMap((id) => mobById(id) ?? [])

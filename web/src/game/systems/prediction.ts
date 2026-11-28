@@ -107,12 +107,9 @@ interface TickEntry {
   state: State;
 }
 
-/** What a map is: a town or a hunting map on the land, a region, or a match's map. The data holds only the last two now, and the first two stay for the paths that take them. */
-export type MapKind = 'town' | 'hunting' | 'region' | 'pvp';
-
-/** The movement a player predicts with: its move speed in hunting and match maps, and everyone's one pace in towns, as the world moves it. */
-export function movementParams(kind: MapKind, moveSpeed: number): Params {
-  return kind === 'town' ? movement : faster(movement, speedFactor(moveSpeed));
+/** The movement a player predicts with: its move speed over everyone's one pace, as the world moves it. */
+export function movementParams(moveSpeed: number): Params {
+  return faster(movement, speedFactor(moveSpeed));
 }
 
 /** The same body to the bit: the sims run alike, so any difference is the world's own, a push or a blocker the client didn't see. */

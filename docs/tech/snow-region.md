@@ -130,11 +130,15 @@ One PR, after the desert's, since it relinks the desert's East Pass:
   - **The web client's tests** read those three as `web/src/testing/maps/*.json`, which `go test ./cmd/mapjson -update` writes from the test data, as the region bakes' fixtures are kept current; `public-on-disk.ts` falls back to that folder where `public/maps` has none. Tests that need a map with an NPC, a gate and a solid, such as the walk, the talk and the prompt tests, serve Sunreach flat with a pine, its guide and its east pass.
   - **The cut sweeps** skip the regions of 1 km by size, as Willowmere was skipped by name before.
   - **The join test** names the seven retired maps the test data has no stand-in for (the Crossroads, Frost Trail and Icefall exist there), and a test checks that the shipped data holds none of the fourteen retired map ids.
-  - **Left as code with no map to use it,** for a cleanup PR, since nothing the shipped data holds uses it now; each is kept by a test on the test data's maps where it has one:
+  - **Left as code with no map to use it,** for the cleanup PR, since nothing the shipped data holds uses it now; each was kept by a test on the test data's maps where it had one, and the cleanup removed them all, as built below:
     - the land maps' portals and the transfer between maps, and a teleport to a land map's id;
     - a mob's keeping out of a portal (the king and slime unit tests keep it);
     - a map's own boss, its beaten crown and its levels on the chart, the town's house on the chart, and This map's labels of a land map's spawns, portals and NPCs, in the web client;
     - the bots' per-map boss check.
+
+- **As built (land-map cleanup):**
+  - **The three land maps** and their fixtures are gone, with the map kinds `town` and `hunting`, a map's own boss, levels and town, the bots' per-map boss check and the transfer by a map's portals. The tests of the world's portals, saves, transfers, teleports and joins use the stand-in regions' gates and waypoints, and a teleport goes by a waypoint.
+  - **The web client's tests** read the hand-kept `web/src/testing/yards/*.json`, a village yard and a ridge, for the land features the two match maps lack, in place of `web/src/testing/maps`; the effects tests and the cut sweeps read the `steep` and `terrace` plans' bakes, which regionbake keeps current. The chart's town house, a map's levels there and This map's land labels went.
 
 **Then:** the generator's previews of the built region, and a live walk from the West Pass up the terraces to the keep. Both are heavy runs, approved by the user first.
 

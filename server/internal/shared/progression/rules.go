@@ -81,11 +81,8 @@ func AwardExp(curve ExpCurve, p Progress, amount int64) Award {
 	}
 }
 
-// DeathPenalty takes 5% of the level's requirement outside towns, never below the level's start.
-func DeathPenalty(curve ExpCurve, p Progress, inTown bool) Progress {
-	if inTown {
-		return p
-	}
+// DeathPenalty takes 5% of the level's requirement, never below the level's start.
+func DeathPenalty(curve ExpCurve, p Progress) Progress {
 	need, ok := curve.ExpToNext(p.Level)
 	if !ok {
 		return p

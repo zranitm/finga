@@ -1,6 +1,5 @@
-// The teleport channel's bar (teleport.md section 4): "Teleporting to <map>" or "<waypoint>" (large-regions.md section 8), or "Switching to Channel <n>" (section 4), at the lower middle of the screen, filling over the channel while it runs.
+// The teleport channel's bar (teleport.md section 4): "Teleporting to <waypoint>" (large-regions.md section 8), or "Switching to Channel <n>" (section 4), at the lower middle of the screen, filling over the channel while it runs.
 import { limits } from '@/gamedata/limits';
-import { mapName } from '@/progression/names';
 import { teleport } from '@/state/teleport';
 
 export function TeleportBar() {
@@ -9,10 +8,7 @@ export function TeleportBar() {
   if (to === null) {
     return null;
   }
-  const what =
-    'channel' in to
-      ? `Switching to Channel ${to.channel}`
-      : `Teleporting to ${'map' in to ? mapName(to.map) : to.name}`;
+  const what = 'channel' in to ? `Switching to Channel ${to.channel}` : `Teleporting to ${to.name}`;
   return (
     <div className="teleport-bar" role="status">
       <span>{what}</span>

@@ -12,11 +12,11 @@ describe('TeleportBar', () => {
     resetStores();
   });
 
-  it('shows while a channel runs, naming the map and filling over the channel, and goes as it ends', () => {
+  it('shows while a channel runs, naming the waypoint and filling over the channel, and goes as it ends', () => {
     render(<TeleportBar />);
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
     act(() => {
-      teleport.getState().start({ map: 'hoarfell' });
+      teleport.getState().start({ waypoint: 'west_pass', name: 'Hoarfell' });
     });
     const bar = screen.getByRole('status');
     expect(bar).toHaveTextContent('Teleporting to Hoarfell');
@@ -36,23 +36,15 @@ describe('TeleportBar', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Switching to Channel 3');
   });
 
-  it('names the waypoint a teleport takes the player to (large-regions.md section 8)', () => {
-    render(<TeleportBar />);
-    act(() => {
-      teleport.getState().start({ waypoint: 'west', name: 'West Field' });
-    });
-    expect(screen.getByRole('status')).toHaveTextContent('Teleporting to West Field');
-  });
-
   it('draws a new channel’s fill afresh, from empty', () => {
     render(<TeleportBar />);
     act(() => {
-      teleport.getState().start({ map: 'hoarfell' });
+      teleport.getState().start({ waypoint: 'west_pass', name: 'Hoarfell' });
     });
     const first = document.querySelector('.teleport-bar-fill');
     act(() => {
       teleport.getState().end();
-      teleport.getState().start({ map: 'greyfang_cave' });
+      teleport.getState().start({ waypoint: 'greyfang_cave', name: 'Greyfang Cave' });
     });
     expect(screen.getByRole('status')).toHaveTextContent('Teleporting to Greyfang Cave');
     expect(document.querySelector('.teleport-bar-fill')).not.toBe(first);

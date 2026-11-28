@@ -28,19 +28,19 @@ func (p *panicsOn) ObserveTick(mapID string, _ int, _, _ time.Duration) {
 func TestAPanickingMapStopsTheWorldAndTheOtherMapsSave(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		saver := &fakeSaver{}
-		obs := &panicsOn{mapID: "crossroads"}
+		obs := &panicsOn{mapID: "willowmere"}
 		w := newWorld(t, saver, worldtest.Options{Observer: obs})
 		runDone := make(chan error, 1)
 		go func() { runDone <- w.Run(context.Background()) }()
 
-		w.enter(t, at(t, "Robin", "frost_trail"), "frost_trail", "c-1", &worldtest.Sink{})
+		w.enter(t, at(t, "Robin", "sunreach"), "sunreach", "c-1", &worldtest.Sink{})
 		obs.armed.Store(true)
 
 		err := <-runDone
-		if e, ok := errors.AsType[*panics.Error](err); !ok || e.Value != "corrupt crossroads" || !strings.Contains(err.Error(), "map crossroads") {
+		if e, ok := errors.AsType[*panics.Error](err); !ok || e.Value != "corrupt willowmere" || !strings.Contains(err.Error(), "map willowmere") {
 			t.Fatalf("Run returned %v", err)
 		}
-		if got := saver.attemptsSoFar(); len(got) != 1 || got[0] != "cp frost_trail" {
+		if got := saver.attemptsSoFar(); len(got) != 1 || got[0] != "cp sunreach" {
 			t.Fatalf("saves %v, want the dune road player's checkpoint", got)
 		}
 	})

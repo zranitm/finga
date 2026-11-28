@@ -40,10 +40,10 @@ func inDuel(t *testing.T) (w *testWorld, ayla model.Player, as *worldtest.Sink, 
 	t.Helper()
 	w, ctx, stop := running(t)
 	data := worldtest.LoadData(t)
-	ayla = at(t, "Ayla", "crossroads")
+	ayla = at(t, "Ayla", "willowmere")
 	ayla.Account = kernel.NewAccountID()
 	as = &worldtest.Sink{}
-	w.enter(t, ayla, "crossroads", "c-1", as)
+	w.enter(t, ayla, "willowmere", "c-1", as)
 	bot := &model.Bot{ID: kernel.NewCharacterID(), Name: "Ash", Class: "warrior", Tier: data.Pvp().Bots.Tiers[0].ID, Build: model.Build{Bar: data.Pvp().Bots.Builds["warrior"][0].Bar}}
 	if err := w.OpenMatch(ctx, model.MatchSpec{ID: kernel.NewMatchID(), Mode: "duel", Sides: [2][]model.Fighter{{{Character: ayla.ID}}, {{Bot: bot}}}}); err != nil {
 		t.Fatal(err)
@@ -104,7 +104,7 @@ func TestAReturnToAStoppedMatchLandsWhereTheyCameFrom(t *testing.T) {
 			t.Fatal(err)
 		}
 		w.StopMatchOf(ayla.ID)
-		if v, err := w.Join(ctx, ayla.Account, ayla.ID, "c-2", &worldtest.Sink{}); err != nil || v.MapID != "crossroads" {
+		if v, err := w.Join(ctx, ayla.Account, ayla.ID, "c-2", &worldtest.Sink{}); err != nil || v.MapID != "willowmere" {
 			t.Fatalf("the return to a stopped match: %+v, %v; want her in town", v, err)
 		}
 	})
@@ -135,9 +135,9 @@ func TestADropOffAMatchIsALeave(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w, ctx, stop := running(t)
 		defer stop()
-		ayla := at(t, "Ayla", "crossroads")
+		ayla := at(t, "Ayla", "willowmere")
 		as := &worldtest.Sink{}
-		w.enter(t, ayla, "crossroads", "c-1", as)
+		w.enter(t, ayla, "willowmere", "c-1", as)
 		if err := w.Drop(ctx, ayla.ID, "c-1"); err != nil {
 			t.Fatal(err)
 		}
@@ -156,11 +156,11 @@ func TestAJoinWithTheOutcomeShowingLandsWhereTheyCameFrom(t *testing.T) {
 		w, ctx, stop := running(t)
 		defer stop()
 		data := worldtest.LoadData(t)
-		ayla, robin := at(t, "Ayla", "crossroads"), at(t, "Robin", "crossroads")
+		ayla, robin := at(t, "Ayla", "willowmere"), at(t, "Robin", "willowmere")
 		ayla.Account, robin.Account = kernel.NewAccountID(), kernel.NewAccountID()
 		as := &worldtest.Sink{}
-		w.enter(t, ayla, "crossroads", "c-1", as)
-		w.enter(t, robin, "crossroads", "c-r", &worldtest.Sink{})
+		w.enter(t, ayla, "willowmere", "c-1", as)
+		w.enter(t, robin, "willowmere", "c-r", &worldtest.Sink{})
 		if err := w.OpenMatch(ctx, model.MatchSpec{ID: kernel.NewMatchID(), Mode: "duel", Sides: [2][]model.Fighter{{{Character: ayla.ID}}, {{Character: robin.ID}}}}); err != nil {
 			t.Fatal(err)
 		}
@@ -169,7 +169,7 @@ func TestAJoinWithTheOutcomeShowingLandsWhereTheyCameFrom(t *testing.T) {
 			t.Fatal(err)
 		}
 		tick(worldtest.TickInterval)
-		if v, err := w.Join(ctx, ayla.Account, ayla.ID, "c-2", &worldtest.Sink{}); err != nil || v.MapID != "crossroads" {
+		if v, err := w.Join(ctx, ayla.Account, ayla.ID, "c-2", &worldtest.Sink{}); err != nil || v.MapID != "willowmere" {
 			t.Fatalf("the join with the outcome showing: %+v, %v; want her in town", v, err)
 		}
 		tick(worldtest.TickInterval)

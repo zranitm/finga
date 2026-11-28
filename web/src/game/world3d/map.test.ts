@@ -79,7 +79,7 @@ describe('loadMap', () => {
       ]);
       expect(b.kept[s].boxes).toEqual(m.geometry.boxes);
     }
-    const p = movementParams('hunting', 1);
+    const p = movementParams(1);
     const east = { left: false, right: true, up: false, down: false, jump: false };
     const run = (g: Geometry) => {
       let s: State = {
@@ -103,8 +103,8 @@ describe('loadMap', () => {
     expect(run(b.kept[1])).toBeGreaterThan(b.bases[1].x); // side 2 runs on into its own
   });
 
-  it('reads the crossroads and the frost trail as Go wrote them, the sim’s geometry number for number', async () => {
-    for (const id of ['crossroads', 'frost_trail']) {
+  it('reads the hand-kept yard and ridge as mapjson wrote them, the sim’s geometry number for number', async () => {
+    for (const id of ['yard', 'ridge']) {
       const raw = json(id) as {
         geometry: {
           size_x: number;
@@ -137,7 +137,7 @@ describe('loadMap', () => {
   });
 
   it('strews a scatter’s count over its area, the same way each time', async () => {
-    const m = await loadMap('frost_trail');
+    const m = await loadMap('ridge');
     const pebbles = m.props.filter((p) => p.model === 'pebbles');
     expect(pebbles).toHaveLength(40);
     for (const p of pebbles) {
@@ -147,13 +147,13 @@ describe('loadMap', () => {
       expect(p.z).toBeLessThan(30);
     }
     expect(new Set(pebbles.map((p) => `${p.x} ${p.z}`)).size).toBe(40);
-    expect((await loadMap('frost_trail')).props).toEqual(m.props);
+    expect((await loadMap('ridge')).props).toEqual(m.props);
     expect(m.props).toContainEqual({ model: 'crag', x: 28, z: 33.5, yaw: 0 }); // a placed one beside the scatter's
   });
 
   it('carries each portal’s target', async () => {
-    expect((await loadMap('frost_trail')).portals).toEqual([
-      { name: 'from_crossroads', x: 2, z: 18, radius: 1.2, to: 'crossroads' },
+    expect((await loadMap('ridge')).portals).toEqual([
+      { name: 'from_yard', x: 2, z: 18, radius: 1.2, to: 'yard' },
     ]);
   });
 
@@ -175,18 +175,18 @@ describe('loadMap', () => {
       y: ground,
       main: false,
     });
-    expect((await loadMap('frost_trail')).waypoints).toEqual([]);
+    expect((await loadMap('ridge')).waypoints).toEqual([]);
   });
 
   it('refuses what isn’t a map mapjson wrote', async () => {
     await expect(read({ id: 'x' })).rejects.toThrow();
     await expect(read(null)).rejects.toThrow();
-    const raw = json('crossroads') as { box_models: unknown[] };
+    const raw = json('yard') as { box_models: unknown[] };
     await expect(read({ ...raw, box_models: raw.box_models.slice(1) })).rejects.toThrow();
   });
 
   it('reads the region a map names from its bake, and refuses one that names no bake', async () => {
-    const raw = json('crossroads') as { id: string; portals: unknown[] };
+    const raw = json('yard') as { id: string; portals: unknown[] };
     const tiny = await read({
       id: 'tiny',
       sky: 'day',
@@ -203,9 +203,7 @@ describe('loadMap', () => {
     expect(tiny.region?.overview.nx).toBe(17);
     expect((await read(raw)).region).toBeNull();
     for (const region of [{ id: 'tiny' }, { hash: 'abc' }, { id: 'tiny', hash: 7 }, null]) {
-      await expect(read({ ...raw, region })).rejects.toThrow(
-        'map crossroads: its region names no bake',
-      );
+      await expect(read({ ...raw, region })).rejects.toThrow('map yard: its region names no bake');
     }
   });
 
@@ -219,10 +217,10 @@ describe('loadMap', () => {
     expect(Object.keys(region.geometry.cylinders)).toEqual([]); // till its chunks come
     expect(region.solids).toEqual([]);
     expect((json('test_region') as { geometry?: unknown }).geometry).toBeUndefined();
-    const crossroads = json('crossroads') as { box_models: unknown[] };
-    await expect(
-      read({ ...crossroads, box_models: crossroads.box_models.slice(1) }),
-    ).rejects.toThrow('map crossroads: its models and solids differ in number');
+    const yard = json('yard') as { box_models: unknown[] };
+    await expect(read({ ...yard, box_models: yard.box_models.slice(1) })).rejects.toThrow(
+      'map yard: its models and solids differ in number',
+    );
   });
 
   it('loads a map by its id from the page’s maps folder, and one not there throws', async () => {
@@ -251,11 +249,9 @@ describe('standsIn', () => {
     expect(standsIn({ x: 6, y, z: 5 }, m)?.name).toBe('out');
     expect(standsIn({ x: 5, y, z: 4 }, m)?.name).toBe('out');
     expect(standsIn({ x: 6 + 1e-9, y, z: 5 }, m)).toBeUndefined();
-    const trail = await loadMap('frost_trail');
+    const trail = await loadMap('ridge');
     const p = trail.portals[0]!;
-    expect(standsIn({ x: p.x, y: groundUnder(trail, p.x, p.z), z: p.z }, trail)?.to).toBe(
-      'crossroads',
-    );
+    expect(standsIn({ x: p.x, y: groundUnder(trail, p.x, p.z), z: p.z }, trail)?.to).toBe('yard');
   });
 
   it('holds feet within 1 m of the portal’s ground, a low solid’s top under it', async () => {

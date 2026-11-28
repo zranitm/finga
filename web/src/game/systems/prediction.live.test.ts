@@ -77,7 +77,7 @@ async function play(ticks: number, gapAt = -1, gapTicks = 0): Promise<Run> {
   const c = await rest.createCharacter(`P${stamp}`);
 
   const socket = new GameSocket({ url: origin.replace(/^http/, 'ws') + '/ws', delayMs });
-  const predictor = new Predictor(town(), TIMING, movementParams('town', 0), () => []);
+  const predictor = new Predictor(town(), TIMING, movementParams(0), () => []);
   const sender = new InputSender({
     send: (input, tick, view) => socket.sendInput(input, tick, view),
     walk: () => false,

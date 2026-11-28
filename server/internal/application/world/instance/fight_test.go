@@ -37,7 +37,7 @@ func arena(t *testing.T, respawn time.Duration) *gamedata.Map {
 func arenaOf(t *testing.T, respawn time.Duration, side float64) *gamedata.Map {
 	t.Helper()
 	return worldtest.Gridded(t, &gamedata.Map{
-		ID: "arena", Kind: gamedata.Hunting, Town: "willowmere", Geometry: worldtest.Flat(side),
+		ID: "arena", Kind: gamedata.Region, Geometry: worldtest.Flat(side),
 		Spawns:      []gamedata.Spawn{{Mob: "green_slime", Max: 1, Respawn: respawn, At: gamedata.Point{X: arenaX, Z: slimeZ}, Radius: 0.01}},
 		PlayerSpawn: gamedata.Point{X: arenaX, Z: spawnZ},
 	})
@@ -491,9 +491,8 @@ func TestADodgedAttackNeitherKnocksBackNorBlinks(t *testing.T) {
 func TestDeathAndRespawn(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		cps := &worldtest.Checkpoints{}
 		tr := &transferRecorder{}
-		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), cps, worldtest.Options{Transfer: tr})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{Transfer: tr})
 		defer stop()
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
@@ -501,7 +500,7 @@ func TestDeathAndRespawn(t *testing.T) {
 		p.HP = 1
 		p.Exp = 10 // level 1 needs 20; the penalty is 5% of 20, floored to 1
 		p.Energy = 7
-		p.Yaw = model.YawOf(-1, 0) // dying facing west, to respawn facing the town spawn's way
+		p.Yaw = model.YawOf(-1, 0) // dying facing west, to respawn facing the spawn's way
 		s := join(t, inst, p)
 		untilDead(t, s, p.ID)
 		{ // the slime's hop kills: Died to everyone, the player is marked dead and frozen, the energy gone
@@ -532,7 +531,7 @@ func TestDeathAndRespawn(t *testing.T) {
 				t.Fatalf("%d damage events; a dead character attacked or was hit again", n)
 			}
 		}
-		{ // after 3 seconds: Respawned at the town spawn with 50% HP, the penalty applied, handed to the town
+		{ // after 3 seconds: Respawned at the region's spawn with 50% HP, the penalty applied, and not moved
 			time.Sleep(3 * time.Second)
 			synctest.Wait()
 			resp := ofType(s, func(e any) bool { _, ok := e.(model.Respawned); return ok })
@@ -540,31 +539,11 @@ func TestDeathAndRespawn(t *testing.T) {
 				t.Fatalf("respawned events %+v", resp)
 			}
 			r := resp[0].(model.Respawned)
-			town := data.StartTown()
-			spawnYaw := float32(town.SpawnYaw)
-			if r.MapID != town.ID || r.X != town.PlayerSpawn.X || r.Z != town.PlayerSpawn.Z || r.HP != 72 || r.Yaw != spawnYaw {
+			if r.MapID != "arena" || r.X != arenaX || r.Z != spawnZ || r.HP != 72 || r.Yaw != 0 {
 				t.Fatalf("respawned %+v", r)
 			}
-			tel := ofType(s, func(e any) bool { _, ok := e.(model.Teleport); return ok })
-			if len(tel) != 1 || tel[0].(model.Teleport).MapID != town.ID || tel[0].(model.Teleport).Yaw != spawnYaw {
-				t.Fatalf("teleport events %+v", tel)
-			}
-			tr.mu.Lock()
-			defer tr.mu.Unlock()
-			if len(tr.moved) != 1 || tr.to[0] != town.ID || tr.moved[0].HP != 72 || tr.moved[0].Exp != 9 || tr.moved[0].X != town.PlayerSpawn.X || tr.moved[0].Z != town.PlayerSpawn.Z || tr.moved[0].Yaw != spawnYaw || tr.moved[0].Energy != 0 {
-				t.Fatalf("transfer %+v to %v", tr.moved, tr.to)
-			}
-		}
-		{ // the arena checkpointed the player on the way out, with the penalized EXP
-			saved := cps.Drain()
-			found := false
-			for _, cp := range saved {
-				if cp.ID == p.ID && cp.Exp == 9 && cp.MapID == data.StartTown().ID && cp.X == data.StartTown().PlayerSpawn.X {
-					found = true
-				}
-			}
-			if !found {
-				t.Fatalf("no checkpoint with the penalty among %+v", saved)
+			if len(ofType(s, func(e any) bool { _, ok := e.(model.Teleport); return ok })) != 0 || len(tr.moved) != 0 {
+				t.Fatal("a region's dead were moved")
 			}
 		}
 	})
@@ -660,8 +639,8 @@ func TestTheSameRollsGiveTheSameFight(t *testing.T) {
 func TestNoCombatInTown(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		m := arena(t, time.Hour)
-		m.ID, m.Kind, m.Town = "town", gamedata.Town, "town" // a town with a mob, for the test only
+		m := still(arena(t, time.Hour)) // a town of all of it, with a mob in it
+		m.ID = "town"
 		tr := &transferRecorder{}
 		inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{Transfer: tr})
 		defer stop()
@@ -714,11 +693,10 @@ func TestDeathWithNothingToLoseSendsNoExpGained(t *testing.T) {
 	})
 }
 
-func TestATownRevivesItsOwnDead(t *testing.T) {
+func TestARegionRevivesItsOwnDead(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		m := arena(t, time.Hour)
-		m.Town = m.ID
 		tr := &transferRecorder{}
 		inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{Transfer: tr})
 		defer stop()
@@ -739,12 +717,12 @@ func TestATownRevivesItsOwnDead(t *testing.T) {
 			t.Fatalf("after respawn in place: %+v", v)
 		}
 		if len(ofType(s, func(e any) bool { _, ok := e.(model.Teleport); return ok })) != 0 || len(tr.moved) != 0 {
-			t.Fatal("a town's dead were moved")
+			t.Fatal("a region's dead were moved")
 		}
 	})
 }
 
-// Leaving in the respawn delay saves the respawn the death is owed: alive in town, at half HP, the penalty taken once.
+// Leaving in the respawn delay saves the respawn the death is owed: alive at the spawn, at half HP, the penalty taken once.
 func TestADeadPlayerIsCheckpointedAsRespawned(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
@@ -764,10 +742,9 @@ func TestADeadPlayerIsCheckpointedAsRespawned(t *testing.T) {
 		_ = inst.Leave(p.ID, "", nil)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
-		town := data.StartTown()
 		saved := cps.Drain()
-		if len(saved) != 1 || saved[0].MapID != town.ID || saved[0].X != town.PlayerSpawn.X || saved[0].Z != town.PlayerSpawn.Z || saved[0].Yaw != float32(town.SpawnYaw) || saved[0].HP != 72 || saved[0].Exp != 9 || saved[0].Energy != 0 {
-			t.Fatalf("checkpoint of a dead player %+v, want town's spawn facing its way, with 72 HP, EXP 9 and no energy", saved)
+		if len(saved) != 1 || saved[0].MapID != "arena" || saved[0].X != arenaX || saved[0].Z != spawnZ || saved[0].HP != 72 || saved[0].Exp != 9 || saved[0].Energy != 0 {
+			t.Fatalf("checkpoint of a dead player %+v, want the arena's spawn, with 72 HP, EXP 9 and no energy", saved)
 		}
 	})
 }
@@ -778,7 +755,7 @@ func TestAnAttackLandsOnTheMobItsAimPoints(t *testing.T) {
 		data := worldtest.LoadData(t)
 		const z = 20.0
 		pair := worldtest.Gridded(t, &gamedata.Map{
-			ID: "arena", Kind: gamedata.Hunting, Town: "willowmere", Geometry: worldtest.Flat(40),
+			ID: "arena", Kind: gamedata.Region, Geometry: worldtest.Flat(40),
 			Spawns: []gamedata.Spawn{
 				{Mob: "green_slime", Max: 1, Respawn: time.Minute, At: gamedata.Point{X: arenaX - 1.5, Z: z}, Radius: 0.01},
 				{Mob: "green_slime", Max: 1, Respawn: time.Minute, At: gamedata.Point{X: arenaX + 1.5, Z: z}, Radius: 0.01},
@@ -822,7 +799,7 @@ func TestAnAttackAndASkillHitTheLockedMobBeforeANearerOne(t *testing.T) {
 		data := worldtest.LoadData(t)
 		const z = 20.0
 		pair := worldtest.Gridded(t, &gamedata.Map{
-			ID: "arena", Kind: gamedata.Hunting, Town: "willowmere", Geometry: worldtest.Flat(40),
+			ID: "arena", Kind: gamedata.Region, Geometry: worldtest.Flat(40),
 			Spawns: []gamedata.Spawn{
 				{Mob: "green_slime", Max: 1, Respawn: time.Minute, At: gamedata.Point{X: arenaX + 1.2, Z: z - 0.6}, Radius: 0.01},
 				{Mob: "green_slime", Max: 1, Respawn: time.Minute, At: gamedata.Point{X: arenaX + 2.3, Z: z + 0.4}, Radius: 0.01},

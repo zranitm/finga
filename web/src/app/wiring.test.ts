@@ -305,7 +305,7 @@ describe('wiring', () => {
     [TeleportCancelReason.DIED, []], // the death screen says it
   ])('a teleport cancelled for reason %i ends the channel and says why', async (reason, said) => {
     const { ws } = await connectedSocket();
-    teleport.getState().start({ map: 'forest' });
+    teleport.getState().start({ waypoint: 'west', name: 'West Field' });
     ws.push('teleportCancelled', { reason });
     expect(teleport.getState().to).toBeNull();
     expect(toasts.getState().toasts.map((t) => [t.text, t.kind])).toEqual(
@@ -325,10 +325,10 @@ describe('wiring', () => {
 
   it('a map change, or leaving the character, ends the channel with the old map', async () => {
     const { ws } = await connectedSocket();
-    teleport.getState().start({ map: 'forest' });
+    teleport.getState().start({ waypoint: 'west', name: 'West Field' });
     ws.push('mapChange', { mapId: 'forest' });
     expect(teleport.getState().to).toBeNull();
-    teleport.getState().start({ map: 'cave' });
+    teleport.getState().start({ waypoint: 'south', name: 'South Field' });
     leaveCharacter();
     expect(teleport.getState().to).toBeNull();
   });

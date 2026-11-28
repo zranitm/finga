@@ -165,7 +165,7 @@ function inked(m: AbstractMesh): boolean {
 
 describe('a map drawn', () => {
   it('draws each solid hollow while whole, so an opening shows its inside, not its ink', async () => {
-    for (const id of ['crossroads', 'frost_trail']) {
+    for (const id of ['yard', 'ridge']) {
       const map = await mapOf(id);
       const place = await buildPlace(scene, map, lighting, new Models(scene, source));
       for (const s of map.solids) {
@@ -178,7 +178,7 @@ describe('a map drawn', () => {
   });
 
   it('stands each solid on its collision shape, toon-drawn and inked', async () => {
-    for (const id of ['crossroads', 'frost_trail']) {
+    for (const id of ['yard', 'ridge']) {
       const map = await mapOf(id);
       const place = await buildPlace(scene, map, lighting, new Models(scene, source));
       expect(allLooks(place, map)).toHaveLength(map.solids.length);
@@ -202,7 +202,7 @@ describe('a map drawn', () => {
   });
 
   it('turns a box’s stand-in so its width runs along the box’s axis', async () => {
-    const map = await mapOf('crossroads');
+    const map = await mapOf('yard');
     await buildPlace(scene, map, lighting, new Models(scene, source));
     for (const s of map.solids) {
       if (s.kind !== 'box') {
@@ -221,11 +221,11 @@ describe('a map drawn', () => {
     }
   });
 
-  describe('the frost trail, drawn once', () => {
+  describe('the ridge, drawn once', () => {
     sharedScene();
     let map: WorldMap;
     beforeAll(async () => {
-      map = await mapOf('frost_trail');
+      map = await mapOf('ridge');
       await buildPlace(scene, map, lighting, new Models(scene, source));
     });
 
@@ -281,7 +281,7 @@ describe('a map drawn', () => {
   it('colours the sky and fogs it by its key, and a dark cave closes in', async () => {
     const forest = await buildPlace(
       scene,
-      await mapOf('frost_trail'),
+      await mapOf('ridge'),
       lighting,
       new Models(scene, source),
     );
@@ -352,7 +352,7 @@ describe('kit models', () => {
   }
 
   it('draw every placement of a key as a thin instance of its model, made once: turned, scaled, raised, toon-drawn and inked', async () => {
-    const map = await mapOf('crossroads');
+    const map = await mapOf('yard');
     const place = await buildPlace(scene, map, lighting, new Models(scene, source));
     const oaks = map.solids.filter((s) => s.model === 'tree_oak');
     const meshes = templates('tree_oak');
@@ -400,7 +400,7 @@ describe('kit models', () => {
   });
 
   it('fade a solid by hiding its instance, ink and all, and showing a faded copy of it alone; then bring it back', async () => {
-    const map = await mapOf('crossroads');
+    const map = await mapOf('yard');
     const place = await buildPlace(scene, map, lighting, new Models(scene, source));
     const first = map.solids.findIndex((s) => s.model === 'tree_oak');
     const oak = solidLook(place, map.solids[first]!);
@@ -504,9 +504,9 @@ describe('kit models', () => {
     return kitModels;
   }
 
-  it('take from the view a building the game’s camera is in or at, its shadow still cast, and give it back whole: crossroads, one place for every spot', async () => {
+  it('take from the view a building the game’s camera is in or at, its shadow still cast, and give it back whole: yard, one place for every spot', async () => {
     await realKits();
-    const map = await mapOf('crossroads');
+    const map = await mapOf('yard');
     const place = await buildPlace(scene, map, lighting, new Models(scene, source));
     await takesFromView(map, place, [
       [9, 20.5, 11, 8], // in the south house, on the road in from the heights
@@ -552,7 +552,7 @@ describe('kit models', () => {
     }
   });
 
-  describe('crossroads from the real kit models, drawn once', () => {
+  describe('yard from the real kit models, drawn once', () => {
     sharedScene();
     let map: WorldMap;
     let place: Awaited<ReturnType<typeof buildPlace>>;
@@ -560,7 +560,7 @@ describe('kit models', () => {
     let files: string[];
     beforeAll(async () => {
       kitModels = await realKits();
-      map = await mapOf('crossroads');
+      map = await mapOf('yard');
       place = await buildPlace(scene, map, lighting, new Models(scene, source));
       files = [...loaded];
     });
@@ -574,9 +574,9 @@ describe('kit models', () => {
     });
   });
 
-  it('draw the frost trail from the real kit models, each key with one drawn from its file and no stand-in', async () => {
+  it('draw the ridge from the real kit models, each key with one drawn from its file and no stand-in', async () => {
     const kitModels = await realKits();
-    const map = await mapOf('frost_trail');
+    const map = await mapOf('ridge');
     await buildPlace(scene, map, lighting, new Models(scene, source));
     drawsFromFiles(map, kitModels, loaded);
   });
@@ -589,7 +589,7 @@ describe('kit models', () => {
     const before = counts();
     const place = await buildPlace(
       scene,
-      await mapOf('frost_trail'),
+      await mapOf('ridge'),
       lighting,
       new Models(scene, source),
     );
@@ -602,7 +602,7 @@ describe('warming', () => {
   it('builds each see-through material’s shaders as the place is drawn, on a submesh of its own, so a first fade doesn’t stall', async () => {
     kits.tree_oak = { file: 'quaternius/Mushnub.glb', scale: 2, y: 0.1 };
     const ready = vi.spyOn(NodeMaterial.prototype, 'isReadyForSubMesh');
-    await buildPlace(scene, await mapOf('crossroads'), lighting, new Models(scene, source));
+    await buildPlace(scene, await mapOf('yard'), lighting, new Models(scene, source));
     delete kits.tree_oak;
     const faded = scene.materials.filter((m) => /^toon .* 0(\.\d+)?$/.test(m.name));
     for (const alpha of ['0.65', '0.3', '0.15', '0']) {
@@ -621,12 +621,7 @@ describe('warming', () => {
 
   it('stops warming once the place is gone', async () => {
     const ready = vi.spyOn(NodeMaterial.prototype, 'isReadyForSubMesh').mockReturnValue(false);
-    const place = await buildPlace(
-      scene,
-      await mapOf('crossroads'),
-      lighting,
-      new Models(scene, source),
-    );
+    const place = await buildPlace(scene, await mapOf('yard'), lighting, new Models(scene, source));
     place.dispose();
     const calls = ready.mock.calls.length;
     await new Promise((r) => setTimeout(r, 60));
@@ -712,7 +707,7 @@ describe('fade', () => {
   const faded = () => drawn().filter((m) => m.material?.name.endsWith(' 0.3'));
 
   it('fades a solid between the camera and the head to 30% without its ink, and brings it back', async () => {
-    const map = await mapOf('crossroads');
+    const map = await mapOf('yard');
     const place = await buildPlace(scene, map, lighting, new Models(scene, source));
     const house = solidLook(place, map.solids[0]!);
     const mid = house.min.add(house.max).scale(0.5);
@@ -741,7 +736,7 @@ describe('fade', () => {
   });
 
   it('takes a solid from the view, ink and all, when the camera is in it or within 2 m; its shadow still cast', async () => {
-    const map = await mapOf('crossroads');
+    const map = await mapOf('yard');
     const place = await buildPlace(scene, map, lighting, new Models(scene, source));
     const house = solidLook(place, map.solids[0]!);
     const model = map.solids[0]!.model;
@@ -766,7 +761,7 @@ describe('fade', () => {
   });
 
   it('steps a solid toward how the camera wants it, one alpha each 50 ms: 1, 0.65, 0.3, 0.15, 0, and back the same way', async () => {
-    const map = await mapOf('crossroads');
+    const map = await mapOf('yard');
     const place = await buildPlace(scene, map, lighting, new Models(scene, source));
     const house = solidLook(place, map.solids[0]!);
     const body = scene.getMeshByName(map.solids[0]!.model)!;
@@ -800,7 +795,7 @@ describe('fade', () => {
   });
 
   it('leaves a solid beside the camera’s line alone, and one past the head', async () => {
-    const map = await mapOf('crossroads');
+    const map = await mapOf('yard');
     const place = await buildPlace(scene, map, lighting, new Models(scene, source));
     const s = solidLook(place, map.solids[0]!);
     const mid = s.min.add(s.max).scale(0.5);

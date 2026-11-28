@@ -98,7 +98,7 @@ import type { Point } from '../systems/mob-attacks';
 import { MobTracker } from '../systems/mobs';
 import { PotionKeys } from '../systems/potion-keys';
 import { Predictor, movementParams, wireState } from '../systems/prediction';
-import type { MapKind, Mark as MoveMark, Pace } from '../systems/prediction';
+import type { Mark as MoveMark, Pace } from '../systems/prediction';
 import { healReach, SkillKeys } from '../systems/skill-keys';
 import { moveStart, wayFor } from '../systems/skill-way';
 import { relationOf } from '../systems/teams';
@@ -838,7 +838,7 @@ export class World {
     this.predictor = new Predictor(
       map.geometry,
       this.timing,
-      movementParams(this.kind(), this.moveSpeed()),
+      movementParams(this.moveSpeed()),
       (view) => [
         ...this.mobs.blockersAt(view),
         ...(this.remotes?.foesAt(view, this.myTeam, movement.radius, movement.enemy_height) ?? []),
@@ -884,7 +884,7 @@ export class World {
           this.dressMe();
         }
         if (now.character?.sheet !== before.character?.sheet) {
-          this.predictor?.setParams(movementParams(this.kind(), this.moveSpeed()));
+          this.predictor?.setParams(movementParams(this.moveSpeed()));
         }
       }),
       inventory.subscribe((now, before) => {
@@ -1717,18 +1717,14 @@ export class World {
     return character.getState().character?.class ?? this.deps.player.cls;
   }
 
-  private kind(): MapKind {
-    return maps.find((m) => m.id === this.mapId)?.kind ?? 'town';
-  }
-
   /** The region's area the player stands in, from its bake; undefined off a region. */
   private area(): RegionArea | undefined {
     return this.map?.region?.region.areas.find((a) => a.id === this.areaId);
   }
 
-  /** Whether the player stands where nobody fights: a town map, or a region's town area. */
+  /** Whether the player stands where nobody fights: a region's town area. */
   private inTown(): boolean {
-    return this.kind() === 'town' || this.area()?.kind === 'town';
+    return this.area()?.kind === 'town';
   }
 
   private moveSpeed(): number {
@@ -2135,8 +2131,7 @@ export class World {
     if (bonus <= 0 || !predictor) {
       return [];
     }
-    const kind = this.kind();
-    const fast = movementParams(kind, moveSpeedWith(c?.sheet?.derived?.moveSpeed ?? 0, bonus));
+    const fast = movementParams(moveSpeedWith(c?.sheet?.derived?.moveSpeed ?? 0, bonus));
     const hit = this.deps.socket.sequence + actionPoints(timing.ticks, stage.hit, stage.cancel).hit;
     return [
       predictor.pace(hit, () => fast),
@@ -2148,7 +2143,6 @@ export class World {
         };
         const invested = now?.sheet?.skills?.invested ?? {};
         return movementParams(
-          kind,
           moveSpeedWithout(sheet, now?.class ?? '', invested, skillBar.getState().buffs, skill.id),
         );
       }),

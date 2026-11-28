@@ -6,7 +6,6 @@ import (
 
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/gamedata/gamedatatest"
-	"finga/internal/shared/mapfile"
 	"finga/internal/shared/nav"
 	"finga/internal/shared/sim"
 )
@@ -27,7 +26,7 @@ type home struct {
 	r         float64
 }
 
-// ground is a hunting map, or a shipped region's land or place below, as the design tests read it: where players come in, and where mobs live.
+// ground is a shipped region's land or place below, as the design tests read it: where players come in, and where mobs live.
 type ground struct {
 	id       string
 	geo      sim.Geometry
@@ -37,31 +36,10 @@ type ground struct {
 	homes    []home
 }
 
-// huntingGrounds are every hunting map and every shipped region's hunting areas, which the maps' three design tests check.
+// huntingGrounds are every shipped region's hunting areas, which the maps' three design tests check.
 func huntingGrounds(t *testing.T, data *gamedata.Data) []ground {
 	t.Helper()
 	var out []ground
-	for _, m := range shipped(t).maps {
-		if m.Kind != "hunting" {
-			continue
-		}
-		g := ground{id: m.ID, geo: m.Geometry, grid: m.Grid, starts: []nav.Point{mapfile.Point(m.PlayerSpawn.At)}}
-		g.arrivals = []place{{"the player spawn", g.starts[0]}}
-		for _, pt := range m.Portals {
-			g.arrivals = append(g.arrivals, place{"portal " + pt.Name, mapfile.Point(pt.At)})
-			g.starts = append(g.starts, mapfile.Point(pt.At))
-		}
-		for _, n := range m.NPCs {
-			g.arrivals = append(g.arrivals, place{"NPC " + n.ID, mapfile.Point(n.At)})
-		}
-		for _, s := range m.Spawns {
-			g.homes = append(g.homes, home{"spawn " + s.Name, s.Mob, mapfile.Point(s.At), s.Radius})
-		}
-		if b := m.Boss; b != nil {
-			g.homes = append(g.homes, home{"the boss", b.Mob, mapfile.Point(b.At), b.Radius})
-		}
-		out = append(out, g)
-	}
 	for id := range shippedRegions(t) {
 		if id == "test_region" {
 			continue // a generator fixture, with gaps known

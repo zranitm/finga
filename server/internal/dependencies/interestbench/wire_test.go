@@ -217,7 +217,7 @@ func TestEveryClientHoldsOnTheWireWhatAJoinIsSent(t *testing.T) {
 				spawns = append(spawns, gamedata.Spawn{Mob: kinds[r.IntN(len(kinds))], Max: 2, Respawn: 5 * time.Second, Radius: 8, At: gamedata.Point{X: 10 + r.Float64()*(size-20), Z: 10 + r.Float64()*(size-20)}})
 			}
 			m := worldtest.Gridded(t, &gamedata.Map{
-				ID: "wire", Kind: gamedata.Hunting, Town: "willowmere", Geometry: worldtest.Flat(size), Spawns: spawns, PlayerSpawn: gamedata.Point{X: size / 2, Z: size / 2},
+				ID: "wire", Kind: gamedata.Region, Geometry: worldtest.Flat(size), Spawns: spawns, PlayerSpawn: gamedata.Point{X: size / 2, Z: size / 2},
 			})
 			w := &wire{inst: worldtest.NewInstance(m, data, nil, worldtest.Options{}), snaps: map[kernel.CharacterID]model.Snapshot{}, clients: map[kernel.CharacterID]*client{}, r: r}
 			named := 0
@@ -299,7 +299,7 @@ func cellOf(v *clientv1.PlayerView) [2]int {
 func TestAWatcherWhoseBlockMovesOnTheTickABodyComesToItsNewColumn(t *testing.T) {
 	data := interestData(t, 1, 3, 3)
 	cell := data.Interest().Cell
-	m := worldtest.Gridded(t, &gamedata.Map{ID: "wire", Kind: gamedata.Hunting, Town: "willowmere", Geometry: worldtest.Flat(256), PlayerSpawn: gamedata.Point{X: 128, Z: 128}})
+	m := worldtest.Gridded(t, &gamedata.Map{ID: "wire", Kind: gamedata.Region, Geometry: worldtest.Flat(256), PlayerSpawn: gamedata.Point{X: 128, Z: 128}})
 	w := &wire{inst: worldtest.NewInstance(m, data, nil, worldtest.Options{}), snaps: map[kernel.CharacterID]model.Snapshot{}, clients: map[kernel.CharacterID]*client{}, r: rand.New(rand.NewPCG(1, 1)), steady: true}
 	side := float64(data.Interest().Side)
 	watcher := w.join(t, worldtest.NewPlayer("Watcher", 3*cell-0.5, 100))  // a half metre short of the next column

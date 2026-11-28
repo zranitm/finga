@@ -211,7 +211,7 @@ func (i *Instance) kill(p *player) {
 	p.statuses.Clear()
 	p.state.Held, p.state.Slow = 0, sim.Slow{}
 	i.cancelTeleport(p, model.TeleportDied)
-	progress := progression.DeathPenalty(i.data, progression.Progress{Level: p.Level, Exp: p.Exp}, i.m.Kind == gamedata.Town)
+	progress := progression.DeathPenalty(i.data, progression.Progress{Level: p.Level, Exp: p.Exp})
 	if progress.Exp != p.Exp {
 		p.private = append(p.private, model.ExpGained{Tick: i.tick, Amount: progress.Exp - p.Exp, Exp: progress.Exp})
 	}
@@ -224,8 +224,8 @@ func (i *Instance) kill(p *player) {
 func (i *Instance) deathsAndRespawns() {
 	for _, id := range slices.Clone(i.order) {
 		p := i.players[id]
-		if !p.dead || p.deadUntil > i.tick || p.itemCalls > 0 && i.m.Town != i.m.ID {
-			continue // an item call in flight settles here before the respawn hands the player off
+		if !p.dead || p.deadUntil > i.tick {
+			continue
 		}
 		if i.match != nil {
 			i.backInBase(p) // a round's downed never get here: their time never comes
@@ -236,7 +236,7 @@ func (i *Instance) deathsAndRespawns() {
 		p.changed = true
 		town, up, upYaw := i.data.GetUp(i.m, p.state.X, p.state.Z)
 		yaw := float32(upYaw)
-		if town == i.m { // a town or a region revives its own dead
+		if town == i.m { // a region revives its own dead
 			p.state = i.standing(up.X, 0, up.Z, yaw)
 			i.events = append(i.events, model.Respawned{Tick: i.tick, ID: p.ID, MapID: i.m.ID, X: p.state.X, Y: p.state.Y, Z: p.state.Z, HP: p.HP, Yaw: yaw})
 			i.tellParty(p, i.m.ID, i.channel)

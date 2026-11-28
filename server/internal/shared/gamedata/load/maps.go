@@ -57,72 +57,33 @@ func (l *loader) loadMap(id string, f mapfile.File) (*mapfile.Map, error) {
 	if err := l.mapRules(m); err != nil {
 		return nil, err
 	}
-	var bosses []mapfile.Boss
-	if m.Boss != nil {
-		bosses = append(bosses, *m.Boss)
-	}
-	if err := l.spots(m, bosses); err != nil {
+	if err := l.spots(m, nil); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-// mapRules are a map's rules of kind, town, levels, spawns and boss.
+// mapRules are a map's rules of kind: the files of data/maps are matches' maps.
 func (l *loader) mapRules(m *mapfile.Map) error {
 	if m.Name == "" {
 		return errors.New("needs a name, the one players see")
 	}
-	if gamedata.MapKind(m.Kind) != gamedata.Pvp && (len(m.Sides) > 0 || len(m.PrepWall) > 0) {
-		return errors.New("only a pvp map has sides and a prep_wall")
+	if gamedata.MapKind(m.Kind) != gamedata.Pvp {
+		return fmt.Errorf("kind %q: only a match's map, kind pvp, is a map file; a region is a plan in %s", m.Kind, regionsDir)
 	}
-	switch gamedata.MapKind(m.Kind) {
-	case gamedata.Town:
-		if m.Town != "" || m.Levels != [2]int{} {
-			return errors.New("a town is its own respawn town and has no levels")
-		}
-		if len(m.Spawns) > 0 || m.Boss != nil {
-			return errors.New("a town has no mob spawns and no field boss")
-		}
-		m.Town = m.ID
-	case gamedata.Hunting:
-		if m.Town == "" {
-			return errors.New("a hunting map names its respawn town")
-		}
-		if m.Levels[0] < 1 || m.Levels[1] < m.Levels[0] {
-			return fmt.Errorf("levels %v: a hunting map's mob levels need 1 <= lowest <= highest", m.Levels)
-		}
-		if m.Boss == nil {
-			return errors.New("a hunting map has a field boss")
-		}
-	case gamedata.Pvp:
-		switch {
-		case m.Town != "" || m.Levels != [2]int{} || m.Start:
-			return errors.New("a pvp map has no town, levels or start")
-		case len(m.Portals) > 0 || len(m.Spawns) > 0 || m.Boss != nil || len(m.NPCs) > 0:
-			return errors.New("a pvp map has no portals, mob spawns, field boss or NPCs")
-		case m.PlayerSpawn != (mapfile.Place{}):
-			return errors.New("a pvp map's fighters start on its sides, so it has no player_spawn")
-		case len(m.Sides) != 2 || len(m.Sides[0]) == 0 || len(m.Sides[1]) == 0:
-			return errors.New("a pvp map has two sides, each with its starting spots")
-		case len(m.PrepWall) == 0:
-			return errors.New("a pvp map has a prep_wall, standing before each round")
-		}
-		if err := battleMapRules(m); err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("unknown kind %q", m.Kind)
+	switch {
+	case m.Start:
+		return errors.New("a pvp map has no start")
+	case len(m.Portals) > 0 || len(m.Spawns) > 0 || len(m.NPCs) > 0:
+		return errors.New("a pvp map has no portals, mob spawns or NPCs")
+	case m.PlayerSpawn != (mapfile.Place{}):
+		return errors.New("a pvp map's fighters start on its sides, so it has no player_spawn")
+	case len(m.Sides) != 2 || len(m.Sides[0]) == 0 || len(m.Sides[1]) == 0:
+		return errors.New("a pvp map has two sides, each with its starting spots")
+	case len(m.PrepWall) == 0:
+		return errors.New("a pvp map has a prep_wall, standing before each round")
 	}
-	if err := uniquePortals(m.Portals); err != nil {
-		return err
-	}
-	if err := l.spawnRules(m.Spawns, m.Levels, "map"); err != nil {
-		return err
-	}
-	if b := m.Boss; b != nil {
-		return l.bossRules(*b, m.Levels[1], "map")
-	}
-	return nil
+	return battleMapRules(m)
 }
 
 // uniquePortals is an error for two portals of a name.
@@ -241,21 +202,21 @@ func (l *loader) spots(m *mapfile.Map, bosses []mapfile.Boss) error {
 	return nil
 }
 
-// linkMaps checks across maps and regions: portals and gates lead somewhere other than themselves, a gate and what it leads to lead to each other, each boss and NPC is on one map, towns are towns, and one town is the start.
+// linkMaps checks across maps and regions: gates lead somewhere other than themselves, a gate and what it leads to lead to each other, each NPC is on one map, and one region is the start.
 func (l *loader) linkMaps() error {
-	bossOn, npcOn := map[string]string{}, map[string]string{}
+	npcOn := map[string]string{}
 	start := ""
 	for _, m := range l.maps.list {
 		for _, p := range m.Portals {
 			target, ok := l.maps.get(p.To.Map)
 			if !ok {
-				return fmt.Errorf("%s: portal %q: target map %q does not exist", fileOf(m), p.Name, p.To.Map)
+				return fmt.Errorf("%s: gate %q: target map %q does not exist", fileOf(m), p.Name, p.To.Map)
 			}
 			if !slices.ContainsFunc(target.Portals, func(q mapfile.Portal) bool { return q.Name == p.To.Portal }) {
-				return fmt.Errorf("%s: portal %q: target portal %q not in map %q", fileOf(m), p.Name, p.To.Portal, p.To.Map)
+				return fmt.Errorf("%s: gate %q: target gate %q not in map %q", fileOf(m), p.Name, p.To.Portal, p.To.Map)
 			}
 			if p.To == (mapfile.Target{Map: m.ID, Portal: p.Name}) {
-				return fmt.Errorf("%s: portal %q leads to itself", fileOf(m), p.Name)
+				return fmt.Errorf("%s: gate %q leads to itself", fileOf(m), p.Name)
 			}
 		}
 	}
@@ -264,26 +225,10 @@ func (l *loader) linkMaps() error {
 		for _, p := range m.Portals {
 			target, _ := l.maps.get(p.To.Map)
 			k := slices.IndexFunc(target.Portals, func(q mapfile.Portal) bool { return q.Name == p.To.Portal })
-			here, what := mapfile.Target{Map: m.ID, Portal: p.Name}, "portal"
-			if m.Kind == string(gamedata.Region) {
-				what = "gate"
+			here := mapfile.Target{Map: m.ID, Portal: p.Name}
+			if back := target.Portals[k].To; back != here { // a gate and the gate it leads to lead to each other
+				return fmt.Errorf("%s: gate %q leads to %s's %q, which leads to %s's %q, not back", file, p.Name, p.To.Map, p.To.Portal, back.Map, back.Portal)
 			}
-			if back := target.Portals[k].To; (m.Kind == string(gamedata.Region) || target.Kind == string(gamedata.Region)) && back != here { // a gate and the portal or gate it leads to lead to each other
-				return fmt.Errorf("%s: %s %q leads to %s's %q, which leads to %s's %q, not back", file, what, p.Name, p.To.Map, p.To.Portal, back.Map, back.Portal)
-			}
-		}
-		switch gamedata.MapKind(m.Kind) {
-		case gamedata.Pvp, gamedata.Region: // a match's map has no town, and a region is its own
-		default:
-			if town, ok := l.maps.get(m.Town); !ok || town.Kind != string(gamedata.Town) {
-				return fmt.Errorf("%s: town %q is not a town", file, m.Town)
-			}
-		}
-		if m.Boss != nil {
-			if other, ok := bossOn[m.Boss.Mob]; ok {
-				return fmt.Errorf("%s: boss %s is already on %s; each map has its own", file, m.Boss.Mob, other)
-			}
-			bossOn[m.Boss.Mob] = m.ID
 		}
 		for _, n := range m.NPCs {
 			if other, ok := npcOn[n.ID]; ok {
@@ -294,8 +239,8 @@ func (l *loader) linkMaps() error {
 			placed.MapID, placed.At, placed.Yaw = m.ID, gamedata.Point{X: n.At[0], Z: n.At[1]}, radians(n.Yaw)
 		}
 		if m.Start {
-			if (m.Kind != string(gamedata.Town) && m.Kind != string(gamedata.Region)) || start != "" {
-				return fmt.Errorf("%s: start is for the one town or region new characters start in", file)
+			if m.Kind != string(gamedata.Region) || start != "" {
+				return fmt.Errorf("%s: start is for the one region new characters start in", file)
 			}
 			if r, ok := l.regions[m.ID]; ok && !slices.ContainsFunc(r.areas, func(a gamedata.Area) bool { return a.Kind == gamedata.Town }) {
 				return fmt.Errorf("%s: beginning is for a region with a town, which a place below has none of, where new characters start", file)
@@ -303,7 +248,7 @@ func (l *loader) linkMaps() error {
 			start = m.ID
 		}
 	}
-	placed := map[string]bool{} // the bosses a region's areas place, which a map's boss may be too
+	placed := map[string]bool{} // the bosses a region's areas place
 	for _, r := range l.regions {
 		for _, a := range r.areas {
 			if a.Boss != nil {
@@ -312,17 +257,17 @@ func (l *loader) linkMaps() error {
 		}
 	}
 	for _, mob := range l.mobs.list {
-		if _, ok := bossOn[mob.ID]; mob.Boss && !ok && !placed[mob.ID] {
-			return fmt.Errorf("%s: boss %s: no map places it", mapsDir, mob.ID)
+		if mob.Boss && !placed[mob.ID] {
+			return fmt.Errorf("%s: boss %s: no region places it", regionsDir, mob.ID)
 		}
 	}
 	for _, n := range l.npcs.list {
 		if _, ok := npcOn[n.ID]; !ok {
-			return fmt.Errorf("%s: npc %s stands on no map", mapsDir, n.ID)
+			return fmt.Errorf("%s: npc %s stands on no map", regionsDir, n.ID)
 		}
 	}
 	if start == "" {
-		return fmt.Errorf("%s: no town or region has start, where new characters start", mapsDir)
+		return fmt.Errorf("%s: no region has beginning, where new characters start", regionsDir)
 	}
 	l.start = start
 	return nil
@@ -340,7 +285,7 @@ func fileOf(m *mapfile.Map) string {
 func mapOf(m *mapfile.Map, r regionParts) *gamedata.Map {
 	point := func(at [2]float64) gamedata.Point { return gamedata.Point{X: at[0], Z: at[1]} }
 	out := &gamedata.Map{
-		ID: m.ID, Name: m.Name, Kind: gamedata.MapKind(m.Kind), Start: m.Start, Town: m.Town, MinLevel: m.Levels[0], MaxLevel: m.Levels[1],
+		ID: m.ID, Name: m.Name, Kind: gamedata.MapKind(m.Kind), Start: m.Start,
 		Geometry: m.Geometry, PlayerSpawn: point(m.PlayerSpawn.At), SpawnYaw: radians(m.PlayerSpawn.Yaw), Grid: m.Grid,
 		Bake: r.bake, Areas: r.areas, AreaGrid: r.grid, Waypoints: r.waypoints, Under: r.under,
 	}
@@ -352,9 +297,6 @@ func mapOf(m *mapfile.Map, r regionParts) *gamedata.Map {
 	}
 	for _, n := range m.NPCs {
 		out.NPCs = append(out.NPCs, gamedata.Placement{NPC: n.ID, At: point(n.At), Yaw: radians(n.Yaw)})
-	}
-	if b := m.Boss; b != nil {
-		out.Boss = &gamedata.BossSpot{Mob: b.Mob, At: point(b.At), Radius: b.Radius}
 	}
 	for s, side := range m.Sides {
 		for _, at := range side {

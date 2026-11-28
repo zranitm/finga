@@ -280,45 +280,6 @@ func TestWornStatsAtJoinAndLevelUp(t *testing.T) {
 
 // A player whose equip is in flight stays on the map until it settles, so the result applies where the player is.
 func TestAnEquipInFlightHoldsThePlayerOnItsMap(t *testing.T) {
-	t.Run("past its respawn", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			data := worldtest.LoadData(t)
-			eq := &fakeEquipment{answer: sword(), gate: make(chan struct{})}
-			tr := &transferRecorder{}
-			inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t), Transfer: tr})
-			defer stop()
-			tick(1)
-			p := warriorAt(nextToSlime)
-			p.HP, p.Connection = 1, "c1"
-			s := join(t, inst, p)
-			// The equip goes out just before the slime's hop lands: in flight past the 3 s respawn, inside its own 3.5 s.
-			for k := 0; len(eventsOf[model.MobAttacked](s)) == 0; k++ {
-				if k == 100 {
-					t.Fatal("the slime never hopped")
-				}
-				tick(1)
-			}
-			slime, _ := data.Mob("green_slime")
-			time.Sleep(slime.Attacks[0].Windup + slime.Attacks[0].Travel - 200*time.Millisecond)
-			done := equipAsync(inst, p.ID, "c1")
-			untilDead(t, s, p.ID)
-			time.Sleep(3*time.Second + 2*worldtest.TickInterval) // past the respawn
-			synctest.Wait()
-			if moved(tr) != 0 {
-				t.Fatal("respawned off the map with an equip in flight")
-			}
-			close(eq.gate)
-			tick(2)
-			if err := <-done; err != nil {
-				t.Fatal(err)
-			}
-			tr.mu.Lock()
-			defer tr.mu.Unlock()
-			if len(tr.moved) != 1 || !reflect.DeepEqual(tr.moved[0].Worn, sword().Worn) {
-				t.Fatalf("moved %+v; want the respawn to carry the sword", tr.moved)
-			}
-		})
-	})
 	t.Run("before a portal", func(t *testing.T) {
 		for _, tt := range []struct {
 			name   string

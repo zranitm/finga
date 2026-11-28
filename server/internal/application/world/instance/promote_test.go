@@ -66,7 +66,7 @@ func promotionTown(t *testing.T, p model.Player, gifts *fakeGifts) (*instance.In
 	t.Helper()
 	cps := &worldtest.Checkpoints{}
 	parties := &fakeParties{}
-	inst, stop := worldtest.RunMap(t, worldtest.LoadData(t), worldtest.StartTown(worldtest.LoadData(t)), cps, worldtest.Options{Gifts: gifts, Parties: parties, CheckpointInterval: time.Hour, ItemCalls: runningPool(t)})
+	inst, stop := worldtest.RunMap(t, worldtest.LoadData(t), worldtest.Town(worldtest.LoadData(t)), cps, worldtest.Options{Gifts: gifts, Parties: parties, CheckpointInterval: time.Hour, ItemCalls: runningPool(t)})
 	t.Cleanup(stop)
 	s := join(t, inst, p)
 	cps.Drain()

@@ -19,7 +19,7 @@ const line = plainSize / 2
 func fields(t *testing.T, kingX, r float64) *gamedata.Map {
 	t.Helper()
 	m := plain(t, nil, nil)
-	m.ID, m.Kind, m.Town = "fields", gamedata.Region, "fields"
+	m.ID, m.Kind = "fields", gamedata.Region
 	nx := int(plainSize / regiongen.AreaCell)
 	grid := regiongen.AreaGrid{NX: nx, NZ: nx, Of: make([]int16, nx*nx)}
 	for s := range grid.Of {
@@ -125,11 +125,6 @@ func TestABossesQueryFindsEachAreasBoss(t *testing.T) {
 		at := gone.Tick + uint64((gone.BackIn-back)/worldtest.TickInterval) // the tick that answered, by its time back
 		if back%worldtest.TickInterval != 0 || at < before || at > after+1 {
 			t.Fatalf("the king back in %v, fallen on tick %d back in %v: answered as of tick %d, asked between ticks %d and %d", back, gone.Tick, gone.BackIn, at, before, after)
-		}
-		mapped, stopMap := runBossArena(t, bossData(t, 100, "2s", 0.01), bossArena(t), 0.5, worldtest.Options{})
-		defer stopMap()
-		if got, err := mapped.Bosses(t.Context()); err != nil || len(got) != 0 {
-			t.Fatalf("on a map: %+v, %v; want none", got, err)
 		}
 	})
 }

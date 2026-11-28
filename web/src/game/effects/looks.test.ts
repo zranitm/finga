@@ -15,12 +15,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { skillById } from '@/progression/skills';
 import type { Skill } from '@/progression/skills';
+import { steepMap } from '@/testing/baked-map';
 import { servePublic } from '@/testing/public-on-disk';
 
 import type { Beats } from '../world3d/beats';
 import { groundOf } from '../world3d/grounds';
 import { LockRing } from '../world3d/lock-ring';
-import { loadMap } from '../world3d/map';
 import type { WorldMap } from '../world3d/map';
 import { GHOST } from '../world3d/see-through';
 import { Palette } from '../world3d/toon';
@@ -82,7 +82,7 @@ describe('looks', () => {
     scene = new Scene(engine);
     servePublic();
     now = 1000;
-    map = await loadMap('frost_trail');
+    map = await steepMap();
     palette = new Palette(scene);
     fx = new Fx(
       scene,
@@ -576,7 +576,7 @@ describe('moves', () => {
     scene = new Scene(engine);
     servePublic();
     now = 1000;
-    map = await loadMap('frost_trail');
+    map = await steepMap();
     palette = new Palette(scene);
     fx = new Fx(
       scene,
