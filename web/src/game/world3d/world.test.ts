@@ -1672,10 +1672,11 @@ describe('World', () => {
       const x = (lo + hi) / 2;
       [lo, hi] = off(x) < 1 ? [x, hi] : [lo, x];
     }
-    p.push('delta', { players: [standing(lo, 20, 'c-edge', 'thief')] }, { tick: 2 });
+    const edge = Math.round(lo * 100) / 100; // another's place is held at the centimetre
+    p.push('delta', { players: [standing(edge, 20, 'c-edge', 'thief')] }, { tick: 2 });
     const at = () =>
       update.mock.calls.flatMap((c, i) =>
-        (update.mock.contexts[i] as Body).root.position.x === lo ? [c[3]] : [],
+        (update.mock.contexts[i] as Body).root.position.x === edge ? [c[3]] : [],
       );
     await vi.waitFor(() => {
       p.frames(1);
@@ -1683,7 +1684,7 @@ describe('World', () => {
     }, WAIT);
     update.mockClear();
     p.frames(4);
-    expect([off(lo), at()]).toEqual([expect.closeTo(1, 2), [true, true, true, true]]);
+    expect([off(edge), at()]).toEqual([expect.closeTo(1, 1), [true, true, true, true]]);
   });
 
   it('poses the player every frame, even far from the camera’s target, as after a respawn across the map', async () => {
