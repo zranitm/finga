@@ -30,6 +30,7 @@ import { skillBar } from '@/state/skill-bar';
 import { statuses } from '@/state/statuses';
 import { target } from '@/state/target';
 import { teleport } from '@/state/teleport';
+import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 import { wardrobe } from '@/state/wardrobe';
 import { fakeFetch, sampleCharacter } from '@/testing/fake-fetch';
@@ -388,9 +389,11 @@ describe('App', () => {
     resetStores();
     await enter(true);
     expect(await screen.findAllByRole('button', { name: /Walk mode: no sprint/ })).toHaveLength(1);
-    act(() => settings.getState().setZoom(0.5)); // a map change or a later setting never tells again
+    act(() => toasts.getState().clear()); // dismissed, it is not told again when the screen is drawn again
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await user.keyboard('{Escape}');
     await act(() => Promise.resolve());
-    expect(screen.getAllByRole('button', { name: /Walk mode: no sprint/ })).toHaveLength(1);
+    expect(screen.queryAllByRole('button', { name: /Walk mode: no sprint/ })).toHaveLength(0);
   });
 
   it('a zoom changed in the world is saved as the account’s, at the latest as the player leaves', async () => {

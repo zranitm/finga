@@ -21,7 +21,7 @@
   - In walk mode the character never breaks into a sprint, for a player who wants to walk out of combat.
   - Switching back to sprint mode while moving out of combat sprints at once, with no 2-second wait.
   - Each switch shows a notice, "Walk" or "Sprint". While walk mode is on, a walk icon sits first in the player's own frame row, and its hover names the key.
-  - The mode is kept with the account's settings, as the zoom is.
+  - The mode is kept with the account's settings, as the zoom is. A player who enters the world in walk mode is told once, with the icon's words, so a log-in that doesn't sprint is no surprise.
 - **Waypoints:**
   - A waypoint is a tall carved stone with a cyan crystal floating above it, in every town and at crossroads, camps and passes, about every 150 m along the roads.
   - Until it's found, its crystal glows a dim teal and its runes are dark, still easy to spot from afar and in a dark cave. Once found, the crystal shines near-white and the runes glow, so a player can see in the world which stones are left.

@@ -1,7 +1,7 @@
 // The account's settings: read after login, and saved whole on each change, from whichever screen makes it; a read waits for the saves before it, and a setting changed while it was out keeps its change.
+import { keyOf, keyTable } from '@/input/bindings';
 import { saveQueue } from '@/lib/save-queue';
 import type { SaveQueue } from '@/lib/save-queue';
-import { keyOf, keyTable } from '@/input/bindings';
 import { RestError } from '@/net/rest';
 import type { RestClient } from '@/net/rest';
 import { keyboardLayout } from '@/state/keyboard-layout';
