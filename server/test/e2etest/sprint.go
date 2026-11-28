@@ -3,14 +3,16 @@ package e2etest
 import (
 	"fmt"
 	"math"
+	"slices"
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/pkg/wsconn"
 )
 
-// Pace is the player's own view in one frame, as a sprint reads it: the frame's tick, the sprint's count in sub-steps, and the speed in m/s.
+// Pace is the player's own view in one frame, as a sprint reads it: the frame's tick, the input the server had applied by then, the sprint's count in sub-steps, and the speed in m/s.
 type Pace struct {
 	Tick   uint64
+	Ack    uint32
 	Sprint int
 	Speed  float64
 }
@@ -31,7 +33,7 @@ func (r *Recording) Take(m wsconn.Message) {
 	case *clientv1.Delta:
 		for _, v := range d.GetPlayers() {
 			if v.GetId() == r.id {
-				r.Paces = append(r.Paces, Pace{Tick: m.Tick, Sprint: int(v.GetSprint()), Speed: math.Hypot(v.GetVx(), v.GetVz())})
+				r.Paces = append(r.Paces, Pace{Tick: m.Tick, Ack: d.GetAckSeq(), Sprint: int(v.GetSprint()), Speed: math.Hypot(v.GetVx(), v.GetVz())})
 			}
 		}
 	case *clientv1.Damage:
@@ -66,7 +68,7 @@ func (r *Recording) start() uint64 {
 	return 0
 }
 
-// Fault is what the frames say against walking out of combat as large-regions.md section 7 has it, "" when they agree: a count of perTick sub-steps for each tick walked since combat's last tick, at most steps, none while in combat (a hit's tick and the combat ticks after it), and from the tick after the count reaches steps the walk's speed times mult. It allows two ticks' slack in the count, for the input a frame brings a tick late.
+// Fault is what the frames say against walking out of combat as large-regions.md section 7 has it, "" when they agree: a count of perTick sub-steps for each input the server applied since combat's last tick, at most steps, none while in combat (a hit's tick and the combat ticks after it), and once the inputs reach steps the walk's speed times mult. Frames merged on a starved runner skip ticks, so the walk is counted in acked inputs, not ticks; a skipped frame at combat's end leaves as many inputs unknown as ticks it skipped, which the count allows.
 func (r *Recording) Fault(combat uint64, perTick, steps int, mult float64) string {
 	start := r.start()
 	if start == 0 {
@@ -103,13 +105,14 @@ func (r *Recording) Fault(combat uint64, perTick, steps int, mult float64) strin
 		case len(r.Hits) > 0, p.Tick < start:
 			continue
 		}
-		walked := int(p.Tick - base) //nolint:gosec // a few hundred ticks
-		if want := min(steps, perTick*(walked-2)); p.Sprint < want {
-			return fmt.Sprintf("tick %d, %d ticks into the walk out of combat: a sprint count of %d, want %d or more", p.Tick, walked, p.Sprint, want)
+		from, gap := r.applied(base)
+		walked := int(p.Ack - from) //nolint:gosec // a few hundred inputs
+		if want := min(steps, perTick*(walked-gap)); p.Sprint < want {
+			return fmt.Sprintf("tick %d, %d inputs into the walk out of combat: a sprint count of %d, want %d or more", p.Tick, walked, p.Sprint, want)
 		}
-		if walked > steps/perTick+2 {
+		if walked > (steps+perTick-1)/perTick+gap {
 			if p.Sprint != steps || math.Abs(p.Speed-walk*mult) > 1e-6 {
-				return fmt.Sprintf("tick %d, %d ticks into the walk out of combat: count %d at %.4f m/s, want %d at %.4f", p.Tick, walked, p.Sprint, p.Speed, steps, walk*mult)
+				return fmt.Sprintf("tick %d, %d inputs into the walk out of combat: count %d at %.4f m/s, want %d at %.4f", p.Tick, walked, p.Sprint, p.Speed, steps, walk*mult)
 			}
 			reached = true
 		}
@@ -118,4 +121,14 @@ func (r *Recording) Fault(combat uint64, perTick, steps int, mult float64) strin
 		return "no frame showed the sprint within the recording"
 	}
 	return ""
+}
+
+// applied is the input the server had applied by tick, from the newest frame at or before it, and how many ticks that frame falls short of tick, each of which could have applied an input the frames don't show; a walk with no frame before it starts from the first one's input less one.
+func (r *Recording) applied(tick uint64) (ack uint32, gap int) {
+	for _, p := range slices.Backward(r.Paces) {
+		if p.Tick <= tick {
+			return p.Ack, int(tick - p.Tick) //nolint:gosec // a few hundred ticks
+		}
+	}
+	return r.Paces[0].Ack - 1, 0
 }
