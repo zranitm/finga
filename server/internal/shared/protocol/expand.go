@@ -35,14 +35,10 @@ func (e *Expander) Snapshot(s *clientv1.Snapshot) {
 	}
 }
 
-// Delta puts the frame's steps into its Players and Mobs, as the views they say, and empties them.
+// Delta puts the frame's steps into its Players and Mobs, as the views they say, and empties them. The steps run from what was held before the frame, and the whole views come after them: a body sent both ways in one frame ends as the whole view says, and is the last of it in Players and Mobs.
 func (e *Expander) Delta(d *clientv1.Delta) {
-	for _, v := range d.Players {
-		e.hold(v)
-	}
-	for _, m := range d.Mobs {
-		e.mobs[m.Id] = m
-	}
+	players, mobs := d.Players, d.Mobs
+	d.Players, d.Mobs = nil, nil
 	for _, s := range d.Steps {
 		if s.Slot == e.mySlot && e.mySlot != 0 {
 			continue
@@ -60,6 +56,13 @@ func (e *Expander) Delta(d *clientv1.Delta) {
 			d.Mobs = append(d.Mobs, m)
 		}
 	}
+	for _, v := range players {
+		e.hold(v)
+	}
+	for _, m := range mobs {
+		e.mobs[m.Id] = m
+	}
+	d.Players, d.Mobs = append(d.Players, players...), append(d.Mobs, mobs...)
 	d.Steps, d.MobSteps = nil, nil
 	for _, id := range d.RemovedMobs {
 		delete(e.mobs, id)

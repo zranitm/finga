@@ -70,4 +70,23 @@ describe('ViewExpander', () => {
     e.delta(create(DeltaSchema, { removedPlayers: ['r'] }));
     expect(e.delta(create(DeltaSchema, { steps: [step(2)] })).players).toHaveLength(0);
   });
+
+  it('takes a whole view as the last word of a frame on a body also sent as a step', () => {
+    const e = new ViewExpander('a');
+    e.snapshot([ayla, robin], [slime]);
+    const { players, mobs } = e.delta(
+      create(DeltaSchema, {
+        players: [create(PlayerViewSchema, { ...robin, x: 20.136 })],
+        steps: [create(PlayerStepSchema, { slot: 2, dx: 10 })],
+        mobs: [create(MobViewSchema, { ...slime, x: 3.343 })],
+        mobSteps: [create(MobStepSchema, { id: 9, dx: 10 })],
+      }),
+    );
+    expect(players[players.length - 1]?.x).toBeCloseTo(20.136, 10);
+    expect(mobs[mobs.length - 1]?.x).toBeCloseTo(3.343, 10);
+    const next = e.delta(
+      create(DeltaSchema, { steps: [create(PlayerStepSchema, { slot: 2, dx: 5 })] }),
+    );
+    expect(next.players[0]?.x).toBeCloseTo(20.19, 10); // 2014 cm and 5, from the whole view
+  });
 });

@@ -39,16 +39,10 @@ export class ViewExpander {
     }
   }
 
-  /** A frame's players and mobs as whole views: those sent whole, then each step applied; the player's own steps are left out, their own view comes whole. */
+  /** A frame's players and mobs as whole views: each step applied to what was held before the frame, then those sent whole, so a body sent both ways in one frame ends as its whole view says, and comes last; the player's own steps are left out, their own view comes whole. */
   delta(d: Data<'delta'>): { players: PlayerWire[]; mobs: MobWire[] } {
-    const players = [...d.players];
-    const mobs = [...d.mobs];
-    for (const p of d.players) {
-      this.hold(p);
-    }
-    for (const m of d.mobs) {
-      this.mobs.set(m.id, m);
-    }
+    const players: PlayerWire[] = [];
+    const mobs: MobWire[] = [];
     for (const s of d.steps) {
       const held = this.players.get(s.slot);
       if (held && !(s.slot === this.mySlot && this.mySlot !== 0)) {
@@ -64,6 +58,14 @@ export class ViewExpander {
         this.mobs.set(s.id, next);
         mobs.push(next);
       }
+    }
+    for (const p of d.players) {
+      this.hold(p);
+      players.push(p);
+    }
+    for (const m of d.mobs) {
+      this.mobs.set(m.id, m);
+      mobs.push(m);
     }
     for (const id of d.removedMobs) {
       this.mobs.delete(id);
