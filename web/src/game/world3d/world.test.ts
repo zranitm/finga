@@ -57,6 +57,7 @@ import {
 } from '@/protocol/messages';
 import { dash, endSprint, step } from '@/sim/step';
 import type { State } from '@/sim/step';
+import { height, terrain } from '@/sim/terrain';
 import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
@@ -271,6 +272,21 @@ function towered(id: string) {
       boxes: [{ x: 60, z: 31.4, half_w: 1, half_d: 0.5, ux: 1, uz: 0, top: 14 }], // south of the 8 m cell the player's head is in
     },
     box_models: [{ model: 'tower', yaw: 0 }],
+  };
+}
+
+/** Map id as WIDE with a 30 m wall of ground over z 0 to 24, falling to flat ground by z 32, as a region's mountain ring stands behind its south edge. */
+function walled(id: string) {
+  const m = wide(id);
+  return {
+    ...m,
+    geometry: {
+      ...m.geometry,
+      terrain: {
+        ...m.geometry.terrain,
+        heights: m.geometry.terrain.heights.map((_, i) => (Math.floor(i / 17) <= 3 ? 30 : 0)),
+      },
+    },
   };
 }
 
@@ -1163,6 +1179,31 @@ describe('World', () => {
     expect(scene.activeCamera!.position.y - CHEST_M).toBeCloseTo(
       40 * Math.sin((35 * Math.PI) / 180),
     );
+  });
+
+  it('pulls the camera in along its line where, zoomed out near the south edge, it would stand inside the ground, and leaves it where it is clear', async () => {
+    settings.getState().setZoom(1);
+    SERVED[WIDE] = walled(WIDE);
+    onTestFinished(() => {
+      SERVED[WIDE] = wide(WIDE);
+    });
+    const p = await playing(WIDE, 60, 50);
+    const camera = p.scene()!.activeCamera!;
+    p.live(2);
+    const ground = terrain(8, 17, 9, walled(WIDE).geometry.terrain.heights, 0.7);
+    const from = { x: 60, y: CHEST_M, z: 50 }; // the player's chest, the camera's aim
+    const reach = Math.hypot(camera.position.y - from.y, camera.position.z - from.z);
+    expect(40 * Math.sin((35 * Math.PI) / 180)).toBeGreaterThan(27 - 30); // the unpulled camera would be 23 m up and 33 m south, at z 17 in the wall's 30 m
+    expect(camera.position.y).toBeGreaterThanOrEqual(
+      height(ground, camera.position.x, camera.position.z) + 0.45,
+    );
+    expect(reach).toBeLessThan(40); // pulled in
+    expect(reach).toBeGreaterThan(16); // not past where its zoom's closest stands
+    expect((camera.position.y - from.y) / (from.z - camera.position.z)).toBeCloseTo(
+      Math.tan((35 * Math.PI) / 180),
+      3,
+    ); // on its line, so its pitch and aim are as ever
+    expect(settings.getState().zoom).toBe(1); // the saved zoom stays
   });
 
   it('tells the prediction the world’s fight from each Damage naming the player, ends the sprint’s count from the input after a sent attack or skill, and a rejoin is out of combat', async () => {

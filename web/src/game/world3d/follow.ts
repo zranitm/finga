@@ -67,3 +67,46 @@ export function cameraAt<T extends { x: number; y: number; z: number }>(
   out.z = z - backAt(zoom) * Math.cos(pitchAt(zoom));
   return out;
 }
+
+/** The room the camera keeps over the ground under it, in metres. */
+export const CAMERA_CLEARANCE_M = 0.5;
+
+/**
+ * How far along its line from look to cam the camera may sit with the ground under it clear of it by CAMERA_CLEARANCE_M, as a share of the line: 1 where cam itself is clear, else the farthest point toward cam that is. A zoomed-out camera near a region's edge, behind its mountains, is inside the ground; this pulls it in along its line, so it keeps its aim and its pitch (large-regions.md section 9). Only the camera's own point is judged: what stands between it and the player is the cut-away's job.
+ */
+export function clearShare(
+  look: Readonly<{ x: number; y: number; z: number }>,
+  cam: Readonly<{ x: number; y: number; z: number }>,
+  groundAt: (x: number, z: number) => number,
+): number {
+  const clearAt = (s: number) => {
+    const x = look.x + (cam.x - look.x) * s;
+    const z = look.z + (cam.z - look.z) * s;
+    return look.y + (cam.y - look.y) * s >= groundAt(x, z) + CAMERA_CLEARANCE_M;
+  };
+  if (clearAt(1)) {
+    return 1;
+  }
+  const STEPS = 32;
+  for (let i = 1; i <= STEPS; i++) {
+    const s = 1 - i / STEPS;
+    if (clearAt(s)) {
+      let [lo, hi] = [s, s + 1 / STEPS]; // clear at lo, inside at hi
+      for (let k = 0; k < 6; k++) {
+        const mid = (lo + hi) / 2;
+        if (clearAt(mid)) {
+          lo = mid;
+        } else {
+          hi = mid;
+        }
+      }
+      return lo;
+    }
+  }
+  return 0;
+}
+
+/** The share of its line the camera sits at, drawn: pulled in at once to share, where the ground would swallow it, and eased back out by ease (easeShare) once it's clear, as the zoom eases. */
+export function pulledShare(drawn: number, share: number, ease: number): number {
+  return share < drawn ? share : drawn + (share - drawn) * ease;
+}
