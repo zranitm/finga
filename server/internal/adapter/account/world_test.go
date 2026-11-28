@@ -52,7 +52,7 @@ func (w *worldModule) Say(_ context.Context, p world.Presence, name, text string
 func TestLeaveDropAndSayKeepTheirFields(t *testing.T) {
 	w := &worldModule{}
 	a := NewWorld(w, slog.New(slog.DiscardHandler), nil)
-	match := copytest.Match{Renames: map[string]string{"Connection": "Conn"}}
+	match := copytest.Match{Renames: map[string]string{"Connection": "Conn"}, Computed: map[string]string{"Seq": seqWhy}}
 	for name, call := range map[string]func(model.Presence) error{
 		"Leave": func(p model.Presence) error { return a.Leave(t.Context(), p) },
 		"Drop":  func(p model.Presence) error { return a.Drop(t.Context(), p) },
@@ -73,7 +73,7 @@ func TestLeaveDropAndSayKeepTheirFields(t *testing.T) {
 		P    world.Presence
 		Args sayArgs
 	}
-	got := copytest.Diff(copytest.Match{Renames: map[string]string{"P.Connection": "P.Conn", "Name": "Args.Name", "Text": "Args.Text"}}, func(in say) said {
+	got := copytest.Diff(copytest.Match{Renames: map[string]string{"P.Connection": "P.Conn", "Name": "Args.Name", "Text": "Args.Text"}, Computed: map[string]string{"P.Seq": seqWhy}}, func(in say) said {
 		_ = a.Say(t.Context(), in.P, in.Name, in.Text)
 		return said{w.p, w.args.(sayArgs)}
 	})
@@ -97,7 +97,7 @@ func TestAJoinKeepsItsFields(t *testing.T) {
 		Account    kernel.AccountID
 		Character  kernel.CharacterID
 	}
-	asked := copytest.Diff(copytest.Match{Renames: map[string]string{"Node": "Args.Node", "Account": "Args.Account", "Conn": "P.Conn", "Character": "P.Character"}},
+	asked := copytest.Diff(copytest.Match{Renames: map[string]string{"Node": "Args.Node", "Account": "Args.Account", "Conn": "P.Conn", "Character": "P.Character"}, Computed: map[string]string{"P.Seq": seqWhy}},
 		func(j join) atWorld[joinArgs] {
 			_, _ = a.Join(t.Context(), j.Node, j.Conn, j.Account, j.Character)
 			return atWorld[joinArgs]{P: w.p, Args: w.args.(joinArgs)}
@@ -128,3 +128,6 @@ func TestAJoinKeepsItsFields(t *testing.T) {
 		t.Errorf("answered: %v", answered)
 	}
 }
+
+// seqWhy is why no account field sets a presence's Seq: it is the input a client message came during, which only the world's own handler stamps.
+const seqWhy = "the input a client message was sent during, which the world's handler stamps and the account module never does"

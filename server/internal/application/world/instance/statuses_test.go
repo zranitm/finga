@@ -1,6 +1,7 @@
 package instance_test
 
 import (
+	"context"
 	"errors"
 	"math"
 	"slices"
@@ -669,7 +670,7 @@ func TestAMapChangeLeavesStatusesBehind(t *testing.T) {
 			t.Fatalf("a skill while stunned: %v, want CANT_ACT", err)
 		}
 		worldtest.Walk(inst, p.ID, 0, sim.Input{}, 10) // landed from the hop, in the portal
-		if err := inst.EnterPortal(p.ID); err != nil {
+		if err := inst.EnterPortal(context.Background(), p.ID, 0); err != nil {
 			t.Fatal(err)
 		}
 		tick(1)

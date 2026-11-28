@@ -536,7 +536,7 @@ func TestATransferOfAReplacedPresenceIsDropped(t *testing.T) {
 		synctest.Wait()
 
 		// The old connection takes the portal while the newer one joins the forest, before the town's tick.
-		if err := w.EnterPortal(ayla.ID, "c-1"); err != nil {
+		if err := w.EnterPortal(context.Background(), ayla.ID, "c-1", 0); err != nil {
 			t.Fatal(err)
 		}
 		newer := &worldtest.Sink{}

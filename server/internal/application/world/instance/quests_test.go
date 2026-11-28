@@ -123,7 +123,7 @@ func questTownWith(t *testing.T, level int, log model.Quests, o worldtest.Option
 }
 
 func (q *questTown) accept(quest string) error {
-	err := q.inst.AcceptQuest(context.Background(), q.p.ID, "c1", "town_guide", quest)
+	err := q.inst.AcceptQuest(context.Background(), q.p.ID, "c1", "town_guide", quest, 0)
 	tick(1)
 	return err
 }
@@ -135,7 +135,7 @@ func (q *questTown) abandon(quest string) error {
 }
 
 func (q *questTown) handIn(quest string) error {
-	err := q.inst.HandInQuest(context.Background(), q.p.ID, "c1", "town_guide", quest)
+	err := q.inst.HandInQuest(context.Background(), q.p.ID, "c1", "town_guide", quest, 0)
 	tick(1)
 	return err
 }
@@ -270,7 +270,7 @@ func TestAbandoningAQuest(t *testing.T) {
 func TestTalkingToTheNPCATalkObjectiveNames(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		q := newQuestTown(t, 3, model.Quests{"errand": {Status: model.QuestActive, Progress: []int{0, 0}}}, nil)
-		if err := q.inst.Talk(context.Background(), q.p.ID, "c1", "town_guide"); err != nil {
+		if err := q.inst.Talk(context.Background(), q.p.ID, "c1", "town_guide", 0); err != nil {
 			t.Fatal(err)
 		}
 		tick(1)
@@ -419,7 +419,7 @@ func TestHandingInAQuest(t *testing.T) {
 			f := &fakeHandIns{answer: model.HandedIn{Items: answer}, down: 1000}
 			q := questTownWith(t, 1, ready(0), worldtest.Options{HandIns: f, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
 			start := time.Now()
-			err := q.inst.HandInQuest(context.Background(), q.p.ID, "c1", "town_guide", "bounty")
+			err := q.inst.HandInQuest(context.Background(), q.p.ID, "c1", "town_guide", "bounty", 0)
 			if took := time.Since(start); !errors.Is(err, transient.ErrUnavailable) || len(f.called()) < 2 || took > 4*time.Second {
 				t.Fatalf("err = %v after %d calls and %s", err, len(f.called()), took)
 			}
@@ -437,7 +437,7 @@ func TestHandingInAQuest(t *testing.T) {
 			f := &fakeHandIns{answer: model.HandedIn{Items: answer}, gate: make(chan struct{})}
 			q := newQuestTown(t, 1, ready(0), f)
 			start := time.Now()
-			err := q.inst.HandInQuest(context.Background(), q.p.ID, "c1", "town_guide", "bounty")
+			err := q.inst.HandInQuest(context.Background(), q.p.ID, "c1", "town_guide", "bounty", 0)
 			if took := time.Since(start); !errors.Is(err, transient.ErrUnavailable) || took < 3*time.Second || took > 4*time.Second {
 				t.Fatalf("err = %v after %s; want a try again past the first 1.5 s, given up by 4 s", err, took)
 			}
@@ -450,7 +450,7 @@ func TestHandingInAQuest(t *testing.T) {
 			f := &fakeHandIns{answer: model.HandedIn{Items: answer}, gate: make(chan struct{})}
 			q := newQuestTown(t, 1, ready(0), f)
 			first := make(chan error, 1)
-			go func() { first <- q.inst.HandInQuest(context.Background(), q.p.ID, "c1", "town_guide", "bounty") }()
+			go func() { first <- q.inst.HandInQuest(context.Background(), q.p.ID, "c1", "town_guide", "bounty", 0) }()
 			tick(1)
 			again := q.p
 			again.Connection, again.Quests = "c2", ready(0)
@@ -476,7 +476,7 @@ func TestHandingInAQuest(t *testing.T) {
 			f := &fakeHandIns{answer: model.HandedIn{Items: answer}, gate: make(chan struct{})}
 			q := newQuestTown(t, 1, ready(0), f)
 			first := make(chan error, 1)
-			go func() { first <- q.inst.HandInQuest(context.Background(), q.p.ID, "c1", "town_guide", "bounty") }()
+			go func() { first <- q.inst.HandInQuest(context.Background(), q.p.ID, "c1", "town_guide", "bounty", 0) }()
 			tick(1)
 			if err := q.inst.Leave(q.p.ID, "c1", nil); err != nil {
 				t.Fatal(err)
@@ -601,7 +601,7 @@ func TestHandingInAQuest(t *testing.T) {
 			f := &fakeHandIns{answer: model.HandedIn{Items: answer}, gate: make(chan struct{})}
 			q := newQuestTown(t, 1, ready(0), f)
 			first := make(chan error, 1)
-			go func() { first <- q.inst.HandInQuest(context.Background(), q.p.ID, "c1", "town_guide", "bounty") }()
+			go func() { first <- q.inst.HandInQuest(context.Background(), q.p.ID, "c1", "town_guide", "bounty", 0) }()
 			tick(1)
 			if err := q.handIn("bounty"); !errors.Is(err, transient.ErrUnavailable) {
 				t.Fatalf("a second hand-in: %v", err)
@@ -632,7 +632,7 @@ func TestAQuestChangeInThePortalsTickReachesThePlayer(t *testing.T) {
 		done := make(chan error, 1)
 		go func() { done <- inst.AbandonQuest(context.Background(), p.ID, "c1", "slime_cleanup") }()
 		synctest.Wait()
-		_ = inst.EnterPortal(p.ID)
+		_ = inst.EnterPortal(context.Background(), p.ID, 0)
 		tick(1)
 		if err := <-done; err != nil {
 			t.Fatal(err)

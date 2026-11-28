@@ -32,7 +32,7 @@ import { fitsNow, freeText, fullTab, lineOf, toFree, trainerWeapon } from './roo
 import type { Line } from './room';
 
 export interface NpcWindowProps {
-  readonly socket: Pick<GameSocket, 'request'>;
+  readonly socket: Pick<GameSocket, 'request' | 'sequence'>;
   readonly onClose: () => void;
 }
 
@@ -97,7 +97,7 @@ export function NpcWindow({ socket, onClose }: NpcWindowProps) {
             busy={busy}
             onPromote={(cls) =>
               void run(
-                () => socket.request('promote', { npcId: npc, class: cls }),
+                () => socket.request('promote', { npcId: npc, class: cls }, socket.sequence),
                 (full) => freeFor([], [trainerWeapon], 'your weapon', full),
               )
             }
@@ -117,7 +117,12 @@ export function NpcWindow({ socket, onClose }: NpcWindowProps) {
                         const { take, give } = exchanged(q);
                         if (fits(take, give, 'this reward')) {
                           void run(
-                            () => socket.request('handInQuest', { npcId: npc, questId: q.id }),
+                            () =>
+                              socket.request(
+                                'handInQuest',
+                                { npcId: npc, questId: q.id },
+                                socket.sequence,
+                              ),
                             (full) => freeFor(take, give, 'this reward', full),
                           );
                         }
@@ -144,7 +149,11 @@ export function NpcWindow({ socket, onClose }: NpcWindowProps) {
                   busy={busy}
                   onAccept={() =>
                     void run(() =>
-                      socket.request('acceptQuest', { npcId: npc, questId: o.questId }),
+                      socket.request(
+                        'acceptQuest',
+                        { npcId: npc, questId: o.questId },
+                        socket.sequence,
+                      ),
                     )
                   }
                 />

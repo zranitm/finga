@@ -75,7 +75,7 @@ func promotionTown(t *testing.T, p model.Player, gifts *fakeGifts) (*instance.In
 
 func promoteAsync(inst *instance.Instance, id kernel.CharacterID, npc string, class kernel.Class) <-chan error {
 	done := make(chan error, 1)
-	go func() { done <- inst.Promote(context.Background(), id, "c1", npc, class) }()
+	go func() { done <- inst.Promote(context.Background(), id, "c1", npc, class, 0) }()
 	return done
 }
 
@@ -84,7 +84,7 @@ func TestATrainersDialogOffersItsPromotion(t *testing.T) {
 		p := trainee(t)
 		p.Points = model.Points{Spent: gamedata.Stats{STR: 20}}
 		inst, s, _, _ := promotionTown(t, p, &fakeGifts{})
-		if err := inst.Talk(context.Background(), p.ID, "c1", "warrior_trainer"); err != nil {
+		if err := inst.Talk(context.Background(), p.ID, "c1", "warrior_trainer", 0); err != nil {
 			t.Fatal(err)
 		}
 		tick(1)

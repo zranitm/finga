@@ -452,7 +452,7 @@ func TestATeleportRunsOnThrough(t *testing.T) {
 			p.Connection = "c1"
 			s := join(t, inst, p)
 			start := teleport(t, inst, s, p.ID, "palmwater", 0)
-			if err := inst.Talk(context.Background(), p.ID, "c1", "town_guide"); err != nil {
+			if err := inst.Talk(context.Background(), p.ID, "c1", "town_guide", 0); err != nil {
 				t.Fatal(err)
 			}
 			tick(1)
@@ -479,7 +479,7 @@ func TestATeleportIsDroppedSilently(t *testing.T) {
 			p.Connection = "c1"
 			s := join(t, inst, p)
 			teleport(t, inst, s, p.ID, "palmwater", 0)
-			_ = inst.EnterPortal(p.ID)
+			_ = inst.EnterPortal(context.Background(), p.ID, 0)
 			tick(channelTicks(data) + 1)
 			if got := worldtest.Of[model.Teleport](s); len(got) != 1 || got[0].MapID != portal.TargetMap {
 				t.Fatalf("teleports %+v; want the portal's alone, to %s", got, portal.TargetMap)

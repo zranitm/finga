@@ -298,7 +298,7 @@ func TestAnEquipInFlightHoldsThePlayerOnItsMap(t *testing.T) {
 					s := join(t, inst, p)
 					done := equipAsync(inst, p.ID, "c1")
 					tick(1)
-					_ = inst.EnterPortal(p.ID) // pressed once, as the client does
+					_ = inst.EnterPortal(context.Background(), p.ID, 0) // pressed once, as the client does
 					tick(1)
 					if moved(tr) != 0 {
 						t.Fatal("took a portal with an equip in flight")
@@ -368,7 +368,7 @@ func TestAnAnswerToAnEarlierJoinLeavesTheNewJoinsCallsCounted(t *testing.T) {
 		eq.mu.Unlock()
 		done := equipAsync(inst, p.ID, "c1")
 		tick(1)
-		_ = inst.EnterPortal(p.ID)
+		_ = inst.EnterPortal(context.Background(), p.ID, 0)
 		tick(1)
 		if moved(tr) != 0 {
 			t.Fatal("took a portal with an equip in flight")

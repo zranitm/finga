@@ -77,6 +77,7 @@ const texts: Record<ErrorCode, string> = {
   [ERR.NO_FREE_RESET]: 'Your free reset is used.',
   [ERR.BAD_POINTS]: 'Spend at least one point.',
   [ERR.NPC_OUT_OF_REACH]: 'Move closer.',
+  [ERR.NOT_AT_A_GATE]: 'There’s no gate here.',
   [ERR.QUEST_UNAVAILABLE]: 'That quest isn’t offered here.',
   [ERR.QUEST_CONDITIONS_UNMET]: 'You don’t meet that quest’s conditions yet.',
   [ERR.QUEST_ALREADY_ACTIVE]: 'You have that quest already.',

@@ -110,7 +110,7 @@ func (w *testWorld) enterAbove(t *testing.T, data *gamedata.Data, name string) (
 // through hands name, on conn, through the gate they stand in, and gives the newest snapshot s heard after.
 func (w *testWorld) through(t *testing.T, p model.Player, s *worldtest.Sink) model.Snapshot {
 	t.Helper()
-	if err := w.EnterPortal(p.ID, "c-"+p.Name); err != nil {
+	if err := w.EnterPortal(context.Background(), p.ID, "c-"+p.Name, 0); err != nil {
 		t.Fatal(err)
 	}
 	time.Sleep(2 * worldtest.TickInterval)

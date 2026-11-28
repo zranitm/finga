@@ -127,7 +127,7 @@ func TestAJoinGrantsAFeatLostWhenItWasMet(t *testing.T) {
 		join("c1") // the wardrobe is down: the join goes on, its ask given up
 		time.Sleep(10 * time.Second)
 		synctest.Wait()
-		if err := w.Promote(context.Background(), ayla.ID, "c1", "warrior_trainer", "warrior"); err != nil {
+		if err := w.Promote(context.Background(), ayla.ID, "c1", "warrior_trainer", "warrior", 0); err != nil {
 			t.Fatal(err)
 		}
 		time.Sleep(10 * time.Second) // past every try

@@ -98,6 +98,7 @@ type player struct {
 	combatUntil  uint64      // in combat before this tick: combat's length after the latest Damage naming the player
 	toMatch      *toMatchMsg // a hand-off to a match waiting for the item calls in flight
 	portalPress  bool        // a portal press waiting for the item calls in flight
+	presses      []held      // presses waiting for the input they came during
 	bot          *bot        // a match's bot's, which presses its keys; nil for a player
 	area         int         // the index in the region's Areas the player stood in as the latest tick ended; -1 off a region
 }
@@ -209,6 +210,9 @@ func (i *Instance) remove(id kernel.CharacterID) {
 // detach drops a player without a checkpoint; the caller has saved one. A skill use still waiting for its turn hears it won't go.
 func (i *Instance) detach(id kernel.CharacterID) {
 	p := i.players[id]
+	for _, h := range p.presses {
+		h.drop(fmt.Errorf("%w: the character left the map before its press's turn", transient.ErrUnavailable))
+	}
 	if m := p.waitingCast; m != nil {
 		m.done <- fmt.Errorf("%w: the character left the map before its skill's turn", transient.ErrUnavailable)
 	}
@@ -392,4 +396,63 @@ func (i *Instance) checkpointOn(p *player, mapID string) {
 		cp.MapID, cp.X, cp.Y, cp.Z, cp.Yaw, cp.HP = town.ID, at.X, at.Y, at.Z, float32(yaw), RespawnHP(p.derived.MaxHP)
 	}
 	i.saves.Put(cp)
+}
+
+// held is a press that reads where the player stands, kept until the input it came during has been applied, as the client was where that input left it when it pressed.
+type held struct {
+	seq  uint32
+	due  uint64 // the tick it is judged anyway, if that input never comes
+	run  func()
+	drop func(error) // answers the press when the player leaves first
+}
+
+// atSeq runs a press by id, which came during input seq: at once when that input has been applied or seq is none, else once it is, or pressWait on. The press is judged by where the player stood after it, as a skill's move is held to its seq. A seq past what the client can have sent is held to just past the newest received.
+func (i *Instance) atSeq(id kernel.CharacterID, seq uint32, run func(), drop func(error)) {
+	p, ok := i.players[id]
+	if !ok || seq == 0 {
+		run()
+		return
+	}
+	if seq = p.pressedDuring(seq); seq <= p.lastSeq {
+		run()
+		return
+	}
+	p.presses = append(p.presses, held{seq: seq, due: i.tick + i.ticksFor(pressWait), run: run, drop: drop})
+}
+
+// pressWait is how long a press waits for its input before it is judged where the player stands.
+const pressWait = time.Second
+
+// releasePresses judges the presses whose input this tick applied, or whose wait is up, in the order they came.
+func (i *Instance) releasePresses() {
+	for _, id := range slices.Clone(i.order) {
+		p, ok := i.players[id]
+		if !ok || len(p.presses) == 0 {
+			continue
+		}
+		var ready, waiting []held
+		for _, h := range p.presses {
+			if h.seq <= p.lastSeq || i.tick >= h.due {
+				ready = append(ready, h)
+			} else {
+				waiting = append(waiting, h)
+			}
+		}
+		p.presses = waiting
+		for _, h := range ready {
+			h.run()
+		}
+	}
+}
+
+// pressPortal is the portal press of id, answered: nothing in a match, where there are no portals.
+func (i *Instance) pressPortal(id kernel.CharacterID) error {
+	p, ok := i.players[id]
+	switch {
+	case !ok:
+		return fmt.Errorf("%w: the character is not on this map", transient.ErrUnavailable)
+	case i.match != nil:
+		return nil
+	}
+	return i.enterPortal(p)
 }

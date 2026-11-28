@@ -1,6 +1,7 @@
 package instance_test
 
 import (
+	"context"
 	"math"
 	"testing"
 	"testing/synctest"
@@ -183,7 +184,7 @@ func TestAPlayerPinnedPastAPortalCanStillLeaveByIt(t *testing.T) {
 			_ = inst.Input(p.ID, seq, sim.Input{Left: v.State.X > 20.2, Right: v.State.X < 19.8, Down: v.State.Z > 28.5}, 0)
 			tick(1)
 		}
-		_ = inst.EnterPortal(p.ID)
+		_ = inst.EnterPortal(context.Background(), p.ID, 0)
 		tick(1)
 		if moved(tr) != 1 {
 			v, _ := s.Own(p.ID)

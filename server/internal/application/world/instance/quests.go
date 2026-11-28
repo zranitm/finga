@@ -29,6 +29,7 @@ type questMsg struct {
 	conn   string
 	npc    string // none for an abandon
 	quest  string
+	seq    uint32 // the input the client pressed during
 	done   chan error
 }
 
@@ -47,8 +48,8 @@ func (questMsg) message()    {}
 func (handedInMsg) message() {}
 
 // AcceptQuest takes a quest the NPC within reach gives, and returns once it is in the log and saved.
-func (i *Instance) AcceptQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error {
-	return i.askQuest(ctx, questMsg{action: acceptQuest, id: id, conn: conn, npc: npc, quest: quest})
+func (i *Instance) AcceptQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string, seq uint32) error {
+	return i.askQuest(ctx, questMsg{action: acceptQuest, id: id, conn: conn, npc: npc, quest: quest, seq: seq})
 }
 
 // AbandonQuest drops an active quest and its progress, and returns once saved; one not active is left as it is.
@@ -57,8 +58,8 @@ func (i *Instance) AbandonQuest(ctx context.Context, id kernel.CharacterID, conn
 }
 
 // HandInQuest hands a ready quest in to the NPC within reach, and returns once the item module's answer applies.
-func (i *Instance) HandInQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error {
-	m := questMsg{action: handInQuest, id: id, conn: conn, npc: npc, quest: quest, done: make(chan error, 1)}
+func (i *Instance) HandInQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string, seq uint32) error {
+	m := questMsg{action: handInQuest, id: id, conn: conn, npc: npc, quest: quest, seq: seq, done: make(chan error, 1)}
 	return i.askItem(ctx, m, m.done, "a hand-in")
 }
 

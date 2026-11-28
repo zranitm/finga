@@ -73,6 +73,7 @@ type RequestType =
   | 'chooseTrait'
   | 'useSkill'
   | 'teleport'
+  | 'enterPortal'
   | 'switchChannel'
   | 'channels'
   | 'bosses'
@@ -89,7 +90,7 @@ type RequestType =
   | 'takeLoot'
   | 'setLook'
   | 'addToWardrobe';
-type ActionType = 'attack' | 'enterPortal';
+type ActionType = 'attack';
 
 /** A server message as handlers see it: the body's case and value, with the envelope's req and tick. */
 export interface Received<T extends MessageType> {
@@ -247,7 +248,7 @@ export class GameSocket {
     return true;
   }
 
-  /** Pending across a reconnect, it is re-sent once with a new req and the same payload, keeping its idempotency key; seq, for a UseSkill, is the input it was pressed during. */
+  /** Pending across a reconnect, it is re-sent once with a new req and the same payload, keeping its idempotency key; seq, for a press that reads where the player stands (a UseSkill, a Teleport, an EnterPortal, a Talk, a quest, a promotion or a take), is the input it was pressed during. */
   request<T extends RequestType>(t: T, d: ClientInit<T>, seq?: number): Promise<Data<'response'>> {
     return new Promise((resolve, reject) => {
       const req = requestId();
