@@ -1340,10 +1340,10 @@ func TestAnAnsweredCommandKeepsItsTrace(t *testing.T) {
 	})
 }
 
-// failingPortals is a world whose EnterPortal fails in a way the server cannot name, and whose Attack finds it out of reach.
+// failingPortals is a world whose Input fails in a way the server cannot name, and whose Attack finds it out of reach.
 type failingPortals struct{ worldModule }
 
-func (failingPortals) EnterPortal(context.Context, world.Presence) error {
+func (failingPortals) Input(context.Context, world.Presence, uint32, sim.Input, uint32) error {
 	return errors.New("world bug")
 }
 
@@ -1368,14 +1368,14 @@ func TestAWorldCommandsUnexpectedFailureIsLoggedSampled(t *testing.T) {
 			return strings.Count(logs.String(), `"msg":"command failed"`)
 		}
 		c.send(wsconn.Message{Data: &clientv1.Attack{}}) // a world out of reach is no bug: its stream's warnings tell
-		for range 2 {                                    // the portal limit's burst
-			c.send(wsconn.Message{Data: &clientv1.EnterPortal{}})
+		for range 2 {                                    // a burst of inputs
+			c.send(wsconn.Message{Data: &clientv1.Input{}})
 		}
-		if n := failures(); n != 1 || !strings.Contains(logs.String(), `"type":"EnterPortal"`) || !strings.Contains(logs.String(), "world bug") {
+		if n := failures(); n != 1 || !strings.Contains(logs.String(), `"type":"Input"`) || !strings.Contains(logs.String(), "world bug") {
 			t.Fatalf("%d failures logged, want the first of a burst with its cause: %s", n, logs.String())
 		}
 		time.Sleep(15 * time.Second) // past the log's gap, before a ping this client is not reading to answer
-		c.send(wsconn.Message{Data: &clientv1.EnterPortal{}})
+		c.send(wsconn.Message{Data: &clientv1.Input{}})
 		if n := failures(); n != 2 {
 			t.Fatalf("%d failures logged, want one more once the burst is long past", n)
 		}
@@ -2362,9 +2362,12 @@ func TestASlowCommandNeverHoldsThePlayersActions(t *testing.T) {
 		c.send(wsconn.Message{Seq: 1, Data: &clientv1.Input{Right: true}})
 		c.send(wsconn.Message{ReqID: "s-1", Seq: 1, Data: &clientv1.UseSkill{Skill: "strike"}})
 		c.send(wsconn.Message{Seq: 2, Data: &clientv1.Input{}})
-		c.send(wsconn.Message{Seq: 3, Data: &clientv1.EnterPortal{}})
+		c.send(wsconn.Message{ReqID: "p-1", Seq: 3, Data: &clientv1.EnterPortal{}})
 		if r := c.expect("Response"); r.ReqID != "s-1" {
 			t.Fatalf("response %+v, want the skill answered while the take waits", r)
+		}
+		if r := c.expect("Response"); r.ReqID != "p-1" {
+			t.Fatalf("response %+v, want the portal press answered behind it", r)
 		}
 		got := waitFor(t, "the actions behind the take", h.world.callList, 4)
 		if want := []string{"take", "input 1", "input 2", "portal"}; strings.Join(got, ", ") != strings.Join(want, ", ") {
@@ -2782,6 +2785,7 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 				{kernel.ErrPromotionConditionsUnmet, failure.PromotionUnmet},
 				{kernel.ErrNotYourNextClass, failure.NotYourNextClass},
 				{kernel.ErrNpcOutOfReach, failure.NpcOutOfReach},
+				{kernel.ErrNotAtAGate, failure.NotAtAGate},
 			} {
 				time.Sleep(time.Second) // under the dialog limit
 				h.world.failPromotes(refusal(tt.rule))

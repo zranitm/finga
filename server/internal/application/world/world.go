@@ -45,11 +45,11 @@ type service interface {
 	Offline(ctx context.Context, id kernel.CharacterID, do func(ctx context.Context) error) (bool, error)
 	Input(id kernel.CharacterID, conn string, seq uint32, in sim.Input, view uint32) error
 	Attack(id kernel.CharacterID, conn string, aim float32, target model.EntityRef) error
-	EnterPortal(id kernel.CharacterID, conn string) error
+	EnterPortal(ctx context.Context, id kernel.CharacterID, conn string, seq uint32) error
 	Say(id kernel.CharacterID, conn, name, text string) error
 	Equip(ctx context.Context, id kernel.CharacterID, conn, key string, item kernel.ItemID, equipSlot string) error
 	SetLook(ctx context.Context, id kernel.CharacterID, conn, key string, look model.Look) error
-	TakeLoot(ctx context.Context, id kernel.CharacterID, conn string, picks []model.Pick) ([]model.PickAnswer, error)
+	TakeLoot(ctx context.Context, id kernel.CharacterID, conn string, picks []model.Pick, seq uint32) ([]model.PickAnswer, error)
 	UseItem(ctx context.Context, id kernel.CharacterID, conn, key string, item kernel.ItemID, template string) error
 	Unequip(ctx context.Context, id kernel.CharacterID, conn, key, equipSlot string, toSlot *int) error
 	SpendPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points gamedata.Stats) error
@@ -61,11 +61,11 @@ type service interface {
 	SwitchChannel(ctx context.Context, id kernel.CharacterID, conn string, n int, seq uint32) error
 	Channels(id kernel.CharacterID, conn string) (model.Channels, error)
 	Bosses(ctx context.Context, id kernel.CharacterID, conn string) ([]model.AreaBoss, error)
-	Promote(ctx context.Context, id kernel.CharacterID, conn, npc string, class kernel.Class) error
-	Talk(ctx context.Context, id kernel.CharacterID, conn, npc string) error
-	AcceptQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error
+	Promote(ctx context.Context, id kernel.CharacterID, conn, npc string, class kernel.Class, seq uint32) error
+	Talk(ctx context.Context, id kernel.CharacterID, conn, npc string, seq uint32) error
+	AcceptQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string, seq uint32) error
 	AbandonQuest(ctx context.Context, id kernel.CharacterID, conn, quest string) error
-	HandInQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error
+	HandInQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string, seq uint32) error
 	OpenMatch(ctx context.Context, spec model.MatchSpec) error
 	Bots() int
 	CanFight(ctx context.Context, id kernel.CharacterID) error
@@ -270,7 +270,7 @@ func (m *Module) Attack(ctx context.Context, p Presence, aim float32, target Ent
 func (m *Module) EnterPortal(ctx context.Context, p Presence) (err error) {
 	_, call := m.calls.Start(ctx, "EnterPortal")
 	defer call.End(&err)
-	return m.svc.EnterPortal(p.Character, p.Conn)
+	return m.svc.EnterPortal(ctx, p.Character, p.Conn, p.Seq)
 }
 
 // Say is a map chat line for everyone on the map.
@@ -302,7 +302,7 @@ func (m *Module) TakeLoot(ctx context.Context, p Presence, picks []Pick) (_ []Pi
 	for k, pk := range picks {
 		in[k] = model.Pick(pk)
 	}
-	answers, err := m.svc.TakeLoot(ctx, p.Character, p.Conn, in)
+	answers, err := m.svc.TakeLoot(ctx, p.Character, p.Conn, in, p.Seq)
 	if err != nil {
 		return nil, err
 	}
@@ -411,21 +411,21 @@ func (m *Module) Bosses(ctx context.Context, p Presence) (_ []AreaBoss, err erro
 func (m *Module) Promote(ctx context.Context, p Presence, npc string, class kernel.Class) (err error) {
 	ctx, call := m.calls.Start(ctx, "Promote")
 	defer call.End(&err)
-	return m.svc.Promote(ctx, p.Character, p.Conn, npc, class)
+	return m.svc.Promote(ctx, p.Character, p.Conn, npc, class, p.Seq)
 }
 
 // Talk sends the character the dialog of an NPC within reach, and answers once it is queued.
 func (m *Module) Talk(ctx context.Context, p Presence, npc string) (err error) {
 	ctx, call := m.calls.Start(ctx, "Talk")
 	defer call.End(&err)
-	return m.svc.Talk(ctx, p.Character, p.Conn, npc)
+	return m.svc.Talk(ctx, p.Character, p.Conn, npc, p.Seq)
 }
 
 // AcceptQuest takes a quest the NPC within reach gives, and answers once it is in the log.
 func (m *Module) AcceptQuest(ctx context.Context, p Presence, npc, quest string) (err error) {
 	ctx, call := m.calls.Start(ctx, "AcceptQuest")
 	defer call.End(&err)
-	return m.svc.AcceptQuest(ctx, p.Character, p.Conn, npc, quest)
+	return m.svc.AcceptQuest(ctx, p.Character, p.Conn, npc, quest, p.Seq)
 }
 
 // AbandonQuest drops an active quest and its progress.
@@ -439,5 +439,5 @@ func (m *Module) AbandonQuest(ctx context.Context, p Presence, quest string) (er
 func (m *Module) HandInQuest(ctx context.Context, p Presence, npc, quest string) (err error) {
 	ctx, call := m.calls.Start(ctx, "HandInQuest")
 	defer call.End(&err)
-	return m.svc.HandInQuest(ctx, p.Character, p.Conn, npc, quest)
+	return m.svc.HandInQuest(ctx, p.Character, p.Conn, npc, quest, p.Seq)
 }

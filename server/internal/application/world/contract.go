@@ -24,6 +24,7 @@ type SkillUse struct {
 type Presence struct {
 	Character kernel.CharacterID
 	Conn      string
+	Seq       uint32 // the input the client had sent when it made the call, for a press that reads where the player stands; 0 for none
 }
 
 // Channels are a region's open channels and how full each is, against the players a channel takes before the next opens.

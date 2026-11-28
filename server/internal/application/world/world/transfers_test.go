@@ -147,7 +147,7 @@ func TestALeaveRacingAPortalLeavesNoGhost(t *testing.T) {
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 
-		if err := w.EnterPortal(ayla.ID, "c-ayla"); err != nil {
+		if err := w.EnterPortal(context.Background(), ayla.ID, "c-ayla", 0); err != nil {
 			t.Fatal(err)
 		}
 		if err := w.Leave(context.Background(), ayla.ID, "c-ayla"); err != nil {

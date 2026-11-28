@@ -94,7 +94,7 @@ func featTown(t *testing.T, data *gamedata.Data, p model.Player, feats *fakeFeat
 // handInErrand hands the errand in and lets the grants come back.
 func handInErrand(t *testing.T, inst *instance.Instance, id kernel.CharacterID) {
 	t.Helper()
-	if err := inst.HandInQuest(context.Background(), id, "c1", "town_guide", "errand"); err != nil {
+	if err := inst.HandInQuest(context.Background(), id, "c1", "town_guide", "errand", 0); err != nil {
 		t.Fatal(err)
 	}
 	tick(2)
@@ -192,10 +192,10 @@ func TestALostFeatGrantComesTheNextTime(t *testing.T) {
 		if told, _ := piecesTold(t, s); len(told) != 0 {
 			t.Fatalf("a refused grant told of %v", told)
 		}
-		if err := inst.AcceptQuest(context.Background(), p.ID, "c1", "town_guide", "errand"); err != nil {
+		if err := inst.AcceptQuest(context.Background(), p.ID, "c1", "town_guide", "errand", 0); err != nil {
 			t.Fatal(err)
 		}
-		if err := inst.Talk(context.Background(), p.ID, "c1", "town_guide"); err != nil {
+		if err := inst.Talk(context.Background(), p.ID, "c1", "town_guide", 0); err != nil {
 			t.Fatal(err)
 		}
 		tick(1)

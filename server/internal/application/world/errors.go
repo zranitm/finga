@@ -50,6 +50,7 @@ var errorTable = facade.Errors{
 	{Model: model.ErrNoSuchChannel, Kernel: kernel.ErrNoSuchChannel},
 	{Model: model.ErrChannelFull, Kernel: kernel.ErrChannelFull},
 	{Model: model.ErrNpcOutOfReach, Kernel: kernel.ErrNpcOutOfReach},
+	{Model: model.ErrNotAtAGate, Kernel: kernel.ErrNotAtAGate},
 	{Model: model.ErrQuestUnavailable, Kernel: kernel.ErrQuestUnavailable},
 	{Model: model.ErrQuestUnmet, Kernel: kernel.ErrQuestConditionsUnmet},
 	{Model: model.ErrQuestActive, Kernel: kernel.ErrQuestAlreadyActive},

@@ -19,14 +19,15 @@ type talkMsg struct {
 	id   kernel.CharacterID
 	conn string
 	npc  string
+	seq  uint32 // the input the client pressed during
 	done chan error
 }
 
 func (talkMsg) message() {}
 
 // Talk sends the player the dialog of an NPC within reach on this map, and returns once it is queued.
-func (i *Instance) Talk(ctx context.Context, id kernel.CharacterID, conn, npc string) error {
-	m := talkMsg{id: id, conn: conn, npc: npc, done: make(chan error, 1)}
+func (i *Instance) Talk(ctx context.Context, id kernel.CharacterID, conn, npc string, seq uint32) error {
+	m := talkMsg{id: id, conn: conn, npc: npc, seq: seq, done: make(chan error, 1)}
 	return i.ask(ctx, m, m.done)
 }
 

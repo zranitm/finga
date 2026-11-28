@@ -127,6 +127,7 @@ var (
 	ChannelFull             = Public{330045, "CHANNEL_FULL", "that channel is full"}
 	TeleportUnknownWaypoint = Public{330046, "TELEPORT_UNKNOWN_WAYPOINT", "there's no such waypoint"}
 	TeleportNotFound        = Public{330047, "TELEPORT_NOT_FOUND", "you haven't found that waypoint yet"}
+	NotAtAGate              = Public{330048, "NOT_AT_A_GATE", "you're not at a gate"}
 )
 
 // 44: parties and chat.

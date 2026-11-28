@@ -729,7 +729,7 @@ func TestAPortalArrivalFacesIntoTheMap(t *testing.T) {
 		p := worldtest.NewPlayer("Ayla", portal.At.X, portal.At.Z)
 		p.Connection = "c1"
 		s := join(t, inst, p)
-		_ = inst.EnterPortal(p.ID)
+		_ = inst.EnterPortal(context.Background(), p.ID, 0)
 		tick(1)
 		target, _ := data.Map(portal.TargetMap)
 		k := slices.IndexFunc(target.Portals, func(q gamedata.Portal) bool { return q.Name == portal.TargetPortal })

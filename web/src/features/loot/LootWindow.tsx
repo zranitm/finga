@@ -14,7 +14,7 @@ import { pickKey, pouches } from '@/state/pouches';
 import type { ItemPick } from '@/state/pouches';
 
 export interface LootWindowProps {
-  readonly socket: Pick<GameSocket, 'request'>;
+  readonly socket: Pick<GameSocket, 'request' | 'sequence'>;
   readonly onClose: () => void;
 }
 
@@ -55,7 +55,7 @@ export function LootWindow({ socket, onClose }: LootWindowProps) {
   const take = (picks: readonly ItemPick[]) => {
     void pouches
       .getState()
-      .take(picks, (asked) => socket.request('takeLoot', { picks: [...asked] }));
+      .take(picks, (asked) => socket.request('takeLoot', { picks: [...asked] }, socket.sequence));
   };
   const allTaking = rows.every((r) => taking.has(r.key));
   const goneIn = Math.max(0, Math.ceil((Math.min(...shown.map((p) => p.goneAt)) - now) / 1000));

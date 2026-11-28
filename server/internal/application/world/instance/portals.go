@@ -1,6 +1,7 @@
 package instance
 
 import (
+	"errors"
 	"math"
 	"slices"
 	"time"
@@ -11,15 +12,16 @@ import (
 	"finga/internal/shared/sim"
 )
 
-// enterPortal hands the player off through the portal they stand in, if any. A press during an item call waits for it to settle, as the hand-off must carry its result; the client sends a press once.
-func (i *Instance) enterPortal(p *player) {
+// errPortalHeld is a press that has to wait for the item calls in flight, which its answer waits for too.
+var errPortalHeld = errors.New("instance: a portal press waits for an item call")
+
+// enterPortal hands the player off through the portal they stand in, and says why not when they stand in none or are dead. A press during an item call waits for it to settle, as the hand-off must carry its result; the client sends a press once.
+func (i *Instance) enterPortal(p *player) error {
 	if p.itemCalls > 0 {
-		p.portalPress = true
-		return
+		return errPortalHeld
 	}
-	p.portalPress = false
 	if p.dead {
-		return
+		return model.ErrCharacterDead
 	}
 	for _, portal := range i.m.Portals {
 		if !i.standsIn(portal, p.state) {
@@ -27,11 +29,11 @@ func (i *Instance) enterPortal(p *player) {
 		}
 		target, ok := i.data.Map(portal.TargetMap)
 		if !ok {
-			return
+			return nil
 		}
 		k := slices.IndexFunc(target.Portals, func(q gamedata.Portal) bool { return q.Name == portal.TargetPortal })
 		if k < 0 {
-			return
+			return nil
 		}
 		arrival := target.Portals[k].At
 		dest := Dest{ID: target.ID}
@@ -39,15 +41,26 @@ func (i *Instance) enterPortal(p *player) {
 			dest.Channel, dest.Paired = i.channel, true
 		}
 		i.handOffTo(p, target, arrival.X, arrival.Z, awayFrom(target, arrival.X, arrival.Z), dest)
-		return
+		return nil
 	}
+	return model.ErrNotAtAGate
 }
 
-// pendingPortals tries each portal press that waited for an item call, once it settles: the player leaves if still alive and in a portal.
+// pendingPortals judges each portal press that waited for an item call, once it settles, and answers it: the player leaves if still alive and in a portal, and else is told so.
 func (i *Instance) pendingPortals() {
 	for _, id := range slices.Clone(i.order) {
-		if p := i.players[id]; p.portalPress && p.itemCalls == 0 && i.match == nil {
-			i.enterPortal(p)
+		p := i.players[id]
+		if len(p.portalWaiting) == 0 || p.itemCalls > 0 {
+			continue
+		}
+		waiting := p.portalWaiting
+		p.portalWaiting = nil // before the hand-off, whose detach would answer them as left
+		var err error
+		if i.match == nil {
+			err = i.enterPortal(p)
+		}
+		for _, done := range waiting {
+			done <- err
 		}
 	}
 }

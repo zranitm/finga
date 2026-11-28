@@ -153,7 +153,7 @@ func TestAPortalCarriesTheEnergy(t *testing.T) {
 		p := worldtest.NewPlayer("Ayla", at.X, at.Z)
 		p.Connection, p.Energy = "c1", 6
 		join(t, inst, p)
-		_ = inst.EnterPortal(p.ID)
+		_ = inst.EnterPortal(context.Background(), p.ID, 0)
 		tick(1)
 		tr.mu.Lock()
 		defer tr.mu.Unlock()

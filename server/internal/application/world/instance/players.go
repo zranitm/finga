@@ -1,6 +1,7 @@
 package instance
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -51,55 +52,56 @@ type player struct {
 	joined   bool
 	slot     uint64 // checkpointed on the ticks equal to it mod ticksPer
 
-	class        gamedata.Class
-	derived      progression.Derived
-	attackQueued bool
-	attackAim    float32         // the queued attack's
-	attackTarget model.EntityRef // the queued attack's lock, zero for none
-	aim          float32         // the yaw the latest action started aimed along
-	action       action
-	windUps      []windUp // hits still to land
-	invulnUntil  uint64   // shown: a hit's blink
-	nextHit      uint64   // a mob's attack hits again from this tick, after a hit or MISS
-	moveMark     *moveMark
-	sprintEnds   []uint32 // ascending: an attack or skill pressed after each input, which ends the sprint's count from the first stepped past it
-	dodgeFrom    uint64   // a skill's dodge runs from this tick until dodgeUntil
-	dodgeUntil   uint64
-	dodged       bool // a mob's attack has passed through a dodge, the latest in the frame acking dodgedSeq
-	dodgedSeq    uint32
-	blockFrom    uint64 // a block skill's guard runs from this tick until blockUntil
-	blockUntil   uint64
-	blockX       float64 // the way the guard faces: its aim at the press
-	blockZ       float64
-	blockGave    bool // this use's first blocked attack has given its energy
-	blocked      bool // a block has stopped a mob's attack, the latest in the frame acking blockedSeq
-	blockedSeq   uint32
-	hitSeqs      map[string]uint64 // the input each skill's latest hit falls in, as its user's client counts from the press
-	dead         bool
-	deadUntil    uint64
-	changed      bool                         // HP, level, death or aim changed this tick
-	private      []model.Event                // events for this player only
-	itemCalls    int                          // equips, unequips, hand-ins and potions in flight, which keep the player on this map
-	handingIn    map[string]bool              // quests whose hand-in is in flight
-	promoting    bool                         // a promotion's gift is in flight
-	looking      int                          // looks in flight, which a promotion waits out: each was checked against the class it had
-	questChanges map[string]model.QuestChange // this tick's, told at its end
-	toldHP       int                          // the HP and max HP the party last heard
-	toldMaxHP    int
-	toldAt       uint64            // the tick the party last heard of them
-	hpCarry      int               // regen's fractions, in thousandths of a point
-	toldEnergy   int               // the energy the client last heard, as of its ack; -1 until the first frame
-	spentAhead   []energySpend     // spends for presses past lastSeq, which the client still takes off itself
-	skillReady   map[string]uint64 // the tick each skill's cooldown ends
-	waitingCast  *skillMsg         // a skill use waiting for its action's start
-	channel      *channel          // a teleport under way
-	buffs        map[string]buff   // by skill
-	statuses     model.Statuses
-	combatUntil  uint64      // in combat before this tick: combat's length after the latest Damage naming the player
-	toMatch      *toMatchMsg // a hand-off to a match waiting for the item calls in flight
-	portalPress  bool        // a portal press waiting for the item calls in flight
-	bot          *bot        // a match's bot's, which presses its keys; nil for a player
-	area         int         // the index in the region's Areas the player stood in as the latest tick ended; -1 off a region
+	class         gamedata.Class
+	derived       progression.Derived
+	attackQueued  bool
+	attackAim     float32         // the queued attack's
+	attackTarget  model.EntityRef // the queued attack's lock, zero for none
+	aim           float32         // the yaw the latest action started aimed along
+	action        action
+	windUps       []windUp // hits still to land
+	invulnUntil   uint64   // shown: a hit's blink
+	nextHit       uint64   // a mob's attack hits again from this tick, after a hit or MISS
+	moveMark      *moveMark
+	sprintEnds    []uint32 // ascending: an attack or skill pressed after each input, which ends the sprint's count from the first stepped past it
+	dodgeFrom     uint64   // a skill's dodge runs from this tick until dodgeUntil
+	dodgeUntil    uint64
+	dodged        bool // a mob's attack has passed through a dodge, the latest in the frame acking dodgedSeq
+	dodgedSeq     uint32
+	blockFrom     uint64 // a block skill's guard runs from this tick until blockUntil
+	blockUntil    uint64
+	blockX        float64 // the way the guard faces: its aim at the press
+	blockZ        float64
+	blockGave     bool // this use's first blocked attack has given its energy
+	blocked       bool // a block has stopped a mob's attack, the latest in the frame acking blockedSeq
+	blockedSeq    uint32
+	hitSeqs       map[string]uint64 // the input each skill's latest hit falls in, as its user's client counts from the press
+	dead          bool
+	deadUntil     uint64
+	changed       bool                         // HP, level, death or aim changed this tick
+	private       []model.Event                // events for this player only
+	itemCalls     int                          // equips, unequips, hand-ins and potions in flight, which keep the player on this map
+	handingIn     map[string]bool              // quests whose hand-in is in flight
+	promoting     bool                         // a promotion's gift is in flight
+	looking       int                          // looks in flight, which a promotion waits out: each was checked against the class it had
+	questChanges  map[string]model.QuestChange // this tick's, told at its end
+	toldHP        int                          // the HP and max HP the party last heard
+	toldMaxHP     int
+	toldAt        uint64            // the tick the party last heard of them
+	hpCarry       int               // regen's fractions, in thousandths of a point
+	toldEnergy    int               // the energy the client last heard, as of its ack; -1 until the first frame
+	spentAhead    []energySpend     // spends for presses past lastSeq, which the client still takes off itself
+	skillReady    map[string]uint64 // the tick each skill's cooldown ends
+	waitingCast   *skillMsg         // a skill use waiting for its action's start
+	channel       *channel          // a teleport under way
+	buffs         map[string]buff   // by skill
+	statuses      model.Statuses
+	combatUntil   uint64         // in combat before this tick: combat's length after the latest Damage naming the player
+	toMatch       *toMatchMsg    // a hand-off to a match waiting for the item calls in flight
+	portalWaiting []chan<- error // the answers of portal presses waiting for the item calls in flight
+	presses       []held         // presses waiting for the input they came during
+	bot           *bot           // a match's bot's, which presses its keys; nil for a player
+	area          int            // the index in the region's Areas the player stood in as the latest tick ended; -1 off a region
 }
 
 func (i *Instance) add(j *joinMsg) {
@@ -209,6 +211,12 @@ func (i *Instance) remove(id kernel.CharacterID) {
 // detach drops a player without a checkpoint; the caller has saved one. A skill use still waiting for its turn hears it won't go.
 func (i *Instance) detach(id kernel.CharacterID) {
 	p := i.players[id]
+	for _, done := range p.portalWaiting {
+		done <- fmt.Errorf("%w: the character left the map before its portal press settled", transient.ErrUnavailable)
+	}
+	for _, h := range p.presses {
+		h.drop(fmt.Errorf("%w: the character left the map before its press's turn", transient.ErrUnavailable))
+	}
 	if m := p.waitingCast; m != nil {
 		m.done <- fmt.Errorf("%w: the character left the map before its skill's turn", transient.ErrUnavailable)
 	}
@@ -392,4 +400,69 @@ func (i *Instance) checkpointOn(p *player, mapID string) {
 		cp.MapID, cp.X, cp.Y, cp.Z, cp.Yaw, cp.HP = town.ID, at.X, at.Y, at.Z, float32(yaw), RespawnHP(p.derived.MaxHP)
 	}
 	i.saves.Put(cp)
+}
+
+// held is a press that reads where the player stands, kept until the input it came during has been applied, as the client was where that input left it when it pressed.
+type held struct {
+	seq  uint32
+	due  uint64 // the tick it is judged anyway, if that input never comes
+	run  func()
+	drop func(error) // answers the press when the player leaves first
+}
+
+// atSeq runs a press by id, which came during input seq: at once when that input has been applied or seq is none, else once it is, or pressWait on. The press is judged by where the player stood after it, as a skill's move is held to its seq. A seq past what the client can have sent is held to just past the newest received.
+func (i *Instance) atSeq(id kernel.CharacterID, seq uint32, run func(), drop func(error)) {
+	p, ok := i.players[id]
+	if !ok || seq == 0 {
+		run()
+		return
+	}
+	if seq = p.pressedDuring(seq); seq <= p.lastSeq {
+		run()
+		return
+	}
+	p.presses = append(p.presses, held{seq: seq, due: i.tick + i.ticksFor(pressWait), run: run, drop: drop})
+}
+
+// pressWait is how long a press waits for its input before it is judged where the player stands.
+const pressWait = time.Second
+
+// releasePresses judges the presses whose input this tick applied, or whose wait is up, in the order they came.
+func (i *Instance) releasePresses() {
+	for _, id := range slices.Clone(i.order) {
+		p, ok := i.players[id]
+		if !ok || len(p.presses) == 0 {
+			continue
+		}
+		var ready, waiting []held
+		for _, h := range p.presses {
+			if h.seq <= p.lastSeq || i.tick >= h.due {
+				ready = append(ready, h)
+			} else {
+				waiting = append(waiting, h)
+			}
+		}
+		p.presses = waiting
+		for _, h := range ready {
+			h.run()
+		}
+	}
+}
+
+// pressPortal judges the portal press of id and answers it on done: nothing in a match, where there are no portals; one that has to wait for an item call in flight is answered once it is judged then.
+func (i *Instance) pressPortal(id kernel.CharacterID, done chan<- error) {
+	p, ok := i.players[id]
+	switch {
+	case !ok:
+		done <- fmt.Errorf("%w: the character is not on this map", transient.ErrUnavailable)
+		return
+	case i.match != nil:
+		done <- nil
+		return
+	}
+	if err := i.enterPortal(p); !errors.Is(err, errPortalHeld) {
+		done <- err
+		return
+	}
+	p.portalWaiting = append(p.portalWaiting, done)
 }

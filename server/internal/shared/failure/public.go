@@ -192,6 +192,7 @@ var ownErrors = []struct {
 	{kernel.ErrPouchOutOfReach, PouchOutOfReach},
 	{kernel.ErrTakeBusy, TakeBusy},
 	{kernel.ErrNpcOutOfReach, NpcOutOfReach},
+	{kernel.ErrNotAtAGate, NotAtAGate},
 	{kernel.ErrQuestUnavailable, QuestUnavailable},
 	{kernel.ErrQuestConditionsUnmet, QuestConditionsUnmet},
 	{kernel.ErrQuestAlreadyActive, QuestAlreadyActive},

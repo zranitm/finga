@@ -64,9 +64,9 @@ func (w *World) Attack(id kernel.CharacterID, conn string, aim float32, target m
 	return w.command(id, conn, func(i *instance.Instance) error { return i.Attack(id, aim, target) })
 }
 
-// EnterPortal takes the portal the character stands in.
-func (w *World) EnterPortal(id kernel.CharacterID, conn string) error {
-	return w.command(id, conn, func(i *instance.Instance) error { return i.EnterPortal(id) })
+// EnterPortal takes the portal the character stands in, where they were as of input seq, and returns once it is judged.
+func (w *World) EnterPortal(ctx context.Context, id kernel.CharacterID, conn string, seq uint32) error {
+	return w.wait(id, conn, func(i *instance.Instance) error { return i.EnterPortal(ctx, id, seq) })
 }
 
 // Say is a map chat line for everyone on the character's map.
@@ -80,9 +80,9 @@ func (w *World) Equip(ctx context.Context, id kernel.CharacterID, conn, key stri
 }
 
 // TakeLoot takes picked items from the player's own pouches, and returns what each pick came to.
-func (w *World) TakeLoot(ctx context.Context, id kernel.CharacterID, conn string, picks []model.Pick) (answers []model.PickAnswer, err error) {
+func (w *World) TakeLoot(ctx context.Context, id kernel.CharacterID, conn string, picks []model.Pick, seq uint32) (answers []model.PickAnswer, err error) {
 	err = w.wait(id, conn, func(i *instance.Instance) error {
-		answers, err = i.TakeLoot(ctx, id, conn, picks)
+		answers, err = i.TakeLoot(ctx, id, conn, picks, seq)
 		return err
 	})
 	return answers, err
@@ -129,8 +129,8 @@ func (w *World) Teleport(ctx context.Context, id kernel.CharacterID, conn, waypo
 }
 
 // Promote moves the character to the class the NPC within reach trains, once the trainer's weapon is given, and returns once it applies.
-func (w *World) Promote(ctx context.Context, id kernel.CharacterID, conn, npc string, class kernel.Class) error {
-	return w.wait(id, conn, func(i *instance.Instance) error { return i.Promote(ctx, id, conn, npc, class) })
+func (w *World) Promote(ctx context.Context, id kernel.CharacterID, conn, npc string, class kernel.Class, seq uint32) error {
+	return w.wait(id, conn, func(i *instance.Instance) error { return i.Promote(ctx, id, conn, npc, class, seq) })
 }
 
 // ResetPoints returns every spent point to unspent with the free reset and returns once the new stats apply.
@@ -139,13 +139,13 @@ func (w *World) ResetPoints(ctx context.Context, id kernel.CharacterID, conn str
 }
 
 // Talk sends the character the dialog of an NPC within reach on its map.
-func (w *World) Talk(ctx context.Context, id kernel.CharacterID, conn, npc string) error {
-	return w.wait(id, conn, func(i *instance.Instance) error { return i.Talk(ctx, id, conn, npc) })
+func (w *World) Talk(ctx context.Context, id kernel.CharacterID, conn, npc string, seq uint32) error {
+	return w.wait(id, conn, func(i *instance.Instance) error { return i.Talk(ctx, id, conn, npc, seq) })
 }
 
 // AcceptQuest takes a quest the NPC within reach gives, and returns once it is in the log.
-func (w *World) AcceptQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error {
-	return w.wait(id, conn, func(i *instance.Instance) error { return i.AcceptQuest(ctx, id, conn, npc, quest) })
+func (w *World) AcceptQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string, seq uint32) error {
+	return w.wait(id, conn, func(i *instance.Instance) error { return i.AcceptQuest(ctx, id, conn, npc, quest, seq) })
 }
 
 // AbandonQuest drops an active quest and its progress.
@@ -154,8 +154,8 @@ func (w *World) AbandonQuest(ctx context.Context, id kernel.CharacterID, conn, q
 }
 
 // HandInQuest hands a ready quest in to the NPC within reach, and returns once the item module's answer applies.
-func (w *World) HandInQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error {
-	return w.wait(id, conn, func(i *instance.Instance) error { return i.HandInQuest(ctx, id, conn, npc, quest) })
+func (w *World) HandInQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string, seq uint32) error {
+	return w.wait(id, conn, func(i *instance.Instance) error { return i.HandInQuest(ctx, id, conn, npc, quest, seq) })
 }
 
 // wait runs a command whose caller waits for its outcome, so one it can't take is unavailable, for the caller to retry.

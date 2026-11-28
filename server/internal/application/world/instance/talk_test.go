@@ -27,7 +27,7 @@ func TestTalk(t *testing.T) {
 		p.Quests = model.Quests{"slime_cleanup": {Status: model.QuestActive, Progress: []int{4}}}
 		s := join(t, inst, p)
 		talk := func(conn, npc string) error {
-			err := inst.Talk(context.Background(), p.ID, conn, npc)
+			err := inst.Talk(context.Background(), p.ID, conn, npc, 0)
 			tick(1)
 			return err
 		}
@@ -84,7 +84,7 @@ func TestTalkWhileDeadIsRefused(t *testing.T) {
 		p.HP, p.Connection = 1, "c1"
 		untilDead(t, join(t, inst, p), p.ID) // the slime's hop kills
 		tick(1)
-		if err := inst.Talk(context.Background(), p.ID, "c1", "town_guide"); !errors.Is(err, model.ErrCharacterDead) {
+		if err := inst.Talk(context.Background(), p.ID, "c1", "town_guide", 0); !errors.Is(err, model.ErrCharacterDead) {
 			t.Fatalf("err = %v, want ErrCharacterDead", err)
 		}
 	})

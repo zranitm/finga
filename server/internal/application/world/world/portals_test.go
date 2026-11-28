@@ -86,7 +86,7 @@ func TestPortals(t *testing.T) {
 			w.enter(t, ayla, "willowmere", "c-ayla", sa)
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
-			_ = w.EnterPortal(ayla.ID, "c-ayla")
+			_ = w.EnterPortal(context.Background(), ayla.ID, "c-ayla", 0)
 			time.Sleep(2 * worldtest.TickInterval)
 			synctest.Wait()
 			tel := worldtest.Of[model.Teleport](sa)
@@ -126,7 +126,7 @@ func TestPortals(t *testing.T) {
 				t.Fatalf("robin saw ayla %d times and removed %d times", present, removed)
 			}
 			for range 20 {
-				_ = w.EnterPortal(ayla.ID, "c-other") // she stands on the forest's way back
+				_ = w.EnterPortal(context.Background(), ayla.ID, "c-other", 0) // she stands on the forest's way back
 			}
 			time.Sleep(2 * worldtest.TickInterval)
 			synctest.Wait()
@@ -137,7 +137,7 @@ func TestPortals(t *testing.T) {
 
 		{ // off a portal, EnterPortal does nothing
 			before := len(sr.All())
-			_ = w.EnterPortal(robin.ID, "c-robin")
+			_ = w.EnterPortal(context.Background(), robin.ID, "c-robin", 0)
 			time.Sleep(2 * worldtest.TickInterval)
 			synctest.Wait()
 			if len(worldtest.Of[model.Teleport](sr)) != 0 {
@@ -158,7 +158,7 @@ func TestPortals(t *testing.T) {
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			for range 100 {
-				_ = w.EnterPortal(cass.ID, "c-cass") // the town takes the first; she has left when the rest arrive
+				go func() { _ = w.EnterPortal(context.Background(), cass.ID, "c-cass", 0) }() // the town takes the first; she has left when the rest arrive
 			}
 			time.Sleep(3 * worldtest.TickInterval)
 			synctest.Wait()
@@ -181,7 +181,7 @@ func TestPortals(t *testing.T) {
 				}
 			}
 			// The handoff works both ways from the forest's arrival portal.
-			_ = w.EnterPortal(cass.ID, "c-cass")
+			_ = w.EnterPortal(context.Background(), cass.ID, "c-cass", 0)
 			time.Sleep(3 * worldtest.TickInterval)
 			synctest.Wait()
 			tel = worldtest.Of[model.Teleport](sc)
@@ -219,7 +219,7 @@ func TestASecondPortalInTheLandingDrainTakesThePlayerOn(t *testing.T) {
 		w.enter(t, cass, "willowmere", "c-cass", sc)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
-		_ = w.EnterPortal(cass.ID, "c-cass")
+		go func() { _ = w.EnterPortal(context.Background(), cass.ID, "c-cass", 0) }()
 		for len(worldtest.Of[model.Teleport](sc)) == 0 {
 			time.Sleep(time.Millisecond)
 			synctest.Wait()
@@ -227,7 +227,7 @@ func TestASecondPortalInTheLandingDrainTakesThePlayerOn(t *testing.T) {
 		if n := len(worldtest.Of[model.Snapshot](sc)); n != 1 {
 			t.Skipf("the forest answered the landing before the second press was routed to it (%d snapshots)", n)
 		}
-		_ = w.EnterPortal(cass.ID, "c-cass") // routed to the forest, behind the landing join
+		go func() { _ = w.EnterPortal(context.Background(), cass.ID, "c-cass", 0) }() // routed to the forest, behind the landing join
 		time.Sleep(10 * worldtest.TickInterval)
 		synctest.Wait()
 		var maps []string

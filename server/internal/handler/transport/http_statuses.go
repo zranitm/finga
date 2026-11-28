@@ -64,6 +64,7 @@ var statuses = map[failure.Public]int{
 	failure.WrongWeaponKind:         http.StatusConflict,
 	failure.HPFull:                  http.StatusConflict,
 	failure.NpcOutOfReach:           http.StatusConflict,
+	failure.NotAtAGate:              http.StatusConflict,
 	failure.QuestUnavailable:        http.StatusConflict,
 	failure.QuestConditionsUnmet:    http.StatusConflict,
 	failure.QuestAlreadyActive:      http.StatusConflict,

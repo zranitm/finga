@@ -123,6 +123,7 @@ func TestEachKernelErrorReachesTheClientByName(t *testing.T) {
 		{kernel.ErrNotSubscribed, "INTERNAL", notSubscribed},
 		{kernel.ErrCharacterDead, "CHARACTER_DEAD", none},
 		{kernel.ErrNpcOutOfReach, "NPC_OUT_OF_REACH", none},
+		{kernel.ErrNotAtAGate, "NOT_AT_A_GATE", none},
 		{kernel.ErrQuestUnavailable, "QUEST_UNAVAILABLE", none},
 		{kernel.ErrQuestConditionsUnmet, "QUEST_CONDITIONS_UNMET", none},
 		{kernel.ErrQuestAlreadyActive, "QUEST_ALREADY_ACTIVE", none},

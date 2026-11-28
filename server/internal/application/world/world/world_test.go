@@ -535,10 +535,9 @@ func TestATransferOfAReplacedPresenceIsDropped(t *testing.T) {
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 
-		// The old connection takes the portal while the newer one joins the forest, before the town's tick.
-		if err := w.EnterPortal(ayla.ID, "c-1"); err != nil {
-			t.Fatal(err)
-		}
+		// The old connection takes the portal while the newer one joins the forest, before the town's tick: the press is made from its own goroutine, as the client's is, since its answer comes on the tick that judges it.
+		pressed := make(chan error, 1)
+		go func() { pressed <- w.EnterPortal(context.Background(), ayla.ID, "c-1", 0) }()
 		newer := &worldtest.Sink{}
 		there := at(t, "Ayla", "sunreach")
 		there.ID = ayla.ID
@@ -547,6 +546,9 @@ func TestATransferOfAReplacedPresenceIsDropped(t *testing.T) {
 		synctest.Wait()
 		if snaps := worldtest.Of[model.Snapshot](old); len(snaps) != 1 {
 			t.Fatalf("the old connection got %d snapshots: its presence was moved", len(snaps))
+		}
+		if err := <-pressed; err != nil { // answered, taken in or told it is not there, whichever the goroutine's turn came to: it moves nobody either way
+			t.Logf("the replaced connection's press: %v", err)
 		}
 		before := len(newer.Deltas())
 		time.Sleep(2 * worldtest.TickInterval)

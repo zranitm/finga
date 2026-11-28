@@ -20,6 +20,7 @@ var (
 	ErrClassUnavailable = errors.New("world: class not available")
 	ErrCharacterDead    = errors.New("world: a dead character can't do that")
 	ErrNpcOutOfReach    = errors.New("world: the NPC isn't on the map, or is out of reach")
+	ErrNotAtAGate       = errors.New("world: the character stands in no gate")
 	ErrQuestUnavailable = errors.New("world: the NPC doesn't give, or take back, that quest")
 	ErrQuestUnmet       = errors.New("world: the character doesn't meet the quest's conditions")
 	ErrQuestActive      = errors.New("world: the quest is already active")

@@ -135,7 +135,12 @@ type (
 		target model.EntityRef
 	}
 	settleMsg struct{ result loot.Result }
-	portalMsg struct{ id kernel.CharacterID }
+	// portalMsg asks to take the portal the player stands in, for the press the client made during input seq; done hears whether there was one.
+	portalMsg struct {
+		id   kernel.CharacterID
+		seq  uint32
+		done chan error
+	}
 	// equipMsg asks to equip or unequip, whichever is set; done hears the outcome once it applies.
 	equipMsg struct {
 		id      kernel.CharacterID
@@ -306,9 +311,10 @@ func (i *Instance) Attack(id kernel.CharacterID, aim float32, target model.Entit
 	return i.post(attackMsg{id: id, aim: aim, target: target})
 }
 
-// EnterPortal takes the portal the character stands in, if any.
-func (i *Instance) EnterPortal(id kernel.CharacterID) error {
-	return i.post(portalMsg{id: id})
+// EnterPortal takes the portal the character stands in, judged where the client stood when it pressed, during input seq (none: where they stand now); ErrNotAtAGate when there is none.
+func (i *Instance) EnterPortal(ctx context.Context, id kernel.CharacterID, seq uint32) error {
+	m := portalMsg{id: id, seq: seq, done: make(chan error, 1)}
+	return i.ask(ctx, m, m.done)
 }
 
 // Chat says an already cleaned line to everyone on the map, the sender included.
@@ -361,6 +367,7 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.pendingPortals()
 	i.thinkBots()
 	changed := i.simulate()
+	i.releasePresses()
 	if len(i.order) == 0 {
 		i.arena.Rest(n)
 	} else {
@@ -426,9 +433,7 @@ func (i *Instance) drain() {
 		case settleMsg:
 			i.settle(i.ground.Settle(m.result))
 		case portalMsg:
-			if p, ok := i.players[m.id]; ok && i.match == nil {
-				i.enterPortal(p)
-			}
+			i.atSeq(m.id, m.seq, func() { i.pressPortal(m.id, m.done) }, func(err error) { m.done <- err })
 		case equipMsg:
 			if !i.refused(m.done) {
 				i.startEquip(m)
@@ -463,15 +468,15 @@ func (i *Instance) drain() {
 		case switchMsg:
 			i.startSwitch(m)
 		case talkMsg:
-			i.talk(m)
+			i.atSeq(m.id, m.seq, func() { i.talk(m) }, func(err error) { m.done <- err })
 		case questMsg:
-			i.quest(m)
+			i.atSeq(m.id, m.seq, func() { i.quest(m) }, func(err error) { m.done <- err })
 		case handedInMsg:
 			i.settleHandIn(m)
 		case promoteMsg:
-			i.promote(m)
+			i.atSeq(m.id, m.seq, func() { i.promote(m) }, func(err error) { m.done <- err })
 		case takeMsg:
-			i.startTake(m)
+			i.atSeq(m.id, m.seq, func() { i.startTake(m) }, func(err error) { m.done <- takeAnswer{err: err} })
 		case lookMsg:
 			if !i.refused(m.done) {
 				i.startLook(m)

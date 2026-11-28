@@ -525,7 +525,7 @@ func TestAMapChangeCarriesCooldownsAndBuffs(t *testing.T) {
 			t.Fatal(err)
 		}
 		tick(5)
-		_ = town.EnterPortal(p.ID)
+		_ = town.EnterPortal(context.Background(), p.ID, 0)
 		tick(1)
 		if moved(tr) != 1 {
 			t.Fatal("the portal moved nobody")

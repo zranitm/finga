@@ -8,6 +8,7 @@ var (
 	ErrNotSubscribed            = NewRule("not_subscribed")
 	ErrCharacterDead            = NewRule("character_dead")
 	ErrNpcOutOfReach            = NewRule("npc_out_of_reach")
+	ErrNotAtAGate               = NewRule("not_at_a_gate")
 	ErrQuestUnavailable         = NewRule("quest_unavailable")
 	ErrQuestConditionsUnmet     = NewRule("quest_conditions_unmet")
 	ErrQuestAlreadyActive       = NewRule("quest_already_active")

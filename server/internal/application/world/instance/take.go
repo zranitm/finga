@@ -17,6 +17,7 @@ type takeMsg struct {
 	id    kernel.CharacterID
 	conn  string
 	picks []model.Pick
+	seq   uint32 // the input the client pressed during
 	done  chan takeAnswer
 }
 
@@ -28,8 +29,8 @@ type takeAnswer struct {
 func (takeMsg) message() {}
 
 // TakeLoot takes picked items from the player's own pouches within reach, and returns what each pick came to once the item module answered.
-func (i *Instance) TakeLoot(ctx context.Context, id kernel.CharacterID, conn string, picks []model.Pick) ([]model.PickAnswer, error) {
-	m := takeMsg{id: id, conn: conn, picks: picks, done: make(chan takeAnswer, 1)}
+func (i *Instance) TakeLoot(ctx context.Context, id kernel.CharacterID, conn string, picks []model.Pick, seq uint32) ([]model.PickAnswer, error) {
+	m := takeMsg{id: id, conn: conn, picks: picks, seq: seq, done: make(chan takeAnswer, 1)}
 	if err := i.post(m); err != nil {
 		return nil, err
 	}

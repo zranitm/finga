@@ -2356,6 +2356,15 @@ export class World {
       .map((m) => ({ id: m.characterId, at: this.remoteViews.get(m.characterId)?.at ?? null }));
   }
 
+  /** A press the server answers: a refusal is said as a notice. */
+  private press(sent: Promise<unknown>): void {
+    sent.catch((err: unknown) => {
+      if (err instanceof RequestError && err.code !== 'disconnected' && err.code !== 'timeout') {
+        toasts.getState().push(err.message);
+      }
+    });
+  }
+
   /** The talk key enters the portal the player stands in, else talks to the nearest NPC within reach. */
   private talk(): void {
     const p = this.predictor?.state;
@@ -2364,18 +2373,14 @@ export class World {
       return;
     }
     if (standsIn(p, map)) {
-      this.deps.socket.sendAction('enterPortal', {});
+      this.press(this.deps.socket.request('enterPortal', {}, this.deps.socket.sequence));
       return;
     }
     const npc = this.nearestInReach(p);
     if (!npc) {
       return;
     }
-    this.deps.socket.request('talk', { npcId: npc.id }).catch((err: unknown) => {
-      if (err instanceof RequestError && err.code !== 'disconnected' && err.code !== 'timeout') {
-        toasts.getState().push(err.message);
-      }
-    });
+    this.press(this.deps.socket.request('talk', { npcId: npc.id }, this.deps.socket.sequence));
   }
 
   /** The loot key opens the loot window on the player's pouches within reach; while it's open, it takes every item in them. */
@@ -2389,7 +2394,7 @@ export class World {
       return;
     }
     void s.take(picksInReach(s), (picks) =>
-      this.deps.socket.request('takeLoot', { picks: [...picks] }),
+      this.deps.socket.request('takeLoot', { picks: [...picks] }, this.deps.socket.sequence),
     );
   }
 

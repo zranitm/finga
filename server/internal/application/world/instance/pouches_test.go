@@ -196,7 +196,7 @@ type taken struct {
 func take(inst *instance.Instance, id kernel.CharacterID, picks ...model.Pick) <-chan taken {
 	out := make(chan taken, 1)
 	go func() {
-		a, err := inst.TakeLoot(context.Background(), id, "", picks)
+		a, err := inst.TakeLoot(context.Background(), id, "", picks, 0)
 		out <- taken{a, err}
 	}()
 	return out
@@ -554,7 +554,7 @@ func TestALateTakeAnswersEachPickUnavailableBeforeItsDeadline(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		began := time.Now()
-		got, err := inst.TakeLoot(ctx, p.ID, "", everything(pouch))
+		got, err := inst.TakeLoot(ctx, p.ID, "", everything(pouch), 0)
 		if took := time.Since(began); err != nil || took != 1500*time.Millisecond || len(got) != len(everything(pouch)) || slices.ContainsFunc(got, func(a model.PickAnswer) bool { return !errors.Is(a.Err, transient.ErrUnavailable) }) {
 			t.Fatalf("%+v, %v after %v; want each pick unavailable at 1.5 s, half a second before the command's 2", got, err, took)
 		}
@@ -587,7 +587,7 @@ func TestAnOwnerWhoLeftStillGetsWhatTheyTook(t *testing.T) {
 					t.Fatal("no call in flight")
 				}
 				if leave == "portal" {
-					_ = inst.EnterPortal(p.ID)
+					_ = answered(func() error { return inst.EnterPortal(context.Background(), p.ID, 0) }) // pressed once, not waited on, as the client does
 				} else {
 					_ = inst.Leave(p.ID, "", nil)
 				}

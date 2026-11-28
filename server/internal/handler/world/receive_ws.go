@@ -55,7 +55,7 @@ func WSRoutes(w World) transport.Routes {
 		transport.Handle(r, "Input", h.input, r.Action(transport.LimitInput, r.Logged)...)
 		transport.Handle(r, "Attack", h.attack, r.Action(transport.LimitAttack, r.Logged)...)
 		transport.Handle(r, "TakeLoot", h.takeLoot, r.Command(transport.LimitLoot, r.Respond)...)
-		transport.Handle(r, "EnterPortal", h.enterPortal, r.Action(transport.LimitPortal, r.Logged)...)
+		transport.Handle(r, "EnterPortal", h.enterPortal, r.Action(transport.LimitPortal, r.Respond)...)
 		transport.Handle(r, "Teleport", h.teleport, r.Action(transport.LimitTeleport, r.Respond)...)
 		transport.Handle(r, "SwitchChannel", h.switchChannel, r.Action(transport.LimitTeleport, r.Respond)...)
 		transport.Handle(r, "Channels", h.channels, r.Command(transport.LimitChannels, r.Respond)...)
@@ -284,7 +284,7 @@ func aimOf(yaw float32) (float32, error) {
 // presence is the character a message is for and the connection it came on.
 func presence(c *transport.Context) world.Presence {
 	s := c.Session.Session()
-	return world.Presence{Character: s.Character(), Conn: s.ConnID()}
+	return world.Presence{Character: s.Character(), Conn: s.ConnID(), Seq: c.Message.Seq}
 }
 
 // worldErr is a world failure as the client sees it: a class the game data lacks is the world's own fault, so internal.
