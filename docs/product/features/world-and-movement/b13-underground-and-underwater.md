@@ -13,7 +13,7 @@
   - **The cave,** under the northern cliffs. It holds today's Cave's bats, boars and Vampire Bat, and the Thief's trainer, at the top of the region's levels.
   - **The sunken shrine,** under the region's lake, with new sea mobs and a sea boss.
   - **The desert has two,** both underground: a fungus cave under its mushroom gorge, with the old Spore Hollow's moths, rats and Moth Empress, and a temple buried under its mesa, with the old Sunken Ruins' rats, wisps and Crypt Warden.
-  - The snow mountains get theirs, or none, when that region is designed.
+  - **The snow mountains have none:** all four of their areas are on the mountain.
 - **Open to everyone:**
   - Each is one of its region's hunting areas, with its own levels, camps, field boss (C10), quests and pouches (D1).
   - Everyone in the channel shares it, as they share the land.
@@ -61,7 +61,7 @@
 - Swimming, or entering deep water from the land. Deep water still blocks (B10).
 - An air bar, drowning, or swimming up and down.
 - Darkness that hides mobs, or a light the player carries.
-- Underground or underwater places in the snow mountains, which are decided with that region.
+- Underground or underwater places in the snow mountains. An ice cave with new monsters could come later, under the glacier.
 - Private copies for a party (C7).
 
 ## Rules

@@ -35,3 +35,4 @@ One rule runs through every page: **the client computes, the server validates.**
 - [Underground and underwater](./underground-and-underwater.md): B13; caves lit by torches and a sunken shrine, small regions entered through a gate, with a baked light map and a sea look.
 - [The green region](./green-region.md): B10 and B13; Willowmere, levels 1 to 12, with twelve new mobs, Greyfang Cave and the Sunken Shrine, replacing Town, Forest and Cave.
 - [The desert](./desert-region.md): B10 and B13; Sunreach, levels 12 to 22, with Spore Hollow and the Sunken Ruins below, replacing the mushroom woods and the desert maps, their mobs moved down.
+- [The snow region](./snow-region.md): B10; Hoarfell, levels 22 to 30, a mountain climbed in terraces with the Fallen Keep on its summit, replacing the last small maps and the Crossroads.
