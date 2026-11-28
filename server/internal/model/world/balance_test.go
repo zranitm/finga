@@ -27,7 +27,7 @@ const (
 // region is a band of hunting maps, from the lowest mob level of its first map, and what an on-level character meets there.
 type region struct {
 	name       string
-	from       int        // a map is in the last region whose from is at most the lowest level of its normal mobs
+	from       int        // a map is in the last region whose from is at most the lowest level of its normal mobs, not its first level: an area may start a level under its mobs' (the Icefall's 25 and 26)
 	hits       [2]float64 // a normal mob's landed hits to kill at the reference pace; a faster class needs more, a slower one fewer
 	survives   [2]int     // a ranged class's mob hits lived through, the least of them a melee class's; 0 as the top is no top
 	playerHits float64    // the least share of every class's attacks that land, when below the class's own floor
