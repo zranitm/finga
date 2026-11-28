@@ -3,6 +3,7 @@ package world_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"fmt"
 	"log/slog"
 	"math"
@@ -195,6 +196,13 @@ func (s *stack) node(id string) nodeStream {
 func (s *stack) join(t *testing.T, node, conn string, ch model.Character) world.View {
 	t.Helper()
 	v, err := s.world.Join(s.ctx, node, s.account, world.Presence{Character: ch.ID, Conn: conn})
+	for range 100 { // a region's channel opens as Run starts, which a first join can beat
+		if err == nil || !strings.Contains(err.Error(), model.ErrStopped.Error()) {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+		v, err = s.world.Join(s.ctx, node, s.account, world.Presence{Character: ch.ID, Conn: conn})
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
