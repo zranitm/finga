@@ -488,19 +488,10 @@ body {
   width: 240px;
   max-width: 100%;
 }
+/* The field boss's bar is a compact frame with the accent border, so it reads as a boss and not as a fighter's frame. */
 .boss-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  background: var(--panel); /* opaque: a damage number or a mob behind it doesn't read through */
   border: 1px solid var(--accent);
   border-left: 4px solid var(--side);
-  border-radius: var(--radius);
-  pointer-events: none;
-}
-.boss-bar .bar {
-  flex: 1;
 }
 
 /* Combat on the HUD. */

@@ -261,7 +261,7 @@ Two small details tell the side apart, and neither relies on colour alone:
 | `Hud.tsx` | `hud-title`, then the HP bar | `UnitFrame side="ally"` with the player's name, level, and HP. The energy pips and EXP bar are its children. The skill bar and badges stay below it, as now |
 | `PartyPanel.tsx` | Each row: name and HP bar | Each row a compact `UnitFrame side="ally"`, with the member's level (`PartyMember.level`, already sent). An offline member stays dimmed |
 | `TargetFrame.tsx` | Level, Elite tag, HP bar | `UnitFrame side="enemy"`, `badge` Elite for an elite |
-| `BossBar.tsx` | The bar and time left | The enemy edge and mark added. Its layout and timer stay |
+| `BossBar.tsx` | The bar | The enemy edge and mark added; a compact frame's layout, name over bar |
 | `styles/global.css` | — | `.unit-frame`, the `--ally` and `--enemy` colour tokens, and a compact size for the party panel's 180 px |
 
 - **Labels:** the frame's `aria-label` names its side: "Status", "Party member <name>", and "Target: <name>, enemy".
@@ -271,7 +271,7 @@ As built:
 - **The status frame is the panel.** The skill bar and the badges sit under it. At first they sat outside it, on the world, as the skill keys have their own backgrounds. The live re-check found the "2 stat points" badge nearly vanishing on sand and in grey. So the skill bar, the point badges, EXP changes and the waiting notice now share a tray under the frame, a panel in the frame's look. The tray's six 40 px keys set the HUD's width at 257 px, and the frame matches it.
 - **The party panel** is a 180 px column of compact frames. It's no longer a panel round them.
 - **Every frame's HP bar reads "HP".** `Bar` takes an accessible name apart from its label, so the screen's HP meters stay distinct: "HP" for the player, and "<name> HP" for party members and the target.
-- **The boss bar** keeps its accent border, with the red stripe on its left edge and the ✕ before its name.
+- **The boss bar** is a compact frame, as the enemies' in the right column are: the ✕ and the full name on a row (an ellipsis only past the column's 180 px), the HP bar under it with its numbers on the bar. It keeps its accent border beside the red stripe on its left edge, so it reads as a boss and not as a fighter's frame. `BossBar.test.tsx` checks the rules it is drawn by, and the room the longest field boss's name and numbers need, from the game data.
 - **The marks are drawn,** not typed: a filled dot, and a cross with a 3-unit stroke in a 12 px box. The ✕ character first used was thin and faint in grey.
 - **Checked in grey:** a screenshot of the four frames in greyscale still tells the sides apart by the dot and the cross.
 - **Roles:** each frame, the boss bar and the party panel are `role="group"`, since ARIA doesn't let a plain `div` be named. Screen readers then announce "Status", "Party member <name>", "Target: <name>, enemy", "Field boss" and "Party".
