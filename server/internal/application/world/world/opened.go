@@ -118,9 +118,9 @@ func (o *opened) shut(id string) {
 		p := o.later[i]
 		o.later = slices.Delete(o.later, i, i+1)
 		delete(o.by, id)
-		done, stop := context.WithCancel(context.Background())
+		doneCtx, stop := context.WithCancel(context.Background())
 		stop()
-		_ = p.inst.Run(done)
+		_ = p.inst.Run(doneCtx)
 	}
 }
 
