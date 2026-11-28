@@ -347,8 +347,8 @@ func (b *builder) clearances() clearances {
 			keep(c.road, int(s), math.Sqrt(b.f.d2[s])-float64(r.Width/2))
 		}
 	}
-	for _, g := range b.p.Gates { // a road-wide corridor from each gate to the nearest point of the roads, so what a road leads to isn't blocked
-		if q, width, ok := nearestRoadPoint(b.roads, g.At); ok {
+	for _, g := range b.p.Gates { // a road-wide corridor from the end of the road that leads to each gate, so what a road leads to isn't blocked
+		if q, width, ok := roadEndTo(b.roads, g.At); ok {
 			b.f.near(b.g, [][2]float64{q, g.At}, false, float64(width/2)+band)
 			for _, s := range b.f.touched {
 				keep(c.corridor, int(s), math.Sqrt(b.f.d2[s])-float64(width/2))
@@ -405,9 +405,9 @@ func (b *builder) clearances() clearances {
 	return c
 }
 
-// nearestRoadPoint is the point of the roads' paths nearest at and the width of its road; none off a plan with no road, or where at lies on the road already.
-func nearestRoadPoint(roads []Road, at [2]float64) (point [2]float64, width float64, ok bool) {
-	best := math.Inf(1)
+// roadEndTo is the end of a road, its first or last point, that gate at is nearest to, and the width of that road: the end a road leads from to its gate. It is none where the nearest point of any road is partway along one, as a gate in open land has, or where at is on the road already.
+func roadEndTo(roads []Road, at [2]float64) (end [2]float64, width float64, ok bool) {
+	best, atEnd := math.Inf(1), false
 	for _, r := range roads {
 		for i := 0; i+1 < len(r.Path); i++ {
 			a, b := r.Path[i], r.Path[i+1]
@@ -419,9 +419,10 @@ func nearestRoadPoint(roads []Road, at [2]float64) (point [2]float64, width floa
 			q := [2]float64{a[0] + float64(t*dx), a[1] + float64(t*dz)}
 			ex, ez := at[0]-q[0], at[1]-q[1]
 			if d := math.Sqrt(float64(ex*ex) + float64(ez*ez)); d < best {
-				best, point, width = d, q, r.Width
+				best, end, width = d, q, r.Width
+				atEnd = t == 0 && i == 0 || t == 1 && i+2 == len(r.Path)
 			}
 		}
 	}
-	return point, width, !math.IsInf(best, 1) && best > width/2
+	return end, width, atEnd && best > float64(width/2)
 }

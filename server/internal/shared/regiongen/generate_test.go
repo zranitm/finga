@@ -14,6 +14,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"finga/internal/shared/nav"
 	"finga/internal/shared/sim"
 )
 
@@ -756,10 +757,11 @@ func TestTheFirstOfOverlappingAreasHoldsTheGround(t *testing.T) {
 	}
 }
 
-// No solid stands in the road-wide corridor from a gate to the nearest point of its region's roads, in the test plans and every shipped region: a road leads on to its gate. The corridor is read off the plan's own road paths, which the generator smooths a little, so a solid may reach cornerTolerance into it.
+// No solid stands in the road-wide corridor from a road's end to the gate it leads to, in the test plans and every shipped region, and a player body fits at every 0.25 m of the straight way between them: the property a player cares about, judged by the walk grid's own rule on the region's geometry, not by the generator's distances. A gate no road leads to has no corridor, and one a road ends beside keeps its marker stone, which stands on the road's end. The corridor is read off the plan's own road paths, which the generator smooths a little, so a solid may reach cornerTolerance into it.
 func TestNoSolidStandsInAGatesCorridor(t *testing.T) {
 	const cornerTolerance = 2.0
 	checked := 0
+	bodyParams := body(t)
 	for name, e := range everyRegion(t) {
 		var roads []Road
 		for _, f := range e.plan.Features {
@@ -768,18 +770,18 @@ func TestNoSolidStandsInAGatesCorridor(t *testing.T) {
 			}
 		}
 		for _, g := range e.plan.Gates {
-			q, width, ok := nearestRoadPoint(roads, g.At)
+			q, width, ok := roadEndTo(roads, g.At)
 			if !ok {
 				continue
 			}
 			checked++
 			away := func(x, z, reach float64) float64 { return segmentDistance(x, z, q, g.At) - reach - width/2 }
 			for _, c := range e.region.Geometry.Cylinders {
-				if dx, dz := c.X-q[0], c.Z-q[1]; float64(dx*dx)+float64(dz*dz) < 1 { // a stone the plan sets at the road's end, a waypoint's
+				if dx, dz := c.X-q[0], c.Z-q[1]; float64(dx*dx)+float64(dz*dz) < 1 { // the stone a plan sets at the road's end, a waypoint's
 					continue
 				}
 				if d := away(c.X, c.Z, float64(c.Radius)); d < -cornerTolerance {
-					t.Errorf("%s: a cylinder at (%.1f, %.1f) radius %.2f stands %.1f m into the corridor from gate %s at %v to the road at (%.1f, %.1f)", name, c.X, c.Z, c.Radius, -d, g.Name, g.At, q[0], q[1])
+					t.Errorf("%s: a cylinder at (%.1f, %.1f) radius %.2f stands %.1f m into the corridor from gate %s at %v to the road's end at (%.1f, %.1f)", name, c.X, c.Z, c.Radius, -d, g.Name, g.At, q[0], q[1])
 				}
 			}
 			for _, c := range e.region.Geometry.Boxes {
@@ -787,10 +789,19 @@ func TestNoSolidStandsInAGatesCorridor(t *testing.T) {
 					t.Errorf("%s: a box at (%.1f, %.1f) stands %.1f m into the corridor from gate %s at %v", name, c.X, c.Z, -d, g.Name, g.At)
 				}
 			}
+			dx, dz := g.At[0]-q[0], g.At[1]-q[1]
+			length := math.Sqrt(float64(dx*dx) + float64(dz*dz))
+			for along := 1.5; along <= length; along += 0.25 { // from past the stone at the road's end
+				at := nav.Point{X: q[0] + float64(along/length*dx), Z: q[1] + float64(along/length*dz)}
+				if !nav.FitsAt(e.region.Geometry, bodyParams.Step, at, bodyParams.Radius) {
+					t.Errorf("%s: a player body doesn't fit at (%.2f, %.2f), %.2f m along the way from the road's end at (%.1f, %.1f) to gate %s at %v", name, at.X, at.Z, along, q[0], q[1], g.Name, g.At)
+					break
+				}
+			}
 		}
 	}
 	if checked == 0 {
-		t.Fatal("no gate of any plan has a road to keep a corridor from")
+		t.Fatal("no gate of any plan has a road leading to it")
 	}
 }
 
