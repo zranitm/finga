@@ -6,6 +6,7 @@ import { mapLinks } from '@/gamedata/map-links';
 import { maps } from '@/gamedata/maps';
 import { npcs } from '@/gamedata/npcs';
 import { clashes } from '@/lib/tags';
+import { mobById } from '@/progression/mobs';
 import { ERR } from '@/protocol/errors';
 import {
   FieldBossGoneSchema,
@@ -202,6 +203,169 @@ describe('MapWindow', () => {
         texts(node, '.map-node-levels'),
       ]).toEqual([String(x), String(y), ['Region']]);
     }
+  });
+
+  it('This map names a region’s NPC by its name, and lifts the player’s label above it when the player stands at the NPC: Sunreach’s guide', () => {
+    act(() => {
+      mapView.getState().showMap('sunreach', [1024, 1024], NO_GROUND, []);
+      mapView
+        .getState()
+        .mark({ me: { x: 490, z: 490, yaw: 0 }, party: [], lock: null, boss: null });
+    });
+    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
+    expect(texts(screen.getByRole('img', { name: 'Sunreach' }), '.map-label-npc')).toEqual([
+      'Oasis Guide',
+    ]);
+    const guide = npcs.npcs.find((n) => n.id === 'oasis_guide')!;
+    const labels = mapLabels(
+      map('sunreach'),
+      { x: guide.x, z: guide.z },
+      4,
+      [1024, 1024],
+      new Set(),
+      [],
+      [],
+    );
+    const you = labels.find((l) => l.kind === 'me')!;
+    const name = labels.find((l) => l.text === guide.name)!;
+    expect(you.bottom).toBeLessThanOrEqual(name.bottom - name.h - 2);
+  });
+
+  it('pointing at a region on World shows its name, its kind and its mobs with their levels', async () => {
+    onMap('willowmere', 30, 10);
+    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
+    await user.click(screen.getByRole('tab', { name: 'World' }));
+    const chart = screen.getByRole('group', { name: 'World' });
+    fireEvent.pointerEnter(chart.querySelector('.map-node[data-map="sunreach"]')!);
+    const card = within(screen.getByRole('tooltip'));
+    const slime = mobById('spore_slime')!;
+    expect(card.getByText('Sunreach')).toBeInTheDocument();
+    expect(card.getByText('Region')).toBeInTheDocument();
+    expect(card.getByText(`${slime.name} Lv ${slime.level}`)).toBeInTheDocument();
+    fireEvent.pointerLeave(chart.querySelector('.map-node[data-map="sunreach"]')!);
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+  });
+
+  it('clicking a region on World shows its layout: its spawns, gates and NPC named, and Back to the chart', async () => {
+    onMap('willowmere', 30, 10);
+    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
+    await user.click(screen.getByRole('tab', { name: 'World' }));
+    await user.click(screen.getByRole('button', { name: 'Sunreach' }));
+    const svg = await screen.findByRole('img', { name: 'Sunreach' });
+    expect(layoutOf).toHaveBeenCalledWith('sunreach');
+    const slime = mobById('spore_slime')!;
+    expect(texts(svg, '.map-label-spawn')).toContain(`${slime.name} Lv ${slime.level}`);
+    expect(texts(svg, '.map-label-portal').sort()).toEqual([
+      'Spore Hollow Lv 14–15', // a gate down is named by its place and its levels
+      'Sunken Ruins Lv 21–22',
+      'To Hoarfell',
+      'To Willowmere',
+    ]);
+    expect(texts(svg, '.map-label-npc')).toEqual(['Oasis Guide']);
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByRole('group', { name: 'World' })).toBeInTheDocument();
+  });
+
+  it('a picked region shows the player and the live marks only when it’s the player’s own', async () => {
+    onMap('willowmere', 30, 10);
+    act(() => {
+      mapView.getState().mark({
+        me: { x: 30, z: 10, yaw: 0 },
+        party: [{ id: 'c-kai', name: 'Kai', x: 20, z: 12 }],
+        lock: { x: 34, z: 10 },
+        boss: { x: 50, z: 20 },
+      });
+    });
+    layoutOf.mockClear();
+    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
+    await user.click(screen.getByRole('tab', { name: 'World' }));
+    const live = '.map-me, .map-party, .map-lock, .map-boss, .map-label-me';
+    await user.click(screen.getByRole('button', { name: 'Willowmere' }));
+    const own = screen.getByRole('img', { name: 'Willowmere' });
+    expect(own.querySelectorAll(live)).toHaveLength(5);
+    expect(layoutOf).not.toHaveBeenCalledWith('willowmere'); // the player's own map is the scene's
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    await user.click(screen.getByRole('button', { name: 'Hoarfell' }));
+    const other = await screen.findByRole('img', { name: 'Hoarfell' });
+    expect(other.querySelectorAll(live)).toHaveLength(0);
+  });
+
+  it('a picked region whose layout won’t load says so, and it offers no Teleport here: a region is reached by its waypoints', async () => {
+    onMap('willowmere', 30, 10);
+    render(
+      <MapWindow
+        socket={idle}
+        layoutOf={() => Promise.reject(new Error('map sunreach: 500'))}
+        onClose={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole('tab', { name: 'World' }));
+    await user.click(screen.getByRole('button', { name: 'Sunreach' }));
+    expect(await screen.findByText('The map didn’t load.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Teleport here' })).not.toBeInTheDocument();
+  });
+
+  /** Each spawn label of region id at 4 px a metre, the finest a region zooms to: its mob and the middle of its text, in metres. */
+  const regionSpawnLabels = (id: string) => {
+    const m = map(id);
+    const size = id === 'test_region' ? 256 : 1024;
+    return mapLabels(m, null, 4, [size, size], new Set(), [], [])
+      .filter((l) => l.kind === 'spawn')
+      .map((l) => {
+        const mob = m.spawns.find((s) => l.text.startsWith(`${mobById(s.mob)!.name} Lv`))!.mob;
+        return { mob, x: l.x / 4, z: size - (l.bottom - l.h / 2) / 4 };
+      });
+  };
+  const regions = ['willowmere', 'sunreach', 'hoarfell', 'test_region'];
+
+  it('puts every spawn label of a region on one of its own mob’s circles, at the finest zoom', () => {
+    const off = regions.flatMap((id) =>
+      regionSpawnLabels(id)
+        .filter(
+          (l) =>
+            !map(id).spawns.some(
+              (s) => s.mob === l.mob && Math.hypot(s.x - l.x, s.z - l.z) <= s.radius,
+            ),
+        )
+        .map((l) => `${id} ${l.mob} (${l.x.toFixed(1)}, ${l.z.toFixed(1)})`),
+    );
+    expect(off).toEqual([]);
+  });
+
+  it('gives every spawn circle of a region a label of its own mob on it or within 8 m of its edge, at the finest zoom', () => {
+    const far = regions.flatMap((id) => {
+      const labels = regionSpawnLabels(id);
+      return map(id)
+        .spawns.filter((s) => {
+          const own = labels.filter((l) => l.mob === s.mob);
+          return !own.some((l) => Math.hypot(l.x - s.x, l.z - s.z) - s.radius <= 8);
+        })
+        .map((s) => `${id} ${s.mob} (${s.x}, ${s.z})`);
+    });
+    expect(far).toEqual([]);
+  });
+
+  it('keeps a beaten area boss’s label off its crown and clear of every label, in every region', () => {
+    const DOT = 3; // the crown reaches 1.8 dots over its middle and 1.2 under
+    const bad = regions.flatMap((id) => {
+      const m = map(id);
+      const size = id === 'test_region' ? 256 : 1024;
+      const crowns = m.areas.flatMap((a) =>
+        a.boss ? [{ ...a.boss, down: { type: a.boss.mob, backAt: 0 } }] : [],
+      );
+      const labels = mapLabels(m, null, 4, [size, size], new Set(), crowns, []);
+      return labels
+        .filter((l) => l.kind === 'boss')
+        .flatMap((boss, k) => {
+          const crown = (size - crowns[k]!.z) * 4;
+          const off = boss.bottom - boss.h >= crown + 1.2 * DOT || boss.bottom <= crown - 1.8 * DOT;
+          return [
+            ...(off ? [] : [`${id}: ${boss.text} on its crown`]),
+            ...labels.filter((l) => l !== boss && clashes(l, boss)).map((l) => `${id}: ${l.text}`),
+          ];
+        });
+    });
+    expect(bad).toEqual([]);
   });
 
   it('in a match shows This map alone: the world chart has no match’s map', async () => {

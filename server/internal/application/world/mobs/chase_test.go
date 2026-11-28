@@ -3,6 +3,7 @@ package mobs_test
 import (
 	"fmt"
 	"math"
+	"math/rand/v2"
 	"slices"
 	"strings"
 	"testing"
@@ -375,6 +376,45 @@ func TestABossHoldsAtAPortalsEdge(t *testing.T) {
 	}
 	if v := a.Views()[0]; !hit || distance(v, 30, 36) > 1+def.Radius+0.05 || math.Abs(float64(v.Yaw)) > 1e-3 {
 		t.Fatalf("king %+v, hit %v; want it at the portal's edge, facing north to the player, having hit them", v, hit)
+	}
+}
+
+// No mob or boss of a shipped region steps into one of its gates: provoked by a player out of reach over each, whatever its camps' chase brings to a gate's edge never goes into it.
+func TestNoShippedMobStepsIntoAGate(t *testing.T) {
+	data := worldtest.LoadData(t)
+	for _, m := range data.Maps() {
+		if m.Kind != gamedata.Region || len(m.Portals) == 0 {
+			continue
+		}
+		t.Run(m.ID, func(t *testing.T) {
+			a := mobs.NewArena(mobs.Deps{Map: m, Data: data, Roll: rand.New(rand.NewPCG(1, 2))}, mobs.Tuning{TickInterval: tick})
+			for _, area := range m.Areas {
+				if area.Boss != nil {
+					def, _ := data.Mob(area.Boss.Mob)
+					a.SpawnBoss(def, *area.Boss)
+				}
+			}
+			var players []mobs.Body // a player 2.5 m over each gate, to provoke the mobs round it
+			for _, q := range m.Portals {
+				players = append(players, up(player(q.At.X, q.At.Z), m.Geometry.Terrain.Height(q.At.X, q.At.Z)+2.5))
+			}
+			for n := range uint64(400) { // 20 s
+				a.Step(n+1, players, nil)
+				if n%100 == 0 { // a provoke lasts 5 s
+					for k, q := range m.Portals {
+						a.Strike(mobs.Strike{By: players[k].ID, Shape: gamedata.Shape{Kind: gamedata.AreaShape, Radius: 30}, Most: 100, Power: model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 1}, Aim: model.Aim{X: q.At.X, Z: q.At.Z}})
+					}
+				}
+				for _, v := range a.Views() {
+					def, _ := data.Mob(v.Type)
+					for _, q := range m.Portals {
+						if gap := distance(v, q.At.X, q.At.Z) - q.Radius - def.Radius; gap < -1e-9 {
+							t.Fatalf("tick %d: %s at (%.2f, %.2f) in gate %s", n+1, v.Type, v.X, v.Z, q.Name)
+						}
+					}
+				}
+			}
+		})
 	}
 }
 
