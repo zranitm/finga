@@ -79,12 +79,17 @@ func (i *Instance) stepPlayers(views []model.PlayerView) (full []model.PlayerVie
 		p := i.players[v.ID]
 		now := sentPlayerOf(v)
 		old := p.sent
-		p.sent = now
 		at := i.interest.shiftOf(playerOf(v.ID), v.State.X, v.State.Z)
 		if old == nil || at == unfiled || !sameButMotion(v, old.view) {
+			p.sent, p.waiting = now, false
 			full = append(full, v)
 			continue
 		}
+		if at == stays && motionOnly(v, old.view) && (i.tick+uint64(v.Slot))%2 != 0 && i.interest.crowded(i.interest.of(v.State.X, v.State.Z), i.tick) {
+			p.waiting = true // its baseline stays, so the step it goes in is read from where all its watchers hold it
+			continue
+		}
+		p.sent, p.waiting = now, false
 		st := model.PlayerStep{ID: v.ID, Slot: v.Slot, X: v.State.X, Z: v.State.Z, DX: now.x - old.x, DY: now.y - old.y, DZ: now.z - old.z}
 		if now.vx != old.vx {
 			st.VX = new(now.vx)
@@ -159,6 +164,19 @@ func (i *Instance) stepMobs(views []model.MobView, removed []uint64) (full []mod
 		delete(i.mobSent, id)
 	}
 	return full, steps, shifted
+}
+
+// shown is a player's view as its watchers hold it: one whose step waits is shown as last sent, so a view handed out whole agrees with their baseline.
+func (i *Instance) shown(p *player) model.PlayerView {
+	if p.waiting && p.sent != nil {
+		return p.sent.view
+	}
+	return i.view(p)
+}
+
+// motionOnly is whether a and b differ in at most where the player is and how it moves: a step that says nothing else may wait for its tick.
+func motionOnly(a, b model.PlayerView) bool {
+	return a.HP == b.HP && a.Aim == b.Aim && a.State.OnGround == b.State.OnGround && a.State.Sprint == b.State.Sprint && a.State.Held == b.State.Held
 }
 
 // toldPlayer is a view handed out whole to one player: a snapshot or a cell's full part shows a body as it stands, which a tick no one framed it in, or a view the clock ends something in, may have changed from what every other watcher holds. The baseline is theirs too, so a view that differs from it is dropped: the body's next frame goes whole to all, and no watcher misses what the join was shown.

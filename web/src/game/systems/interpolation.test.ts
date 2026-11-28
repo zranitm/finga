@@ -100,6 +100,24 @@ describe('RemoteBuffer', () => {
     expect(b.sample(1000)).toEqual(at(3)); // 1000 fell out, 1050 stays as the floor
   });
 
+  it('a body stepped every second tick is drawn on its line at the render clock, never past its newest state', () => {
+    const clock = new RenderClock(TICK_MS);
+    const b = new RemoteBuffer(TICK_MS);
+    for (let tick = 0; tick <= 40; tick += 2) {
+      b.push(tick * TICK_MS, at(tick)); // 1 m a tick, a state on the even ticks
+      clock.update(tick, 0);
+      if (tick + 1 <= 40) {
+        clock.update(tick + 1, 0); // the odd tick's frame came, and brought it nothing
+        const r = clock.renderTime(0)!;
+        const last = tick * TICK_MS;
+        expect(r).toBeLessThan(last + TICK_MS); // the newest state is never behind the render clock by a tick or more
+        if (r >= 0 && r <= last) {
+          expect(b.sample(r)?.x).toBeCloseTo(r / TICK_MS, 9);
+        }
+      }
+    }
+  });
+
   it('a removed player stays visible until the buffer has drained past the removal tick', () => {
     const b = new RemoteBuffer(TICK_MS);
     b.push(1000, at(1));

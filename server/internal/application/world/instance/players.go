@@ -47,6 +47,7 @@ type player struct {
 	starved  int // ticks in a row with no queued input
 	deep     int // ticks in a row its queue held more than inputKeep
 	moved    bool
+	waiting  bool // a step of motion alone is held back to its tick, so the player is stepped again whether or not it moved
 	joined   bool
 	slot     uint64 // checkpointed on the ticks equal to it mod ticksPer
 

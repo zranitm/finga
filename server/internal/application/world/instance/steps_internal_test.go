@@ -25,3 +25,20 @@ func TestAnEmptyMapKeepsNoMobBaselines(t *testing.T) {
 		t.Fatalf("%d baselines kept on a map with no one on it", len(i.mobSent))
 	}
 }
+
+// A cell goes slow past the crowd and fast again only at 4/5 of it, so a crowd's edge doesn't flip each tick; the cells round it count.
+func TestACrowdedCellKeepsItsTierBetweenTheCrowdAndFourFifthsOfIt(t *testing.T) {
+	n := newInterest(gamedata.Interest{Cell: 32, Behind: 1, Ahead: 1, Side: 1, Crowd: 10}, 320, 320)
+	mid, beside := n.of(100, 100), n.of(132, 100)
+	tick := uint64(0)
+	for _, c := range []struct {
+		there, next int // players in the cell, and in the one beside it
+		slow        bool
+	}{{11, 0, true}, {9, 0, true}, {5, 4, true}, {8, 0, false}, {9, 0, false}, {5, 6, true}, {0, 0, false}} {
+		n.players[mid], n.players[beside] = c.there, c.next
+		tick++
+		if got := n.crowded(mid, tick); got != c.slow {
+			t.Fatalf("%d players in the cell and %d beside it: slow %v, want %v", c.there, c.next, got, c.slow)
+		}
+	}
+}
