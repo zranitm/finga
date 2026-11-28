@@ -235,6 +235,7 @@ biomes:
     - **Points:** the disc covers the box of the biome's ground. Each new point is tried in the ring `r` to `2r` round an active one, up to 30 times, found by rejection in a square, so no angle is taken.
     - **Ground:** a point is kept on its biome's walkable ground, no steeper than `slope`.
     - **Clearances:** a point is also clear of each road, water, camp, town and spot by its `away` distance plus the model's reach.
+    - **As built (gate corridors):** a road ends where the plan says, not always at its gate, and scatter stood in the gap: Sunreach's Hollow Mouth had a giant mushroom between its road's end and the gate. Each gate a road leads to (the nearest point of the region's roads is a road's first or last point) keeps a road-wide corridor from that end to the gate, as clear as a road is, by the road's `away` distance; a gate in open land, such as Willowmere's dive spot, has none. A model the corridor keeps off still takes the yaw draws it would have, so the models after it keep their yaws. It moved 17 models in Sunreach (11 at the Hollow Mouth, 4 at the South Gate, 1 each at the Ruins Stair and the East Pass) and 1 in Willowmere (the North Pass), none elsewhere. `TestNoSolidStandsInAGatesCorridor` holds it, by the cylinders and boxes and by a player body fitting every 0.25 m of the way (`nav.FitsAt`).
       - The spots are waypoints, NPCs, pieces and the start (2 m each), and gates (their radius).
       - Clearance is judged at the nearest sample.
     - **Solids:** no solid comes within 0.5 m of another's reach. A box's reach is its half diagonal.
@@ -675,6 +676,7 @@ Built with step 1, which says who watches a cell.
   - **A read of the settings,** such as opening Settings, first saves a change still waiting and waits for every save under way, so it reads what the player set. A setting changed while it waits or is out keeps its change, and the read sets the others. Before this, opening Settings inside the 800 ms undid a zoom step or a walk switch.
 - **Fog and the far plane** follow the zoom. Each sky's fog draws back up to 3.6 times as far: the day sky's from 45–140 m close up to about 160–500 m zoomed out. `maxZ` is 1,500 m.
 - **`heldView`'s clamp** keeps the view inside the region, as it does the map.
+- **Clear of the ground:** where the ground under the camera's own point stands above it (by 0.5 m), as zoomed out near a region's south edge, behind its mountain ring, the camera is pulled in along its line to the player until it's clear (`clearShare`), keeping its aim and pitch. It pulls in at once and eases back out as the zoom does, and the saved zoom is unchanged. Only the camera's own point is judged: what stands between it and the player stays the cut-away's job, so a cliff elsewhere changes nothing. At Sunreach's South Gate (380, 84), 12 m inside the ring's face, the far camera sat at z 51, 23 m up, inside 35 m of mountain; it now stops just clear of the face.
 
 ## 10. The client: drawing a region
 

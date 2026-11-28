@@ -214,11 +214,29 @@ describe('a region drawn from its bake', () => {
     place!.follow(30, 60);
     expect(chunkNames()).toEqual(['chunk 0_0', 'chunk 0_1', 'chunk 1_0', 'chunk 1_1']);
     expect(overview().getTotalIndices()).toBe(0);
-    expect(overview('overview skirts').getTotalIndices()).toBe(0);
+    expect(meshes('overview skirts')).toHaveLength(0); // no chunk drawn meets one undrawn
     expect(asked.length).toBe(4); // each asked once
     const c = meshes('chunk 1_1')[0]!;
     expect(c.position.asArray()).toEqual([64, 0, 64]);
     expect(c.getTotalIndices()).toBe((32 * 32 * 2 + 4 * 32 * 2) * 3); // every sample, with its skirts
+  });
+
+  it('makes no skirts mesh where no drawn chunk meets one undrawn, so Babylon never sets vertex data with an empty array', async () => {
+    const said = [vi.spyOn(console, 'log'), vi.spyOn(console, 'warn')].map((spy) =>
+      spy.mockImplementation(() => undefined),
+    ); // Babylon's Logger writes to either
+    await built();
+    place!.follow(30, 60);
+    await source.answer();
+    place!.follow(30, 60);
+    place!.follow(30, 60); // every chunk of the tiny region is drawn: no side left to skirt
+    expect(chunkNames().length).toBe(4);
+    expect(meshes('overview skirts')).toHaveLength(0);
+    place!.follow(-330, 60); // and none drawn: nothing to skirt either
+    expect(meshes('overview skirts')).toHaveLength(0);
+    expect(
+      said.flatMap((spy) => spy.mock.calls).filter((c) => String(c[0]).includes('empty array')),
+    ).toEqual([]);
   });
 
   it('draws each chunk at its detail and its props within 160 m, and frees it past 320 m', async () => {
@@ -271,7 +289,7 @@ describe('a region drawn from its bake', () => {
     expect(casting()).toEqual(new Set()); // none left casting once freed
     expect(props('0_0')).toBeNull();
     expect(overview().getTotalIndices()).toBe(WHOLE);
-    expect(overview('overview skirts').getTotalIndices()).toBe(0);
+    expect(meshes('overview skirts')).toHaveLength(0);
   });
 
   it("leaves the overview where a chunk won't come, asking again only once its backoff is past", async () => {

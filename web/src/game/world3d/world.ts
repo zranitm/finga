@@ -43,6 +43,7 @@ import type { Data, PartyView } from '@/protocol/messages';
 import type { Input } from '@/sim/input';
 import { endSprint, sprintSteps } from '@/sim/step';
 import type { State, Way } from '@/sim/step';
+import { height } from '@/sim/terrain';
 import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
@@ -115,7 +116,7 @@ import { cutMobs } from './cut-mobs';
 import { Figures } from './figures';
 import { FishSchools } from './fish-schools';
 import { Flames } from './flames';
-import { CHEST_M, cameraAt, easeShare, heldView, yawOf } from './follow';
+import { CHEST_M, cameraAt, clearShare, easeShare, heldView, pulledShare, yawOf } from './follow';
 import { Labels } from './labels';
 import { LockRing } from './lock-ring';
 import { drawnAs, mobLook, npcLook, playerLook } from './looks';
@@ -537,6 +538,7 @@ export class World {
   private readonly pacing = new Pacing();
   private zoom = settings.getState().zoom; // the zoom drawn, easing toward the setting
   private readonly lookAt = new Vector3();
+  private reach = 1; // the share of its line from its target the camera sits at: 1 unless the ground would swallow it
   private readonly head = new Vector3();
   private remotes: RemotePlayers | null = null;
   private readonly remoteViews = new Map<string, Drawn>();
@@ -850,6 +852,7 @@ export class World {
     this.me.pinned = true;
     if (at) {
       this.follow.set(at.x, at.y + CHEST_M, at.z);
+      this.reach = 1;
     }
     this.potionKeys = this.newPotionKeys();
     this.skillKeys = this.newSkillKeys();
@@ -1221,6 +1224,7 @@ export class World {
     this.correction = null; // a placement jumps
     if (!this.placed) {
       this.follow.set(me.x, me.y + CHEST_M, me.z);
+      this.reach = 1;
       if (this.me) {
         this.me.yaw = yawOf(me.hx, me.hz);
       }
@@ -1589,6 +1593,15 @@ export class World {
       this.lookAt,
     );
     cameraAt(look.x, look.y, look.z, this.zoom, camera.position);
+    const terrain = map.geometry.terrain;
+    this.reach = pulledShare(
+      this.reach,
+      clearShare(look, camera.position, (x, z) => height(terrain, x, z)),
+      share,
+    );
+    camera.position.x = look.x + (camera.position.x - look.x) * this.reach;
+    camera.position.y = look.y + (camera.position.y - look.y) * this.reach;
+    camera.position.z = look.z + (camera.position.z - look.z) * this.reach;
     camera.setTarget(look);
     if (this.place) {
       this.place.follow(look.x, look.z);
