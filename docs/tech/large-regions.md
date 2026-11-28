@@ -201,6 +201,7 @@ biomes:
       - A road onto a cliff plateau eases its face and stays open, the only way onto its top, and a pit's cliff marks nothing. Nobody drops off a cliff: the barrier stops a body at the top's edge too.
       - Banks, fords, ramps and the ring keep their steep marks only. A cell steep along one axis made steep along both was tried instead and dropped: it closed the wide plan's ford at (700, 540) and left two one-way pockets by the test region's river.
       - **Test:** over every plan, a player from the start, walking or jumping, reaches no cliff plateau's top but by a road onto it, and does reach it by one (`TestNoPlayerClimbsACliff`).
+      - **Only the road:** with the ramps of the roads onto a plateau taken out (every cell of such a road's footprint within 20 m of the face), a player from the start or any gate not on the plateau, walking or at the fastest jump, reaches no cell of its top (`TestAPlateauIsReachedOnlyByItsRoads`). A plan whose plateau has a second way up fails it, and a fixture with a stair against a face proves it can.
     - A ramp falls at half `max_slope`, walkable.
   - **River:** its path is smoothed (Chaikin's method, 3 passes).
     - **Water:** 0.5 m below the lowest ground along it so far, so it never rises downstream.
