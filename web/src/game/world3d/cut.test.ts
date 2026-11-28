@@ -613,7 +613,7 @@ describe('the cut-away round the player', () => {
         }
       }
     }
-    expect(hidden.length).toBeGreaterThan(700); // the foot of every hunting map's south bank, its portal notches and its mesas
+    expect(hidden.length).toBeGreaterThan(300); // the foot of the south bank of each land map swept (the crossroads, the frost trail and the rest the data still has), its portal notches and its mesas; 323 on the maps swept now, over 700 with the six the desert retired
     expect(shut).toEqual([]);
     expect(crossed).toBeGreaterThan(1100);
     expect(whole).toEqual([]);
@@ -760,7 +760,7 @@ describe('the cut-away round the player', () => {
         }
       }
     }
-    expect(near).toBeGreaterThan(450);
+    expect(near).toBeGreaterThan(190); // 208 on the maps swept now, over 450 with the six the desert retired
     expect(hidden.length / near).toBeLessThan(0.02); // a dune under 1.5 m over a mob's feet may still cover its bottom
     expect(crossed).toBeGreaterThan(8500);
     expect(whole).toEqual([]);
