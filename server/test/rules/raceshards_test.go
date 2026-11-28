@@ -153,3 +153,83 @@ func TestTheRaceRunSkipsOnlyPackagesThatStartNoGoroutine(t *testing.T) {
 		t.Fatal("the race run skips no package: make race-shards names none")
 	}
 }
+
+// skippedTestGaps lists each of names that no test function under root has, so a rename can't un-skip it quietly, and each that starts a goroutine of its own, where the detector would have something to find: the go keyword and the calls Go, TryGo and AfterFunc in its body. It may run beside other tests with Parallel, as the stack under it is the point.
+func skippedTestGaps(root string, names []string) ([]string, error) {
+	found := map[string]bool{}
+	var gaps []string
+	fset := token.NewFileSet()
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		f, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			return err
+		}
+		for _, decl := range f.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Recv != nil || fn.Body == nil || !slices.Contains(names, fn.Name.Name) {
+				continue
+			}
+			found[fn.Name.Name] = true
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				switch n := n.(type) {
+				case *ast.GoStmt:
+					gaps = append(gaps, fn.Name.Name+" starts a goroutine at "+fset.Position(n.Pos()).String())
+				case *ast.CallExpr:
+					if sel, ok := n.Fun.(*ast.SelectorExpr); ok && slices.Contains([]string{"Go", "TryGo", "AfterFunc"}, sel.Sel.Name) {
+						gaps = append(gaps, fn.Name.Name+" starts a goroutine at "+fset.Position(n.Pos()).String()+": "+sel.Sel.Name)
+					}
+				}
+				return true
+			})
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, name := range names {
+		if !found[name] {
+			gaps = append(gaps, name+" is no test function: it was renamed or removed, so the race run's skip names nothing")
+		}
+	}
+	return gaps, nil
+}
+
+// A test the race run skips by name exists, and starts no goroutine of its own: its cost is the data it boots, and the hand-offs it walks are raced in the world and instance tests.
+func TestTheRaceRunSkipsOnlyTestsThatStartNoGoroutine(t *testing.T) {
+	t.Parallel()
+	out, err := exec.Command("make", "-s", "-C", "../../..", "race-skip-tests").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := strings.Fields(string(out))
+	if len(names) == 0 {
+		t.Fatal("the race run skips no test: make race-skip-tests names none")
+	}
+	gaps, err := skippedTestGaps("../..", names)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(gaps) > 0 {
+		t.Errorf("GO_RACE_SKIP_TESTS in the Makefile:\n%s", strings.Join(gaps, "\n"))
+	}
+}
+
+func TestTheSkipCheckFindsAMissingTestAndAGoroutine(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	body := "package p\n\nimport \"testing\"\n\nfunc TestQuiet(t *testing.T) { t.Parallel() }\n\nfunc TestBusy(t *testing.T) { go func() {}() }\n\nfunc TestPooled(t *testing.T) { var g interface{ Go(func()) }; g.Go(nil) }\n"
+	if err := os.WriteFile(filepath.Join(dir, "p_test.go"), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if gaps, err := skippedTestGaps(dir, []string{"TestQuiet"}); err != nil || len(gaps) != 0 {
+		t.Fatalf("a quiet test, even a parallel one: %q, %v", gaps, err)
+	}
+	gaps, err := skippedTestGaps(dir, []string{"TestBusy", "TestPooled", "TestMispelt"})
+	if err != nil || len(gaps) != 3 {
+		t.Fatalf("a goroutine, a pool and a misspelt name: got %d gaps %q, %v; want 3", len(gaps), gaps, err)
+	}
+}
