@@ -114,9 +114,13 @@ func (o *opened) shut(id string) {
 		delete(o.by, id)
 		delete(o.close, id)
 	}
-	if i := slices.IndexFunc(o.later, func(p opening) bool { return p.id == id }); i >= 0 { // never started: nothing runs, but its waiting joins end with it
+	if i := slices.IndexFunc(o.later, func(p opening) bool { return p.id == id }); i >= 0 { // never started: run once under a done ctx, so it stops and its waiting joins get ErrStopped
+		p := o.later[i]
 		o.later = slices.Delete(o.later, i, i+1)
 		delete(o.by, id)
+		done, stop := context.WithCancel(context.Background())
+		stop()
+		_ = p.inst.Run(done)
 	}
 }
 
