@@ -55,9 +55,15 @@ func New(g sim.Geometry, step float64) *Grid {
 	size := n.nx * n.nz
 	n.clear, n.flags = make([]uint16, size), make([]uint8, size)
 	ground, marks := make([]float64, size), make([]uint8, size)
+	mask := solidReach(g)
 	for i := range size {
 		c := n.centre(i)
-		s := stand(g, step, c)
+		var s spot
+		if mask.near(c) {
+			s = stand(g, step, c)
+		} else {
+			s = openStand(g, c) // no solid within reach: the terrain, and the edge or maxClear
+		}
 		ground[i], n.clear[i] = s.ground, uint16(math.Floor(s.clear/clearUnit)) // s.clear is at most maxClear
 		n.flags[i] = flag(s.raised, raised) | flag(s.barred, barred)
 		marks[i] = flag(s.onTop, onTop) | flag(g.Terrain.Steep(c.X, c.Z, false), steepX) | flag(g.Terrain.Steep(c.X, c.Z, true), steepZ)
@@ -85,6 +91,11 @@ type spot struct {
 	onTop, raised bool    // the ground is a solid's top, and more than step above the terrain
 	barred        bool    // the terrain cell under it is a barrier
 	clear         float64 // from the point to the nearest wall to feet on that ground, up to maxClear
+}
+
+// openStand is stand where no solid is within maxClear of p: the ground is the terrain, and nothing is nearer than the edge.
+func openStand(g sim.Geometry, p Point) spot {
+	return spot{ground: g.Terrain.Height(p.X, p.Z), barred: g.Terrain.Barred(p.X, p.Z), clear: min(p.X, g.SizeX-p.X, p.Z, g.SizeZ-p.Z, maxClear)}
 }
 
 func stand(g sim.Geometry, step float64, p Point) spot {
@@ -239,4 +250,44 @@ func (n *Grid) moves(i int, r float64, visit func(j int, diagonal bool)) {
 			}
 		}
 	}
+}
+
+// reachBlock is the side of the squares solidReach files, in metres.
+const reachBlock = 4
+
+// solidsReach is how far a solid may matter to a cell: the clearance's whole reach, plus a metre.
+const solidsReach = maxClear + 1
+
+// solidMask marks the squares of reachBlock metres that a solid may be within reach of, by the solid's bounding circle: a cell in any other has no solid within maxClear, so it needs no search for them.
+type solidMask struct {
+	nx, nz int
+	of     []bool
+}
+
+// solidReach files g's solids by the squares they may reach.
+func solidReach(g sim.Geometry) solidMask {
+	b := solidMask{nx: int(math.Ceil(g.SizeX/reachBlock)) + 1, nz: int(math.Ceil(g.SizeZ/reachBlock)) + 1}
+	b.of = make([]bool, b.nx*b.nz)
+	mark := func(x, z, r float64) {
+		x0, x1 := int(math.Floor((x-r-solidsReach)/reachBlock)), int(math.Floor((x+r+solidsReach)/reachBlock))
+		z0, z1 := int(math.Floor((z-r-solidsReach)/reachBlock)), int(math.Floor((z+r+solidsReach)/reachBlock))
+		for bz := max(z0, 0); bz <= min(z1, b.nz-1); bz++ {
+			for bx := max(x0, 0); bx <= min(x1, b.nx-1); bx++ {
+				b.of[bz*b.nx+bx] = true
+			}
+		}
+	}
+	for _, bx := range g.Boxes {
+		mark(bx.X, bx.Z, math.Sqrt(float64(bx.HalfW*bx.HalfW)+float64(bx.HalfD*bx.HalfD)))
+	}
+	for _, c := range g.Cylinders {
+		mark(c.X, c.Z, c.Radius)
+	}
+	return b
+}
+
+// near is whether a solid may be within reach of p.
+func (b solidMask) near(p Point) bool {
+	bx, bz := int(math.Floor(p.X/reachBlock)), int(math.Floor(p.Z/reachBlock))
+	return bx < 0 || bz < 0 || bx >= b.nx || bz >= b.nz || b.of[bz*b.nx+bx]
 }
