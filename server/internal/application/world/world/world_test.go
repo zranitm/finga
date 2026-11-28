@@ -547,7 +547,7 @@ func TestATransferOfAReplacedPresenceIsDropped(t *testing.T) {
 		if snaps := worldtest.Of[model.Snapshot](old); len(snaps) != 1 {
 			t.Fatalf("the old connection got %d snapshots: its presence was moved", len(snaps))
 		}
-		<-pressed // answered, taken in or told it is not there, whichever the goroutine's turn came to: it moves nobody either way
+		_ = <-pressed // answered, taken in or told it is not there, whichever the goroutine's turn came to: it moves nobody either way
 		before := len(newer.Deltas())
 		time.Sleep(2 * worldtest.TickInterval)
 		synctest.Wait()
