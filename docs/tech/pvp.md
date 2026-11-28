@@ -963,7 +963,7 @@ Added on 2026-11-28. The user: "players should block each other way, because cur
   - **Teammates** pass through each other.
   - **Outside a match** nothing changes: players pass through each other everywhere.
 - **Moves:** a skill's move stops at an enemy where it stops at a mob, and one that passes through mobs (`through`) passes through enemies. A shove stops at the shoved player's enemies, where they stand that tick, as a knockback stops at mobs.
-- **A jump over an enemy:** players are 1.75 m tall and a jump peaks at about 2 m, so the feet are above an enemy's head for about 0.23 s. Clearing one takes 0.75 m of that, so a jump made at the right moment clears an enemy at a walk, and more easily at a sprint. It's a tight escape from being pinned, not a free one. Every mob but a boss is low enough to clear easily.
+- **A jump over an enemy:** players are 1.75 m tall and the sim's jump peaks at 1.90 m, so the feet are above an enemy's head for about 0.17 s. Clearing one takes 0.75 m of that: at a match's walk speed a jump timed from 1.89 to 2.01 m from the enemy's centre, a 12 cm window, clears, and more easily at a sprint. It's a tight escape from being pinned, not a free one. Every mob but a boss is low enough to clear easily.
 
 ### Seeing it the same on both ends
 
@@ -1005,6 +1005,7 @@ The sim doesn't change: enemies are `sim.Blocker` circles, as mobs are. Neither 
   - A skill's move stops at an enemy, and a `through` move passes. A shove stops at an enemy of the shoved.
   - **The head-on clash:** two enemies walk at each other with views a few ticks behind. They end no more than 0.25 m into each other and never pass through. Planted without the parting, they pass through, so the test must fail there.
   - Parting is stopped by a wall, and the free body takes the rest.
+  - **The parting's fixes, each planted:** a walk jump from contact over a standing enemy leaves him where he stood; a round's reset after the fighters swapped sides starts each on their spot; a blink and a shadow step past an enemy end where the skill put them; a fighter pressed against an enemy off the centimetre grid stops at the wire's body, and a mob's kept body is the wire's centimetre.
 - **Bots:** in 15v15, a bot walking to a point past a standing enemy gets round them.
 - **Client:** the predictor's blockers hold the enemies at a view, never the teammates, and nothing outside a match.
 - **Live:** a short 1v1 check, written by the scenario writer and waiting for the user's yes, as every live test does:
@@ -1023,7 +1024,12 @@ One PR, server and client together, since a server that blocks with a client tha
 ### As built
 
 - **The world** (`instance/foes.go`): `keepFoes` files each tick's living fighters, by id, as the frame is broadcast; `blockersFor` gives a step the mobs of its view and the other side's bodies of the same tick, built once per tick and side. The shove in `hitPlayer` meets `foesNow`. `part` runs at the end of `simulate`.
-- **Parting keeps order.** Two enemies closing at a walk each way come 0.55 m nearer a tick, more than the 0.5 m a parting leaves between centres, so with stale views they can cross within one tick, and a push along the line between their new centres would finish the swap. A pair whose line now points the other way from the last tick's frame is parted back along that last line.
+- **Parting keeps order, for a pair about to meet.** Two enemies closing at a walk each way come 0.55 m nearer a tick, more than the 0.5 m a parting leaves between centres, so with stale views they can cross within one tick, and a push along the line between their new centres would finish the swap. A pair whose line now points the other way from the last tick's frame is parted back along that last line, but only when it could be a step's crossing:
+  - in the last frame their centres were within a tick's reach of touching (their bodies' two radii plus both bodies' longest step, a sprint's included, and a centimetre), and level, neither above the other's head;
+  - neither has moved more than that reach since the frame, so a body the world placed (a round's reset, a respawn, a teleport, a blink) is never pulled back;
+  - they overlap now. A skill that puts a fighter past an enemy (a blink, a shadow step) leaves them there.
+- **A jump over lands where it lands.** A pair one of whom was above the other's head in the last frame isn't parted this tick, and a pair whose centres are no nearer than in the last frame isn't parted: a jumper coming down in the enemy's body, or a body walking out, is left to the walk, as a mob's overlap is.
+- **Bodies are at the wire's centimetre.** The world keeps each fighter's and each mob's body for a view at the centimetre the frames give (`quant`), as the client builds them from the wire, so a fighter pressed against an enemy, or a mob, off the grid stops where the page's sim stops, with no correction a tick.
 - **A match is never tiered.** The crowd tier of large-regions.md section 5 holds a player's motion-only steps every second tick; on a match's map `stepPlayers` skips it, since an enemy's missed tick would leave a blocker guessed, as a mob's would. The check is the instance's, not a loader rule on `interest.crowd`.
 - **A jump from contact clears.** The sim holds a body at an enemy's side until its feet rise over the 1.75 m head, 0.21 s on, and then lets it walk over, as it does for a mob; the shared vector `enemy-jump-pressed-against` records it. The "first touch" in the rule above is not enforced, so a pinned fighter jumps out, as 'a tight escape from being pinned' says.
 - **Bots** (`bots/brain.go`, `round`): a bot pressing toward a point, or its side's focus, with another enemy ahead within 1.8 m goes along that enemy's side. A melee bot already stops at 0.7 of its reach, 1.3 m.

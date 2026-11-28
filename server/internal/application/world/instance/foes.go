@@ -7,6 +7,7 @@ import (
 
 	"finga/internal/application/world/mobs"
 	"finga/internal/shared/kernel"
+	"finga/internal/shared/quant"
 	"finga/internal/shared/sim"
 )
 
@@ -39,6 +40,12 @@ func (i *Instance) blocker(p *player) sim.Blocker {
 	return sim.Blocker{X: p.state.X, Z: p.state.Z, Radius: i.params.Radius, Bottom: p.state.Y, Top: p.state.Y + i.params.Height}
 }
 
+// framed is p's body as the wire gives it, at the centimetre, so a mover's step meets what the page holds.
+func (i *Instance) framed(p *player) sim.Blocker {
+	y := quant.Metres(quant.Position(p.state.Y))
+	return sim.Blocker{X: quant.Metres(quant.Position(p.state.X)), Z: quant.Metres(quant.Position(p.state.Z)), Radius: i.params.Radius, Bottom: y, Top: y + i.params.Height}
+}
+
 // keepFoes files the tick's living fighters, as the frame about to be sent leaves them; a match's downed are not among them, and a held or stood-in fighter is.
 func (i *Instance) keepFoes() {
 	kept := &i.foes.kept[i.tick%mobs.History]
@@ -48,7 +55,7 @@ func (i *Instance) keepFoes() {
 	}
 	for _, id := range i.order {
 		if p := i.players[id]; !p.dead && i.side(id) != 0 {
-			kept.bodies = append(kept.bodies, foeBody{id: id, side: i.side(id), body: i.blocker(p)})
+			kept.bodies = append(kept.bodies, foeBody{id: id, side: i.side(id), body: i.framed(p)})
 		}
 	}
 	slices.SortFunc(kept.bodies, func(a, b foeBody) int { return cmp.Compare(a.id.String(), b.id.String()) }) // by id, as the client builds them
@@ -121,9 +128,15 @@ func (i *Instance) partPair(a, b *player) {
 	if d < 1e-9 {
 		ux, uz = 1, 0
 	}
-	if px, pz, ok := i.leftOf(a.ID, b.ID); ok && px*dx+pz*dz < 0 { // they passed through each other this tick: parted back the way they stood at its start
+	pa, pb := i.lastBodies(a.ID, b.ID)
+	if pa != nil && (pa.Bottom >= pb.Top || pb.Bottom >= pa.Top) { // one was above the other's head: a jump over lands where it lands
+		return
+	}
+	if px, pz, ok := i.crossed(a, b, pa, pb); ok && px*dx+pz*dz < 0 { // they passed through each other this tick: parted back the way they stood at its start
 		ux, uz = px/math.Hypot(px, pz), pz/math.Hypot(px, pz)
 		sep = ux*dx + uz*dz
+	} else if pa != nil && pb != nil && d >= math.Hypot(pb.X-pa.X, pb.Z-pa.Z)-1e-9 { // an overlap that's opening, a jumper landing or a body walking out, is left to the walk
+		return
 	}
 	need := 2*i.params.Radius - partDepth - sep // how far they must come apart
 	if need <= 0 {
@@ -145,13 +158,12 @@ func (i *Instance) partPair(a, b *player) {
 	}
 }
 
-// leftOf is the vector from a to b as the last tick's frame left them, false when either wasn't in it or they stood on one spot.
-func (i *Instance) leftOf(a, b kernel.CharacterID) (x, z float64, ok bool) {
+// lastBodies are a and b as the last tick's frame left them, nil when either wasn't in it.
+func (i *Instance) lastBodies(a, b kernel.CharacterID) (pa, pb *sim.Blocker) {
 	kept := &i.foes.kept[(i.tick-1)%mobs.History]
 	if i.tick == 0 || kept.tick != i.tick-1 {
-		return 0, 0, false
+		return nil, nil
 	}
-	var pa, pb *sim.Blocker
 	for k := range kept.bodies {
 		switch kept.bodies[k].id {
 		case a:
@@ -160,8 +172,29 @@ func (i *Instance) leftOf(a, b kernel.CharacterID) (x, z float64, ok bool) {
 			pb = &kept.bodies[k].body
 		}
 	}
-	if pa == nil || pb == nil || math.Hypot(pb.X-pa.X, pb.Z-pa.Z) < 1e-9 {
+	if pa == nil || pb == nil {
+		return nil, nil
+	}
+	return pa, pb
+}
+
+// crossed is the vector from a to b as the last tick's frame left them (pa, pb), when a step could have brought them through each other: both stood in it within a tick's reach of touching, level with each other, and neither has moved more than a step since, and they overlap now. False for a body the world placed (a respawn, a round's reset, a teleport, a blink), or a pair that wasn't about to meet.
+func (i *Instance) crossed(a, b *player, pa, pb *sim.Blocker) (x, z float64, ok bool) {
+	if pa == nil || pb == nil {
 		return 0, 0, false
 	}
-	return pb.X - pa.X, pb.Z - pa.Z, true
+	x, z = pb.X-pa.X, pb.Z-pa.Z
+	reach := i.stepReach()
+	if d := math.Hypot(x, z); d < 1e-9 || d > 2*i.params.Radius+2*reach || pa.Bottom >= pb.Top || pb.Bottom >= pa.Top {
+		return 0, 0, false
+	}
+	if math.Hypot(a.state.X-pa.X, a.state.Z-pa.Z) > reach || math.Hypot(b.state.X-pb.X, b.state.Z-pb.Z) > reach || math.Hypot(b.state.X-a.state.X, b.state.Z-a.state.Z) >= 2*i.params.Radius {
+		return 0, 0, false
+	}
+	return x, z, true
+}
+
+// stepReach is the farthest a body walks in a tick, a sprint's pace included, with a centimetre for the wire's rounding.
+func (i *Instance) stepReach() float64 {
+	return i.params.WalkSpeed*math.Max(1, i.params.Sprint.Speed)*i.params.Dt*float64(i.subSteps) + 1/quant.PerMetre
 }

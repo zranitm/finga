@@ -10,6 +10,7 @@ import (
 	"finga/internal/application/world/worldtest"
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
+	"finga/internal/shared/quant"
 	"finga/internal/shared/sim"
 )
 
@@ -42,8 +43,8 @@ func TestAPlayerStopsAtAMobsSide(t *testing.T) {
 				_ = inst.Input(id, 1, sim.Input{Up: true}, tc.view)
 				tick(25) // held still, then the held input walks on: 6 m, past the slime
 				v, _ := s.Own(id)
-				if mb := slimeOf(t, s); math.Abs(v.State.Z-(mb.Z-touching)) > 1e-9 || v.State.VZ != 0 {
-					t.Fatalf("the player stood at %+v; want stopped at z %v, the slime's south side", v.State, mb.Z-touching)
+				if mb := slimeOf(t, s); math.Abs(v.State.Z-(wire(mb.Z)-touching)) > 1e-9 || v.State.VZ != 0 {
+					t.Fatalf("the player stood at %+v; want stopped at z %v, the slime's south side", v.State, wire(mb.Z)-touching)
 				}
 			})
 		})
@@ -56,8 +57,12 @@ func still(m *gamedata.Map) *gamedata.Map {
 	return m
 }
 
+// wire is v as the wire gives it, at the centimetre: a mob's body is where the frame's number puts it.
+func wire(v float64) float64 { return quant.Metres(quant.Position(v)) }
+
 // meetZ is the z a player walking along x = arenaX stops at, coming at a slime at (x, z) from the side dir says: +1 north of it, -1 south.
 func meetZ(x, z, dir float64) float64 {
+	x, z = wire(x), wire(z)
 	return z + dir*math.Sqrt(touching*touching-(x-arenaX)*(x-arenaX))
 }
 
@@ -195,8 +200,8 @@ func TestAPlayerJoiningAnEmptyMapIsBlockedAtOnce(t *testing.T) {
 		id := idOf(t, s)
 		_ = inst.Input(id, 1, sim.Input{Up: true}, 0)
 		tick(5)
-		if v, _ := s.Own(id); math.Abs(v.State.Z-(slimeStands-touching)) > 1e-9 {
-			t.Fatalf("the player stood at z %v; want stopped at once at the slime's south side, %v", v.State.Z, slimeStands-touching)
+		if v, _ := s.Own(id); math.Abs(v.State.Z-(wire(slimeStands)-touching)) > 1e-9 {
+			t.Fatalf("the player stood at z %v; want stopped at once at the slime's south side, %v", v.State.Z, wire(slimeStands)-touching)
 		}
 	})
 }

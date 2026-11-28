@@ -12,6 +12,7 @@ import (
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/nav"
+	"finga/internal/shared/quant"
 	"finga/internal/shared/sim"
 )
 
@@ -350,7 +351,7 @@ func TestAnUnwatchedTickKeepsItsBlockersAndTellsNothingLater(t *testing.T) {
 	a.Unwatched()
 	got, views := blockersAt(a, 1), a.Views()
 	slime, _ := worldtest.LoadData(t).Mob("green_slime")
-	if len(got) != 2 || got[1] != (sim.Blocker{X: views[1].X, Z: views[1].Z, Radius: slime.Radius, Bottom: 0, Top: slime.Height}) {
+	if len(got) != 2 || got[1] != (sim.Blocker{X: quant.Metres(quant.Position(views[1].X)), Z: quant.Metres(quant.Position(views[1].Z)), Radius: slime.Radius, Bottom: 0, Top: slime.Height}) {
 		t.Fatalf("tick 1 kept %+v; want both slimes as they stood", got)
 	}
 	if changed, removed := a.Changes(); len(changed) != 0 || len(removed) != 0 {
@@ -381,6 +382,29 @@ func TestEachFramesBlockersAreKeptForHistoryTicks(t *testing.T) {
 	}
 	if a.BlockersAt(3*mobs.History+1) != nil {
 		t.Fatal("a tick not yet sent has blockers")
+	}
+}
+
+// A frame's blockers are the mobs at the centimetre the wire gives, so a step meets what the page holds, though the mob stands between two centimetres.
+func TestEachFramesBlockersAreTheMobsAtTheWiresCentimetre(t *testing.T) {
+	a := newArena(t, meadow(t, open(), spawn("green_slime", 1, 20, 20, 3)), &cycle{v: []float64{0.1, 0.7, 0.4, 0.9, 0.25}})
+	off := 0
+	for n := uint64(1); n <= 200; n++ {
+		a.Step(n, nil, nil)
+		_, _ = a.Changes()
+		views, got := a.Views(), blockersAt(a, n)
+		if len(got) != 1 || len(views) != 1 {
+			t.Fatalf("tick %d: %d blockers for %d mobs", n, len(got), len(views))
+		}
+		if x, z := quant.Metres(quant.Position(views[0].X)), quant.Metres(quant.Position(views[0].Z)); got[0].X != x || got[0].Z != z {
+			t.Fatalf("tick %d: the mob stands at (%v, %v) and its blocker at (%v, %v); want the wire's (%v, %v)", n, views[0].X, views[0].Z, got[0].X, got[0].Z, x, z)
+		}
+		if cm := views[0].X * 100; cm != math.Round(cm) {
+			off++
+		}
+	}
+	if off == 0 {
+		t.Fatal("the mob never stood off the centimetre grid; the case wants it to")
 	}
 }
 

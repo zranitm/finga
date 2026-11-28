@@ -11,6 +11,7 @@ import (
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/nav"
+	"finga/internal/shared/quant"
 	"finga/internal/shared/sim"
 )
 
@@ -94,6 +95,12 @@ func (mb *mob) at() nav.Point { return nav.Point{X: mb.x, Z: mb.z} }
 
 func (mb *mob) body() model.Body {
 	return model.Body{X: mb.x, Y: mb.y, Z: mb.z, Radius: mb.def.Radius, Height: mb.def.Height}
+}
+
+// framed is mb as the wire gives it, at the centimetre, so a mover's step meets what the page holds.
+func (mb *mob) framed() sim.Blocker {
+	x, y, z := quant.Metres(quant.Position(mb.x)), quant.Metres(quant.Position(mb.y)), quant.Metres(quant.Position(mb.z))
+	return sim.Blocker{X: x, Z: z, Radius: mb.def.Radius, Bottom: y, Top: y + mb.def.Height}
 }
 
 func (mb *mob) blocker() sim.Blocker {
@@ -567,7 +574,7 @@ func (a *Arena) Unwatched() {
 	kept := &a.history[a.tick%History]
 	kept.tick, kept.ids, kept.blockers = a.tick, kept.ids[:0], kept.blockers[:0]
 	for _, mb := range a.mobs {
-		kept.ids, kept.blockers = append(kept.ids, mb.id), append(kept.blockers, mb.blocker())
+		kept.ids, kept.blockers = append(kept.ids, mb.id), append(kept.blockers, mb.framed())
 		mb.changed, mb.told = false, true
 	}
 	kept.blocking.Set(kept.blockers, a.m.Geometry.SizeX, a.m.Geometry.SizeZ)
