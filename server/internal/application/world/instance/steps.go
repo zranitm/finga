@@ -39,23 +39,49 @@ func sameMobButMotion(a, b model.MobView) bool {
 	return a.ID == b.ID && a.Type == b.Type && a.MaxHP == b.MaxHP && slices.Equal(a.Statuses, b.Statuses)
 }
 
-// crosses is whether b, at (x, z), is new to the cell it's in: a player seeing that cell has never been sent it.
-func (n *interest) crosses(b body, x, z float64) bool {
+// A body that came to another cell goes out as its step to those who held it in the cell it left, and whole to the rest, who see its new cell and not the old: a shifted body keeps both.
+type shiftedPlayer struct {
+	view model.PlayerView
+	step model.PlayerStep
+}
+
+type shiftedMob struct {
+	view model.MobView
+	step model.MobStep
+}
+
+type shift uint8
+
+const (
+	stays   shift = iota // in the cell it's filed in, or on a map sent whole
+	unfiled              // in no cell yet: a player seeing its cell has never been sent it
+	moves                // came to another cell
+)
+
+// shiftOf is how b, at (x, z), stands to the cell it's filed in.
+func (n *interest) shiftOf(b body, x, z float64) shift {
 	if n.whole {
-		return false
+		return stays
 	}
 	c, on := n.where[b]
-	return !on || c != n.of(x, z)
+	switch {
+	case !on:
+		return unfiled
+	case c != n.of(x, z):
+		return moves
+	}
+	return stays
 }
 
 // stepPlayers sorts the tick's changed views into the full views and the steps they go out as, and keeps each as the baseline of the next.
-func (i *Instance) stepPlayers(views []model.PlayerView) (full []model.PlayerView, steps []model.PlayerStep) {
+func (i *Instance) stepPlayers(views []model.PlayerView) (full []model.PlayerView, steps []model.PlayerStep, shifted []shiftedPlayer) {
 	for _, v := range views {
 		p := i.players[v.ID]
 		now := sentPlayerOf(v)
 		old := p.sent
 		p.sent = now
-		if old == nil || i.interest.crosses(playerOf(v.ID), v.State.X, v.State.Z) || !sameButMotion(v, old.view) {
+		at := i.interest.shiftOf(playerOf(v.ID), v.State.X, v.State.Z)
+		if old == nil || at == unfiled || !sameButMotion(v, old.view) {
 			full = append(full, v)
 			continue
 		}
@@ -90,18 +116,26 @@ func (i *Instance) stepPlayers(views []model.PlayerView) (full []model.PlayerVie
 		if v.Aim != old.view.Aim {
 			st.Aim = new(v.Aim)
 		}
+		if at == moves {
+			shifted = append(shifted, shiftedPlayer{v, st})
+			continue
+		}
 		steps = append(steps, st)
 	}
-	return full, steps
+	return full, steps, shifted
 }
 
 // stepMobs is stepPlayers for the tick's changed mobs; a mob removed this tick keeps no baseline.
-func (i *Instance) stepMobs(views []model.MobView, removed []uint64) (full []model.MobView, steps []model.MobStep) {
+func (i *Instance) stepMobs(views []model.MobView, removed []uint64) (full []model.MobView, steps []model.MobStep, shifted []shiftedMob) {
 	for _, v := range views {
 		now := sentMobOf(v)
 		old, had := i.mobSent[v.ID]
 		i.mobSent[v.ID] = now
-		if !had || i.interest.crosses(mobOf(v.ID), v.X, v.Z) || !sameMobButMotion(v, old.view) {
+		at := i.interest.shiftOf(mobOf(v.ID), v.X, v.Z)
+		if at == moves && slices.Contains(removed, v.ID) { // a mob killed as it came is sent whole in the cell it's lifted from
+			at = unfiled
+		}
+		if !had || at == unfiled || !sameMobButMotion(v, old.view) {
 			full = append(full, v)
 			continue
 		}
@@ -115,12 +149,16 @@ func (i *Instance) stepMobs(views []model.MobView, removed []uint64) (full []mod
 		if v.Pose != old.view.Pose {
 			st.Pose = new(v.Pose)
 		}
+		if at == moves {
+			shifted = append(shifted, shiftedMob{v, st})
+			continue
+		}
 		steps = append(steps, st)
 	}
 	for _, id := range removed {
 		delete(i.mobSent, id)
 	}
-	return full, steps
+	return full, steps, shifted
 }
 
 // toldPlayer is a view handed out whole to one player: a snapshot or a cell's full part shows a body as it stands, which a tick no one framed it in, or a view the clock ends something in, may have changed from what every other watcher holds. The baseline is theirs too, so a view that differs from it is dropped: the body's next frame goes whole to all, and no watcher misses what the join was shown.
