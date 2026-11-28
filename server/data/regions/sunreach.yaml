@@ -38,7 +38,7 @@ areas:
   - {id: sandstone, name: Sandstone Cliffs, area: [[72, 768], [448, 768], [448, 608], [952, 608], [952, 952], [72, 952]], levels: [20, 21], biome: mesa, kind: hunting, boss: {at: [900, 700], radius: 6, mob: cliff_reaper}}
 camps:
   - {area: sporewood, name: south slimes, at: [200, 130], radius: 8, mob: spore_slime, max: 5, respawn: 30s}
-  - {area: sporewood, name: west slimes, at: [240, 316], radius: 8, mob: spore_slime, max: 5, respawn: 30s}
+  - {area: sporewood, name: west slimes, at: [234, 316], radius: 8, mob: spore_slime, max: 5, respawn: 30s}
   - {area: sporewood, name: riverside slimes, at: [420, 160], radius: 8, mob: spore_slime, max: 5, respawn: 30s}
   - {area: sporewood, name: bend slimes, at: [330, 260], radius: 8, mob: spore_slime, max: 4, respawn: 30s}
   - {area: sporewood, name: mossbacks, at: [180, 220], radius: 9, mob: mossback_snail, max: 3, respawn: 40s}
@@ -48,7 +48,7 @@ camps:
   - {area: ledges, name: west glow, at: [140, 620], radius: 8, mob: glow_slime, max: 5, respawn: 30s}
   - {area: ledges, name: north glow, at: [330, 650], radius: 8, mob: glow_slime, max: 5, respawn: 30s}
   - {area: ledges, name: elders, at: [240, 680], radius: 9, mob: elder_snail, max: 3, respawn: 40s}
-  - {area: ledges, name: rim elders, at: [380, 560], radius: 9, mob: elder_snail, max: 3, respawn: 40s}
+  - {area: ledges, name: rim elders, at: [372, 576], radius: 9, mob: elder_snail, max: 3, respawn: 40s}
   - {area: dunes, name: south mice, at: [620, 260], radius: 8, mob: sand_mouse, max: 5, respawn: 30s}
   - {area: dunes, name: butte mice, at: [760, 200], radius: 8, mob: sand_mouse, max: 5, respawn: 30s}
   - {area: dunes, name: east mice, at: [880, 470], radius: 8, mob: sand_mouse, max: 5, respawn: 30s}

@@ -20,7 +20,7 @@ features:
   - {hall: {area: [[24, 170], [100, 170], [104, 228], [20, 228]], flat: true}}          # the west crypt
   - {tunnel: {path: [[224, 120], [256, 140], [270, 168]], width: 10}}
   - {hall: {area: [[236, 164], [304, 164], [304, 228], [236, 228]], flat: true}}        # the tomb: the Crypt Warden
-  - {tunnel: {path: [[36, 172], [36, 100], [90, 50], [134, 40]], width: 10}}            # back to the stair
+  - {tunnel: {path: [[36, 172], [36, 112], [52, 84], [90, 50], [134, 40]], width: 10}}            # back to the stair
 areas:
   - {id: ruin_crypt, name: Sunken Ruins, area: [[16, 16], [368, 16], [368, 240], [16, 240]], levels: [21, 22], biome: crypt, kind: hunting,
      boss: {at: [270, 196], radius: 6, mob: crypt_warden}}
