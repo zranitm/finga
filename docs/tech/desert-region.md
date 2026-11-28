@@ -209,6 +209,22 @@ Each step is its own PR:
 
      These may move a camp a few metres, as they did in Willowmere.
 
+- **As built (desert PR 2):**
+  - **The chart** places Sunreach at [38, 32], north-east of Willowmere.
+  - **The plans** are in `data/regions` as drafted: Sunreach, `spore_caves` and `ruin_crypt`. The loader's checks passed with no camp moved.
+  - **Mob stats** are set by the balance test's bands for each area, not scaled from the old levels:
+    - a normal mob takes 2.9 hits at the reference pace in Sporewood Gorge, 3 in the four areas after it and 4 in the Sunken Ruins, with the bands' survival and hit-rate targets for every class;
+    - an elite takes 2.5 times its normal mob's hits and gives 2.5 times its EXP, a boss 40 times its top normal mob's, and a boss kill takes about 3 minutes alone;
+    - defenses, accuracy and evasion keep each mob's own share, moved along the bands' curves with its level.
+  - **The balance tests now see the regions:** `TestBalance` and `TestFieldBosses` also take each hunting area of a region from level 12 up as a map of its own. Willowmere's lower areas stay set by hand, and the test region mixes mobs of other areas, so both are left out.
+  - **Drops** follow the normal mob of each mob's area: its gear from two levels under to one over at normal rates (0.045 a weapon, 0.0375 other gear), the next five levels' at 0.003, twice that for an elite and ten times for a boss. Potions are Orange for all eighteen. Each mob keeps its own material.
+  - **EXP rises with level** among normal mobs, elites and bosses, as `TestRealDataLoads` asks: the Spore Slime gives 80, the Mossback Snail 200 and the Spore Mother 3,200.
+  - **The test region's** north area is levels 12–14 and its woods 16–17, to hold the moved mobs.
+  - **The bots** leave a region to the later game when all its hunting areas are above the promotion level, as they do a hunting map, so they stop at Willowmere's two places.
+  - **Stand-ins** of the three plans stand in the tests, with the same ids, gates, waypoints, NPC, bosses and camps' mobs on 256 m and 128 × 256 m.
+  - **Web tests** that drew or walked a retired map use the frost trail, the icefall or a place below; the sandstone cliffs' crag-fade and south-bank cut tests went with the map, and the tower test serves its tower on the wide map for its own length.
+  - **Characters** saved on any of the six maps start at Willowmere's start; the join test names each.
+
 **Then:** the generator's previews of the built region, and a live walk from the South Gate through both places to the East Pass. Both are heavy runs, approved by the user first.
 
 ## 9. Decisions
