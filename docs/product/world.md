@@ -50,5 +50,5 @@ Today's maps:
 
 | Region | Maps, with their mob levels | Respawn town |
 | --- | --- | --- |
-| Snow | Frost Trail 23–24, Icefall 25–26, Glacier Peak 28–29 | Crossroads |
+| Snow | Frost Trail 23–24, Icefall 26–27, Glacier Peak 29–30 | Crossroads |
 | Keep | Fallen Keep 31–33 | Crossroads |

@@ -136,16 +136,17 @@ The region is 1024 m square, with mountains 72 m wide round its edge. You arrive
 | Frost Slime | normal | 26 | **23** | Frost Trail |
 | Snow Weasel | elite | 27 | **24** | Frost Trail |
 | Avalanche Slime | boss | 29 | **26** | Frost Trail |
-| Icewing | normal | 28 | **25** | Icefall |
-| Glacier Snail | elite | 29 | **26** | Icefall |
-| Blizzard Wing | boss | 31 | **28** | Icefall |
-| Crystal Slime | normal | 29 | **28** | Glacier Peak |
-| Rime Rat | elite | 30 | **29** | Glacier Peak |
-| Crystal Colossus | boss | 32 | **31** | Glacier Peak |
+| Icewing | normal | 28 | **26** | Icefall |
+| Glacier Snail | elite | 29 | **27** | Icefall |
+| Blizzard Wing | boss | 31 | **29** | Icefall |
+| Crystal Slime | normal | 29 | 29 | Glacier Peak |
+| Rime Rat | elite | 30 | 30 | Glacier Peak |
+| Crystal Colossus | boss | 32 | 32 | Glacier Peak |
 
 - **Why now:** the desert ends at 22. Without this, the old snow maps would start at 26 beyond the East Pass until the snow region is built, a four-level jump.
-- **The maps' bands:** Frost Trail 23–24, Icefall 25–26, Glacier Peak 28–29.
-  - Glacier Peak keeps its top near the level cap, 30, for the climb before the keep.
+- **The maps' bands:** Frost Trail 23–24, Icefall 26–27, Glacier Peak 29–30.
+  - Glacier Peak doesn't move: its top stays at the level cap, 30, for the climb before the keep.
+  - The snow region's three areas can then cover 22–24, 25–27 and 28–30 with no gap.
   - The Fallen Keep's mobs stay at 31 to 35.
 - **Stats and drops** follow the same rules as section 3.
 - The snow region lays these mobs out again when it's designed.
@@ -194,7 +195,7 @@ The region is 1024 m square, with mountains 72 m wide round its edge. You arrive
 
 Each step is its own PR:
 
-1. **The snow mobs moved:** levels, stats and drops (section 4), and the three snow maps' bands. Data only.
+1. **The snow mobs moved:** levels, stats and drops (section 4), and the Frost Trail's and Icefall's bands. Data only.
 2. **The desert:**
    - the three plans in `data/regions`;
    - the eighteen mobs moved (section 3);
