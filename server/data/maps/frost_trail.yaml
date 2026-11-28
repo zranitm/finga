@@ -2,7 +2,7 @@
 name: Frost Trail
 kind: hunting
 town: crossroads
-levels: [26, 27]
+levels: [23, 24]
 look: {ground: snow, sky: snow}
 size: [80, 36]
 terrain:
