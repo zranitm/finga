@@ -222,7 +222,9 @@ describe('a region drawn from its bake', () => {
   });
 
   it('makes no skirts mesh where no drawn chunk meets one undrawn, so Babylon never sets vertex data with an empty array', async () => {
-    const warned = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const said = [vi.spyOn(console, 'log'), vi.spyOn(console, 'warn')].map((spy) =>
+      spy.mockImplementation(() => undefined),
+    ); // Babylon's Logger writes to either
     await built();
     place!.follow(30, 60);
     await source.answer();
@@ -232,7 +234,9 @@ describe('a region drawn from its bake', () => {
     expect(meshes('overview skirts')).toHaveLength(0);
     place!.follow(-330, 60); // and none drawn: nothing to skirt either
     expect(meshes('overview skirts')).toHaveLength(0);
-    expect(warned.mock.calls.filter((c) => /empty array/.test(String(c[0])))).toEqual([]);
+    expect(
+      said.flatMap((spy) => spy.mock.calls).filter((c) => /empty array/.test(String(c[0]))),
+    ).toEqual([]);
   });
 
   it('draws each chunk at its detail and its props within 160 m, and frees it past 320 m', async () => {
