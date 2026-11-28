@@ -949,6 +949,7 @@ Built with step 1, which says who watches a cell.
 4. **The desert,** then **the snow mountains,** each retiring the old maps whose levels it covers. The last retires the Crossroads and the gate.
    - **As designed** in [The desert](./desert-region.md): Sunreach, levels 12 to 22, wet in the south-west and dry in the north-east, with a fungus cave and a buried temple below. It retires the mushroom woods and the desert maps, moving their mobs three or four levels down, and the snow mobs move down to follow on.
    - **As built (desert PR 2):** the plans, the eighteen mobs, the links and the retired maps, with the bots, tests and chart moved off them (desert-region.md section 8).
+   - **As designed** in [The snow region](./snow-region.md): Hoarfell, levels 22 to 30, a mountain climbed in terraces with the Fallen Keep on its summit. It retires the snow maps, the keep's and the Crossroads, the last of the small maps.
 
 - **Characters on a retired map:** `World.Join` places a character whose map no longer exists at the green region's start, in place of `ErrNoMap`. Built with the plan: `World.Join` starts a character saved on a map that's gone at the start map's spawn.
 - There's no other migration, since the game hasn't gone live.
@@ -1067,6 +1068,7 @@ Built with step 1, which says who watches a cell.
      - **As built:** Willowmere is charted, and each member's name takes `withChannel`, as the Party window's does: "Bo · Ch. 2" in a region, and the bare name on a land map, whose channel is 0. It's in a picked map's list and under its node on the World chart, from the channel the party state already gives each member, so the client alone.
 9. **The desert,** then **the snow mountains.**
    - The desert is designed in [The desert](./desert-region.md), section 8 for its build: the snow mobs moved, then the region and its places with six old maps retired.
+   - The snow region is designed in [The snow region](./snow-region.md), section 5 for its build: one PR after the desert's, retiring the last five maps.
 
 Steps 1–3 change nothing on today's maps that a player sees, so they can land while PvP builds. Step 4 shares on-demand instances with PvP's step 1.
 
