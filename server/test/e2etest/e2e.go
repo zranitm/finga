@@ -89,6 +89,10 @@ var cheapPasswords = config.Password{Time: 1, MemoryKiB: 8 * 1024, Threads: 1, C
 // NewStackBuilt runs the game composed by build over the game data in data, its config as edits change it.
 func NewStackBuilt(t *testing.T, data string, build host.Build[config.Config], edits ...func(*config.Config)) *Stack {
 	t.Helper()
+	t0 := time.Now()
+	defer func() {
+		fmt.Fprintf(os.Stderr, "E2ETIMING stack %s boot %v, at %v of the process\n", t.Name(), time.Since(t0), time.Since(procStart))
+	}()
 	at := FreeAddrs(t, 3)
 	s := &Stack{T: t, URL: "http://" + at[0], Ops: "http://" + at[1], Admin: "http://" + at[2], Data: data, build: build, Cfg: config.Config{
 		HTTP:          config.HTTP{Addr: at[0], CORSOrigins: []string{"http://localhost:5173"}, AccountLimit: config.AccountLimit{PerSecond: 2, Burst: 10}}, // the limit is config.yaml's, which TestTheDefaultsLoad pins
@@ -110,7 +114,9 @@ func NewStackBuilt(t *testing.T, data string, build host.Build[config.Config], e
 	for _, edit := range edits {
 		edit(&s.Cfg)
 	}
+	t1 := time.Now()
 	s.start()
+	fmt.Fprintf(os.Stderr, "E2ETIMING stack %s start() %v\n", t.Name(), time.Since(t1))
 	t.Cleanup(func() { s.Stop() })
 	pool, err := pgxpool.New(context.Background(), s.Cfg.Database.URL)
 	if err != nil {
@@ -248,3 +254,6 @@ func (s *Stack) MustStatus(r response, want int) {
 		s.T.Fatalf("status %d, want %d: %v", r.Status, want, r.Body)
 	}
 }
+
+// procStart is when the test binary began.
+var procStart = time.Now()

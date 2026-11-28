@@ -162,8 +162,12 @@ func treeInTheWay(m *gamedata.Map, radius float64) (west, east gamedata.Point, o
 // The one row on the shipped data, whose Willowmere is generated whole, 1 km across: every other row runs on the stand-ins. A new character joins at Willowmere's start, a hop through the real cave gate goes down and back, and one placed in the Sunken Shrine joins there.
 func TestTheShippedRegionsRunOnTheRealData(t *testing.T) {
 	t.Parallel()
+	t0 := time.Now()
+	phase := func(what string) { fmt.Fprintf(os.Stderr, "E2ETIMING shipped %s at +%v\n", what, time.Since(t0)) }
 	s := newStackOver(t, e2etest.RealDataDir())
+	phase("stack up")
 	data, err := load.Dir(s.Data)
+	phase("load.Dir")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,6 +175,7 @@ func TestTheShippedRegionsRunOnTheRealData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	phase("layout")
 	token, id := s.CreateCharacter(t, "rey", "Rey", "warrior")
 	l, w := s.Hello(t, token, id)
 	if w.GetMapId() != "willowmere" || math.Hypot(l.X-sp.Start.X, l.Z-sp.Start.Z) > 1 {
@@ -181,8 +186,11 @@ func TestTheShippedRegionsRunOnTheRealData(t *testing.T) {
 	s.Place(t, id, "willowmere", gamedata.Point{X: sp.CaveGate.X - 2, Z: sp.CaveGate.Z}, 144, 0)
 	p, snap := s.Join(t, token, id)
 	kai := e2etest.NewLooter(p, snap)
+	phase("kai joined")
 	kai.Hop(t, sp.CaveGate, "greyfang_cave", sp.CaveMouth)
+	phase("hop in")
 	kai.Hop(t, sp.CaveMouth, "willowmere", sp.CaveGate)
+	phase("hop out")
 
 	shrine, _ := data.Map("sunken_shrine")
 	token, id = s.CreateCharacter(t, "lou", "Lou", "warrior")
@@ -190,4 +198,5 @@ func TestTheShippedRegionsRunOnTheRealData(t *testing.T) {
 	if _, w := s.Hello(t, token, id); w.GetMapId() != "sunken_shrine" {
 		t.Fatalf("a character placed in the Sunken Shrine joined %s", w.GetMapId())
 	}
+	phase("lou joined")
 }

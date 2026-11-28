@@ -18,6 +18,8 @@ import (
 
 // Dir reads and validates every file under dir.
 func Dir(dir string) (*gamedata.Data, error) {
+	t0 := time.Now()
+	defer func() { fmt.Fprintf(os.Stderr, "E2ETIMING load.Dir %s in %v\n", dir, time.Since(t0)) }()
 	l := &loader{}
 	steps := []func(string) error{l.loadMovement, l.loadLoot, l.loadActions, l.loadStatuses, l.loadClasses, l.loadSkills, l.loadStats, l.loadExpCurve, l.checkSkillLevels, l.checkChains, l.loadItems, l.validateStarters, l.loadMobs, l.loadNPCs, l.checkLootReach, l.loadMaps, l.loadQuests, l.checkPromotions, l.loadChat, l.loadWorld, l.loadPvp, l.loadOutfits}
 	for _, step := range steps {

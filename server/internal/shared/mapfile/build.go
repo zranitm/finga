@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"slices"
 	"sync"
+	"time"
 
 	"finga/internal/shared/nav"
 	"finga/internal/shared/sim"
@@ -49,7 +51,11 @@ func (m *Map) KeptGrid(side int) *nav.Grid {
 func walkGrid(keyed *sync.Once, at **sharedGrid, g sim.Geometry, p sim.Params) *nav.Grid {
 	keyed.Do(func() { *at = gridFor(g, p) })
 	s := *at
-	s.once.Do(func() { s.grid = nav.New(g, p.Step) })
+	s.once.Do(func() {
+		t0 := time.Now()
+		s.grid = nav.New(g, p.Step)
+		fmt.Fprintf(os.Stderr, "E2ETIMING grid built %vx%v in %v\n", g.SizeX, g.SizeZ, time.Since(t0))
+	})
 	return s.grid
 }
 
@@ -85,6 +91,10 @@ func gridFor(g sim.Geometry, p sim.Params) *sharedGrid {
 
 // gridByContent is the shared grid for g under p, or one of its own when g can't be keyed.
 func gridByContent(g sim.Geometry, p sim.Params) *sharedGrid {
+	t0 := time.Now()
+	defer func() {
+		fmt.Fprintf(os.Stderr, "E2ETIMING gridByContent %vx%v keyed in %v\n", g.SizeX, g.SizeZ, time.Since(t0))
+	}()
 	raw, err := json.Marshal(struct {
 		Geometry sim.Geometry
 		Params   sim.Params
@@ -92,7 +102,10 @@ func gridByContent(g sim.Geometry, p sim.Params) *sharedGrid {
 	if err != nil {
 		return &sharedGrid{}
 	}
-	shared, _ := grids.LoadOrStore(sha256.Sum256(raw), &sharedGrid{})
+	shared, loaded := grids.LoadOrStore(sha256.Sum256(raw), &sharedGrid{})
+	if !loaded {
+		fmt.Fprintf(os.Stderr, "E2ETIMING new grid key %vx%v\n", g.SizeX, g.SizeZ)
+	}
 	return shared.(*sharedGrid)
 }
 
