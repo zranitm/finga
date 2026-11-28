@@ -29,10 +29,14 @@ type interest struct {
 	changes []int
 	full    []int
 	boss    []int // each of the map's bosses' part, -1 for none
+	arrived []arrival
 
 	part, to, ends []int  // file's, kept to fill again
 	lit            []bool // awake's, by cell
 }
+
+// arrival is the part holding the whole views of the bodies that came from cell from to cell to this frame.
+type arrival struct{ from, to, part int }
 
 // body is a player or a mob on the map.
 type body struct {
@@ -173,7 +177,7 @@ func (n *interest) begin() {
 	for _, c := range n.touched {
 		n.changes[c], n.full[c] = -1, -1
 	}
-	n.touched, n.crossed, n.gone = n.touched[:0], n.crossed[:0], n.gone[:0]
+	n.touched, n.crossed, n.gone, n.arrived = n.touched[:0], n.crossed[:0], n.gone[:0], n.arrived[:0]
 }
 
 // changesIn is cell c's changes part, made empty the first time.
@@ -189,7 +193,7 @@ func (n *interest) changesIn(f *model.Frame, c int) *model.Part {
 }
 
 // cut files the tick's changes in the cells they happened in, a part each, a body leaving the map in the cell the last frame left it in, and each field boss that changed in a part of its own, which those who hear of it are sent.
-func (i *Instance) cut(players []model.PlayerView, steps []model.PlayerStep, mobs []model.MobView, mobSteps []model.MobStep, removedMobs []uint64) *model.Frame {
+func (i *Instance) cut(players []model.PlayerView, steps []model.PlayerStep, shiftedPlayers []shiftedPlayer, mobs []model.MobView, mobSteps []model.MobStep, shiftedMobs []shiftedMob, removedMobs []uint64) *model.Frame {
 	n := i.interest
 	removed := n.departed(i)
 	if n.whole {
@@ -221,6 +225,20 @@ func (i *Instance) cut(players []model.PlayerView, steps []model.PlayerStep, mob
 	file(n, f, steps, func(s model.PlayerStep) (body, float64, float64) { return playerOf(s.ID), s.X, s.Z }, func(p *model.Part) *[]model.PlayerStep { return &p.Steps })
 	file(n, f, mobs, func(v model.MobView) (body, float64, float64) { return mobOf(v.ID), v.X, v.Z }, func(p *model.Part) *[]model.MobView { return &p.Mobs })
 	file(n, f, mobSteps, func(s model.MobStep) (body, float64, float64) { return mobOf(s.ID), s.X, s.Z }, func(p *model.Part) *[]model.MobStep { return &p.MobSteps })
+	for _, s := range shiftedPlayers {
+		from, to := n.shift(playerOf(s.view.ID), s.view.State.X, s.view.State.Z)
+		part := n.changesIn(f, from)
+		part.Steps = append(part.Steps, s.step)
+		a := n.arrivalPart(f, from, to)
+		a.Players = append(a.Players, s.view)
+	}
+	for _, s := range shiftedMobs {
+		from, to := n.shift(mobOf(s.view.ID), s.view.X, s.view.Z)
+		part := n.changesIn(f, from)
+		part.MobSteps = append(part.MobSteps, s.step)
+		a := n.arrivalPart(f, from, to)
+		a.Mobs = append(a.Mobs, s.view)
+	}
 	n.boss = n.boss[:0]
 	for _, s := range i.bosses {
 		k := -1
@@ -235,6 +253,24 @@ func (i *Instance) cut(players []model.PlayerView, steps []model.PlayerStep, mob
 		leave(id) // placed by its view just now
 	}
 	return f
+}
+
+// shift files b at (x, z), a body that came to another cell, and returns the cell it left and the one it came to.
+func (n *interest) shift(b body, x, z float64) (from, to int) {
+	from = n.where[b]
+	return from, n.place(b, x, z)
+}
+
+// arrivalPart is the part for the bodies that came from cell from to cell to, made empty the first time.
+func (n *interest) arrivalPart(f *model.Frame, from, to int) *model.Part {
+	for _, a := range n.arrived {
+		if a.from == from && a.to == to {
+			return &f.Parts[a.part]
+		}
+	}
+	n.arrived = append(n.arrived, arrival{from, to, len(f.Parts)})
+	f.Parts = append(f.Parts, model.Part{})
+	return &f.Parts[len(f.Parts)-1]
 }
 
 // file places each body of views in its cell and gives each cell's part its run of them: views, which the cut owns, grouped by part in place, each part's in their order.
@@ -349,6 +385,11 @@ func (i *Instance) follow(f *model.Frame, id kernel.CharacterID, all *[]int) ([]
 		*all = append(*all, i.fullIn(f, c))
 		for _, b := range n.cells[c] {
 			w.seen[b] = struct{}{}
+		}
+	}
+	for _, a := range n.arrived { // a body that came from a cell this player holds and is sent, and to one it sees, went as a step in the old cell's part; the rest of those who see its new cell are sent it whole
+		if n.sees(w.cell, a.to) && n.sees(center, a.to) && (!n.sees(w.cell, a.from) || !n.sees(center, a.from)) {
+			*all = append(*all, a.part)
 		}
 	}
 	if k := i.bossOf(i.players[id]); k >= 0 && n.boss[k] >= 0 {

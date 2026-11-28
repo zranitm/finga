@@ -29,9 +29,9 @@ func (i *Instance) broadcast(changed []kernel.CharacterID) {
 	}
 	mobs, removedMobs := i.arena.Changes()
 	own := ownViews(views)
-	fullViews, steps := i.stepPlayers(views)
-	fullMobs, mobSteps := i.stepMobs(mobs, removedMobs)
-	frame := i.cut(fullViews, steps, fullMobs, mobSteps, removedMobs)
+	fullViews, steps, shiftedPlayers := i.stepPlayers(views)
+	fullMobs, mobSteps, shiftedMobs := i.stepMobs(mobs, removedMobs)
+	frame := i.cut(fullViews, steps, shiftedPlayers, fullMobs, mobSteps, shiftedMobs, removedMobs)
 	refused := i.sendFrame(frame, own)
 	heard := i.heard()
 	var dropped []kernel.CharacterID

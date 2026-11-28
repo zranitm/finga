@@ -37,6 +37,7 @@ type wire struct {
 	order   []*client            // by join, so a seed runs the same every time
 	away    []kernel.CharacterID // handed off to another map: a respawn in a town elsewhere
 	r       *rand.Rand
+	steady  bool // each player holds the key they were given, and none swings
 	tick    uint64
 	seq     uint32
 }
@@ -95,11 +96,11 @@ func (w *wire) step(t testing.TB) {
 	w.frame, w.to = nil, nil
 	for _, c := range w.order {
 		id := c.id
-		if w.r.IntN(60) == 0 {
+		if !w.steady && w.r.IntN(60) == 0 {
 			c.key = sim.Input{Left: w.r.IntN(3) == 0, Right: w.r.IntN(3) == 0, Up: w.r.IntN(2) == 0, Down: w.r.IntN(3) == 0}
 		}
 		_ = w.inst.Input(id, w.seq, c.key, 0)
-		if w.r.IntN(20) == 0 {
+		if !w.steady && w.r.IntN(20) == 0 {
 			_ = w.inst.Attack(id, float32(w.r.Float64()*2*math.Pi), model.EntityRef{})
 		}
 	}
@@ -292,4 +293,33 @@ func maps(m map[string]*clientv1.PlayerView, without string) map[string]*clientv
 // cellOf is the 32 m cell a player stands in.
 func cellOf(v *clientv1.PlayerView) [2]int {
 	return [2]int{int(math.Floor(v.X / 32)), int(math.Floor(v.Z / 32))}
+}
+
+// A watcher whose block moves a column on the tick a body comes to that column's edge: the body's cell is in the watcher's old block and its new one, and the one it comes to is new to the watcher, so the watcher is sent its step in the cell it left and its whole view in the cell it came to. The watcher reads the whole view as the frame's last word: the body stands where the server has it, not a step beyond.
+func TestAWatcherWhoseBlockMovesOnTheTickABodyComesToItsNewColumn(t *testing.T) {
+	data := interestData(t, 1, 3, 3)
+	cell := data.Interest().Cell
+	m := worldtest.Gridded(t, &gamedata.Map{ID: "wire", Kind: gamedata.Hunting, Town: "willowmere", Geometry: worldtest.Flat(256), PlayerSpawn: gamedata.Point{X: 128, Z: 128}})
+	w := &wire{inst: worldtest.NewInstance(m, data, nil, worldtest.Options{}), snaps: map[kernel.CharacterID]model.Snapshot{}, clients: map[kernel.CharacterID]*client{}, r: rand.New(rand.NewPCG(1, 1)), steady: true}
+	side := float64(data.Interest().Side)
+	watcher := w.join(t, worldtest.NewPlayer("Watcher", 3*cell-0.5, 100))  // a half metre short of the next column
+	body := w.join(t, worldtest.NewPlayer("Body", (3+side)*cell-0.5, 100)) // as far short of the column past the watcher's block, in the block's last
+	for _, c := range []*client{watcher, body} {
+		c.key = sim.Input{Right: true}
+	}
+	crossed := false
+	for range 40 {
+		w.step(t)
+		held, own := watcher.players[body.id.String()], body.players[body.id.String()]
+		if held == nil || own == nil {
+			continue
+		}
+		crossed = crossed || cellOf(own)[0] >= int(3+side)
+		if !proto.Equal(onTheWire(held), onTheWire(own)) {
+			t.Fatalf("tick %d: the watcher holds the body at (%v, %v); it stands at (%v, %v)", w.tick, held.X, held.Z, own.X, own.Z)
+		}
+	}
+	if !crossed {
+		t.Fatal("the body never came to the column past the watcher's block")
+	}
 }

@@ -39,3 +39,30 @@ func TestAnExpanderReadsStepsAgainstTheViewsHeld(t *testing.T) {
 		t.Fatalf("a step of a player who left read as %+v", gone.Players)
 	}
 }
+
+// A body sent both ways in one frame, a step in the cell it left and its whole view in the cell it came to, ends as the whole view says, and is last in the frame's views.
+func TestAnExpanderTakesAWholeViewAsAFramesLastWordOnABody(t *testing.T) {
+	e := protocol.NewExpander("a")
+	e.Snapshot(&clientv1.Snapshot{
+		Players: []*clientv1.PlayerView{{Id: "a", Slot: 1}, {Id: "r", Slot: 2, X: 20, Name: "Robin"}},
+		Mobs:    []*clientv1.MobView{{Id: 9, X: 3, Type: "green_slime"}},
+	})
+	d := &clientv1.Delta{
+		Players:  []*clientv1.PlayerView{{Id: "r", Slot: 2, X: 20.1, Name: "Robin"}},
+		Steps:    []*clientv1.PlayerStep{{Slot: 2, Dx: 10}},
+		Mobs:     []*clientv1.MobView{{Id: 9, X: 3.1, Type: "green_slime"}},
+		MobSteps: []*clientv1.MobStep{{Id: 9, Dx: 10}},
+	}
+	e.Delta(d)
+	if r := d.Players[len(d.Players)-1]; math.Abs(r.X-20.1) > 1e-9 {
+		t.Fatalf("Robin ends at %v; want the whole view's 20.1, not a step past it", r.X)
+	}
+	if m := d.Mobs[len(d.Mobs)-1]; math.Abs(m.X-3.1) > 1e-9 {
+		t.Fatalf("the slime ends at %v; want the whole view's 3.1", m.X)
+	}
+	next := &clientv1.Delta{Steps: []*clientv1.PlayerStep{{Slot: 2, Dx: 5}}}
+	e.Delta(next)
+	if r := next.Players[0]; math.Abs(r.X-20.15) > 1e-9 {
+		t.Fatalf("Robin's next step reads at %v; want 20.15, from the whole view", r.X)
+	}
+}

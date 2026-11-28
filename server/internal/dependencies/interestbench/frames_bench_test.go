@@ -105,6 +105,7 @@ func region(b *testing.B) *gamedata.Map {
 // scene is a map stepped by hand, its players each holding a key they change now and then, as walkers do.
 type scene struct {
 	home *gamedata.Point                   // when set, a player past 45 m of it presses toward it
+	walk *sim.Input                        // when set, every player presses it
 	at   map[kernel.CharacterID][2]float64 // where each last was, as the latest frame had them
 	inst *instance.Instance
 	out  *stream
@@ -163,6 +164,9 @@ func (s *scene) step() {
 			s.keys[k] = sim.Input{Left: s.r.IntN(3) == 0, Right: s.r.IntN(3) == 0, Up: s.r.IntN(2) == 0, Down: s.r.IntN(3) == 0}
 		}
 		key := s.keys[k]
+		if s.walk != nil {
+			key = *s.walk
+		}
 		if a, ok := s.at[id]; ok && s.home != nil {
 			if dx, dz := s.home.X-a[0], s.home.Z-a[1]; math.Hypot(dx, dz) > 45 {
 				key = sim.Input{Right: dx > 0, Left: dx < 0, Up: dz > 0, Down: dz < 0}
@@ -301,21 +305,7 @@ func BenchmarkACrowdInACamp(b *testing.B) {
 			s.run(200) // the crowd moves about and the camps wake
 			s.step()
 			frame, to := s.out.frame, s.out.to
-			codec := protocol.ServerCodec(wsconn.Binary)
-			conn := &discard{}
-			size := func(f *world.Frame, r model.Recipient, withOwn bool) int {
-				o := newOutbox(conn)
-				fr := facadeRecipient(r)
-				if !withOwn {
-					fr.Own = nil
-				}
-				o.Deliver(gwmodel.Delivery{Tick: frame.Tick, Event: world.Framed{Frame: f, Recipient: fr}})
-				wire, err := codec.Encode(conn.last)
-				if err != nil {
-					b.Fatal(err)
-				}
-				return len(wire)
-			}
+			size := wireSizer(b, frame.Tick)
 			whole := facadeFrame(frame)
 			players, mobs := &world.Frame{}, &world.Frame{}
 			for _, p := range whole.Parts {
@@ -352,8 +342,27 @@ func BenchmarkACrowdInACamp(b *testing.B) {
 	}
 }
 
-// newClumpedScene is a scene of players kept within about 60 m of the middle of a map, among six camps of perCamp mobs within 70 m of it.
-func newClumpedScene(b *testing.B, data *gamedata.Data, players, perCamp int) *scene {
+// wireSizer is the bytes of the Delta a client is sent of a frame, as the server encodes it: with the recipient's own view or without.
+func wireSizer(b testing.TB, tick uint64) func(f *world.Frame, r model.Recipient, withOwn bool) int {
+	codec := protocol.ServerCodec(wsconn.Binary)
+	conn := &discard{}
+	return func(f *world.Frame, r model.Recipient, withOwn bool) int {
+		o := newOutbox(conn)
+		fr := facadeRecipient(r)
+		if !withOwn {
+			fr.Own = nil
+		}
+		o.Deliver(gwmodel.Delivery{Tick: tick, Event: world.Framed{Frame: f, Recipient: fr}})
+		wire, err := codec.Encode(conn.last)
+		if err != nil {
+			b.Fatal(err)
+		}
+		return len(wire)
+	}
+}
+
+// clumpedMap is a map with six camps of perCamp mobs within 70 m of its middle.
+func clumpedMap(b testing.TB, perCamp int, spawn gamedata.Point) *gamedata.Map {
 	const size = 256.0
 	centre := gamedata.Point{X: size / 2, Z: size / 2}
 	r := rand.New(rand.NewPCG(7, 3))
@@ -363,12 +372,114 @@ func newClumpedScene(b *testing.B, data *gamedata.Data, players, perCamp int) *s
 		at := gamedata.Point{X: centre.X + (r.Float64()*2-1)*70, Z: centre.Z + (r.Float64()*2-1)*70}
 		spawns[k] = gamedata.Spawn{Mob: kind, Max: perCamp, Respawn: 24 * time.Second, Radius: 8, At: at}
 	}
-	m := worldtest.Gridded(b, &gamedata.Map{
-		ID: "camp", Kind: gamedata.Hunting, Town: "willowmere", Geometry: worldtest.Flat(size), Spawns: spawns, PlayerSpawn: centre,
+	return worldtest.Gridded(b, &gamedata.Map{
+		ID: "camp", Kind: gamedata.Hunting, Town: "willowmere", Geometry: worldtest.Flat(size), Spawns: spawns, PlayerSpawn: spawn,
 	})
-	s := newSceneAt(b, m, data, players, func(r *rand.Rand) (float64, float64) {
+}
+
+// newClumpedScene is a scene of players kept within about 60 m of the middle of a map, among six camps of perCamp mobs within 70 m of it.
+func newClumpedScene(b *testing.B, data *gamedata.Data, players, perCamp int) *scene {
+	centre := gamedata.Point{X: 128, Z: 128}
+	s := newSceneAt(b, clumpedMap(b, perCamp, centre), data, players, func(r *rand.Rand) (float64, float64) {
 		return centre.X + (r.Float64()*2-1)*30, centre.Z + (r.Float64()*2-1)*30
 	})
 	s.home = &centre
 	return s
+}
+
+// A clump of 150 players logs in a few a tick at the start of a map and all set off at once toward its camps, as the soak's bots did: the busiest whole second a client is sent once all are in, in kB/s, and what it holds a tick, in bytes, by kind. This is the case the 40 kB/s budget is judged on (large-regions.md section 5).
+func BenchmarkAClumpWalking(b *testing.B) {
+	data := interestData(b, 1, 3, 3)
+	s := &scene{inst: worldtest.NewInstance(clumpedMap(b, 15, gamedata.Point{X: 56, Z: 40}), data, nil, worldtest.Options{}), out: &stream{}, r: rand.New(rand.NewPCG(2, 9)), at: map[kernel.CharacterID][2]float64{}, walk: &sim.Input{Right: true, Up: true}}
+	type tick struct{ total, steps, whole, mobSteps, mobs, other, wholeViews float64 }
+	var ticks []tick
+	measure := func() {
+		frame, to := s.out.frame, s.out.to
+		if len(to) < crowd {
+			return
+		}
+		size, parts := wireSizer(b, frame.Tick), facadeFrame(frame)
+		only := func(keep func(p world.Part) world.Part) *world.Frame {
+			f := &world.Frame{}
+			for _, p := range parts.Parts {
+				f.Parts = append(f.Parts, keep(p))
+			}
+			return f
+		}
+		steps := only(func(p world.Part) world.Part { return world.Part{Steps: p.Steps} })
+		whole := only(func(p world.Part) world.Part { return world.Part{Players: p.Players} })
+		mobSteps := only(func(p world.Part) world.Part { return world.Part{MobSteps: p.MobSteps} })
+		mobs := only(func(p world.Part) world.Part { return world.Part{Mobs: p.Mobs} })
+		empty := &world.Frame{Parts: make([]world.Part, len(parts.Parts))}
+		var t tick
+		for _, r := range to {
+			e := float64(size(empty, r, false))
+			t.total += float64(size(parts, r, true))
+			t.steps += float64(size(steps, r, false)) - e
+			t.whole += float64(size(whole, r, false)) - e
+			t.mobSteps += float64(size(mobSteps, r, false)) - e
+			t.mobs += float64(size(mobs, r, false)) - e
+			t.other += e
+		}
+		n := float64(len(to))
+		t.total, t.steps, t.whole, t.mobSteps, t.mobs, t.other = t.total/n, t.steps/n, t.whole/n, t.mobSteps/n, t.mobs/n, t.other/n
+		for _, p := range parts.Parts {
+			t.wholeViews += float64(len(p.Players))
+		}
+		ticks = append(ticks, t)
+	}
+	var joined sync.WaitGroup
+	for k := range crowd {
+		if k%4 == 0 {
+			s.step()
+			measure()
+		}
+		p := worldtest.NewPlayer(fmt.Sprintf("P%03d", k), 50+s.r.Float64()*12, 34+s.r.Float64()*12)
+		p.Level, p.HP = 60, 50000
+		s.ids, s.keys = append(s.ids, p.ID), append(s.keys, sim.Input{})
+		joined.Go(func() {
+			if err := s.inst.Join(context.Background(), p, sink{s.out}); err != nil {
+				b.Error(err)
+			}
+		})
+	}
+	done := make(chan struct{})
+	go func() { joined.Wait(); close(done) }()
+	for waiting := true; waiting; {
+		select {
+		case <-done:
+			waiting = false
+		default:
+			s.step()
+		}
+	}
+	ticks = ticks[:0]
+	for range 400 {
+		s.step()
+		measure()
+	}
+	for b.Loop() {
+	}
+	const second = 20
+	best, at := 0.0, 0
+	for k := 0; k+second <= len(ticks); k++ {
+		sum := 0.0
+		for _, t := range ticks[k : k+second] {
+			sum += t.total
+		}
+		if sum > best {
+			best, at = sum, k
+		}
+	}
+	var busy tick
+	for _, t := range ticks[at : at+second] {
+		busy.total, busy.steps, busy.whole, busy.mobSteps, busy.mobs, busy.other, busy.wholeViews = busy.total+t.total, busy.steps+t.steps, busy.whole+t.whole, busy.mobSteps+t.mobSteps, busy.mobs+t.mobs, busy.other+t.other, busy.wholeViews+t.wholeViews
+	}
+	b.ReportMetric(best/1000, "kB/s@busiest")
+	b.ReportMetric(busy.steps/second, "B/steps")
+	b.ReportMetric(busy.whole/second, "B/whole")
+	b.ReportMetric(busy.mobSteps/second, "B/mobsteps")
+	b.ReportMetric(busy.mobs/second, "B/mobs")
+	b.ReportMetric(busy.other/second, "B/other")
+	b.ReportMetric(busy.wholeViews/second, "whole/tick")
 }
