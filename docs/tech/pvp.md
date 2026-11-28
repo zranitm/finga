@@ -2,7 +2,7 @@
 
 > **Changed by [Outfits](./outfits.md):** the first time a character's shown rating reaches a rank above Bronze, the pvp module grants that rank's outfit piece, and it checks `pvp_wins` feats at a match's end (section 4 there). Ranks still give no items, EXP, currency or stats. PvP bots wear random boss and feat pieces.
 
-> **Status: approved · 2026-11-18.** The high-level design for [I1. PvP matches](../product/features/pvp/i1-pvp-matches.md), [I2. Arena: 1v1 and 3v3](../product/features/pvp/i2-arena.md), [I3. Battlefield: 15v15](../product/features/pvp/i3-battlefield.md) and [I4. PvP rating and ranks](../product/features/pvp/i4-pvp-rating.md). A lost connection's 20 s grace was added on 2026-11-24, after a live test (section 4).
+> **Status: approved · 2026-11-18.** The high-level design for [I1. PvP matches](../product/features/pvp/i1-pvp-matches.md), [I2. Arena: 1v1 and 3v3](../product/features/pvp/i2-arena.md), [I3. Battlefield: 15v15](../product/features/pvp/i3-battlefield.md) and [I4. PvP rating and ranks](../product/features/pvp/i4-pvp-rating.md). A lost connection's 20 s grace was added on 2026-11-24, after a live test (section 4). Enemies' bodies block each other since 2026-11-28 (section 19).
 
 ## 1. What has to hold
 
@@ -236,6 +236,10 @@ bots:
 - **Chains:** `dodged` and `blocked` count any enemy's attack, a player's as a mob's.
 - **In combat:** `stampFights` already stamps both players of a `Damage`.
 - **Telegraphs:** players' attacks draw no warning areas, as today. The swing is the warning.
+
+### Bodies
+
+- Enemies' bodies block each other, as mobs block players (section 19). Teammates' don't, and outside a match no player's body blocks another's.
 
 ### Refused or off in a match
 
@@ -942,3 +946,90 @@ The user's choices are in section 1. These calls were made in planning and logge
     - It would keep a team whole through a long drop.
     - But a stand-in starts with cooldowns ready and no statuses, so a free return would make a drop a reset. A player weaker than the bots could drop to let one fight for them.
     - Guarding both, by carrying the body's state both ways and one grace a match, would cost two hand-overs a drop.
+
+## 19. Enemies are solid
+
+Added on 2026-11-28. The user: "players should block each other way, because currently its hard to tell if it comes to the correct distance for an attack/skill, like it is with mob". Offered all players everywhere or enemies in matches only, they chose enemies in matches only.
+
+### The rule
+
+- **In a match, a fighter's body blocks their enemies',** by the rule a mob's body blocks a player's ([3D world](./3d-world.md) section 5):
+  - a move may not bring two enemies' centres closer while their bodies overlap;
+  - a body can always walk out of an overlap;
+  - a jump clears an enemy only if the feet stay above the enemy's head from first touch until past their centre.
+- **So a melee fighter walking up to an enemy stops touching them,** centres 0.75 m apart, in reach of every melee attack. That is the cue the user asked for, the one mobs give.
+- **Whose bodies count:**
+  - **Enemies:** living ones, down excepted. A held body, kept for a lost connection, counts, as does a bot that took over a leaver.
+  - **Teammates** pass through each other.
+  - **Outside a match** nothing changes: players pass through each other everywhere.
+- **Moves:** a skill's move stops at an enemy where it stops at a mob, and one that passes through mobs (`through`) passes through enemies. A shove stops at the shoved player's enemies, where they stand that tick, as a knockback stops at mobs.
+- **A jump over an enemy:** players are 1.75 m tall and a jump peaks at about 2 m, so the feet are above an enemy's head for about 0.23 s. Clearing one takes 0.75 m of that, so a jump made at the right moment clears an enemy at a walk, and more easily at a sprint. It's a tight escape from being pinned, not a free one. Every mob but a boss is low enough to clear easily.
+
+### Seeing it the same on both ends
+
+- **A step is judged against enemies where the mover's screen drew them,** at the input's `view`, as mobs are. The world keeps each tick's fighters' bodies for `mobs.History` ticks, as the arena keeps the mobs' frames. The client builds the same circles from the remote players' tick states, not their smoothed draw, as it does for mobs.
+  - So walking into an enemy who stands still, or moves slowly, plays with no correction.
+- **Two enemies moving into each other** can still end deep in each other. Each stops at the other's drawn place, and each has moved on since by their speed times the drawn delay and the round trip. Walking head-on with an ordinary lag, they can meet centre to centre and then walk through, which is the case the user wants gone.
+- **So the world parts them:**
+  - At the end of each tick's player steps, two enemies more than 0.25 m into each other are pushed apart along the line between their centres, half each, back to 0.25 m. 0.25 m is the overlap a walking mob may have before it counts as deep (3D world section 7).
+  - Each push is stopped as a walk is: by solids, the map's edges, a base's blocker and the prep wall. A body that can't move leaves the rest to the other.
+  - Pairs are parted in id order, so the result is the same every run.
+  - A body in a `through` move isn't parted until its move ends.
+  - Each client sees its own push as a correction, as it sees a skill's shove today, so a correction comes only from a head-on clash. The `?fps` readout counts them.
+
+### Bots
+
+- Bots step against enemies' bodies like any fighter, through their own view.
+- **A bot whose walk an enemy blocks,** an enemy it isn't trying to hit, steps round them, so it doesn't stand pressing at a body on its way to a point or a base.
+- A melee bot closing on its target stops touching them, as a player does, which is already in its reach.
+
+### The change
+
+| Part | Before | After |
+| --- | --- | --- |
+| `instance/players.go` (the player step) | `geometry(p)` plus the mobs `p.view` saw | Also the enemies' bodies `p.view` saw, in a match |
+| The world | — | Keeps each tick's fighters' bodies for `mobs.History` ticks. Parts deep enemies at the end of the player steps |
+| Shoves on a player | Stop at solids | Also at the shoved player's enemies, where they stand |
+| Bots | Steer as if no body were in the way | Step round an enemy who blocks their walk |
+| `web/src/game/systems/prediction.ts` | `blockersAt(view)`: the mobs | The mobs and, in a match, the enemies at `view`, from the remote players' tick states |
+
+The sim doesn't change: enemies are `sim.Blocker` circles, as mobs are. Neither does the protocol.
+
+### Testing
+
+- **Sim** (Go and TypeScript, the shared vectors): a body 1.75 m tall as a blocker. A walk into it stops touching. A jump at the right moment clears it at a walk and at a sprint, and one taken pressed against it doesn't.
+- **The world:**
+  - In 1v1, a player walking into a standing enemy stops with centres 0.75 m apart, and the state the client would predict equals the world's.
+  - In 3v3, teammates walk through each other. Outside a match, two players walk through each other.
+  - A downed enemy doesn't block, and a held body does.
+  - A skill's move stops at an enemy, and a `through` move passes. A shove stops at an enemy of the shoved.
+  - **The head-on clash:** two enemies walk at each other with views a few ticks behind. They end no more than 0.25 m into each other and never pass through. Planted without the parting, they pass through, so the test must fail there.
+  - Parting is stopped by a wall, and the free body takes the rest.
+- **Bots:** in 15v15, a bot walking to a point past a standing enemy gets round them.
+- **Client:** the predictor's blockers hold the enemies at a view, never the teammates, and nothing outside a match.
+- **Live:** a short 1v1 check, written by the scenario writer and waiting for the user's yes, as every live test does:
+  - walk into an enemy and attack from there;
+  - clash head-on;
+  - jump over an enemy;
+  - in 3v3, walk through a teammate.
+
+### Build
+
+One PR, server and client together, since a server that blocks with a client that doesn't predict it would correct every touch. Each step is one commit:
+1. the world's kept bodies, the blocking in the player step and in shoves, and the parting;
+2. bots stepping round;
+3. the client's predictor.
+
+### Decisions
+
+1. **Enemies in matches only,** the user's choice. The reach problem only comes up against players, and that happens only in a match.
+2. **The mob rule, not a new one,** so an enemy feels like a mob to walk into. A crowd of enemies can pin a player as a crowd of mobs can, and a jump is the way out.
+3. **Parting head-on clashes in the world,** half each, rather than letting overlaps stand. Without it, enemies walking at each other could meet and walk through, which is the case the user asked to remove. The price is a small correction in a clash.
+4. **Downed enemies don't block,** as dead mobs don't, so a body on the ground never walls a path.
+
+### Alternatives considered
+
+- **All players solid everywhere:** offered, and turned down by the user. Players could stand in the way of NPCs, gates, waypoints and bridges, and towns would jam. Nobody fights a player outside a match, so it would judge no reach.
+- **Teammates solid too:** a side could jam its own base gate in 15v15 or pin its own fighter in a corner.
+- **No parting, overlaps allowed:** a still or slow enemy would block perfectly, but a head-on clash could pass through.
+- **Judging steps against where the enemy is now,** not where the mover's screen drew them: every touch with a moving enemy would correct, since the client can't know where the enemy is now.

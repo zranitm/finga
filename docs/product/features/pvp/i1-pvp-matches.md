@@ -32,6 +32,8 @@
 - **Fighting other players:**
   - Attacks and skills hit enemies as they hit mobs, by their shapes, and hit no one on the player's own side.
   - The lock (C15) takes enemy players, with Tab switching between them. The target window shows the player's name, class and HP.
+  - **Enemies are solid,** as mobs are: a player can't walk through an enemy, so a melee fighter walking up stops at the enemy's side, in reach. Leaps, charges and shoves stop at enemies as they stop at mobs, and a well-timed jump clears one. A downed enemy doesn't block.
+  - Teammates pass through each other, so a side never jams its own gate or corners its own fighter.
   - Dodges pass through enemies' attacks and skills, and blocks stop them from the front (C21). Nothing a player does is unblockable. Players' attacks draw no warning areas: the swing is the warning.
   - Statuses work on players as on mobs (C19), and break-free skills get out of them. Taunt and losing sight work on mobs only.
   - A player's hit has no hit guard after it, so combos land in full. A skill's push moves the target; a plain hit doesn't knock them back.
@@ -64,6 +66,7 @@
 - Rewards beyond rating and rank: no items, EXP or currency.
 - Joining a match already under way. Coming back to one's own held place after a lost connection isn't that.
 - Choosing a map.
+- Players blocking each other outside a match, where it would let them stand in the way of NPCs, gates, waypoints and bridges, and crowd the towns. Nobody fights a player there, so a solid body would judge no reach.
 
 ## Rules
 
