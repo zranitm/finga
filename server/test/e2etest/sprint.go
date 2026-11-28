@@ -46,7 +46,7 @@ func (r *Recording) Take(m wsconn.Message) {
 // Hit is whether a Damage named the player yet.
 func (r *Recording) Hit() bool { return len(r.Hits) > 0 }
 
-// Through is whether the newest frame is ticks past the last hit, or past the first frame moving when none hit.
+// Through is whether the newest frame is ticks past the last hit, or past the first frame moving when none hit; not before one of them.
 func (r *Recording) Through(ticks uint64) bool {
 	if len(r.Paces) == 0 {
 		return false
@@ -54,6 +54,9 @@ func (r *Recording) Through(ticks uint64) bool {
 	from := r.start()
 	if n := len(r.Hits); n > 0 {
 		from = r.Hits[n-1]
+	}
+	if from == 0 {
+		return false // none moving yet and none hit: a late first frame is no end of the walk
 	}
 	return r.Paces[len(r.Paces)-1].Tick >= from+ticks
 }
