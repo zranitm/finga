@@ -104,7 +104,6 @@ func TestAnUnsentOutboxRowStaysWithTheTTLOff(t *testing.T) {
 func TestTheOpsPageShowsTheWorldFromItsStart(t *testing.T) {
 	t.Parallel()
 	s := newStack(t)
-	runnertest.GetUntil(t, s.Ops+"/metrics", `finga_tick_duration_seconds_count{channel="0",map="sunreach"}`)
 	runnertest.GetUntil(t, s.Ops+"/metrics", `finga_tick_duration_seconds_count{channel="1",map="test_region"}`)
 	_, body := runnertest.Get(t, s.Ops+"/metrics")
 	if want := `finga_channels_open{region="test_region"} 1`; !strings.Contains(body, want) {

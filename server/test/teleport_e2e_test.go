@@ -24,7 +24,7 @@ func TestTeleportFromTheTownToAMapAndBack(t *testing.T) {
 	l := e2etest.NewLooter(s.Join(t, token, id))
 	l.Await(300*time.Millisecond, nil)
 
-	trail, _ := data.Map("sunreach")
+	_, oasis, _ := data.Waypoint("palmwater")
 	_, stone, _ := data.Waypoint("willowbrook")
 	for _, step := range []struct {
 		req    *clientv1.Teleport
@@ -32,7 +32,7 @@ func TestTeleportFromTheTownToAMapAndBack(t *testing.T) {
 		at     gamedata.Point
 		facing float64
 	}{
-		{&clientv1.Teleport{MapId: "sunreach"}, "sunreach", trail.PlayerSpawn, trail.SpawnYaw},
+		{&clientv1.Teleport{Waypoint: "palmwater"}, "sunreach", oasis.Arrive, oasis.Yaw},
 		{&clientv1.Teleport{Waypoint: "willowbrook"}, "willowmere", stone.Arrive, stone.Yaw},
 	} {
 		sent := time.Now() // the channel starts on the first tick to drain the request, after this
@@ -82,7 +82,7 @@ func TestAMobsHitCancelsATeleport(t *testing.T) {
 	l := e2etest.NewLooter(s.Join(t, token, id))
 	l.Await(300*time.Millisecond, nil)
 
-	if r := l.Teleport(t, "tp-trail", &clientv1.Teleport{MapId: "sunreach"}); !r.GetOk() {
+	if r := l.Teleport(t, "tp-trail", &clientv1.Teleport{Waypoint: "palmwater"}); !r.GetOk() {
 		t.Fatalf("teleport refused with %d", r.GetCode())
 	}
 	var hit uint64

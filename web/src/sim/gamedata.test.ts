@@ -312,50 +312,21 @@ describe('generated gamedata', () => {
   it('maps carry their kind and art keys, a region its town', () => {
     expect(maps.find((m) => m.id === 'hoarfell')).toMatchObject({
       kind: 'region',
-      town: 'hoarfell',
       start: false,
-      min_level: null,
     });
     expect(maps.find((m) => m.id === 'willowmere')).toMatchObject({
       kind: 'region',
-      town: 'willowmere',
       start: true,
     });
   });
 
-  it('maps carry their spawns, portals, boss spot and world chart place, a match’s map none, and no areas', () => {
-    const places = yaml('world.yaml').places as Record<string, [number, number]>;
-    for (const m of maps.filter((x) => x.kind !== 'region')) {
-      const raw = yaml(`maps/${m.id}.yaml`) as {
-        spawns?: { mob: string; at: [number, number]; radius: number }[];
-        portals?: { name: string; at: [number, number]; radius: number; to: { map: string } }[];
-        boss?: { mob: string; at: [number, number]; radius: number };
-      };
-      expect(m).toMatchObject({
-        id: m.id,
-        spawns: (raw.spawns ?? []).map((sp) => ({
-          mob: sp.mob,
-          x: sp.at[0],
-          z: sp.at[1],
-          radius: sp.radius,
-        })),
-        portals: (raw.portals ?? []).map((pt) => ({
-          name: pt.name,
-          x: pt.at[0],
-          z: pt.at[1],
-          radius: pt.radius,
-          to: pt.to.map,
-        })),
-        boss: raw.boss
-          ? { mob: raw.boss.mob, x: raw.boss.at[0], z: raw.boss.at[1], radius: raw.boss.radius }
-          : null,
-        place: places[m.id] ?? null,
-        areas: [],
-      });
+  it('a match’s map has no spawns, portals, chart place or areas', () => {
+    for (const m of maps.filter((x) => x.kind === 'pvp')) {
+      expect(m).toMatchObject({ id: m.id, spawns: [], portals: [], place: null, areas: [] });
     }
   });
 
-  it('a region is a map of its plan: its own town, the region above a place below, its camps as spawns and gates as portals, its areas with their corners, levels and bosses, no boss of its own, a place only if world.yaml gives one', () => {
+  it('a region is a map of its plan: the region above a place below, its camps as spawns and gates as portals, its areas with their corners, levels and bosses, a place only if world.yaml gives one', () => {
     const regions = maps.filter((m) => m.kind === 'region');
     const worldPlaces = yaml('world.yaml').places as Record<string, [number, number]>;
     expect(regions.map((m) => m.id)).toContain('test_region');
@@ -381,12 +352,9 @@ describe('generated gamedata', () => {
         id: m.id,
         name: raw.name,
         kind: 'region',
-        town: m.id,
         start: raw.beginning === true,
         ground: null,
         sky: raw.look.sky,
-        min_level: null,
-        max_level: null,
         under: raw.under ?? null,
         waypoints: (raw.waypoints ?? []).map((w) => ({ id: w.id, name: w.name })),
         spawns: (raw.camps ?? []).map((c) => ({
@@ -402,7 +370,6 @@ describe('generated gamedata', () => {
           radius: g.radius,
           to: g.to.region,
         })),
-        boss: null,
         place: worldPlaces[m.id] ?? null,
         areas: raw.areas.map((a) => ({
           id: a.id,
