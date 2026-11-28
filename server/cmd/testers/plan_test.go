@@ -240,7 +240,47 @@ func TestTheNewTesterIsLeftAsCreated(t *testing.T) {
 		t.Fatal(err)
 	}
 	if sd.level != 1 || sd.class.ID != data.StartClass().ID || sd.unspent != 0 || len(sd.skills) != 0 || len(sd.quests) != 0 || len(sd.gear) != 0 {
-		t.Errorf("%+v; want a Beginner at level 1 with nothing more", sd)
+		t.Errorf("%+v; want a Beginner at level 1 with nothing more but its waypoints", sd)
+	}
+}
+
+// Every tester, the new one too, finds every waypoint of the regions the world leads to, and none of the test region's, which nothing leads to: from the data, each once, and none but the data's.
+func TestEveryTesterFindsEveryShippedWaypointAndNoTestRegionOne(t *testing.T) {
+	data := gamedatatest.Shipped(t)
+	var want, test []string
+	for _, m := range data.Maps() {
+		for _, w := range m.Waypoints {
+			if m.ID == "test_region" {
+				test = append(test, w.ID)
+			} else if m.Kind == gamedata.Region {
+				want = append(want, w.ID)
+			}
+		}
+	}
+	if len(want) < 20 || len(test) == 0 {
+		t.Fatalf("%d shipped waypoints and %d of the test region in the data; the check has nothing to hold", len(want), len(test))
+	}
+	for _, tr := range testers {
+		t.Run(tr.username, func(t *testing.T) {
+			sd, err := plan(data, tr)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := slices.Clone(sd.waypoints)
+			slices.Sort(got)
+			slices.Sort(want)
+			if !slices.Equal(got, want) {
+				t.Errorf("found %v; want every waypoint of the shipped regions, %v", got, want)
+			}
+			for _, w := range test {
+				if slices.Contains(sd.waypoints, w) && !slices.Contains(want, w) {
+					t.Errorf("found %s, a waypoint of the test region", w)
+				}
+			}
+			if len(slices.Compact(got)) != len(got) {
+				t.Errorf("a waypoint listed twice in %v", got)
+			}
+		})
 	}
 }
 

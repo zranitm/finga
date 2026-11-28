@@ -196,9 +196,13 @@ func (r fakeRepo) SaveCheckpoint(_ context.Context, cp model.Checkpoint) error {
 		r.s.quests[cp.ID][q.ID] = q
 	}
 	r.s.timers[cp.ID] = slices.Clone(cp.Timers)
-	for _, w := range cp.Waypoints { // a find is for good: one already found keeps its time
-		if !slices.ContainsFunc(r.s.found[cp.ID], func(f model.Waypoint) bool { return f.ID == w.ID }) {
-			r.s.found[cp.ID] = append(slices.Clone(r.s.found[cp.ID]), w)
+	return r.SaveWaypoints(context.Background(), cp.ID, cp.Waypoints)
+}
+
+func (r fakeRepo) SaveWaypoints(_ context.Context, id kernel.CharacterID, found []model.Waypoint) error {
+	for _, w := range found { // a find is for good: one already found keeps its time
+		if !slices.ContainsFunc(r.s.found[id], func(f model.Waypoint) bool { return f.ID == w.ID }) {
+			r.s.found[id] = append(slices.Clone(r.s.found[id]), w)
 		}
 	}
 	return nil

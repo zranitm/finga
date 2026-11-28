@@ -122,6 +122,23 @@ func TestEveryConversionKeepsEveryField(t *testing.T) {
 				return f.in.(model.Checkpoint)
 			})
 		},
+		"FindWaypoints": func() []string {
+			type asked struct {
+				ID    kernel.CharacterID
+				Found []Waypoint
+			}
+			type sent struct {
+				ID    kernel.CharacterID
+				Found []model.Waypoint
+			}
+			return copytest.Diff(copytest.Match{}, func(a asked) sent {
+				if err := m.FindWaypoints(ctx, a.ID, a.Found); err != nil {
+					t.Fatal(err)
+				}
+				in := f.in.([]any)
+				return sent{in[0].(kernel.CharacterID), in[1].([]model.Waypoint)}
+			})
+		},
 	} {
 		if got := diff(); len(got) > 0 {
 			t.Errorf("%s: %v", name, got)

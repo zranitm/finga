@@ -191,6 +191,20 @@ func (s *cases) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	})
 }
 
+// FindWaypoints adds the waypoints the character has not found, each by a known id once, in one transaction.
+func (s *cases) FindWaypoints(ctx context.Context, id kernel.CharacterID, found []model.Waypoint) error {
+	seen := make(map[string]bool, len(found))
+	for _, w := range found {
+		if w.ID == "" || seen[w.ID] {
+			return model.ErrBadWaypoint
+		}
+		seen[w.ID] = true
+	}
+	return s.store.InTx(ctx, func(uow UnitOfWork) error {
+		return uow.Characters().SaveWaypoints(ctx, id, found)
+	})
+}
+
 // SaveLevelUp persists a level-up right away.
 func (s *cases) SaveLevelUp(ctx context.Context, lu model.LevelUp) error {
 	if !lu.Fits() {

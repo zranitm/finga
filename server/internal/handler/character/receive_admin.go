@@ -58,7 +58,11 @@ func (s *adminRoutes) character(w http.ResponseWriter, r *http.Request) {
 	for _, sk := range loaded.Skills {
 		skills[sk.ID] = sk.Points
 	}
-	transport.AdminWrite(w, http.StatusOK, adminapi.Character{Class: string(c.Class), Level: c.Level, UnspentPoints: c.UnspentPoints, UnspentSkillPoints: c.UnspentSkillPoints, Skills: skills})
+	found := make([]string, len(loaded.Waypoints))
+	for i, wp := range loaded.Waypoints {
+		found[i] = wp.ID
+	}
+	transport.AdminWrite(w, http.StatusOK, adminapi.Character{Class: string(c.Class), Level: c.Level, UnspentPoints: c.UnspentPoints, UnspentSkillPoints: c.UnspentSkillPoints, Skills: skills, Waypoints: found})
 }
 
 func (s *adminRoutes) items(w http.ResponseWriter, r *http.Request) {

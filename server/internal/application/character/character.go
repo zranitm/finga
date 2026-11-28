@@ -34,6 +34,7 @@ type useCases interface {
 	Derived(c model.Character) (progression.Derived, error)
 	SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
 	SaveLevelUp(ctx context.Context, lu model.LevelUp) error
+	FindWaypoints(ctx context.Context, id kernel.CharacterID, found []model.Waypoint) error
 	SetSkillBar(ctx context.Context, id kernel.CharacterID, account kernel.AccountID, bar []string) error
 }
 
@@ -162,6 +163,17 @@ func (m *Module) SaveCheckpoint(ctx context.Context, cp Checkpoint) (err error) 
 	ctx, call := m.calls.Start(ctx, "SaveCheckpoint")
 	defer call.End(&err)
 	return m.svc.SaveCheckpoint(ctx, cp.model())
+}
+
+// FindWaypoints adds waypoints to the character's found ones: those it has not found, with when; none it has is changed or taken away.
+func (m *Module) FindWaypoints(ctx context.Context, id kernel.CharacterID, found []Waypoint) (err error) {
+	ctx, call := m.calls.Start(ctx, "FindWaypoints")
+	defer call.End(&err)
+	in := make([]model.Waypoint, len(found))
+	for i, w := range found {
+		in[i] = model.Waypoint(w)
+	}
+	return m.svc.FindWaypoints(ctx, id, in)
 }
 
 // SaveLevelUp saves a level-up right away.

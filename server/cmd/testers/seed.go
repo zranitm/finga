@@ -65,6 +65,13 @@ func (s seeder) keep(ctx context.Context, t tester) (string, error) {
 		}
 		did += ", levelled"
 	}
+	found, err := s.findWaypoints(ctx, token, id, sd)
+	if err != nil {
+		return "", fmt.Errorf("waypoints: %w", err)
+	}
+	if found > 0 {
+		did += fmt.Sprintf(", %d waypoints found", found)
+	}
 	added, err := s.give(ctx, token, id, append(sd.gear, sd.potions...))
 	if err != nil {
 		return "", fmt.Errorf("items: %w", err)
@@ -126,6 +133,35 @@ func (s seeder) progress(ctx context.Context, token, id string, sd seed) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(200 * time.Millisecond): // still on a map, or its last save under way
+		}
+	}
+}
+
+// findWaypoints adds the waypoints the seed lists that the character has not found, which it only adds and never takes away; like progress, it waits for a character still on a map: how many it added.
+func (s seeder) findWaypoints(ctx context.Context, token, id string, sd seed) (int, error) {
+	c, err := s.admin.Character(ctx, token, id)
+	if err != nil {
+		return 0, err
+	}
+	var missing []string
+	for _, w := range sd.waypoints {
+		if !slices.Contains(c.Waypoints, w) {
+			missing = append(missing, w)
+		}
+	}
+	if len(missing) == 0 {
+		return 0, nil
+	}
+	deadline := time.Now().Add(leaveWait)
+	for {
+		err := s.admin.FindWaypoints(ctx, token, id, missing)
+		if e, ok := errors.AsType[adminapi.StatusError](err); !ok || e.Status != http.StatusConflict || time.Now().After(deadline) {
+			return len(missing), err
+		}
+		select {
+		case <-ctx.Done():
+			return 0, ctx.Err()
+		case <-time.After(200 * time.Millisecond):
 		}
 	}
 }
