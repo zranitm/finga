@@ -79,9 +79,15 @@ func TestJoinByID(t *testing.T) {
 		ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 1,
 		HP: 999, Energy: 99, MapID: "crossroads", X: 20, Z: 10,
 	}
-	lost := ayla
-	lost.ID, lost.MapID = kernel.NewCharacterID(), "limbo"
-	chars := &fakeCharacters{chars: map[kernel.CharacterID]model.Character{ayla.ID: ayla, lost.ID: lost}}
+	chars := &fakeCharacters{chars: map[kernel.CharacterID]model.Character{ayla.ID: ayla}}
+	gone := []string{"limbo", "shroom_grove", "spore_hollow", "toadstool_heights", "dune_road", "sandstone_cliffs", "sunken_ruins"} // and the six maps the desert retired
+	lost := map[string]model.Character{}
+	for _, id := range gone {
+		c := ayla
+		c.ID, c.MapID = kernel.NewCharacterID(), id
+		lost[id] = c
+		chars.chars[c.ID] = c
+	}
 
 	t.Run("loads, grants the starter items, joins, and returns the view", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
@@ -160,27 +166,29 @@ func TestJoinByID(t *testing.T) {
 			}
 		})
 	})
-	t.Run("a character saved on a map that's gone starts at the start map", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			var logs bytes.Buffer
-			w, stop := joinWorld(t, chars, &fakeStarter{}, slog.New(slog.NewJSONHandler(&logs, nil)))
-			defer stop()
-			s := &worldtest.Sink{}
-			view, err := w.Join(context.Background(), account, lost.ID, "conn-1", s)
-			if err != nil {
-				t.Fatal(err)
-			}
-			start := worldtest.LoadData(t).StartTown()
-			time.Sleep(worldtest.TickInterval)
-			synctest.Wait()
-			if strings.Count(logs.String(), `"level":"WARN"`) != 1 || strings.Contains(logs.String(), "can't hold") {
-				t.Fatalf("log %q; want the one warning, for the map that's gone", logs.String())
-			}
-			if at := joinedAt(t, s, lost.ID); view.MapID != start.ID || math.Abs(at.X-start.PlayerSpawn.X) > 3 || math.Abs(at.Z-start.PlayerSpawn.Z) > 3 {
-				t.Fatalf("joined %s at %+v; want %s by its spawn %v", view.MapID, at, start.ID, start.PlayerSpawn)
-			}
+	for _, id := range gone {
+		t.Run("a character saved on "+id+", a map that's gone, starts at the start map", func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				var logs bytes.Buffer
+				w, stop := joinWorld(t, chars, &fakeStarter{}, slog.New(slog.NewJSONHandler(&logs, nil)))
+				defer stop()
+				s := &worldtest.Sink{}
+				view, err := w.Join(context.Background(), account, lost[id].ID, "conn-1", s)
+				if err != nil {
+					t.Fatal(err)
+				}
+				start := worldtest.LoadData(t).StartTown()
+				time.Sleep(worldtest.TickInterval)
+				synctest.Wait()
+				if strings.Count(logs.String(), `"level":"WARN"`) != 1 || strings.Contains(logs.String(), "can't hold") {
+					t.Fatalf("log %q; want the one warning, for the map that's gone", logs.String())
+				}
+				if at := joinedAt(t, s, lost[id].ID); view.MapID != start.ID || math.Abs(at.X-start.PlayerSpawn.X) > 3 || math.Abs(at.Z-start.PlayerSpawn.Z) > 3 {
+					t.Fatalf("joined %s at %+v; want %s by its spawn %v", view.MapID, at, start.ID, start.PlayerSpawn)
+				}
+			})
 		})
-	})
+	}
 }
 
 // A stale connection's Leave, arriving after a rejoin, removes nothing.
