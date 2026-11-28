@@ -275,11 +275,12 @@ func (i *Instance) cut(players []model.PlayerView, steps []model.PlayerStep, shi
 	n.boss = n.boss[:0]
 	for _, s := range i.bosses {
 		k := -1
-		if s.up != nil && (slices.ContainsFunc(mobs, func(v model.MobView) bool { return v.ID == s.up.id }) || slices.ContainsFunc(mobSteps, func(m model.MobStep) bool { return m.ID == s.up.id })) {
+		if s.up != nil && (s.due || slices.ContainsFunc(mobs, func(v model.MobView) bool { return v.ID == s.up.id }) || slices.ContainsFunc(mobSteps, func(m model.MobStep) bool { return m.ID == s.up.id })) {
 			if v, up := i.arena.View(s.up.id); up { // the bar is drawn from the whole view, whichever way the mob's change went out
 				k, f.Parts = len(f.Parts), append(f.Parts, model.Part{Boss: &v})
 			}
 		}
+		s.due = false
 		n.boss = append(n.boss, k)
 	}
 	for _, id := range came {
