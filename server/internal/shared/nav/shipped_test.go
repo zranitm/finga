@@ -128,7 +128,7 @@ func fastRise(data *gamedata.Data, p sim.Params) float64 {
 	return nav.JumpRise(p.Faster(sim.SpeedFactor(data.StatRules().Curves.MoveSpeed.Limit))) - jumpMargin
 }
 
-// The reach check (docs/tech/3d-world.md section 4): on every shipped map, players get from each start to every target at every speed.
+// The reach check (docs/tech/3d-world.md section 4): on every shipped match's map, fighters get from each start to every spot and point at every speed.
 func TestEveryShippedMapCanBeCrossed(t *testing.T) {
 	data := gamedatatest.Full(t)
 	d := shipped(t)
@@ -136,33 +136,16 @@ func TestEveryShippedMapCanBeCrossed(t *testing.T) {
 	rise := fastRise(data, p)
 	for _, m := range d.maps {
 		t.Run(m.ID, func(t *testing.T) {
-			starts := []spot{{what: "the player spawn", at: m.PlayerSpawn.At}}
-			var targets []spot
-			if m.Kind == "pvp" { // a match's fighters start on its sides and meet with the prep wall down; a battle's take its points
-				starts = nil
-				for k, side := range m.Sides {
-					for i, at := range side {
-						what := fmt.Sprintf("side %d's spot %d", k+1, i+1)
-						starts = append(starts, spot{what: what, at: at.At})
-						targets = append(targets, spot{what, at.At, p.Radius})
-					}
-				}
-				for _, pt := range m.Points {
-					targets = append(targets, spot{"point " + pt.ID, pt.At, pt.Radius})
+			var starts, targets []spot // a match's fighters start on its sides and meet with the prep wall down; a battle's take its points
+			for k, side := range m.Sides {
+				for i, at := range side {
+					what := fmt.Sprintf("side %d's spot %d", k+1, i+1)
+					starts = append(starts, spot{what: what, at: at.At})
+					targets = append(targets, spot{what, at.At, p.Radius})
 				}
 			}
-			for _, pt := range m.Portals {
-				starts = append(starts, spot{what: "portal " + pt.Name, at: pt.At})
-				targets = append(targets, spot{"portal " + pt.Name, pt.At, pt.Radius})
-			}
-			for _, s := range m.Spawns {
-				targets = append(targets, spot{"spawn " + s.Name, s.At, s.Radius})
-			}
-			if b := m.Boss; b != nil {
-				targets = append(targets, spot{"boss " + b.Mob, b.At, b.Radius})
-			}
-			for _, n := range m.NPCs {
-				targets = append(targets, spot{"npc " + n.ID, n.At, data.TalkReach()})
+			for _, pt := range m.Points {
+				targets = append(targets, spot{"point " + pt.ID, pt.At, pt.Radius})
 			}
 			crossed(t, m.Grid(), p.Radius, rise, starts, targets)
 		})

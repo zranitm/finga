@@ -164,39 +164,3 @@ func TestHasteSwitchesThePaceOnTheClientsSchedule(t *testing.T) {
 		}
 	})
 }
-
-// Boots with 30% move speed walk 1.3 times as far as a town's pace in a hunting map, a new warrior's 7 AGI 1.01 times, and both at the town's pace in a town.
-func TestMoveSpeedCountsInHuntingMapsOnly(t *testing.T) {
-	walked := func(t *testing.T, m func(*gamedata.Data) *gamedata.Map, moveSpeed int) float64 {
-		t.Helper()
-		var d float64
-		synctest.Test(t, func(t *testing.T) {
-			data := worldtest.LoadData(t)
-			inst, stop := worldtest.RunMap(t, data, m(data), nil, worldtest.Options{})
-			defer stop()
-			time.Sleep(worldtest.TickInterval)
-			synctest.Wait()
-			x, z := arenaX, spawnZ
-			if mm := m(data); mm.Kind == gamedata.Town {
-				x, z = mm.PlayerSpawn.X, mm.PlayerSpawn.Z
-			}
-			p := worldtest.NewPlayer("Ayla", x, z)
-			p.Worn = model.Worn{Revision: 1, Items: []model.WornItem{{Template: "leather_cap", Stats: progression.ItemStats{MoveSpeed: moveSpeed}}}}
-			s := join(t, inst, p)
-			before, _ := s.Own(p.ID)
-			worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 6)
-			after, _ := s.Own(p.ID)
-			d = after.State.X - before.State.X
-		})
-		return d
-	}
-	hunting := func(*gamedata.Data) *gamedata.Map { return arena(t, time.Hour) }
-	town := worldtest.Town
-	pace, townFast := walked(t, town, 0), walked(t, town, 300)
-	if pace <= 0 || townFast != pace {
-		t.Fatalf("in town: walked %v m with the boots, %v without; want the same", townFast, pace)
-	}
-	if base, fast := walked(t, hunting, 0), walked(t, hunting, 300); math.Abs(base-1.01*pace) > 1e-6 || math.Abs(fast-1.3*pace) > 1e-6 {
-		t.Fatalf("in a hunting map: walked %v m without the boots and %v with them, against the town's %v; want 1.01 and 1.3 times as far", base, fast, pace)
-	}
-}

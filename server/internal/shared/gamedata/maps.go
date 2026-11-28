@@ -9,15 +9,22 @@ import (
 	"finga/internal/shared/sim"
 )
 
-// MapKind separates safe towns, hunting maps and matches' maps.
+// MapKind separates the land and its places below, regions, from matches' maps.
 type MapKind string
 
 // The map kinds.
 const (
-	Town    MapKind = "town"
-	Hunting MapKind = "hunting"
-	Pvp     MapKind = "pvp"    // a match's map: no portal, teleport or world chart reaches it
-	Region  MapKind = "region" // generated from its plan in data/regions, of towns and hunting areas (large-regions.md section 4)
+	Pvp    MapKind = "pvp"    // a match's map: no portal, teleport or world chart reaches it
+	Region MapKind = "region" // generated from its plan in data/regions, of towns and hunting areas (large-regions.md section 4)
+)
+
+// AreaKind is what a region's area is: a safe town or a hunting area.
+type AreaKind string
+
+// The area kinds.
+const (
+	Town    AreaKind = "town"
+	Hunting AreaKind = "hunting"
 )
 
 // Point is a spot on a map: x east and z north, in metres. What stands there stands on the ground under it.
@@ -43,7 +50,7 @@ type Spawn struct {
 	Radius  float64
 }
 
-// BossSpot is where a hunting map's field boss stands, at its circle's centre.
+// BossSpot is where a hunting area's field boss stands, at its circle's centre.
 type BossSpot struct {
 	Mob    string
 	At     Point
@@ -53,8 +60,8 @@ type BossSpot struct {
 // Area is one of a region's towns or hunting areas (large-regions.md section 6).
 type Area struct {
 	ID, Name           string
-	Kind               MapKind // Town or Hunting
-	MinLevel, MaxLevel int     // a hunting area's mobs are of these levels; 0 in a town
+	Kind               AreaKind
+	MinLevel, MaxLevel int // a hunting area's mobs are of these levels; 0 in a town
 	Boss               *BossSpot
 }
 
@@ -79,31 +86,28 @@ type Placement struct {
 
 // Map is one map, built for the sim (docs/tech/3d-world.md section 4).
 type Map struct {
-	ID                 string
-	Name               string // what players see, as the banner on entering
-	Kind               MapKind
-	Start              bool   // new characters start here; exactly one town has it
-	Town               string // the town its players respawn in; a town names itself, and so does a region, whose players get up at its start
-	MinLevel, MaxLevel int    // a hunting map's mobs are of these levels; 0 for a town or a region, whose areas have their own
-	Geometry           sim.Geometry
-	Portals            []Portal
-	Spawns             []Spawn
-	PlayerSpawn        Point   // where players appear; in towns, the respawn point
-	SpawnYaw           float64 // the way they face there, radians from north toward east
-	NPCs               []Placement
-	Boss               *BossSpot                // a hunting map's; nil in a town
-	Grid               func() *nav.Grid         // the walk grid, built at the first call; the world calls every map's as it starts, so no tick waits on one
-	Sides              [2][]Spot                // a pvp map's starting spots, side 1's then side 2's
-	Walled             sim.Geometry             // a pvp map's Geometry with its prep wall standing, before a round starts
-	Bases              [2]Circle                // a battle map's, side 1's then side 2's; zero on another map
-	Points             []CapturePoint           // a battle map's capture points
-	Kept               [2]sim.Geometry          // what each side of a battle walks: Geometry with the other side's base standing
-	KeptGrid           func(side int) *nav.Grid // the walk grid of a side's Kept, built at the first call, as Grid; nil on a map with no bases
-	Bake               string                   // a region's bake hash, the first 16 hex digits, naming the folder its client files are in; empty on a map
-	Areas              []Area                   // a region's, in its plan's order; none on a map
-	AreaGrid           regiongen.AreaGrid       // which of Areas holds each 4 m square of a region
-	Waypoints          []Waypoint               // a region's, ids unique across every region; every town area holds one
-	Under              string                   // a place below's region above, which its gates lead up to; empty on the land and on a map
+	ID          string
+	Name        string // what players see, as the banner on entering
+	Kind        MapKind
+	Start       bool // new characters start here; exactly one region has it
+	Geometry    sim.Geometry
+	Portals     []Portal
+	Spawns      []Spawn
+	PlayerSpawn Point   // where players appear: a region's start
+	SpawnYaw    float64 // the way they face there, radians from north toward east
+	NPCs        []Placement
+	Grid        func() *nav.Grid         // the walk grid, built at the first call; the world calls every map's as it starts, so no tick waits on one
+	Sides       [2][]Spot                // a pvp map's starting spots, side 1's then side 2's
+	Walled      sim.Geometry             // a pvp map's Geometry with its prep wall standing, before a round starts
+	Bases       [2]Circle                // a battle map's, side 1's then side 2's; zero on another map
+	Points      []CapturePoint           // a battle map's capture points
+	Kept        [2]sim.Geometry          // what each side of a battle walks: Geometry with the other side's base standing
+	KeptGrid    func(side int) *nav.Grid // the walk grid of a side's Kept, built at the first call, as Grid; nil on a map with no bases
+	Bake        string                   // a region's bake hash, the first 16 hex digits, naming the folder its client files are in; empty on a map
+	Areas       []Area                   // a region's, in its plan's order; none on a map
+	AreaGrid    regiongen.AreaGrid       // which of Areas holds each 4 m square of a region
+	Waypoints   []Waypoint               // a region's, ids unique across every region; every town area holds one
+	Under       string                   // a place below's region above, which its gates lead up to; empty on the land and on a map
 }
 
 // Circle is a round area: At and what's within Radius of it.
@@ -137,8 +141,8 @@ func (m *Map) AreaAt(x, z float64) int {
 	return m.AreaGrid.Holding(x, z)
 }
 
-// TownAt reports whether (x, z) is safe from harm: anywhere on a town map, and in a region's town areas.
-func (m *Map) TownAt(x, z float64) bool { return m.Kind == Town || m.TownAreaAt(x, z) }
+// TownAt reports whether (x, z) is safe from harm: in a region's town areas.
+func (m *Map) TownAt(x, z float64) bool { return m.TownAreaAt(x, z) }
 
 // TownAreaAt reports whether (x, z) lies in one of a region's town areas, whose line its mobs never cross.
 func (m *Map) TownAreaAt(x, z float64) bool {
@@ -171,12 +175,8 @@ func (d *Data) Waypoint(id string) (*Map, Waypoint, bool) {
 	return m, m.Waypoints[at.w], true
 }
 
-// GetUp is where one who died at (x, z) on m gets up, the map and the way they face: on a map that revives its own dead, beside its nearest waypoint in a straight line, found or not, on a region, whose towns each hold one, or at the spawn on a town; elsewhere at its town's spawn.
+// GetUp is where one who died at (x, z) on m gets up, the map and the way they face: beside a region's nearest waypoint in a straight line, found or not, its towns each holding one.
 func (d *Data) GetUp(m *Map, x, z float64) (*Map, Point, float64) {
-	if m.Town != m.ID {
-		town, _ := d.Map(m.Town) // loading checks that every map names one
-		return town, town.PlayerSpawn, town.SpawnYaw
-	}
 	at, yaw, best := m.PlayerSpawn, m.SpawnYaw, math.Inf(1)
 	for _, w := range m.Waypoints {
 		if far := math.Hypot(w.At.X-x, w.At.Z-z); far < best {
@@ -186,5 +186,5 @@ func (d *Data) GetUp(m *Map, x, z float64) (*Map, Point, float64) {
 	return m, at, yaw
 }
 
-// StartTown is the town, or the region, new characters start in: the one map with the property start.
+// StartTown is the region new characters start in: the one map with the property start.
 func (d *Data) StartTown() *Map { return d.p.StartTown }

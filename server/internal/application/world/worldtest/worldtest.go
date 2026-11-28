@@ -322,9 +322,6 @@ func LoadDataWith(t testing.TB, edits map[string]func(string) string) *gamedata.
 				t.Fatal(err)
 			}
 			raw = string(b)
-			if name == "world.yaml" {
-				raw = gamedatatest.WithLandPlaces(raw)
-			}
 		}
 		texts[name] = edits[name](raw)
 		key.WriteString(name + "\x00" + texts[name] + "\x00")
@@ -340,9 +337,6 @@ func LoadDataWith(t testing.TB, edits map[string]func(string) string) *gamedata.
 		if err := os.WriteFile(filepath.Join(dst, name), []byte(text), 0o600); err != nil {
 			t.Fatal(err)
 		}
-	}
-	if err := gamedatatest.AddLandPlaces(dst); err != nil {
-		t.Fatal(err)
 	}
 	for name, edit := range edits {
 		if edit == nil {
@@ -364,19 +358,12 @@ func LoadDataWith(t testing.TB, edits map[string]func(string) string) *gamedata.
 	return shared.(*gamedata.Data)
 }
 
-// Town is the small shipped town tests run in, Crossroads, rather than the start region.
+// Town is the start region run as a town, the one the tests that need a town with its NPCs run in: no mobs, a town area of all of it, so it is safe everywhere, and its walk grid, slow to build, is never needed.
 func Town(data *gamedata.Data) *gamedata.Map {
-	m, ok := data.Map("crossroads")
-	if !ok {
-		panic("no crossroads map")
-	}
-	return m
-}
-
-// StartTown is the start region run as a town, for tests that need its NPCs: no mobs or areas, so its walk grid, slow to build, is never needed.
-func StartTown(data *gamedata.Data) *gamedata.Map {
 	m := *data.StartTown()
-	m.Kind, m.Spawns, m.Boss, m.Areas, m.AreaGrid = gamedata.Town, nil, nil, nil, regiongen.AreaGrid{}
+	nx, nz := int(m.Geometry.SizeX/regiongen.AreaCell), int(m.Geometry.SizeZ/regiongen.AreaCell)
+	m.Spawns, m.Areas = nil, []gamedata.Area{{ID: "town", Name: "Town", Kind: gamedata.Town}}
+	m.AreaGrid = regiongen.AreaGrid{NX: nx, NZ: nz, Of: make([]int16, nx*nz)}
 	return &m
 }
 

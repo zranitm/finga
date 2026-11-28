@@ -247,10 +247,9 @@ type bot struct {
 	leftPouches map[uint32]bool                // pouches it leaves: one it found no way to, or one holding an item it has no room for
 	taking      bool                           // a TakeLoot waits for its Response
 	portalAt    time.Time
-	frameTick   uint64               // its map's newest frame, the view each input names
-	bossBack    map[string]time.Time // when each map's beaten boss is back, as the bot heard on that map; a map's boss is up otherwise
-	found       map[string]bool      // the waypoints it has found, by id
-	teleportAt  time.Time            // when it started the teleport under way; zero with none
+	frameTick   uint64          // its map's newest frame, the view each input names
+	found       map[string]bool // the waypoints it has found, by id
+	teleportAt  time.Time       // when it started the teleport under way; zero with none
 	// when it may teleport again, after one refused or cancelled
 	teleportAfter time.Time
 	down          meter // what it is sent
@@ -774,11 +773,7 @@ func (b *bot) observe(m wsconn.Message) {
 	case *clientv1.Snapshot:
 		b.frameTick = m.Tick
 		if fb := d.GetFieldBoss(); fb != nil {
-			b.bossBackIn(b.mapID, 0)
 			b.boss = fb.GetMobId()
-		}
-		if gone := d.GetFieldBossGone(); gone != nil {
-			b.bossBackIn(b.mapID, time.Duration(gone.GetBackInMs())*time.Millisecond)
 		}
 		for _, v := range d.GetPlayers() {
 			if v.GetId() == b.id {
@@ -826,10 +821,8 @@ func (b *bot) observe(m wsconn.Message) {
 	case *clientv1.Damage:
 		b.killed(b.kills.blow(m.Tick, d, b.id))
 	case *clientv1.FieldBoss:
-		b.bossBackIn(b.mapID, 0)
 		b.boss = d.GetMobId()
 	case *clientv1.FieldBossGone:
-		b.bossBackIn(b.mapID, time.Duration(d.GetBackInMs())*time.Millisecond)
 		b.boss = 0
 	case *clientv1.WaypointFound:
 		if b.found == nil {
@@ -1133,20 +1126,6 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 		decide()
 		b.sendInput()
 	}
-}
-
-// bossBackIn records when mapID's beaten boss is back, as the bot heard it on that map; 0 for one up.
-func (b *bot) bossBackIn(mapID string, d time.Duration) {
-	if b.bossBack == nil {
-		b.bossBack = map[string]time.Time{}
-	}
-	b.bossBack[mapID] = time.Now().Add(d)
-}
-
-// bossUp is whether mapID's field boss is up, as far as the bot knows: a boss stands at its spot unless the bot heard it beaten there and it isn't back yet.
-func (b *bot) bossUp(mapID string) bool {
-	m, ok := b.data.Map(mapID)
-	return ok && m.Boss != nil && !time.Now().Before(b.bossBack[mapID])
 }
 
 // townEvery is how often a bot not yet promoted goes back to the start town to talk to everyone, staggered by bot.

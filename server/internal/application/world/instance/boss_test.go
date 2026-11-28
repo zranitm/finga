@@ -16,6 +16,7 @@ import (
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"
+	"finga/internal/shared/regiongen"
 	"finga/internal/shared/sim"
 )
 
@@ -38,12 +39,18 @@ func bossData(t *testing.T, hp int, respawn string, share float64) *gamedata.Dat
 	}})
 }
 
-// bossArena puts King Slime at kingZ on the arena's line, north of a slime that respawns two ticks after a kill.
+// oneField is m made a region of a single hunting area, whole, with boss standing in it.
+func oneField(m *gamedata.Map, boss gamedata.BossSpot) *gamedata.Map {
+	nx, nz := int(m.Geometry.SizeX/regiongen.AreaCell), int(m.Geometry.SizeZ/regiongen.AreaCell)
+	m.Kind, m.AreaGrid = gamedata.Region, regiongen.AreaGrid{NX: nx, NZ: nz, Of: make([]int16, nx*nz)}
+	m.Areas = []gamedata.Area{{ID: "field", Name: "Field", Kind: gamedata.Hunting, MinLevel: 1, MaxLevel: 20, Boss: &boss}}
+	return m
+}
+
+// bossArena puts King Slime at kingZ on the arena's line, north of a slime that respawns two ticks after a kill, in a region of the one hunting area.
 func bossArena(t *testing.T) *gamedata.Map {
 	t.Helper()
-	m := arena(t, 2*worldtest.TickInterval)
-	m.Boss = &gamedata.BossSpot{Mob: "king_slime", At: gamedata.Point{X: arenaX, Z: kingZ}, Radius: 0.01}
-	return m
+	return oneField(arena(t, 2*worldtest.TickInterval), gamedata.BossSpot{Mob: "king_slime", At: gamedata.Point{X: arenaX, Z: kingZ}, Radius: 0.01})
 }
 
 const (
@@ -333,12 +340,12 @@ func TestAPlayerWalkingPastACalmBossIsNeverChased(t *testing.T) {
 		data := worldtest.LoadData(t)
 		forest := arenaOf(t, time.Hour, 80)
 		forest.Spawns = nil // the king alone
-		forest.Boss = &gamedata.BossSpot{Mob: "king_slime", At: gamedata.Point{X: 30, Z: 20}, Radius: 6}
+		oneField(forest, gamedata.BossSpot{Mob: "king_slime", At: gamedata.Point{X: 30, Z: 20}, Radius: 6})
 		inst, stop := worldtest.RunMap(t, data, forest, nil, worldtest.Options{NewRoll: worldtest.Rolls(0.5), Items: newFakeItems()})
 		defer stop()
 		walker := worldtest.NewPlayer("Walker", 2, 19)
 		s := join(t, inst, walker)
-		king, spot := kingOf(t, s), forest.Boss
+		king, spot := kingOf(t, s), forest.Areas[0].Boss
 		closest, stopped := math.Inf(1), 0
 		for seq := uint32(1); seq <= 1200; seq++ {
 			v, _ := s.Own(walker.ID)

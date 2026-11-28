@@ -117,7 +117,7 @@ func blowsBy(s *worldtest.Sink, id kernel.CharacterID) []model.Damage {
 func TestARepeatedHitFollowsItsUser(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		m := worldtest.Gridded(t, &gamedata.Map{
-			ID: "two", Kind: gamedata.Hunting, Town: "willowmere", Geometry: worldtest.Flat(40),
+			ID: "two", Kind: gamedata.Region, Geometry: worldtest.Flat(40),
 			Spawns: []gamedata.Spawn{
 				{Mob: "green_slime", Max: 1, Respawn: time.Hour, At: gamedata.Point{X: 16, Z: 20}, Radius: 0.01},
 				{Mob: "green_slime", Max: 1, Respawn: time.Hour, At: gamedata.Point{X: 24, Z: 20}, Radius: 0.01},

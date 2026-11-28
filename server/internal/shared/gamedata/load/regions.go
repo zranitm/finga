@@ -172,7 +172,7 @@ func (l *loader) loadRegion(id string, raw, kitRaw []byte, kit regiongen.Kit) er
 	if err != nil {
 		return err
 	}
-	m := mapfile.Generated(id, regionFile(id, p), geometry, l.movement)
+	m := mapfile.Generated(id, regionFile(p), geometry, l.movement)
 	grid, bosses, err := l.regionRules(p, m)
 	if err != nil {
 		return err
@@ -243,7 +243,7 @@ type regionParts struct {
 func partsOf(p regiongen.Plan, grid regiongen.AreaGrid, bake string, waypoints []gamedata.Waypoint) regionParts {
 	out := regionParts{bake: bake, grid: grid, waypoints: waypoints, under: p.Under, gates: p.Gates}
 	for _, a := range p.Areas {
-		area := gamedata.Area{ID: a.ID, Name: a.Name, Kind: gamedata.MapKind(a.Kind), MinLevel: a.Levels[0], MaxLevel: a.Levels[1]}
+		area := gamedata.Area{ID: a.ID, Name: a.Name, Kind: gamedata.AreaKind(a.Kind), MinLevel: a.Levels[0], MaxLevel: a.Levels[1]}
 		if b := a.Boss; b != nil {
 			area.Boss = &gamedata.BossSpot{Mob: b.Mob, At: gamedata.Point{X: b.At[0], Z: b.At[1]}, Radius: b.Radius}
 		}
@@ -252,10 +252,10 @@ func partsOf(p regiongen.Plan, grid regiongen.AreaGrid, bake string, waypoints [
 	return out
 }
 
-// regionFile is a region's plan as the map rules read a map's file: its gates are portals, its camps spawns and its start the player spawn, and it's its own town.
-func regionFile(id string, p regiongen.Plan) mapfile.File {
+// regionFile is a region's plan as the map rules read a map's file: its gates are portals, its camps spawns and its start the player spawn.
+func regionFile(p regiongen.Plan) mapfile.File {
 	f := mapfile.File{
-		Name: p.Name, Kind: string(gamedata.Region), Town: id, Look: mapfile.Look{Sky: p.Look.Sky}, Size: p.Size,
+		Name: p.Name, Kind: string(gamedata.Region), Look: mapfile.Look{Sky: p.Look.Sky}, Size: p.Size,
 		PlayerSpawn: mapfile.Place{At: p.Start.At, Yaw: p.Start.Yaw}, Start: p.Beginning,
 	}
 	for _, g := range p.Gates {

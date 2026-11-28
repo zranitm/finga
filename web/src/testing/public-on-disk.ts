@@ -1,4 +1,4 @@
-// The page's public folder served from disk, as fetch finds it in the browser: the maps (and the test data's land maps in maps/ beside this file where public has none) and the effects manifest, and the region bakes in regions/ beside this file, which regionbake's tests keep current, else the shipped regions' bakes npm run maps wrote.
+// The page's public folder served from disk, as fetch finds it in the browser: the maps (and the hand-kept yards in yards/ beside this file where public has none) and the effects manifest, and the region bakes in regions/ beside this file, which regionbake's tests keep current, else the shipped regions' bakes npm run maps wrote.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -6,9 +6,9 @@ import { vi } from 'vitest';
 
 const PUBLIC = path.resolve(process.cwd(), 'public');
 const REGIONS = path.resolve(process.cwd(), 'src/testing/regions');
-const MAPS = path.resolve(process.cwd(), 'src/testing/maps'); // the land maps the shipped game no longer has, which the tests still draw
+const MAPS = path.resolve(process.cwd(), 'src/testing/yards'); // the hand-kept maps with the land features the match maps lack, a village yard's houses and a ridge's mesa edge, which the tests still draw
 
-/** The JSON mapjson wrote for id, or the test data's land map's of that id. */
+/** The JSON mapjson wrote for id, or the hand-kept map's of that id. */
 export function mapJson(id: string): unknown {
   const own = path.join(PUBLIC, 'maps', `${id}.json`);
   return JSON.parse(

@@ -93,12 +93,6 @@ func (a *Arena) turn(mb *mob, players []Body) {
 		}
 		return
 	}
-	if a.m.Kind == gamedata.Town {
-		if !held {
-			a.wander(mb)
-		}
-		return
-	}
 	target, ok := a.targetOf(mb, players)
 	if ok && a.inTown(target.at()) {
 		a.giveUp(mb) // a town's line holds it as its leash does

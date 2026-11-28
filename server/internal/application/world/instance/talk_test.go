@@ -20,7 +20,7 @@ import (
 func TestTalk(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		inst, stop := worldtest.RunMap(t, data, worldtest.StartTown(data), nil, worldtest.Options{CheckpointInterval: time.Hour})
+		inst, stop := worldtest.RunMap(t, data, worldtest.Town(data), nil, worldtest.Options{CheckpointInterval: time.Hour})
 		defer stop()
 		p := besideNPC(t, data, "Ayla", "town_guide")
 		p.Level, p.Connection = 2, "c1"
@@ -95,7 +95,7 @@ func TestACheckpointCarriesACopyOfTheQuestLog(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		cps := &worldtest.Checkpoints{}
-		inst, stop := worldtest.RunMap(t, data, worldtest.StartTown(data), cps, worldtest.Options{CheckpointInterval: time.Hour})
+		inst, stop := worldtest.RunMap(t, data, worldtest.Town(data), cps, worldtest.Options{CheckpointInterval: time.Hour})
 		defer stop()
 		p := besideNPC(t, data, "Ayla", "town_guide")
 		p.Connection = "c1"
@@ -129,6 +129,6 @@ func besideNPC(t *testing.T, data *gamedata.Data, name, id string) model.Player 
 
 // atSpawn is a new player named name at the test town's spawn.
 func atSpawn(data *gamedata.Data, name string) model.Player {
-	at := worldtest.StartTown(data).PlayerSpawn
+	at := worldtest.Town(data).PlayerSpawn
 	return worldtest.NewPlayer(name, at.X, at.Z)
 }

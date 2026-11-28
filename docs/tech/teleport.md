@@ -29,6 +29,8 @@
 
 ### Start
 
+**As built (land-map cleanup):** the map's id is refused, as the maps a teleport reached are gone: a region is reached by its waypoints and a match's map by a match. `map_id` and `TELEPORT_SAME_MAP` are dead and leave the protocol in their own PR. What follows is the first design.
+
 `Teleport{map_id}`, stamped with its input seq as `UseSkill` is, starts a channel if:
 - the map exists and isn't the player's own;
 - the player is alive;
@@ -106,9 +108,9 @@ A running channel ends, and the player gets `TeleportCancelled` with its reason,
   - each notice;
   - the window closing;
   - refusals as notices.
-- **End to end:** a player teleports from town to the forest and lands at its spawn; a mob's hit on a channelling player cancels the channel with `HIT`.
+- **End to end:** a player teleports from one town's waypoint to another's and lands beside its stone; a mob's hit on a channelling player cancels the channel with `HIT`.
 - **Live:**
-  - a teleport from every town to a hunting map and back;
+  - a teleport from every main town to another region's and back;
   - a cancel by each cause;
   - the party panel showing the new map.
 

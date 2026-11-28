@@ -50,8 +50,8 @@ func detached(s *worldtest.Sink) int {
 func TestAJoinItsCallerGaveUpOnLeavesNoGhost(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := runningWorld(t)
-		ayla := at(t, "Ayla", "crossroads")
-		w.chars.chars[ayla.ID] = model.Character{ID: ayla.ID, Account: ayla.Account, Name: ayla.Name, Class: ayla.Class, Level: 1, Points: ayla.Points, HP: ayla.HP, Energy: ayla.Energy, MapID: "crossroads", X: ayla.X, Y: ayla.Y, Z: ayla.Z}
+		ayla := at(t, "Ayla", "willowmere")
+		w.chars.chars[ayla.ID] = model.Character{ID: ayla.ID, Account: ayla.Account, Name: ayla.Name, Class: ayla.Class, Level: 1, Points: ayla.Points, HP: ayla.HP, Energy: ayla.Energy, MapID: "willowmere", X: ayla.X, Y: ayla.Y, Z: ayla.Z}
 		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 		defer cancel()
 		if _, err := w.Join(ctx, ayla.Account, ayla.ID, "c-1", &worldtest.Sink{}); !errors.Is(err, context.DeadlineExceeded) {
@@ -60,7 +60,7 @@ func TestAJoinItsCallerGaveUpOnLeavesNoGhost(t *testing.T) {
 		time.Sleep(3 * worldtest.TickInterval)
 		synctest.Wait()
 		watcher := &worldtest.Sink{}
-		w.enter(t, at(t, "Bo", "crossroads"), "crossroads", "c-bo", watcher)
+		w.enter(t, at(t, "Bo", "willowmere"), "willowmere", "c-bo", watcher)
 		if present, _ := seenIn(watcher, ayla.ID); present != 0 {
 			t.Fatal("the join nobody waited for left Ayla on the map")
 		}
@@ -71,19 +71,19 @@ func TestAJoinItsCallerGaveUpOnLeavesNoGhost(t *testing.T) {
 func TestATransferRetriesWhileTheMapIsBusy(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := runningWorld(t)
-		bo := at(t, "Bo", "frost_trail")
-		w.enter(t, bo, "frost_trail", "c-bo", &worldtest.Sink{})
-		ayla, s := at(t, "Ayla", "crossroads"), &worldtest.Sink{}
-		w.enter(t, ayla, "crossroads", "c-1", s)
+		bo := at(t, "Bo", "sunreach")
+		w.enter(t, bo, "sunreach", "c-bo", &worldtest.Sink{})
+		ayla, s := at(t, "Ayla", "willowmere"), &worldtest.Sink{}
+		w.enter(t, ayla, "willowmere", "c-1", s)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		fillInbox(w, bo.ID, "c-bo")
-		moved := at(t, "Ayla", "frost_trail")
+		moved := at(t, "Ayla", "sunreach")
 		moved.ID, moved.Connection = ayla.ID, "c-1"
-		w.Transfer(w.MapActor("crossroads"), moved, s, instance.Dest{ID: "frost_trail"})
+		w.Transfer(w.MapActor("willowmere"), moved, s, instance.Dest{ID: "sunreach"})
 		time.Sleep(time.Second)
 		synctest.Wait()
-		if snaps := worldtest.Of[model.Snapshot](s); len(snaps) != 2 || snaps[1].MapID != "frost_trail" {
+		if snaps := worldtest.Of[model.Snapshot](s); len(snaps) != 2 || snaps[1].MapID != "sunreach" {
 			t.Fatalf("snapshots %+v, want the forest's after the town's", snaps)
 		}
 	})
@@ -93,11 +93,11 @@ func TestATransferRetriesWhileTheMapIsBusy(t *testing.T) {
 func TestAFailedTransferDetachesTheConnection(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := runningWorld(t)
-		ayla, s := at(t, "Ayla", "crossroads"), &worldtest.Sink{}
-		w.enter(t, ayla, "crossroads", "c-1", s)
-		moved := at(t, "Ayla", "frost_trail")
+		ayla, s := at(t, "Ayla", "willowmere"), &worldtest.Sink{}
+		w.enter(t, ayla, "willowmere", "c-1", s)
+		moved := at(t, "Ayla", "sunreach")
 		moved.ID, moved.Connection, moved.Class = ayla.ID, "c-1", kernel.Class("nobody")
-		w.Transfer(w.MapActor("crossroads"), moved, s, instance.Dest{ID: "frost_trail"})
+		w.Transfer(w.MapActor("willowmere"), moved, s, instance.Dest{ID: "sunreach"})
 		time.Sleep(time.Second)
 		synctest.Wait()
 		if n := detached(s); n != 1 {
@@ -110,18 +110,18 @@ func TestAFailedTransferDetachesTheConnection(t *testing.T) {
 func TestATransferStopsOnceANewerJoinTakesTheCharacter(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := runningWorld(t)
-		bo, forest := at(t, "Bo", "frost_trail"), &worldtest.Sink{}
-		w.enter(t, bo, "frost_trail", "c-bo", forest)
-		ayla, s := at(t, "Ayla", "crossroads"), &worldtest.Sink{}
-		w.enter(t, ayla, "crossroads", "c-1", s)
+		bo, forest := at(t, "Bo", "sunreach"), &worldtest.Sink{}
+		w.enter(t, bo, "sunreach", "c-bo", forest)
+		ayla, s := at(t, "Ayla", "willowmere"), &worldtest.Sink{}
+		w.enter(t, ayla, "willowmere", "c-1", s)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		fillInbox(w, bo.ID, "c-bo")
-		moved := at(t, "Ayla", "frost_trail")
+		moved := at(t, "Ayla", "sunreach")
 		moved.ID, moved.Connection = ayla.ID, "c-1"
-		w.Transfer(w.MapActor("crossroads"), moved, s, instance.Dest{ID: "frost_trail"})
+		w.Transfer(w.MapActor("willowmere"), moved, s, instance.Dest{ID: "sunreach"})
 		synctest.Wait()
-		w.enter(t, ayla, "crossroads", "c-2", &worldtest.Sink{})
+		w.enter(t, ayla, "willowmere", "c-2", &worldtest.Sink{})
 		time.Sleep(time.Second)
 		synctest.Wait()
 		if present, _ := seenIn(forest, ayla.ID); present != 0 {
@@ -138,12 +138,12 @@ func TestALeaveRacingAPortalLeavesNoGhost(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		w := runningWorld(t)
-		townMap, _ := data.Map("crossroads")
-		toForest := portalNamed(t, townMap, "to_frost")
-		bo, forest := at(t, "Bo", "frost_trail"), &worldtest.Sink{}
-		w.enter(t, bo, "frost_trail", "c-bo", forest)
+		townMap, _ := data.Map("willowmere")
+		toForest := portalNamed(t, townMap, "north_pass")
+		bo, forest := at(t, "Bo", "sunreach"), &worldtest.Sink{}
+		w.enter(t, bo, "sunreach", "c-bo", forest)
 		ayla := worldtest.NewPlayer("Ayla", toForest.At.X, toForest.At.Z)
-		w.enter(t, ayla, "crossroads", "c-ayla", &worldtest.Sink{})
+		w.enter(t, ayla, "willowmere", "c-ayla", &worldtest.Sink{})
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 
@@ -175,16 +175,16 @@ func TestATransferIntoAMapThatStoppedFirstIsNoFailure(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
 		go func() { defer close(done); _ = w.Run(ctx) }()
-		ayla, s := at(t, "Ayla", "crossroads"), &worldtest.Sink{}
-		w.enter(t, ayla, "crossroads", "c-1", s)
+		ayla, s := at(t, "Ayla", "willowmere"), &worldtest.Sink{}
+		w.enter(t, ayla, "willowmere", "c-1", s)
 		release := make(chan struct{})
 		workers.Submit(func(context.Context) { <-release }) // holds the World's Run open after its maps stop
 		synctest.Wait()
 		cancel()
 		synctest.Wait()
-		moved := at(t, "Ayla", "frost_trail")
+		moved := at(t, "Ayla", "sunreach")
 		moved.ID, moved.Connection = ayla.ID, "c-1"
-		w.Transfer(w.MapActor("crossroads"), moved, s, instance.Dest{ID: "frost_trail"})
+		w.Transfer(w.MapActor("willowmere"), moved, s, instance.Dest{ID: "sunreach"})
 		synctest.Wait()
 		close(release)
 		<-done
@@ -198,16 +198,16 @@ func TestATransferIntoAMapThatStoppedFirstIsNoFailure(t *testing.T) {
 func TestAFailedLoginElsewhereMidPortalDetachesTheOlderConnection(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := runningWorld(t)
-		bo := at(t, "Bo", "frost_trail")
-		w.enter(t, bo, "frost_trail", "c-bo", &worldtest.Sink{})
-		ayla, s := at(t, "Ayla", "crossroads"), &worldtest.Sink{}
-		w.enter(t, ayla, "crossroads", "c-1", s)
+		bo := at(t, "Bo", "sunreach")
+		w.enter(t, bo, "sunreach", "c-bo", &worldtest.Sink{})
+		ayla, s := at(t, "Ayla", "willowmere"), &worldtest.Sink{}
+		w.enter(t, ayla, "willowmere", "c-1", s)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		fillInbox(w, bo.ID, "c-bo") // the transfer waits at the forest
-		moved := at(t, "Ayla", "frost_trail")
+		moved := at(t, "Ayla", "sunreach")
 		moved.ID, moved.Account, moved.Connection = ayla.ID, ayla.Account, "c-1"
-		w.Transfer(w.MapActor("crossroads"), moved, s, instance.Dest{ID: "frost_trail"})
+		w.Transfer(w.MapActor("willowmere"), moved, s, instance.Dest{ID: "sunreach"})
 		synctest.Wait()
 		delete(w.chars.chars, ayla.ID) // the login elsewhere fails on the load
 		if _, err := w.Join(context.Background(), ayla.Account, ayla.ID, "c-2", &worldtest.Sink{}); err == nil {
@@ -226,9 +226,9 @@ func TestTwoJoinsAtOnceLeaveTheRegistryAndTheMapAgreeing(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := runningWorld(t)
 		watcher := &worldtest.Sink{}
-		w.enter(t, at(t, "Bo", "crossroads"), "crossroads", "c-bo", watcher)
-		ayla := at(t, "Ayla", "crossroads")
-		w.chars.chars[ayla.ID] = model.Character{ID: ayla.ID, Account: ayla.Account, Name: ayla.Name, Class: ayla.Class, Level: 1, Points: ayla.Points, HP: ayla.HP, Energy: ayla.Energy, MapID: "crossroads", X: ayla.X, Y: ayla.Y, Z: ayla.Z}
+		w.enter(t, at(t, "Bo", "willowmere"), "willowmere", "c-bo", watcher)
+		ayla := at(t, "Ayla", "willowmere")
+		w.chars.chars[ayla.ID] = model.Character{ID: ayla.ID, Account: ayla.Account, Name: ayla.Name, Class: ayla.Class, Level: 1, Points: ayla.Points, HP: ayla.HP, Energy: ayla.Energy, MapID: "willowmere", X: ayla.X, Y: ayla.Y, Z: ayla.Z}
 		w.chars.mu.Lock()
 		w.chars.slow, w.chars.most = time.Second, 0 // a load slow enough for the other join to start meanwhile
 		w.chars.mu.Unlock()

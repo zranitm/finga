@@ -1,4 +1,4 @@
-// The field bosses' crowns on a plan (map-views.md section 5, large-regions.md step 5c-3b): a hunting map's beaten boss grey at its spot, its live crown drawn where it is while up; a region's area bosses each at its spot, the player's own area's from its frames as a map's is, the others' from a bosses query.
+// The field bosses' crowns on a plan (map-views.md section 5, large-regions.md step 5c-3b): a region's area bosses each at its spot, the player's own area's from its frames as a map's is, the others' from a bosses query.
 import { useEffect, useState } from 'react';
 
 import type { maps } from '@/gamedata/maps';
@@ -20,7 +20,7 @@ export interface Crown {
 /** How a region's area bosses stand, by area: when a beaten one's back on performance.now's clock, null for one up. */
 export type AreaBosses = ReadonlyMap<string, number | null>;
 
-/** The crowns at their spots on the player's own map: a hunting map's boss while beaten, as its live crown shows it up; in a region, the player's area's the same way, from down, and up at its spot while live draws no crown, as when it's out of the frames' view; every other area's as others last said, none before they've said. */
+/** The crowns at their spots on the player's own region: the player's area's boss while beaten, as its live crown shows it up, from down, and up at its spot while live draws no crown, as when it's out of the frames' view; every other area's as others last said, none before they've said. */
 export function crownsOf(
   map: MapData,
   area: string | null,
@@ -28,10 +28,6 @@ export function crownsOf(
   others: AreaBosses | null,
   live: boolean,
 ): Crown[] {
-  const own = map.boss as { readonly mob: string; readonly x: number; readonly z: number } | null; // a land map's; the data has none now
-  if (own) {
-    return down ? [{ ...own, down }] : [];
-  }
   return map.areas.flatMap((a): Crown[] => {
     const b = a.boss;
     if (!b) {

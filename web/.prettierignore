@@ -7,4 +7,4 @@ src/protocol/gen
 package-lock.json
 src/testing/regions
 public/regions
-src/testing/maps
+src/testing/yards

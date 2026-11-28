@@ -585,12 +585,7 @@ func TestSpendSkillPointsAnswersOnceTheSheetApplies(t *testing.T) {
 func TestUseSkillAnswersOnceTheTickResolvesIt(t *testing.T) {
 	s := newStack(t)
 	stream := s.node("gw-1")
-	var hunting *gamedata.Map
-	for _, m := range s.data.Maps() {
-		if m.Kind == gamedata.Hunting && hunting == nil {
-			hunting = m
-		}
-	}
+	hunting, _ := s.data.Map("greyfang_cave") // a place below, where the mobs are
 	ayla := model.Character{
 		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("beginner"), Level: 3,
 		Skills: model.Skills{Points: map[string]int{"strike": 1, "spark": 1, "second_wind": 1}},

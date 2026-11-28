@@ -72,7 +72,7 @@ func (i *Instance) startTeleport(m teleportMsg) {
 	}
 }
 
-// teleportTarget is where a teleport goes (large-regions.md section 8): a waypoint the player has found, or one in its region's main town, in any region; or else one of the old maps, which have none, but not their own.
+// teleportTarget is where a teleport goes (large-regions.md section 8): a waypoint the player has found, or one in its region's main town, in any region.
 func (i *Instance) teleportTarget(p *player, m teleportMsg) (*gamedata.Map, *gamedata.Waypoint, error) {
 	if m.waypoint != "" {
 		target, w, ok := i.data.Waypoint(m.waypoint)
@@ -84,14 +84,7 @@ func (i *Instance) teleportTarget(p *player, m teleportMsg) (*gamedata.Map, *gam
 		}
 		return target, &w, nil
 	}
-	target, ok := i.data.Map(m.mapID)
-	switch {
-	case !ok || target.Kind == gamedata.Pvp || target.Kind == gamedata.Region: // a match's map is reached by a match alone, a region by its waypoints
-		return nil, nil, model.ErrTeleportUnknownMap
-	case target.ID == i.m.ID:
-		return nil, nil, model.ErrTeleportSameMap
-	}
-	return target, nil, nil
+	return nil, nil, model.ErrTeleportUnknownMap // a match's map is reached by a match alone, a region by its waypoints
 }
 
 // SwitchChannel starts a switch to the region's channel n, pressed during input seq, and returns once it has started or been refused; the World has checked n is open with room.

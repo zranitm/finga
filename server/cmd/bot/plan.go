@@ -62,11 +62,8 @@ func newWorld(data *gamedata.Data, region string) (*world, error) {
 	return w, nil
 }
 
-// beyond is whether every hunting level of m is above level: a map's, or all of a region's areas', which a region with none, or a town, never is.
+// beyond is whether every hunting level of region m is above level, which a region with none, a town, never is.
 func beyond(m *gamedata.Map, level int) bool {
-	if m.Kind != gamedata.Region {
-		return m.Kind == gamedata.Hunting && m.MinLevel > level
-	}
 	hunting := false
 	for _, a := range m.Areas {
 		if a.Kind == gamedata.Hunting {

@@ -66,35 +66,35 @@ func TestPortals(t *testing.T) {
 			}
 			synctest.Wait()
 		}()
-		townMap, _ := data.Map("crossroads")
-		forestMap, _ := data.Map("frost_trail")
-		toForest := portalNamed(t, townMap, "to_frost")
-		fromTown := portalNamed(t, forestMap, "from_crossroads")
-		arrival := fromTown.At // the centre of the portal back, facing away from it into the forest
+		townMap, _ := data.Map("willowmere")
+		forestMap, _ := data.Map("sunreach")
+		toForest := portalNamed(t, townMap, "north_pass")
+		fromTown := portalNamed(t, forestMap, "south_gate")
+		arrival := fromTown.At // the centre of the portal back
 		ground := forestMap.Geometry.Terrain.Height(arrival.X, arrival.Z)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 
-		robin := worldtest.NewPlayer("Robin", townMap.PlayerSpawn.X, townMap.PlayerSpawn.Z)
+		robin := worldtest.NewPlayer("Robin", toForest.At.X-4, toForest.At.Z) // in sight of the gate
 		sr := &worldtest.Sink{}
-		w.enter(t, robin, "crossroads", "c-robin", sr)
+		w.enter(t, robin, "willowmere", "c-robin", sr)
 
 		{ // a portal takes the player to the linked spot on the target map, with HP as it was
 			ayla := worldtest.NewPlayer("Ayla", toForest.At.X, toForest.At.Z)
 			ayla.HP = 120
 			sa := &worldtest.Sink{}
-			w.enter(t, ayla, "crossroads", "c-ayla", sa)
+			w.enter(t, ayla, "willowmere", "c-ayla", sa)
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			_ = w.EnterPortal(ayla.ID, "c-ayla")
 			time.Sleep(2 * worldtest.TickInterval)
 			synctest.Wait()
 			tel := worldtest.Of[model.Teleport](sa)
-			if len(tel) != 1 || tel[0].MapID != "frost_trail" || tel[0].X != arrival.X || tel[0].Y != ground || tel[0].Z != arrival.Z || tel[0].Yaw != model.YawOf(1, 0) {
+			if len(tel) != 1 || tel[0].MapID != "sunreach" || tel[0].X != arrival.X || tel[0].Y != ground || tel[0].Z != arrival.Z {
 				t.Fatalf("teleports %+v, want one to the forest at %+v", tel, arrival)
 			}
 			snaps := worldtest.Of[model.Snapshot](sa)
-			if len(snaps) != 2 || snaps[1].MapID != "frost_trail" {
+			if len(snaps) != 2 || snaps[1].MapID != "sunreach" {
 				t.Fatalf("snapshots %+v", snaps)
 			}
 			var me model.PlayerView
@@ -119,7 +119,7 @@ func TestPortals(t *testing.T) {
 				}
 			}
 			saver.mu.Unlock()
-			if cp == nil || cp.MapID != "frost_trail" || cp.X != arrival.X || cp.Z != arrival.Z || cp.HP != 120 {
+			if cp == nil || cp.MapID != "sunreach" || cp.X != arrival.X || cp.Z != arrival.Z || cp.HP != 120 {
 				t.Fatalf("checkpoint on the way out: %+v", cp)
 			}
 			if present, removed := seenIn(sr, ayla.ID); removed != 1 || present == 0 {
@@ -141,9 +141,9 @@ func TestPortals(t *testing.T) {
 			time.Sleep(2 * worldtest.TickInterval)
 			synctest.Wait()
 			if len(worldtest.Of[model.Teleport](sr)) != 0 {
-				t.Fatal("teleported from the town spawn")
+				t.Fatal("teleported from off a gate")
 			}
-			if v, ok := sr.Own(robin.ID); ok && (v.State.X != townMap.PlayerSpawn.X || v.State.Z != townMap.PlayerSpawn.Z) {
+			if v, ok := sr.Own(robin.ID); ok && (v.State.X != robin.X || v.State.Z != robin.Z) {
 				t.Fatalf("moved: %+v", v)
 			}
 			if len(sr.All()) <= before {
@@ -154,7 +154,7 @@ func TestPortals(t *testing.T) {
 		{ // spamming EnterPortal: one hop, present in exactly one instance at a time
 			cass := worldtest.NewPlayer("Cass", toForest.At.X, toForest.At.Z)
 			sc := &worldtest.Sink{}
-			w.enter(t, cass, "crossroads", "c-cass", sc)
+			w.enter(t, cass, "willowmere", "c-cass", sc)
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			for range 100 {
@@ -164,7 +164,7 @@ func TestPortals(t *testing.T) {
 			synctest.Wait()
 			tel := worldtest.Of[model.Teleport](sc)
 			snaps := worldtest.Of[model.Snapshot](sc)
-			if len(tel) != 1 || len(snaps) != 2 || snaps[1].MapID != "frost_trail" || snaps[1].Tick > tel[0].Tick+1 {
+			if len(tel) != 1 || len(snaps) != 2 || snaps[1].MapID != "sunreach" || snaps[1].Tick > tel[0].Tick+1 {
 				t.Fatalf("teleports %+v snapshots %d", tel, len(snaps))
 			}
 			if _, removed := seenIn(sr, cass.ID); removed != 1 {
@@ -185,10 +185,10 @@ func TestPortals(t *testing.T) {
 			time.Sleep(3 * worldtest.TickInterval)
 			synctest.Wait()
 			tel = worldtest.Of[model.Teleport](sc)
-			if len(tel) != 2 || tel[1].MapID != "crossroads" || tel[1].X != toForest.At.X || tel[1].Z != toForest.At.Z {
+			if len(tel) != 2 || tel[1].MapID != "willowmere" || tel[1].X != toForest.At.X || tel[1].Z != toForest.At.Z {
 				t.Fatalf("teleports %+v", tel)
 			}
-			if sn := worldtest.Of[model.Snapshot](sc); len(sn) != 3 || sn[2].MapID != "crossroads" {
+			if sn := worldtest.Of[model.Snapshot](sc); len(sn) != 3 || sn[2].MapID != "willowmere" {
 				t.Fatalf("snapshots %d", len(sn))
 			}
 		}
@@ -210,13 +210,13 @@ func TestASecondPortalInTheLandingDrainTakesThePlayerOn(t *testing.T) {
 			}
 			synctest.Wait()
 		}()
-		townMap, _ := data.Map("crossroads")
-		toForest := portalNamed(t, townMap, "to_frost")
+		townMap, _ := data.Map("willowmere")
+		toForest := portalNamed(t, townMap, "north_pass")
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		cass := worldtest.NewPlayer("Cass", toForest.At.X, toForest.At.Z)
 		sc := &worldtest.Sink{}
-		w.enter(t, cass, "crossroads", "c-cass", sc)
+		w.enter(t, cass, "willowmere", "c-cass", sc)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		_ = w.EnterPortal(cass.ID, "c-cass")
@@ -234,7 +234,7 @@ func TestASecondPortalInTheLandingDrainTakesThePlayerOn(t *testing.T) {
 		for _, s := range worldtest.Of[model.Snapshot](sc) {
 			maps = append(maps, s.MapID)
 		}
-		if tel := worldtest.Of[model.Teleport](sc); len(tel) != 2 || !slices.Equal(maps, []string{"crossroads", "frost_trail", "crossroads"}) {
+		if tel := worldtest.Of[model.Teleport](sc); len(tel) != 2 || !slices.Equal(maps, []string{"willowmere", "sunreach", "willowmere"}) {
 			t.Fatalf("%d teleports, snapshots on %v; want her through the forest and back on the town", len(tel), maps)
 		}
 	})

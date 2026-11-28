@@ -19,7 +19,7 @@ func homing(t *testing.T) (*Arena, *mob, Body) {
 	data := gamedatatest.Shipped(t)
 	g := sim.Geometry{SizeX: 40, SizeZ: 40, Terrain: sim.NewTerrain(40, 2, 2, []float64{0, 0, 0, 0}, 0.7), Cylinders: []sim.Cylinder{}}
 	grid := nav.New(g, data.Movement().Step)
-	m := &gamedata.Map{ID: "meadow", Kind: gamedata.Hunting, Geometry: g, Grid: func() *nav.Grid { return grid }}
+	m := &gamedata.Map{ID: "meadow", Kind: gamedata.Region, Geometry: g, Grid: func() *nav.Grid { return grid }}
 	a := NewArena(Deps{Map: m, Data: data, Roll: rand.New(rand.NewPCG(1, 3))}, Tuning{TickInterval: 50 * time.Millisecond})
 	def, _ := data.Mob("king_slime")
 	a.SpawnBoss(def, gamedata.BossSpot{Mob: def.ID, At: gamedata.Point{X: 30, Z: 30}, Radius: 3})

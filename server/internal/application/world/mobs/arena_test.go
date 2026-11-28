@@ -30,7 +30,7 @@ func open(boxes ...sim.Box) sim.Geometry {
 func meadow(t testing.TB, g sim.Geometry, spawns ...gamedata.Spawn) *gamedata.Map {
 	t.Helper()
 	grid := nav.New(g, worldtest.LoadData(t).Movement().Step)
-	return &gamedata.Map{ID: "meadow", Kind: gamedata.Hunting, Geometry: g, Spawns: spawns, Grid: func() *nav.Grid { return grid }}
+	return &gamedata.Map{ID: "meadow", Kind: gamedata.Region, Geometry: g, Spawns: spawns, Grid: func() *nav.Grid { return grid }}
 }
 
 // spawn is n of mob in a circle of radius r about (x, z), each back 5 s after its kill.
@@ -473,89 +473,5 @@ func TestABlowDealsOnlyTheHPItTakes(t *testing.T) {
 	v := missing.Views()[0]
 	if miss, _ := one(t, missing.Strike(swing(v.X, v.Z-1.5, 0))); !miss.Damage.Miss || miss.Dealt != 0 {
 		t.Fatalf("blow %+v; want a MISS dealing nothing", miss)
-	}
-}
-
-// stroller is a town with one slime at (20, 17), which walks north from tick 1 to a spot at (20, 23): in a town mobs only wander.
-func stroller(t *testing.T) *mobs.Arena {
-	t.Helper()
-	m := meadow(t, open(), spawn("green_slime", 1, 20, 20, 3))
-	m.Kind = gamedata.Town
-	return newArena(t, m, &cycle{v: []float64{0.5, 1, 0.5, 0.5, 0, 1}}) // its spawn's point and yaw and pace, then its first spot
-}
-
-// A slime walking into a player stops touching their side, never in them, and walks on once they've gone.
-func TestAMobStopsAtAPlayerItWouldWalkInto(t *testing.T) {
-	a := stroller(t)
-	p := player(20, 20)
-	touched := false
-	for n := uint64(1); n <= 100; n++ {
-		a.Step(n, []mobs.Body{p}, nil)
-		d := distance(a.Views()[0], p.X, p.Z)
-		if d < 0.875-1e-9 {
-			t.Fatalf("tick %d: the slime %.3f m off the player, in them", n, d)
-		}
-		touched = touched || d < 0.875+1e-9
-	}
-	if !touched {
-		t.Fatal("the slime never stopped at the player's side")
-	}
-	for n := uint64(101); n <= 200; n++ {
-		a.Step(n, nil, nil)
-	}
-	if v := a.Views()[0]; v.Z < 21 {
-		t.Fatalf("the slime at (%.3f, %.3f); want it walked on north once the player left", v.X, v.Z)
-	}
-}
-
-// A slime partly inside a player, as lag leaves it, goes no deeper, and walks on once they've gone.
-func TestAMobPartlyInAPlayerGoesNoDeeper(t *testing.T) {
-	a := stroller(t)
-	p := player(20, 17.8) // 0.8 m off, 7.5 cm into the slime
-	for n := uint64(1); n <= 30; n++ {
-		a.Step(n, []mobs.Body{p}, nil)
-		if d := distance(a.Views()[0], p.X, p.Z); d < 0.8-1e-9 {
-			t.Fatalf("tick %d: the slime %.3f m off the player; want no deeper than 0.8", n, d)
-		}
-	}
-	for n := uint64(31); n <= 200; n++ {
-		a.Step(n, nil, nil)
-	}
-	if v := a.Views()[0]; v.Z < 19 {
-		t.Fatalf("the slime at (%.3f, %.3f); want it walked on north once the player left", v.X, v.Z)
-	}
-}
-
-// Two slimes on one spot that a player steps onto step out to their side apart, not one on the other.
-func TestMobsAPlayerStepsIntoStepOutSideBySide(t *testing.T) {
-	m := meadow(t, open(), spawn("green_slime", 2, 20, 20, 2))
-	m.Kind = gamedata.Town
-	a := newArena(t, m, worldtest.FixedRoll{V: 0.5}) // both on (20, 20 - √2), staying
-	p := player(20, 20-math.Sqrt2+0.3)
-	a.Step(1, []mobs.Body{p}, nil)
-	v := a.Views()
-	for _, s := range v {
-		if d := distance(s, p.X, p.Z); d < playerRadius+0.5-1e-6 {
-			t.Fatalf("a slime %.3f m from the player; want it out of them, %v or more", d, playerRadius+0.5)
-		}
-	}
-	if d := distance(v[0], v[1].X, v[1].Z); d < 1-1e-6 {
-		t.Fatalf("the slimes %.3f m apart; want them side by side, 1 m or more", d)
-	}
-}
-
-// A slime with a player wholly inside it, as after they came down on it, steps out of them in its first tick and walks on: a player can't pin a mob.
-func TestAMobWithAPlayerWhollyInsideStepsOutAndWalksOn(t *testing.T) {
-	a := stroller(t)
-	p := player(20, 17) // on the slime's centre
-	a.Step(1, []mobs.Body{p}, nil)
-	if d := distance(a.Views()[0], p.X, p.Z); d < playerRadius+0.5-1e-9 {
-		t.Fatalf("the slime %.3f m from the player after a tick; want it out of them, %v or more", d, playerRadius+0.5)
-	}
-	for n := uint64(2); n <= 30; n++ {
-		a.Step(n, []mobs.Body{p}, nil)
-	}
-	if d := distance(a.Views()[0], p.X, p.Z); d < 1 {
-		t.Fatalf("the slime %.3f m from the player after 30 ticks; want it walked on", d)
 	}
 }

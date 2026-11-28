@@ -4,9 +4,9 @@ import { Scene } from '@babylonjs/core/scene';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { statuses } from '@/gamedata/statuses';
+import { steepMap } from '@/testing/baked-map';
 import { servePublic } from '@/testing/public-on-disk';
 
-import { loadMap } from '../world3d/map';
 import { Palette } from '../world3d/toon';
 
 import { drawnVersion } from './drawn';
@@ -35,7 +35,7 @@ describe('status marks', () => {
     scene = new Scene(engine);
     servePublic();
     now = 1000;
-    const map = await loadMap('frost_trail');
+    const map = await steepMap();
     fx = new Fx(
       scene,
       map,

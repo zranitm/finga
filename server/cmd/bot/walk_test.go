@@ -8,9 +8,7 @@ import (
 	"testing"
 	"time"
 
-	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/shared/gamedata"
-	"finga/internal/shared/gamedata/gamedatatest"
 	"finga/internal/shared/nav"
 	"finga/internal/shared/sim"
 	"finga/internal/shared/steer"
@@ -92,45 +90,6 @@ func walkOffline(m *gamedata.Map, mv sim.Params, from, to nav.Point, within floa
 		}
 	}
 	return limit, false
-}
-
-// C12: with a field boss up, a bot hunts its map clear of where its blows could reach the boss; a beaten one, not yet back, keeps it from nothing.
-func TestABotKeepsClearOfAFieldBoss(t *testing.T) {
-	data := gamedatatest.Shipped(t)
-	grove, _ := data.Map("frost_trail")
-	b := &bot{data: data, mapID: "frost_trail", rng: rand.New(rand.NewPCG(1, 2))}
-	at, r := point(grove.Boss.At), grove.Boss.Radius
-	b.bossBackIn("frost_trail", time.Minute)
-	if b.nearBoss("frost_trail", at) {
-		t.Fatal("near a boss that isn't back yet")
-	}
-	b.bossBackIn("frost_trail", 0)
-	clear := bossClear
-	for _, c := range []struct {
-		name string
-		seen bool
-		at   nav.Point
-		want bool
-	}{
-		{"in its reach", true, nav.Point{X: at.X - clear + 0.5, Z: at.Z}, true},
-		{"past it", true, nav.Point{X: at.X - clear - 0.5, Z: at.Z}, false},
-		{"on a diagonal, as the bot keeps a square clear", true, nav.Point{X: at.X - clear + 0.5, Z: at.Z + clear - 0.5}, true},
-		{"unseen, in its circle's reach", false, nav.Point{X: at.X - r - clear + 0.5, Z: at.Z}, true},
-		{"unseen, past its circle's reach", false, nav.Point{X: at.X - r - clear - 0.5, Z: at.Z}, false},
-	} {
-		b.mobs, b.boss = nil, 0
-		if c.seen {
-			b.mobs, b.boss = map[uint32]*clientv1.MobView{9: {Id: 9, Type: "avalanche_slime", X: at.X, Z: at.Z, Hp: 100}}, 9
-		}
-		if got := b.nearBoss("frost_trail", c.at); got != c.want {
-			t.Errorf("%s: near %v, want %v", c.name, got, c.want)
-		}
-	}
-	b.mobs, b.boss = map[uint32]*clientv1.MobView{9: {Id: 9, Type: "avalanche_slime", X: at.X - r, Z: at.Z, Hp: 100}}, 9
-	far := nav.Point{X: at.X - r + clear + 0.5, Z: at.Z} // past the boss's reach where it's seen, in its circle's
-	if b.nearBoss("frost_trail", far) {
-		t.Errorf("%+v is near the boss seen at its circle's west edge, want it clear", far)
-	}
 }
 
 // A hunt in Willowmere never rolls a point where a blow could reach an area's boss, and a gate brings a player out at the portal it names.

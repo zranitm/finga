@@ -2,22 +2,19 @@ package load_test
 
 import (
 	"math"
-	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"finga/internal/shared/gamedata"
-	"finga/internal/shared/gamedata/gamedatatest"
 	"finga/internal/shared/gamedata/load"
 	"finga/internal/shared/nav"
 	"finga/internal/shared/regiongen"
 	"finga/internal/shared/sim"
 )
 
-// vale is a 128 m region of the fixture's mobs, a hamlet south of a meadow, with a gate to the fixture's town and back.
+// vale is a 128 m region of the fixture's mobs, a hamlet south of a meadow, with a gate to the fixture's region and back.
 const vale = `
 name: Vale
 size: [128, 128]
@@ -45,17 +42,12 @@ biomes:
     colours: {flat: grass, slope: dirt, steep: stone, high: snow}
 `
 
-// regioned is the fixture with Vale, the shipped kit it's built with, and the town's portal to Vale's gate.
+// regioned is the fixture with Vale, and the town's gate to Vale's.
 func regioned(t *testing.T) map[string]string {
 	t.Helper()
-	kit, err := os.ReadFile(filepath.Join(gamedatatest.Dir(), "kit.yaml"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	files := fixture()
-	files["kit.yaml"] = string(kit)
 	files["regions/vale.yaml"] = vale
-	files["maps/town.yaml"] = strings.Replace(files["maps/town.yaml"], "portals:\n", "portals:\n  - {name: to_vale, at: [20, 10], radius: 1.2, to: {map: vale, portal: west}}\n", 1)
+	files["regions/town.yaml"] = strings.Replace(files["regions/town.yaml"], "beginning: true\n", "gates:\n  - {name: to_vale, at: [24, 64], radius: 1.6, to: {region: vale, gate: west}}\nbeginning: true\n", 1)
 	return files
 }
 
@@ -85,20 +77,24 @@ func TestLoadsOfOnePlanShareItsGround(t *testing.T) {
 // A region on the land may have a place on the world chart, as Willowmere does; no map is refused one that no chart shows.
 func TestALandRegionMayHaveAPlaceOnTheChart(t *testing.T) {
 	files := regioned(t)
-	files["world.yaml"] = strings.Replace(files["world.yaml"], "  field: [60, 50]\n", "  field: [60, 50]\n  vale: [10, 10]\n", 1)
+	files["world.yaml"] = strings.Replace(files["world.yaml"], "  town: [40, 50]\n", "  town: [40, 50]\n  vale: [10, 10]\n", 1)
 	if _, err := load.Dir(write(t, files)); err != nil {
 		t.Fatal(err)
 	}
+	files["world.yaml"] = strings.Replace(files["world.yaml"], "vale: [10, 10]", "vale: [44, 53]", 1)
+	if _, err := load.Dir(write(t, files)); err == nil || !strings.Contains(err.Error(), "closer") {
+		t.Fatalf("two regions on the same spot: error %v", err)
+	}
 }
 
-// A region with beginning: true is where new characters start, in the town's place; it and a town with start are refused together.
+// A region with beginning: true is where new characters start; two of them are refused.
 func TestARegionMayBeWhereNewCharactersStart(t *testing.T) {
 	files := regioned(t)
 	files["regions/vale.yaml"] = strings.Replace(vale, "start:", "beginning: true\nstart:", 1)
 	if _, err := load.Dir(write(t, files)); err == nil || !strings.Contains(err.Error(), "start is for the one") {
-		t.Fatalf("a region and a town both start: error %v", err)
+		t.Fatalf("two regions both start: error %v", err)
 	}
-	files["maps/town.yaml"] = strings.Replace(files["maps/town.yaml"], "start: true\n", "", 1)
+	files["regions/town.yaml"] = strings.Replace(files["regions/town.yaml"], "beginning: true\n", "", 1)
 	d, err := load.Dir(write(t, files))
 	if err != nil {
 		t.Fatal(err)
@@ -128,7 +124,7 @@ func TestOnlyARegionOnTheLandWithATownMayBeWhereNewCharactersStart(t *testing.T)
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			files := tt.files()
-			files["maps/town.yaml"] = strings.Replace(files["maps/town.yaml"], "start: true\n", "", 1)
+			files["regions/town.yaml"] = strings.Replace(files["regions/town.yaml"], "beginning: true\n", "", 1)
 			if _, err := load.Dir(write(t, files)); err == nil || !strings.Contains(err.Error(), "beginning is for a region with a town") {
 				t.Fatalf("error %v; want it refused as a start", err)
 			}
@@ -138,7 +134,7 @@ func TestOnlyARegionOnTheLandWithATownMayBeWhereNewCharactersStart(t *testing.T)
 
 func TestARegionLoadsAsAMapOfItsPlan(t *testing.T) {
 	files := regioned(t)
-	files["maps/field.yaml"] = strings.Replace(files["maps/field.yaml"], "  - {id: hunter, at: [20, 12], yaw: 180}\n", "", 1)
+	files["regions/town.yaml"] = strings.Replace(files["regions/town.yaml"], "  - {id: hunter, at: [90, 30], yaw: 180}\n", "", 1)
 	files["regions/vale.yaml"] = strings.Replace(vale, "start:", "npcs:\n  - {id: hunter, at: [70, 40], yaw: 180}\nstart:", 1)
 	d, err := load.Dir(write(t, files))
 	if err != nil {
@@ -149,7 +145,7 @@ func TestARegionLoadsAsAMapOfItsPlan(t *testing.T) {
 		t.Fatal("no vale")
 	}
 	t.Run("its spots are its plan's: camps as spawns, gates as portals, the start as the player spawn; and it's its own town", func(t *testing.T) {
-		if m.Kind != gamedata.Region || m.Name != "Vale" || m.Town != "vale" || m.Start || m.MinLevel != 0 || m.MaxLevel != 0 || m.Boss != nil {
+		if m.Kind != gamedata.Region || m.Name != "Vale" || m.Start {
 			t.Fatalf("vale %+v", m)
 		}
 		if m.PlayerSpawn != (gamedata.Point{X: 64, Z: 28}) || m.SpawnYaw != math.Pi/2 {
@@ -217,14 +213,10 @@ func TestARegionLoadsAsAMapOfItsPlan(t *testing.T) {
 			}
 		}
 	})
-	t.Run("a map has no bake and no areas: a town is safe everywhere, a hunting map nowhere", func(t *testing.T) {
-		f, _ := d.Map("field")
-		town, _ := d.Map("town")
-		if f.Bake != "" || f.Areas != nil || f.Waypoints != nil || f.AreaAt(10, 10) != -1 {
-			t.Errorf("field's bake %q, areas %v, waypoints %v", f.Bake, f.Areas, f.Waypoints)
-		}
-		if f.TownAt(10, 10) || !town.TownAt(10, 10) {
-			t.Errorf("field safe %v, town safe %v", f.TownAt(10, 10), town.TownAt(10, 10))
+	t.Run("a match's map has no bake and no areas, and is safe nowhere", func(t *testing.T) {
+		pit, _ := d.Map("pit")
+		if pit.Bake != "" || pit.Areas != nil || pit.Waypoints != nil || pit.AreaAt(10, 10) != -1 || pit.TownAt(10, 10) {
+			t.Errorf("pit's bake %q, areas %v, waypoints %v, safe %v", pit.Bake, pit.Areas, pit.Waypoints, pit.TownAt(10, 10))
 		}
 	})
 }
@@ -326,13 +318,12 @@ func TestRegionRejections(t *testing.T) {
 		// The gates.
 		{"two gates of one name", file, "gates:\n", "gates:\n  - {name: west, at: [24, 90], radius: 1.6, to: {region: town, gate: to_vale}}\n", []string{file, "duplicate", "west"}},
 		{"a gate to no region", file, "to: {region: town, gate: to_vale}", "to: {region: marsh, gate: to_vale}", []string{file, "west", "marsh"}},
-		{"a gate to a portal leading elsewhere", "maps/town.yaml", "to: {map: vale, portal: west}", "to: {map: field, portal: from_town}", []string{file, "gate \"west\"", "not back"}},
-		{"a portal to a gate leading elsewhere", "maps/field.yaml", "portals:\n", "portals:\n  - {name: to_vale, at: [2, 3], radius: 1.2, to: {map: vale, portal: west}}\n", []string{"maps/field.yaml", "portal \"to_vale\" leads to vale's \"west\", which leads to town's \"to_vale\", not back"}},
-		{"a gate leading to itself", file, "to: {region: town, gate: to_vale}", "to: {region: vale, gate: west}", []string{file, "portal \"west\" leads to itself"}},
+		{"a gate to a gate leading elsewhere", file, "gates:\n", "gates:\n  - {name: east, at: [100, 64], radius: 1.6, to: {region: town, gate: to_vale}}\n", []string{file, "gate \"east\"", "not back"}},
+		{"a gate leading to itself", file, "to: {region: town, gate: to_vale}", "to: {region: vale, gate: west}", []string{file, "gate \"west\" leads to itself"}},
 		{"a gate in the ring", file, "name: west, at: [24, 64]", "name: west, at: [12, 64]", []string{file, "gate west at [12 64] stands in the ring"}},
 
 		// Across files.
-		{"a region one interest block holds", "world.yaml", "  behind: 1\n", "  behind: 3\n", []string{file, "block", "whole"}},
+		{"a region one interest block holds", "world.yaml", "  behind: 1\n", "  behind: 3\n", []string{"block", "whole"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -361,7 +352,7 @@ func TestRegionRejections(t *testing.T) {
 	})
 	t.Run("a camp in sight of an NPC", func(t *testing.T) {
 		files := regioned(t)
-		files["maps/field.yaml"] = strings.Replace(files["maps/field.yaml"], "  - {id: hunter, at: [20, 12], yaw: 180}\n", "", 1)
+		files["regions/town.yaml"] = strings.Replace(files["regions/town.yaml"], "  - {id: hunter, at: [90, 30], yaw: 180}\n", "", 1)
 		files[file] = strings.Replace(files[file], "start:", "npcs:\n  - {id: hunter, at: [40, 95], yaw: 0}\nstart:", 1)
 		if _, err := load.Dir(write(t, files)); err == nil || !strings.Contains(err.Error(), `camp "slimes"'s circle comes within 10.00 m of NPC hunter at [40 95]; it keeps 11.375 m`) {
 			t.Fatalf("error %v", err)
@@ -382,8 +373,8 @@ func TestRegionRejections(t *testing.T) {
 	})
 	t.Run("a region of a map's id", func(t *testing.T) {
 		files := regioned(t)
-		files["regions/field.yaml"] = vale
-		if _, err := load.Dir(write(t, files)); err == nil || !strings.Contains(err.Error(), "regions/field.yaml") || !strings.Contains(err.Error(), "a map has the id field") {
+		files["regions/pit.yaml"] = vale
+		if _, err := load.Dir(write(t, files)); err == nil || !strings.Contains(err.Error(), "regions/pit.yaml") || !strings.Contains(err.Error(), "a map has the id pit") {
 			t.Fatalf("error %v", err)
 		}
 	})

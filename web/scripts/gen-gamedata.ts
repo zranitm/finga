@@ -494,79 +494,30 @@ function pair(raw: unknown, what: string): [number, number] {
   return [must(p[0], isNumber, what), must(p[1], isNumber, what)];
 }
 
-// maps/*.yaml: each map's banner, kind, town, levels, art keys, spawns, portals, boss spot and chart place, none for a match's map; its geometry comes from Go (npm run maps).
+// maps/*.yaml: each match's map, its banner, art keys and points, none on the chart; its geometry comes from Go (npm run maps).
 const maps = [];
-const links = new Map<string, readonly [string, string]>(); // each pair of maps a portal or gate joins, once
+const links = new Map<string, readonly [string, string]>(); // each pair of maps a gate joins, once
 for (const file of readdirSync(join(dataDir, 'maps'))
   .filter((f) => f.endsWith('.yaml'))
   .sort()) {
   const id = file.replace('.yaml', '');
   const m = must(load(join('maps', file)), isRecord, file);
-  const kind = m.kind;
-  if (kind !== 'town' && kind !== 'hunting' && kind !== 'pvp') {
-    throw new Error(`gamedata: ${file} kind must be town, hunting or pvp`);
+  if (m.kind !== 'pvp') {
+    throw new Error(`gamedata: ${file} kind must be pvp`);
   }
-  const hunting = kind === 'hunting';
-  const pvp = kind === 'pvp';
   const look = must(m.look, isRecord, `${file} look`);
-  const levels = hunting ? must(m.levels, isArray, `${file} levels`) : [];
   maps.push({
     id,
     name: must(m.name, isString, `${file} name`),
-    kind,
-    town: hunting ? must(m.town, isString, `${file} town`) : pvp ? null : id,
+    kind: m.kind,
     start: m.start === true,
     ground: must(look.ground, isString, `${file} look.ground`),
     sky: must(look.sky, isString, `${file} look.sky`),
-    min_level: hunting ? must(levels[0], isNumber, `${file} levels`) : null,
-    max_level: hunting ? must(levels[1], isNumber, `${file} levels`) : null,
     under: null,
     waypoints: [],
-    spawns: (m.spawns === undefined ? [] : must(m.spawns, isArray, `${file} spawns`)).map((raw) => {
-      const sp = must(raw, isRecord, `a ${file} spawn`);
-      const [x, z] = pair(sp.at, `${file} spawn ${String(sp.name)} at`);
-      return {
-        mob: must(sp.mob, isString, `${file} spawn ${String(sp.name)} mob`),
-        x,
-        z,
-        radius: must(sp.radius, isNumber, `${file} spawn ${String(sp.name)} radius`),
-      };
-    }),
-    portals: (m.portals === undefined ? [] : must(m.portals, isArray, `${file} portals`)).map(
-      (raw) => {
-        const pt = must(raw, isRecord, `a ${file} portal`);
-        const name = must(pt.name, isString, `a ${file} portal name`);
-        const [x, z] = pair(pt.at, `${file} portal ${name} at`);
-        const to = must(
-          must(pt.to, isRecord, `${file} portal ${name} to`).map,
-          isString,
-          `${file} portal ${name} to map`,
-        );
-        const link = [id, to].sort() as [string, string];
-        links.set(link.join(' '), link);
-        return {
-          name,
-          x,
-          z,
-          radius: must(pt.radius, isNumber, `${file} portal ${name} radius`),
-          to,
-        };
-      },
-    ),
-    boss: (() => {
-      if (m.boss === undefined) {
-        return null;
-      }
-      const b = must(m.boss, isRecord, `${file} boss`);
-      const [x, z] = pair(b.at, `${file} boss at`);
-      return {
-        mob: must(b.mob, isString, `${file} boss mob`),
-        x,
-        z,
-        radius: must(b.radius, isNumber, `${file} boss radius`),
-      };
-    })(),
-    place: pvp ? null : pair(places[id], `world.yaml place of ${id}`),
+    spawns: [],
+    portals: [],
+    place: null,
     areas: [],
     points: (m.points === undefined ? [] : must(m.points, isArray, `${file} points`)).map((raw) => {
       const p = must(raw, isRecord, `a ${file} point`);
@@ -587,7 +538,7 @@ for (const file of readdirSync(join(dataDir, 'maps'))
   });
   placeNpcs(file, id, m.npcs);
 }
-// regions/*.yaml: each region on the map list as a map of kind region, its own town, on the chart only if world.yaml places it (a region on the land may be): its name and sky, the region above a place below, its camps as spawns, its gates as portals, and its areas with their corners, levels and bosses for the map views; its bake draws its ground (large-regions.md section 4).
+// regions/*.yaml: each region on the map list as a map of kind region, on the chart only if world.yaml places it (a region on the land may be): its name and sky, the region above a place below, its camps as spawns, its gates as portals, and its areas with their corners, levels and bosses for the map views; its bake draws its ground (large-regions.md section 4).
 const regionsDir = join(dataDir, 'regions');
 for (const file of existsSync(regionsDir)
   ? readdirSync(regionsDir)
@@ -600,12 +551,9 @@ for (const file of existsSync(regionsDir)
     id,
     name: must(r.name, isString, `${file} name`),
     kind: 'region',
-    town: id,
     start: r.beginning === true, // where new characters start
     ground: null,
     sky: must(must(r.look, isRecord, `${file} look`).sky, isString, `${file} look.sky`),
-    min_level: null,
-    max_level: null,
     under: r.under === undefined ? null : must(r.under, isString, `${file} under`), // a place below's region above (underground-and-underwater.md section 3)
     waypoints: (r.waypoints === undefined
       ? []
@@ -646,7 +594,6 @@ for (const file of existsSync(regionsDir)
         to,
       };
     }),
-    boss: null,
     place: places[id] === undefined ? null : pair(places[id], `world.yaml place of ${id}`),
     areas: (r.areas === undefined ? [] : must(r.areas, isArray, `${file} areas`)).map((raw) => {
       const a = must(raw, isRecord, `a ${file} area`);

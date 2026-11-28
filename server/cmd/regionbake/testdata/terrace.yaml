@@ -1,0 +1,25 @@
+# A small region with banks as the shipped ones have them, for the web client's cut-away sweeps: a low edge ring (0 to 1 m, which a body walks up), a 5 m terrace and a 9 m shelf with cliff edges, a ridge and a road up the terrace's west face, at 2 m a sample.
+name: Terrace
+size: [128, 128]
+cell: 2
+seed: 11
+look: {sky: day}
+ground: {noise: {scale: 60, amplitude: 1, octaves: 2}}
+edge: {width: 16, height: [0, 1], biome: meadow}
+colour: {slope: 0.25, high: 30}
+features:
+  - {plateau: {area: [[60, 30], [106, 30], [106, 58], [60, 58]], height: 5, edge: cliff}}
+  - {plateau: {area: [[26, 62], [58, 62], [58, 86], [26, 86]], height: 9, edge: cliff}}
+  - {ridge: {path: [[70, 80], [104, 90]], width: 20, height: 8}}
+  - {road: {path: [[36, 42], [56, 42]], width: 6}}
+areas:
+  - {id: field, name: Field, area: [[16, 16], [112, 16], [112, 112], [16, 112]], levels: [1, 2], biome: meadow, kind: hunting}
+waypoints:
+  - {id: field, name: Field, at: [24, 24]}
+start: {at: [24, 30], yaw: 0}
+biomes:
+  meadow:
+    colours: {flat: grass, slope: dirt, steep: stone, high: stone}
+    scatter:
+      - {model: tree_oak, spacing: 9, slope: 0.4}
+      - {model: boulder, spacing: 14}

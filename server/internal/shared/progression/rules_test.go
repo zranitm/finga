@@ -212,21 +212,19 @@ func TestAwardExp(t *testing.T) {
 func TestDeathPenalty(t *testing.T) {
 	data := gamedatatest.Shipped(t) // level 5 needs 309: 5% is 15.45, floored to 15
 	tests := []struct {
-		name   string
-		start  progression.Progress
-		inTown bool
-		want   progression.Progress
+		name  string
+		start progression.Progress
+		want  progression.Progress
 	}{
-		{"mid-level loses 5% of the level's requirement, floored", progression.Progress{Level: 5, Exp: 100}, false, progression.Progress{Level: 5, Exp: 85}},
-		{"near the start of a level stops at 0", progression.Progress{Level: 5, Exp: 7}, false, progression.Progress{Level: 5, Exp: 0}},
-		{"at exactly 0 stays 0", progression.Progress{Level: 5, Exp: 0}, false, progression.Progress{Level: 5, Exp: 0}},
-		{"in town there is no penalty", progression.Progress{Level: 5, Exp: 100}, true, progression.Progress{Level: 5, Exp: 100}},
-		{"level 1 loses 5% of 20, which floors to 1", progression.Progress{Level: 1, Exp: 10}, false, progression.Progress{Level: 1, Exp: 9}},
-		{"at the cap there is nothing to lose", progression.Progress{Level: 30, Exp: 0}, false, progression.Progress{Level: 30, Exp: 0}},
+		{"mid-level loses 5% of the level's requirement, floored", progression.Progress{Level: 5, Exp: 100}, progression.Progress{Level: 5, Exp: 85}},
+		{"near the start of a level stops at 0", progression.Progress{Level: 5, Exp: 7}, progression.Progress{Level: 5, Exp: 0}},
+		{"at exactly 0 stays 0", progression.Progress{Level: 5, Exp: 0}, progression.Progress{Level: 5, Exp: 0}},
+		{"level 1 loses 5% of 20, which floors to 1", progression.Progress{Level: 1, Exp: 10}, progression.Progress{Level: 1, Exp: 9}},
+		{"at the cap there is nothing to lose", progression.Progress{Level: 30, Exp: 0}, progression.Progress{Level: 30, Exp: 0}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := progression.DeathPenalty(data, tt.start, tt.inTown); got != tt.want {
+			if got := progression.DeathPenalty(data, tt.start); got != tt.want {
 				t.Fatalf("got %+v, want %+v", got, tt.want)
 			}
 		})

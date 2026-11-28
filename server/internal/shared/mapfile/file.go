@@ -6,20 +6,17 @@ import "time"
 // File is one map as written in data/maps/<id>.yaml. Lengths are metres, angles degrees, positions [x, z] with x east and z north.
 type File struct {
 	Name        string         `yaml:"name"`
-	Kind        string         `yaml:"kind"` // town, hunting or pvp; a region's plan is read as a map of kind region
+	Kind        string         `yaml:"kind"` // pvp; a region's plan is read as a map of kind region
 	Start       bool           `yaml:"start,omitempty"`
-	Town        string         `yaml:"town,omitempty"`        // a hunting map's respawn town
-	Levels      [2]int         `yaml:"levels,omitempty,flow"` // a hunting map's mob levels, lowest and highest
 	Look        Look           `yaml:"look,flow"`
 	Size        [2]float64     `yaml:"size,flow"` // x by z; the edges are walls
 	Terrain     Terrain        `yaml:"terrain"`
 	Solids      []Solid        `yaml:"solids,omitempty"`
 	Props       []Prop         `yaml:"props,omitempty"`
-	Portals     []Portal       `yaml:"portals"`
-	Spawns      []Spawn        `yaml:"spawns,omitempty"`
+	Portals     []Portal       `yaml:"portals"`          // a region's gates; a match's map has none
+	Spawns      []Spawn        `yaml:"spawns,omitempty"` // a region's camps
 	PlayerSpawn Place          `yaml:"player_spawn,flow"`
 	NPCs        []NPC          `yaml:"npcs,omitempty"`
-	Boss        *Boss          `yaml:"boss,omitempty,flow"`
 	Sides       [][]Place      `yaml:"sides,omitempty"`     // a pvp map's two sides, each its starting spots
 	PrepWall    []Solid        `yaml:"prep_wall,omitempty"` // a pvp map's solids standing only before a round starts; a battle map's close its bases
 	Bases       []Base         `yaml:"bases,omitempty"`     // a battle map's two, side 1's then side 2's
@@ -130,7 +127,7 @@ type NPC struct {
 	Yaw float64    `yaml:"yaw"`
 }
 
-// Boss is where a hunting map's field boss stands, wandering its circle.
+// Boss is where a hunting area's field boss stands, wandering its circle.
 type Boss struct {
 	At     [2]float64 `yaml:"at,flow"`
 	Radius float64    `yaml:"radius"`

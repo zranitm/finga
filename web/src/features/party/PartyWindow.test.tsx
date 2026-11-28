@@ -31,7 +31,7 @@ const member = (
   class: 'beginner',
   hp: 100,
   maxHp: 100,
-  mapId: 'frost_trail',
+  mapId: 'willowmere',
   online: true,
   ...extra,
 });

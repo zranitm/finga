@@ -97,7 +97,7 @@ func region(b *testing.B) *gamedata.Map {
 		spawns[k] = gamedata.Spawn{Mob: kinds[k%len(kinds)], Max: 4, Respawn: 10 * time.Second, Radius: 10, At: at}
 	}
 	return worldtest.Gridded(b, &gamedata.Map{
-		ID: "region", Kind: gamedata.Hunting, Town: "willowmere", Geometry: worldtest.Flat(regionSize), Spawns: spawns,
+		ID: "region", Kind: gamedata.Region, Geometry: worldtest.Flat(regionSize), Spawns: spawns,
 		PlayerSpawn: gamedata.Point{X: regionSize / 2, Z: regionSize / 2},
 	})
 }
@@ -373,7 +373,7 @@ func clumpedMap(b testing.TB, perCamp int, spawn gamedata.Point) *gamedata.Map {
 		spawns[k] = gamedata.Spawn{Mob: kind, Max: perCamp, Respawn: 24 * time.Second, Radius: 8, At: at}
 	}
 	return worldtest.Gridded(b, &gamedata.Map{
-		ID: "camp", Kind: gamedata.Hunting, Town: "willowmere", Geometry: worldtest.Flat(size), Spawns: spawns, PlayerSpawn: spawn,
+		ID: "camp", Kind: gamedata.Region, Geometry: worldtest.Flat(size), Spawns: spawns, PlayerSpawn: spawn,
 	})
 }
 

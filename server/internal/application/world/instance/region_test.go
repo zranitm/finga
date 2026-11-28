@@ -24,7 +24,7 @@ const townLine = 12.0
 func vale(t *testing.T, more ...gamedata.Waypoint) *gamedata.Map {
 	t.Helper()
 	m := arena(t, time.Hour)
-	m.ID, m.Kind, m.Town = "vale", gamedata.Region, "vale"
+	m.ID, m.Kind = "vale", gamedata.Region
 	grid := regiongen.AreaGrid{NX: 10, NZ: 10, Of: make([]int16, 100)}
 	for s := range grid.Of {
 		if float64(s/10*regiongen.AreaCell) >= townLine {
@@ -363,7 +363,7 @@ func TestAMatchFromARegionsChannelGoesBackToIt(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		m := arena(t, time.Hour)
-		m.ID, m.Kind, m.Town = "vale", gamedata.Region, "vale"
+		m.ID, m.Kind = "vale", gamedata.Region
 		tr := &transferRecorder{}
 		inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{Transfer: tr, Channel: 2})
 		defer stop()
@@ -404,7 +404,7 @@ func TestARegionsChannelReachesThePartyAndTheTicks(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		m := arena(t, time.Hour)
-		m.ID, m.Kind, m.Town = "vale", gamedata.Region, "vale"
+		m.ID, m.Kind = "vale", gamedata.Region
 		parties, ticks := &fakeParties{}, &worldtest.Observer{}
 		inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{Parties: parties, Observer: ticks, Transfer: &transferRecorder{}, Channel: 2})
 		defer stop()
@@ -415,10 +415,10 @@ func TestARegionsChannelReachesThePartyAndTheTicks(t *testing.T) {
 		if got := parties.updated(); len(got) == 0 || got[0].MapID != "vale" || got[0].Channel != 2 || ticks.Channel() != 2 {
 			t.Fatalf("party updates %+v, ticks of channel %d; want vale's channel 2 for both", got, ticks.Channel())
 		}
-		teleport(t, inst, s, p.ID, "crossroads", 0)
+		teleport(t, inst, s, p.ID, "palmwater", 0)
 		tick(channelTicks(data) + 1)
-		if got := parties.updated(); got[len(got)-1].MapID != "crossroads" || got[len(got)-1].Channel != 0 {
-			t.Fatalf("the hand-off told %+v; want crossroads, with no channel", got[len(got)-1])
+		if got := parties.updated(); got[len(got)-1].MapID != "sunreach" || got[len(got)-1].Channel != 0 {
+			t.Fatalf("the hand-off told %+v; want sunreach, with no channel", got[len(got)-1])
 		}
 	})
 }
@@ -439,7 +439,7 @@ func TestAWaypointFoundIsToldOnceKeptAndCarried(t *testing.T) {
 		if got := eventsOf[model.WaypointFound](s); len(got) != 1 || got[0].Waypoint != "town" {
 			t.Fatalf("found %+v; want the town's once", got)
 		}
-		teleport(t, inst, s, p.ID, "crossroads", 0)
+		teleport(t, inst, s, p.ID, "palmwater", 0)
 		tick(channelTicks(data) + 1)
 		tr.mu.Lock()
 		defer tr.mu.Unlock()

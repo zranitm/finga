@@ -9,12 +9,12 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Scene } from '@babylonjs/core/scene';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
+import { steepMap } from '@/testing/baked-map';
 import { servePublic } from '@/testing/public-on-disk';
 import { builtShaders } from '@/testing/shaders';
 
 import { Body, STILL, sunShadows } from '../world3d/body';
 import { classLook } from '../world3d/looks';
-import { loadMap } from '../world3d/map';
 import { Models } from '../world3d/models';
 import { Palette } from '../world3d/toon';
 
@@ -53,7 +53,7 @@ it('warms a figure’s afterimage for both of its passes and every pose, so no c
   let now = 1000;
   const fx = new Fx(
     scene,
-    await loadMap('frost_trail'),
+    await steepMap(),
     { manifest: emptyManifest, sound: () => undefined },
     () => now,
     palette,

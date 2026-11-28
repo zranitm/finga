@@ -68,18 +68,13 @@ func (l *loader) loadWorld(dir string) error {
 		if !ok {
 			return fmt.Errorf("%s: a place for %s, which is no map", worldFile, id)
 		}
-		if !charted(m) && !l.onLand(m) {
+		if !l.onLand(m) {
 			return fmt.Errorf("%s: a place for %s, a %s map, which no chart shows", worldFile, id, m.Kind)
 		}
 		if p[0] < 0 || p[0] > chartSize || p[1] < 0 || p[1] > chartSize {
 			return fmt.Errorf("%s: %s's place %v is off the chart, 0 to %g", worldFile, id, p, chartSize)
 		}
 		ids = append(ids, id)
-	}
-	for _, m := range l.maps.list {
-		if _, ok := y.Places[m.ID]; !ok && charted(m) {
-			return fmt.Errorf("%s: map %s has no place", worldFile, m.ID)
-		}
 	}
 	slices.Sort(ids) // so the same file names the same pair
 	for i, a := range ids {
@@ -146,9 +141,4 @@ func shapeReach(s gamedata.Shape) float64 {
 func (l *loader) onLand(m *mapfile.Map) bool {
 	r, ok := l.regions[m.ID]
 	return ok && r.under == ""
-}
-
-// charted is whether m must have a place on the world chart: a town or a hunting map, not a match's map or a region.
-func charted(m *mapfile.Map) bool {
-	return m.Kind == string(gamedata.Town) || m.Kind == string(gamedata.Hunting)
 }

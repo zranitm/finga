@@ -10,7 +10,7 @@ import (
 )
 
 func TestMapRejections(t *testing.T) {
-	const town, field, pit = "maps/town.yaml", "maps/field.yaml", "maps/pit.yaml"
+	const pit = "maps/pit.yaml"
 	tests := []struct {
 		name    string
 		file    string
@@ -18,60 +18,30 @@ func TestMapRejections(t *testing.T) {
 		replace string
 		wantAll []string
 	}{
-		// The map's own rules, as the 2D maps have them.
-		{"an unknown kind", field, "kind: hunting", "kind: dungeon", []string{field, "dungeon"}},
-		{"a town with levels", town, "kind: town\n", "kind: town\nlevels: [1, 2]\n", []string{town, "levels"}},
-		{"a town with a spawn", town, "npcs:", "spawns:\n  - {name: s, at: [20, 6], radius: 2, mob: green_slime, max: 1, respawn: 1s}\nnpcs:", []string{town, "spawn"}},
-		{"a hunting map without a town", field, "town: town\n", "", []string{field, "town"}},
-		{"levels out of order", field, "levels: [1, 5]", "levels: [5, 1]", []string{field, "levels"}},
-		{"a hunting map without a boss", field, "boss: {at: [30, 14], radius: 4, mob: slime_lord}\n", "", []string{field, "boss"}},
-		{"duplicate portal names", town, "portals:\n", "portals:\n  - {name: to_field, at: [20, 6], radius: 1.2, to: {map: field, portal: from_town}}\n", []string{town, "duplicate", "to_field"}},
-		{"a spawn of an unknown mob", field, "mob: green_slime", "mob: dragon", []string{field, "slimes", "dragon"}},
-		{"a spawn of a boss", field, "mob: green_slime", "mob: slime_lord", []string{field, "slimes", "slime_lord", "boss"}},
-		{"a spawn outside the map's levels", field, "levels: [1, 5]", "levels: [2, 5]", []string{field, "slimes", "green_slime", "level"}},
-		{"a spawn of none", field, "max: 4", "max: 0", []string{field, "slimes", "max"}},
-		{"a boss that isn't one", field, "mob: slime_lord", "mob: green_slime", []string{field, "green_slime", "boss"}},
-		{"a boss below the map's top level", field, "levels: [1, 5]", "levels: [1, 6]", []string{field, "slime_lord", "level"}},
-		{"a boss circle narrower than its body", field, "radius: 4, mob: slime_lord", "radius: 1, mob: slime_lord", []string{field, "slime_lord", "narrower"}},
+		// Only a match's map is a file; the land is regions.
+		{"an unknown kind", pit, "kind: pvp", "kind: dungeon", []string{pit, "dungeon"}},
+		{"a town map", pit, "kind: pvp", "kind: town", []string{pit, "town", "pvp"}},
+		{"a hunting map", pit, "kind: pvp", "kind: hunting", []string{pit, "hunting", "pvp"}},
+		{"a region as a map file", pit, "kind: pvp", "kind: region", []string{pit, "region", "pvp"}},
 
 		// A match's map: its sides and prep wall, and none of the world's.
-		{"a hunting map with sides", field, "player_spawn:", "sides: [[{at: [10, 4], yaw: 0}], [{at: [10, 16], yaw: 180}]]\nplayer_spawn:", []string{field, "only a pvp map"}},
 		{"a pvp map with one side", pit, "  - [{at: [10, 16], yaw: 180}]\n", "", []string{pit, "two sides"}},
 		{"a pvp map with an empty side", pit, "  - [{at: [10, 16], yaw: 180}]\n", "  - []\n", []string{pit, "two sides"}},
 		{"a pvp map without a prep wall", pit, "prep_wall:\n  - {box: [10, 10, 20, 0.6], height: 3, model: prep_wall}\n", "", []string{pit, "prep_wall"}},
 		{"a pvp map with a player spawn", pit, "portals: []", "portals: []\nplayer_spawn: {at: [10, 10], yaw: 0}", []string{pit, "player_spawn"}},
-		{"a pvp map with a town", pit, "kind: pvp", "kind: pvp\ntown: town", []string{pit, "town"}},
-		{"a pvp map with a portal", pit, "portals: []", "portals:\n  - {name: back, at: [2, 2], radius: 1, to: {map: town, portal: to_field}}", []string{pit, "portals"}},
+		{"a pvp map that new characters start in", pit, "kind: pvp", "kind: pvp\nstart: true", []string{pit, "start"}},
+		{"a pvp map with a portal", pit, "portals: []", "portals:\n  - {name: back, at: [2, 2], radius: 1, to: {map: town, portal: to_vale}}", []string{pit, "portals"}},
+		{"a pvp map with a spawn", pit, "portals: []", "portals: []\nspawns:\n  - {name: s, at: [10, 10], radius: 2, mob: green_slime, max: 1, respawn: 1s}", []string{pit, "spawns"}},
 		{"a spot inside the prep wall", pit, "{at: [10, 4], yaw: 0}", "{at: [10, 10], yaw: 0}", []string{pit, "side 1", "prep wall"}},
 		{"a prep wall off the map", pit, "box: [10, 10, 20, 0.6]", "box: [30, 10, 20, 0.6]", []string{pit, "prep_wall"}},
 
 		// The shapes.
-		{"an unknown key", field, "yaw: 30", "turn: 30", []string{field, "turn"}},
-		{"a look without a sky", town, "sky: day", "sky: ''", []string{town, "look"}},
-		{"a cell that doesn't divide the size", field, "size: [40, 20]", "size: [40.3, 20]", []string{field, "terrain", "cell"}},
-		{"a mesa with no edge", field, "edge: 0.5", "edge: 0", []string{field, "mesa 1", "edge"}},
-		{"a solid that is neither a box nor a cylinder", field, "cylinder: [20, 4], radius: 0.6", "radius: 0.6", []string{field, "solid 2", "tree", "box or a cylinder"}},
-		{"a box with a radius", field, "box: [14, 14, 4, 2], height: 2", "box: [14, 14, 4, 2], radius: 1, height: 2", []string{field, "solid 1", "rock", "radius"}},
-		{"a solid outside the map", field, "cylinder: [20, 4]", "cylinder: [50, 4]", []string{field, "solid 2", "inside the map"}},
-		{"a prop both at a spot and a scatter", town, "terrain: {cell: 4}\n", "terrain: {cell: 4}\nprops:\n  - {at: [2, 2], scatter: {model: m, area: [0, 0, 4, 4], count: 1, seed: 1}}\n", []string{town, "prop 1"}},
-
-		// The spots.
-		{"a spawn circle outside the map", field, "at: [12, 6], radius: 4", "at: [1, 6], radius: 4", []string{field, "slimes", "inside the map"}},
-		{"a spawn over a portal", field, "at: [12, 6], radius: 4", "at: [5, 10], radius: 4", []string{field, "slimes", "from_town", "portal"}},
-		{"a boss circle over a portal", field, "at: [30, 14], radius: 4", "at: [6, 10], radius: 4", []string{field, "slime_lord", "from_town", "portal"}},
-		{"a portal inside a rock", field, "at: [2, 10], radius: 1.2", "at: [14, 14], radius: 1.2", []string{field, "from_town", "fits"}},
-		{"a player spawn inside a rock", field, "player_spawn: {at: [3, 10]", "player_spawn: {at: [14, 14]", []string{field, "player_spawn"}},
-		{"an NPC up a tree", field, "id: drillmaster, at: [28, 5]", "id: drillmaster, at: [20, 4]", []string{field, "drillmaster", "fits"}},
-		{"an NPC not in npcs.yaml", field, "id: hunter", "id: nobody", []string{field, "nobody", "npcs.yaml"}},
-
-		// Across maps.
-		{"a portal to no map", town, "to: {map: field", "to: {map: swamp", []string{town, "to_field", "swamp"}},
-		{"a portal to no portal", town, "portal: from_town", "portal: from_nowhere", []string{town, "to_field", "from_nowhere"}},
-		{"a hunting map whose town isn't one", field, "town: town", "town: field", []string{field, "town", "field"}},
-		{"an NPC on two maps", town, "  - {id: guide, at: [6, 6], yaw: 180}\n", "  - {id: guide, at: [6, 6], yaw: 180}\n  - {id: hunter, at: [9, 6], yaw: 180}\n", []string{"hunter", "already stands"}},
-		{"an NPC on no map", town, "  - {id: guide, at: [6, 6], yaw: 180}\n", "", []string{"guide", "no map"}},
-		{"no start town", town, "start: true\n", "", []string{"maps", "start"}},
-		{"a hunting map that new characters start in", field, "kind: hunting\n", "kind: hunting\nstart: true\n", []string{field, "start"}},
+		{"an unknown key", pit, "terrain: {cell: 4}", "terrain: {cell: 4}\nturn: 30", []string{pit, "turn"}},
+		{"a look without a sky", pit, "sky: day", "sky: ''", []string{pit, "look"}},
+		{"a cell that doesn't divide the size", pit, "size: [20, 20]", "size: [20.3, 20]", []string{pit, "terrain", "cell"}},
+		{"a solid that is neither a box nor a cylinder", pit, "box: [10, 10, 20, 0.6], height: 3", "radius: 0.6, height: 3", []string{pit, "prep_wall", "prep_wall", "box or a cylinder"}},
+		{"a box with a radius", pit, "box: [10, 10, 20, 0.6], height: 3", "box: [10, 10, 20, 0.6], radius: 1, height: 3", []string{pit, "prep_wall", "radius"}},
+		{"a prop both at a spot and a scatter", pit, "terrain: {cell: 4}\n", "terrain: {cell: 4}\nprops:\n  - {at: [2, 2], scatter: {model: m, area: [0, 0, 4, 4], count: 1, seed: 1}}\n", []string{pit, "prop 1"}},
 		{"a step of zero", "movement.yaml", "step: 0.3", "step: 0", []string{"movement.yaml", "step"}},
 	}
 	for _, tt := range tests {
@@ -96,15 +66,6 @@ func TestMapRejections(t *testing.T) {
 }
 
 func TestMapRejectionsAcrossFiles(t *testing.T) {
-	t.Run("one boss on two maps", func(t *testing.T) {
-		files := fixture()
-		second := strings.NewReplacer("name: from_town", "name: from_town_2", "  - {id: hunter, at: [20, 12], yaw: 180}\n", "", "  - {id: drillmaster, at: [28, 5], yaw: 180}\n", "").Replace(files["maps/field.yaml"])
-		files["maps/field2.yaml"] = strings.Replace(second, "npcs:\n", "", 1)
-		_, err := load.Dir(write(t, files))
-		if err == nil || !strings.Contains(err.Error(), "slime_lord") || !strings.Contains(err.Error(), "already on") {
-			t.Fatalf("error %v", err)
-		}
-	})
 	t.Run("no maps folder", func(t *testing.T) {
 		dir := write(t, fixture())
 		if err := os.RemoveAll(filepath.Join(dir, "maps")); err != nil {

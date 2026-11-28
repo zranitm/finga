@@ -69,7 +69,7 @@ func TestAnArenaInCellsRunsAsOneReadingEveryBody(t *testing.T) {
 			spawns = append(spawns, gamedata.Spawn{Mob: rapid.SampledFrom(sceneMobs).Draw(t, "mob"), Max: rapid.IntRange(1, 5).Draw(t, "max"), Respawn: tick * 20, At: at, Radius: rapid.Float64Range(1, 5).Draw(t, "spawn radius")})
 		}
 		grid := grids[size]
-		m := &gamedata.Map{ID: "meadow", Kind: gamedata.Hunting, Geometry: grounds[size], Spawns: spawns, Grid: func() *nav.Grid { return grid }}
+		m := &gamedata.Map{ID: "meadow", Kind: gamedata.Region, Geometry: grounds[size], Spawns: spawns, Grid: func() *nav.Grid { return grid }}
 		seed := rapid.Uint64().Draw(t, "seed")
 		a := mobs.NewArena(mobs.Deps{Map: m, Data: inCells[cell], Roll: rand.New(rand.NewPCG(seed, 1))}, mobs.Tuning{TickInterval: tick})
 		b := mobs.NewArena(mobs.Deps{Map: m, Data: oneCell, Roll: rand.New(rand.NewPCG(seed, 1))}, mobs.Tuning{TickInterval: tick})

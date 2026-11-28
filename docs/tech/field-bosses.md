@@ -25,7 +25,7 @@
 | Part | Today | After |
 | --- | --- | --- |
 | `data/mobs.yaml` | Normal mobs and elites | Also 12 bosses (`boss: true`), and `field_boss: {life, drop_share}` |
-| Hunting maps (`.tmj`; YAML since the [3D world](./3d-world.md)) | Object layers for spawns, portals, NPCs | Also a `boss` layer: one area, with its `mob` and `kills` (in 3D, the map's `boss` key) |
+| Hunting maps (`.tmj`; YAML since the [3D world](./3d-world.md); regions' hunting areas now hold their bosses) | Object layers for spawns, portals, NPCs | Also a `boss` layer: one area, with its `mob` and `kills` (in 3D, the map's `boss` key) |
 | Mob arena | Spawns and respawns from map spawns; mobs don't know who hit them | Spawns and removes a boss on the instance's word; each blow reports the HP it took |
 | Instance | Kills give EXP, loot, and quest progress | Also counts kills, raises and retires the boss, tallies its damage, and pays out by share |
 | Social module | Delivers party lines to online players | Also `Announce`, delivered to every online player |

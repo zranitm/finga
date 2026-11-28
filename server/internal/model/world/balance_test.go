@@ -228,7 +228,7 @@ func realItemList(t *testing.T, d *gamedata.Data) []gamedata.Item {
 }
 
 // mapMobs are the mob types a map spawns, its normal ones first.
-func mapMobs(d *gamedata.Data, m *gamedata.Map) (normal, elite []gamedata.Mob) {
+func mapMobs(d *gamedata.Data, m *hunted) (normal, elite []gamedata.Mob) {
 	seen := map[string]bool{}
 	for _, s := range m.Spawns {
 		if seen[s.Mob] {
@@ -269,26 +269,32 @@ func players(d *gamedata.Data, level int) []player {
 	return out
 }
 
-// huntingMaps are the hunting maps and, as maps of their own, the hunting areas of the regions from level 12 on; the green region's lower areas are set by hand, and the test region mixes mobs of other areas.
-func huntingMaps(d *gamedata.Data) []*gamedata.Map {
-	var out []*gamedata.Map
+// hunted is a region's hunting area as the balance tests read it: its camps' spawns, its levels and its boss.
+type hunted struct {
+	ID                 string
+	Spawns             []gamedata.Spawn
+	MinLevel, MaxLevel int
+	Boss               *gamedata.BossSpot
+}
+
+// huntingMaps are the hunting areas of the regions from level 12 on, each as a map of its own; the green region's lower areas are set by hand, and the test region mixes mobs of other areas.
+func huntingMaps(d *gamedata.Data) []*hunted {
+	var out []*hunted
 	for _, m := range d.Maps() {
-		switch {
-		case m.Kind == gamedata.Hunting:
-			out = append(out, m)
-		case m.Kind == gamedata.Region && m.ID != "test_region":
-			for i, a := range m.Areas {
-				if a.Kind != gamedata.Hunting || a.MinLevel < 12 {
-					continue
-				}
-				area := &gamedata.Map{ID: m.ID + "_" + a.ID, Kind: gamedata.Hunting, MinLevel: a.MinLevel, MaxLevel: a.MaxLevel, Boss: a.Boss}
-				for _, sp := range m.Spawns {
-					if m.AreaAt(sp.At.X, sp.At.Z) == i {
-						area.Spawns = append(area.Spawns, sp)
-					}
-				}
-				out = append(out, area)
+		if m.Kind != gamedata.Region || m.ID == "test_region" {
+			continue
+		}
+		for i, a := range m.Areas {
+			if a.Kind != gamedata.Hunting || a.MinLevel < 12 {
+				continue
 			}
+			area := &hunted{ID: m.ID + "_" + a.ID, MinLevel: a.MinLevel, MaxLevel: a.MaxLevel, Boss: a.Boss}
+			for _, sp := range m.Spawns {
+				if m.AreaAt(sp.At.X, sp.At.Z) == i {
+					area.Spawns = append(area.Spawns, sp)
+				}
+			}
+			out = append(out, area)
 		}
 	}
 	return out
@@ -338,7 +344,7 @@ func TestTheHardiestHasTheMostHP(t *testing.T) {
 }
 
 // balanceOf is TestBalance on one map.
-func balanceOf(t *testing.T, d *gamedata.Data, items []gamedata.Item, m *gamedata.Map) {
+func balanceOf(t *testing.T, d *gamedata.Data, items []gamedata.Item, m *hunted) {
 	normals, elites := mapMobs(d, m)
 	rg, asserted := regionOf(lowest(normals))
 	for _, mob := range append(normals, elites...) {
@@ -379,7 +385,7 @@ func balanceOf(t *testing.T, d *gamedata.Data, items []gamedata.Item, m *gamedat
 	}
 }
 
-func check(t *testing.T, m *gamedata.Map, rg region, mob gamedata.Mob, c gamedata.Class, f fight, kills float64) {
+func check(t *testing.T, m *hunted, rg region, mob gamedata.Mob, c gamedata.Class, f fight, kills float64) {
 	t.Helper()
 	where := m.ID + " " + mob.ID + " vs " + string(c.ID)
 	// Every class kills about as fast: the time a kill takes, misses and pace included, in hits at the reference pace.
@@ -418,7 +424,7 @@ func check(t *testing.T, m *gamedata.Map, rg region, mob gamedata.Mob, c gamedat
 }
 
 // An elite takes 2 to 3 times its map's normal mob's hits and gives 2 to 3 times its EXP, and drops the gear they share about twice as often.
-func checkElite(t *testing.T, m *gamedata.Map, elite, normal gamedata.Mob, c gamedata.Class, e, n fight) {
+func checkElite(t *testing.T, m *hunted, elite, normal gamedata.Mob, c gamedata.Class, e, n fight) {
 	t.Helper()
 	where := m.ID + " " + elite.ID + " vs " + string(c.ID)
 	if ratio := e.hitsToKill / n.hitsToKill; ratio < 2 || ratio > 3 {
@@ -463,7 +469,7 @@ func TestFieldBosses(t *testing.T) {
 }
 
 // bossOf is TestFieldBosses on one map.
-func bossOf(t *testing.T, d *gamedata.Data, items []gamedata.Item, m *gamedata.Map) {
+func bossOf(t *testing.T, d *gamedata.Data, items []gamedata.Item, m *hunted) {
 	boss, _ := d.Mob(m.Boss.Mob)
 	top := topNormal(d, m)
 	if ratio := float64(boss.Exp) / float64(top.Exp); ratio < bossExp[0] || ratio > bossExp[1] {
@@ -490,7 +496,7 @@ func bossOf(t *testing.T, d *gamedata.Data, items []gamedata.Item, m *gamedata.M
 }
 
 // topNormal is the map's normal mob of the top level, the one a boss is measured against.
-func topNormal(d *gamedata.Data, m *gamedata.Map) gamedata.Mob {
+func topNormal(d *gamedata.Data, m *hunted) gamedata.Mob {
 	normals, _ := mapMobs(d, m)
 	top := normals[0]
 	for _, n := range normals[1:] {
@@ -502,7 +508,7 @@ func topNormal(d *gamedata.Data, m *gamedata.Map) gamedata.Mob {
 }
 
 // bandPotion is the HP potion its map's normal mobs drop, the top one's first: its band's.
-func bandPotion(t *testing.T, d *gamedata.Data, m *gamedata.Map) gamedata.Item {
+func bandPotion(t *testing.T, d *gamedata.Data, m *hunted) gamedata.Item {
 	t.Helper()
 	normals, _ := mapMobs(d, m)
 	top := topNormal(d, m)

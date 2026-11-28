@@ -191,7 +191,7 @@ func TestInputsApplyInSequenceOrder(t *testing.T) {
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			v, _ := s.Own(p.ID)
-			want := x + 3*data.Movement().WalkSpeed*data.Movement().Dt
+			want := x + 3*newPace(data).WalkSpeed*data.Movement().Dt
 			if !near(v.State.X, want) {
 				t.Fatalf("x = %v, want %v after one tick of walking", v.State.X, want)
 			}
@@ -207,7 +207,7 @@ func TestInputsApplyInSequenceOrder(t *testing.T) {
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			after, _ := s.Own(p.ID)
-			want := before.State.X + 3*data.Movement().WalkSpeed*data.Movement().Dt
+			want := before.State.X + 3*newPace(data).WalkSpeed*data.Movement().Dt
 			if !near(after.State.X, want) || s.Last().AckSeq != 2 {
 				t.Fatalf("x = %v ack %d, want %v and ack 2: the older input applies first", after.State.X, s.Last().AckSeq, want)
 			}
@@ -237,7 +237,7 @@ func TestInputsApplyInSequenceOrder(t *testing.T) {
 			time.Sleep(3 * worldtest.TickInterval)
 			synctest.Wait()
 			after, _ := s.Own(p.ID)
-			want := before.State.X - 3*data.Movement().WalkSpeed*data.Movement().Dt
+			want := before.State.X - 3*newPace(data).WalkSpeed*data.Movement().Dt
 			if !near(after.State.X, want) {
 				t.Fatalf("x = %v, want %v after one tick of walking left and two of waiting", after.State.X, want)
 			}
@@ -341,7 +341,7 @@ func TestInputQueueAppliesOnePerTick(t *testing.T) {
 				v, _ := s.Own(p.ID)
 				xs = append(xs, v.State.X)
 			}
-			perTick := 3 * data.Movement().WalkSpeed * data.Movement().Dt
+			perTick := 3 * newPace(data).WalkSpeed * data.Movement().Dt
 			if acks[0] != 1 || acks[1] != 2 || acks[2] != 3 {
 				t.Fatalf("acks %v, want 1 2 3", acks)
 			}
@@ -495,7 +495,7 @@ func TestInputGapHoldsThePlayer(t *testing.T) {
 		start, _ := s.Own(p.ID)
 		state := start.State
 		geom := worldtest.Town(data).Geometry
-		params := data.Movement()
+		params := newPace(data)
 		tick := func(in *sim.Input, seq uint32) model.PlayerView {
 			if in != nil {
 				_ = inst.Input(p.ID, seq, *in, 0)
@@ -586,7 +586,7 @@ func TestServerStateMatchesSimStepExactly(t *testing.T) {
 			{Right: true}, {Right: true}, {Right: true}, {}, {}, {}, {}, {},
 		}
 		geom := worldtest.Town(data).Geometry
-		params := data.Movement()
+		params := newPace(data)
 		for n, in := range inputs {
 			_ = inst.Input(p.ID, uint32(n+1), in, 0)
 			time.Sleep(worldtest.TickInterval)
@@ -857,7 +857,7 @@ func TestReplayMatchesSim(t *testing.T) {
 		snap := s.All()[0].(model.Snapshot)
 		state := snap.Players[0].State
 		for range 3 { // the join tick itself ran 3 sub-steps with no input
-			state = sim.Step(state, sim.Input{}, worldtest.Town(data).Geometry, data.Movement())
+			state = sim.Step(state, sim.Input{}, worldtest.Town(data).Geometry, newPace(data))
 		}
 		recorded := []sim.Input{
 			{Right: true}, {Right: true}, {Right: true, Jump: true}, {Right: true}, {Right: true}, {}, {}, {Left: true}, {Left: true, Jump: true}, {Left: true},
@@ -868,7 +868,7 @@ func TestReplayMatchesSim(t *testing.T) {
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			for range 3 {
-				state = sim.Step(state, in, worldtest.Town(data).Geometry, data.Movement())
+				state = sim.Step(state, in, worldtest.Town(data).Geometry, newPace(data))
 			}
 			got, ok := s.Own(p.ID)
 			if !ok {
@@ -972,3 +972,6 @@ func TestALeaveAndARejoinInOneTickKeepThePlayerShown(t *testing.T) {
 		}
 	})
 }
+
+// newPace is the movement of a new warrior, whose 7 AGI walks 1.01 times the sheet's pace.
+func newPace(data *gamedata.Data) sim.Params { return data.Movement().Faster(sim.SpeedFactor(0.01)) }

@@ -11,6 +11,7 @@ import (
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/quant"
+	"finga/internal/shared/regiongen"
 	"finga/internal/shared/sim"
 )
 
@@ -51,9 +52,10 @@ func TestAPlayerStopsAtAMobsSide(t *testing.T) {
 	}
 }
 
-// still is m as a town, where mobs block and stop at players but never attack.
+// still is m with a town of all of it, where mobs block and stop at players but never attack.
 func still(m *gamedata.Map) *gamedata.Map {
-	m.Kind, m.Town = gamedata.Town, m.ID
+	nx, nz := int(m.Geometry.SizeX/regiongen.AreaCell), int(m.Geometry.SizeZ/regiongen.AreaCell)
+	m.Kind, m.Areas, m.AreaGrid = gamedata.Region, []gamedata.Area{{ID: "town", Name: "Town", Kind: gamedata.Town}}, regiongen.AreaGrid{NX: nx, NZ: nz, Of: make([]int16, nx*nz)}
 	return m
 }
 
@@ -155,7 +157,7 @@ func TestAPlayerPinnedPastAPortalCanStillLeaveByIt(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		m := arena(t, time.Hour)
 		m.Geometry.Boxes = append(m.Geometry.Boxes, sim.Box{X: 20, Z: 32, HalfW: 20, HalfD: 1, UX: 1, Top: 4}) // a wall from z 31
-		m.Portals = []gamedata.Portal{{Name: "out", At: gamedata.Point{X: 20, Z: 28.5}, Radius: 1, TargetMap: "crossroads", TargetPortal: "to_frost"}}
+		m.Portals = []gamedata.Portal{{Name: "out", At: gamedata.Point{X: 20, Z: 28.5}, Radius: 1, TargetMap: "willowmere", TargetPortal: "north_pass"}}
 		m.Spawns[0].At = gamedata.Point{X: 20, Z: 24}
 		worldtest.Gridded(t, m)
 		tr := &transferRecorder{}
@@ -211,7 +213,7 @@ func TestNoMobEndsATickInsideAPlayer(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		m := worldtest.Gridded(t, &gamedata.Map{
-			ID: "crowd", Kind: gamedata.Hunting, Town: "willowmere", Geometry: worldtest.Flat(40),
+			ID: "crowd", Kind: gamedata.Region, Geometry: worldtest.Flat(40),
 			Spawns: []gamedata.Spawn{
 				{Mob: "green_slime", Max: 2, Respawn: time.Hour, At: gamedata.Point{X: 20, Z: 23}, Radius: 1.5},
 				{Mob: "wild_boar", Max: 2, Respawn: time.Hour, At: gamedata.Point{X: 17, Z: 20}, Radius: 1.5},

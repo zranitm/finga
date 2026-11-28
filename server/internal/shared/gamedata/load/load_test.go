@@ -15,6 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"finga/internal/shared/gamedata"
+	"finga/internal/shared/gamedata/gamedatatest"
 	"finga/internal/shared/gamedata/load"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/nav"
@@ -291,7 +292,6 @@ quests:
 		"world.yaml": `
 places:
   town: [40, 50]
-  field: [60, 50]
 teleport:
   channel: 2500ms
 interest:
@@ -375,44 +375,47 @@ bots:
     bowman:
       - {bar: [strike, '', '', '', '', '', '', ''], traits: {}, order: [strike]}
 `,
-		"maps/town.yaml": `
-name: Somewhere
-kind: town
-start: true
-look: {ground: dirt, sky: day}
-size: [40, 12]
-terrain: {cell: 4}
-portals:
-  - {name: to_field, at: [38, 6], radius: 1.2, to: {map: field, portal: from_town}}
-player_spawn: {at: [3, 6], yaw: 90}
-npcs:
-  - {id: guide, at: [6, 6], yaw: 180}
-`,
-		"maps/field.yaml": `
-name: Somewhere
-kind: hunting
-town: town
-levels: [1, 5]
-look: {ground: grass, sky: day}
-size: [40, 20]
-terrain:
-  cell: 4
-  mesas:
-    - {area: [24, 2, 8, 6], height: 1.2, edge: 0.5}
-solids:
-  - {box: [14, 14, 4, 2], height: 2, yaw: 30, model: rock}
-  - {cylinder: [20, 4], radius: 0.6, height: 6, model: tree}
-portals:
-  - {name: from_town, at: [2, 10], radius: 1.2, to: {map: town, portal: to_field}}
-spawns:
-  - {name: slimes, at: [12, 6], radius: 4, mob: green_slime, max: 4, respawn: 10s}
-player_spawn: {at: [3, 10], yaw: 90}
-npcs:
-  - {id: hunter, at: [20, 12], yaw: 180}
-  - {id: drillmaster, at: [28, 5], yaw: 180}
-boss: {at: [30, 14], radius: 4, mob: slime_lord}
-`,
+		"kit.yaml":          realKit(),
+		"regions/town.yaml": town,
 	}
+}
+
+// town is the fixture's one region on the land and where new characters begin: a hamlet south of a field of slimes with its boss, 128 m square.
+const town = `
+name: Somewhere
+size: [128, 128]
+cell: 2
+seed: 5
+look: {sky: day}
+ground: {noise: {scale: 60, amplitude: 1, octaves: 2}}
+edge: {width: 16, height: [6, 9], biome: meadow}
+colour: {slope: 0.25, high: 20}
+areas:
+  - {id: hamlet, name: Hamlet, area: [[16, 16], [112, 16], [112, 48], [16, 48]], biome: meadow, kind: town}
+  - {id: field, name: Field, area: [[16, 48], [112, 48], [112, 112], [16, 112]], levels: [1, 5], biome: meadow, kind: hunting,
+     boss: {at: [90, 90], radius: 4, mob: slime_lord}}
+camps:
+  - {area: field, name: slimes, at: [40, 80], radius: 5, mob: green_slime, max: 4, respawn: 10s}
+waypoints:
+  - {id: crossing, name: Crossing, at: [64, 32]}
+npcs:
+  - {id: guide, at: [40, 22], yaw: 180}
+  - {id: hunter, at: [90, 30], yaw: 180}
+  - {id: drillmaster, at: [30, 40], yaw: 180}
+beginning: true
+start: {at: [64, 28], yaw: 90}
+biomes:
+  meadow:
+    colours: {flat: grass, slope: dirt, steep: stone, high: snow}
+`
+
+// realKit is the shipped kit.yaml, which every region of a fixture is built with.
+func realKit() string {
+	kit, err := os.ReadFile(filepath.Join(gamedatatest.Dir(), "kit.yaml"))
+	if err != nil {
+		panic(err)
+	}
+	return string(kit)
 }
 
 func write(t *testing.T, files map[string]string) string {
@@ -732,44 +735,34 @@ func TestValidDataLoads(t *testing.T) {
 	})
 	t.Run("maps", func(t *testing.T) {
 		town, ok := d.Map("town")
-		if !ok || town.Kind != gamedata.Town || town.ID != "town" {
+		if !ok || town.Kind != gamedata.Region || town.ID != "town" {
 			t.Fatalf("town = %+v", town)
 		}
 		if d.StartTown().ID != "town" {
 			t.Fatalf("StartTown() = %s", d.StartTown().ID)
 		}
-		field, _ := d.Map("field")
-		if !town.Start || field.Start || town.Name != "Somewhere" || field.MinLevel != 1 || field.MaxLevel != 5 || town.MinLevel != 0 {
-			t.Fatalf("town %+v, field %+v: start, name and levels", town, field)
+		if !town.Start || town.Name != "Somewhere" || town.Geometry.SizeX != 128 || town.Geometry.SizeZ != 128 {
+			t.Fatalf("town %+v: start, name and size", town)
 		}
-		if town.Town != "town" || field.Town != "town" {
-			t.Fatalf("linked towns: town %q, field %q", town.Town, field.Town)
+		if want := (gamedata.Spawn{Mob: "green_slime", Max: 4, Respawn: 10 * time.Second, At: gamedata.Point{X: 40, Z: 80}, Radius: 5}); !slices.Equal(town.Spawns, []gamedata.Spawn{want}) {
+			t.Fatalf("town spawns %+v", town.Spawns)
 		}
-		if town.Geometry.SizeX != 40 || town.Geometry.SizeZ != 12 || len(field.Geometry.Boxes) != 1 || len(field.Geometry.Cylinders) != 1 {
-			t.Fatalf("town size %v x %v, field solids %+v %+v", town.Geometry.SizeX, town.Geometry.SizeZ, field.Geometry.Boxes, field.Geometry.Cylinders)
+		if town.PlayerSpawn != (gamedata.Point{X: 64, Z: 28}) || town.SpawnYaw != math.Pi/2 {
+			t.Fatalf("town's player spawn %+v facing %v, want (64, 28) facing east", town.PlayerSpawn, town.SpawnYaw)
 		}
-		if want := (gamedata.Portal{Name: "to_field", At: gamedata.Point{X: 38, Z: 6}, Radius: 1.2, TargetMap: "field", TargetPortal: "from_town"}); !slices.Equal(town.Portals, []gamedata.Portal{want}) {
-			t.Fatalf("town portals %+v", town.Portals)
+		if len(town.Portals) != 0 || len(town.Areas) != 2 || town.Areas[1].Boss == nil || *town.Areas[1].Boss != (gamedata.BossSpot{Mob: "slime_lord", At: gamedata.Point{X: 90, Z: 90}, Radius: 4}) {
+			t.Fatalf("town's gates %+v, areas %+v", town.Portals, town.Areas)
 		}
-		if want := (gamedata.Spawn{Mob: "green_slime", Max: 4, Respawn: 10 * time.Second, At: gamedata.Point{X: 12, Z: 6}, Radius: 4}); !slices.Equal(field.Spawns, []gamedata.Spawn{want}) {
-			t.Fatalf("field spawns %+v", field.Spawns)
+		if !town.Grid().Fits(nav.Point{X: 64, Z: 28}, 0.375) {
+			t.Fatal("the town's walk grid has no standing room at the player's spawn")
 		}
-		if field.PlayerSpawn != (gamedata.Point{X: 3, Z: 10}) || field.SpawnYaw != math.Pi/2 {
-			t.Fatalf("field's player spawn %+v facing %v, want (3, 10) facing east", field.PlayerSpawn, field.SpawnYaw)
-		}
-		if field.Boss == nil || *field.Boss != (gamedata.BossSpot{Mob: "slime_lord", At: gamedata.Point{X: 30, Z: 14}, Radius: 4}) || town.Boss != nil {
-			t.Fatalf("field's boss %+v, town's %+v", field.Boss, town.Boss)
-		}
-		if !field.Grid().Fits(nav.Point{X: 3, Z: 10}, 0.375) {
-			t.Fatal("the field's walk grid has no standing room at the player's spawn")
-		}
-		if len(d.Maps()) != 4 {
+		if len(d.Maps()) != 3 {
 			t.Fatalf("%d maps", len(d.Maps()))
 		}
 	})
 	t.Run("a match's map, its sides and prep wall, and pvp.yaml with each promoted class's kit", func(t *testing.T) {
 		pit, ok := d.Map("pit")
-		if !ok || pit.Kind != gamedata.Pvp || pit.Town != "" || len(pit.Portals) != 0 {
+		if !ok || pit.Kind != gamedata.Pvp || len(pit.Portals) != 0 {
 			t.Fatalf("pit %+v", pit)
 		}
 		want := [2][]gamedata.Spot{{{At: gamedata.Point{X: 10, Z: 4}}}, {{At: gamedata.Point{X: 10, Z: 16}, Yaw: math.Pi}}}
@@ -838,14 +831,14 @@ func TestValidDataLoads(t *testing.T) {
 			t.Fatalf("talk reach %v", d.TalkReach())
 		}
 		guide, ok := d.NPC("guide")
-		if !ok || guide.Name != "Guide" || guide.Look != "guide" || guide.MapID != "town" || guide.At != (gamedata.Point{X: 6, Z: 6}) || guide.Yaw != math.Pi || guide.Trainer != "" {
+		if !ok || guide.Name != "Guide" || guide.Look != "guide" || guide.MapID != "town" || guide.At != (gamedata.Point{X: 40, Z: 22}) || guide.Yaw != math.Pi || guide.Trainer != "" {
 			t.Fatalf("guide = %+v", guide)
 		}
 		if !slices.Equal(guide.Gives, []string{"first_hunt", "gel_for_me"}) || !slices.Equal(guide.Takes, []string{"first_hunt"}) {
 			t.Fatalf("guide offers %v, takes %v", guide.Gives, guide.Takes)
 		}
 		hunter, _ := d.NPC("hunter")
-		if hunter.MapID != "field" || hunter.Trainer != "bowman" {
+		if hunter.MapID != "town" || hunter.Trainer != "bowman" {
 			t.Fatalf("hunter = %+v, want the bowman's trainer", hunter)
 		}
 		if len(d.NPCs()) != 3 || d.NPCs()[0].ID != "guide" {
@@ -1168,10 +1161,9 @@ func TestRejections(t *testing.T) {
 		{"a leash of zero", "mobs.yaml", "leash: 16", "leash: 0", []string{"mobs.yaml", "leash"}},
 		{"actions.yaml with the auto-aim's cone", "actions.yaml", "ready: 0.85\n", "ready: 0.85\naim_cone: 70\n", []string{"actions.yaml", "aim_cone"}},
 		{"actions.yaml with the lock's old range", "actions.yaml", "ready: 0.85\n", "ready: 0.85\nlock_range: 12\n", []string{"actions.yaml", "lock_range"}},
-		{"a map with no place on the world chart", "world.yaml", "  field: [60, 50]\n", "", []string{"world.yaml", "field", "no place"}},
-		{"a place for a pvp map", "world.yaml", "  field: [60, 50]\n", "  field: [60, 50]\n  pit: [10, 10]\n", []string{"world.yaml", "pit", "pvp"}},
+		{"a place for a pvp map", "world.yaml", "  town: [40, 50]\n", "  town: [40, 50]\n  pit: [10, 10]\n", []string{"world.yaml", "pit", "pvp"}},
 		{"pvp.yaml without modes", "pvp.yaml", "  duel: {name: 1v1, team: 1, party: 1, map: pit, rated: true, rounds: {best_of: 3, most: 5, length: 60s}, reconnect: 20s}\n  war: {name: 2v2, team: 2, party: 2, map: siege, rated: false, rating_from: duel}\n", "", []string{"pvp.yaml", "no modes"}},
-		{"a mode on a hunting map", "pvp.yaml", "map: pit", "map: field", []string{"pvp.yaml", "duel", "field", "no pvp map"}},
+		{"a mode on a region", "pvp.yaml", "map: pit", "map: town", []string{"pvp.yaml", "duel", "town", "no pvp map"}},
 		{"a mode's team past its map's spots", "pvp.yaml", "team: 1, party: 1", "team: 2, party: 1", []string{"pvp.yaml", "duel", "fewer than 2 spots"}},
 		{"a party past the team", "pvp.yaml", "team: 1, party: 1", "team: 1, party: 2", []string{"pvp.yaml", "duel", "party"}},
 		{"an even best_of", "pvp.yaml", "best_of: 3", "best_of: 2", []string{"pvp.yaml", "duel", "odd best_of"}},
@@ -1227,10 +1219,9 @@ func TestRejections(t *testing.T) {
 		{"a build with a skill twice", "pvp.yaml", "    warrior:\n      - {bar: [strike, '',", "    warrior:\n      - {bar: [strike, strike,", []string{"pvp.yaml", "warrior", "another key"}},
 		{"a trait for no skill on the bar", "pvp.yaml", "    warrior:\n      - {bar: [strike, '', '', '', '', '', '', ''], traits: {}", "    warrior:\n      - {bar: [strike, '', '', '', '', '', '', ''], traits: {second_wind: x}", []string{"pvp.yaml", "warrior", "second_wind"}},
 		{"an order with a skill off the bar", "pvp.yaml", "    warrior:\n      - {bar: [strike, '', '', '', '', '', '', ''], traits: {}, order: [strike]}", "    warrior:\n      - {bar: ['', '', '', '', '', '', '', ''], traits: {}, order: [strike]}", []string{"pvp.yaml", "warrior", "not on a key"}},
-		{"a place for no map", "world.yaml", "  field: [60, 50]\n", "  field: [60, 50]\n  marsh: [10, 10]\n", []string{"world.yaml", "marsh", "no map"}},
-		{"a map placed twice", "world.yaml", "  field: [60, 50]\n", "  field: [60, 50]\n  town: [20, 20]\n", []string{"world.yaml", "town"}},
-		{"two maps on the same spot", "world.yaml", "field: [60, 50]", "field: [44, 53]", []string{"world.yaml", "field", "town", "closer"}},
-		{"a place off the chart", "world.yaml", "field: [60, 50]", "field: [60, 101]", []string{"world.yaml", "field", "chart"}},
+		{"a place for no map", "world.yaml", "  town: [40, 50]\n", "  town: [40, 50]\n  marsh: [10, 10]\n", []string{"world.yaml", "marsh", "no map"}},
+		{"a map placed twice", "world.yaml", "  town: [40, 50]\n", "  town: [40, 50]\n  town: [20, 20]\n", []string{"world.yaml", "town"}},
+		{"a place off the chart", "world.yaml", "town: [40, 50]", "town: [40, 101]", []string{"world.yaml", "town", "chart"}},
 		{"world.yaml without a teleport channel", "world.yaml", "teleport:\n  channel: 2500ms\n", "", []string{"world.yaml", "teleport.channel"}},
 		{"a teleport channel of zero", "world.yaml", "channel: 2500ms", "channel: 0s", []string{"world.yaml", "teleport.channel", "over 0"}},
 		{"a teleport channel below zero", "world.yaml", "channel: 2500ms", "channel: -1s", []string{"world.yaml", "teleport.channel"}},
@@ -1299,20 +1290,19 @@ func TestRejections(t *testing.T) {
 }
 
 func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
-	t.Run("a boss no map places", func(t *testing.T) {
+	t.Run("a boss no region places", func(t *testing.T) {
 		t.Parallel()
 		files := fixture()
 		files["mobs.yaml"] = strings.Replace(files["mobs.yaml"], "  - id: slime_lord\n", "  - {id: slime_king, name: Slime King, boss: true, level: 5, hp: 900, attack: 12, damage: physical, physical_defense: 3, magic_defense: 2, accuracy: 8, evasion: 2, exp: 200, speed: 0.9375, radius: 1.5, height: 2.625, behavior: patrol, attacks: [{use: hop}], look: {model: green_blob}}\n  - id: slime_lord\n", 1)
 		_, err := load.Dir(write(t, files))
-		if err == nil || !strings.Contains(err.Error(), "slime_king") || !strings.Contains(err.Error(), "no map") {
+		if err == nil || !strings.Contains(err.Error(), "slime_king") || !strings.Contains(err.Error(), "no region") {
 			t.Fatalf("err = %v", err)
 		}
 	})
-	t.Run("two start towns", func(t *testing.T) {
+	t.Run("two start regions", func(t *testing.T) {
 		t.Parallel()
 		files := fixture()
-		files["maps/village.yaml"] = strings.NewReplacer("name: to_field", "name: to_field_2", "  - {id: guide, at: [6, 6], yaw: 180}\n", "").Replace(files["maps/town.yaml"])
-		files["maps/village.yaml"] = strings.Replace(files["maps/village.yaml"], "npcs:\n", "", 1)
+		files["regions/village.yaml"] = strings.NewReplacer("name: Somewhere", "name: Village", "id: crossing, name: Crossing", "id: harbour, name: Harbour", "  - {id: guide, at: [40, 22], yaw: 180}\n", "", "  - {id: hunter, at: [90, 30], yaw: 180}\n", "", "  - {id: drillmaster, at: [30, 40], yaw: 180}\n", "", "npcs:\n", "").Replace(town)
 		_, err := load.Dir(write(t, files))
 		if err == nil || !strings.Contains(err.Error(), "village") || !strings.Contains(err.Error(), "start") {
 			t.Fatalf("err = %v", err)
@@ -1338,9 +1328,9 @@ func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 	t.Run("a map file that isn't YAML", func(t *testing.T) {
 		t.Parallel()
 		files := fixture()
-		files["maps/field.yaml"] = "{not yaml"
+		files["maps/pit.yaml"] = "{not yaml"
 		_, err := load.Dir(write(t, files))
-		if err == nil || !strings.Contains(err.Error(), "field.yaml") {
+		if err == nil || !strings.Contains(err.Error(), "pit.yaml") {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -1357,12 +1347,12 @@ func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 
 func TestEliteMobs(t *testing.T) {
 	king := "\n  - {id: king_slime, name: King Slime, level: 2, elite: true, hp: 90, attack: 8, damage: physical, physical_defense: 2, magic_defense: 1, accuracy: 8, evasion: 2, exp: 12, speed: 0.9375, radius: 0.75, height: 1.25, behavior: patrol, attacks: [{use: hop}], look: {model: green_blob}}\n"
-	slimes := "  - {name: slimes, at: [12, 6], radius: 4, mob: green_slime, max: 4, respawn: 10s}\n"
-	kingSpawn := "  - {name: king, at: [12, 6], radius: 4, mob: king_slime, max: 1, respawn: 30s}\n"
-	t.Run("an elite beside its map's normal mob loads, marked elite", func(t *testing.T) {
+	slimes := "  - {area: field, name: slimes, at: [40, 80], radius: 5, mob: green_slime, max: 4, respawn: 10s}\n"
+	kingSpawn := "  - {area: field, name: king, at: [64, 95], radius: 5, mob: king_slime, max: 1, respawn: 30s}\n"
+	t.Run("an elite beside its area's normal mob loads, marked elite", func(t *testing.T) {
 		files := fixture()
 		files["mobs.yaml"] = strings.TrimRight(files["mobs.yaml"], "\n") + king
-		files["maps/field.yaml"] = strings.Replace(files["maps/field.yaml"], slimes, slimes+kingSpawn, 1)
+		files["regions/town.yaml"] = strings.Replace(files["regions/town.yaml"], slimes, slimes+kingSpawn, 1)
 		d, err := load.Dir(write(t, files))
 		if err != nil {
 			t.Fatal(err)
@@ -1374,11 +1364,11 @@ func TestEliteMobs(t *testing.T) {
 			t.Fatal("green_slime is elite")
 		}
 	})
-	t.Run("an elite alone on its map", func(t *testing.T) {
+	t.Run("an elite alone in its area", func(t *testing.T) {
 		files := fixture()
 		files["mobs.yaml"] = strings.Replace(files["mobs.yaml"], "    level: 1\n", "    level: 1\n    elite: true\n", 1)
 		_, err := load.Dir(write(t, files))
-		if err == nil || !strings.Contains(err.Error(), "field.yaml") || !strings.Contains(err.Error(), "green_slime") || !strings.Contains(err.Error(), "normal") {
+		if err == nil || !strings.Contains(err.Error(), "town.yaml") || !strings.Contains(err.Error(), "green_slime") || !strings.Contains(err.Error(), "normal") {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -1722,16 +1712,16 @@ func TestRealDataLoads(t *testing.T) {
 			}
 		}
 	})
-	t.Run("every map can be walked to from the start town, and every hunting map back to its town; a match's map, which a match alone reaches, and the test region aside", func(t *testing.T) {
+	t.Run("every region can be walked to from the start region, and every place below back up to its region; a match's map, which a match alone reaches, and the test region aside", func(t *testing.T) {
 		for _, m := range d.Maps() {
 			if m.Kind == gamedata.Pvp || m.ID == testRegion {
 				continue
 			}
 			if !reaches(d, d.StartTown().ID, m.ID) {
-				t.Errorf("%s: no portals lead there from %s", m.ID, d.StartTown().ID)
+				t.Errorf("%s: no gates lead there from %s", m.ID, d.StartTown().ID)
 			}
-			if !reaches(d, m.ID, m.Town) {
-				t.Errorf("%s: no portals lead back to its town %s", m.ID, m.Town)
+			if m.Under != "" && !reaches(d, m.ID, m.Under) {
+				t.Errorf("%s: no gates lead back up to %s", m.ID, m.Under)
 			}
 		}
 	})
@@ -1765,13 +1755,13 @@ func TestRealDataLoads(t *testing.T) {
 			}
 		}
 	})
-	t.Run("every hunting map's portals lead somewhere and back", func(t *testing.T) {
+	t.Run("every region's gates lead somewhere and back", func(t *testing.T) {
 		for _, m := range d.Maps() {
 			if m.Kind == gamedata.Pvp || m.ID == testRegion {
 				continue // a match's map and the test region have no portals
 			}
 			if len(m.Portals) == 0 {
-				t.Fatalf("map %s has no portals", m.ID)
+				t.Fatalf("region %s has no gates", m.ID)
 			}
 			for _, p := range m.Portals {
 				target, ok := d.Map(p.TargetMap)

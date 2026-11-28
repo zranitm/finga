@@ -236,29 +236,12 @@ func (b *bot) roll(s spot) nav.Point {
 	return s.at
 }
 
-// bossAt is where the field boss up on a map stands, as far as the bot knows, and how far round it a bot keeps clear: its mob's place on the bot's map, else its circle, which it wanders.
-func (b *bot) bossAt(mapID string) (nav.Point, float64, bool) {
-	if !b.bossUp(mapID) {
-		return nav.Point{}, 0, false
-	}
-	if m, ok := b.mobs[b.boss]; ok && mapID == b.mapID {
-		return nav.Point{X: m.GetX(), Z: m.GetZ()}, bossClear, true
-	}
-	m, ok := b.data.Map(mapID)
-	if !ok || m.Boss == nil {
-		return nav.Point{}, 0, false
-	}
-	return point(m.Boss.At), m.Boss.Radius + bossClear, true
-}
-
-// nearBoss reports whether p on a map is where a bot's blows could reach its field boss, which fights only once hit: a square, as far either way in x and z, so further clear than a circle. In a region, every area's boss circle is kept clear, up or not, as a bot hears only its own area's.
+// nearBoss reports whether p on a map is where a bot's blows could reach a field boss, which fights only once hit: a square, as far either way in x and z, so further clear than a circle. Every area's boss circle is kept clear, up or not, as a bot hears only its own area's.
 func (b *bot) nearBoss(mapID string, p nav.Point) bool {
-	within := func(at nav.Point, r float64) bool { return max(math.Abs(p.X-at.X), math.Abs(p.Z-at.Z)) < r }
-	if at, r, ok := b.bossAt(mapID); ok && within(at, r) {
-		return true
-	}
 	m, ok := b.data.Map(mapID)
-	return ok && slices.ContainsFunc(m.Areas, func(a gamedata.Area) bool { return a.Boss != nil && within(point(a.Boss.At), a.Boss.Radius+bossClear) })
+	return ok && slices.ContainsFunc(m.Areas, func(a gamedata.Area) bool {
+		return a.Boss != nil && max(math.Abs(p.X-a.Boss.At.X), math.Abs(p.Z-a.Boss.At.Z)) < a.Boss.Radius+bossClear
+	})
 }
 
 // tripFar is how much nearer a spot a teleport must land a bot than it stands, for a trip worth one.
