@@ -235,7 +235,7 @@ describe('a region drawn from its bake', () => {
     place!.follow(-330, 60); // and none drawn: nothing to skirt either
     expect(meshes('overview skirts')).toHaveLength(0);
     expect(
-      said.flatMap((spy) => spy.mock.calls).filter((c) => /empty array/.test(String(c[0]))),
+      said.flatMap((spy) => spy.mock.calls).filter((c) => String(c[0]).includes('empty array')),
     ).toEqual([]);
   });
 
