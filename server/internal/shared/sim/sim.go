@@ -15,9 +15,10 @@ type Params struct {
 	MaxFallSpeed float64 `json:"max_fall_speed"` // m/s
 	Radius       float64 `json:"radius"`         // the body's cylinder
 	Height       float64 `json:"height"`
-	Step         float64 `json:"step"`      // a solid's top up to this far above the feet is stepped onto
-	MaxSlope     float64 `json:"max_slope"` // a rise per metre; a cell rising more is steep
-	Snap         float64 `json:"snap"`      // the most the ground may fall away under a walking body before it falls
+	EnemyHeight  float64 `json:"enemy_height,omitzero"` // how tall an enemy fighter stands to a jump in a match; the vectors name their blockers' tops
+	Step         float64 `json:"step"`                  // a solid's top up to this far above the feet is stepped onto
+	MaxSlope     float64 `json:"max_slope"`             // a rise per metre; a cell rising more is steep
+	Snap         float64 `json:"snap"`                  // the most the ground may fall away under a walking body before it falls
 	Sprint       Sprint  `json:"sprint,omitzero"`
 }
 

@@ -956,14 +956,19 @@ Added on 2026-11-28. The user: "players should block each other way, because cur
 - **In a match, a fighter's body blocks their enemies',** by the rule a mob's body blocks a player's ([3D world](./3d-world.md) section 5):
   - a move may not bring two enemies' centres closer while their bodies overlap;
   - a body can always walk out of an overlap;
-  - a jump clears an enemy only if the feet stay above the enemy's head from first touch until past their centre.
+  - a jump clears an enemy only if the feet stay above the enemy's jump height, `enemy_height` in `movement.yaml`, from first touch until past their centre.
 - **So a melee fighter walking up to an enemy stops touching them,** centres 0.75 m apart, in reach of every melee attack. That is the cue the user asked for, the one mobs give.
 - **Whose bodies count:**
   - **Enemies:** living ones, down excepted. A held body, kept for a lost connection, counts, as does a bot that took over a leaver.
   - **Teammates** pass through each other.
   - **Outside a match** nothing changes: players pass through each other everywhere.
 - **Moves:** a skill's move stops at an enemy where it stops at a mob, and one that passes through mobs (`through`) passes through enemies. A shove stops at the shoved player's enemies, where they stand that tick, as a knockback stops at mobs.
-- **A jump over an enemy:** players are 1.75 m tall and the sim's jump peaks at 1.90 m, so the feet are above an enemy's head for about 0.17 s. Clearing one takes 0.75 m of that: at a match's walk speed a jump timed from 1.89 to 2.01 m from the enemy's centre, a 12 cm window, clears, and more easily at a sprint. It's a tight escape from being pinned, not a free one. Every mob but a boss is low enough to clear easily.
+- **A jump over an enemy** should be easy, the user said ("a jump over an enemy should be easy"). A player is 1.75 m tall and the sim's jump peaks at 1.90 m, so the feet were over a head for only about 0.17 s, and a timed walk jump cleared from a window about 0.15 m deep. So an enemy is 1.25 m tall to a jump, `enemy_height` in `movement.yaml` beside the player's `height`, the height of the mobs a jump already clears easily:
+  - the body stays as wide, so a walk into an enemy still stops at 0.75 m, in reach;
+  - the feet are over 1.25 m for about 0.35 s at a match's walk speed (0.17 s over 1.75 m), and a walk jump taken from 1.5 to 2.6 m short of the enemy's centre clears, a window about 1.1 m deep, and from 1.9 to 4.1 m short at a sprint;
+  - a jump pressed against an enemy rises over his top in about 0.1 s and walks over, so being pinned is no longer a tight escape.
+
+  Every mob but a boss is low enough to clear easily.
 
 ### Seeing it the same on both ends
 
@@ -997,7 +1002,7 @@ The sim doesn't change: enemies are `sim.Blocker` circles, as mobs are. Neither 
 
 ### Testing
 
-- **Sim** (Go and TypeScript, the shared vectors): a body 1.75 m tall as a blocker. A walk into it stops touching. A jump at the right moment clears it at a walk and at a sprint, and one taken pressed against it doesn't.
+- **Sim** (Go and TypeScript, the shared vectors): a body 1.25 m tall to a jump as a blocker. A walk into it stops touching. A jump clears it at a walk from either end of the window (`enemy-jump-over-at-walk-late` and `-early`) and at a sprint, a jump taken too early lands short and stops, and one pressed against it walks over after the feet rise.
 - **The world:**
   - In 1v1, a player walking into a standing enemy stops with centres 0.75 m apart, and the state the client would predict equals the world's.
   - In 3v3, teammates walk through each other. Outside a match, two players walk through each other.
@@ -1025,13 +1030,13 @@ One PR, server and client together, since a server that blocks with a client tha
 
 - **The world** (`instance/foes.go`): `keepFoes` files each tick's living fighters, by id, as the frame is broadcast; `blockersFor` gives a step the mobs of its view and the other side's bodies of the same tick, built once per tick and side. The shove in `hitPlayer` meets `foesNow`. `part` runs at the end of `simulate`.
 - **Parting keeps order, for a pair about to meet.** Two enemies closing at a walk each way come 0.55 m nearer a tick, more than the 0.5 m a parting leaves between centres, so with stale views they can cross within one tick, and a push along the line between their new centres would finish the swap. A pair whose line now points the other way from the last tick's frame is parted back along that last line, but only when it could be a step's crossing:
-  - in the last frame their centres were within a tick's reach of touching (their bodies' two radii plus each body's own longest step, its move-speed bonus and a sprint included, and a centimetre each), and level, neither above the other's head;
+  - in the last frame their centres were within a tick's reach of touching (their bodies' two radii plus each body's own longest step, its move-speed bonus and a sprint included, and a centimetre each), and level, neither above the other's 1.25 m top;
   - neither has moved more than its own reach since the frame, so a body the world placed (a round's reset, a respawn, a teleport, a blink) is never pulled back;
   - they overlap now. A skill that puts a fighter past an enemy (a blink, a shadow step) leaves them there.
 - **A jump over lands where it lands.** A pair one of whom was above the other's head in the last frame isn't parted this tick, and a pair whose centres are no nearer than in the last frame isn't parted: a jumper coming down in the enemy's body, or a body walking out, is left to the walk, as a mob's overlap is.
 - **Bodies are at the wire's centimetre.** The world keeps each fighter's and each mob's body for a view at the centimetre the frames give (`quant`), and both expanders hold another body's whole view at the centimetre too (the player's own stays exact), so the page builds the same circles. A fighter pressed against an enemy, or a mob, off the grid stops where the page's sim stops, with no correction a tick. The opening-overlap check compares the wire's bodies of now with the last frame's.
 - **A match is never tiered.** The crowd tier of large-regions.md section 5 holds a player's motion-only steps every second tick; on a match's map `stepPlayers` skips it, since an enemy's missed tick would leave a blocker guessed, as a mob's would. The check is the instance's, not a loader rule on `interest.crowd`.
-- **A jump from contact clears.** The sim holds a body at an enemy's side until its feet rise over the 1.75 m head, 0.21 s on, and then lets it walk over, as it does for a mob; the shared vector `enemy-jump-pressed-against` records it. The "first touch" in the rule above is not enforced, so a pinned fighter jumps out, as 'a tight escape from being pinned' says.
+- **A jump from contact clears.** The sim holds a body at an enemy's side until its feet rise over the 1.25 m top, about 0.1 s on, and then lets it walk over, as it does for a mob; the shared vector `enemy-jump-pressed-against` records it. The "first touch" in the rule above is not enforced, so a pinned fighter jumps out, and at 1.25 m it is quick.
 - **Bots** (`bots/brain.go`, `round`): a bot pressing toward a point, or its side's focus, with another enemy ahead within 1.8 m goes along that enemy's side. A melee bot already stops at 0.7 of its reach, 1.3 m.
 - **The client** (`RemotePlayers.foesAt`, wired in `world.ts`): the enemies' circles at a view from each player's state at that tick, in id order; the down flag is kept per frame beside the look.
 
@@ -1041,10 +1046,12 @@ One PR, server and client together, since a server that blocks with a client tha
 2. **The mob rule, not a new one,** so an enemy feels like a mob to walk into. A crowd of enemies can pin a player as a crowd of mobs can, and a jump is the way out.
 3. **Parting head-on clashes in the world,** half each, rather than letting overlaps stand. Without it, enemies walking at each other could meet and walk through, which is the case the user asked to remove. The price is a small correction in a clash.
 4. **Downed enemies don't block,** as dead mobs don't, so a body on the ground never walls a path.
+5. **An enemy is 1.25 m tall to a jump,** the user's "a jump over an enemy should be easy". The height is data (`enemy_height`), and the world's kept bodies, the parting's above-the-top checks and the client's predicted blockers all read it, so the two ends stay the same number. The body's width, and so the stop at 0.75 m, is unchanged.
 
 ### Alternatives considered
 
 - **All players solid everywhere:** offered, and turned down by the user. Players could stand in the way of NPCs, gates, waypoints and bridges, and towns would jam. Nobody fights a player outside a match, so it would judge no reach.
 - **Teammates solid too:** a side could jam its own base gate in 15v15 or pin its own fighter in a corner.
+- **A higher jump in matches,** and **airborne bodies passing through enemies:** a higher jump changes the jump everywhere in a match, and passing through would let any hop pass.
 - **No parting, overlaps allowed:** a still or slow enemy would block perfectly, but a head-on clash could pass through.
 - **Judging steps against where the enemy is now,** not where the mover's screen drew them: every touch with a moving enemy would correct, since the client can't know where the enemy is now.

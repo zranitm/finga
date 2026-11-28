@@ -79,7 +79,7 @@ var requiredVectors = []string{
 	"jump", "jump-onto-box", "jump-short-of-box", "jump-onto-stump", "jump-across-step", "step-onto-box",
 	"fall-off-mesa", "fall-clamp",
 	"mob-walk-into", "mob-walk-out", "mob-walk-along", "mob-jump-over",
-	"enemy-walk-into", "enemy-jump-over-at-walk", "enemy-jump-over-at-sprint", "enemy-jump-pressed-against", "enemy-jump-too-early",
+	"enemy-walk-into", "enemy-jump-over-at-walk", "enemy-jump-over-at-sprint", "enemy-jump-over-at-walk-late", "enemy-jump-over-at-walk-early", "enemy-jump-pressed-against", "enemy-jump-too-early",
 	"map-edge",
 	"dash-open", "dash-into-box", "dash-along-box", "dash-up-cliff", "dash-off-mesa", "dash-at-mob", "dash-along-mob", "dash-ends-mid-input",
 	"leap-open", "leap-into-box", "leap-along-box", "leap-up-cliff", "leap-off-mesa", "leap-at-mob",
@@ -703,20 +703,24 @@ func TestRequiredVectorsAreDistinct(t *testing.T) {
 	}
 }
 
-// enemy is a fighter's circle at (8, 6) in a match: as wide as the player body, 1.75 m tall (pvp.md section 19).
-var enemy = []sim.Blocker{{X: 8, Z: 6, Radius: 0.375, Bottom: 0, Top: 1.75}}
+// enemy is a fighter's circle at (8, 6) in a match: as wide as the player body, 1.25 m tall to a jump, movement.yaml's enemy_height (pvp.md section 19).
+var enemy = []sim.Blocker{{X: 8, Z: 6, Radius: 0.375, Bottom: 0, Top: 1.25}}
 
-// enemyScenarios are pvp.md section 19's: an enemy's body stops a walk as a mob's does, and a jump clears it only if the feet stay above its head from the first touch to past its centre.
+// enemyScenarios are pvp.md section 19's: an enemy's body stops a walk as a mob's does, and a jump clears it only if the feet stay above its 1.25 m top from the first touch to past its centre.
 func enemyScenarios() []vector {
 	sprintStart := standing(3, 0, 6)
 	sprintStart.Sprint = sim.SprintSteps(sprinting)
 	vs := []vector{
 		{Name: "enemy-walk-into", Notes: "Walking east into an enemy's circle stops at contact, 0.75 m between the centres, in reach of a melee attack.", Geometry: flat(), Start: standing(5, 0, 6), Inputs: []inputRun{{Input: east, Repeat: 50, Blockers: enemy}}},
-		{Name: "enemy-jump-over-at-walk", Notes: "A jump taken 2 m short of the enemy's centre, walking, keeps the feet above its 1.75 m head from the first touch until past its centre, and lands beyond.", Geometry: flat(), Start: standing(5, 0, 6),
+		{Name: "enemy-jump-over-at-walk", Notes: "A jump taken 2 m short of the enemy's centre, walking, keeps the feet above its 1.25 m top from the first touch until past its centre, and lands beyond.", Geometry: flat(), Start: standing(5, 0, 6),
 			Inputs: []inputRun{{Input: east, Repeat: 12, Blockers: enemy}, {Input: jumpEast, Repeat: 1}, {Input: east, Repeat: 60}}},
+		{Name: "enemy-jump-over-at-walk-late", Notes: "A jump taken 1.7 m short, near the late end of the window a walk clears from (about 1.5 to 2.6 m short), lands beyond with no stop at the enemy.", Geometry: flat(), Start: standing(5, 0, 6),
+			Inputs: []inputRun{{Input: east, Repeat: 16, Blockers: enemy}, {Input: jumpEast, Repeat: 1}, {Input: east, Repeat: 60}}},
+		{Name: "enemy-jump-over-at-walk-early", Notes: "A jump taken 2.5 m short, near the early end of that window, lands beyond with no stop at the enemy.", Geometry: flat(), Start: standing(5, 0, 6),
+			Inputs: []inputRun{{Input: east, Repeat: 6, Blockers: enemy}, {Input: jumpEast, Repeat: 1}, {Input: east, Repeat: 60}}},
 		{Name: "enemy-jump-over-at-sprint", Notes: "The same jump sprinting, taken 2.7 m short: the faster body is over the enemy's head for more of its way, and lands beyond.", Params: sprinting, Geometry: flat(), Start: sprintStart,
 			Inputs: []inputRun{{Input: east, Repeat: 17, Blockers: enemy}, {Input: jumpEast, Repeat: 1}, {Input: east, Repeat: 40}}},
-		{Name: "enemy-jump-pressed-against", Notes: "A jump taken pressed against the enemy: the body stays at contact until its feet rise over the 1.75 m head, 0.21 s on, then walks over and lands beyond, as a mob's rule lets it; the way out of being pinned.", Geometry: flat(), Start: standing(5, 0, 6),
+		{Name: "enemy-jump-pressed-against", Notes: "A jump taken pressed against the enemy: the body stays at contact until its feet rise over the 1.25 m top, about 0.1 s on, then walks over and lands beyond, as a mob's rule lets it; the way out of being pinned.", Geometry: flat(), Start: standing(5, 0, 6),
 			Inputs: []inputRun{{Input: east, Repeat: 50, Blockers: enemy}, {Input: jumpEast, Repeat: 1}, {Input: east, Repeat: 60}}},
 		{Name: "enemy-jump-too-early", Notes: "A jump taken 3 m short: the body lands again before the enemy and is stopped at it.", Geometry: flat(), Start: standing(5, 0, 6),
 			Inputs: []inputRun{{Input: jumpEast, Repeat: 1, Blockers: enemy}, {Input: east, Repeat: 60}}},

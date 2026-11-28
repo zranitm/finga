@@ -18,6 +18,7 @@ type movementYAML struct {
 	MaxFallSpeed float64 `yaml:"max_fall_speed"`
 	Radius       float64 `yaml:"radius"`
 	Height       float64 `yaml:"height"`
+	EnemyHeight  float64 `yaml:"enemy_height"`
 	Step         float64 `yaml:"step"`
 	MaxSlope     float64 `yaml:"max_slope"`
 	Snap         float64 `yaml:"snap"`
@@ -46,7 +47,7 @@ func (l *loader) loadMovement(dir string) error {
 		value float64
 	}{
 		{"dt", m.Dt}, {"walk_speed", m.WalkSpeed}, {"jump_velocity", m.JumpVelocity}, {"gravity", m.Gravity},
-		{"max_fall_speed", m.MaxFallSpeed}, {"radius", m.Radius}, {"height", m.Height}, {"step", m.Step},
+		{"max_fall_speed", m.MaxFallSpeed}, {"radius", m.Radius}, {"height", m.Height}, {"enemy_height", m.EnemyHeight}, {"step", m.Step},
 		{"max_slope", m.MaxSlope}, {"snap", m.Snap}, {"sprint.after", m.Sprint.After},
 	} {
 		if !positive(v.value) {
@@ -59,12 +60,15 @@ func (l *loader) loadMovement(dir string) error {
 	if err := nav.CheckRadius(m.Radius + gamedata.BotPathMargin); err != nil {
 		return fmt.Errorf("%s: a bot's path radius, the radius and its margin: %w", movementFile, err)
 	}
+	if m.EnemyHeight > m.Height {
+		return fmt.Errorf("%s: enemy_height must be at most height", movementFile)
+	}
 	if !(m.Sprint.Speed > 1) {
 		return fmt.Errorf("%s: sprint.speed must be over 1", movementFile)
 	}
 	l.movement = sim.Params{
 		Dt: m.Dt, WalkSpeed: m.WalkSpeed, JumpVelocity: m.JumpVelocity, Gravity: m.Gravity, MaxFallSpeed: m.MaxFallSpeed,
-		Radius: m.Radius, Height: m.Height, Step: m.Step, MaxSlope: m.MaxSlope, Snap: m.Snap,
+		Radius: m.Radius, Height: m.Height, EnemyHeight: m.EnemyHeight, Step: m.Step, MaxSlope: m.MaxSlope, Snap: m.Snap,
 		Sprint: sim.Sprint{After: m.Sprint.After, Speed: m.Sprint.Speed},
 	}
 	return nil

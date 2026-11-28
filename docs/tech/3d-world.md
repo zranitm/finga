@@ -272,7 +272,7 @@ As built: spike 2 put the 3D sim beside the 2D one, and slice PR 4 deleted the 2
 
 ### Types
 
-- **`Params`:** `dt`, `walk_speed`, `jump_velocity`, `gravity`, `max_fall_speed`, `radius`, `height`, `step` (0.3 m), `max_slope` (0.7, section 4), and `snap` (0.5 m), the most the ground may fall away under a walking body before it falls instead. `Faster` scales the speeds as today.
+- **`Params`:** `dt`, `walk_speed`, `jump_velocity`, `gravity`, `max_fall_speed`, `radius`, `height`, `enemy_height` (1.25 m, how tall an enemy fighter is to a jump in a match, [PvP](./pvp.md) section 19; zero in a sim run that has no enemies), `step` (0.3 m), `max_slope` (0.7, section 4), and `snap` (0.5 m), the most the ground may fall away under a walking body before it falls instead. `Faster` scales the speeds as today.
 - **`Geometry`:**
   - the height grid;
   - the solids. A box carries a unit axis `(ux, uz)` instead of its yaw, and an axis-aligned box is `(1, 0)`. Go alone makes the axis: the map loader (spike 3) computes it once, and the client reads it from Go-generated JSON, never from its own `Math.cos`, which may differ from Go's in the last bit;
