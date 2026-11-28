@@ -1,0 +1,23 @@
+# A town on a 12 m cliff plateau whose line is the town's own edge, and a road up to it that bends just before the line: the road's ramp takes the run it needs, 12 m over the walkable slope, laid back along the road from the line, round its bend, and meets the town's flat ground at the line.
+name: Ramp
+size: [128, 128]
+cell: 2
+seed: 13
+look: {sky: day}
+ground: {noise: {scale: 60, amplitude: 0.5, octaves: 1}}
+edge: {width: 12, height: [6, 9], biome: meadow}
+colour: {slope: 0.25, high: 30}
+features:
+  - {plateau: {area: [[12, 70], [116, 70], [116, 116], [12, 116]], height: 12, edge: cliff}}
+  - {road: {path: [[40, 12], [40, 40], [64, 52], [64, 100]], width: 5}}
+areas:
+  - {id: field, name: Field, area: [[12, 12], [116, 12], [116, 70], [12, 70]], levels: [1, 2], biome: meadow, kind: hunting}
+  - {id: hamlet, name: Hamlet, area: [[12, 70], [116, 70], [116, 116], [12, 116]], biome: meadow, kind: town}
+waypoints:
+  - {id: hamlet, name: Hamlet, at: [90, 100]}
+start: {at: [90, 96], yaw: 0}
+biomes:
+  meadow:
+    colours: {flat: grass, slope: dirt, steep: stone, high: stone}
+    scatter:
+      - {model: boulder, spacing: 14}

@@ -83,6 +83,7 @@ type builder struct {
 	rivers     []River         // smoothed
 	fords      []fordCone      // every river's fords so far, whose ramps a later road keeps
 	townLevels map[int]float64 // each town's flat height, once a road needed it
+	roadTown   []int16         // per sample on a road laid to a town: the town's index + 1
 	err        error           // the first thing the plan couldn't be built from, which Generate returns
 	floor      []float64       // a cave's ground under its rock, which its halls and tunnels are carved down to
 	rocky      []bool          // a cave's, per sample: rock or a wall, not carved floor
@@ -110,6 +111,7 @@ func Generate(p Plan, k Kit, body sim.Params) (*Region, error) {
 	for _, name := range b.r.Palette {
 		b.r.RGB = append(b.r.RGB, k.rgbOf(name))
 	}
+	b.roadTown = make([]int16, nx*nz)
 	b.areas()
 	b.ground()
 	b.rock()
@@ -429,7 +431,7 @@ func (b *builder) road(r Road) {
 		}
 		levels[i] = sum / float64(n)
 	}
-	pinned := b.townsOn(path, levels)
+	pinned, town := b.townsOn(path, levels)
 	if err := b.laidBack(r, path, s, levels, pinned); err != nil {
 		b.err = err
 		return
@@ -454,6 +456,9 @@ func (b *builder) road(r Road) {
 		b.h[t] = h
 		if d <= half {
 			b.onRoad[t] = true
+			if town >= 0 {
+				b.roadTown[t] = int16(town + 1) //nolint:gosec // a plan has far fewer than 2¹⁵ areas
+			}
 			b.r.Wet[t] = b.r.Wet[t] && ford && h < b.water[t] // over water a causeway, dry; in a ford it crosses, wet where under the water
 		}
 	}
@@ -461,7 +466,7 @@ func (b *builder) road(r Road) {
 
 // towns flattens each town to its mean height, easing into the land around over townBlend.
 func (b *builder) towns() {
-	for _, a := range b.p.Areas {
+	for k, a := range b.p.Areas {
 		if a.Kind != Town {
 			continue
 		}
@@ -477,9 +482,15 @@ func (b *builder) towns() {
 		}
 		mean := sum / float64(n)
 		b.f.near(b.g, a.Area, true, townBlend)
+		predicted := b.townLevels[k] // the height roads were laid to reach, before later features and the roads themselves moved the town's mean
 		for _, s := range b.f.touched {
-			if !in[s] && !b.onRoad[s] { // a road's surface keeps the level it was laid at, which already climbs to the town's
-				b.h[s] = lerp(mean, b.h[s], smoothstep(math.Sqrt(b.f.d2[s])/townBlend))
+			d := math.Sqrt(b.f.d2[s])
+			switch {
+			case in[s]:
+			case b.roadTown[s] == int16(k+1): //nolint:gosec // a plan has far fewer than 2¹⁵ areas // a road's surface keeps the level it was laid at, which already climbs to the town's: it takes only the difference between that and the town's now, easing out
+				b.h[s] += float64((mean - predicted) * (1 - smoothstep(d/townBlend)))
+			default: // the land round the town, a road that never entered it included
+				b.h[s] = lerp(mean, b.h[s], smoothstep(d/townBlend))
 			}
 		}
 		for s, ok := range in {
@@ -498,17 +509,17 @@ func f32Path(path [][2]float64) [][2]float64 {
 	return out
 }
 
-// townsOn sets the levels of the path's points inside a town to the town's, and says which they are: a road runs on at the height the town's flat ground will be, not at the mean of the land it crossed.
-func (b *builder) townsOn(path [][2]float64, levels []float64) []bool {
-	pinned := make([]bool, len(path))
+// townsOn sets the levels of the path's points inside a town to the town's, and says which they are and which town (the last; -1 for none): a road runs on at the height the town's flat ground will be, not at the mean of the land it crossed.
+func (b *builder) townsOn(path [][2]float64, levels []float64) (pinned []bool, town int) {
+	pinned, town = make([]bool, len(path)), -1
 	for i, p := range path {
 		for k, a := range b.p.Areas {
 			if a.Kind == Town && contains(a.Area, p) {
-				levels[i], pinned[i] = b.townLevel(k), true
+				levels[i], pinned[i], town = b.townLevel(k), true, k
 			}
 		}
 	}
-	return pinned
+	return pinned, town
 }
 
 // townLevel is the height town area k's flat ground will have: the mean of its samples now.

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
@@ -814,4 +815,34 @@ func segmentDistance(x, z float64, a, b [2]float64) float64 {
 	}
 	ex, ez := x-a[0]-float64(t*dx), z-a[1]-float64(t*dz)
 	return math.Sqrt(float64(ex*ex) + float64(ez*ez))
+}
+
+// A road that climbs to a town on a terrace's line gets the ramp the rise needs, 12 m over a body's walkable slope, laid back from the line; one with no room for it before its start is an error that names it, not a wall baked.
+func TestARoadsRampTakesTheRunItNeeds(t *testing.T) {
+	p := plan(t, "testdata/ramp.yaml")
+	r := build(t, p)
+	maxSlope := body(t).MaxSlope
+	line := smooth(p.Features[1].Road.Path)
+	steep, prev, prevAt := 0.0, 0.0, line[0]
+	for _, at := range line {
+		h := r.Geometry.Terrain.Height(at[0], at[1])
+		if run := math.Sqrt(float64((at[0]-prevAt[0])*(at[0]-prevAt[0])) + float64((at[1]-prevAt[1])*(at[1]-prevAt[1]))); run > 0 {
+			steep = max(steep, math.Abs(h-prev)/run)
+		}
+		prev, prevAt = h, at
+	}
+	if steep > maxSlope {
+		t.Fatalf("the road's middle rises %.2f a metre between its points; want no more than the walkable %.2f", steep, maxSlope)
+	}
+	top := r.Geometry.Terrain.Height(64, 80)
+	if base := r.Geometry.Terrain.Height(40, 14); top-base < 10 {
+		t.Fatalf("the town stands %.1f m over the road's start; want the terrace's 12", top-base)
+	}
+
+	short := p
+	short.Features = slices.Clone(p.Features)
+	short.Features[1] = Feature{Road: &Road{Path: [][2]float64{{64, 62}, {64, 100}}, Width: 5}}
+	if _, err := Generate(short, shippedKit(t), body(t)); err == nil || !strings.Contains(err.Error(), "road from [64 62]") || !strings.Contains(err.Error(), "no room") {
+		t.Fatalf("a road with 8 m to climb 12: error %v; want it named, with no room for its ramp", err)
+	}
 }
