@@ -93,7 +93,7 @@ Since section 12, "in range" below means on screen: a mob is picked only if it's
   - the mob's name (`mobName`) and level;
   - an Elite tag for an elite;
   - its HP as the HUD's `Bar`, with numbers: the frame's HP over the mob's `hp` from game data.
-- **Placement:** under the field boss's bar when that shows, in the same style. As built, `TopBars` stacks the two at the top centre, so the window takes the bar's place when only it shows.
+- **Placement:** the top centre is the target window's: `TopBars` stacks the match bar, when a match runs, and the window under it. The field boss's bar sits in the right column, above where a match's enemy frames show.
 - **The field boss:** when the lock is the field boss, the window hides, since the boss bar already shows its name and HP.
 - **No lock:** the window hides.
 - **Its look** is the player's own status frame's, since 2026-11-17 (section 13).
@@ -132,7 +132,7 @@ Since section 12, "in range" below means on screen: a mob is picked only if it's
   - it shows the lock's name, level, Elite tag, and HP, and its bar falls as the mob is hit;
   - it moves to the new lock on Tab;
   - it hides with no lock and for the field boss;
-  - it sits under the boss bar.
+  - it sits under the match bar, when one shows.
 - **Input:** Tab in both presets, with no browser focus move, and ignored while typing.
 - **End to end:** with two mobs either side of the player, Tab switches the lock, and the next attack's `Damage` lands on the new lock. As built, in two halves, since no test runs the client against the world: the world test's Tab case sends the next attack's aim at the new lock, and the instance's `TestAnAttackLandsOnTheMobItsAimPoints` lands each aim's `Damage` on the slime it points at, one either side of a player facing north.
 - **Live, for every class:**
@@ -238,7 +238,7 @@ Revised on 2026-11-17. The user: "the enemy window should look like a character 
 
 ### The rule
 
-The player's status frame (top left), each party member's row (top right), and the target window (top centre) share one look:
+The player's status frame (top left), each party member's row (left, under it), and the target window (top centre) share one look:
 - the HUD's panel;
 - a header with a mark, the name, and "Lv. N" at the right;
 - the HP bar with numbers under it.
@@ -296,7 +296,7 @@ Revised on 2026-11-17. The user: "the lockin window should show basic stats like
 
 ### The rule
 
-- **Smaller:** the target window narrows to 240 px, centred under where the boss bar sits. The boss bar keeps its 420 px, so the two never look alike.
+- **Smaller:** the target window narrows to 240 px at the top centre. The boss bar is in the right column at 180 px, so the two never look alike.
   - Its header drops to 12 px text.
   - Its HP bar is 8 px tall, with its numbers in 11 px.
   - Its padding is 5 px by 8 px.
@@ -326,10 +326,10 @@ Revised on 2026-11-17. The user: "the lockin window should show basic stats like
 
 ### Testing
 
-- The target window is 240 px and the boss bar 420 px.
+- The target window is 240 px at the top centre and the boss bar 180 px in the right column.
 - Each stat, its value, and its full name in the tooltip and label.
 - ATK is named Physical or Magic by the mob's damage type.
-- The window shows for the field boss, under the boss bar.
+- The window shows for the field boss, at the top centre; the boss bar is in the right column.
 - **Live:** the target window and the boss bar can't be mistaken for each other, and the stats read at 11 px over every map.
 
 ### Build

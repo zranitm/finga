@@ -63,7 +63,7 @@ describe('match frames', () => {
       );
   });
 
-  it('in 3v3 show the teammates in the party frames’ place and the enemies under the bar, each with its HP, statuses and BOT tag, dimmed while down', () => {
+  it('in 3v3 show the teammates in the party frames’ place and the enemies in the right column, each with its HP, statuses and BOT tag, dimmed while down', () => {
     render(
       <>
         <PartyPanel />
@@ -155,7 +155,7 @@ describe('match frames', () => {
     }
   });
 
-  it('in 1v1 show none: the bar names the enemy, and there are no teammates', () => {
+  it('in 1v1 show the one enemy and no teammates', () => {
     render(
       <>
         <TeamFrames />
@@ -178,7 +178,9 @@ describe('match frames', () => {
       ),
     );
     show({ 'c-ash': live(100) });
-    expect(screen.queryByRole('group', { name: 'Enemies' })).not.toBeInTheDocument();
+    const foes = screen.getByRole('group', { name: 'Enemies' });
+    expect(within(foes).getAllByRole('group')).toHaveLength(1);
+    expect(screen.getByRole('group', { name: 'Enemy Ash' })).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Teammates' })).not.toBeInTheDocument();
   });
 });

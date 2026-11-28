@@ -9,7 +9,6 @@ import { statuses } from '@/state/statuses';
 import { target } from '@/state/target';
 import type { PlayerTarget } from '@/state/target';
 
-import { BossBar } from './BossBar';
 import { UnitFrame } from './UnitFrame';
 
 /** The lock, while there is one: a mob's HP as drawn over its kind's, and its kind's stats; a player's own. */
@@ -91,12 +90,11 @@ function Stats({ mob }: { readonly mob: MobType }) {
   );
 }
 
-/** The bars at the top centre: a match's or the field boss's, then the target window under it. */
+/** The top centre: the match bar, then the target window under it. */
 export function TopBars({ children }: { readonly children?: ReactNode }) {
   return (
     <div className="top-bars">
       {children}
-      <BossBar />
       <TargetFrame />
     </div>
   );

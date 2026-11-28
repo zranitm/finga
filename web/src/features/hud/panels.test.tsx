@@ -17,6 +17,7 @@ import { party } from '@/state/party';
 import { target } from '@/state/target';
 import { resetStores } from '@/testing/reset-stores';
 
+import { BossBar } from './BossBar';
 import { Hud } from './Hud';
 import { PartyPanel } from './PartyPanel';
 import { TopBars } from './TargetFrame';
@@ -70,6 +71,7 @@ describe('the HUD’s panels', () => {
       <>
         <Hud />
         <PartyPanel />
+        <BossBar />
         <TopBars />
       </>,
     );

@@ -8,7 +8,7 @@ The screens players see and the keys they use. This is the input for the design 
 | --- | --- | --- |
 | **Sign up and log in** | Create an account, log in | P0 |
 | **Character creation** | Pick a name; every character starts as a Beginner | P0 |
-| **Game view and HUD** | Play: the map, seen from above, looking north at a fixed angle, the camera easing after the player; HP and EXP bars, the energy pips, and level at the top left; the field boss's bar and, smaller under it, the locked mob's target window with its stats, at the top centre (C15). The player's frame, the party's, and the target window share one look: a green edge and dot for the player and allies, a red edge and ✕ for enemies, and the unit's statuses as icons under its HP bar (C19), with, on the player's own frame, their buffs before them and the cooldowns of the follow-ups no key shows after (C22), and a walk icon first while walk mode is on (B11); Back to characters and the party panel at the top right; the chat at the bottom left (see [Chat](#chat)); the minimap at the bottom right (B8); currency from P1 | P0 |
+| **Game view and HUD** | Play: the map, seen from above, looking north at a fixed angle, the camera easing after the player; HP and EXP bars, the energy pips, and level at the top left; the locked mob's target window with its stats, at the top centre, under the match bar in a match (C15), and the field boss's bar at the top right under the buttons, with the enemies' frames in a match. The player's frame, the party's, and the target window share one look: a green edge and dot for the player and allies, a red edge and ✕ for enemies, and the unit's statuses as icons under its HP bar (C19), with, on the player's own frame, their buffs before them and the cooldowns of the follow-ups no key shows after (C22), and a walk icon first while walk mode is on (B11); Back to characters at the top right, and the party panel under the HUD at the left; the chat at the bottom left (see [Chat](#chat)); the minimap at the bottom right (B8); currency from P1 | P0 |
 | **Inventory** | See items by tab; drink potions; discard them, one at a time or several at once; preview an outfit item or add it to the wardrobe (D8) | P0 |
 | **Party window** | Invite, accept, leave, kick, hand over leadership | P0 |
 | **Marketplace** | Browse and search, buy, list an item, manage my listings | P1 |
@@ -25,7 +25,7 @@ The screens players see and the keys they use. This is the input for the design 
 | **Skill bar** | Assign skills to keys; each key shows the skill's icon, its energy cost, and a sweep with the seconds left while it cools down (C16), and a small diamond when the skill uses its extra trait (C20) | P1 |
 | **NPC dialog** | Talk to an NPC: promotions, quests to take and hand in, later shops | P1 |
 | **Quest log** | See active quests and their progress; abandon one | P1 |
-| **Arena window** | V: queue for 1v1, 3v3 or 15v15 and see each mode's rating, rank and record; the 1v1 and 3v3 leaderboards (I1, I4). In a match, the match bar at the top centre shows rounds or scores and the time | P1 |
+| **Arena window** | V: queue for 1v1, 3v3 or 15v15 and see each mode's rating, rank and record; the 1v1 and 3v3 leaderboards (I1, I4). In a match, the match bar at the top centre shows rounds or scores and the time, and each enemy has a frame at the right | P1 |
 
 ## Chat
 

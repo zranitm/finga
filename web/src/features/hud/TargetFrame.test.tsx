@@ -19,6 +19,17 @@ describe('TargetFrame', () => {
     resetStores();
   });
 
+  it('leaves the field boss’s bar to the right column: the top centre never renders it', () => {
+    render(<TopBars />);
+    act(() => {
+      fieldBoss
+        .getState()
+        .applyFieldBoss(create(FieldBossSchema, { mobId: 9, type: 'king_slime' }));
+      fieldBoss.getState().setHp({ hp: 3100, maxHp: 4260 });
+    });
+    expect(screen.queryByRole('group', { name: 'Field boss' })).not.toBeInTheDocument();
+  });
+
   it('shows the locked mob’s statuses under its HP', () => {
     render(<TopBars />);
     const now = performance.now();
@@ -97,8 +108,8 @@ describe('TargetFrame', () => {
     expect(within(frame).getByText('BOT')).toBeInTheDocument();
   });
 
-  it('shows for the field boss too, under its bar, as for any other mob', () => {
-    render(<TopBars />);
+  it('shows for the field boss too, alone at the top centre, as for any other mob', () => {
+    const { container } = render(<TopBars />);
     act(() => {
       fieldBoss
         .getState()
@@ -106,15 +117,9 @@ describe('TargetFrame', () => {
       fieldBoss.getState().setHp({ hp: 3100, maxHp: 4260 });
       target.getState().show({ kind: 'mob', ref: 'm:9', type: 'king_slime', hp: 3100 });
     });
-    const bars = screen.getByLabelText('Field boss').parentElement!;
-    expect([bars.className, [...bars.children].map((e) => e.getAttribute('aria-label'))]).toEqual([
-      'top-bars',
-      ['Field boss', 'Target: King Slime, enemy'],
-    ]);
-    act(() => target.getState().show({ kind: 'mob', ref: 'm:4', type: 'green_slime', hp: 34 }));
+    const bars = container.querySelector('.top-bars')!;
     expect([...bars.children].map((e) => e.getAttribute('aria-label'))).toEqual([
-      'Field boss',
-      'Target: Green Slime, enemy',
+      'Target: King Slime, enemy',
     ]);
   });
 
@@ -172,13 +177,9 @@ describe('TargetFrame', () => {
     });
 
     // jsdom lays nothing out, so these check the rules the browser draws by.
-    it('is compact and 240 px wide, centred under the boss bar’s 420, with a thin HP bar and its numbers over it', () => {
+    it('is compact and 240 px wide, centred in the top bars’ 420, with a thin HP bar and its numbers over it', () => {
       render(<TopBars />);
       act(() => {
-        fieldBoss
-          .getState()
-          .applyFieldBoss(create(FieldBossSchema, { mobId: 9, type: 'king_slime' }));
-        fieldBoss.getState().setHp({ hp: 3100, maxHp: 4260 });
         target.getState().show({ kind: 'mob', ref: 'm:4', type: 'green_slime', hp: 34 });
       });
       const frame = screen.getByRole('group', { name: 'Target: Green Slime, enemy' });
@@ -190,7 +191,6 @@ describe('TargetFrame', () => {
         fontSize: '12px',
       });
       expect(getComputedStyle(frame.parentElement!).width).toContain('420px');
-      expect(getComputedStyle(screen.getByLabelText('Field boss')).width).not.toBe('240px');
       const bar = within(frame).getByRole('meter');
       expect(getComputedStyle(bar).height).toBe('8px');
       expect(getComputedStyle(bar.querySelector('.bar-text')!).fontSize).toBe('11px');
