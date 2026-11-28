@@ -254,3 +254,33 @@ func TestAPlaceBelowKeepsItsOwn(t *testing.T) {
 		}
 	})
 }
+
+// A join that has to open a channel, a character saved in a place below, can come before Run does, as a player's can just after a boot: it waits in the channel's inbox and lands once Run starts it, rather than being refused as stopped.
+func TestAJoinToAPlaceBelowBeforeRunLandsOnceRunStarts(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := belowData(t)
+		w := newWorldOn(t, data, &fakeSaver{}, worldtest.Options{CheckpointInterval: time.Hour})
+		place, _ := data.Map("test_hollow")
+		p, s := worldtest.NewPlayer("Ayla", place.PlayerSpawn.X, place.PlayerSpawn.Z), &worldtest.Sink{}
+		landed := make(chan error, 1)
+		go func() { landed <- w.join(p, "test_hollow", "c-Ayla", s) }()
+		synctest.Wait()
+		select {
+		case err := <-landed:
+			t.Fatalf("joined before Run: %v", err)
+		default:
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
+		go func() { defer close(done); _ = w.Run(ctx) }()
+		synctest.Wait()
+		if err := <-landed; err != nil {
+			t.Fatalf("the join that came before Run: %v", err)
+		}
+		if channelOf(t, s) != 1 || w.Opened("test_hollow/1") == nil {
+			t.Fatalf("landed on channel %d; want the hollow's first, opened by Run", channelOf(t, s))
+		}
+		cancel()
+		<-done
+	})
+}
