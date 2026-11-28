@@ -546,6 +546,7 @@ Built with step 1, which says who watches a cell.
 - **Shown:**
   - Each switch gives a notice, "Walk" or "Sprint".
   - While walk mode is on, a walk icon from game-icons.net (credited as C16's are) comes first in the player's own frame row (frame-icons.md). Its hover reads "Walk mode: no sprint. <key> to switch."
+  - A player who enters the world with walk mode saved gets one info notice with the same words, once the account's settings are read; not on a map change, a teleport or a reconnect, and nothing when the saved mode is sprint.
 - **As built:**
   - **The first sub-step:** walk mode stops a sprint on the switch's own sub-step, as combat does, so `sprinting` reads `Input.Walk` as well as the count.
   - **A hold** keeps the mode in the input itself: `Input{Walk: in.Walk}`.

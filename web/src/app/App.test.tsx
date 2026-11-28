@@ -1,5 +1,5 @@
 import { create } from '@bufbuild/protobuf';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Arrival } from '@/game/systems/arrival';
@@ -30,6 +30,7 @@ import { skillBar } from '@/state/skill-bar';
 import { statuses } from '@/state/statuses';
 import { target } from '@/state/target';
 import { teleport } from '@/state/teleport';
+import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 import { wardrobe } from '@/state/wardrobe';
 import { fakeFetch, sampleCharacter } from '@/testing/fake-fetch';
@@ -364,6 +365,35 @@ describe('App', () => {
     ws.open();
     ws.push('welcome', welcome);
     expect(await screen.findByRole('button', { name: 'Too fast. Wait a moment.' })).toBeVisible();
+  });
+
+  it('a player entering with walk mode saved is told once that walk mode is on, and with sprint saved is told nothing', async () => {
+    const enter = async (walk: boolean) => {
+      fetching(({ path }) => {
+        if (path === '/api/sessions') return { status: 201, body: { token: 'tok-1' } };
+        if (path === '/api/settings') return { status: 200, body: { walk } };
+        return { status: 200, body: { characters: [sampleCharacter] } };
+      });
+      render(<App />);
+      await logIn();
+      await user.click(await screen.findByRole('button', { name: 'Play' }));
+      const ws = FakeWebSocket.latest();
+      ws.open();
+      ws.push('welcome', welcome);
+      expect(await screen.findByLabelText('Status')).toHaveTextContent('Ayla');
+    };
+    await enter(false);
+    await act(() => Promise.resolve());
+    expect(screen.queryByRole('button', { name: /Walk mode: no sprint/ })).toBeNull();
+    cleanup();
+    resetStores();
+    await enter(true);
+    expect(await screen.findAllByRole('button', { name: /Walk mode: no sprint/ })).toHaveLength(1);
+    act(() => toasts.getState().clear()); // dismissed, it is not told again when the screen is drawn again
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await user.keyboard('{Escape}');
+    await act(() => Promise.resolve());
+    expect(screen.queryAllByRole('button', { name: /Walk mode: no sprint/ })).toHaveLength(0);
   });
 
   it('a zoom changed in the world is saved as the account’s, at the latest as the player leaves', async () => {

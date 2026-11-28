@@ -1,14 +1,17 @@
 // The account's settings: read after login, and saved whole on each change, from whichever screen makes it; a read waits for the saves before it, and a setting changed while it was out keeps its change.
+import { keyOf, keyTable } from '@/input/bindings';
 import { saveQueue } from '@/lib/save-queue';
 import type { SaveQueue } from '@/lib/save-queue';
 import { RestError } from '@/net/rest';
 import type { RestClient } from '@/net/rest';
+import { keyboardLayout } from '@/state/keyboard-layout';
 import { settings } from '@/state/settings';
 import type { SettingsState } from '@/state/settings';
 
 /** The queues of settings saves on screen, and the saves under way, which a read lets land first. */
 const queues = new Set<SaveQueue>();
 const sending = new Set<Promise<unknown>>();
+let reading: Promise<void> = Promise.resolve(); // the read under way, which an entry's notice waits for
 
 /** Tells reads of a queue saving the settings, till the returned stop: they save its change waiting at once and wait for it. */
 export function holdReadsFor(queue: SaveQueue): () => void {
@@ -17,7 +20,12 @@ export function holdReadsFor(queue: SaveQueue): () => void {
 }
 
 /** The account's saved settings win over the local ones once they arrive; until then, every flag off, the minimap on, the camera close, sprint mode and this browser's last keys stay in force. A change still waiting is saved first, so the read has it; a setting changed while the read is out keeps its change, and the read sets the rest. */
-export async function loadSettings(rest: Pick<RestClient, 'getSettings'>): Promise<void> {
+export function loadSettings(rest: Pick<RestClient, 'getSettings'>): Promise<void> {
+  reading = readSettings(rest);
+  return reading;
+}
+
+async function readSettings(rest: Pick<RestClient, 'getSettings'>): Promise<void> {
   const before = settings.getState();
   for (const q of queues) {
     q.flush();
@@ -36,6 +44,25 @@ export async function loadSettings(rest: Pick<RestClient, 'getSettings'>): Promi
   } catch {
     // Kept as they are until the next try.
   }
+}
+
+/** What walk mode means, and the key that switches it: the walk tile's hover text and the notice on entering. */
+export function walkModeText(key: string): string {
+  return `Walk mode: no sprint. ${key} to switch.`;
+}
+
+/** Tells a player who entered with walk mode saved, once the account's settings are read, until the returned stop; nothing with sprint saved. */
+export function tellWalkMode(notice: (text: string) => void): () => void {
+  let live = true;
+  void reading.then(() => {
+    const s = settings.getState();
+    if (live && s.walk) {
+      notice(walkModeText(keyOf(keyTable(s.keys), 'walk', keyboardLayout.getState().printed)));
+    }
+  });
+  return () => {
+    live = false;
+  };
 }
 
 const PLAY_SAVE_MS = 800; // a turn of the wheel, or a run of switches, settles before its save

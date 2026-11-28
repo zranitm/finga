@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react';
 
 import { Sweep } from '@/components/SkillIcon';
 import { hudIcons } from '@/features/shared/hudIcons';
+import { walkModeText } from '@/features/shared/settings';
 import { useKeys } from '@/features/shared/useKeys';
 import { conditionText } from '@/progression/chains';
 import { colorOf, pointsIn, skillById, stageAt } from '@/progression/skills';
@@ -116,7 +117,7 @@ const WALK_STYLE = {
 function WalkTile() {
   const keys = useKeys();
   return (
-    <li title={`Walk mode: no sprint. ${keys.name('walk')} to switch.`} aria-label="Walk mode">
+    <li title={walkModeText(keys.name('walk'))} aria-label="Walk mode">
       <span
         className="skill-icon skill-icon-status frame-icon-walk"
         style={WALK_STYLE}

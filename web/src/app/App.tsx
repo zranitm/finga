@@ -30,7 +30,7 @@ import { QueueTag } from '@/features/pvp/QueueTag';
 import { watchPvpProfile } from '@/features/pvp/watchProfile';
 import { QuestLog } from '@/features/quests/QuestLog';
 import { SettingsPanel } from '@/features/settings/SettingsPanel';
-import { loadSettings, watchPlaySettings } from '@/features/shared/settings';
+import { loadSettings, tellWalkMode, watchPlaySettings } from '@/features/shared/settings';
 import { watchArenaBuild } from '@/features/skills/saveArenaBuild';
 import { watchSkillBar } from '@/features/skills/saveSkillBar';
 import { SkillWindow } from '@/features/skills/SkillWindow';
@@ -219,6 +219,10 @@ function WorldOverlay({
   // The pieces as a character enters, for the inventory's Add; one that fails leaves the server to refuse a piece added twice.
   useEffect(() => (me === '' ? undefined : loadWardrobe(rest, () => undefined)), [rest, me]);
   useEffect(() => watchPlaySettings(rest, (text) => toasts.getState().push(text)), [rest]);
+  useEffect(
+    () => (me === '' ? undefined : tellWalkMode((text) => toasts.getState().push(text, 'info'))),
+    [me],
+  ); // once per entry: not on a map change, a teleport or a reconnect
   // Any call a rate limit refused says so, whether its caller tells its own failures or keeps quiet.
   useEffect(
     () => rest.onLimited(() => toasts.getState().push(errorText(ERR.RATE_LIMITED))),
