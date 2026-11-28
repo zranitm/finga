@@ -587,7 +587,7 @@ func TestAnOwnerWhoLeftStillGetsWhatTheyTook(t *testing.T) {
 					t.Fatal("no call in flight")
 				}
 				if leave == "portal" {
-					_ = inst.EnterPortal(context.Background(), p.ID, 0)
+					_ = answered(func() error { return inst.EnterPortal(context.Background(), p.ID, 0) }) // pressed once, not waited on, as the client does
 				} else {
 					_ = inst.Leave(p.ID, "", nil)
 				}

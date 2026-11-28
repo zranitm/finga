@@ -632,7 +632,7 @@ func TestAQuestChangeInThePortalsTickReachesThePlayer(t *testing.T) {
 		done := make(chan error, 1)
 		go func() { done <- inst.AbandonQuest(context.Background(), p.ID, "c1", "slime_cleanup") }()
 		synctest.Wait()
-		_ = inst.EnterPortal(context.Background(), p.ID, 0)
+		_ = answered(func() error { return inst.EnterPortal(context.Background(), p.ID, 0) }) // pressed once, not waited on, as the client does
 		tick(1)
 		if err := <-done; err != nil {
 			t.Fatal(err)

@@ -433,7 +433,7 @@ func (i *Instance) drain() {
 		case settleMsg:
 			i.settle(i.ground.Settle(m.result))
 		case portalMsg:
-			i.atSeq(m.id, m.seq, func() { m.done <- i.pressPortal(m.id) }, func(err error) { m.done <- err })
+			i.atSeq(m.id, m.seq, func() { i.pressPortal(m.id, m.done) }, func(err error) { m.done <- err })
 		case equipMsg:
 			if !i.refused(m.done) {
 				i.startEquip(m)

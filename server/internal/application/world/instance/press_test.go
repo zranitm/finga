@@ -108,8 +108,8 @@ func TestAPortalPressHeldToItsInputStillWaitsForAnItemCall(t *testing.T) {
 		ahead(inst, p.ID, 3)
 		done := answered(func() error { return inst.EnterPortal(context.Background(), p.ID, 3) })
 		tick(3)
-		if err := <-done; err != nil || moved(tr) != 0 {
-			t.Fatalf("the press: %v, moved %d; want it taken in, and the player kept for the equip", err, moved(tr))
+		if !pending(done) || moved(tr) != 0 {
+			t.Fatalf("answered, or moved %d, while the equip is out; want the press waiting for it", moved(tr))
 		}
 		close(eq.gate)
 		tick(1)
@@ -117,6 +117,9 @@ func TestAPortalPressHeldToItsInputStillWaitsForAnItemCall(t *testing.T) {
 			t.Fatal(err)
 		}
 		tick(2)
+		if err := <-done; err != nil {
+			t.Fatalf("the press, once the equip settled: %v", err)
+		}
 		tr.mu.Lock()
 		defer tr.mu.Unlock()
 		if len(tr.moved) != 1 || !reflect.DeepEqual(tr.moved[0].Worn, sword().Worn) {
@@ -180,6 +183,58 @@ func TestAPressForAnInputThatNeverComesIsJudgedAnyway(t *testing.T) {
 		tick(1)
 		if err := <-left; err == nil {
 			t.Fatal("a press held for a player who left was taken")
+		}
+	})
+}
+
+// A portal press that waits for an item call in flight is answered when it is judged once the call settles: a player who has walked out of the ring meanwhile is told there is no gate, not given an ok that comes to nothing; and one who leaves the map first is answered too.
+func TestAPortalPressHeldForAnItemCallIsAnsweredWhenJudged(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		eq := &fakeEquipment{answer: sword(), gate: make(chan struct{})}
+		tr := &transferRecorder{}
+		inst, stop := worldtest.RunMap(t, worldtest.LoadData(t), gateArena(t), nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t), Transfer: tr})
+		defer stop()
+		tick(1)
+		p := worldtest.NewPlayer("Ayla", arenaX, 21) // inside the 1.6 m ring
+		p.Connection = "c1"
+		s := join(t, inst, p)
+		tick(25)
+		equipped := equipAsync(inst, p.ID, "c1")
+		tick(1)
+		done := answered(func() error { return inst.EnterPortal(context.Background(), p.ID, 0) })
+		tick(2)
+		if !pending(done) {
+			t.Fatal("answered with the equip still out")
+		}
+		walked := worldtest.Walk(inst, p.ID, 0, sim.Input{Down: true}, 12) // out of the ring, backwards from the portal
+		_ = worldtest.Walk(inst, p.ID, walked, sim.Input{}, 1)
+		if v, _ := s.Own(p.ID); v.State.Z > 21-1.5+1e-9 && v.State.Z > 19.5 {
+			t.Fatalf("still in the ring at %+v", v.State)
+		}
+		close(eq.gate)
+		tick(1)
+		if err := <-equipped; err != nil {
+			t.Fatal(err)
+		}
+		tick(2)
+		if err := <-done; !errors.Is(err, model.ErrNotAtAGate) || moved(tr) != 0 {
+			t.Fatalf("the press once the equip settled: %v, moved %d; want ErrNotAtAGate", err, moved(tr))
+		}
+
+		eq.gate = make(chan struct{})
+		equipped = equipAsync(inst, p.ID, "c1")
+		tick(1)
+		left := answered(func() error { return inst.EnterPortal(context.Background(), p.ID, 0) })
+		tick(1)
+		_ = inst.Leave(p.ID, "c1", nil)
+		tick(1)
+		if err := <-left; err == nil {
+			t.Fatal("a press held for a player who left was answered ok")
+		}
+		close(eq.gate)
+		tick(1)
+		if err := <-equipped; err != nil {
+			t.Fatal(err)
 		}
 	})
 }
