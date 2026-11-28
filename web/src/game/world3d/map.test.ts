@@ -254,7 +254,7 @@ describe('standsIn', () => {
     const trail = await loadMap('frost_trail');
     const p = trail.portals[0]!;
     expect(standsIn({ x: p.x, y: groundUnder(trail, p.x, p.z), z: p.z }, trail)?.to).toBe(
-      'icefall',
+      'crossroads',
     );
   });
 

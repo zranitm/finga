@@ -431,10 +431,18 @@ let swept: {
   readonly seen: readonly Seen[];
 }[] = [];
 
+/** The land maps the test data keeps (the shipped data has none), whose JSON the web tests keep: the sweeps still run on a land map's banks and mesas. */
+const LAND = ['crossroads', 'frost_trail', 'icefall'];
+/** The mobs of the two land maps that have any, as their spawns name them in the test data. */
+const LAND_MOBS: Readonly<Record<string, readonly string[]>> = {
+  frost_trail: ['frost_slime', 'snow_weasel'],
+  icefall: ['icewing', 'glacier_snail'],
+};
+
 beforeAll(async () => {
   servePublic();
   swept = [];
-  for (const { id } of maps) {
+  for (const id of [...maps.map((m) => m.id), ...LAND]) {
     const map = await loadMap(id);
     if (map.geometry.size_x > 512) {
       continue; // a shipped region's 1 km of ground: a sweep costs tens of seconds under coverage, and test_region and the small maps run the same code
@@ -613,9 +621,9 @@ describe('the cut-away round the player', () => {
         }
       }
     }
-    expect(hidden.length).toBeGreaterThan(300); // the foot of the south bank of each land map swept (the crossroads, the frost trail and the rest the data still has), its portal notches and its mesas; 323 on the maps swept now, over 700 with the six the desert retired
+    expect(hidden.length).toBeGreaterThan(60); // the foot of the south bank of each land map swept: 64 on the test data's three (the shipped regions add none), over 700 with the ten the regions retired
     expect(shut).toEqual([]);
-    expect(crossed).toBeGreaterThan(495); // 522 on the maps swept now, over 1,100 with the six the desert retired
+    expect(crossed).toBeGreaterThan(91); // 96 on the test data's three land maps, over 1,100 with the ten the regions retired
     expect(whole).toEqual([]);
     expect(floor).toEqual([]);
   });
@@ -635,8 +643,12 @@ describe('the cut-away round the player', () => {
     const floor: string[] = [];
     for (const { id, map, ground, spots, seen: all } of swept) {
       const t = map.geometry.terrain;
-      const kinds = (maps.find((m) => m.id === id)?.spawns ?? []).flatMap((s) => {
-        const m = mobById(s.mob);
+      const kinds = (
+        maps.find((m) => m.id === id)?.spawns.map((s) => s.mob) ??
+        LAND_MOBS[id] ??
+        []
+      ).flatMap((mobId) => {
+        const m = mobById(mobId);
         return m && !m.boss ? [m] : [];
       });
       if (kinds.length === 0) {
@@ -760,9 +772,9 @@ describe('the cut-away round the player', () => {
         }
       }
     }
-    expect(near).toBeGreaterThan(190); // 208 on the maps swept now, over 450 with the six the desert retired
+    expect(near).toBeGreaterThan(53); // 56 on the test data's three land maps, over 450 with the ten the regions retired
     expect(hidden.length / near).toBeLessThan(0.02); // a dune under 1.5 m over a mob's feet may still cover its bottom
-    expect(crossed).toBeGreaterThan(3550); // 3,737 on the maps swept now, over 8,500 with the six the desert retired
+    expect(crossed).toBeGreaterThan(742); // 782 on the test data's three land maps, over 8,500 with the ten the regions retired
     expect(whole).toEqual([]);
     expect(floor).toEqual([]);
   });

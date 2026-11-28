@@ -3288,7 +3288,7 @@ describe('World', () => {
           members: [
             { characterId: ME, name: 'Ayla', mapId: FLAT, online: true },
             { characterId: 'c-robin', name: 'Robin', mapId: FLAT, online: true },
-            { characterId: 'c-jade', name: 'Jade', mapId: SUN, online: true },
+            { characterId: 'c-jade', name: 'Jade', mapId: WIDE, online: true },
           ],
         }),
       }),
@@ -3341,7 +3341,7 @@ describe('World', () => {
           members: [
             { characterId: ME, name: 'Ayla', mapId: REGIONED, online: true },
             { characterId: 'c-robin', name: 'Robin', ...robin },
-            { characterId: 'c-jade', name: 'Jade', mapId: SUN, online: true },
+            { characterId: 'c-jade', name: 'Jade', mapId: WIDE, online: true },
           ],
         }),
       });
@@ -4363,7 +4363,7 @@ describe('World', () => {
             members: [
               { characterId: ME, name: 'Ayla', mapId: FLAT, online: true },
               { characterId: 'c-robin', name: 'Robin', mapId: FLAT, online: true },
-              { characterId: 'c-jade', name: 'Jade', mapId: SUN, online: true },
+              { characterId: 'c-jade', name: 'Jade', mapId: WIDE, online: true },
             ],
           }),
         }),
